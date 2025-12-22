@@ -1,4 +1,4 @@
-# EVO UDS - Deploy Completo ✅
+# EVO UDS - Deploy Completo v3 ✅
 
 ## URLs de Produção
 
@@ -7,86 +7,47 @@
 | **Frontend** | https://evo.ai.udstec.io |
 | **API** | https://api-evo.ai.udstec.io |
 
-## Recursos AWS Criados
+## Credenciais de Acesso
 
-### Stack: `evo-uds-v2`
+- **Email**: `admin@udstec.io`
+- **Senha**: `EvoAdmin@2025`
+
+## Recursos AWS (Stack: evo-uds-v3)
 
 | Recurso | Identificador |
 |---------|---------------|
-| **Cognito User Pool** | `us-east-1_QY2yorzh9` |
-| **Cognito Client ID** | `5l4qo9ncvqucu5av781v24fa6k` |
-| **API Gateway** | `ebmmhm7k4e` |
-| **CloudFront** | `E1EUAOLY8ZG2JO` |
-| **S3 Frontend** | `evo-uds-v2-production-frontend-383234048592` |
-| **DynamoDB Organizations** | `evo-uds-v2-production-organizations` |
-| **DynamoDB Profiles** | `evo-uds-v2-production-profiles` |
-| **DynamoDB Sessions** | `evo-uds-v2-production-sessions` |
+| **Cognito User Pool** | `us-east-1_qGmGkvmpL` |
+| **Cognito Client ID** | `1pa9qjk1nqve664crea9bclpo4` |
+| **API Gateway** | `3l66kn0eaj` |
+| **CloudFront** | `E1PY7U3VNT6P1R` |
+| **S3 Frontend** | `evo-uds-v3-production-frontend-383234048592` |
+| **DynamoDB Organizations** | `evo-uds-v3-production-organizations` |
+| **DynamoDB Profiles** | `evo-uds-v3-production-profiles` |
 
 ## Endpoints da API
 
-| Endpoint | Método | Auth | Descrição |
-|----------|--------|------|-----------|
-| `/health` | GET | Não | Health check |
-| `/organizations/check` | POST | Não | Verificar se slug existe |
-| `/organizations` | POST | Cognito | Criar organização |
-| `/profiles/{user_id}` | GET | Cognito | Obter perfil do usuário |
+| Endpoint | Método | Descrição |
+|----------|--------|-----------|
+| `/api/health` | GET | Health check |
+| `/api/profiles/check` | POST | Verificar se usuário tem organização |
+| `/api/profiles/create-with-org` | POST | Criar perfil com organização |
 
-## Variáveis de Ambiente (Frontend)
+## Variáveis de Ambiente
 
 ```env
 VITE_AWS_REGION=us-east-1
-VITE_AWS_USER_POOL_ID=us-east-1_QY2yorzh9
-VITE_AWS_USER_POOL_CLIENT_ID=5l4qo9ncvqucu5av781v24fa6k
+VITE_AWS_USER_POOL_ID=us-east-1_qGmGkvmpL
+VITE_AWS_USER_POOL_CLIENT_ID=1pa9qjk1nqve664crea9bclpo4
 VITE_API_BASE_URL=https://api-evo.ai.udstec.io
-VITE_CLOUDFRONT_DOMAIN=evo.ai.udstec.io
 ```
 
-## Comandos Úteis
+## Comandos de Deploy
 
 ```bash
-# Deploy do frontend
+# Build e deploy do frontend
 npm run build
-aws s3 sync dist/ s3://evo-uds-v2-production-frontend-383234048592 --delete
-aws cloudfront create-invalidation --distribution-id E1EUAOLY8ZG2JO --paths "/*"
-
-# Ver logs das Lambdas
-aws logs tail /aws/lambda/evo-uds-v2-production-health --follow
-aws logs tail /aws/lambda/evo-uds-v2-production-check-org --follow
-
-# Deletar stack (se necessário)
-aws cloudformation delete-stack --stack-name evo-uds-v2
+aws s3 sync dist/ s3://evo-uds-v3-production-frontend-383234048592 --delete
+aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"
 ```
 
-## Arquitetura
-
-```
-                    ┌─────────────────┐
-                    │   Route53 DNS   │
-                    │  ai.udstec.io   │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              │                             │
-    ┌─────────▼─────────┐       ┌──────────▼──────────┐
-    │    CloudFront     │       │    API Gateway      │
-    │ evo.ai.udstec.io  │       │ api-evo.ai.udstec.io│
-    └─────────┬─────────┘       └──────────┬──────────┘
-              │                            │
-    ┌─────────▼─────────┐       ┌──────────▼──────────┐
-    │    S3 Bucket      │       │   Lambda Functions  │
-    │    (Frontend)     │       │   (Python 3.12)     │
-    └───────────────────┘       └──────────┬──────────┘
-                                           │
-                        ┌──────────────────┼──────────────────┐
-                        │                  │                  │
-              ┌─────────▼─────┐  ┌─────────▼─────┐  ┌────────▼────────┐
-              │   DynamoDB    │  │   DynamoDB    │  │     Cognito     │
-              │ Organizations │  │   Profiles    │  │   User Pool     │
-              └───────────────┘  └───────────────┘  └─────────────────┘
-```
-
-## Data do Deploy
-
-- **Data**: 22/12/2025
-- **CloudFormation Stack**: `evo-uds-v2`
-- **Status**: ✅ CREATE_COMPLETE
+## Data: 22/12/2025
