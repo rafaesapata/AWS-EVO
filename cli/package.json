@@ -1,0 +1,29 @@
+{
+  "name": "evo-cli",
+  "version": "2.0.0",
+  "description": "EVO UDS Command Line Interface (AWS)",
+  "type": "module",
+  "main": "dist/evo-cli.js",
+  "bin": {
+    "evo-cli": "./dist/evo-cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx evo-cli.ts",
+    "dev": "tsx watch evo-cli.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.400.0",
+    "@aws-sdk/client-lambda": "^3.400.0",
+    "@aws-sdk/credential-providers": "^3.400.0",
+    "commander": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

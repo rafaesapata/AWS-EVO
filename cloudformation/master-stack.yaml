@@ -1,0 +1,369 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO UDS - Master Stack - Complete Infrastructure Deployment'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - Environment
+          - ProjectName
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VpcCIDR
+          - PublicSubnet1CIDR
+          - PublicSubnet2CIDR
+          - PrivateSubnet1CIDR
+          - PrivateSubnet2CIDR
+      - Label:
+          default: "Database Configuration"
+        Parameters:
+          - DBInstanceClass
+          - DBAllocatedStorage
+          - DBName
+      - Label:
+          default: "Domain Configuration"
+        Parameters:
+          - DomainName
+          - CertificateArn
+      - Label:
+          default: "Cognito Configuration"
+        Parameters:
+          - AdminEmail
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - development
+      - staging
+      - production
+    Description: Environment name
+
+  ProjectName:
+    Type: String
+    Default: evo-uds
+    Description: Project name for resource naming
+
+  VpcCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block for VPC
+
+  PublicSubnet1CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: CIDR block for public subnet 1
+
+  PublicSubnet2CIDR:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: CIDR block for public subnet 2
+
+  PrivateSubnet1CIDR:
+    Type: String
+    Default: 10.0.11.0/24
+    Description: CIDR block for private subnet 1
+
+  PrivateSubnet2CIDR:
+    Type: String
+    Default: 10.0.12.0/24
+    Description: CIDR block for private subnet 2
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.t3.large
+    Description: RDS instance class
+
+  DBAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 1000
+    Description: Database storage in GB
+
+  DBName:
+    Type: String
+    Default: evouds
+    Description: Database name
+
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Custom domain name (optional)
+
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM certificate ARN for custom domain (optional)
+
+  AdminEmail:
+    Type: String
+    Description: Admin email for Cognito user pool
+    AllowedPattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref DomainName, '']]
+  IsProduction: !Equals [!Ref Environment, production]
+
+Resources:
+  # ============================================================================
+  # NETWORK STACK
+  # ============================================================================
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/network-stack.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        VpcCIDR: !Ref VpcCIDR
+        PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+        PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+        PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+        PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # DATABASE STACK
+  # ============================================================================
+  DatabaseStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkStack
+    Properties:
+      TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/database-stack.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        PrivateSubnet1Id: !GetAtt NetworkStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt NetworkStack.Outputs.PrivateSubnet2Id
+        DBInstanceClass: !Ref DBInstanceClass
+        DBAllocatedStorage: !Ref DBAllocatedStorage
+        DBName: !Ref DBName
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # DYNAMODB STACK
+  # ============================================================================
+  DynamoDBStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/dynamodb-stack.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # COGNITO STACK
+  # ============================================================================
+  CognitoStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/cognito-stack.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        AdminEmail: !Ref AdminEmail
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # LAMBDA STACK
+  # ============================================================================
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - NetworkStack
+      - DatabaseStack
+      - DynamoDBStack
+      - CognitoStack
+    Properties:
+      TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/lambda-stack.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        PrivateSubnet1Id: !GetAtt NetworkStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt NetworkStack.Outputs.PrivateSubnet2Id
+        DatabaseEndpoint: !GetAtt DatabaseStack.Outputs.DatabaseEndpoint
+        DatabaseSecretArn: !GetAtt DatabaseStack.Outputs.DatabaseSecretArn
+        UserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
+        UserPoolArn: !GetAtt CognitoStack.Outputs.UserPoolArn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # API GATEWAY STACK
+  # ============================================================================
+  ApiGatewayStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - LambdaStack
+      - CognitoStack
+    Properties:
+      TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/api-gateway-stack.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        UserPoolArn: !GetAtt CognitoStack.Outputs.UserPoolArn
+        LambdaExecutionRoleArn: !GetAtt LambdaStack.Outputs.LambdaExecutionRoleArn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # FRONTEND STACK (S3 + CloudFront)
+  # ============================================================================
+  FrontendStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ApiGatewayStack
+    Properties:
+      TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/frontend-stack.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        DomainName: !Ref DomainName
+        CertificateArn: !Ref CertificateArn
+        ApiGatewayUrl: !GetAtt ApiGatewayStack.Outputs.ApiUrl
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # MONITORING STACK
+  # ============================================================================
+  MonitoringStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - DatabaseStack
+      - LambdaStack
+      - ApiGatewayStack
+    Properties:
+      TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/monitoring-stack.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        DatabaseInstanceId: !GetAtt DatabaseStack.Outputs.DatabaseInstanceId
+        ApiGatewayId: !GetAtt ApiGatewayStack.Outputs.ApiId
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+Outputs:
+  # Network Outputs
+  VpcId:
+    Description: VPC ID
+    Value: !GetAtt NetworkStack.Outputs.VpcId
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-VpcId'
+
+  # Database Outputs
+  DatabaseEndpoint:
+    Description: RDS Database Endpoint
+    Value: !GetAtt DatabaseStack.Outputs.DatabaseEndpoint
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-DatabaseEndpoint'
+
+  DatabaseSecretArn:
+    Description: Database Secret ARN
+    Value: !GetAtt DatabaseStack.Outputs.DatabaseSecretArn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-DatabaseSecretArn'
+
+  # Cognito Outputs
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !GetAtt CognitoStack.Outputs.UserPoolId
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-UserPoolId'
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !GetAtt CognitoStack.Outputs.UserPoolClientId
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-UserPoolClientId'
+
+  # API Outputs
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !GetAtt ApiGatewayStack.Outputs.ApiUrl
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ApiUrl'
+
+  # Frontend Outputs
+  CloudFrontDomain:
+    Description: CloudFront Distribution Domain
+    Value: !GetAtt FrontendStack.Outputs.CloudFrontDomain
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-CloudFrontDomain'
+
+  FrontendBucket:
+    Description: S3 Frontend Bucket
+    Value: !GetAtt FrontendStack.Outputs.FrontendBucket
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-FrontendBucket'
+
+  # DynamoDB Outputs
+  OrganizationsTableName:
+    Description: DynamoDB Organizations Table
+    Value: !GetAtt DynamoDBStack.Outputs.OrganizationsTableName
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-OrganizationsTable'
+
+  ProfilesTableName:
+    Description: DynamoDB Profiles Table
+    Value: !GetAtt DynamoDBStack.Outputs.ProfilesTableName
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ProfilesTable'
+
+  # Summary
+  DeploymentSummary:
+    Description: Deployment Summary
+    Value: !Sub |
+      EVO UDS ${Environment} Environment Deployed Successfully!
+      
+      Frontend: https://${FrontendStack.Outputs.CloudFrontDomain}
+      API: ${ApiGatewayStack.Outputs.ApiUrl}
+      User Pool: ${CognitoStack.Outputs.UserPoolId}
+      Database: ${DatabaseStack.Outputs.DatabaseEndpoint}
+      
+      Next Steps:
+      1. Deploy frontend build to S3: ${FrontendStack.Outputs.FrontendBucket}
+      2. Deploy Lambda functions
+      3. Run database migrations
+      4. Create admin user in Cognito
+      5. Configure custom domain (if applicable)

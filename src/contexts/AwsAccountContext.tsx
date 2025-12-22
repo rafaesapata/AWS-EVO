@@ -1,0 +1,167 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '@/integrations/aws/api-client';
+import { useOrganization } from '@/hooks/useOrganization';
+import { ErrorHandler, ErrorFactory } from '@/lib/error-handler';
+import { useCacheInvalidation } from '@/lib/cache-invalidation';
+import { createQueryKey } from '@/hooks/useQueryCache';
+
+interface AwsAccount {
+  id: string;
+  account_name: string;
+  account_id: string | null;
+  regions: string[];
+  is_active: boolean;
+}
+
+interface AwsAccountContextType {
+  accounts: AwsAccount[];
+  selectedAccountId: string | null;
+  selectedAccount: AwsAccount | null;
+  setSelectedAccountId: (id: string | null) => void;
+  isLoading: boolean;
+  error: Error | null;
+  hasMultipleAccounts: boolean;
+  refreshAccounts: () => void;
+}
+
+// Default context for use outside provider (e.g., TV Dashboard mode)
+const defaultContext: AwsAccountContextType = {
+  accounts: [],
+  selectedAccountId: null,
+  selectedAccount: null,
+  setSelectedAccountId: () => {},
+  isLoading: false,
+  error: null,
+  hasMultipleAccounts: false,
+  refreshAccounts: () => {},
+};
+
+const AwsAccountContext = createContext<AwsAccountContextType>(defaultContext);
+
+const STORAGE_KEY = 'evo_selected_aws_account';
+
+export function AwsAccountProvider({ children }: { children: React.ReactNode }) {
+  const { data: organizationId, isLoading: orgLoading } = useOrganization();
+  const queryClient = useQueryClient();
+  const { invalidateByTrigger } = useCacheInvalidation();
+  const [selectedAccountId, setSelectedAccountIdState] = useState<string | null>(() => {
+    // Initialize from localStorage
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(STORAGE_KEY);
+    }
+    return null;
+  });
+
+  // Fetch all AWS accounts for the organization
+  const { data: accounts = [], isLoading: accountsLoading, error, refetch } = useQuery({
+    queryKey: createQueryKey.awsAccounts(organizationId || ''),
+    queryFn: async () => {
+      if (!organizationId) return [];
+      
+      try {
+        const result = await apiClient.select('aws_credentials', {
+          select: 'id, account_name, account_id, regions, is_active',
+          eq: { organization_id: organizationId, is_active: true },
+          order: { column: 'account_name', ascending: true }
+        });
+        
+        if (result.error) {
+          throw ErrorFactory.databaseError('fetch AWS accounts', result.error);
+        }
+        
+        return result.data as AwsAccount[];
+      } catch (err) {
+        const appError = ErrorHandler.handle(err, {
+          component: 'AwsAccountContext',
+          action: 'buscar contas AWS',
+          organizationId,
+        });
+        throw appError;
+      }
+    },
+    enabled: !!organizationId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    retry: (failureCount, error) => {
+      // Don't retry auth errors
+      if (error instanceof Error && error.message.includes('auth')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  // Auto-select first account if none selected or selected is invalid
+  useEffect(() => {
+    if (accounts.length > 0) {
+      const currentSelected = accounts.find(a => a.id === selectedAccountId);
+      if (!currentSelected) {
+        // Select first account if current selection is invalid
+        const firstAccount = accounts[0];
+        setSelectedAccountIdState(firstAccount.id);
+        localStorage.setItem(STORAGE_KEY, firstAccount.id);
+      }
+    } else if (accounts.length === 0 && !accountsLoading) {
+      // No accounts, clear selection
+      setSelectedAccountIdState(null);
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, [accounts, selectedAccountId, accountsLoading]);
+
+  const setSelectedAccountId = useCallback((id: string | null) => {
+    const previousAccountId = selectedAccountId;
+    
+    setSelectedAccountIdState(id);
+    if (id) {
+      localStorage.setItem(STORAGE_KEY, id);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+    
+    // Trigger intelligent cache invalidation when switching accounts
+    if (previousAccountId !== id && organizationId) {
+      invalidateByTrigger(['aws-accounts', organizationId], { 
+        accountChanged: true, 
+        previousAccountId, 
+        newAccountId: id 
+      });
+    }
+  }, [queryClient, selectedAccountId, organizationId, invalidateByTrigger]);
+
+  const selectedAccount = accounts.find(a => a.id === selectedAccountId) || null;
+  const hasMultipleAccounts = accounts.length > 1;
+
+  const value: AwsAccountContextType = {
+    accounts,
+    selectedAccountId,
+    selectedAccount,
+    setSelectedAccountId,
+    isLoading: orgLoading || accountsLoading,
+    error: error as Error | null,
+    hasMultipleAccounts,
+    refreshAccounts: refetch,
+  };
+
+  return (
+    <AwsAccountContext.Provider value={value}>
+      {children}
+    </AwsAccountContext.Provider>
+  );
+}
+
+export function useAwsAccount() {
+  const context = useContext(AwsAccountContext);
+  // Return default context if not within provider (e.g., TV Dashboard mode)
+  // This allows components to work safely in both authenticated and TV modes
+  return context;
+}
+
+// Hook for components that require an account to be selected
+export function useRequiredAwsAccount() {
+  const context = useAwsAccount();
+  if (!context.selectedAccountId && !context.isLoading && context.accounts.length > 0) {
+    throw new Error('No AWS account selected');
+  }
+  return context;
+}

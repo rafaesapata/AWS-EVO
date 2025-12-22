@@ -1,0 +1,872 @@
+// Schema Prisma baseado nas migrações Supabase
+// Este schema será usado para gerar o cliente Prisma para acesso ao RDS PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ORGANIZAÇÕES & MULTI-TENANT ====================
+
+model Organization {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  slug              String   @unique
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  // Relações
+  profiles          Profile[]
+  aws_credentials   AwsCredential[]
+  aws_accounts      AwsAccount[]
+  findings          Finding[]
+  security_scans    SecurityScan[]
+  background_jobs   BackgroundJob[]
+  licenses          License[]
+  kb_articles       KnowledgeBaseArticle[]
+  
+  @@map("organizations")
+}
+
+model Profile {
+  id                String   @id @default(uuid()) @db.Uuid
+  user_id           String   @db.Uuid
+  organization_id   String   @db.Uuid
+  full_name         String?
+  avatar_url        String?
+  role              String?  @default("user")
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  
+  @@unique([user_id, organization_id])
+  @@map("profiles")
+}
+
+// ==================== AWS CREDENTIALS & ACCOUNTS ====================
+
+model AwsCredential {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organization_id       String   @db.Uuid
+  account_id            String?
+  account_name          String?
+  access_key_id         String?
+  secret_access_key     String?
+  role_arn              String?
+  external_id           String?
+  session_token         String?
+  regions               String[]
+  is_active             Boolean  @default(true)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @updatedAt @db.Timestamptz(6)
+  
+  organization          Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  security_scans        SecurityScan[]
+  guardduty_findings    GuardDutyFinding[]
+  
+  @@map("aws_credentials")
+}
+
+model AwsAccount {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  account_id        String
+  account_name      String
+  email             String?
+  status            String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  
+  @@unique([organization_id, account_id])
+  @@map("aws_accounts")
+}
+
+// ==================== SECURITY & FINDINGS ====================
+
+model Finding {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String?  @db.Uuid
+  event_id          String?
+  event_name        String?
+  event_time        DateTime? @db.Timestamptz(6)
+  user_identity     Json?
+  severity          String
+  description       String
+  details           Json
+  ai_analysis       String?
+  status            String   @default("pending")
+  source            String?
+  resource_id       String?
+  resource_arn      String?
+  scan_type         String?
+  service           String?
+  category          String?
+  compliance        String[]
+  remediation       String?
+  risk_vector       String?
+  evidence          Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  organization      Organization? @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  
+  @@index([status])
+  @@index([severity])
+  @@index([event_time])
+  @@index([organization_id])
+  @@map("findings")
+}
+
+model SecurityScan {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String   @db.Uuid
+  scan_type         String
+  status            String   @default("pending")
+  scan_config       Json?
+  results           Json?
+  findings_count    Int?
+  critical_count    Int?
+  high_count        Int?
+  medium_count      Int?
+  low_count         Int?
+  started_at        DateTime @default(now()) @db.Timestamptz(6)
+  completed_at      DateTime? @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  aws_credential    AwsCredential @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)
+  compliance_checks ComplianceCheck[]
+  
+  @@index([organization_id])
+  @@index([status])
+  @@map("security_scans")
+}
+
+model ComplianceCheck {
+  id                  String   @id @default(uuid()) @db.Uuid
+  scan_id             String   @db.Uuid
+  framework           String
+  control_id          String
+  control_name        String
+  status              String
+  severity            String
+  evidence            Json?
+  remediation_steps   String?
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  
+  scan                SecurityScan @relation(fields: [scan_id], references: [id], onDelete: Cascade)
+  
+  @@index([scan_id])
+  @@index([framework])
+  @@index([status])
+  @@map("compliance_checks")
+}
+
+model GuardDutyFinding {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String   @db.Uuid
+  finding_id        String
+  finding_type      String
+  severity          Float
+  severity_label    String
+  title             String
+  description       String
+  resource_type     String?
+  resource_id       String?
+  region            String
+  service           String
+  action            Json?
+  evidence          Json?
+  first_seen        String?
+  last_seen         String?
+  count             Int      @default(1)
+  status            String   @default("active")
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  aws_credential    AwsCredential @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)
+  
+  @@unique([aws_account_id, finding_id])
+  @@index([organization_id])
+  @@index([status])
+  @@index([severity_label])
+  @@map("guardduty_findings")
+}
+
+model SecurityPosture {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organization_id       String   @db.Uuid
+  overall_score         Float
+  critical_findings     Int
+  high_findings         Int
+  medium_findings       Int
+  low_findings          Int
+  compliance_score      Float?
+  risk_level            String
+  calculated_at         DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([calculated_at])
+  @@map("security_posture")
+}
+
+// ==================== BACKGROUND JOBS ====================
+
+model BackgroundJob {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  job_type          String
+  job_name          String
+  schedule          String?
+  parameters        Json?
+  status            String   @default("pending")
+  result            Json?
+  error             String?
+  started_at        DateTime? @db.Timestamptz(6)
+  completed_at      DateTime? @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  
+  @@index([organization_id])
+  @@index([status])
+  @@index([job_type])
+  @@map("background_jobs")
+}
+
+// ==================== KNOWLEDGE BASE ====================
+
+model KnowledgeBaseArticle {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  author_id         String   @db.Uuid
+  title             String
+  content           String
+  category          String?
+  tags              String[]
+  status            String   @default("draft")
+  views             Int      @default(0)
+  helpful_count     Int      @default(0)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  
+  @@index([organization_id])
+  @@index([status])
+  @@index([category])
+  @@map("knowledge_base_articles")
+}
+
+// ==================== LICENSING ====================
+
+model License {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  license_key       String   @unique
+  customer_id       String?
+  plan_type         String
+  max_accounts      Int
+  max_users         Int
+  features          String[]
+  valid_from        DateTime @db.Timestamptz(6)
+  valid_until       DateTime @db.Timestamptz(6)
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  
+  @@index([organization_id])
+  @@index([is_active])
+  @@map("licenses")
+}
+
+// ==================== WEBAUTHN ====================
+
+model WebAuthnCredential {
+  id                String   @id @default(uuid()) @db.Uuid
+  user_id           String   @db.Uuid
+  credential_id     String   @unique
+  public_key        String
+  counter           Int      @default(0)
+  device_name       String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  last_used_at      DateTime? @db.Timestamptz(6)
+  
+  @@index([user_id])
+  @@map("webauthn_credentials")
+}
+
+// ==================== COMMUNICATION LOGS ====================
+
+model CommunicationLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  channel           String
+  recipient         String
+  subject           String?
+  message           String
+  status            String
+  metadata          Json?
+  sent_at           DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([channel])
+  @@index([status])
+  @@map("communication_logs")
+}
+
+// ==================== COST MANAGEMENT ====================
+
+model DailyCost {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  account_id        String
+  date              DateTime @db.Date
+  service           String
+  cost              Float
+  usage             Float?
+  currency          String   @default("USD")
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@unique([account_id, date, service])
+  @@index([organization_id])
+  @@index([date])
+  @@map("daily_costs")
+}
+
+model WasteDetection {
+  id                      String   @id @default(uuid()) @db.Uuid
+  organization_id         String   @db.Uuid
+  account_id              String
+  resource_id             String
+  resource_type           String
+  resource_name           String?
+  region                  String
+  waste_type              String
+  confidence              Float
+  estimated_monthly_cost  Float
+  estimated_savings       Float
+  metrics                 Json?
+  recommendation          String
+  detected_at             DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([waste_type])
+  @@index([detected_at])
+  @@map("waste_detections")
+}
+
+// ==================== DRIFT DETECTION ====================
+
+model DriftDetection {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String
+  resource_id       String
+  resource_type     String
+  resource_name     String?
+  drift_type        String
+  detected_at       DateTime @default(now()) @db.Timestamptz(6)
+  severity          String
+  diff              Json?
+  expected_state    Json?
+  actual_state      Json?
+  
+  @@index([organization_id])
+  @@index([drift_type])
+  @@index([severity])
+  @@index([detected_at])
+  @@map("drift_detections")
+}
+
+model DriftDetectionHistory {
+  id                      String   @id @default(uuid()) @db.Uuid
+  organization_id         String   @db.Uuid
+  total_drifts            Int
+  created_count           Int
+  modified_count          Int
+  deleted_count           Int
+  critical_count          Int
+  high_count              Int
+  execution_time_seconds  Float
+  message                 String?
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([created_at])
+  @@map("drift_detection_history")
+}
+
+model ResourceInventory {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String
+  resource_id       String
+  resource_type     String
+  resource_name     String?
+  region            String
+  metadata          Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@unique([aws_account_id, resource_id, region])
+  @@index([organization_id])
+  @@index([resource_type])
+  @@map("resource_inventory")
+}
+
+// ==================== COMPLIANCE ====================
+
+model ComplianceViolation {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  account_id        String
+  framework         String
+  control_id        String
+  resource_id       String?
+  resource_type     String?
+  status            String   @default("OPEN")
+  severity          String
+  description       String?
+  detected_at       DateTime @default(now()) @db.Timestamptz(6)
+  resolved_at       DateTime? @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([framework])
+  @@index([status])
+  @@index([detected_at])
+  @@map("compliance_violations")
+}
+
+// ==================== ALERTS ====================
+
+model Alert {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  rule_id           String?  @db.Uuid
+  severity          String
+  title             String
+  message           String
+  metadata          Json?
+  triggered_at      DateTime @default(now()) @db.Timestamptz(6)
+  acknowledged_at   DateTime? @db.Timestamptz(6)
+  resolved_at       DateTime? @db.Timestamptz(6)
+  
+  rule              AlertRule? @relation(fields: [rule_id], references: [id], onDelete: SetNull)
+  
+  @@index([organization_id])
+  @@index([severity])
+  @@index([triggered_at])
+  @@map("alerts")
+}
+
+model AlertRule {
+  id                      String   @id @default(uuid()) @db.Uuid
+  organization_id         String   @db.Uuid
+  name                    String
+  description             String?
+  rule_type               String
+  condition               Json
+  threshold               Float?
+  severity                String
+  is_active               Boolean  @default(true)
+  notification_channels   String[]
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime @updatedAt @db.Timestamptz(6)
+  
+  alerts                  Alert[]
+  
+  @@index([organization_id])
+  @@index([is_active])
+  @@map("alert_rules")
+}
+
+// ==================== MONITORING ====================
+
+model MonitoredEndpoint {
+  id                  String   @id @default(uuid()) @db.Uuid
+  organization_id     String   @db.Uuid
+  name                String
+  url                 String
+  timeout             Int      @default(5000)
+  is_active           Boolean  @default(true)
+  alert_on_failure    Boolean  @default(true)
+  last_status         String?
+  last_checked_at     DateTime? @db.Timestamptz(6)
+  last_response_time  Int?
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  
+  check_history       EndpointCheckHistory[]
+  
+  @@index([organization_id])
+  @@index([is_active])
+  @@map("monitored_endpoints")
+}
+
+model EndpointCheckHistory {
+  id            String   @id @default(uuid()) @db.Uuid
+  endpoint_id   String   @db.Uuid
+  status        String
+  status_code   Int?
+  response_time Int
+  error         String?
+  checked_at    DateTime @default(now()) @db.Timestamptz(6)
+  
+  endpoint      MonitoredEndpoint @relation(fields: [endpoint_id], references: [id], onDelete: Cascade)
+  
+  @@index([endpoint_id])
+  @@index([checked_at])
+  @@map("endpoint_check_history")
+}
+
+model IAMBehaviorAnomaly {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  account_id      String
+  user_name       String
+  anomaly_type    String
+  severity        String
+  description     String
+  evidence        Json?
+  detected_at     DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([severity])
+  @@index([detected_at])
+  @@map("iam_behavior_anomalies")
+}
+
+// ==================== INTEGRATIONS ====================
+
+model JiraIntegration {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  base_url        String
+  email           String
+  api_token       String
+  project_key     String
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@map("jira_integrations")
+}
+
+model JiraTicket {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  finding_id      String?  @db.Uuid
+  jira_key        String
+  jira_id         String
+  title           String
+  status          String
+  url             String
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([finding_id])
+  @@map("jira_tickets")
+}
+
+// ==================== EVENTS ====================
+// SystemEvent moved to later section
+
+// ==================== EXTERNAL IDS ====================
+
+model ExternalId {
+  id            String   @id @default(uuid()) @db.Uuid
+  external_id   String   @unique
+  used          Boolean  @default(false)
+  used_by       String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([used])
+  @@index([created_at])
+  @@map("external_ids")
+}
+
+// ==================== NOTIFICATION SETTINGS ====================
+
+model NotificationSettings {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @unique @db.Uuid
+  email_enabled         Boolean  @default(true)
+  webhook_enabled       Boolean  @default(false)
+  slack_enabled         Boolean  @default(false)
+  security_alerts       Boolean  @default(true)
+  cost_alerts           Boolean  @default(true)
+  compliance_alerts     Boolean  @default(true)
+  drift_alerts          Boolean  @default(true)
+  weekly_reports        Boolean  @default(true)
+  monthly_reports       Boolean  @default(true)
+  webhook_url           String?
+  slack_webhook_url     String?
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@map("notification_settings")
+}
+
+// ==================== REPORTS ====================
+
+model ReportExport {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  report_type       String
+  format            String
+  status            String   @default("pending")
+  file_url          String?
+  file_size         Int?
+  parameters        Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  completed_at      DateTime? @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([status])
+  @@map("report_exports")
+}
+
+model CloudTrailFetch {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String
+  region            String
+  start_time        DateTime @db.Timestamptz(6)
+  end_time          DateTime @db.Timestamptz(6)
+  status            String   @default("pending")
+  events_count      Int?
+  error_message     String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  completed_at      DateTime? @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([status])
+  @@map("cloudtrail_fetches")
+}
+
+// ==================== USER MANAGEMENT ====================
+
+model User {
+  id                String   @id @default(uuid()) @db.Uuid
+  email             String   @unique
+  full_name         String?
+  avatar_url        String?
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@map("users")
+}
+
+// ==================== AUDIT LOGGING ====================
+
+model AuditLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  user_id           String?  @db.Uuid
+  action            String
+  resource_type     String?
+  resource_id       String?
+  details           Json?
+  ip_address        String?
+  user_agent        String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([user_id])
+  @@index([action])
+  @@index([created_at])
+  @@map("audit_logs")
+}
+
+// ==================== TV DISPLAY SYSTEM ====================
+
+model TvDisplayToken {
+  id                String   @id @default(uuid()) @db.Uuid
+  token             String   @unique
+  organization_id   String   @db.Uuid
+  is_active         Boolean  @default(true)
+  expires_at        DateTime @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([token])
+  @@map("tv_display_tokens")
+}
+
+model TvTokenUsage {
+  id                String   @id @default(uuid()) @db.Uuid
+  token_id          String   @db.Uuid
+  used_at           DateTime @default(now()) @db.Timestamptz(6)
+  ip_address        String?
+  
+  @@index([token_id])
+  @@map("tv_token_usage")
+}
+
+model TvSession {
+  id                String   @id @default(uuid()) @db.Uuid
+  token_id          String   @db.Uuid
+  session_data      Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([token_id])
+  @@map("tv_sessions")
+}
+
+// ==================== SECURITY EVENTS ====================
+
+model SecurityEvent {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  event_type        String
+  severity          String
+  description       String
+  metadata          Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([event_type])
+  @@index([severity])
+  @@map("security_events")
+}
+
+model SecurityFinding {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  finding_type      String
+  severity          String
+  title             String
+  description       String
+  resource_id       String?
+  status            String   @default("open")
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([severity])
+  @@index([status])
+  @@map("security_findings")
+}
+
+// ==================== DASHBOARDS ====================
+
+model Dashboard {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  name              String
+  config            Json?
+  is_default        Boolean  @default(false)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@map("dashboards")
+}
+
+// ==================== WEBAUTHN CHALLENGES ====================
+
+model WebauthnChallenge {
+  id                String   @id @default(uuid()) @db.Uuid
+  user_id           String   @db.Uuid
+  challenge         String
+  expires_at        DateTime @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([user_id])
+  @@index([challenge])
+  @@map("webauthn_challenges")
+}
+
+// ==================== SESSIONS ====================
+
+model Session {
+  id                String   @id @default(uuid()) @db.Uuid
+  user_id           String   @db.Uuid
+  session_token     String   @unique
+  expires_at        DateTime @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([user_id])
+  @@index([session_token])
+  @@map("sessions")
+}
+
+// ==================== SYSTEM EVENTS ====================
+
+model SystemEvent {
+  id                String   @id @default(uuid()) @db.Uuid
+  event_type        String
+  payload           Json?
+  processed         Boolean  @default(false)
+  processed_at      DateTime? @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([processed])
+  @@index([event_type])
+  @@index([created_at])
+  @@map("system_events")
+}
+
+// ==================== COST OPTIMIZATION ====================
+
+model CostOptimization {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String
+  resource_type     String
+  resource_id       String
+  optimization_type String
+  potential_savings Float
+  status            String   @default("pending")
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@map("cost_optimizations")
+}
+
+// ==================== COPILOT INTERACTIONS ====================
+
+model CopilotInteraction {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  user_id           String?  @db.Uuid
+  query             String
+  response          String
+  context           Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([user_id])
+  @@map("copilot_interactions")
+}
+
+// ==================== COMPLIANCE SCANS ====================
+
+model ComplianceScan {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String
+  framework         String
+  status            String   @default("pending")
+  results           Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  completed_at      DateTime? @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@map("compliance_scans")
+}

@@ -1,0 +1,468 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO UDS - Lambda Stack - Lambda Functions and IAM Roles'
+
+Parameters:
+  Environment:
+    Type: String
+  ProjectName:
+    Type: String
+  VpcId:
+    Type: String
+  PrivateSubnet1Id:
+    Type: String
+  PrivateSubnet2Id:
+    Type: String
+  DatabaseEndpoint:
+    Type: String
+  DatabaseSecretArn:
+    Type: String
+  UserPoolId:
+    Type: String
+  UserPoolArn:
+    Type: String
+
+Resources:
+  # ============================================================================
+  # LAMBDA SECURITY GROUP
+  # ============================================================================
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-lambda-sg'
+
+  # ============================================================================
+  # LAMBDA EXECUTION ROLE
+  # ============================================================================
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-lambda-execution-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DatabaseAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                  - rds:DescribeDBClusters
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Ref DatabaseSecretArn
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-${Environment}-organizations'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-${Environment}-organizations/index/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-${Environment}-profiles'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-${Environment}-profiles/index/*'
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminSetUserPassword
+                  - cognito-idp:AdminAddUserToGroup
+                  - cognito-idp:AdminRemoveUserFromGroup
+                  - cognito-idp:ListUsers
+                  - cognito-idp:ListUsersInGroup
+                Resource: !Ref UserPoolArn
+        - PolicyName: AWSServicesAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ce:GetCostAndUsage
+                  - ce:GetCostForecast
+                  - ce:GetReservationUtilization
+                  - ce:GetSavingsPlansUtilization
+                  - organizations:DescribeOrganization
+                  - organizations:ListAccounts
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                  - cloudtrail:LookupEvents
+                  - guardduty:ListFindings
+                  - guardduty:GetFindings
+                  - securityhub:GetFindings
+                  - config:DescribeComplianceByConfigRule
+                  - wellarchitected:ListWorkloads
+                  - wellarchitected:GetWorkload
+                Resource: '*'
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: '*'
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${ProjectName}-${Environment}-*'
+                  - !Sub 'arn:aws:s3:::${ProjectName}-${Environment}-*/*'
+        - PolicyName: SESAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
+
+  # ============================================================================
+  # LAMBDA LAYER (Common Dependencies)
+  # ============================================================================
+  CommonLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub '${ProjectName}-${Environment}-common-layer'
+      Description: Common dependencies for EVO UDS Lambda functions
+      Content:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: layers/common-layer.zip
+      CompatibleRuntimes:
+        - nodejs18.x
+        - nodejs20.x
+
+  # ============================================================================
+  # HEALTH CHECK LAMBDA
+  # ============================================================================
+  HealthCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-health-check'
+      Runtime: nodejs18.x
+      Handler: health.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/system/health.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-health-check'
+
+  # ============================================================================
+  # PROFILE MANAGEMENT LAMBDAS
+  # ============================================================================
+  CheckOrganizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-check-organization'
+      Runtime: nodejs18.x
+      Handler: check-organization.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/profiles/check-organization.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          USER_POOL_ID: !Ref UserPoolId
+          REGION: !Ref AWS::Region
+          ORGANIZATIONS_TABLE: !Sub '${ProjectName}-${Environment}-organizations'
+          PROFILES_TABLE: !Sub '${ProjectName}-${Environment}-profiles'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-check-organization'
+
+  CreateWithOrganizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-create-with-organization'
+      Runtime: nodejs18.x
+      Handler: create-with-organization.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/profiles/create-with-organization.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          USER_POOL_ID: !Ref UserPoolId
+          REGION: !Ref AWS::Region
+          ORGANIZATIONS_TABLE: !Sub '${ProjectName}-${Environment}-organizations'
+          PROFILES_TABLE: !Sub '${ProjectName}-${Environment}-profiles'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-create-with-organization'
+
+  # ============================================================================
+  # AWS CREDENTIALS LAMBDA
+  # ============================================================================
+  SaveAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-save-aws-credentials'
+      Runtime: nodejs18.x
+      Handler: save-aws-credentials.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/aws/save-aws-credentials.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          USER_POOL_ID: !Ref UserPoolId
+          REGION: !Ref AWS::Region
+          ORGANIZATIONS_TABLE: !Sub '${ProjectName}-${Environment}-organizations'
+          PROFILES_TABLE: !Sub '${ProjectName}-${Environment}-profiles'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-save-aws-credentials'
+
+  # ============================================================================
+  # SECURITY SCAN LAMBDAS
+  # ============================================================================
+  SecurityScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-security-scan'
+      Runtime: nodejs18.x
+      Handler: security-scan.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/security/security-scan.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 300
+      MemorySize: 1024
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          USER_POOL_ID: !Ref UserPoolId
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-security-scan'
+
+  # ============================================================================
+  # COST ANALYSIS LAMBDAS
+  # ============================================================================
+  CostAnalysisFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cost-analysis'
+      Runtime: nodejs18.x
+      Handler: finops-copilot-v2.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/cost/finops-copilot-v2.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 600
+      MemorySize: 2048
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          USER_POOL_ID: !Ref UserPoolId
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-cost-analysis'
+
+  # ============================================================================
+  # MONITORING LAMBDAS
+  # ============================================================================
+  FetchCloudWatchMetricsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudwatch-metrics'
+      Runtime: nodejs18.x
+      Handler: fetch-cloudwatch-metrics.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/monitoring/fetch-cloudwatch-metrics.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 120
+      MemorySize: 512
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-fetch-cloudwatch-metrics'
+
+  # ============================================================================
+  # NOTIFICATION LAMBDAS
+  # ============================================================================
+  SendEmailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-send-email'
+      Runtime: nodejs18.x
+      Handler: send-email.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/notifications/send-email.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-send-email'
+
+Outputs:
+  LambdaExecutionRoleArn:
+    Description: Lambda Execution Role ARN
+    Value: !GetAtt LambdaExecutionRole.Arn
+
+  LambdaSecurityGroupId:
+    Description: Lambda Security Group ID
+    Value: !Ref LambdaSecurityGroup
+
+  CommonLayerArn:
+    Description: Common Layer ARN
+    Value: !Ref CommonLayer
+
+  HealthCheckFunctionArn:
+    Description: Health Check Function ARN
+    Value: !GetAtt HealthCheckFunction.Arn
+
+  CheckOrganizationFunctionArn:
+    Description: Check Organization Function ARN
+    Value: !GetAtt CheckOrganizationFunction.Arn
+
+  CreateWithOrganizationFunctionArn:
+    Description: Create With Organization Function ARN
+    Value: !GetAtt CreateWithOrganizationFunction.Arn
+
+  SaveAwsCredentialsFunctionArn:
+    Description: Save AWS Credentials Function ARN
+    Value: !GetAtt SaveAwsCredentialsFunction.Arn
+
+  SecurityScanFunctionArn:
+    Description: Security Scan Function ARN
+    Value: !GetAtt SecurityScanFunction.Arn
+
+  CostAnalysisFunctionArn:
+    Description: Cost Analysis Function ARN
+    Value: !GetAtt CostAnalysisFunction.Arn

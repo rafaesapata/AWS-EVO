@@ -1,0 +1,532 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  EVO Platform - IAM Role for Cross-Account Read-Only Access
+  This template creates an IAM Role with the minimum required permissions
+  for the EVO Platform to monitor your AWS resources, costs, and security posture.
+  
+  Security: Uses External ID and Principal restriction for secure cross-account access.
+  All permissions are read-only - no modifications to your resources.
+
+# ==============================================================================
+# PARAMETERS
+# ==============================================================================
+Parameters:
+  ExternalId:
+    Type: String
+    Description: 'External ID for secure cross-account access (provided by EVO Platform). This value ensures only authorized access.'
+    MinLength: 20
+    MaxLength: 100
+    AllowedPattern: '^evo-[a-z0-9]+-[a-z0-9]+$'
+    ConstraintDescription: 'External ID must start with "evo-" followed by alphanumeric characters'
+  
+  AccountName:
+    Type: String
+    Description: 'Friendly name for this AWS account in EVO Platform (e.g., Production, Development)'
+    Default: 'AWS Account'
+    MaxLength: 64
+    AllowedPattern: '^[\w\s\-]*$'
+    ConstraintDescription: 'Account name can only contain letters, numbers, spaces, and hyphens'
+  
+  EVOPlatformAccountId:
+    Type: String
+    Description: 'AWS Account ID of EVO Platform (provided automatically). Restricts who can assume this role.'
+    Default: '992382761234'
+    AllowedPattern: '^\d{12}$'
+    ConstraintDescription: 'Must be a valid 12-digit AWS Account ID'
+
+# ==============================================================================
+# METADATA - CloudFormation Console UI Configuration
+# ==============================================================================
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: 'EVO Platform Configuration'
+        Parameters:
+          - ExternalId
+          - AccountName
+          - EVOPlatformAccountId
+    ParameterLabels:
+      ExternalId:
+        default: 'External ID (from EVO Platform) - REQUIRED'
+      AccountName:
+        default: 'Account Name (optional)'
+      EVOPlatformAccountId:
+        default: 'EVO Platform Account ID (do not modify)'
+
+# ==============================================================================
+# RESOURCES
+# ==============================================================================
+Resources:
+
+  # ----------------------------------------------------------------------------
+  # IAM Role for Cross-Account Access
+  # ----------------------------------------------------------------------------
+  EVOPlatformRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'EVO-Platform-Role-${AWS::StackName}'
+      Description: 'IAM Role for EVO Platform cross-account read-only access. All permissions are read-only.'
+      MaxSessionDuration: 3600  # 1 hour max session
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowEVOPlatformAssumeRole
+            Effect: Allow
+            Principal:
+              # SECURITY: Restricted to EVO Platform AWS Account only
+              AWS: !Sub 'arn:aws:iam::${EVOPlatformAccountId}:root'
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                # External ID provides additional security - only requests with matching External ID are allowed
+                'sts:ExternalId': !Ref ExternalId
+      Tags:
+        - Key: Name
+          Value: !Sub 'EVO-Platform-Role-${AWS::StackName}'
+        - Key: Purpose
+          Value: 'EVO Platform Cross-Account Access'
+        - Key: ManagedBy
+          Value: 'CloudFormation'
+        - Key: AccountName
+          Value: !Ref AccountName
+        - Key: CreatedAt
+          Value: !Sub '${AWS::StackName}'
+        - Key: EVOPlatformAccountId
+          Value: !Ref EVOPlatformAccountId
+
+  # ----------------------------------------------------------------------------
+  # Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
+  # ----------------------------------------------------------------------------
+  EVOPlatformComputeStoragePolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: 'EVO-Platform-ComputeStorage'
+      Roles:
+        - !Ref EVOPlatformRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # EC2 Read Access
+          - Sid: EC2ReadAccess
+            Effect: Allow
+            Action:
+              - 'ec2:DescribeInstances'
+              - 'ec2:DescribeInstanceStatus'
+              - 'ec2:DescribeVolumes'
+              - 'ec2:DescribeSnapshots'
+              - 'ec2:DescribeReservedInstances'
+              - 'ec2:DescribeReservedInstancesOfferings'
+              - 'ec2:DescribeVpcs'
+              - 'ec2:DescribeSecurityGroups'
+              - 'ec2:DescribeSecurityGroupRules'
+              - 'ec2:DescribeSubnets'
+              - 'ec2:DescribeRouteTables'
+              - 'ec2:DescribeNatGateways'
+              - 'ec2:DescribeInternetGateways'
+              - 'ec2:DescribeNetworkInterfaces'
+              - 'ec2:DescribeAddresses'
+              - 'ec2:DescribeImages'
+              - 'ec2:DescribeTags'
+              - 'ec2:DescribeRegions'
+              - 'ec2:DescribeAvailabilityZones'
+            Resource: '*'
+          
+          # S3 Read Access
+          - Sid: S3ReadAccess
+            Effect: Allow
+            Action:
+              - 's3:ListAllMyBuckets'
+              - 's3:GetBucketLocation'
+              - 's3:GetBucketVersioning'
+              - 's3:GetBucketLogging'
+              - 's3:GetBucketPolicy'
+              - 's3:GetBucketPolicyStatus'
+              - 's3:GetBucketAcl'
+              - 's3:GetEncryptionConfiguration'
+              - 's3:GetBucketPublicAccessBlock'
+              - 's3:GetAccountPublicAccessBlock'
+              - 's3:GetBucketTagging'
+              - 's3:GetLifecycleConfiguration'
+              - 's3:GetReplicationConfiguration'
+            Resource: '*'
+          
+          # RDS Read Access
+          - Sid: RDSReadAccess
+            Effect: Allow
+            Action:
+              - 'rds:DescribeDBInstances'
+              - 'rds:DescribeDBClusters'
+              - 'rds:DescribeReservedDBInstances'
+              - 'rds:DescribeDBSnapshots'
+              - 'rds:DescribeDBSecurityGroups'
+              - 'rds:DescribeDBParameterGroups'
+              - 'rds:ListTagsForResource'
+            Resource: '*'
+          
+          # Lambda Read Access
+          - Sid: LambdaReadAccess
+            Effect: Allow
+            Action:
+              - 'lambda:ListFunctions'
+              - 'lambda:GetFunction'
+              - 'lambda:GetFunctionConfiguration'
+              - 'lambda:ListTags'
+              - 'lambda:GetPolicy'
+            Resource: '*'
+          
+          # Auto Scaling Read Access
+          - Sid: AutoScalingReadAccess
+            Effect: Allow
+            Action:
+              - 'autoscaling:DescribeAutoScalingGroups'
+              - 'autoscaling:DescribeAutoScalingInstances'
+              - 'autoscaling:DescribeLaunchConfigurations'
+              - 'autoscaling:DescribePolicies'
+              - 'autoscaling:DescribeScalingActivities'
+            Resource: '*'
+          
+          # ElastiCache Read Access
+          - Sid: ElastiCacheReadAccess
+            Effect: Allow
+            Action:
+              - 'elasticache:DescribeCacheClusters'
+              - 'elasticache:DescribeReservedCacheNodes'
+              - 'elasticache:ListTagsForResource'
+            Resource: '*'
+          
+          # DynamoDB Read Access
+          - Sid: DynamoDBReadAccess
+            Effect: Allow
+            Action:
+              - 'dynamodb:ListTables'
+              - 'dynamodb:DescribeTable'
+              - 'dynamodb:DescribeContinuousBackups'
+              - 'dynamodb:ListTagsOfResource'
+            Resource: '*'
+
+  # ----------------------------------------------------------------------------
+  # Policy 2: Security & Monitoring Services (IAM, CloudWatch, CloudTrail, etc.)
+  # ----------------------------------------------------------------------------
+  EVOPlatformSecurityMonitoringPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: 'EVO-Platform-SecurityMonitoring'
+      Roles:
+        - !Ref EVOPlatformRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # IAM Read Access (Security Analysis)
+          - Sid: IAMReadAccess
+            Effect: Allow
+            Action:
+              - 'iam:GetAccountPasswordPolicy'
+              - 'iam:GetAccountSummary'
+              - 'iam:ListUsers'
+              - 'iam:GetUser'
+              - 'iam:ListAccessKeys'
+              - 'iam:GetAccessKeyLastUsed'
+              - 'iam:ListMFADevices'
+              - 'iam:GetCredentialReport'
+              - 'iam:GenerateCredentialReport'
+              - 'iam:ListRoles'
+              - 'iam:GetRole'
+              - 'iam:ListPolicies'
+              - 'iam:GetPolicy'
+              - 'iam:ListAttachedUserPolicies'
+              - 'iam:ListAttachedRolePolicies'
+              - 'iam:ListUserPolicies'
+              - 'iam:ListRolePolicies'
+              - 'iam:GetLoginProfile'
+              - 'iam:ListVirtualMFADevices'
+            Resource: '*'
+          
+          # CloudWatch Read Access (Metrics & Alarms)
+          - Sid: CloudWatchReadAccess
+            Effect: Allow
+            Action:
+              - 'cloudwatch:GetMetricStatistics'
+              - 'cloudwatch:GetMetricData'
+              - 'cloudwatch:ListMetrics'
+              - 'cloudwatch:DescribeAlarms'
+              - 'cloudwatch:DescribeAlarmsForMetric'
+              - 'cloudwatch:GetDashboard'
+              - 'cloudwatch:ListDashboards'
+            Resource: '*'
+          
+          # CloudTrail Read Access (Audit Logs)
+          - Sid: CloudTrailReadAccess
+            Effect: Allow
+            Action:
+              - 'cloudtrail:DescribeTrails'
+              - 'cloudtrail:GetTrailStatus'
+              - 'cloudtrail:LookupEvents'
+              - 'cloudtrail:GetEventSelectors'
+            Resource: '*'
+          
+          # CloudWatch Logs Read Access
+          - Sid: CloudWatchLogsReadAccess
+            Effect: Allow
+            Action:
+              - 'logs:DescribeLogGroups'
+              - 'logs:DescribeLogStreams'
+              - 'logs:DescribeMetricFilters'
+            Resource: '*'
+          
+          # KMS Read Access (Encryption Analysis)
+          - Sid: KMSReadAccess
+            Effect: Allow
+            Action:
+              - 'kms:ListKeys'
+              - 'kms:ListAliases'
+              - 'kms:DescribeKey'
+              - 'kms:GetKeyPolicy'
+              - 'kms:GetKeyRotationStatus'
+            Resource: '*'
+          
+          # GuardDuty Read Access (Threat Detection)
+          - Sid: GuardDutyReadAccess
+            Effect: Allow
+            Action:
+              - 'guardduty:ListDetectors'
+              - 'guardduty:GetDetector'
+              - 'guardduty:ListFindings'
+              - 'guardduty:GetFindings'
+              - 'guardduty:GetFindingsStatistics'
+            Resource: '*'
+          
+          # AWS Config Read Access (Compliance)
+          - Sid: ConfigReadAccess
+            Effect: Allow
+            Action:
+              - 'config:DescribeConfigRules'
+              - 'config:DescribeComplianceByConfigRule'
+              - 'config:GetComplianceDetailsByConfigRule'
+              - 'config:DescribeConfigurationRecorders'
+              - 'config:DescribeConfigurationRecorderStatus'
+            Resource: '*'
+          
+          # SSM Read Access (Systems Manager)
+          - Sid: SSMReadAccess
+            Effect: Allow
+            Action:
+              - 'ssm:DescribeInstanceInformation'
+              - 'ssm:GetInventory'
+              - 'ssm:ListComplianceItems'
+              - 'ssm:ListComplianceSummaries'
+            Resource: '*'
+          
+          # Security Hub Read Access
+          - Sid: SecurityHubReadAccess
+            Effect: Allow
+            Action:
+              - 'securityhub:GetFindings'
+              - 'securityhub:GetEnabledStandards'
+              - 'securityhub:DescribeHub'
+              - 'securityhub:DescribeStandards'
+            Resource: '*'
+          
+          # Inspector Read Access
+          - Sid: InspectorReadAccess
+            Effect: Allow
+            Action:
+              - 'inspector2:ListFindings'
+              - 'inspector2:ListCoverage'
+              - 'inspector2:GetFindingsReportStatus'
+            Resource: '*'
+
+  # ----------------------------------------------------------------------------
+  # Policy 3: Networking, Containers & Cost Management
+  # ----------------------------------------------------------------------------
+  EVOPlatformNetworkingCostsPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: 'EVO-Platform-NetworkingCosts'
+      Roles:
+        - !Ref EVOPlatformRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # ECS Read Access (Containers)
+          - Sid: ECSReadAccess
+            Effect: Allow
+            Action:
+              - 'ecs:ListClusters'
+              - 'ecs:DescribeClusters'
+              - 'ecs:ListServices'
+              - 'ecs:DescribeServices'
+              - 'ecs:ListTasks'
+              - 'ecs:DescribeTasks'
+              - 'ecs:ListContainerInstances'
+              - 'ecs:DescribeContainerInstances'
+              - 'ecs:DescribeTaskDefinition'
+              - 'ecs:ListTaskDefinitions'
+            Resource: '*'
+          
+          # EKS Read Access (Kubernetes)
+          - Sid: EKSReadAccess
+            Effect: Allow
+            Action:
+              - 'eks:ListClusters'
+              - 'eks:DescribeCluster'
+              - 'eks:ListNodegroups'
+              - 'eks:DescribeNodegroup'
+            Resource: '*'
+          
+          # Load Balancers Read Access
+          - Sid: ELBReadAccess
+            Effect: Allow
+            Action:
+              - 'elasticloadbalancing:DescribeLoadBalancers'
+              - 'elasticloadbalancing:DescribeLoadBalancerAttributes'
+              - 'elasticloadbalancing:DescribeListeners'
+              - 'elasticloadbalancing:DescribeTags'
+              - 'elasticloadbalancingv2:DescribeLoadBalancers'
+              - 'elasticloadbalancingv2:DescribeLoadBalancerAttributes'
+              - 'elasticloadbalancingv2:DescribeTargetGroups'
+              - 'elasticloadbalancingv2:DescribeTargetHealth'
+              - 'elasticloadbalancingv2:DescribeListeners'
+              - 'elasticloadbalancingv2:DescribeRules'
+              - 'elasticloadbalancingv2:DescribeTags'
+            Resource: '*'
+          
+          # CloudFront Read Access (CDN)
+          - Sid: CloudFrontReadAccess
+            Effect: Allow
+            Action:
+              - 'cloudfront:ListDistributions'
+              - 'cloudfront:GetDistribution'
+              - 'cloudfront:GetDistributionConfig'
+              - 'cloudfront:ListTagsForResource'
+            Resource: '*'
+          
+          # WAF Read Access (Web Application Firewall)
+          - Sid: WAFReadAccess
+            Effect: Allow
+            Action:
+              - 'waf:ListWebACLs'
+              - 'waf:GetWebACL'
+              - 'waf-regional:ListWebACLs'
+              - 'waf-regional:GetWebACL'
+              - 'wafv2:ListWebACLs'
+              - 'wafv2:GetWebACL'
+              - 'wafv2:ListResourcesForWebACL'
+              - 'wafv2:GetLoggingConfiguration'
+            Resource: '*'
+          
+          # Route53 Read Access (DNS)
+          - Sid: Route53ReadAccess
+            Effect: Allow
+            Action:
+              - 'route53:ListHostedZones'
+              - 'route53:GetHostedZone'
+              - 'route53:ListResourceRecordSets'
+            Resource: '*'
+          
+          # API Gateway Read Access
+          - Sid: APIGatewayReadAccess
+            Effect: Allow
+            Action:
+              - 'apigateway:GET'
+            Resource: '*'
+          
+          # Cost Explorer Read Access (Cost Analysis)
+          - Sid: CostExplorerReadAccess
+            Effect: Allow
+            Action:
+              - 'ce:GetCostAndUsage'
+              - 'ce:GetCostForecast'
+              - 'ce:GetReservationUtilization'
+              - 'ce:GetSavingsPlansUtilization'
+              - 'ce:GetReservationPurchaseRecommendation'
+              - 'ce:GetSavingsPlansPurchaseRecommendation'
+              - 'ce:GetRightsizingRecommendation'
+              - 'ce:GetDimensionValues'
+              - 'ce:GetTags'
+              - 'ce:GetAnomalies'
+            Resource: '*'
+          
+          # Budgets Read Access
+          - Sid: BudgetsReadAccess
+            Effect: Allow
+            Action:
+              - 'budgets:ViewBudget'
+              - 'budgets:DescribeBudgets'
+              - 'budgets:DescribeBudgetPerformanceHistory'
+            Resource: '*'
+          
+          # Cost and Usage Reports Read Access
+          - Sid: CURReadAccess
+            Effect: Allow
+            Action:
+              - 'cur:DescribeReportDefinitions'
+            Resource: '*'
+          
+          # Savings Plans Read Access
+          - Sid: SavingsPlansReadAccess
+            Effect: Allow
+            Action:
+              - 'savingsplans:DescribeSavingsPlans'
+              - 'savingsplans:DescribeSavingsPlansOfferings'
+              - 'savingsplans:ListTagsForResource'
+            Resource: '*'
+          
+          # Organizations Read Access (Multi-Account)
+          - Sid: OrganizationsReadAccess
+            Effect: Allow
+            Action:
+              - 'organizations:ListAccounts'
+              - 'organizations:DescribeAccount'
+              - 'organizations:DescribeOrganization'
+            Resource: '*'
+          
+          # STS - Identity Verification
+          - Sid: STSAccess
+            Effect: Allow
+            Action:
+              - 'sts:GetCallerIdentity'
+            Resource: '*'
+          
+          # Pricing API Access (for cost optimization)
+          - Sid: PricingReadAccess
+            Effect: Allow
+            Action:
+              - 'pricing:GetProducts'
+              - 'pricing:DescribeServices'
+              - 'pricing:GetAttributeValues'
+            Resource: '*'
+
+# ==============================================================================
+# OUTPUTS
+# ==============================================================================
+Outputs:
+  RoleArn:
+    Description: 'ARN of the IAM Role created for EVO Platform. Copy this value to paste in the EVO Platform.'
+    Value: !GetAtt EVOPlatformRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleArn'
+  
+  RoleName:
+    Description: 'Name of the IAM Role created'
+    Value: !Ref EVOPlatformRole
+  
+  ExternalId:
+    Description: 'External ID configured for this role (for reference)'
+    Value: !Ref ExternalId
+  
+  AccountName:
+    Description: 'Account name configured'
+    Value: !Ref AccountName
+  
+  EVOPlatformAccountId:
+    Description: 'EVO Platform Account ID configured in trust policy'
+    Value: !Ref EVOPlatformAccountId
+  
+  StackId:
+    Description: 'CloudFormation Stack ID'
+    Value: !Ref 'AWS::StackId'
+  
+  Instructions:
+    Description: 'Next steps after deployment'
+    Value: 'Copy the RoleArn value above and paste it in the EVO Platform to complete the AWS account connection.'

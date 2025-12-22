@@ -1,0 +1,123 @@
+/**
+ * Lambda handler for Validate WAF Security
+ * AWS Lambda Handler for validate-waf-security
+ */
+
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
+import { success, error, corsOptions } from '../../lib/response.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getPrismaClient } from '../../lib/database.js';
+import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
+import { logger } from '../../lib/logging.js';
+import { WAFV2Client, ListWebACLsCommand, GetWebACLCommand } from '@aws-sdk/client-wafv2';
+
+interface ValidateWAFRequest {
+  accountId: string;
+  region?: string;
+  scope?: 'REGIONAL' | 'CLOUDFRONT';
+}
+
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const user = getUserFromEvent(event);
+  const organizationId = getOrganizationId(user);
+  
+  logger.info('Validate WAF Security started', { 
+    organizationId,
+    userId: user.id,
+    requestId: context.awsRequestId 
+  });
+  
+  if (event.requestContext.http.method === 'OPTIONS') {
+    return corsOptions();
+  }
+  
+  try {
+    const body: ValidateWAFRequest = event.body ? JSON.parse(event.body) : {};
+    const { accountId, region = 'us-east-1', scope = 'REGIONAL' } = body;
+    
+    if (!accountId) {
+      return error('Missing required parameter: accountId');
+    }
+    
+    const prisma = getPrismaClient();
+    
+    const account = await prisma.awsCredential.findFirst({
+      where: { id: accountId, organization_id: organizationId, is_active: true },
+    });
+    
+    if (!account) {
+      return error('AWS account not found');
+    }
+    
+    const resolvedCreds = await resolveAwsCredentials(account, region);
+    
+    const wafClient = new WAFV2Client({
+      region: scope === 'CLOUDFRONT' ? 'us-east-1' : region,
+      credentials: toAwsCredentials(resolvedCreds),
+    });
+    
+    const listResponse = await wafClient.send(new ListWebACLsCommand({ Scope: scope }));
+    
+    const webACLs = listResponse.WebACLs || [];
+    const analysis: any[] = [];
+    
+    for (const acl of webACLs) {
+      const getResponse = await wafClient.send(new GetWebACLCommand({
+        Name: acl.Name!,
+        Scope: scope,
+        Id: acl.Id!,
+      }));
+      
+      const webACL = getResponse.WebACL!;
+      const issues: string[] = [];
+      
+      if (!webACL.Rules || webACL.Rules.length === 0) {
+        issues.push('No rules configured');
+      }
+      
+      if (webACL.DefaultAction?.Allow) {
+        issues.push('Default action is Allow (should be Block)');
+      }
+      
+      analysis.push({
+        name: webACL.Name,
+        id: webACL.Id,
+        rulesCount: webACL.Rules?.length || 0,
+        defaultAction: webACL.DefaultAction?.Allow ? 'Allow' : 'Block',
+        issues,
+        status: issues.length === 0 ? 'secure' : 'needs_review',
+      });
+    }
+    
+    logger.info('WAF security validation completed', { 
+      organizationId, 
+      accountId, 
+      region,
+      scope,
+      webACLsCount: webACLs.length,
+      secureCount: analysis.filter(a => a.status === 'secure').length,
+      needsReviewCount: analysis.filter(a => a.status === 'needs_review').length
+    });
+    
+    return success({
+      success: true,
+      webACLs: analysis,
+      summary: {
+        total: webACLs.length,
+        secure: analysis.filter(a => a.status === 'secure').length,
+        needsReview: analysis.filter(a => a.status === 'needs_review').length,
+      },
+    });
+    
+  } catch (err) {
+    logger.error('Validate WAF Security error', err as Error, { 
+      organizationId,
+      userId: user.id,
+      requestId: context.awsRequestId 
+    });
+    return error(err instanceof Error ? err.message : 'Internal server error');
+  }
+}

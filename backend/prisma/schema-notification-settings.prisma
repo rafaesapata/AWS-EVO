@@ -1,0 +1,45 @@
+// Notification Settings Schema
+// This should be added to the main schema.prisma file
+
+model NotificationSettings {
+  id                    String   @id @default(cuid())
+  userId                String   @unique @map("user_id")
+  
+  // Email settings
+  emailEnabled          Boolean  @default(true) @map("email_enabled")
+  
+  // Webhook settings
+  webhookEnabled        Boolean  @default(false) @map("webhook_enabled")
+  webhookUrl            String?  @map("webhook_url")
+  
+  // Slack settings
+  slackEnabled          Boolean  @default(false) @map("slack_enabled")
+  slackWebhookUrl       String?  @map("slack_webhook_url")
+  
+  // Datadog settings
+  datadogEnabled        Boolean  @default(false) @map("datadog_enabled")
+  datadogApiKey         String?  @map("datadog_api_key")
+  datadogSite           String?  @default("datadoghq.com") @map("datadog_site")
+  
+  // Graylog settings
+  graylogEnabled        Boolean  @default(false) @map("graylog_enabled")
+  graylogUrl            String?  @map("graylog_url")
+  graylogPort           Int?     @default(12201) @map("graylog_port")
+  
+  // Zabbix settings
+  zabbixEnabled         Boolean  @default(false) @map("zabbix_enabled")
+  zabbixUrl             String?  @map("zabbix_url")
+  zabbixAuthToken       String?  @map("zabbix_auth_token")
+  
+  // Notification preferences
+  notifyOnCritical      Boolean  @default(true) @map("notify_on_critical")
+  notifyOnHigh          Boolean  @default(true) @map("notify_on_high")
+  notifyOnMedium        Boolean  @default(false) @map("notify_on_medium")
+  notifyOnScanComplete  Boolean  @default(true) @map("notify_on_scan_complete")
+  
+  // Timestamps
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_settings")
+}

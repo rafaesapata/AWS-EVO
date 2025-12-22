@@ -1,0 +1,499 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="12" failures="6" errors="0" time="5.577805333">
+    <testsuite name="src/tests/integration/auth-flow.test.ts" timestamp="2025-12-12T01:46:44.891Z" hostname="MacBook-Pro-de-Rafael.local" tests="12" failures="6" errors="0" skipped="0" time="5.577805333">
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Complete Authentication Flow &gt; should handle successful login flow" time="0.013466459">
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Complete Authentication Flow &gt; should handle authentication errors gracefully" time="3.027139125">
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:61:40
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+            </failure>
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:61:40
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+            </failure>
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:61:40
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Complete Authentication Flow &gt; should maintain session state across page reloads" time="3.030523542">
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:76:40
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ MutationObserver.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+ ❯ MutationObserver.invokeTheCallbackFunction node_modules/jsdom/lib/jsdom/living/generated/MutationCallback.js:19:26
+ ❯ notifyMutationObservers node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:160:22
+ ❯ node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:133:5
+            </failure>
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:76:40
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ MutationObserver.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+ ❯ MutationObserver.invokeTheCallbackFunction node_modules/jsdom/lib/jsdom/living/generated/MutationCallback.js:19:26
+ ❯ notifyMutationObservers node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:160:22
+ ❯ node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:133:5
+            </failure>
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:76:40
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ MutationObserver.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+ ❯ MutationObserver.invokeTheCallbackFunction node_modules/jsdom/lib/jsdom/living/generated/MutationCallback.js:19:26
+ ❯ notifyMutationObservers node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:160:22
+ ❯ node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:133:5
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Organization Context Integration &gt; should load organization data after authentication" time="3.030977292">
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:99:42
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ MutationObserver.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+ ❯ MutationObserver.invokeTheCallbackFunction node_modules/jsdom/lib/jsdom/living/generated/MutationCallback.js:19:26
+ ❯ notifyMutationObservers node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:160:22
+ ❯ node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:133:5
+            </failure>
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:99:42
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ MutationObserver.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+ ❯ MutationObserver.invokeTheCallbackFunction node_modules/jsdom/lib/jsdom/living/generated/MutationCallback.js:19:26
+ ❯ notifyMutationObservers node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:160:22
+ ❯ node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:133:5
+            </failure>
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body /&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body /&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:99:42
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ MutationObserver.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+ ❯ MutationObserver.invokeTheCallbackFunction node_modules/jsdom/lib/jsdom/living/generated/MutationCallback.js:19:26
+ ❯ notifyMutationObservers node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:160:22
+ ❯ node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:133:5
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Organization Context Integration &gt; should handle organization switching" time="3.032350625">
+            <failure message="expected undefined to be &apos;org-1&apos; // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected undefined to be &apos;org-1&apos; // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected: 
+&quot;org-1&quot;
+
++ Received: 
+undefined
+
+ ❯ src/tests/integration/auth-flow.test.ts:120:37
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ MutationObserver.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+ ❯ MutationObserver.invokeTheCallbackFunction node_modules/jsdom/lib/jsdom/living/generated/MutationCallback.js:19:26
+ ❯ notifyMutationObservers node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:160:22
+ ❯ node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:133:5
+            </failure>
+            <failure message="expected undefined to be &apos;org-1&apos; // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected undefined to be &apos;org-1&apos; // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected: 
+&quot;org-1&quot;
+
++ Received: 
+undefined
+
+ ❯ src/tests/integration/auth-flow.test.ts:120:37
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ MutationObserver.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+ ❯ MutationObserver.invokeTheCallbackFunction node_modules/jsdom/lib/jsdom/living/generated/MutationCallback.js:19:26
+ ❯ notifyMutationObservers node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:160:22
+ ❯ node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:133:5
+            </failure>
+            <failure message="expected &apos;test-org-123&apos; to be &apos;org-1&apos; // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body /&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected &apos;test-org-123&apos; to be &apos;org-1&apos; // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body /&gt;
+&lt;/html&gt;
+
+Expected: &quot;org-1&quot;
+Received: &quot;test-org-123&quot;
+
+ ❯ src/tests/integration/auth-flow.test.ts:120:37
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ MutationObserver.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+ ❯ MutationObserver.invokeTheCallbackFunction node_modules/jsdom/lib/jsdom/living/generated/MutationCallback.js:19:26
+ ❯ notifyMutationObservers node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:160:22
+ ❯ node_modules/jsdom/lib/jsdom/living/helpers/mutation-observers.js:133:5
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; License Validation Integration &gt; should validate license after authentication" time="1.072126875">
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; License Validation Integration &gt; should handle expired license" time="1.056966542">
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Multi-tenant Isolation &gt; should isolate data between organizations" time="0.106481791">
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Error Recovery &gt; should recover from network errors" time="0.161955334">
+            <failure message="expected &quot;vi.fn()&quot; to be called 2 times, but got 0 times" type="AssertionError">
+AssertionError: expected &quot;vi.fn()&quot; to be called 2 times, but got 0 times
+ ❯ src/tests/integration/auth-flow.test.ts:238:33
+            </failure>
+            <failure message="expected &quot;vi.fn()&quot; to be called 2 times, but got 0 times" type="AssertionError">
+AssertionError: expected &quot;vi.fn()&quot; to be called 2 times, but got 0 times
+ ❯ src/tests/integration/auth-flow.test.ts:238:33
+            </failure>
+            <failure message="expected &quot;vi.fn()&quot; to be called 2 times, but got 0 times" type="AssertionError">
+AssertionError: expected &quot;vi.fn()&quot; to be called 2 times, but got 0 times
+ ❯ src/tests/integration/auth-flow.test.ts:238:33
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Error Recovery &gt; should handle session expiration" time="3.165640458">
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body /&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body /&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:258:40
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+            </failure>
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body /&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body /&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:258:40
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+            </failure>
+            <failure message="expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m&lt;html&gt;[39m
+  [36m&lt;head /&gt;[39m
+  [36m&lt;body&gt;[39m
+    [36m&lt;div /&gt;[39m
+  [36m&lt;/body&gt;[39m
+[36m&lt;/html&gt;[39m" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+Ignored nodes: comments, script, style
+&lt;html&gt;
+  &lt;head /&gt;
+  &lt;body&gt;
+    &lt;div /&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/auth-flow.test.ts:258:40
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Performance Benchmarks &gt; should load organization data within performance thresholds" time="1.055977625">
+        </testcase>
+        <testcase classname="src/tests/integration/auth-flow.test.ts" name="Authentication Flow Integration &gt; Performance Benchmarks &gt; should handle concurrent authentication requests" time="0.000220458">
+        </testcase>
+    </testsuite>
+</testsuites>

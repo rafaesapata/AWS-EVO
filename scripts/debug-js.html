@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug JS Test</title>
+</head>
+<body>
+    <div id="root">Loading...</div>
+    
+    <script>
+        console.log("🔍 Debug: Script started");
+        
+        // Test if we can access the root element
+        const root = document.getElementById('root');
+        console.log("🔍 Debug: Root element found:", !!root);
+        
+        if (root) {
+            root.innerHTML = '<h1>JavaScript is working!</h1>';
+            console.log("🔍 Debug: Content updated");
+        }
+        
+        // Test environment variables (simulated)
+        console.log("🔍 Debug: Testing environment access");
+        
+        // Test if we can load the main script
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = '/assets/index-DOVLx69Q.js';
+        script.onload = () => console.log("✅ Main script loaded");
+        script.onerror = (e) => console.error("❌ Main script failed:", e);
+        
+        // Don't actually load it, just test the path
+        console.log("🔍 Debug: Main script path:", script.src);
+    </script>
+</body>
+</html>

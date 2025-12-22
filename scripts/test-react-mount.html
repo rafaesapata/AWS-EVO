@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React Mount Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .error { color: red; background: #ffe6e6; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .success { color: green; background: #e6ffe6; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .info { color: blue; background: #e6f3ff; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔍 React Mount Test</h1>
+    <div id="root">Loading...</div>
+    
+    <div id="debug-info">
+        <h2>Debug Information</h2>
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        const logs = document.getElementById('logs');
+        
+        function addLog(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.appendChild(div);
+            console.log(message);
+        }
+
+        // Override console methods to capture logs
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const originalLog = console.log;
+
+        console.error = function(...args) {
+            addLog(`ERROR: ${args.join(' ')}`, 'error');
+            originalError.apply(console, args);
+        };
+
+        console.warn = function(...args) {
+            addLog(`WARN: ${args.join(' ')}`, 'error');
+            originalWarn.apply(console, args);
+        };
+
+        console.log = function(...args) {
+            addLog(`LOG: ${args.join(' ')}`, 'info');
+            originalLog.apply(console, args);
+        };
+
+        // Capture unhandled errors
+        window.addEventListener('error', function(e) {
+            addLog(`UNHANDLED ERROR: ${e.message} at ${e.filename}:${e.lineno}:${e.colno}`, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+            addLog(`UNHANDLED PROMISE REJECTION: ${e.reason}`, 'error');
+        });
+
+        addLog('🚀 Starting React mount test...');
+        addLog(`📍 Current URL: ${window.location.href}`);
+        addLog(`🌐 User Agent: ${navigator.userAgent}`);
+        
+        // Test basic DOM
+        const root = document.getElementById('root');
+        if (root) {
+            addLog('✅ Root element found', 'success');
+        } else {
+            addLog('❌ Root element not found', 'error');
+        }
+
+        // Test if we can access environment variables (simulated)
+        addLog('🔧 Testing environment access...');
+        
+        // Try to load the main script manually and see what happens
+        addLog('📦 Attempting to load main script...');
+        
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = '/assets/index-DOVLx69Q.js';
+        
+        script.onload = function() {
+            addLog('✅ Main script loaded successfully', 'success');
+            
+            // Check if React mounted after a delay
+            setTimeout(() => {
+                const rootContent = document.getElementById('root').innerHTML;
+                if (rootContent && rootContent !== 'Loading...') {
+                    addLog('✅ React appears to have mounted', 'success');
+                    addLog(`📄 Root content: ${rootContent.substring(0, 100)}...`);
+                } else {
+                    addLog('❌ React did not mount - root still shows "Loading..."', 'error');
+                }
+            }, 2000);
+        };
+        
+        script.onerror = function(e) {
+            addLog('❌ Failed to load main script', 'error');
+            addLog(`Error details: ${JSON.stringify(e)}`, 'error');
+        };
+        
+        document.head.appendChild(script);
+        
+        // Monitor root element changes
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'childList') {
+                    addLog(`🔄 Root content changed: ${mutation.target.innerHTML.substring(0, 50)}...`);
+                }
+            });
+        });
+        
+        observer.observe(root, { childList: true, subtree: true });
+        
+        addLog('👀 Monitoring root element for changes...');
+    </script>
+</body>
+</html>

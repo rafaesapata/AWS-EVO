@@ -1,0 +1,273 @@
+import { useQuery } from "@tanstack/react-query";
+import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
+import { apiClient } from "@/integrations/aws/api-client";
+import { useOrganization } from "@/hooks/useOrganization";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
+import { TrendingUp, AlertTriangle, Info } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+interface Props {
+  accountId: string;
+}
+
+export function CostForecast({ accountId }: Props) {
+  // Get user's organization to ensure proper cache isolation
+  const { data: organizationId } = useOrganization();
+
+  const { data: historicalCosts, isLoading: loadingHistory } = useQuery({
+    queryKey: ['daily-costs-history', organizationId, accountId],
+    enabled: !!accountId && accountId !== 'all' && !!organizationId,
+    staleTime: Infinity, // Manter cache até invalidação manual
+    gcTime: 60 * 60 * 1000, // Garbage collection após 1 hora
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+      const response = await apiClient.select('daily_costs', {
+        select: '*',
+        eq: { 
+          organization_id: organizationId,
+          aws_account_id: accountId 
+        },
+        gte: { cost_date: ninetyDaysAgo.toISOString().split('T')[0] },
+        order: { cost_date: 'asc' }
+      });
+      
+      if (response.error) {
+        console.error('Error fetching historical costs:', response.error);
+        throw new Error(response.error);
+      }
+      
+      console.log(`Fetched ${response.data?.length || 0} days of historical data for forecast`);
+      return response.data || [];
+    }
+  });
+
+  // Gerar previsão local baseada em dados históricos
+  const forecasts = historicalCosts && historicalCosts.length >= 7 ? (() => {
+    const costs = historicalCosts.map(c => c.total_cost);
+    const n = costs.length;
+    const avgCost = costs.reduce((a, b) => a + b, 0) / n;
+    
+    // Calcular tendência
+    let sumXY = 0, sumX = 0, sumX2 = 0;
+    for (let i = 0; i < n; i++) {
+      sumXY += i * costs[i];
+      sumX += i;
+      sumX2 += i * i;
+    }
+    const slope = (n * sumXY - sumX * costs.reduce((a, b) => a + b, 0)) / (n * sumX2 - sumX * sumX);
+    
+    // Calcular desvio padrão
+    const variance = costs.reduce((sum, cost) => {
+      const diff = cost - avgCost;
+      return sum + diff * diff;
+    }, 0) / n;
+    const stdDev = Math.sqrt(variance);
+    const confidence = 1.96 * stdDev;
+    
+    // Gerar previsões
+    const predictions = [];
+    for (let i = 1; i <= 30; i++) {
+      const forecastDate = new Date();
+      forecastDate.setDate(forecastDate.getDate() + i);
+      const predictedCost = Math.max(0, avgCost + slope * (n + i));
+      
+      predictions.push({
+        forecast_date: forecastDate.toISOString().split('T')[0],
+        predicted_cost: predictedCost,
+        confidence_interval_low: Math.max(0, predictedCost - confidence),
+        confidence_interval_high: predictedCost + confidence
+      });
+    }
+    return predictions;
+  })() : null;
+
+  if (accountId === 'all') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Previsão de Custos</CardTitle>
+          <CardDescription>Selecione uma conta específica para ver previsões</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (loadingHistory) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-8 w-64" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Combinar dados históricos e previsões
+  const chartData = [
+    ...(historicalCosts?.map(c => ({
+      date: new Date(c.cost_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      actual: c.total_cost,
+      predicted: null,
+      low: null,
+      high: null
+    })) || []),
+    ...(forecasts?.map(f => ({
+      date: new Date(f.forecast_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      actual: f.actual_cost || null,
+      predicted: f.predicted_cost,
+      low: f.confidence_interval_low,
+      high: f.confidence_interval_high
+    })) || [])
+  ];
+
+  const avgDailyCost = historicalCosts?.reduce((sum, c) => sum + c.total_cost, 0) / (historicalCosts?.length || 1);
+  const predictedMonthlyCost = forecasts?.reduce((sum, f) => sum + f.predicted_cost, 0) || 0;
+  const growthRate = ((predictedMonthlyCost - (avgDailyCost * 30)) / (avgDailyCost * 30)) * 100;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Previsão de Custos (30 dias)
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 text-sm" side="top">
+                  <div className="space-y-2">
+                    <h4 className="font-semibold">Como é calculado?</h4>
+                    <p className="text-muted-foreground">
+                      <strong>Previsão ML com Regressão Linear:</strong> Analisa 90 dias de histórico para prever os próximos 30 dias.
+                    </p>
+                    <div className="bg-muted p-2 rounded text-xs font-mono">
+                      Média + (Tendência × Dias futuros)
+                    </div>
+                    <ul className="text-xs text-muted-foreground space-y-1">
+                      <li>• Média diária: ${avgDailyCost?.toFixed(2) || '0.00'}</li>
+                      <li>• Dados analisados: {historicalCosts?.length || 0} dias</li>
+                      <li>• Previsão: Soma de 30 dias futuros</li>
+                    </ul>
+                    <div className="border-t pt-2 mt-2">
+                      <p className="text-xs text-muted-foreground">
+                        💡 A "Projeção do Mês" no Dashboard usa metodologia diferente 
+                        (extrapolação linear do mês atual), por isso os valores podem diferir.
+                      </p>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </CardTitle>
+            <CardDescription>
+              Baseado em padrões históricos e tendências
+            </CardDescription>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold">${predictedMonthlyCost.toFixed(2)}</div>
+            <Badge variant={growthRate > 10 ? "destructive" : "default"}>
+              {growthRate > 0 ? '+' : ''}{growthRate.toFixed(1)}% vs atual
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {chartData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={350}>
+            <AreaChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 11 }}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+              />
+              <YAxis 
+                tick={{ fontSize: 11 }}
+                tickFormatter={(value) => `$${value.toFixed(0)}`}
+              />
+              <Tooltip 
+                formatter={(value: any) => `$${Number(value).toFixed(2)}`}
+                labelStyle={{ color: '#000' }}
+              />
+              <Legend />
+              
+              {/* Intervalo de confiança */}
+              <Area
+                type="monotone"
+                dataKey="high"
+                stackId="1"
+                stroke="none"
+                fill="hsl(var(--primary))"
+                fillOpacity={0.1}
+                name="Intervalo Superior"
+              />
+              <Area
+                type="monotone"
+                dataKey="low"
+                stackId="1"
+                stroke="none"
+                fill="hsl(var(--primary))"
+                fillOpacity={0.1}
+                name="Intervalo Inferior"
+              />
+              
+              {/* Custos reais */}
+              <Line
+                type="monotone"
+                dataKey="actual"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                name="Custo Real"
+              />
+              
+              {/* Previsão */}
+              <Line
+                type="monotone"
+                dataKey="predicted"
+                stroke="hsl(var(--destructive))"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={{ r: 3 }}
+                name="Previsão"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-2 opacity-50" />
+            <p>Dados históricos insuficientes para gerar previsão</p>
+            <p className="text-sm">Necessário pelo menos 7 dias de histórico</p>
+            <p className="text-xs mt-2">Encontrados: {historicalCosts?.length || 0} dias</p>
+          </div>
+        )}
+
+        {forecasts && forecasts.length > 0 && (
+          <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+            <h4 className="font-semibold mb-2">Insights da Previsão</h4>
+            <ul className="text-sm space-y-1 text-muted-foreground">
+              <li>• Próximos 7 dias: ${forecasts.slice(0, 7).reduce((s, f) => s + f.predicted_cost, 0).toFixed(2)}</li>
+              <li>• Próximos 30 dias: ${predictedMonthlyCost.toFixed(2)}</li>
+              <li>• Tendência: {growthRate > 5 ? 'Crescimento' : growthRate < -5 ? 'Redução' : 'Estável'}</li>
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
