@@ -173,17 +173,16 @@ export default function InfrastructureTopology() {
       const syncResponse = await apiClient.lambda('sync-resource-inventory');
       // Ignore sync warnings silently
 
-      let query = apiClient.select(tableName, {
+      const filters: any = { organization_id: organizationId };
+      if (selectedAccountId) {
+        filters.aws_account_id = selectedAccountId;
+      }
+
+      const { data: resources, error } = await apiClient.select('resource_inventory', {
         select: '*',
         eq: filters,
         order: { column: 'created_at', ascending: false }
       });
-      
-      if (selectedAccountId) {
-        const filters =  { aws_account_id: selectedAccountId };
-      }
-
-      const { data: resources, error } = await query;
 
       
 

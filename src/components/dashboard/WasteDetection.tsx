@@ -61,9 +61,10 @@ export default function WasteDetection() {
       // If viewing historical scan, fetch waste items from that scan
       if (viewingHistoricalScan?.scanId) {
         // Get the scan timestamp
-        const scanResponse = await apiClient.select(tableName, { eq: filters });
-      const scanData = scanResponse.data;
-      const scanError = scanResponse.error;
+        const scanResponse = await apiClient.select('waste_detection_history', { 
+          eq: { id: viewingHistoricalScan.scanId } 
+        });
+        const scanData = scanResponse.data?.[0];
         if (!scanData) return [];
 
         // Fetch waste items created during this scan - FILTERED BY SELECTED ACCOUNT
@@ -71,34 +72,35 @@ export default function WasteDetection() {
         const startTime = new Date(scanTime.getTime() - 60000);
         const endTime = new Date(scanTime.getTime() + 60000);
 
-        const wasteResponse = await apiClient.select(tableName, { eq: filters });
-      const wasteData = wasteResponse.data;
-      const wasteError = wasteResponse.error;
-        if (wasteError) {
-          throw wasteError;
+        const wasteResponse = await apiClient.select('waste_detection', { 
+          eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+        });
+        if (wasteResponse.error) {
+          throw wasteResponse.error;
         }
         
-        return wasteData || [];
+        return wasteResponse.data || [];
       }
 
       // Fetch active waste items - FILTERED BY SELECTED ACCOUNT
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      if (error) {
-        throw error;
+      const response = await apiClient.select('waste_detection', { 
+        eq: { organization_id: organizationId, aws_account_id: selectedAccountId, status: 'active' } 
+      });
+      if (response.error) {
+        throw response.error;
       }
       
-      return data || [];
+      return response.data || [];
     },
   });
 
   const handleViewHistoricalScan = async (scanId: string) => {
     try {
       // Fetch scan data
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
+      const response = await apiClient.select('waste_detection_history', { 
+        eq: { id: scanId } 
+      });
+      const scanData = response.data?.[0];
       setViewingHistoricalScan({
         scanId,
         scanData
@@ -186,13 +188,25 @@ export default function WasteDetection() {
       const user = await cognitoAuth.getCurrentUser();
       const { data: profile } = await apiClient.get('/profiles', { id: user?.id }).single();
       
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-            // Link ticket to waste detection
-      const linkResponse = await apiClient.insert(tableName, data);
-      const linkError = linkResponse.error;
-            // Silently handle link error - ticket was created successfully
+      const ticketData = {
+        organization_id: profile?.organization_id,
+        title: `Desperdício detectado: ${wasteItem.resource_name || wasteItem.resource_id}`,
+        description: wasteItem.recommendations || 'Recurso identificado como desperdício',
+        priority: wasteItem.monthly_waste_cost > 100 ? 'high' : 'medium',
+        ticket_type: 'cost_optimization',
+        status: 'pending'
+      };
+      
+      const ticketResponse = await apiClient.insert('tickets', ticketData);
+      if (ticketResponse.error) throw ticketResponse.error;
+      const ticket = ticketResponse.data;
+      
+      // Link ticket to waste detection
+      const linkResponse = await apiClient.update('waste_detection', 
+        { ticket_id: ticket.id }, 
+        { id: wasteId }
+      );
+      // Silently handle link error - ticket was created successfully
 
       toast({
         title: t('wasteDetection.ticketCreated'),

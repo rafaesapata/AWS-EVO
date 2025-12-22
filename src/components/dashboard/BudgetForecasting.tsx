@@ -24,16 +24,8 @@ export function BudgetForecasting() {
   // Load latest saved forecast from database - ISOLATED BY ACCOUNT
   const { data: savedForecast } = useQuery({
     queryKey: ['budget-forecast-saved', 'org', organizationId, 'account', selectedAccountId],
-    // In TV mode, only require organizationId
     enabled: !!organizationId && (isTVMode || !!selectedAccountId),
     queryFn: async () => {
-      let query = apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
-      });
-      
-      // Only filter by account if not in TV mode
       const filters: any = { organization_id: organizationId };
       if (!isTVMode && selectedAccountId) {
         filters.aws_account_id = selectedAccountId;
@@ -45,8 +37,7 @@ export function BudgetForecasting() {
         limit: 1
       });
       
-      const data = response.data?.[0];
-      return data;
+      return response.data?.[0];
     },
   });
 

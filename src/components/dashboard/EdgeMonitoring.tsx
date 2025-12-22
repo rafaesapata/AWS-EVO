@@ -123,18 +123,21 @@ export const EdgeMonitoring = () => {
       if (!organizationId || !selectedAccountId) throw new Error('Organization/Account not available');
       
       // CRITICAL: Verify account belongs to organization
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      if (accountError || !accountCheck) {
+      const accountResponse = await apiClient.select('aws_accounts', { 
+        eq: { id: selectedAccountId, organization_id: organizationId } 
+      });
+      if (accountResponse.error || !accountResponse.data) {
         throw new Error('AWS account not found or does not belong to your organization');
       }
       
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      console.log('Edge resources found:', data?.length, data);
-      return data || [];
+      const resourceResponse = await apiClient.select('monitored_resources', { 
+        eq: { 
+          organization_id: organizationId, 
+          aws_account_id: selectedAccountId 
+        } 
+      });
+      console.log('Edge resources found:', resourceResponse.data?.length, resourceResponse.data);
+      return resourceResponse.data || [];
     },
     staleTime: 0,
     gcTime: 0
@@ -148,18 +151,23 @@ export const EdgeMonitoring = () => {
       if (!organizationId || !selectedAccountId) throw new Error('Organization/Account not available');
       
       // CRITICAL: Verify account belongs to organization
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      if (accountError || !accountCheck) {
+      const accountResponse = await apiClient.select('aws_accounts', { 
+        eq: { id: selectedAccountId, organization_id: organizationId } 
+      });
+      if (accountResponse.error || !accountResponse.data) {
         throw new Error('AWS account not found or does not belong to your organization');
       }
       
       const timeWindow = getTimeWindow();
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      return data || [];
+      const metricsResponse = await apiClient.select('resource_metrics', { 
+        eq: { 
+          organization_id: organizationId, 
+          aws_account_id: selectedAccountId 
+        },
+        order: { column: 'timestamp', ascending: false },
+        limit: 500
+      });
+      return metricsResponse.data || [];
     },
     staleTime: 0,
     gcTime: 0
@@ -200,10 +208,15 @@ export const EdgeMonitoring = () => {
       await refetchMetrics();
 
       // Verificar se encontrou recursos de borda especificamente
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      const edgeCount = edgeCheck?.length || 0;
+      const edgeCheckResponse = await apiClient.select('monitored_resources', { 
+        eq: { 
+          organization_id: organizationId, 
+          aws_account_id: selectedAccountId 
+        } 
+      });
+      const edgeCount = edgeCheckResponse.data?.filter(r => 
+        ['alb', 'nlb', 'elb', 'cloudfront', 'waf', 'apigateway'].includes(r.resource_type)
+      ).length || 0;
 
       toast({
         title: edgeCount > 0 ? "✅ Métricas de borda atualizadas" : "⚠️ Nenhum recurso de borda encontrado",
@@ -261,10 +274,15 @@ export const EdgeMonitoring = () => {
       if (!selectedResource || !selectedAccountId) return [];
       
       const timeWindow = getTimeWindow();
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      return data || [];
+      const response = await apiClient.select('resource_metrics', { 
+        eq: { 
+          resource_id: selectedResource.resource_id,
+          aws_account_id: selectedAccountId 
+        },
+        order: { column: 'timestamp', ascending: false },
+        limit: 100
+      });
+      return response.data || [];
     },
     staleTime: 0,
   });

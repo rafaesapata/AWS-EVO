@@ -63,9 +63,8 @@ export default function WAFSecurityValidation() {
     setLoading(true);
     try {
       // AWS API call for WAF security validation
-      const result = await apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
+      const result = await apiClient.select('waf_security_validations', {
+        eq: { organization_id: organizationId },
         order: { column: 'created_at', ascending: false }
       });
 
@@ -89,30 +88,29 @@ export default function WAFSecurityValidation() {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const response = await apiClient.select(tableName, { eq: filters });
-      const orgData = response.data;
-      const orgError = response.error;
-            if (orgError) throw orgError;
+      const profileResponse = await apiClient.get('/profiles', { id: user.user?.id }).single();
+      const profile = profileResponse.data;
+      if (!profile?.organization_id) throw new Error("Organization not found");
 
       // Get or create a scan
-      const scanResponse = await apiClient.select(tableName, { eq: filters });
+      const scanResponse = await apiClient.insert('security_scans', {
+        organization_id: profile.organization_id,
+        scan_type: 'waf_validation',
+        status: 'running'
+      });
+      if (scanResponse.error) throw scanResponse.error;
       const scanData = scanResponse.data;
-      const scanError = scanResponse.error;
-            if (scanError) throw scanError;
 
       // Call edge function to validate WAF and Security Groups
       const validationData = await apiClient.lambda('validate-waf-security', {
         body: { scanId: scanData.id }
       });
 
-      
+      if (validationData.error) throw validationData.error;
+      const data = validationData;
 
       // Update scan status
-      await apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
-      });
+      await apiClient.update('security_scans', { status: 'completed' }, { id: scanData.id });
 
       if (data.validations === 0) {
         toast({
@@ -165,19 +163,14 @@ export default function WAFSecurityValidation() {
           status: 'pending'
         }));
 
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-            if (ticketError) throw ticketError;
+      const ticketResponse = await apiClient.insert('tickets', ticketsToCreate);
+      if (ticketResponse.error) throw ticketResponse.error;
+      const tickets = ticketResponse.data;
 
       // Update validations with ticket IDs
       for (let i = 0; i < tickets.length; i++) {
         const validation = validations.filter(v => selectedValidations.includes(v.id) && !v.ticket_id)[i];
-        await apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
-      });
+        await apiClient.update('waf_security_validations', { ticket_id: tickets[i].id }, { id: validation.id });
       }
 
       toast({

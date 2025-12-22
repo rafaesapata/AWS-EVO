@@ -235,6 +235,154 @@ class CognitoAuthService {
     }
   }
 
+  // ============================================================================
+  // MILITARY GRADE SECURITY ENHANCEMENTS
+  // ============================================================================
+
+  /**
+   * Lista de operações que requerem MFA
+   */
+  private readonly MFA_REQUIRED_OPERATIONS = [
+    'delete_user',
+    'delete_organization',
+    'modify_credentials',
+    'export_data',
+    'change_admin_role',
+    'access_billing',
+    'modify_security_settings'
+  ] as const;
+
+  /**
+   * Verifica se MFA é necessário para a operação e se está verificado
+   */
+  async requireMFAForSensitiveOperation(operation: string): Promise<boolean> {
+    // Verificar se a operação requer MFA
+    if (!this.MFA_REQUIRED_OPERATIONS.includes(operation as any)) {
+      return true; // Operação não requer MFA
+    }
+
+    const session = await this.getCurrentSession();
+    if (!session) {
+      throw new Error('No active session');
+    }
+
+    const mfaVerified = session.user.attributes['custom:mfa_verified'];
+    const mfaVerifiedAt = session.user.attributes['custom:mfa_verified_at'];
+
+    // MFA deve ter sido verificado nos últimos 15 minutos para operações sensíveis
+    if (mfaVerified !== 'true') {
+      throw new Error('MFA verification required for this operation');
+    }
+
+    if (mfaVerifiedAt) {
+      const verifiedTime = new Date(mfaVerifiedAt).getTime();
+      const fifteenMinutesAgo = Date.now() - (15 * 60 * 1000);
+
+      if (verifiedTime < fifteenMinutesAgo) {
+        throw new Error('MFA verification expired. Please re-verify.');
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Verifica se o token foi revogado
+   */
+  private async checkTokenRevocation(token: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/auth/check-revocation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-ID': crypto.randomUUID()
+        },
+        body: JSON.stringify({ token })
+      });
+
+      if (!response.ok) {
+        // Em caso de erro, assumir que o token pode estar comprometido
+        return true;
+      }
+
+      const { revoked } = await response.json();
+      return revoked;
+    } catch (error) {
+      console.error('Token revocation check error:', error);
+      // Em caso de erro, assumir que o token pode estar comprometido
+      return true;
+    }
+  }
+
+  /**
+   * Refresh de sessão com retry exponencial e jitter
+   */
+  async refreshTokenWithRetry(maxRetries: number = 3): Promise<AuthSession | null> {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const session = await this.refreshSession();
+        return session;
+      } catch (error) {
+        if (attempt === maxRetries - 1) {
+          console.error(`Refresh token failed after ${maxRetries} attempts:`, error);
+          throw error;
+        }
+
+        // Exponential backoff com jitter
+        const baseDelay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+        const jitter = Math.random() * 1000; // 0-1s de jitter
+        const delay = baseDelay + jitter;
+
+        console.warn(`Refresh attempt ${attempt + 1} failed, retrying in ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Validação completa do token com todas as verificações de segurança
+   */
+  async validateTokenComplete(token: string): Promise<{
+    valid: boolean;
+    error?: string;
+    claims?: any;
+  }> {
+    try {
+      // 1. Validar estrutura básica
+      if (!token || typeof token !== 'string') {
+        return { valid: false, error: 'Invalid token format' };
+      }
+
+      // 2. Validar estrutura JWT
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return { valid: false, error: 'Invalid JWT structure' };
+      }
+
+      // 3. Validar claims básicos
+      if (!this.validateToken(token)) {
+        return { valid: false, error: 'Invalid signature or claims' };
+      }
+
+      // 4. Verificar revogação (opcional - depende do backend)
+      try {
+        const isRevoked = await this.checkTokenRevocation(token);
+        if (isRevoked) {
+          return { valid: false, error: 'Token has been revoked' };
+        }
+      } catch {
+        // Se não conseguir verificar revogação, continuar
+      }
+
+      // 5. Decodificar e retornar claims
+      const payload = JSON.parse(atob(parts[1]));
+      return { valid: true, claims: payload };
+    } catch (error: any) {
+      return { valid: false, error: error.message };
+    }
+  }
+
 
 
   async signUp(

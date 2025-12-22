@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO UDS - WAF Rules for Military-Grade Protection'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'evo-uds'
+  Environment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+    Default: prod
+  ApiGatewayArn:
+    Type: String
+    Description: ARN of the API Gateway to protect
+
+Resources:
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-waf'
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub '${ProjectName}-${Environment}-waf'
+      
+      Rules:
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 1
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesCommon
+
+        - Name: AWSManagedRulesKnownBadInputsRuleSet
+          Priority: 2
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesKnownBadInputs
+
+        - Name: AWSManagedRulesSQLiRuleSet
+          Priority: 3
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesSQLiRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesSQLi
+
+        - Name: CustomSQLInjectionRule
+          Priority: 4
+          Action:
+            Block:
+              CustomResponse:
+                ResponseCode: 403
+                CustomResponseBodyKey: BlockedRequest
+          Statement:
+            SqliMatchStatement:
+              FieldToMatch:
+                AllQueryArguments: {}
+              TextTransformations:
+                - Priority: 0
+                  Type: URL_DECODE
+                - Priority: 1
+                  Type: HTML_ENTITY_DECODE
+                - Priority: 2
+                  Type: LOWERCASE
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: CustomSQLInjection
+
+        - Name: XSSProtectionRule
+          Priority: 5
+          Action:
+            Block:
+              CustomResponse:
+                ResponseCode: 403
+                CustomResponseBodyKey: BlockedRequest
+          Statement:
+            XssMatchStatement:
+              FieldToMatch:
+                AllQueryArguments: {}
+              TextTransformations:
+                - Priority: 0
+                  Type: URL_DECODE
+                - Priority: 1
+                  Type: HTML_ENTITY_DECODE
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: XSSProtection
+
+        - Name: RateLimitRule
+          Priority: 6
+          Action:
+            Block:
+              CustomResponse:
+                ResponseCode: 429
+                ResponseHeaders:
+                  - Name: Retry-After
+                    Value: '300'
+          Statement:
+            RateBasedStatement:
+              Limit: 2000
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimit
+
+        - Name: GeoBlockingRule
+          Priority: 7
+          Action:
+            Block:
+              CustomResponse:
+                ResponseCode: 403
+                CustomResponseBodyKey: GeoBlocked
+          Statement:
+            GeoMatchStatement:
+              CountryCodes:
+                - KP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: GeoBlocking
+
+      CustomResponseBodies:
+        BlockedRequest:
+          ContentType: APPLICATION_JSON
+          Content: '{"error":"Request blocked by security rules","code":"WAF_BLOCKED"}'
+        GeoBlocked:
+          ContentType: APPLICATION_JSON
+          Content: '{"error":"Access not permitted from your location","code":"GEO_BLOCKED"}'
+
+  WebACLAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Condition: HasApiGateway
+    Properties:
+      ResourceArn: !Ref ApiGatewayArn
+      WebACLArn: !GetAtt WebACL.Arn
+
+Conditions:
+  HasApiGateway: !Not [!Equals [!Ref ApiGatewayArn, '']]
+
+Outputs:
+  WebACLArn:
+    Description: ARN of the WAF Web ACL
+    Value: !GetAtt WebACL.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-arn'

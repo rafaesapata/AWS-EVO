@@ -7,55 +7,201 @@ import { z } from 'zod';
 import { badRequest } from './response.js';
 import type { APIGatewayProxyResultV2 } from '../types/lambda.js';
 
-// Input sanitization utilities
+// ============================================================================
+// REGEX PATTERNS DE SEGURANÇA
+// ============================================================================
+
 const HTML_TAG_REGEX = /<[^>]*>/g;
 const SCRIPT_TAG_REGEX = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi;
-const SQL_INJECTION_REGEX = /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)|[';\"\\]/gi;
+const SQL_INJECTION_REGEX = /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT|TRUNCATE|GRANT|REVOKE)\b)|[';\"\\]/gi;
+
+/**
+ * Padrões XSS adicionais para detecção avançada
+ */
 const XSS_PATTERNS = [
   /javascript:/gi,
   /vbscript:/gi,
-  /onload=/gi,
-  /onerror=/gi,
-  /onclick=/gi,
-  /onmouseover=/gi,
-  /onfocus=/gi,
-  /onblur=/gi,
-  /onchange=/gi,
-  /onsubmit=/gi,
+  /data:text\/html/gi,
+  /on\w+\s*=/gi,  // Eventos como onclick=, onerror=
+  /expression\s*\(/gi,
+  /-moz-binding/gi,
+  /<!--/g,
+  /-->/g,
+  /\/\*.*\*\//g,
+  /\\x[0-9a-fA-F]{2}/g,
+  /\\u[0-9a-fA-F]{4}/g,
 ];
 
+// ============================================================================
+// 1. SANITIZAÇÃO MULTI-CAMADA COM DECODIFICAÇÃO
+// ============================================================================
+
 /**
- * Sanitize string input to prevent injection attacks
+ * Sanitiza string com múltiplas camadas de proteção
+ * Previne bypasses via encoding
  */
-export function sanitizeString(input: string): string {
-  if (typeof input !== 'string') {
-    return '';
+export function sanitizeStringAdvanced(input: string): string {
+  if (typeof input !== 'string') return '';
+
+  let sanitized = input;
+
+  // PASSO 1: Decodificar múltiplas vezes para pegar encoding aninhado
+  for (let i = 0; i < 3; i++) {
+    try {
+      const decoded = decodeURIComponent(sanitized);
+      if (decoded === sanitized) break;
+      sanitized = decoded;
+    } catch {
+      break;
+    }
   }
 
-  let sanitized = input
-    // Remove HTML tags
-    .replace(HTML_TAG_REGEX, '')
-    // Remove script tags
-    .replace(SCRIPT_TAG_REGEX, '')
-    // Remove potential SQL injection patterns
-    .replace(SQL_INJECTION_REGEX, '')
-    // Remove null bytes
-    .replace(/\0/g, '')
-    // Normalize whitespace
-    .replace(/\s+/g, ' ')
+  // PASSO 2: Decodificar HTML entities
+  sanitized = sanitized
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/gi, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+
+  // PASSO 3: Normalizar Unicode para prevenir bypasses
+  sanitized = sanitized.normalize('NFKC');
+
+  // PASSO 4: Remover caracteres de controle e null bytes
+  sanitized = sanitized
+    .replace(/\0/g, '')  // Null bytes
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')  // Caracteres de controle
+    .replace(/\s+/g, ' ')  // Normalizar espaços
     .trim();
 
-  // Check for XSS patterns
+  // PASSO 5: Aplicar sanitização de HTML/Script
+  sanitized = sanitized
+    .replace(HTML_TAG_REGEX, '')
+    .replace(SCRIPT_TAG_REGEX, '');
+
+  // PASSO 6: Remover padrões SQL Injection
+  sanitized = sanitized.replace(SQL_INJECTION_REGEX, '');
+
+  // PASSO 7: Verificar padrões XSS adicionais
   for (const pattern of XSS_PATTERNS) {
     sanitized = sanitized.replace(pattern, '');
   }
 
-  // Limit length to prevent DoS
-  if (sanitized.length > 10000) {
-    sanitized = sanitized.substring(0, 10000);
+  // PASSO 8: Limite de comprimento com margem de segurança
+  const MAX_LENGTH = 5000;
+  if (sanitized.length > MAX_LENGTH) {
+    sanitized = sanitized.substring(0, MAX_LENGTH);
   }
 
   return sanitized;
+}
+
+/**
+ * Verifica se string contém padrões maliciosos (sem modificar)
+ */
+export function detectMaliciousPatterns(input: string): {
+  isMalicious: boolean;
+  patterns: string[];
+} {
+  if (typeof input !== 'string') {
+    return { isMalicious: false, patterns: [] };
+  }
+
+  const detectedPatterns: string[] = [];
+  let normalized = input;
+
+  // Decodificar para análise
+  try {
+    for (let i = 0; i < 3; i++) {
+      const decoded = decodeURIComponent(normalized);
+      if (decoded === normalized) break;
+      normalized = decoded;
+    }
+  } catch {}
+
+  normalized = normalized.normalize('NFKC').toLowerCase();
+
+  // Verificar padrões
+  if (SQL_INJECTION_REGEX.test(normalized)) {
+    detectedPatterns.push('SQL_INJECTION');
+  }
+
+  for (const pattern of XSS_PATTERNS) {
+    if (pattern.test(normalized)) {
+      detectedPatterns.push('XSS');
+      break;
+    }
+  }
+
+  if (HTML_TAG_REGEX.test(normalized)) {
+    detectedPatterns.push('HTML_INJECTION');
+  }
+
+  return {
+    isMalicious: detectedPatterns.length > 0,
+    patterns: detectedPatterns
+  };
+}
+
+/**
+ * Sanitize string input to prevent injection attacks (legacy compatibility)
+ */
+export function sanitizeString(input: string): string {
+  return sanitizeStringAdvanced(input);
+}
+
+// ============================================================================
+// 2. VALIDAÇÃO DE TAMANHO DE PAYLOAD COM LIMITES POR TIPO
+// ============================================================================
+
+/**
+ * Limites de payload por content-type
+ */
+const PAYLOAD_LIMITS: Record<string, number> = {
+  'application/json': 256 * 1024,              // 256KB para JSON
+  'multipart/form-data': 10 * 1024 * 1024,     // 10MB para uploads
+  'application/x-www-form-urlencoded': 100 * 1024,  // 100KB para forms
+  'text/plain': 64 * 1024,                     // 64KB para texto
+  'default': 512 * 1024                         // 512KB padrão
+};
+
+/**
+ * Valida tamanho do payload
+ */
+export function validatePayloadSize(
+  body: string | null,
+  contentType: string
+): { success: true } | { success: false; error: APIGatewayProxyResultV2 } {
+  if (!body) return { success: true };
+
+  // Determinar content-type base (sem charset)
+  const baseContentType = contentType?.split(';')[0]?.trim().toLowerCase() || 'default';
+  const limit = PAYLOAD_LIMITS[baseContentType] || PAYLOAD_LIMITS['default'];
+
+  // Calcular tamanho em bytes
+  const bodySize = Buffer.byteLength(body, 'utf8');
+
+  if (bodySize > limit) {
+    return {
+      success: false,
+      error: {
+        statusCode: 413,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Max-Payload-Size': limit.toString()
+        },
+        body: JSON.stringify({
+          error: 'Payload Too Large',
+          message: `Payload size ${bodySize} bytes exceeds maximum ${limit} bytes for ${baseContentType}`,
+          maxSize: limit,
+          actualSize: bodySize
+        })
+      }
+    };
+  }
+
+  return { success: true };
 }
 
 /**
@@ -63,7 +209,7 @@ export function sanitizeString(input: string): string {
  */
 export function sanitizeObject(obj: any): any {
   if (typeof obj === 'string') {
-    return sanitizeString(obj);
+    return sanitizeStringAdvanced(obj);
   }
   
   if (Array.isArray(obj)) {
@@ -73,7 +219,7 @@ export function sanitizeObject(obj: any): any {
   if (obj && typeof obj === 'object') {
     const sanitized: any = {};
     for (const [key, value] of Object.entries(obj)) {
-      const sanitizedKey = sanitizeString(key);
+      const sanitizedKey = sanitizeStringAdvanced(key);
       sanitized[sanitizedKey] = sanitizeObject(value);
     }
     return sanitized;
@@ -89,6 +235,15 @@ export function validateEmail(email: string): boolean {
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   const sanitized = sanitizeString(email);
   return emailRegex.test(sanitized) && sanitized.length <= 254;
+}
+
+/**
+ * Validate AWS Account ID format (12 digits)
+ */
+export function validateAwsAccountId(accountId: string): boolean {
+  if (!accountId || typeof accountId !== 'string') return false;
+  const sanitized = sanitizeString(accountId);
+  return /^\d{12}$/.test(sanitized);
 }
 
 /**
@@ -227,18 +382,17 @@ export function validateInput<T>(
  */
 export function parseAndValidateBody<T>(
   schema: z.ZodSchema<T>,
-  body: string | null
+  body: string | null,
+  contentType?: string
 ): { success: true; data: T } | { success: false; error: APIGatewayProxyResultV2 } {
   if (!body) {
     return validateInput(schema, {});
   }
-  
-  // Check for oversized payloads (DoS protection)
-  if (body.length > 1024 * 1024) { // 1MB limit
-    return {
-      success: false,
-      error: badRequest('Request payload too large'),
-    };
+
+  // Validar tamanho do payload
+  const sizeValidation = validatePayloadSize(body, contentType || 'application/json');
+  if (!sizeValidation.success) {
+    return sizeValidation;
   }
   
   try {
@@ -250,6 +404,23 @@ export function parseAndValidateBody<T>(
       return {
         success: false,
         error: badRequest('Request structure too complex'),
+      };
+    }
+
+    // Detectar padrões maliciosos antes de processar
+    const bodyStr = JSON.stringify(parsed);
+    const maliciousCheck = detectMaliciousPatterns(bodyStr);
+    if (maliciousCheck.isMalicious) {
+      return {
+        success: false,
+        error: {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            error: 'Malicious content detected',
+            patterns: maliciousCheck.patterns
+          })
+        }
       };
     }
     
@@ -381,28 +552,69 @@ export function validateOrganizationContext(
   return { success: true };
 }
 
+// ============================================================================
+// 3. RATE LIMITING DISTRIBUÍDO
+// ============================================================================
+
 /**
- * Rate limiting validation (basic implementation)
+ * Rate limiting validation (enhanced implementation)
  */
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const rateLimitMap = new Map<string, { count: number; resetTime: number; blocked: boolean; blockExpiry?: number }>();
+
+/**
+ * Configurações de rate limiting por tipo de operação
+ */
+const RATE_LIMIT_CONFIG: Record<string, { maxRequests: number; windowMs: number; blockDurationMs: number }> = {
+  'default': { maxRequests: 100, windowMs: 60000, blockDurationMs: 300000 },
+  'auth': { maxRequests: 10, windowMs: 60000, blockDurationMs: 900000 },
+  'sensitive': { maxRequests: 5, windowMs: 60000, blockDurationMs: 1800000 },
+  'export': { maxRequests: 3, windowMs: 300000, blockDurationMs: 3600000 },
+};
 
 export function checkRateLimit(
   identifier: string,
   maxRequests: number = 100,
   windowMs: number = 60000 // 1 minute
-): { success: true } | { success: false; error: APIGatewayProxyResultV2 } {
+): { success: true; remaining: number } | { success: false; error: APIGatewayProxyResultV2 } {
   const now = Date.now();
   const key = identifier;
   
   const current = rateLimitMap.get(key);
   
+  // Verificar se está bloqueado
+  if (current?.blocked && current.blockExpiry && current.blockExpiry > now) {
+    const retryAfter = Math.ceil((current.blockExpiry - now) / 1000);
+    return {
+      success: false,
+      error: {
+        statusCode: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': retryAfter.toString(),
+          'X-RateLimit-Limit': maxRequests.toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': new Date(current.blockExpiry).toISOString()
+        },
+        body: JSON.stringify({
+          error: 'Rate limit exceeded',
+          message: `User blocked. Try again in ${retryAfter} seconds.`,
+          retryAfter
+        }),
+      },
+    };
+  }
+  
   if (!current || now > current.resetTime) {
     // Reset or initialize
-    rateLimitMap.set(key, { count: 1, resetTime: now + windowMs });
-    return { success: true };
+    rateLimitMap.set(key, { count: 1, resetTime: now + windowMs, blocked: false });
+    return { success: true, remaining: maxRequests - 1 };
   }
   
   if (current.count >= maxRequests) {
+    // Block user
+    current.blocked = true;
+    current.blockExpiry = now + 300000; // 5 minutes block
+    
     return {
       success: false,
       error: {
@@ -410,6 +622,9 @@ export function checkRateLimit(
         headers: {
           'Content-Type': 'application/json',
           'Retry-After': Math.ceil((current.resetTime - now) / 1000).toString(),
+          'X-RateLimit-Limit': maxRequests.toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': new Date(current.resetTime).toISOString()
         },
         body: JSON.stringify({
           error: 'Rate limit exceeded',
@@ -421,5 +636,43 @@ export function checkRateLimit(
   
   // Increment counter
   current.count++;
+  return { success: true, remaining: maxRequests - current.count };
+}
+
+/**
+ * Rate limiting com múltiplas janelas (sliding window)
+ */
+export function checkRateLimitSlidingWindow(
+  identifier: string,
+  limits: Array<{ maxRequests: number; windowMs: number }>
+): { success: true } | { success: false; error: APIGatewayProxyResultV2 } {
+  for (const limit of limits) {
+    const result = checkRateLimit(
+      `${identifier}:${limit.windowMs}`,
+      limit.maxRequests,
+      limit.windowMs
+    );
+
+    if (!result.success) {
+      return result;
+    }
+  }
+
   return { success: true };
 }
+
+/**
+ * Limpa entradas expiradas do cache de rate limiting
+ */
+export function cleanupRateLimitCache(): void {
+  const now = Date.now();
+
+  for (const [key, entry] of rateLimitMap.entries()) {
+    if (now > entry.resetTime && (!entry.blocked || (entry.blockExpiry && now > entry.blockExpiry))) {
+      rateLimitMap.delete(key);
+    }
+  }
+}
+
+// Cleanup automático a cada 5 minutos
+setInterval(cleanupRateLimitCache, 5 * 60 * 1000);

@@ -38,10 +38,11 @@ export function IntelligentAlerts() {
   const { data: alertConfigs = [] } = useQuery({
     queryKey: ['alert-configs', organizationId, selectedAccountId],
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      return data as AlertConfig[];
+      const response = await apiClient.select('alert_configurations', { 
+        eq: { organization_id: organizationId } 
+      });
+      if (response.error) throw response.error;
+      return response.data as AlertConfig[];
     },
     enabled: !!organizationId,
   });
@@ -49,17 +50,21 @@ export function IntelligentAlerts() {
   const { data: recentAlerts = [] } = useQuery({
     queryKey: ['recent-alerts', organizationId, selectedAccountId],
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
+      const response = await apiClient.select('intelligent_alerts', { 
+        eq: { organization_id: organizationId },
+        order: { column: 'created_at', ascending: false },
+        limit: 20
+      });
+      if (response.error) throw response.error;
+      
       // Filter by account on client-side if needed (column may not exist)
-      if (selectedAccountId && data) {
-        return data.filter((alert: any) => 
+      if (selectedAccountId && response.data) {
+        return response.data.filter((alert: any) => 
           !alert.aws_account_id || alert.aws_account_id === selectedAccountId
         );
       }
       
-      return data;
+      return response.data;
     },
     enabled: !!organizationId,
   });
@@ -73,9 +78,12 @@ export function IntelligentAlerts() {
       if (threshold_value !== undefined) updates.threshold_value = threshold_value;
 
       // Security: Only update if config belongs to user's organization
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.update('alert_configurations', updates, { 
+        id, 
+        organization_id: organizationId 
+      });
+      if (response.error) throw response.error;
+    },
     onSuccess: () => {
       toast.success(t('intelligentAlerts.configUpdated'));
       queryClient.invalidateQueries({ queryKey: ['alert-configs'] });

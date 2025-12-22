@@ -1,26 +1,138 @@
 /**
- * Helpers para autenticação com Cognito
+ * Helpers para autenticação com Cognito - Military Grade Security
  */
 
 import type { AuthorizedEvent, CognitoUser } from '../types/lambda.js';
 
+// ============================================================================
+// TYPES E INTERFACES
+// ============================================================================
+
+interface ClaimValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+/**
+ * Roles permitidas no sistema (whitelist)
+ */
+const ALLOWED_ROLES = [
+  'user',
+  'admin',
+  'super_admin',
+  'auditor',
+  'viewer',
+  'billing_admin',
+  'security_admin'
+] as const;
+
+type AllowedRole = typeof ALLOWED_ROLES[number];
+
+/**
+ * Claims obrigatórios com validadores
+ */
+const REQUIRED_CLAIMS: Record<string, (value: any) => boolean> = {
+  'sub': (v) => typeof v === 'string' && v.length > 0,
+  'email': (v) => typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+  'exp': (v) => typeof v === 'number' && v * 1000 > Date.now(),
+};
+
+// ============================================================================
+// ERROS CUSTOMIZADOS
+// ============================================================================
+
+export class AuthValidationError extends Error {
+  public readonly errors: string[];
+
+  constructor(message: string, errors: string[]) {
+    super(message);
+    this.name = 'AuthValidationError';
+    this.errors = errors;
+  }
+}
+
+export class RateLimitError extends Error {
+  public readonly retryAfter: number;
+
+  constructor(message: string, retryAfter: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+// ============================================================================
+// VALIDAÇÃO DE CLAIMS
+// ============================================================================
+
+/**
+ * Valida todos os claims obrigatórios do token
+ */
+export function validateAuthClaims(claims: Record<string, any>): void {
+  const errors: string[] = [];
+
+  for (const [claim, validator] of Object.entries(REQUIRED_CLAIMS)) {
+    const value = claims[claim];
+
+    if (value === undefined || value === null) {
+      errors.push(`Missing required claim: ${claim}`);
+      continue;
+    }
+
+    if (!validator(value)) {
+      errors.push(`Invalid value for claim: ${claim}`);
+    }
+  }
+
+  // Validações adicionais de segurança
+  if (claims.exp && claims.iat) {
+    const tokenLifetime = (claims.exp - claims.iat) * 1000;
+    const maxLifetime = 24 * 60 * 60 * 1000; // 24 horas
+
+    if (tokenLifetime > maxLifetime) {
+      errors.push('Token lifetime exceeds maximum allowed');
+    }
+  }
+
+  // Verificar se token não foi emitido no futuro
+  if (claims.iat && claims.iat * 1000 > Date.now() + 60000) {
+    errors.push('Token issued in the future');
+  }
+
+  if (errors.length > 0) {
+    throw new AuthValidationError(errors.join('; '), errors);
+  }
+}
+
+// ============================================================================
+// FUNÇÕES PRINCIPAIS
+// ============================================================================
+
 export function getUserFromEvent(event: AuthorizedEvent): CognitoUser {
   const claims = event.requestContext.authorizer?.jwt?.claims;
-  
+
   if (!claims) {
     throw new Error('No authentication claims found');
   }
-  
+
+  // Validar claims obrigatórios
+  validateAuthClaims(claims);
+
   return claims;
 }
 
 export function getOrganizationId(user: CognitoUser): string {
   const orgId = user['custom:organization_id'];
-  
+
   if (!orgId) {
     throw new Error('User has no organization');
   }
-  
+
+  // Validar formato do organizationId
+  if (!/^org-[a-zA-Z0-9-]+$/.test(orgId) && !/^[a-f0-9-]{36}$/.test(orgId)) {
+    throw new Error('Invalid organization ID format');
+  }
+
   return orgId;
 }
 
@@ -28,23 +140,57 @@ export function getTenantId(user: CognitoUser): string | undefined {
   return user['custom:tenant_id'];
 }
 
-export function getUserRoles(user: CognitoUser): string[] {
+/**
+ * Obtém roles do usuário de forma segura com whitelist
+ */
+export function getUserRoles(user: CognitoUser): AllowedRole[] {
   const rolesStr = user['custom:roles'];
-  
-  if (!rolesStr) {
+
+  // Se não houver roles, retornar role padrão mínima
+  if (!rolesStr || typeof rolesStr !== 'string') {
     return ['user'];
   }
-  
+
   try {
-    return JSON.parse(rolesStr);
+    // Tentar parsear como JSON
+    const parsed = JSON.parse(rolesStr);
+
+    // Garantir que é um array
+    const rolesArray = Array.isArray(parsed) ? parsed : [parsed];
+
+    // Filtrar apenas roles válidas (whitelist)
+    const validRoles = rolesArray.filter((role): role is AllowedRole => {
+      if (typeof role !== 'string') return false;
+      return ALLOWED_ROLES.includes(role.toLowerCase() as AllowedRole);
+    });
+
+    // Retornar pelo menos a role padrão se nenhuma válida foi encontrada
+    return validRoles.length > 0 ? validRoles : ['user'];
+
   } catch {
-    return [rolesStr];
+    console.warn('Failed to parse user roles, defaulting to user role');
+    return ['user'];
   }
+}
+
+/**
+ * Alias para compatibilidade
+ */
+export function getUserRolesSafe(user: CognitoUser): AllowedRole[] {
+  return getUserRoles(user);
 }
 
 export function hasRole(user: CognitoUser, role: string): boolean {
   const roles = getUserRoles(user);
-  return roles.includes(role);
+  return roles.includes(role as AllowedRole);
+}
+
+/**
+ * Verifica se o usuário tem pelo menos uma das roles especificadas
+ */
+export function hasAnyRole(user: CognitoUser, requiredRoles: AllowedRole[]): boolean {
+  const userRoles = getUserRoles(user);
+  return requiredRoles.some(role => userRoles.includes(role));
 }
 
 export function requireRole(user: CognitoUser, role: string): void {
@@ -60,3 +206,87 @@ export function isSuperAdmin(user: CognitoUser): boolean {
 export function isAdmin(user: CognitoUser): boolean {
   return hasRole(user, 'admin') || isSuperAdmin(user);
 }
+
+// ============================================================================
+// RATE LIMITING POR USUÁRIO
+// ============================================================================
+
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+  blocked: boolean;
+  blockExpiry?: number;
+}
+
+const userRateLimits = new Map<string, RateLimitEntry>();
+
+const RATE_LIMIT_CONFIG: Record<string, { maxRequests: number; windowMs: number; blockDurationMs: number }> = {
+  'default': { maxRequests: 100, windowMs: 60000, blockDurationMs: 300000 },
+  'auth': { maxRequests: 10, windowMs: 60000, blockDurationMs: 900000 },
+  'sensitive': { maxRequests: 5, windowMs: 60000, blockDurationMs: 1800000 },
+  'export': { maxRequests: 3, windowMs: 300000, blockDurationMs: 3600000 },
+};
+
+/**
+ * Verifica rate limit do usuário
+ */
+export function checkUserRateLimit(
+  userId: string,
+  operationType: keyof typeof RATE_LIMIT_CONFIG = 'default'
+): void {
+  const now = Date.now();
+  const config = RATE_LIMIT_CONFIG[operationType] || RATE_LIMIT_CONFIG['default'];
+  const key = `${userId}:${operationType}`;
+
+  let entry = userRateLimits.get(key);
+
+  // Verificar se usuário está bloqueado
+  if (entry?.blocked && entry.blockExpiry && entry.blockExpiry > now) {
+    const remainingBlock = Math.ceil((entry.blockExpiry - now) / 1000);
+    throw new RateLimitError(
+      `User temporarily blocked. Try again in ${remainingBlock} seconds.`,
+      remainingBlock
+    );
+  }
+
+  // Reset se janela expirou
+  if (!entry || now > entry.resetTime) {
+    entry = {
+      count: 1,
+      resetTime: now + config.windowMs,
+      blocked: false
+    };
+    userRateLimits.set(key, entry);
+    return;
+  }
+
+  // Incrementar contador
+  entry.count++;
+
+  // Verificar se excedeu limite
+  if (entry.count > config.maxRequests) {
+    entry.blocked = true;
+    entry.blockExpiry = now + config.blockDurationMs;
+
+    throw new RateLimitError(
+      `Rate limit exceeded for ${operationType}. User blocked temporarily.`,
+      Math.ceil(config.blockDurationMs / 1000)
+    );
+  }
+}
+
+/**
+ * Limpa entradas expiradas do cache de rate limiting
+ */
+export function cleanupRateLimitCache(): void {
+  const now = Date.now();
+
+  for (const [key, entry] of userRateLimits.entries()) {
+    if (now > entry.resetTime && (!entry.blocked || (entry.blockExpiry && now > entry.blockExpiry))) {
+      userRateLimits.delete(key);
+    }
+  }
+}
+
+// Cleanup automático a cada 5 minutos
+setInterval(cleanupRateLimitCache, 5 * 60 * 1000);

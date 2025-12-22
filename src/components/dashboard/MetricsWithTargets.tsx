@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,17 +27,20 @@ export default function MetricsWithTargets({ organizationId }: { organizationId:
 
   const { data: targets, refetch, isLoading } = useQuery({
     queryKey: ['metrics-targets', organizationId],
+    enabled: !!organizationId,
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      return data as MetricTarget[];
+      const response = await apiClient.select<MetricTarget>('dashboard_metrics_targets', {
+        eq: { organization_id: organizationId },
+        order: { column: 'created_at', ascending: false }
+      });
+      if (response.error) throw new Error(response.error.message);
+      return response.data as MetricTarget[];
     }
   });
 
   const handleSetTarget = async () => {
     try {
-      const { error } = await apiClient.post('/dashboard_metrics_targets', {
+      const response = await apiClient.insert('dashboard_metrics_targets', {
         organization_id: organizationId,
         metric_type: metricType,
         target_value: parseFloat(targetValue),
@@ -47,7 +49,7 @@ export default function MetricsWithTargets({ organizationId }: { organizationId:
         period: 'monthly'
       });
 
-      
+      if (response.error) throw new Error(response.error.message);
 
       toast({
         title: "Meta definida",
@@ -78,9 +80,7 @@ export default function MetricsWithTargets({ organizationId }: { organizationId:
         </CardTitle>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" variant="outline">
-              Definir Meta
-            </Button>
+            <Button size="sm" variant="outline">Definir Meta</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -108,57 +108,42 @@ export default function MetricsWithTargets({ organizationId }: { organizationId:
                   placeholder="Ex: 10000"
                 />
               </div>
-              <Button onClick={handleSetTarget} className="w-full">
-                Salvar Meta
-              </Button>
+              <Button onClick={handleSetTarget} className="w-full">Salvar Meta</Button>
             </div>
           </DialogContent>
         </Dialog>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
-          <>
-            {[1, 2].map((i) => (
-              <div key={i} className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-2 w-full" />
-                <div className="flex justify-between">
-                  <Skeleton className="h-3 w-24" />
-                  <Skeleton className="h-3 w-24" />
-                </div>
-              </div>
-            ))}
-          </>
+          [1, 2].map((i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-2 w-full" />
+            </div>
+          ))
         ) : (
           <>
             {targets?.map(target => {
-          const progress = getProgress(target);
-          const isOnTrack = progress >= 70;
-          
-          return (
-            <div key={target.id} className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium capitalize">
-                  {target.metric_type.replace('_', ' ')}
-                </span>
-                <span className="flex items-center gap-1">
-                  {isOnTrack ? (
-                    <TrendingUp className="h-4 w-4 text-success" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4 text-warning" />
-                  )}
-                  {progress.toFixed(0)}%
-                </span>
-              </div>
-              <Progress value={progress} className="h-2" />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Atual: ${target.current_value.toLocaleString()}</span>
-                <span>Meta: ${target.target_value.toLocaleString()}</span>
-              </div>
-            </div>
-          );
+              const progress = getProgress(target);
+              const isOnTrack = progress >= 70;
+              
+              return (
+                <div key={target.id} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium capitalize">{target.metric_type.replace('_', ' ')}</span>
+                    <span className="flex items-center gap-1">
+                      {isOnTrack ? <TrendingUp className="h-4 w-4 text-success" /> : <TrendingDown className="h-4 w-4 text-warning" />}
+                      {progress.toFixed(0)}%
+                    </span>
+                  </div>
+                  <Progress value={progress} className="h-2" />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Atual: ${target.current_value.toLocaleString()}</span>
+                    <span>Meta: ${target.target_value.toLocaleString()}</span>
+                  </div>
+                </div>
+              );
             })}
-            
             {(!targets || targets.length === 0) && (
               <p className="text-sm text-muted-foreground text-center py-4">
                 Nenhuma meta definida. Clique em "Definir Meta" para começar.

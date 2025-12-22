@@ -430,17 +430,49 @@ export class EmailService {
   }
 
   /**
-   * Get email statistics (placeholder - would integrate with SES metrics)
+   * Get email statistics from CloudWatch metrics
    */
   async getEmailStats(timeRange: { start: Date; end: Date }): Promise<EmailStats> {
-    // In a real implementation, this would query CloudWatch metrics
-    return {
-      sent: 0,
-      delivered: 0,
-      bounced: 0,
-      complained: 0,
-      rejected: 0,
-    };
+    try {
+      const { CloudWatchClient, GetMetricStatisticsCommand } = await import('@aws-sdk/client-cloudwatch');
+      const cloudwatch = new CloudWatchClient({ region: process.env.AWS_REGION || 'us-east-1' });
+      
+      const getMetric = async (metricName: string): Promise<number> => {
+        try {
+          const response = await cloudwatch.send(new GetMetricStatisticsCommand({
+            Namespace: 'AWS/SES',
+            MetricName: metricName,
+            StartTime: timeRange.start,
+            EndTime: timeRange.end,
+            Period: Math.ceil((timeRange.end.getTime() - timeRange.start.getTime()) / 1000),
+            Statistics: ['Sum'],
+          }));
+          
+          return response.Datapoints?.[0]?.Sum || 0;
+        } catch {
+          return 0;
+        }
+      };
+      
+      const [sent, delivered, bounced, complained, rejected] = await Promise.all([
+        getMetric('Send'),
+        getMetric('Delivery'),
+        getMetric('Bounce'),
+        getMetric('Complaint'),
+        getMetric('Reject'),
+      ]);
+      
+      return { sent, delivered, bounced, complained, rejected };
+    } catch (error) {
+      logger.warn('Could not fetch email stats from CloudWatch:', error);
+      return {
+        sent: 0,
+        delivered: 0,
+        bounced: 0,
+        complained: 0,
+        rejected: 0,
+      };
+    }
   }
 
   /**

@@ -22,29 +22,14 @@ export function PredictiveIncidentsHistory({ organizationId, onViewScan }: Predi
   const { data: history, isLoading } = useQuery({
     queryKey: ['predictive-incidents-history', organizationId, selectedPeriod],
     queryFn: async () => {
-      let query = apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
-      });
-
-      // Apply time filter
-      if (selectedPeriod !== 'all') {
-        const days = parseInt(selectedPeriod);
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - days);
-        query = query.gte('scan_date', cutoffDate.toISOString());
-      }
-
-      const response = await apiClient.select('predictive_incidents', {
+      const response = await apiClient.select('predictive_incidents_history', {
         eq: { organization_id: organizationId },
         order: { column: 'scan_date', ascending: false },
         limit: 50
       });
-      const data = response.data;
-      const error = response.error;
       
-      return data || [];
+      if (response.error) throw response.error;
+      return response.data || [];
     },
   });
 

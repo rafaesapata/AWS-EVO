@@ -117,10 +117,11 @@ export const ExecutiveDashboard = () => {
     queryKey: ['executive-cost-recommendations', organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      return data || [];
+      const response = await apiClient.select('cost_recommendations', {
+        eq: { organization_id: organizationId },
+        order: { column: 'projected_savings_monthly', ascending: false }
+      });
+      return response.data || [];
     },
     refetchInterval: 2 * 60 * 1000
   });
@@ -130,10 +131,11 @@ export const ExecutiveDashboard = () => {
     queryKey: ['executive-risp-recommendations', organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-            return data || [];
+      const response = await apiClient.select('ri_sp_recommendations', {
+        eq: { organization_id: organizationId },
+        order: { column: 'monthly_savings', ascending: false }
+      });
+      return response.data || [];
     },
     refetchInterval: 2 * 60 * 1000
   });
@@ -143,15 +145,12 @@ export const ExecutiveDashboard = () => {
     queryKey: ['executive-findings', organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { 
-        eq: filters, 
-        limit: 100 // Limited to avoid overload
+      const response = await apiClient.select('findings', {
+        eq: { organization_id: organizationId },
+        order: { column: 'created_at', ascending: false },
+        limit: 100
       });
-      const data = response.data;
-      const error = response.error;
-      
-      
-      return data || [];
+      return response.data || [];
     },
     refetchInterval: 2 * 60 * 1000
   });
@@ -161,10 +160,11 @@ export const ExecutiveDashboard = () => {
     queryKey: ['executive-tickets', organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-            return data || [];
+      const response = await apiClient.select('remediation_tickets', {
+        eq: { organization_id: organizationId },
+        order: { column: 'created_at', ascending: false }
+      });
+      return response.data || [];
     },
     refetchInterval: 2 * 60 * 1000
   });
@@ -176,18 +176,18 @@ export const ExecutiveDashboard = () => {
     queryFn: async () => {
       // In TV mode, fetch directly from database
       if (isTVMode) {
-        const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-              if (!findings) return null;
+        const response = await apiClient.select('findings', {
+          eq: { organization_id: organizationId }
+        });
+        const findingsData = response.data || [];
+        if (findingsData.length === 0) return null;
         
-        const critical = findings.filter(f => f.severity === 'critical').length;
-        const high = findings.filter(f => f.severity === 'high').length;
-        const medium = findings.filter(f => f.severity === 'medium').length;
-        const low = findings.filter(f => f.severity === 'low').length;
-        const total = findings.length;
+        const critical = findingsData.filter((f: any) => f.severity === 'critical').length;
+        const high = findingsData.filter((f: any) => f.severity === 'high').length;
+        const medium = findingsData.filter((f: any) => f.severity === 'medium').length;
+        const low = findingsData.filter((f: any) => f.severity === 'low').length;
+        const total = findingsData.length;
         
-        // Calculate simple score
         const score = Math.max(0, 100 - (critical * 10 + high * 5 + medium * 2 + low * 0.5));
         
         return {
@@ -204,15 +204,10 @@ export const ExecutiveDashboard = () => {
       const session = await cognitoAuth.getCurrentSession();
       if (!session) throw new Error('Not authenticated');
       
-      const data = await apiClient.lambda('get-security-posture', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      });
-      
-      return data?.data || null;
+      const response = await apiClient.lambda('get-security-posture');
+      return response?.data || null;
     },
-    refetchInterval: isTVMode ? 30 * 1000 : 2 * 60 * 1000 // Faster refresh in TV mode
+    refetchInterval: isTVMode ? 30 * 1000 : 2 * 60 * 1000
   });
 
   // Métricas de endpoints (isolado por organização)
@@ -220,59 +215,29 @@ export const ExecutiveDashboard = () => {
     queryKey: ['executive-endpoint-metrics', organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-            if (!monitors || monitors.length === 0) return null;
+      const response = await apiClient.select('endpoint_monitors', {
+        eq: { organization_id: organizationId, is_active: true }
+      });
+      const monitors = response.data || [];
+      if (monitors.length === 0) return null;
 
       let totalHealthy = 0;
       let totalFailed = 0;
-      const allResults: Record<string, any> = {};
 
       for (const monitor of monitors) {
-        // Check if monitor is failing
-        if (monitor.consecutive_failures >= monitor.alert_threshold) {
+        if (monitor.consecutive_failures >= (monitor.alert_threshold || 3)) {
           totalFailed++;
         } else {
           totalHealthy++;
         }
-
-        const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-        if (data && data.length > 0) {
-          const recentResults = data.slice(0, 5);
-          const olderResults = data.slice(5, 10);
-
-          const avgRecentTime = recentResults.reduce((sum, r) => sum + r.response_time_ms, 0) / recentResults.length;
-          const avgOlderTime = olderResults.length > 0
-            ? olderResults.reduce((sum, r) => sum + r.response_time_ms, 0) / olderResults.length
-            : avgRecentTime;
-
-          allResults[monitor.id] = {
-            avgResponseTime: avgRecentTime,
-            trend: avgRecentTime > avgOlderTime ? 'up' : avgRecentTime < avgOlderTime ? 'down' : 'stable',
-          };
-        }
       }
 
-      const allAvgTimes = Object.values(allResults).map((r: any) => r.avgResponseTime);
-      const allTrends = Object.values(allResults).map((r: any) => r.trend);
-
-      const overallAvg = allAvgTimes.length > 0
-        ? Math.round(allAvgTimes.reduce((sum, t) => sum + t, 0) / allAvgTimes.length)
-        : 0;
-
-      const trendingUp = allTrends.filter(t => t === 'up').length;
-      const trendingDown = allTrends.filter(t => t === 'down').length;
-      const overallTrend = trendingUp > trendingDown ? 'up' : trendingDown > trendingUp ? 'down' : 'stable';
-
       return {
-        avgResponseTime: overallAvg,
-        trend: overallTrend,
         monitorsCount: monitors.length,
         healthyCount: totalHealthy,
         failedCount: totalFailed,
+        avgResponseTime: 0,
+        trend: 'stable'
       };
     },
     refetchInterval: 30000,

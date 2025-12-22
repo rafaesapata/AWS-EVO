@@ -41,11 +41,13 @@ export const CostAnalysis = () => {
     gcTime: 60 * 60 * 1000,
     queryFn: async () => {
       // Query tags filtered by selected account
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
+      const response = await apiClient.select('cost_allocation_tags', { 
+        eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+      });
+      if (response.error) throw response.error;
+      
       // Group by tag_key and collect unique values
-      const tagMap = (data || []).reduce((acc, tag) => {
+      const tagMap = (response.data || []).reduce((acc, tag) => {
         const key = `${tag.tag_key}:${tag.tag_value}`;
         if (!acc.some(t => t.key === key)) {
           acc.push({ key, label: `${tag.tag_key}: ${tag.tag_value}` });
@@ -70,9 +72,12 @@ export const CostAnalysis = () => {
       startDate.setDate(startDate.getDate() - daysAgo);
 
       // Always filter by selected account - no 'all' option
-      const response = await apiClient.select(tableName, { eq: filters });
+      const response = await apiClient.select('daily_costs', { 
+        eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+      });
+      if (response.error) throw response.error;
       const data = response.data;
-      const error = response.error;
+      
       // Remove duplicates by keeping only the latest entry per date and account
       const uniqueCosts = data?.reduce((acc, current) => {
         const key = `${current.aws_account_id}_${current.cost_date}`;

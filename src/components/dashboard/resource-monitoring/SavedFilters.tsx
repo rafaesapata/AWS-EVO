@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-<parameter name="Label } from "@/components/ui/label";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Star, Save, Trash2 } from "lucide-react";
 
@@ -45,10 +45,11 @@ export function SavedFilters({ filterType, currentFilters, onLoadFilter }: Props
       if (!user) throw new Error('Not authenticated');
 
       // Security: Only fetch filters for the current user
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      return data;
+      const response = await apiClient.select('saved_filters', { 
+        eq: { user_id: user.user?.id, filter_type: filterType } 
+      });
+      if (response.error) throw response.error;
+      return response.data;
     }
   });
 
@@ -57,9 +58,14 @@ export function SavedFilters({ filterType, currentFilters, onLoadFilter }: Props
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.insert('saved_filters', {
+        user_id: user.user?.id,
+        name,
+        filter_type: filterType,
+        filter_config: currentFilters
+      });
+      if (response.error) throw response.error;
+    },
     onSuccess: () => {
       toast({
         title: "Filtro salvo!",
@@ -84,9 +90,12 @@ export function SavedFilters({ filterType, currentFilters, onLoadFilter }: Props
       if (!user) throw new Error('Not authenticated');
 
       // Security: Only delete if filter belongs to current user
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.delete('saved_filters', { 
+        id, 
+        user_id: user.user?.id 
+      });
+      if (response.error) throw response.error;
+    },
     onSuccess: () => {
       toast({
         title: "Filtro removido",
@@ -101,9 +110,12 @@ export function SavedFilters({ filterType, currentFilters, onLoadFilter }: Props
       if (!user) throw new Error('Usuário não autenticado');
 
       // Security: Only update if filter belongs to current user
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.update('saved_filters', 
+        { description: 'default' }, 
+        { id, user_id: user.user?.id }
+      );
+      if (response.error) throw response.error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['saved-filters'] });
     }

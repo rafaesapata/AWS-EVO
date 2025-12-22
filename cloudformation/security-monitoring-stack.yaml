@@ -1,0 +1,283 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO UDS - Security Monitoring Stack - Military Grade'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'evo-uds'
+  Environment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+    Default: prod
+  SecurityTeamEmail:
+    Type: String
+    Description: Email for security alerts
+    Default: security@example.com
+  LambdaLogGroupName:
+    Type: String
+    Description: Lambda log group name
+    Default: '/aws/lambda/evo-uds'
+
+Resources:
+  # ============================================================================
+  # SNS TOPICS
+  # ============================================================================
+  
+  CriticalAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-${Environment}-critical-alarms'
+      DisplayName: 'Critical Security Alarms'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Severity
+          Value: CRITICAL
+
+  SecurityTeamSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref CriticalAlarmTopic
+      Protocol: email
+      Endpoint: !Ref SecurityTeamEmail
+
+  # ============================================================================
+  # SECURITY ALARMS
+  # ============================================================================
+
+  TenantIsolationViolationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-tenant-violation'
+      AlarmDescription: 'CRITICAL - Tenant isolation violation detected'
+      MetricName: TenantIsolationViolations
+      Namespace: !Sub '${ProjectName}/${Environment}'
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref CriticalAlarmTopic
+      OKActions:
+        - !Ref CriticalAlarmTopic
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: Severity
+          Value: CRITICAL
+
+  UnauthorizedAccessAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-unauthorized-access'
+      AlarmDescription: 'Multiple unauthorized access attempts detected'
+      MetricName: UnauthorizedAccessAttempts
+      Namespace: !Sub '${ProjectName}/${Environment}'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref CriticalAlarmTopic
+      TreatMissingData: notBreaching
+
+  AuthenticationFailureSpike:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-auth-failure-spike'
+      AlarmDescription: 'Spike in authentication failures - possible brute force'
+      MetricName: AuthenticationFailures
+      Namespace: !Sub '${ProjectName}/${Environment}'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref CriticalAlarmTopic
+      TreatMissingData: notBreaching
+
+  SQLInjectionAttemptAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-sql-injection'
+      AlarmDescription: 'SQL injection attempt detected'
+      MetricName: SQLInjectionAttempts
+      Namespace: !Sub '${ProjectName}/${Environment}'
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref CriticalAlarmTopic
+      TreatMissingData: notBreaching
+
+  XSSAttemptAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-xss-attempt'
+      AlarmDescription: 'XSS attempt detected'
+      MetricName: XSSAttempts
+      Namespace: !Sub '${ProjectName}/${Environment}'
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref CriticalAlarmTopic
+      TreatMissingData: notBreaching
+
+  RateLimitExceededAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-rate-limit-exceeded'
+      AlarmDescription: 'Multiple rate limit violations - possible DoS'
+      MetricName: RateLimitExceeded
+      Namespace: !Sub '${ProjectName}/${Environment}'
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 100
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref CriticalAlarmTopic
+      TreatMissingData: notBreaching
+
+  # ============================================================================
+  # METRIC FILTERS
+  # ============================================================================
+
+  TenantIsolationViolationFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterPattern: '{ $.security.eventType = "TENANT_ISOLATION_VIOLATION" }'
+      LogGroupName: !Ref LambdaLogGroupName
+      MetricTransformations:
+        - MetricName: TenantIsolationViolations
+          MetricNamespace: !Sub '${ProjectName}/${Environment}'
+          MetricValue: '1'
+          DefaultValue: 0
+
+  AuthenticationFailureFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterPattern: '{ $.security.eventType = "LOGIN_FAILURE" }'
+      LogGroupName: !Ref LambdaLogGroupName
+      MetricTransformations:
+        - MetricName: AuthenticationFailures
+          MetricNamespace: !Sub '${ProjectName}/${Environment}'
+          MetricValue: '1'
+          DefaultValue: 0
+
+  SQLInjectionFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterPattern: '{ $.security.eventType = "SQL_INJECTION" }'
+      LogGroupName: !Ref LambdaLogGroupName
+      MetricTransformations:
+        - MetricName: SQLInjectionAttempts
+          MetricNamespace: !Sub '${ProjectName}/${Environment}'
+          MetricValue: '1'
+          DefaultValue: 0
+
+  XSSFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterPattern: '{ $.security.eventType = "XSS" }'
+      LogGroupName: !Ref LambdaLogGroupName
+      MetricTransformations:
+        - MetricName: XSSAttempts
+          MetricNamespace: !Sub '${ProjectName}/${Environment}'
+          MetricValue: '1'
+          DefaultValue: 0
+
+  RateLimitFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterPattern: '{ $.security.eventType = "RATE_LIMIT_EXCEEDED" }'
+      LogGroupName: !Ref LambdaLogGroupName
+      MetricTransformations:
+        - MetricName: RateLimitExceeded
+          MetricNamespace: !Sub '${ProjectName}/${Environment}'
+          MetricValue: '1'
+          DefaultValue: 0
+
+  # ============================================================================
+  # SECURITY DASHBOARD
+  # ============================================================================
+
+  SecurityDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-${Environment}-security-dashboard'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Security Events Overview",
+                "metrics": [
+                  ["${ProjectName}/${Environment}", "TenantIsolationViolations", {"color": "#d62728", "label": "Tenant Violations"}],
+                  [".", "AuthenticationFailures", {"color": "#ff7f0e", "label": "Auth Failures"}],
+                  [".", "SQLInjectionAttempts", {"color": "#9467bd", "label": "SQL Injection"}],
+                  [".", "XSSAttempts", {"color": "#8c564b", "label": "XSS Attempts"}]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Rate Limiting",
+                "metrics": [
+                  ["${ProjectName}/${Environment}", "RateLimitExceeded", {"color": "#e377c2"}]
+                ],
+                "period": 60,
+                "stat": "Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "alarm",
+              "x": 0,
+              "y": 6,
+              "width": 24,
+              "height": 3,
+              "properties": {
+                "title": "Security Alarms Status",
+                "alarms": [
+                  "${TenantIsolationViolationAlarm.Arn}",
+                  "${UnauthorizedAccessAlarm.Arn}",
+                  "${AuthenticationFailureSpike.Arn}",
+                  "${SQLInjectionAttemptAlarm.Arn}",
+                  "${XSSAttemptAlarm.Arn}"
+                ]
+              }
+            }
+          ]
+        }
+
+Outputs:
+  CriticalAlarmTopicArn:
+    Description: ARN of critical alarm SNS topic
+    Value: !Ref CriticalAlarmTopic
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-critical-alarm-topic'
+
+  SecurityDashboardUrl:
+    Description: URL of security dashboard
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-${Environment}-security-dashboard'

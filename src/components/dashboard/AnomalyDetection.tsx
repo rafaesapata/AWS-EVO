@@ -27,24 +27,21 @@ export default function AnomalyDetection() {
     // In TV mode, only require organizationId
     enabled: !!organizationId && (isTVMode || !!selectedAccountId),
     queryFn: async () => {
-      let query = apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
-      });
+      const filters: any = { organization_id: organizationId };
       
       // Only filter by account if not in TV mode
       if (!isTVMode && selectedAccountId) {
-        const filters =  { aws_account_id: selectedAccountId };
+        filters.aws_account_id = selectedAccountId;
       }
       
-      const response = await apiClient.select(tableName, {
+      const response = await apiClient.select('cost_anomalies', {
         eq: filters,
         order: { column: 'detected_at', ascending: false }
       });
       const data = response.data;
       const error = response.error;
       
+      if (error) throw error;
       return data;
     },
     staleTime: 2 * 60 * 1000,

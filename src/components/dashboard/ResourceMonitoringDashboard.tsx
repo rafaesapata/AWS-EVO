@@ -129,15 +129,15 @@ export const ResourceMonitoringDashboard = () => {
       if (!selectedAccountId) return [];
       
       // Verificar se a conta pertence à organização
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      if (accountError || !accountData) return [];
+      const accountResponse = await apiClient.select('aws_accounts', { 
+        eq: { id: selectedAccountId, organization_id: organizationId } 
+      });
+      if (accountResponse.error || !accountResponse.data) return [];
       
-      const resourceResponse = await apiClient.select(tableName, { eq: filters });
-      const resourceData = resourceResponse.data;
-      const resourceError = resourceResponse.error;
-      return resourceData || [];
+      const resourceResponse = await apiClient.select('monitored_resources', { 
+        eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+      });
+      return resourceResponse.data || [];
     },
     {
       ...CACHE_CONFIGS.FREQUENT,
@@ -153,10 +153,10 @@ export const ResourceMonitoringDashboard = () => {
       if (!selectedAccountId) return [];
       
       // Verificar se a conta pertence à organização
-      const accountResponse = await apiClient.select(tableName, { eq: filters });
-      const accountData = accountResponse.data;
-      const accountError = accountResponse.error;
-      if (accountError || !accountData) return [];
+      const accountResponse = await apiClient.select('aws_accounts', { 
+        eq: { id: selectedAccountId, organization_id: organizationId } 
+      });
+      if (accountResponse.error || !accountResponse.data) return [];
       
       // CRITICAL: Buscar métricas mais recentes primeiro (DESC) e limitar para evitar sobrecarga
       // Ordenando DESC para garantir dados mais recentes primeiro
@@ -170,10 +170,7 @@ export const ResourceMonitoringDashboard = () => {
         order: { column: 'timestamp', ascending: false },
         limit: 1000 // Limit for performance, most recent data first
       });
-      const metricsData = metricsResponse.data;
-      const metricsError = metricsResponse.error;
-      
-      
+      const data = metricsResponse.data;
       
       // Reverter para ordem cronológica para exibição nos gráficos
       return (data || []).reverse();

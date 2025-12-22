@@ -22,30 +22,14 @@ export const WellArchitectedHistory = ({ organizationId, onViewScan }: WellArchi
   const { data: scanHistory, isLoading } = useQuery({
     queryKey: ['well-architected-history', organizationId, selectedPeriod],
     queryFn: async () => {
-      const query = apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
-      });
-
-      // Filter by period
-      if (selectedPeriod !== 'all') {
-        const daysAgo = selectedPeriod === '7d' ? 7 : selectedPeriod === '30d' ? 30 : 90;
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
-        query.gte('scan_date', cutoffDate.toISOString());
-      }
-
       const response = await apiClient.select('well_architected_history', {
         eq: { organization_id: organizationId },
         order: { column: 'scan_date', ascending: false },
         limit: 50
       });
-      const data = response.data;
-      const error = response.error;
-
       
-      return data || [];
+      if (response.error) throw response.error;
+      return response.data || [];
     }
   });
 

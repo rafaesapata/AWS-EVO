@@ -42,18 +42,18 @@ export const MonthlyInvoices = () => {
     queryKey: ['monthly-invoices-data', organizationId, selectedAccountId],
     enabled: !!organizationId,
     queryFn: async () => {
-      let query = apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
-      });
-
+      const filters: any = { organization_id: organizationId };
       if (selectedAccountId) {
-        const filters =  { aws_account_id: selectedAccountId };
+        filters.aws_account_id = selectedAccountId;
       }
 
-      const { data, error } = await query;
+      const response = await apiClient.select('daily_costs', {
+        eq: filters,
+        order: { column: 'cost_date', ascending: false }
+      });
       
+      if (response.error) throw response.error;
+      const data = response.data;
 
       // Deduplicate by keeping latest entry per date+account
       const uniqueCosts = data?.reduce((acc, current) => {

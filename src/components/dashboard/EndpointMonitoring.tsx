@@ -65,16 +65,16 @@ export default function EndpointMonitoring() {
       const userData = await cognitoAuth.getCurrentUser();
       if (!userData?.user) return [];
 
-      const response = await apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
+      const { data: profile } = await apiClient.get('/profiles', { id: userData.user.id }).single();
+      if (!profile?.organization_id) return [];
+
+      const response = await apiClient.select('endpoint_monitors', {
+        eq: { organization_id: profile.organization_id },
         order: { column: 'created_at', ascending: false }
       });
-      const data = response.data;
-      const error = response.error;
-
       
-      return data;
+      if (response.error) throw response.error;
+      return response.data;
     },
   });
 
@@ -88,9 +88,7 @@ export default function EndpointMonitoring() {
       const userData = await cognitoAuth.getCurrentUser();
       if (!userData?.user) return {};
 
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
+      const { data: profile } = await apiClient.get('/profiles', { id: userData.user.id }).single();
       const results: Record<string, any> = {};
       
       for (const monitor of monitors) {
@@ -98,16 +96,19 @@ export default function EndpointMonitoring() {
         if (monitor.organization_id !== profile?.organization_id) continue;
 
         // Pegar últimos 10 resultados para calcular média e tendência
-        const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
+        const response = await apiClient.select('endpoint_monitor_results', { 
+          eq: { monitor_id: monitor.id },
+          order: { column: 'checked_at', ascending: false },
+          limit: 10
+        });
+        const data = response.data;
         if (data && data.length > 0) {
           const recentResults = data.slice(0, 5);
           const olderResults = data.slice(5, 10);
           
-          const avgRecentTime = recentResults.reduce((sum, r) => sum + r.response_time_ms, 0) / recentResults.length;
+          const avgRecentTime = recentResults.reduce((sum: number, r: any) => sum + r.response_time_ms, 0) / recentResults.length;
           const avgOlderTime = olderResults.length > 0 
-            ? olderResults.reduce((sum, r) => sum + r.response_time_ms, 0) / olderResults.length 
+            ? olderResults.reduce((sum: number, r: any) => sum + r.response_time_ms, 0) / olderResults.length 
             : avgRecentTime;
           
           results[monitor.id] = {
@@ -131,16 +132,14 @@ export default function EndpointMonitoring() {
     queryFn: async () => {
       if (!selectedMonitor) return [];
 
-      const response = await apiClient.select(tableName, { 
-        eq: filters,
-        order: { column: 'created_at', ascending: false },
-        limit: 10
+      const response = await apiClient.select('endpoint_monitor_results', { 
+        eq: { monitor_id: selectedMonitor },
+        order: { column: 'checked_at', ascending: false },
+        limit: 50
       });
-      const data = response.data;
-      const error = response.error;
-
       
-      return data;
+      if (response.error) throw response.error;
+      return response.data;
     },
     enabled: !!selectedMonitor,
   });
@@ -150,10 +149,13 @@ export default function EndpointMonitoring() {
     queryFn: async () => {
       if (!selectedMonitor) return [];
 
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      return data;
+      const response = await apiClient.select('endpoint_monitor_stats', { 
+        eq: { monitor_id: selectedMonitor },
+        order: { column: 'stat_date', ascending: false },
+        limit: 30
+      });
+      if (response.error) throw response.error;
+      return response.data;
     },
     enabled: !!selectedMonitor,
   });
@@ -163,13 +165,15 @@ export default function EndpointMonitoring() {
       const userData = await cognitoAuth.getCurrentUser();
       if (!userData?.user) throw new Error('Not authenticated');
 
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-            return data;
+      const { data: profile } = await apiClient.get('/profiles', { id: userData.user.id }).single();
+      if (!profile?.organization_id) throw new Error('No organization');
+      
+      const response = await apiClient.insert('endpoint_monitors', {
+        ...newMonitor,
+        organization_id: profile.organization_id
+      });
+      if (response.error) throw response.error;
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['endpoint-monitors'] });
@@ -185,17 +189,20 @@ export default function EndpointMonitoring() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({ id, data: updateData }: { id: string; data: any }) => {
       const userData = await cognitoAuth.getCurrentUser();
       if (!userData?.user) throw new Error('Not authenticated');
 
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
+      const { data: profile } = await apiClient.get('/profiles', { id: userData.user.id }).single();
+      if (!profile?.organization_id) throw new Error('No organization');
+      
       // Security: Only update if monitor belongs to user's organization
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.update('endpoint_monitors', updateData, { 
+        id, 
+        organization_id: profile.organization_id 
+      });
+      if (response.error) throw response.error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['endpoint-monitors'] });
       toast.success('Monitor atualizado com sucesso!');
@@ -215,13 +222,16 @@ export default function EndpointMonitoring() {
       const userData = await cognitoAuth.getCurrentUser();
       if (!userData?.user) throw new Error('Not authenticated');
 
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
+      const { data: profile } = await apiClient.get('/profiles', { id: userData.user.id }).single();
+      if (!profile?.organization_id) throw new Error('No organization');
+      
       // Security: Only toggle if monitor belongs to user's organization
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.update('endpoint_monitors', { is_active }, { 
+        id, 
+        organization_id: profile.organization_id 
+      });
+      if (response.error) throw response.error;
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['endpoint-monitors'] });
       toast.success(variables.is_active ? 'Monitor ativado' : 'Monitor desativado');
@@ -233,13 +243,16 @@ export default function EndpointMonitoring() {
       const userData = await cognitoAuth.getCurrentUser();
       if (!userData?.user) throw new Error('Not authenticated');
 
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
+      const { data: profile } = await apiClient.get('/profiles', { id: userData.user.id }).single();
+      if (!profile?.organization_id) throw new Error('No organization');
+      
       // Security: Only delete if monitor belongs to user's organization
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.delete('endpoint_monitors', { 
+        id, 
+        organization_id: profile.organization_id 
+      });
+      if (response.error) throw response.error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['endpoint-monitors'] });
       toast.success('Monitor excluído');

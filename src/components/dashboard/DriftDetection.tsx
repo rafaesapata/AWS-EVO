@@ -114,13 +114,6 @@ export default function DriftDetection() {
 
       await loadDrifts();
       
-      // Invalidate history query to refresh the last execution card
-      await apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
-      });
-      
       toast({
         title: t('common.success'),
         description: `Drift detection concluído. ${data?.drifts_detected || 0} drifts encontrados em ${data?.execution_time?.toFixed(2)}s`

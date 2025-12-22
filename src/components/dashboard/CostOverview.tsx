@@ -110,10 +110,11 @@ const CostOverview = () => {
           setAwsRoleError(null); // Clear error on success
           
           // Refetch after edge function populates data
-          const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-          return refreshedData || [];
+          const refreshResponse = await apiClient.select('daily_costs', {
+            eq: filters,
+            order: { column: 'cost_date', ascending: false }
+          });
+          return refreshResponse.data || [];
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           if (errorMsg.toLowerCase().includes('assumerole') || errorMsg.toLowerCase().includes('not authorized')) {

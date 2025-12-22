@@ -70,12 +70,6 @@ export const WellArchitectedScorecard = ({ onScanComplete }: WellArchitectedScor
     queryFn: async () => {
       if (!organizationId) throw new Error('Organization not found');
 
-      let query = apiClient.select(tableName, {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
-      });
-      
       // Filter by selected account if available
       const filters: any = { organization_id: organizationId };
       if (selectedAccountId) {
@@ -98,7 +92,7 @@ export const WellArchitectedScorecard = ({ onScanComplete }: WellArchitectedScor
       const data = response.data;
       const error = response.error;
       
-      
+      if (error) throw error;
       return data as PillarScore[];
     },
     enabled: !!organizationId,
@@ -180,9 +174,9 @@ export const WellArchitectedScorecard = ({ onScanComplete }: WellArchitectedScor
       }).filter(Boolean);
 
       for (const ticket of ticketsData) {
-        const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-            }
+        const response = await apiClient.insert('tickets', ticket);
+        if (response.error) throw response.error;
+      }
 
       toast.success("Tickets criados com sucesso!", {
         description: `${ticketsData.length} ticket(s) adicionado(s) à lista de tarefas`

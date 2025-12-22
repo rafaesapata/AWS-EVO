@@ -97,9 +97,13 @@ export function SeatManagement({ organizationId, totalSeats, licenseKey }: SeatM
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
 
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.insert('license_seats', {
+        user_id: userId,
+        organization_id: organizationId,
+        allocated_at: new Date().toISOString()
+      });
+      if (response.error) throw response.error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['license-seats'] });
       queryClient.invalidateQueries({ queryKey: ['available-users'] });
@@ -122,9 +126,9 @@ export function SeatManagement({ organizationId, totalSeats, licenseKey }: SeatM
   // Deallocate seat mutation
   const deallocateMutation = useMutation({
     mutationFn: async (seatId: string) => {
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.delete('license_seats', { id: seatId });
+      if (response.error) throw response.error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['license-seats'] });
       queryClient.invalidateQueries({ queryKey: ['available-users'] });

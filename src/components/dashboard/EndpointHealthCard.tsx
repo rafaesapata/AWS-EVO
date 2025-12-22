@@ -1,48 +1,36 @@
 import { useQuery } from "@tanstack/react-query";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Activity, CheckCircle2, XCircle, AlertTriangle, Shield } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useOrganization } from "@/hooks/useOrganization";
 
 export default function EndpointHealthCard() {
+  const { data: organizationId } = useOrganization();
+
   const { data: monitors } = useQuery({
-    queryKey: ['endpoint-monitors-health'],
+    queryKey: ['endpoint-monitors-health', organizationId],
+    enabled: !!organizationId,
     staleTime: 0,
     gcTime: 0,
     queryFn: async () => {
-      const userData = await cognitoAuth.getCurrentUser();
-      if (!userData?.user) return [];
-
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-            return data;
+      const response = await apiClient.select('endpoint_monitors', {
+        eq: { organization_id: organizationId, is_active: true },
+        order: { column: 'created_at', ascending: false }
+      });
+      if (response.error) return [];
+      return response.data || [];
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 
-  if (!monitors || monitors.length === 0) {
-    return null;
-  }
+  if (!monitors || monitors.length === 0) return null;
 
   const totalMonitors = monitors.length;
-  const healthyMonitors = monitors.filter(m => {
-    const latestResult = m.endpoint_monitor_results?.[0];
-    return latestResult?.success && m.consecutive_failures === 0;
-  }).length;
-
-  const sslWarnings = monitors.filter(m => {
-    if (!m.monitor_ssl) return false;
-    const latestResult = m.endpoint_monitor_results?.[0];
-    return latestResult?.ssl_days_until_expiry && latestResult.ssl_days_until_expiry <= (m.ssl_expiry_days_warning || 30);
-  }).length;
-
-  const downMonitors = monitors.filter(m => m.consecutive_failures > 0).length;
+  const healthyMonitors = monitors.filter((m: any) => m.consecutive_failures === 0).length;
+  const sslWarnings = monitors.filter((m: any) => m.monitor_ssl && m.ssl_days_until_expiry && m.ssl_days_until_expiry <= 30).length;
+  const downMonitors = monitors.filter((m: any) => m.consecutive_failures > 0).length;
   const healthPercentage = Math.round((healthyMonitors / totalMonitors) * 100);
 
   return (
@@ -74,13 +62,11 @@ export default function EndpointHealthCard() {
             <span className="text-2xl font-bold text-green-500">{healthyMonitors}</span>
             <span className="text-xs text-muted-foreground">Saudáveis</span>
           </div>
-
           <div className="flex flex-col items-center p-3 rounded-lg bg-red-500/10 border border-red-500/20">
             <XCircle className="h-5 w-5 text-red-500 mb-1" />
             <span className="text-2xl font-bold text-red-500">{downMonitors}</span>
             <span className="text-xs text-muted-foreground">Com Falha</span>
           </div>
-
           {sslWarnings > 0 && (
             <div className="flex flex-col items-center p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
               <Shield className="h-5 w-5 text-yellow-500 mb-1" />

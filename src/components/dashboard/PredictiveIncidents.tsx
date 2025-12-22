@@ -32,7 +32,9 @@ export default function PredictiveIncidents() {
   const { data: incidents, isLoading } = useQuery({
     queryKey: ['predictive-incidents', organizationId, selectedAccountId],
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
+      const response = await apiClient.select('predictive_incidents', { 
+        eq: { organization_id: organizationId } 
+      });
       const data = response.data;
       const error = response.error;
       // Filter by account on client-side if needed
@@ -50,7 +52,9 @@ export default function PredictiveIncidents() {
   const { data: scanHistory } = useQuery({
     queryKey: ['predictive-incidents-history', organizationId, selectedAccountId],
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
+      const response = await apiClient.select('predictive_incidents_history', { 
+        eq: { organization_id: organizationId } 
+      });
       const data = response.data;
       const error = response.error;
       // Filter by account on client-side if needed

@@ -146,6 +146,38 @@ class ApiClient {
       headers: options.headers,
     });
   }
+
+  /**
+   * Invoca uma Lambda function via API Gateway
+   * @param functionName - Nome da função Lambda
+   * @param payload - Dados a enviar para a função
+   */
+  async lambda<T>(
+    functionName: string,
+    payload?: Record<string, any>
+  ): Promise<ApiResponse<T> | ApiError> {
+    return this.request<T>(`/lambda/${functionName}`, {
+      method: 'POST',
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+  }
+
+  /**
+   * GET request genérico
+   */
+  async get<T>(endpoint: string): Promise<ApiResponse<T> | ApiError> {
+    return this.request<T>(endpoint, { method: 'GET' });
+  }
+
+  /**
+   * POST request genérico
+   */
+  async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T> | ApiError> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
 }
 
 export const apiClient = new ApiClient();

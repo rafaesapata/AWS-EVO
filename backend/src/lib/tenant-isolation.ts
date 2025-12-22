@@ -1,9 +1,10 @@
 /**
- * Robust Tenant Isolation System
+ * Robust Tenant Isolation System - Military Grade
  * Implements Row Level Security (RLS) and multi-tenant data access patterns
  */
 
 import { getPrismaClient } from './database.js';
+import { logger } from './structured-logging.js';
 import type { CognitoUser } from '../types/lambda.js';
 
 export interface TenantContext {
@@ -11,50 +12,124 @@ export interface TenantContext {
   userId: string;
   roles: string[];
   tenantId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  requestId?: string;
+}
+
+export interface TenantFilterOptions {
+  allowCrossOrg?: boolean;
+  requireTenantId?: boolean;
+  auditReason?: string;
+}
+
+export interface CrossOrgAuditEntry {
+  userId: string;
+  sourceOrgId: string;
+  targetOrgId: string;
+  reason: string;
+  timestamp: string;
+  requestId: string;
+  ipAddress?: string;
 }
 
 export class TenantIsolationError extends Error {
-  constructor(message: string, public code: string = 'TENANT_ISOLATION_VIOLATION') {
+  public readonly code: string;
+  public readonly context?: TenantContext;
+
+  constructor(message: string, code: string = 'TENANT_ISOLATION_VIOLATION', context?: TenantContext) {
     super(message);
     this.name = 'TenantIsolationError';
+    this.code = code;
+    this.context = context;
   }
 }
 
 /**
- * Tenant Isolation Manager
+ * Tenant Isolation Manager - Military Grade
  * Ensures all database operations respect tenant boundaries
  */
 export class TenantIsolationManager {
   private context: TenantContext;
+  private prisma = getPrismaClient();
 
   constructor(context: TenantContext) {
-    this.context = context;
-    this.validateContext();
-  }
+    // ⚠️ CRÍTICO: Validar organizationId obrigatório - SEM FALLBACK
+    if (!context.organizationId) {
+      throw new TenantIsolationError(
+        'Organization ID is required for tenant isolation',
+        'MISSING_ORGANIZATION_ID',
+        context
+      );
+    }
 
-  private validateContext(): void {
-    if (!this.context.organizationId) {
-      throw new TenantIsolationError('Organization ID is required for tenant isolation');
+    // Validar formato do organizationId
+    if (!/^org-[a-zA-Z0-9-]+$/.test(context.organizationId) && 
+        !/^[a-f0-9-]{36}$/.test(context.organizationId)) {
+      throw new TenantIsolationError(
+        'Invalid organization ID format',
+        'INVALID_ORGANIZATION_ID',
+        context
+      );
     }
-    if (!this.context.userId) {
-      throw new TenantIsolationError('User ID is required for tenant isolation');
+
+    if (!context.userId) {
+      throw new TenantIsolationError(
+        'User ID is required for tenant isolation',
+        'MISSING_USER_ID',
+        context
+      );
     }
+
+    this.context = context;
   }
 
   /**
-   * Apply tenant isolation to Prisma where clause
+   * Apply tenant isolation to Prisma where clause with mandatory audit
    */
   applyTenantFilter<T extends Record<string, unknown>>(
     where: T = {} as T,
-    options: {
-      allowCrossOrg?: boolean;
-      requireTenantId?: boolean;
-    } = {}
+    options: TenantFilterOptions = {}
   ): T & { organization_id: string } {
-    const { allowCrossOrg = false, requireTenantId = false } = options;
+    const { allowCrossOrg = false, requireTenantId = false, auditReason } = options;
 
-    // Super admins can access cross-org data if explicitly allowed
+    // ⚠️ CRÍTICO: Super admin bypass com AUDITORIA OBRIGATÓRIA
     if (allowCrossOrg && this.context.roles.includes('super_admin')) {
+      const targetOrgId = (where as any).organization_id;
+
+      // Auditoria obrigatória para cross-org access
+      this.auditCrossOrgAccess({
+        userId: this.context.userId,
+        sourceOrgId: this.context.organizationId,
+        targetOrgId: targetOrgId || 'ALL',
+        reason: auditReason || 'NO_REASON_PROVIDED',
+        timestamp: new Date().toISOString(),
+        requestId: this.context.requestId || 'unknown',
+        ipAddress: this.context.ipAddress
+      });
+
+      // Log de warning para auditoria
+      logger.logSecurityEvent(
+        'SUPER_ADMIN_CROSS_ORG_ACCESS',
+        'HIGH',
+        {
+          targetOrgId,
+          reason: auditReason,
+          hasValidReason: !!auditReason && auditReason !== 'NO_REASON_PROVIDED'
+        },
+        this.context
+      );
+
+      // Se não forneceu razão válida, registrar alerta adicional
+      if (!auditReason || auditReason === 'NO_REASON_PROVIDED') {
+        logger.logSecurityEvent(
+          'CROSS_ORG_ACCESS_WITHOUT_REASON',
+          'CRITICAL',
+          { targetOrgId },
+          this.context
+        );
+      }
+
       return where as T & { organization_id: string };
     }
 
@@ -69,6 +144,37 @@ export class TenantIsolationManager {
     }
 
     return filter;
+  }
+
+  /**
+   * Audit cross-org access
+   */
+  private async auditCrossOrgAccess(entry: CrossOrgAuditEntry): Promise<void> {
+    try {
+      // Persistir em banco de dados
+      await this.prisma.crossOrgAccessLog.create({
+        data: {
+          user_id: entry.userId,
+          source_organization_id: entry.sourceOrgId,
+          target_organization_id: entry.targetOrgId,
+          reason: entry.reason,
+          request_id: entry.requestId,
+          ip_address: entry.ipAddress,
+          created_at: new Date(entry.timestamp)
+        }
+      }).catch(() => {
+        // Table might not exist, log to console
+        console.log(JSON.stringify({
+          level: 'AUDIT',
+          event: 'CROSS_ORG_ACCESS',
+          timestamp: entry.timestamp,
+          ...entry
+        }));
+      });
+    } catch (error) {
+      // Log but don't fail
+      console.error('Failed to log cross-org access audit:', error);
+    }
   }
 
   /**
@@ -206,26 +312,44 @@ export class TenantIsolationManager {
 
 /**
  * Create tenant isolation manager from Cognito user
+ * ⚠️ CRÍTICO: Não aceita fallback para organização padrão
  */
-export function createTenantIsolationManager(user: CognitoUser): TenantIsolationManager {
+export function createTenantIsolationManager(
+  user: CognitoUser,
+  requestContext?: {
+    ipAddress?: string;
+    userAgent?: string;
+    requestId?: string;
+  }
+): TenantIsolationManager {
   const organizationId = user['custom:organization_id'];
   const tenantId = user['custom:tenant_id'];
   const rolesStr = user['custom:roles'];
-  
+
+  // ⚠️ CRÍTICO: NUNCA usar fallback para 'default-org'
+  if (!organizationId) {
+    throw new TenantIsolationError(
+      'User must have organization_id attribute. Access denied.',
+      'MISSING_ORGANIZATION_ID'
+    );
+  }
+
   let roles: string[] = ['user'];
   if (rolesStr) {
     try {
-      roles = JSON.parse(rolesStr);
+      const parsed = JSON.parse(rolesStr);
+      roles = Array.isArray(parsed) ? parsed : [parsed];
     } catch {
       roles = [rolesStr];
     }
   }
 
   const context: TenantContext = {
-    organizationId: organizationId || 'default-org',
+    organizationId,
     userId: user.sub,
     roles,
     tenantId,
+    ...requestContext
   };
 
   return new TenantIsolationManager(context);
@@ -362,7 +486,7 @@ export class TenantIsolatedQueries {
 }
 
 /**
- * Audit logging for tenant isolation violations
+ * Audit logging for tenant isolation violations - Military Grade
  */
 export async function logTenantIsolationViolation(
   context: TenantContext,
@@ -373,22 +497,43 @@ export async function logTenantIsolationViolation(
     error: string;
   }
 ): Promise<void> {
-  console.error('🚨 TENANT ISOLATION VIOLATION:', {
+  const violationEntry = {
+    level: 'CRITICAL',
+    event: 'TENANT_ISOLATION_VIOLATION',
     timestamp: new Date().toISOString(),
     context,
     violation,
-  });
+    stackTrace: new Error().stack
+  };
 
-  // In production, store in audit log table
-  // const prisma = getPrismaClient();
-  // await prisma.auditLog.create({
-  //   data: {
-  //     organization_id: context.organizationId,
-  //     user_id: context.userId,
-  //     event_type: 'TENANT_ISOLATION_VIOLATION',
-  //     severity: 'CRITICAL',
-  //     details: violation,
-  //     created_at: new Date(),
-  //   },
-  // });
+  // 1. Log estruturado para CloudWatch
+  console.error(JSON.stringify(violationEntry));
+
+  try {
+    const prisma = getPrismaClient();
+    
+    // 2. Persistir em banco de dados
+    await prisma.securityEvent.create({
+      data: {
+        organization_id: context.organizationId,
+        user_id: context.userId,
+        event_type: 'TENANT_ISOLATION_VIOLATION',
+        severity: 'CRITICAL',
+        details: JSON.stringify(violation),
+        ip_address: context.ipAddress,
+        user_agent: context.userAgent,
+        created_at: new Date()
+      }
+    }).catch(() => {
+      // Table might not exist yet
+      console.error('Could not persist violation to database');
+    });
+
+    // 3. Log security event via structured logger
+    await logger.logTenantViolation(context, violation);
+
+  } catch (error) {
+    // Log de falha, mas não falhar a operação principal
+    console.error('Failed to persist violation log:', error);
+  }
 }

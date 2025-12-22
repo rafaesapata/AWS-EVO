@@ -114,10 +114,11 @@ export default function SecurityAnalysisContent() {
     queryFn: async () => {
       // If viewing historical scan, fetch findings from that scan
       if (viewingHistoricalScan) {
-        const historyResponse = await apiClient.select(tableName, { eq: filters });
-        const scanHistory = historyResponse.data;
-        const historyError = historyResponse.error;
-        if (historyError) throw historyError;
+        const historyResponse = await apiClient.select('security_scan_history', { 
+          eq: { id: viewingHistoricalScan } 
+        });
+        const scanHistory = historyResponse.data?.[0];
+        if (historyResponse.error) throw historyResponse.error;
         
         if (!scanHistory?.findings_summary) return [];
 
@@ -126,19 +127,20 @@ export default function SecurityAnalysisContent() {
         if (!historicalScanId) return [];
 
         // Fetch findings from this specific scan
-        const scanResponse = await apiClient.select(tableName, { eq: filters });
-        const scanData = scanResponse.data;
-        const scanError = scanResponse.error;
-        if (scanError) throw scanError;
+        const scanResponse = await apiClient.select('security_scans', { 
+          eq: { id: historicalScanId } 
+        });
+        const scanData = scanResponse.data?.[0];
+        if (scanResponse.error) throw scanResponse.error;
 
         // Get findings from the scan config or fetch from findings table
         // Since findings don't have scan_id, we'll need to use the scan timestamp
         if (scanData) {
-          const findingsResponse = await apiClient.select(tableName, { eq: filters });
-          const findings = findingsResponse.data;
-          const findingsError = findingsResponse.error;
-          if (findingsError) throw findingsError;
-          return findings || [];
+          const findingsResponse = await apiClient.select('findings', { 
+            eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+          });
+          if (findingsResponse.error) throw findingsResponse.error;
+          return findingsResponse.data || [];
         }
 
         return [];
@@ -163,7 +165,7 @@ export default function SecurityAnalysisContent() {
         }
       });
 
-      
+      if (data.error) throw data.error;
       return data?.data || [];
     }
   });

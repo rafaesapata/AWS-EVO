@@ -10,6 +10,7 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { toast } from "sonner";
 import { Calendar, Plus, Pause, Play, Trash2, PlayCircle, ShieldAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useOrganization } from "@/hooks/useOrganization";
 
 export const ScheduledScans = () => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -20,33 +21,48 @@ export const ScheduledScans = () => {
     is_active: true
   });
   const queryClient = useQueryClient();
+  const { data: organizationId } = useOrganization();
+
+  const cronPresets = [
+    { label: 'A cada 15 minutos', value: '*/15 * * * *' },
+    { label: 'A cada 30 minutos', value: '*/30 * * * *' },
+    { label: 'A cada 1 hora', value: '0 * * * *' },
+    { label: 'Diário às 2h', value: '0 2 * * *' },
+    { label: 'A cada 6 horas', value: '0 */6 * * *' },
+    { label: 'Semanal (Segunda 2h)', value: '0 2 * * 1' },
+    { label: 'Mensal (dia 1 às 2h)', value: '0 2 1 * *' },
+  ];
+
+  const scanTypeLabels: Record<string, string> = {
+    security: 'Segurança',
+    cost: 'Custos',
+    well_architected: 'Well-Architected',
+    iam: 'IAM Deep',
+  };
 
   const { data: schedules, isLoading } = useQuery({
-    queryKey: ['scheduled-scans'],
-    enabled: isSuperAdmin,
+    queryKey: ['scheduled-scans', organizationId],
+    enabled: isSuperAdmin && !!organizationId,
     queryFn: async () => {
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-            return data;
+      const response = await apiClient.select('scheduled_scans', {
+        eq: { organization_id: organizationId },
+        order: { column: 'created_at', ascending: false }
+      });
+      if (response.error) throw new Error(response.error.message);
+      return response.data;
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const user = await cognitoAuth.getCurrentUser();
-      if (!user) throw new Error('Not authenticated');
+      if (!organizationId) throw new Error('Organization not found');
       
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      if (!profile?.organization_id) throw new Error('Organization not found');
-      
-      const { error } = await apiClient.post('/scheduled_scans', [{
+      const response = await apiClient.insert('scheduled_scans', {
         ...newSchedule,
-        organization_id: profile.organization_id
-      }]);
-      
+        organization_id: organizationId
+      });
+      if (response.error) throw new Error(response.error.message);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduled-scans'] });
@@ -54,7 +70,6 @@ export const ScheduledScans = () => {
         description: `Frequência: ${cronPresets.find(p => p.value === newSchedule.schedule_cron)?.label || 'Customizado'}`
       });
       setIsDialogOpen(false);
-      // Reset form
       setNewSchedule({
         scan_types: ['security', 'cost', 'well_architected'],
         schedule_cron: '0 2 * * *',
@@ -70,21 +85,13 @@ export const ScheduledScans = () => {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const user = await cognitoAuth.getCurrentUser();
-      if (!user) throw new Error('Not authenticated');
-      
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      // SECURITY: Filter by organization_id
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.update('scheduled_scans', { is_active }, { id });
+      if (response.error) throw new Error(response.error.message);
+      return response.data;
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['scheduled-scans'] });
-      toast.success(variables.is_active ? 'Scan ativado' : 'Scan pausado', {
-        description: variables.is_active ? 'Agendamento será executado conforme configurado' : 'Agendamento pausado até ser reativado'
-      });
+      toast.success(variables.is_active ? 'Scan ativado' : 'Scan pausado');
     },
     onError: (error) => {
       toast.error('Erro ao alterar status', {
@@ -95,16 +102,9 @@ export const ScheduledScans = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const user = await cognitoAuth.getCurrentUser();
-      if (!user) throw new Error('Not authenticated');
-      
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      // SECURITY: Filter by organization_id
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-          },
+      const response = await apiClient.delete('scheduled_scans', { id });
+      if (response.error) throw new Error(response.error.message);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduled-scans'] });
       toast.success('Agendamento removido com sucesso');
@@ -118,65 +118,46 @@ export const ScheduledScans = () => {
 
   const runNowMutation = useMutation({
     mutationFn: async (schedule: any) => {
-      const results = {
-        success: [] as string[],
-        failed: [] as string[]
-      };
+      const results = { success: [] as string[], failed: [] as string[] };
 
       for (const scanType of schedule.scan_types) {
         try {
-          let functionName = '';
+          const functionMap: Record<string, string> = {
+            security: 'security-scan',
+            cost: 'cost-optimization',
+            well_architected: 'well-architected-scan',
+            iam: 'iam-deep-analysis'
+          };
           
-          switch(scanType) {
-            case 'security':
-              functionName = 'security-scan';
-              break;
-            case 'cost':
-              functionName = 'cost-optimization';
-              break;
-            case 'well_architected':
-              functionName = 'well-architected-scan';
-              break;
-            case 'iam':
-              functionName = 'iam-deep-analysis';
-              break;
-            default:
-              continue;
-          }
+          const functionName = functionMap[scanType];
+          if (!functionName) continue;
 
           await apiClient.lambda(functionName);
-          
-          
-          results.success.push(scanTypeLabels[scanType as keyof typeof scanTypeLabels]);
+          results.success.push(scanTypeLabels[scanType] || scanType);
         } catch {
-          results.failed.push(scanTypeLabels[scanType as keyof typeof scanTypeLabels]);
+          results.failed.push(scanTypeLabels[scanType] || scanType);
         }
       }
 
-      const response = await apiClient.insert(tableName, data);
-      const error = response.error;
-            if (updateError) throw updateError;
-      
+      // Update last run
+      await apiClient.update('scheduled_scans', {
+        last_run_at: new Date().toISOString(),
+        last_run_status: results.failed.length === 0 ? 'success' : results.success.length > 0 ? 'partial' : 'failed'
+      }, { id: schedule.id });
+
       return results;
     },
     onSuccess: (results) => {
       queryClient.invalidateQueries({ queryKey: ['scheduled-scans'] });
       queryClient.invalidateQueries({ queryKey: ['findings'] });
       queryClient.invalidateQueries({ queryKey: ['cost_recommendations'] });
-      queryClient.invalidateQueries({ queryKey: ['well-architected-scores'] });
       
       if (results.failed.length === 0) {
-        toast.success('Todos os scans executados com sucesso!', {
-          description: `${results.success.length} análise(s) concluída(s)`
-        });
+        toast.success('Todos os scans executados com sucesso!');
       } else if (results.success.length > 0) {
-        toast.warning('Scans parcialmente executados', {
-          description: `Sucesso: ${results.success.join(', ')}\nFalha: ${results.failed.join(', ')}`
-        });
+        toast.warning('Scans parcialmente executados');
       } else {
-        toast.error('Falha ao executar scans', {
-          description: `Erro em: ${results.failed.join(', ')}`
-        });
+        toast.error('Falha ao executar scans');
       }
     },
     onError: (error) => {
@@ -191,43 +172,18 @@ export const ScheduledScans = () => {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) return;
 
-      const response = await apiClient.select(tableName, { eq: filters });
-      const data = response.data;
-      const error = response.error;
-      setIsSuperAdmin(!!data);
+      const response = await apiClient.select('profiles', {
+        eq: { id: user.userId, role: 'super_admin' }
+      });
+      setIsSuperAdmin(!!(response.data && response.data.length > 0));
     };
-
     checkSuperAdmin();
   }, []);
 
-  const cronPresets = [
-    { label: 'A cada 15 minutos', value: '*/15 * * * *' },
-    { label: 'A cada 30 minutos', value: '*/30 * * * *' },
-    { label: 'A cada 1 hora', value: '0 * * * *' },
-    { label: 'Diário às 2h', value: '0 2 * * *' },
-    { label: 'A cada 6 horas', value: '0 */6 * * *' },
-    { label: 'Semanal (Segunda 2h)', value: '0 2 * * 1' },
-    { label: 'Mensal (dia 1 às 2h)', value: '0 2 1 * *' },
-  ];
-
-  const scanTypeLabels = {
-    security: 'Segurança',
-    cost: 'Custos',
-    well_architected: 'Well-Architected',
-    iam: 'IAM Deep',
-  };
-
   const getNextExecutionTime = (cronExpression: string, lastRunAt?: string) => {
     const now = new Date();
-    const lastRun = lastRunAt ? new Date(lastRunAt) : now;
+    const next = new Date(lastRunAt ? new Date(lastRunAt) : now);
     
-    // Parse cron expression (minute hour day month dayOfWeek)
-    const parts = cronExpression.split(' ');
-    const [minute, hour, day, month, dayOfWeek] = parts;
-    
-    const next = new Date(lastRun);
-    
-    // Simple calculation for common patterns
     if (cronExpression === '*/15 * * * *') {
       next.setMinutes(Math.ceil(now.getMinutes() / 15) * 15);
     } else if (cronExpression === '*/30 * * * *') {
@@ -236,14 +192,13 @@ export const ScheduledScans = () => {
       next.setHours(now.getHours() + 1, 0, 0, 0);
     } else if (cronExpression === '0 */6 * * *') {
       next.setHours(Math.ceil(now.getHours() / 6) * 6, 0, 0, 0);
-    } else if (minute !== '*' && hour !== '*') {
-      // Daily or specific time patterns
-      next.setHours(parseInt(hour), parseInt(minute), 0, 0);
-      if (next <= now) {
-        next.setDate(next.getDate() + 1);
+    } else {
+      const parts = cronExpression.split(' ');
+      if (parts[0] !== '*' && parts[1] !== '*') {
+        next.setHours(parseInt(parts[1]), parseInt(parts[0]), 0, 0);
+        if (next <= now) next.setDate(next.getDate() + 1);
       }
     }
-    
     return next;
   };
 
@@ -275,10 +230,7 @@ export const ScheduledScans = () => {
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Agendamento
-              </Button>
+              <Button><Plus className="h-4 w-4 mr-2" />Novo Agendamento</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -288,26 +240,15 @@ export const ScheduledScans = () => {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium">Frequência</label>
-                  <Select
-                    value={newSchedule.schedule_cron}
-                    onValueChange={(value) => setNewSchedule({ ...newSchedule, schedule_cron: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Select value={newSchedule.schedule_cron} onValueChange={(value) => setNewSchedule({ ...newSchedule, schedule_cron: value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {cronPresets.map((preset) => (
-                        <SelectItem key={preset.value} value={preset.value}>
-                          {preset.label}
-                        </SelectItem>
+                        <SelectItem key={preset.value} value={preset.value}>{preset.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Expressão cron: {newSchedule.schedule_cron}
-                  </p>
                 </div>
-
                 <div>
                   <label className="text-sm font-medium mb-2 block">Tipos de Scan</label>
                   <div className="space-y-2">
@@ -330,10 +271,7 @@ export const ScheduledScans = () => {
                     ))}
                   </div>
                 </div>
-
-                <Button onClick={() => createMutation.mutate()} className="w-full">
-                  Criar Agendamento
-                </Button>
+                <Button onClick={() => createMutation.mutate()} className="w-full">Criar Agendamento</Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -349,80 +287,32 @@ export const ScheduledScans = () => {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-semibold">
-                        {cronPresets.find(p => p.value === schedule.schedule_cron)?.label || 'Customizado'}
-                      </h4>
-                      <Badge variant={schedule.is_active ? 'default' : 'secondary'}>
-                        {schedule.is_active ? 'Ativo' : 'Pausado'}
-                      </Badge>
+                      <h4 className="font-semibold">{cronPresets.find(p => p.value === schedule.schedule_cron)?.label || 'Customizado'}</h4>
+                      <Badge variant={schedule.is_active ? 'default' : 'secondary'}>{schedule.is_active ? 'Ativo' : 'Pausado'}</Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Cron: {schedule.schedule_cron}
-                    </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => runNowMutation.mutate(schedule)}
-                      disabled={runNowMutation.isPending}
-                      title="Executar agora"
-                    >
+                    <Button size="sm" variant="outline" onClick={() => runNowMutation.mutate(schedule)} disabled={runNowMutation.isPending}>
                       <PlayCircle className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => toggleMutation.mutate({ id: schedule.id, is_active: !schedule.is_active })}
-                    >
+                    <Button size="sm" variant="ghost" onClick={() => toggleMutation.mutate({ id: schedule.id, is_active: !schedule.is_active })}>
                       {schedule.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deleteMutation.mutate(schedule.id)}
-                    >
+                    <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(schedule.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-
                 <div className="flex flex-wrap gap-1">
-                  {schedule.scan_types.map((type: string) => (
-                    <Badge key={type} variant="outline" className="text-xs">
-                      {scanTypeLabels[type as keyof typeof scanTypeLabels]}
-                    </Badge>
+                  {schedule.scan_types?.map((type: string) => (
+                    <Badge key={type} variant="outline" className="text-xs">{scanTypeLabels[type] || type}</Badge>
                   ))}
                 </div>
-
-                <div className="space-y-1 mt-2">
-                  {schedule.last_run_at && (
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-muted-foreground">
-                        Última execução: {new Date(schedule.last_run_at).toLocaleString('pt-BR')}
-                      </p>
-                      {schedule.last_run_status && (
-                        <Badge 
-                          variant={
-                            schedule.last_run_status === 'success' ? 'default' : 
-                            schedule.last_run_status === 'partial' ? 'secondary' : 
-                            'destructive'
-                          }
-                          className="text-xs"
-                        >
-                          {schedule.last_run_status === 'success' ? 'Sucesso' : 
-                           schedule.last_run_status === 'partial' ? 'Parcial' : 
-                           'Falha'}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                  {schedule.is_active && (
-                    <p className="text-xs text-muted-foreground">
-                      Próxima execução: {getNextExecutionTime(schedule.schedule_cron, schedule.last_run_at).toLocaleString('pt-BR')}
-                    </p>
-                  )}
-                </div>
+                {schedule.is_active && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Próxima execução: {getNextExecutionTime(schedule.schedule_cron, schedule.last_run_at).toLocaleString('pt-BR')}
+                  </p>
+                )}
               </div>
             ))
           ) : (
