@@ -335,16 +335,18 @@ export function AWSPermissionsGuide() {
       }
 
       // Validar com edge function usando accountId do contexto global
-      const data = await apiClient.lambda('validate-aws-credentials', {
+      const result = await apiClient.invoke('validate-aws-credentials', {
         body: {
           accountId: selectedAccountId
         }
       });
 
-      if (error) {
-        console.error('Validation error:', error);
-        throw error;
+      if (result.error) {
+        console.error('Validation error:', result.error);
+        throw new Error(result.error.message || 'Validation failed');
       }
+
+      const data = result.data;
 
       if (data?.isValid) {
         // CRITICAL: Invalidate the banner cache to reflect new validation status

@@ -27,6 +27,7 @@ import Compliance from "@/pages/Compliance";
 import RISavingsPlans from "@/pages/RISavingsPlans";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { AwsAccountSelector } from "@/components/AwsAccountSelector";
 import { 
   Shield, 
   TrendingUp, 
@@ -239,6 +240,9 @@ const Index = () => {
                   </div>
                   
                   <div className="flex items-center gap-4">
+                    {/* AWS Account Selector */}
+                    <AwsAccountSelector compact />
+                    
                     {user?.organizationId && (
                       <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
                         <Building2 className="h-4 w-4 text-primary" />
@@ -498,6 +502,9 @@ const Index = () => {
                 </div>
                 
                 <div className="flex items-center gap-4">
+                  {/* AWS Account Selector */}
+                  <AwsAccountSelector compact />
+                  
                   {user?.organizationId && (
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
                       <Building2 className="h-4 w-4 text-primary" />

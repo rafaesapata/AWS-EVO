@@ -84,15 +84,23 @@ class ApiClient {
         return {
           data: null,
           error: {
-            message: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+            message: errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
             code: errorData.code,
             status: response.status,
           },
         };
       }
 
-      const data = await response.json();
-      return { data, error: null };
+      const responseData = await response.json();
+      
+      // Handle Lambda response format: { success: true, data: [...] }
+      // Extract the inner data if present
+      if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+        return { data: responseData.data, error: null };
+      }
+      
+      // Return as-is for other formats
+      return { data: responseData, error: null };
     } catch (error) {
       return {
         data: null,
@@ -103,30 +111,26 @@ class ApiClient {
     }
   }
 
-  // Generic CRUD operations
+  // Generic CRUD operations - uses Lambda query-table for all table queries
   async select<T>(table: string, options: {
     select?: string;
     eq?: Record<string, any>;
     order?: { column: string; ascending?: boolean };
     limit?: number;
+    ilike?: Record<string, string>;
   } = {}): Promise<ApiResponse<T[]> | ApiError> {
-    const params = new URLSearchParams();
-    
-    if (options.select) params.append('select', options.select);
-    if (options.eq) {
-      Object.entries(options.eq).forEach(([key, value]) => {
-        params.append(`${key}.eq`, String(value));
-      });
-    }
-    if (options.order) {
-      params.append('order', `${options.order.column}.${options.order.ascending !== false ? 'asc' : 'desc'}`);
-    }
-    if (options.limit) params.append('limit', String(options.limit));
-
-    const queryString = params.toString();
-    const endpoint = `/${table}${queryString ? `?${queryString}` : ''}`;
-    
-    return this.request<T[]>(endpoint);
+    // Use Lambda query-table instead of direct REST calls
+    return this.request<T[]>(`/api/functions/query-table`, {
+      method: 'POST',
+      body: JSON.stringify({
+        table,
+        select: options.select,
+        eq: options.eq,
+        order: options.order,
+        limit: options.limit,
+        ilike: options.ilike,
+      }),
+    });
   }
 
   async insert<T>(table: string, data: any): Promise<ApiResponse<T> | ApiError> {

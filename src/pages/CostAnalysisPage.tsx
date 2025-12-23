@@ -153,17 +153,21 @@ export const CostAnalysisPage = () => {
         throw new Error(t('costAnalysis.noAwsAccount'));
       }
 
-      const data = await apiClient.lambda('fetch-daily-costs', {
+      const result = await apiClient.invoke<any>('fetch-daily-costs', {
         body: { accountId: accountId, days: 90 }
       });
-
-      if (error) {
-        console.error('Edge function error:', error);
-        throw error;
+      
+      if (result.error) {
+        throw new Error(result.error.message || t('costAnalysis.updateError'));
       }
       
+      const data = result.data;
+      
       if (!data?.success) {
-        throw new Error(data?.error || t('costAnalysis.updateError'));
+        const errorMsg = typeof data?.error === 'string' 
+          ? data.error 
+          : data?.error?.message || t('costAnalysis.updateError');
+        throw new Error(errorMsg);
       }
 
       return data;

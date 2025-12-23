@@ -156,11 +156,6 @@ export const CostAnalysis = () => {
       const data = await apiClient.lambda('fetch-daily-costs', {
         body: { accountId: accountId, days: 90 }
       });
-
-      if (error) {
-        console.error('Edge function error:', error);
-        throw error;
-      }
       
       if (!data?.success) {
         throw new Error(data?.error || t('costAnalysis.updateError'));

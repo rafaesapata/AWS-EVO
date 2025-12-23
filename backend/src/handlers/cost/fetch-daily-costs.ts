@@ -1,4 +1,3 @@
-import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Fetch Daily Costs
  * AWS Lambda Handler for fetch-daily-costs
@@ -12,6 +11,7 @@ import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
+import { getHttpMethod } from '../../lib/http-helpers.js';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 
 interface FetchDailyCostsRequest {
