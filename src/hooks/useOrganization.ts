@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
-import { apiClient } from '@/integrations/aws/api-client';
 import { CACHE_CONFIGS } from './useQueryCache';
 import { useTVDashboard } from '@/contexts/TVDashboardContext';
 
@@ -12,8 +11,11 @@ import { useTVDashboard } from '@/contexts/TVDashboardContext';
 export const useOrganization = () => {
   const { organizationId: tvOrgId, isTVMode } = useTVDashboard();
   
+  console.log('🔐 useOrganization: Context values', { tvOrgId, isTVMode });
+  
   // In TV mode, return organization ID directly from context without query
   if (isTVMode && tvOrgId) {
+    console.log('🔐 useOrganization: TV mode with orgId, returning directly');
     return {
       data: tvOrgId,
       isLoading: false,
@@ -26,6 +28,7 @@ export const useOrganization = () => {
   
   // If in TV mode but no orgId yet, show loading
   if (isTVMode && !tvOrgId) {
+    console.log('🔐 useOrganization: TV mode without orgId, returning loading');
     return {
       data: null,
       isLoading: true,
@@ -36,44 +39,45 @@ export const useOrganization = () => {
     } as any;
   }
   
+  console.log('🔐 useOrganization: Normal mode, using query');
+  
   return useQuery({
     queryKey: ['user-organization'],
     queryFn: async () => {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Try to get organization from profile in DynamoDB via API
-      try {
-        const profileResponse = await apiClient.invoke('check-organization', {
-          body: { userId: user.id }
-        });
-        
-        if (profileResponse.data?.organizationId) {
-          return profileResponse.data.organizationId;
-        }
-      } catch (error) {
-        console.warn('Failed to fetch organization from profile, using fallback:', error);
-      }
+      console.log('🔐 useOrganization: Getting organization for user', {
+        userId: user.id,
+        email: user.email,
+        organizationId: user.organizationId,
+      });
 
-      // Use organization ID from AWS Cognito user attributes
+      // Use organization ID from AWS Cognito user attributes (primary and only source)
       if (user.organizationId) {
+        // Validate UUID format
+        const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+        if (!uuidRegex.test(user.organizationId)) {
+          console.error('🔐 useOrganization: Invalid organization ID format, forcing logout');
+          // Force logout to get new token
+          await cognitoAuth.signOut();
+          window.location.href = '/login?reason=session_expired';
+          throw new Error('Session expired. Redirecting to login...');
+        }
+        
+        console.log('🔐 useOrganization: Using organizationId from Cognito token:', user.organizationId);
         return user.organizationId;
       }
 
-      // Fallback: extract organization from email domain
-      if (user.email) {
-        const domain = user.email.split('@')[1];
-        // Create a simple organization ID based on domain
-        return `org-${domain.replace(/\./g, '-')}`;
-      }
-
-      // Last fallback: use user ID as organization
-      return `org-${user.id.substring(0, 8)}`;
+      // No valid organization found - force logout
+      console.error('🔐 useOrganization: No organization found for user. Forcing logout.');
+      await cognitoAuth.signOut();
+      window.location.href = '/login?reason=no_organization';
+      throw new Error('Organization not found. Redirecting to login...');
     },
     ...CACHE_CONFIGS.SETTINGS, // 5 minutos de cache
     // Reduce retry count and delays for faster feedback
-    retry: 2,
-    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
+    retry: 0, // Don't retry - if org is invalid, logout immediately
     // Keep previous data while refetching to prevent UI flickering
     placeholderData: (previousData) => previousData,
   });

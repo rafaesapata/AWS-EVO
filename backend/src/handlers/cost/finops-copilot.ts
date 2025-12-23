@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para FinOps Copilot
  * AWS Lambda Handler for finops-copilot
@@ -34,7 +35,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('FinOps Copilot started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

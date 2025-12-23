@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para otimização de custos
  * AWS Lambda Handler for cost-optimization
@@ -31,7 +32,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   const startTime = Date.now();
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

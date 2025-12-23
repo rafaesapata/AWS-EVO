@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Check Alert Rules
  * AWS Lambda Handler for check-alert-rules
@@ -20,7 +21,7 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

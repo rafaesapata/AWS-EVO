@@ -9,6 +9,20 @@ import { checkRateLimit, validateOrganizationContext } from './validation.js';
 import { error, badRequest, forbidden, corsOptions } from './response.js';
 import { TenantIsolatedPrisma } from './database.js';
 
+/**
+ * Helper to get HTTP method from event (supports both REST API v1 and HTTP API v2)
+ */
+export function getHttpMethod(event: AuthorizedEvent): string {
+  return event.httpMethod || event.requestContext?.http?.method || 'UNKNOWN';
+}
+
+/**
+ * Helper to get HTTP path from event (supports both REST API v1 and HTTP API v2)
+ */
+export function getHttpPath(event: AuthorizedEvent): string {
+  return event.path || event.rawPath || event.requestContext?.http?.path || '/unknown';
+}
+
 export interface MiddlewareContext {
   user: CognitoUser;
   organizationId: string;
@@ -37,12 +51,14 @@ export function withMiddleware(
   return async (event: AuthorizedEvent, context: LambdaContext): Promise<APIGatewayProxyResultV2> => {
     const startTime = Date.now();
     const requestId = context.awsRequestId;
+    const httpMethod = getHttpMethod(event);
+    const httpPath = getHttpPath(event);
     
-    console.log(`🚀 Request started: ${event.requestContext.http.method} ${event.requestContext.http.path} [${requestId}]`);
+    console.log(`🚀 Request started: ${httpMethod} ${httpPath} [${requestId}]`);
     
     try {
       // Handle CORS preflight
-      if (event.requestContext.http.method === 'OPTIONS') {
+      if (httpMethod === 'OPTIONS') {
         return corsOptions();
       }
       
@@ -65,7 +81,7 @@ export function withMiddleware(
         // Rate limiting
         if (options.rateLimit) {
           const rateLimitCheck = checkRateLimit(
-            `${event.requestContext.http.path}:${user.sub}`,
+            `${httpPath}:${user.sub}`,
             options.rateLimit.maxRequests,
             options.rateLimit.windowMs
           );

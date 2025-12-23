@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Generate Cost Forecast
  * AWS Lambda Handler for generate-cost-forecast
@@ -30,7 +31,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 Generate Cost Forecast started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

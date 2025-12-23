@@ -33,13 +33,24 @@ export default function AWSSettings() {
   const { data: awsAccounts } = useOrganizationQuery(
     ['aws-accounts-status'],
     async (organizationId) => {
-      const accounts = await apiClient.select('aws_credentials', {
-        select: '*, aws_validation_status(*)',
-        eq: { organization_id: organizationId, is_active: true },
-        order: { created_at: 'desc' }
-      });
+      // Use Lambda endpoint instead of REST
+      const result = await apiClient.invoke<any>('list-aws-credentials', {});
       
-      return accounts.data || [];
+      if (result.error) throw new Error(result.error.message);
+      
+      // Lambda returns { success: true, data: [...] } wrapped in apiClient response
+      const responseBody = result.data;
+      
+      // Handle both formats: direct array or wrapped in { success, data }
+      if (Array.isArray(responseBody)) {
+        return responseBody;
+      }
+      
+      if (responseBody?.success && Array.isArray(responseBody.data)) {
+        return responseBody.data;
+      }
+      
+      return responseBody?.data || [];
     },
     {
       staleTime: 2 * 60 * 1000,

@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para validar credenciais AWS
  * AWS Lambda Handler for validate-aws-credentials
@@ -33,7 +34,7 @@ export async function handler(
     requestId: context.awsRequestId 
   });
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

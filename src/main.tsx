@@ -45,7 +45,7 @@ import "./index.css";
 // Wrapper for non-TV mode (default context)
 function DefaultTVProvider({ children }: { children: React.ReactNode }) {
   return (
-    <TVDashboardProvider organizationId={null}>
+    <TVDashboardProvider organizationId={null} isTVMode={false}>
       {children}
     </TVDashboardProvider>
   );

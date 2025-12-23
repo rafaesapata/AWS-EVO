@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Fetch Daily Costs
  * AWS Lambda Handler for fetch-daily-costs
@@ -26,7 +27,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('Fetch Daily Costs started', { requestId: context.awsRequestId });
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

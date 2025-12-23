@@ -1,0 +1,1 @@
+{"version":3,"file":"daily-license-validation.d.ts","sourceRoot":"","sources":["../../../src/handlers/license/daily-license-validation.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,oBAAoB,EAAE,qBAAqB,EAAE,cAAc,EAAE,MAAM,YAAY,CAAC;AAwBzF,eAAO,MAAM,OAAO,GAClB,OAAO,oBAAoB,GAAG,cAAc,KAC3C,OAAO,CAAC,qBAAqB,GAAG,IAAI,CA0JtC,CAAC"}

@@ -16,9 +16,11 @@ const BASE_HEADERS = {
 
 /**
  * Generate response headers with CORS and security
+ * CORS headers are ALWAYS included - uses '*' as fallback when origin is not provided
  */
 function getResponseHeaders(origin?: string, additionalHeaders?: Record<string, string>): Record<string, string> {
-  const corsHeaders = generateCORSHeaders(origin, SECURE_CORS_CONFIG);
+  // Always generate CORS headers - use '*' as fallback for maximum compatibility
+  const corsHeaders = generateCORSHeaders(origin || '*', SECURE_CORS_CONFIG);
   
   return {
     ...BASE_HEADERS,

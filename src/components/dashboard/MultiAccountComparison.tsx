@@ -15,12 +15,18 @@ export function MultiAccountComparison() {
   const { data: accounts = [], isLoading } = useOrganizationQuery(
     ['aws-accounts-comparison'],
     async (organizationId) => {
-      const response = await apiClient.select('aws_credentials', {
-        eq: { organization_id: organizationId, is_active: true },
-        order: { column: 'account_name', ascending: true }
-      });
-      if (response.error) return [];
-      return response.data || [];
+      // Use Lambda endpoint instead of REST to avoid CORS issues
+      const result = await apiClient.invoke<any>('list-aws-credentials', {});
+      
+      if (result.error) return [];
+      
+      // Handle both formats: direct array or wrapped in { success, data }
+      if (Array.isArray(result.data)) {
+        return result.data;
+      } else if (result.data?.success && Array.isArray(result.data.data)) {
+        return result.data.data;
+      }
+      return result.data?.data || [];
     },
     { staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 }
   );

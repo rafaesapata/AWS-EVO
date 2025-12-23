@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para previsão de orçamento
  * AWS Lambda Handler for budget-forecast
@@ -22,7 +23,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('📊 Budget forecast started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

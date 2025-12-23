@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SystemMetrics } from "@/components/admin/SystemMetrics";
+import { Layout } from "@/components/Layout";
 import { 
   Activity, 
   Server, 

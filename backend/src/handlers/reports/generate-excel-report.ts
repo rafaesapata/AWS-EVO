@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Generate Excel Report
  * AWS Lambda Handler for generate-excel-report
@@ -24,7 +25,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 Generate Excel Report started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

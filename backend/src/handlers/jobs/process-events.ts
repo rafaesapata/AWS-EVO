@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Process Events
  * AWS Lambda Handler for process-events
@@ -12,7 +13,7 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

@@ -7,6 +7,7 @@ import { Footer } from "@/components/ui/footer";
 import { Button } from "@/components/ui/button";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { Users, Building2 } from "lucide-react";
+import { AwsAccountSelector } from "@/components/AwsAccountSelector";
 
 interface LayoutProps {
   children: ReactNode;
@@ -191,6 +192,9 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
                 </div>
                 
                 <div className="flex items-center gap-4">
+                  {/* AWS Account Selector */}
+                  <AwsAccountSelector compact />
+                  
                   {user?.organizationId && (
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
                       <Building2 className="h-4 w-4 text-primary" />

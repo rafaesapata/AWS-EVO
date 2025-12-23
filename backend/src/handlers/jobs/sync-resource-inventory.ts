@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Sync Resource Inventory
  * AWS Lambda Handler for sync-resource-inventory
@@ -22,7 +23,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 Sync Resource Inventory started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for KB Analytics Dashboard
  * AWS Lambda Handler for kb-analytics-dashboard
@@ -17,7 +18,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 KB Analytics Dashboard started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

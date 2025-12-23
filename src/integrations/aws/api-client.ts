@@ -26,7 +26,39 @@ class ApiClient {
     };
 
     if (session) {
-      headers['Authorization'] = `Bearer ${session.accessToken}`;
+      // Use idToken for Cognito User Pools Authorizer (contains custom attributes)
+      headers['Authorization'] = `Bearer ${session.idToken}`;
+      
+      // DEBUG: Log token info and validate organization ID format
+      try {
+        const payload = JSON.parse(atob(session.idToken.split('.')[1]));
+        const orgId = payload['custom:organization_id'];
+        
+        console.log('🔐 API Client: Token payload', {
+          sub: payload.sub,
+          email: payload.email,
+          orgId: orgId,
+          roles: payload['custom:roles'],
+          exp: new Date(payload.exp * 1000).toISOString(),
+        });
+        
+        // CRITICAL: Validate UUID format - force logout if invalid
+        const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+        if (orgId && !uuidRegex.test(orgId)) {
+          console.error('🔐 API Client: INVALID organization ID format detected!', orgId);
+          console.error('🔐 API Client: Forcing logout to get new token...');
+          await cognitoAuth.signOut();
+          window.location.href = '/login?reason=session_expired';
+          throw new Error('Session expired. Please login again.');
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message.includes('Session expired')) {
+          throw e;
+        }
+        console.warn('🔐 API Client: Could not decode token', e);
+      }
+    } else {
+      console.warn('🔐 API Client: No session available');
     }
 
     return headers;
@@ -140,7 +172,7 @@ class ApiClient {
     body?: any;
     headers?: Record<string, string>;
   } = {}): Promise<ApiResponse<T> | ApiError> {
-    return this.request<T>(`/functions/${functionName}`, {
+    return this.request<T>(`/api/functions/${functionName}`, {
       method: 'POST',
       body: options.body ? JSON.stringify(options.body) : undefined,
       headers: options.headers,
@@ -156,7 +188,7 @@ class ApiClient {
     functionName: string,
     payload?: Record<string, any>
   ): Promise<ApiResponse<T> | ApiError> {
-    return this.request<T>(`/lambda/${functionName}`, {
+    return this.request<T>(`/api/lambda/${functionName}`, {
       method: 'POST',
       body: payload ? JSON.stringify(payload) : undefined,
     });

@@ -40,14 +40,22 @@ export function AdvancedCostAnalyzer() {
       if (!user) throw new Error('Not authenticated');
       if (!organizationId) throw new Error('Organization not found');
 
-      const response = await apiClient.select('aws_credentials', {
-        select: '*',
-        eq: { organization_id: organizationId, is_active: true },
-        limit: 1
-      });
+      // Use Lambda endpoint instead of REST to avoid CORS issues
+      const result = await apiClient.invoke<any>('list-aws-credentials', {});
       
-      if (response.error) throw new Error(response.error);
-      const credentials = response.data?.[0];
+      if (result.error) throw new Error(result.error.message);
+      
+      // Handle both formats: direct array or wrapped in { success, data }
+      let credentialsData: any[] = [];
+      if (Array.isArray(result.data)) {
+        credentialsData = result.data;
+      } else if (result.data?.success && Array.isArray(result.data.data)) {
+        credentialsData = result.data.data;
+      } else {
+        credentialsData = result.data?.data || [];
+      }
+      
+      const credentials = credentialsData[0];
       
       if (!credentials) {
         toast.error("Nenhuma conta AWS ativa encontrada");

@@ -112,13 +112,19 @@ const getCloudFormationConsoleUrl = (region: string = 'us-east-1'): string => {
 const CloudFormationDeploy = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { data: organizationId } = useOrganization();
+  const { data: organizationId, isLoading: isLoadingOrg, isError: isOrgError, error: orgError } = useOrganization();
   const queryClient = useQueryClient();
   
-  // Debug: Log component mount
+  // Debug: Log component mount and organization state
   useEffect(() => {
     console.log('🚀 CloudFormationDeploy component mounted');
-  }, []);
+    console.log('🔐 CloudFormationDeploy: Organization state', {
+      organizationId,
+      isLoadingOrg,
+      isOrgError,
+      orgError: orgError?.message,
+    });
+  }, [organizationId, isLoadingOrg, isOrgError, orgError]);
   
   // Refs for preventing race conditions
   const isSubmittingRef = useRef(false);
@@ -137,6 +143,19 @@ const CloudFormationDeploy = () => {
   const [roleArn, setRoleArn] = useState("");
   const [regions, setRegions] = useState<string[]>(["us-east-1"]);
   const [isValidating, setIsValidating] = useState(false);
+  
+  // Saved account data for Step 3
+  const [savedAccountData, setSavedAccountData] = useState<{
+    id: string;
+    account_id: string;
+    account_name: string;
+    regions: string[];
+    is_active: boolean;
+    created_at: string;
+    updated?: boolean;
+  } | null>(null);
+  const [isEditingRegions, setIsEditingRegions] = useState(false);
+  const [editedRegions, setEditedRegions] = useState<string[]>([]);
   const [copiedExternalId, setCopiedExternalId] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -275,43 +294,18 @@ const CloudFormationDeploy = () => {
         throw new Error(t('cloudformation.sessionExpired'));
       }
 
-      // Get user's organization
-      if (!organizationId) {
+      // Get user's organization directly from Cognito (bypass hook that may be loading)
+      const userOrgId = user.organizationId;
+      if (!userOrgId) {
+        console.error('🔐 CloudFormationDeploy: organizationId is null/undefined!', {
+          organizationId: userOrgId,
+          userFromCognito: user,
+        });
         throw new Error(t('cloudformation.organizationNotFound'));
       }
 
-      // Idempotency check - prevent duplicate connections (with error handling)
-      let existingAccount = null;
-      try {
-        const existingAccountResult = await apiClient.select('aws_credentials', {
-          select: 'id, account_name',
-          eq: { 
-            organization_id: organizationId,
-            account_id: awsAccountId 
-          }
-        });
-
-        if (existingAccountResult.error) {
-          console.warn('Could not check for existing account, proceeding anyway:', existingAccountResult.error);
-          // Continue with the process instead of failing
-        } else {
-          existingAccount = existingAccountResult.data?.[0];
-        }
-      } catch (error) {
-        console.warn('Error checking existing account, proceeding anyway:', error);
-        // Continue with the process instead of failing
-      }
-
-      if (existingAccount) {
-        toast({
-          title: t('cloudformation.accountAlreadyConnected'),
-          description: t('cloudformation.accountAlreadyConnectedDesc', { accountId: awsAccountId, name: existingAccount.account_name }),
-          variant: "destructive",
-        });
-        isSubmittingRef.current = false;
-        setIsValidating(false);
-        return;
-      }
+      // NOTE: Duplicate check is handled by the Lambda - it will update existing credentials
+      // The REST endpoint /aws_credentials doesn't exist, so we skip client-side check
 
       // Check if externalId changed during async operation (race condition)
       if (capturedExternalId !== currentExternalIdRef.current) {
@@ -376,51 +370,59 @@ const CloudFormationDeploy = () => {
         console.error('Error saving credentials:', savedCredResult.error);
         // Check for specific error messages
         const errorMsg = savedCredResult.error.message || '';
-        if (errorMsg.includes('Organization not found')) {
-          throw new Error('Organização não encontrada. Por favor, faça logout e login novamente.');
+        if (errorMsg.includes('Organization not found') || 
+            errorMsg.includes('Session expired') || 
+            errorMsg.includes('Invalid organization') ||
+            errorMsg.includes('logout and login')) {
+          throw new Error('Sua sessão expirou ou é inválida. Por favor, faça logout e login novamente para atualizar sua sessão.');
         }
         throw new Error(errorMsg || t('cloudformation.errorSavingCredentials'));
       }
 
-      const savedCred = savedCredResult.data;
+      // Lambda returns { success: true, data: {...} } - extract the inner data
+      const responseBody = savedCredResult.data as any;
+      const savedCred = responseBody?.data || responseBody;
       if (!savedCred || !savedCred.id) {
+        console.error('Invalid response from Lambda:', savedCredResult.data);
         throw new Error(t('cloudformation.errorSavingCredentials'));
       }
       
       console.log('✅ Credentials saved successfully:', savedCred.id);
 
+      // TODO: Enable when validate-permissions Lambda is deployed
       // Trigger permission validation in background (optional, non-blocking)
-      try {
-        apiClient.invoke('validate-permissions', {
-          body: {
-            accountId: savedCred.id,
-            region: regions[0] || 'us-east-1',
-          }
-        }).catch(err => console.warn('Background permission validation failed (non-blocking):', err));
-      } catch (e) {
-        console.warn('Background permission validation setup failed (non-blocking):', e);
-      }
+      // try {
+      //   apiClient.invoke('validate-permissions', {
+      //     body: {
+      //       accountId: savedCred.id,
+      //       region: regions[0] || 'us-east-1',
+      //     }
+      //   }).catch(err => console.warn('Background permission validation failed (non-blocking):', err));
+      // } catch (e) {
+      //   console.warn('Background permission validation setup failed (non-blocking):', e);
+      // }
 
+      // TODO: Enable when log-audit-action Lambda is deployed
       // Log to audit trail
-      try {
-        await apiClient.invoke('log-audit-action', {
-          body: {
-            user_id: user.id,
-            action: 'AWS_ACCOUNT_CONNECTED_CLOUDFORMATION',
-            resource_type: 'aws_credentials',
-            resource_id: savedCred.id,
-            details: {
-              aws_account_id: awsAccountId,
-              connection_method: 'cloudformation_role',
-              regions: regions,
-              account_name: sanitizedName,
-            },
-            organization_id: organizationId,
-          }
-        });
-      } catch (auditError) {
-        console.warn('Audit log failed (non-fatal):', auditError);
-      }
+      // try {
+      //   await apiClient.invoke('log-audit-action', {
+      //     body: {
+      //       user_id: user.id,
+      //       action: 'AWS_ACCOUNT_CONNECTED_CLOUDFORMATION',
+      //       resource_type: 'aws_credentials',
+      //       resource_id: savedCred.id,
+      //       details: {
+      //         aws_account_id: awsAccountId,
+      //         connection_method: 'cloudformation_role',
+      //         regions: regions,
+      //         account_name: sanitizedName,
+      //       },
+      //       organization_id: userOrgId,
+      //     }
+      //   });
+      // } catch (auditError) {
+      //   console.warn('Audit log failed (non-fatal):', auditError);
+      // }
 
       toast({
         title: `✅ ${t('cloudformation.accountConnected')}`,
@@ -432,6 +434,18 @@ const CloudFormationDeploy = () => {
         queryClient.invalidateQueries({ queryKey: ['aws-credentials-all'] }),
         queryClient.invalidateQueries({ queryKey: ['aws-credentials-check'] }),
       ]);
+      
+      // Save account data for Step 3 display
+      setSavedAccountData({
+        id: savedCred.id,
+        account_id: savedCred.account_id || awsAccountId,
+        account_name: savedCred.account_name || sanitizedName,
+        regions: savedCred.regions || regions,
+        is_active: savedCred.is_active !== false,
+        created_at: savedCred.created_at || new Date().toISOString(),
+        updated: savedCred.updated,
+      });
+      setEditedRegions(savedCred.regions || regions);
       
       setStep(3);
       
@@ -477,12 +491,68 @@ const CloudFormationDeploy = () => {
     setAccountName("");
     setRegions(["us-east-1"]);
     setValidationError(null);
+    setSavedAccountData(null);
+    setIsEditingRegions(false);
+    setEditedRegions([]);
     
     // Generate new externalId and update ref
     const newExternalId = generateSecureExternalId();
     currentExternalIdRef.current = newExternalId;
     setExternalId(newExternalId);
   }, []);
+
+  /**
+   * Saves updated regions for the connected account
+   */
+  const handleSaveRegions = useCallback(async () => {
+    if (!savedAccountData) return;
+    
+    setIsValidating(true);
+    try {
+      const result = await apiClient.invoke<any>('save-aws-credentials', {
+        body: {
+          account_name: savedAccountData.account_name,
+          access_key_id: `ROLE:${roleArn}`,
+          secret_access_key: `EXTERNAL_ID:${externalId}`,
+          external_id: externalId,
+          regions: editedRegions,
+          account_id: savedAccountData.account_id,
+          is_active: true,
+        }
+      });
+
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      const responseBody = result.data as any;
+      const updatedCred = responseBody?.data || responseBody;
+      
+      setSavedAccountData(prev => prev ? {
+        ...prev,
+        regions: editedRegions,
+      } : null);
+      
+      setIsEditingRegions(false);
+      
+      toast({
+        title: "✅ Regiões Atualizadas",
+        description: `${editedRegions.length} região(ões) configurada(s) para monitoramento.`,
+      });
+      
+      // Invalidate queries to refresh UI
+      queryClient.invalidateQueries({ queryKey: ['aws-credentials-all'] });
+    } catch (error) {
+      console.error('Error saving regions:', error);
+      toast({
+        title: "❌ Erro ao Salvar",
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: "destructive",
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  }, [savedAccountData, roleArn, externalId, editedRegions, toast, queryClient]);
 
   return (
     <Card className="border-border shadow-card">
@@ -494,7 +564,6 @@ const CloudFormationDeploy = () => {
         <CardDescription>
           Configure automaticamente as permissões AWS com segurança. Método recomendado pela AWS.
         </CardDescription>
-
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Benefits Section */}
@@ -760,20 +829,165 @@ const CloudFormationDeploy = () => {
         )}
 
         {/* Step 3: Success */}
-        {step === 3 && (
-          <div className="text-center space-y-4 py-6">
-            <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center">
-              <CheckCircle2 className="w-8 h-8 text-green-600" />
+        {step === 3 && savedAccountData && (
+          <div className="space-y-6">
+            {/* Success Header */}
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center">
+                <CheckCircle2 className="w-8 h-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-green-700 dark:text-green-400">
+                {savedAccountData.updated ? 'Conta Atualizada com Sucesso!' : 'Conta Conectada com Sucesso!'}
+              </h3>
             </div>
-            <h3 className="text-xl font-semibold text-green-700 dark:text-green-400">
-              Conta Conectada com Sucesso!
-            </h3>
-            <p className="text-muted-foreground">
-              A conta AWS foi configurada via IAM Role. As permissões serão validadas automaticamente no primeiro uso.
-            </p>
-            <Button onClick={resetWizard} variant="outline">
-              Conectar Outra Conta
-            </Button>
+
+            {/* Account Details Card */}
+            <div className="bg-muted/50 rounded-lg p-4 space-y-4">
+              <h4 className="font-medium flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" />
+                Detalhes da Conta AWS
+              </h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">ID da Conta AWS</p>
+                  <p className="font-mono font-medium bg-background px-2 py-1 rounded">
+                    {savedAccountData.account_id}
+                  </p>
+                </div>
+                
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Nome da Conta</p>
+                  <p className="font-medium bg-background px-2 py-1 rounded">
+                    {savedAccountData.account_name}
+                  </p>
+                </div>
+                
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Status</p>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${savedAccountData.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className={savedAccountData.is_active ? 'text-green-600' : 'text-red-600'}>
+                      {savedAccountData.is_active ? 'Ativa' : 'Inativa'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Método de Conexão</p>
+                  <p className="font-medium bg-background px-2 py-1 rounded flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-green-600" />
+                    IAM Role (CloudFormation)
+                  </p>
+                </div>
+                
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">ID Interno</p>
+                  <p className="font-mono text-xs bg-background px-2 py-1 rounded truncate">
+                    {savedAccountData.id}
+                  </p>
+                </div>
+                
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Data de Conexão</p>
+                  <p className="font-medium bg-background px-2 py-1 rounded">
+                    {new Date(savedAccountData.created_at).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Regions Section */}
+            <div className="bg-blue-500/10 rounded-lg p-4 space-y-3 border border-blue-500/20">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium flex items-center gap-2">
+                  <CloudCog className="w-4 h-4 text-blue-600" />
+                  Regiões Monitoradas ({savedAccountData.regions.length})
+                </h4>
+                {!isEditingRegions && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditedRegions(savedAccountData.regions);
+                      setIsEditingRegions(true);
+                    }}
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    ✏️ Editar Regiões
+                  </Button>
+                )}
+              </div>
+              
+              {isEditingRegions ? (
+                <div className="space-y-3">
+                  <RegionSelector 
+                    selectedRegions={editedRegions}
+                    onChange={setEditedRegions}
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsEditingRegions(false);
+                        setEditedRegions(savedAccountData.regions);
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveRegions}
+                      disabled={isValidating || editedRegions.length === 0}
+                    >
+                      {isValidating ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : null}
+                      Salvar Regiões
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {savedAccountData.regions.map((region) => (
+                    <span
+                      key={region}
+                      className="px-2 py-1 bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded text-sm font-mono"
+                    >
+                      {region}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* External ID Info */}
+            <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs">
+                  <p className="font-medium text-yellow-700 dark:text-yellow-400">External ID Utilizado</p>
+                  <code className="font-mono text-muted-foreground break-all">{externalId}</code>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button onClick={resetWizard} variant="outline" className="flex-1">
+                <CloudCog className="w-4 h-4 mr-2" />
+                Conectar Outra Conta
+              </Button>
+              <Button 
+                variant="default" 
+                className="flex-1"
+                onClick={() => window.location.href = '/aws-accounts'}
+              >
+                <ArrowRight className="w-4 h-4 mr-2" />
+                Ver Todas as Contas
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>

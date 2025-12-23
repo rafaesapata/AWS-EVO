@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for KB Export PDF
  * AWS Lambda Handler for kb-export-pdf
@@ -23,7 +24,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 KB Export PDF started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

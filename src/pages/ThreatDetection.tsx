@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
 import VirtualTable from "@/components/dashboard/VirtualTable";
 import { PageHeader } from "@/components/ui/page-header";
+import { Layout } from "@/components/Layout";
 
 export default function ThreatDetection() {
   const { toast } = useToast();
@@ -82,15 +83,22 @@ export default function ThreatDetection() {
 
     setScanning(true);
     try {
-      const credentials = await apiClient.select('aws_credentials', {
-        select: 'id',
-        eq: { organization_id: organizationId, is_active: true },
-        limit: 1
-      });
+      // Use Lambda endpoint instead of REST to avoid CORS issues
+      const result = await apiClient.invoke<any>('list-aws-credentials', {});
+      
+      if (result.error) throw result.error;
 
-      if (credentials.error) throw credentials.error;
+      // Handle both formats: direct array or wrapped in { success, data }
+      let credentialsData: any[] = [];
+      if (Array.isArray(result.data)) {
+        credentialsData = result.data;
+      } else if (result.data?.success && Array.isArray(result.data.data)) {
+        credentialsData = result.data.data;
+      } else {
+        credentialsData = result.data?.data || [];
+      }
 
-      if (!credentials.data || credentials.data.length === 0) {
+      if (credentialsData.length === 0) {
         throw new Error('No active AWS credentials found. Please connect your AWS account first.');
       }
 
@@ -107,11 +115,11 @@ export default function ThreatDetection() {
           break;
       }
 
-      const result = await apiClient.invoke(functionName, {
-        accountId: credentials.data[0].id
+      const scanResult = await apiClient.invoke(functionName, {
+        accountId: credentialsData[0].id
       });
 
-      if (result.error) throw result.error;
+      if (scanResult.error) throw scanResult.error;
 
       toast({
         title: "Scan completed",

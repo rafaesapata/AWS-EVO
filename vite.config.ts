@@ -72,7 +72,8 @@ export default defineConfig(({ mode }) => ({
   },
   
   esbuild: {
-    drop: mode === 'production' ? ['console', 'debugger'] : [],
+    // Temporarily keep console.log for debugging
+    drop: [], // mode === 'production' ? ['console', 'debugger'] : [],
     target: 'es2020',
     legalComments: 'none',
   },

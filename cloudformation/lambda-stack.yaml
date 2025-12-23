@@ -316,6 +316,70 @@ Resources:
         - Key: Name
           Value: !Sub '${ProjectName}-${Environment}-validate-aws-credentials'
 
+  # Update AWS Credentials Lambda
+  UpdateAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-update-aws-credentials'
+      Runtime: nodejs18.x
+      Handler: update-aws-credentials.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/aws/update-aws-credentials.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          USER_POOL_ID: !Ref UserPoolId
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-update-aws-credentials'
+
+  # List AWS Credentials Lambda
+  ListAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-list-aws-credentials'
+      Runtime: nodejs18.x
+      Handler: list-aws-credentials.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/aws/list-aws-credentials.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          USER_POOL_ID: !Ref UserPoolId
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-list-aws-credentials'
+
   # ============================================================================
   # SECURITY SCAN LAMBDAS
   # ============================================================================
@@ -474,6 +538,14 @@ Outputs:
   ValidateAwsCredentialsFunctionArn:
     Description: Validate AWS Credentials Function ARN
     Value: !GetAtt ValidateAwsCredentialsFunction.Arn
+
+  UpdateAwsCredentialsFunctionArn:
+    Description: Update AWS Credentials Function ARN
+    Value: !GetAtt UpdateAwsCredentialsFunction.Arn
+
+  ListAwsCredentialsFunctionArn:
+    Description: List AWS Credentials Function ARN
+    Value: !GetAtt ListAwsCredentialsFunction.Arn
 
   SecurityScanFunctionArn:
     Description: Security Scan Function ARN

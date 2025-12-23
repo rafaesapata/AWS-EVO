@@ -5,7 +5,7 @@ import PredictiveIncidentsComponent from "@/components/dashboard/PredictiveIncid
 import { PredictiveIncidentsHistory } from "@/components/dashboard/PredictiveIncidentsHistory";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { PageHeader } from "@/components/ui/page-header";
+import { Layout } from "@/components/Layout";
 
 const PredictiveIncidents = () => {
   const { data: organizationId } = useOrganization();
@@ -22,13 +22,11 @@ const PredictiveIncidents = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <PageHeader
-        title="Incidentes Preditivos"
-        description="Preveja potenciais incidentes usando Machine Learning para análise preditiva de infraestrutura"
-        icon={Activity}
-      />
-
+    <Layout 
+      title="Incidentes Preditivos" 
+      description="Preveja potenciais incidentes usando Machine Learning para análise preditiva de infraestrutura"
+      icon={<Activity className="h-7 w-7 text-white" />}
+    >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="prediction" className="flex items-center gap-2">
@@ -54,7 +52,7 @@ const PredictiveIncidents = () => {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </Layout>
   );
 };
 

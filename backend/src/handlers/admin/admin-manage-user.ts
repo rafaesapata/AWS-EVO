@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para gerenciar usuários (admin)
  * AWS Lambda Handler for admin-manage-user
@@ -35,7 +36,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('👤 Admin manage user started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

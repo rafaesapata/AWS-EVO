@@ -29,12 +29,37 @@ const ALLOWED_ROLES = [
 type AllowedRole = typeof ALLOWED_ROLES[number];
 
 /**
+ * Helper para parsear exp que pode vir como número ou string
+ */
+function parseExpClaim(exp: any): number | null {
+  if (typeof exp === 'number') {
+    return exp;
+  }
+  if (typeof exp === 'string') {
+    // Tentar parsear como número primeiro
+    const numExp = parseInt(exp, 10);
+    if (!isNaN(numExp)) {
+      return numExp;
+    }
+    // Tentar parsear como data string (ex: "Tue Dec 23 18:50:26 UTC 2025")
+    const dateExp = Date.parse(exp);
+    if (!isNaN(dateExp)) {
+      return Math.floor(dateExp / 1000); // Converter para segundos
+    }
+  }
+  return null;
+}
+
+/**
  * Claims obrigatórios com validadores
  */
 const REQUIRED_CLAIMS: Record<string, (value: any) => boolean> = {
   'sub': (v) => typeof v === 'string' && v.length > 0,
   'email': (v) => typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
-  'exp': (v) => typeof v === 'number' && v * 1000 > Date.now(),
+  'exp': (v) => {
+    const expNum = parseExpClaim(v);
+    return expNum !== null && expNum * 1000 > Date.now();
+  },
 };
 
 // ============================================================================
@@ -109,7 +134,9 @@ export function validateAuthClaims(claims: Record<string, any>): void {
 // ============================================================================
 
 export function getUserFromEvent(event: AuthorizedEvent): CognitoUser {
-  const claims = event.requestContext.authorizer?.jwt?.claims;
+  // Support both REST API v1 (claims directly) and HTTP API v2 (jwt.claims)
+  const claims = event.requestContext.authorizer?.claims || 
+                 event.requestContext.authorizer?.jwt?.claims;
 
   if (!claims) {
     throw new Error('No authentication claims found');
@@ -125,12 +152,13 @@ export function getOrganizationId(user: CognitoUser): string {
   const orgId = user['custom:organization_id'];
 
   if (!orgId) {
-    throw new Error('Organization not found. Contact support.');
+    throw new Error('Organization not found. Please logout and login again to refresh your session.');
   }
 
-  // Validar formato do organizationId (UUID ou org-prefix)
-  if (!/^org-[a-zA-Z0-9-]+$/.test(orgId) && !/^[a-f0-9-]{36}$/.test(orgId)) {
-    throw new Error('Invalid organization ID format');
+  // Validar formato do organizationId (UUID format)
+  // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(orgId)) {
+    throw new Error('Session expired or invalid. Please logout and login again to refresh your session.');
   }
 
   return orgId;

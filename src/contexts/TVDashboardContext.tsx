@@ -17,11 +17,12 @@ export const useTVDashboard = () => {
 interface TVDashboardProviderProps {
   children: ReactNode;
   organizationId: string | null;
+  isTVMode?: boolean;
 }
 
-export const TVDashboardProvider = ({ children, organizationId }: TVDashboardProviderProps) => {
+export const TVDashboardProvider = ({ children, organizationId, isTVMode = false }: TVDashboardProviderProps) => {
   return (
-    <TVDashboardContext.Provider value={{ organizationId, isTVMode: true }}>
+    <TVDashboardContext.Provider value={{ organizationId, isTVMode }}>
       {children}
     </TVDashboardContext.Provider>
   );

@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Cleanup Expired External IDs
  * AWS Lambda Handler for cleanup-expired-external-ids
@@ -14,7 +15,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('Cleanup Expired External IDs started', { requestId: context.awsRequestId });
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

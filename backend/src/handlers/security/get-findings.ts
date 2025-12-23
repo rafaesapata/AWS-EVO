@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para obter findings
  * AWS Lambda Handler for get-findings
@@ -34,14 +35,14 @@ export async function handler(
     requestId: context.awsRequestId 
   });
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   
   try {
-    // Parse query parameters
-    const params = event.requestContext.http.method === 'GET'
-      ? parseQueryParams(event.rawQueryString)
+    // Parse query parameters - support both REST API (queryStringParameters) and HTTP API (rawQueryString)
+    const params = getHttpMethod(event) === 'GET'
+      ? (event.queryStringParameters || parseQueryParams(event.rawQueryString || ''))
       : (event.body ? JSON.parse(event.body) : {});
     
     const {

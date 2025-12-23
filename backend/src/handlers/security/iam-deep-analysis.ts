@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for IAM Deep Analysis
  * AWS Lambda Handler for iam-deep-analysis
@@ -28,7 +29,7 @@ export async function handler(
     requestId: context.awsRequestId 
   });
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

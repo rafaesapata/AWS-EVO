@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para GuardDuty scan
  * AWS Lambda Handler for guardduty-scan
@@ -41,7 +42,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('GuardDuty scan started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

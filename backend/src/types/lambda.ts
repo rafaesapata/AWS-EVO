@@ -2,6 +2,42 @@
  * Tipos comuns para handlers Lambda
  */
 
+// REST API v1 Event (API Gateway)
+export interface APIGatewayProxyEvent {
+  resource: string;
+  path: string;
+  httpMethod: string;
+  headers: Record<string, string>;
+  queryStringParameters: Record<string, string> | null;
+  pathParameters: Record<string, string> | null;
+  body: string | null;
+  isBase64Encoded: boolean;
+  requestContext: {
+    accountId: string;
+    apiId: string;
+    authorizer?: {
+      claims?: CognitoUser;
+      principalId?: string;
+    };
+    domainName: string;
+    domainPrefix: string;
+    httpMethod: string;
+    identity: {
+      sourceIp: string;
+      userAgent: string;
+    };
+    path: string;
+    protocol: string;
+    requestId: string;
+    requestTime: string;
+    requestTimeEpoch: number;
+    resourceId: string;
+    resourcePath: string;
+    stage: string;
+  };
+}
+
+// HTTP API v2 Event
 export interface APIGatewayProxyEventV2 {
   version: string;
   routeKey: string;
@@ -73,13 +109,59 @@ export interface CognitoUser {
   [key: string]: any;
 }
 
-export interface AuthorizedEvent extends APIGatewayProxyEventV2 {
-  requestContext: APIGatewayProxyEventV2['requestContext'] & {
-    authorizer: {
-      jwt: {
+// Combined event type that supports both REST API v1 and HTTP API v2
+export interface AuthorizedEvent {
+  // REST API v1 properties
+  httpMethod?: string;
+  resource?: string;
+  path?: string;
+  pathParameters?: Record<string, string> | null;
+  queryStringParameters?: Record<string, string> | null;
+  
+  // HTTP API v2 properties
+  version?: string;
+  routeKey?: string;
+  rawPath?: string;
+  rawQueryString?: string;
+  
+  // Common properties
+  headers: Record<string, string>;
+  body?: string | null;
+  isBase64Encoded: boolean;
+  
+  requestContext: {
+    accountId: string;
+    apiId: string;
+    domainName?: string;
+    domainPrefix?: string;
+    requestId: string;
+    stage: string;
+    
+    // REST API v1 authorizer (Cognito User Pools)
+    authorizer?: {
+      claims?: CognitoUser;
+      principalId?: string;
+      // HTTP API v2 JWT authorizer
+      jwt?: {
         claims: CognitoUser;
         scopes: string[];
       };
+    };
+    
+    // HTTP API v2 specific
+    http?: {
+      method: string;
+      path: string;
+      protocol: string;
+      sourceIp: string;
+      userAgent: string;
+    };
+    
+    // REST API v1 specific
+    httpMethod?: string;
+    identity?: {
+      sourceIp: string;
+      userAgent: string;
     };
   };
 }

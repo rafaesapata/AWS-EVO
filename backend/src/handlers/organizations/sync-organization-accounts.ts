@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para sincronizar contas da organização
  * AWS Lambda Handler for sync-organization-accounts
@@ -14,7 +15,7 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

@@ -21,24 +21,62 @@ interface SaveCredentialsRequest {
   is_active?: boolean;
 }
 
+/**
+ * Get origin from event for CORS headers
+ */
+function getOriginFromEvent(event: AuthorizedEvent): string {
+  // Try to get origin from headers (case-insensitive)
+  const headers = event.headers || {};
+  const origin = headers['origin'] || headers['Origin'] || '*';
+  return origin;
+}
+
 export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  if (event.requestContext.http.method === 'OPTIONS') {
-    return corsOptions();
+  // Get origin for CORS - ALWAYS include in all responses
+  const origin = getOriginFromEvent(event);
+  
+  // Support both REST API (httpMethod) and HTTP API (requestContext.http.method)
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
   }
+
+  // DEBUG: Log the entire authorizer context to understand the structure
+  logger.info('DEBUG: Event authorizer context', {
+    hasAuthorizer: !!event.requestContext?.authorizer,
+    authorizerKeys: event.requestContext?.authorizer ? Object.keys(event.requestContext.authorizer) : [],
+    hasClaims: !!event.requestContext?.authorizer?.claims,
+    hasJwtClaims: !!event.requestContext?.authorizer?.jwt?.claims,
+    claimsKeys: event.requestContext?.authorizer?.claims ? Object.keys(event.requestContext.authorizer.claims) : [],
+    jwtClaimsKeys: event.requestContext?.authorizer?.jwt?.claims ? Object.keys(event.requestContext.authorizer.jwt.claims) : [],
+    // Log specific claim values
+    orgIdFromClaims: event.requestContext?.authorizer?.claims?.['custom:organization_id'],
+    orgIdFromJwt: event.requestContext?.authorizer?.jwt?.claims?.['custom:organization_id'],
+    origin: origin,
+  });
 
   let organizationId: string;
   let userId: string;
 
   try {
     const user = getUserFromEvent(event);
+    logger.info('DEBUG: User from event', {
+      sub: user.sub,
+      email: user.email,
+      orgId: user['custom:organization_id'],
+      userKeys: Object.keys(user),
+    });
     userId = user.sub || user.id || 'unknown';
     organizationId = getOrganizationId(user);
   } catch (authError: any) {
-    logger.error('Authentication error', authError);
-    return error('Authentication failed: ' + (authError.message || 'Unknown error'));
+    logger.error('Authentication error', authError, {
+      authorizerContext: JSON.stringify(event.requestContext?.authorizer || {}),
+    });
+    return error('Authentication failed: ' + (authError.message || 'Unknown error'), 401, undefined, origin);
   }
   
   logger.info('Save AWS credentials started', { 
@@ -52,7 +90,7 @@ export async function handler(
     
     // Validate required fields
     if (!body.account_name || !body.access_key_id || !body.secret_access_key || !body.account_id) {
-      return badRequest('Missing required fields: account_name, access_key_id, secret_access_key, account_id');
+      return badRequest('Missing required fields: account_name, access_key_id, secret_access_key, account_id', undefined, origin);
     }
     
     const prisma = getPrismaClient();
@@ -137,7 +175,7 @@ export async function handler(
         is_active: updatedCred.is_active,
         created_at: updatedCred.created_at,
         updated: true,
-      });
+      }, 200, origin);
     }
     
     // Create new credentials
@@ -167,7 +205,7 @@ export async function handler(
       regions: credential.regions,
       is_active: credential.is_active,
       created_at: credential.created_at,
-    });
+    }, 200, origin);
     
   } catch (err: any) {
     logger.error('Save AWS credentials error', err, { 
@@ -180,9 +218,9 @@ export async function handler(
     
     // Provide more specific error messages
     if (err.code === 'P2003') {
-      return error('Organization not found. Please contact support.');
+      return error('Organization not found. Please contact support.', 500, undefined, origin);
     }
     
-    return error(err instanceof Error ? err.message : 'Failed to save AWS credentials');
+    return error(err instanceof Error ? err.message : 'Failed to save AWS credentials', 500, undefined, origin);
   }
 }

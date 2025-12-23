@@ -106,7 +106,7 @@ export default function TVDashboard() {
   if (!dashboard) return null;
 
   return (
-    <TVDashboardProvider organizationId={dashboard.organizationId}>
+    <TVDashboardProvider organizationId={dashboard.organizationId} isTVMode={true}>
       <div className="min-h-screen bg-background">
       {/* TV Header - Compact */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">

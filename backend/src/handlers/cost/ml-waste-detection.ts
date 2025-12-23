@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for ML Waste Detection
  * AWS Lambda Handler for ml-waste-detection
@@ -40,7 +41,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   const startTime = Date.now();
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

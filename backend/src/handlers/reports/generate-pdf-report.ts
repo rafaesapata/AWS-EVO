@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para gerar relatório PDF
  * AWS Lambda Handler for generate-pdf-report
@@ -33,7 +34,7 @@ export async function handler(
     requestId: context.awsRequestId 
   });
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

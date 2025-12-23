@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para executar jobs agendados
  * AWS Lambda Handler for execute-scheduled-job
@@ -27,7 +28,7 @@ export async function handler(
     requestId: context.awsRequestId 
   });
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

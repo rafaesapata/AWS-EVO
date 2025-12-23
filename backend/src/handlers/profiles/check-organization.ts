@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Check Organization Binding Handler
  * Verifica se um usuário tem vínculo com uma organização
@@ -5,7 +6,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 
@@ -17,31 +18,24 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  const user = getUserFromEvent(event);
-  
-  logger.info('Check organization binding started', { 
-    userId: user.id,
-    requestId: context.awsRequestId 
-  });
-
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
 
   try {
-    const body: CheckOrganizationRequest = event.body ? JSON.parse(event.body) : {};
-    const { userId } = body;
-
-    if (!userId) {
-      return error('userId é obrigatório', 400);
-    }
-
-    // For now, always return true with the user's organization from auth
-    // The organization is managed by the authentication system
-    const organizationId = user.organizationId || `org-${userId}`;
+    const user = getUserFromEvent(event);
     
-    logger.info('Organization check completed (from auth)', { 
-      userId,
+    logger.info('Check organization binding started', { 
+      userId: user.sub,
+      requestId: context.awsRequestId 
+    });
+
+    // Get organization ID from the authenticated user's token
+    const organizationId = getOrganizationId(user);
+    const organizationName = user['custom:organization_name'] || `Organization ${organizationId.substring(0, 8)}`;
+    
+    logger.info('Organization check completed', { 
+      userId: user.sub,
       hasOrganization: true,
       organizationId,
     });
@@ -49,13 +43,19 @@ export async function handler(
     return success({
       hasOrganization: true,
       organizationId,
-      organizationName: `Organization ${organizationId.substring(0, 8)}`,
+      organizationName,
     });
-  } catch (err) {
-    logger.error('Check organization error', err as Error, { 
-      userId: user.id,
-      requestId: context.awsRequestId 
+  } catch (err: any) {
+    logger.error('Check organization error', err, { 
+      requestId: context.awsRequestId,
+      errorMessage: err.message,
     });
+    
+    // Return specific error for organization not found
+    if (err.message?.includes('Organization not found') || err.message?.includes('Invalid organization ID')) {
+      return error('Organization not found. Please logout and login again to refresh your session.', 401);
+    }
+    
     return error('Erro ao verificar vínculo de organização');
   }
 }

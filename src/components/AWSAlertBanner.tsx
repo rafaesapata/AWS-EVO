@@ -23,15 +23,25 @@ export default function AWSAlertBanner({ onViewDetails }: AWSAlertBannerProps) {
     queryFn: async () => {
       if (!organizationId) return [];
       
-      const accounts = await apiClient.select('aws_credentials', {
-        select: 'id, account_name, account_id',
-        eq: { organization_id: organizationId, is_active: true }
-      });
+      // Use Lambda endpoint instead of REST to avoid CORS issues
+      const result = await apiClient.invoke<any>('list-aws-credentials', {});
       
-      if (accounts.error || !accounts.data || accounts.data.length === 0) return [];
+      if (result.error) return [];
+      
+      // Handle both formats: direct array or wrapped in { success, data }
+      let accountsData: any[] = [];
+      if (Array.isArray(result.data)) {
+        accountsData = result.data;
+      } else if (result.data?.success && Array.isArray(result.data.data)) {
+        accountsData = result.data.data;
+      } else {
+        accountsData = result.data?.data || [];
+      }
+
+      if (accountsData.length === 0) return [];
 
       const accountsWithStatus = await Promise.all(
-        accounts.data.map(async (account: any) => {
+        accountsData.map(async (account: any) => {
           const validation = await apiClient.select('aws_validation_status', {
             select: '*',
             eq: { aws_account_id: account.id },

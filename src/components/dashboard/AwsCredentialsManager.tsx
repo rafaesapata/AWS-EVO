@@ -34,30 +34,59 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const AwsCredentialsManager = () => {
   const { toast } = useToast();
-  const { data: organizationId } = useOrganization();
+  const { data: organizationId, isLoading: isLoadingOrg, error: orgError } = useOrganization();
   const queryClient = useQueryClient();
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
   const [editRegions, setEditRegions] = useState<string[]>([]);
   const [editAccountName, setEditAccountName] = useState("");
 
+  // Debug: Log organization state
+  console.log('🏢 AwsCredentialsManager: Organization state', {
+    organizationId,
+    isLoadingOrg,
+    orgError: orgError?.message,
+  });
+
   // Get all accounts for the user's organization with robust caching
-  const { data: allAccounts, refetch } = useQuery({
+  const { data: allAccounts, refetch, isLoading, error: queryError } = useQuery({
     queryKey: ['aws-credentials-all', organizationId],
     queryFn: async () => {
       if (!organizationId) throw new Error('Organization not found');
 
-      const result = await apiClient.select('aws_credentials', {
-        select: '*',
-        eq: { 
-          organization_id: organizationId,
-          is_active: true 
-        },
-        order: { created_at: 'desc' }
-      });
+      console.log('🔍 AwsCredentialsManager: Fetching credentials for org:', organizationId);
       
-      if (result.error) throw new Error(result.error);
-      return result.data;
+      // Use Lambda endpoint instead of REST
+      const result = await apiClient.invoke<any>('list-aws-credentials', {});
+      
+      console.log('📦 AwsCredentialsManager: Raw API result:', result);
+      
+      if (result.error) {
+        console.error('❌ AwsCredentialsManager: API error:', result.error);
+        throw new Error(result.error.message);
+      }
+      
+      // Lambda returns { success: true, data: [...] } wrapped in apiClient response
+      // apiClient.invoke returns { data: { success: true, data: [...] }, error: null }
+      const responseBody = result.data;
+      
+      console.log('📦 AwsCredentialsManager: Response body:', responseBody);
+      
+      // Handle both formats: direct array or wrapped in { success, data }
+      if (Array.isArray(responseBody)) {
+        console.log('✅ AwsCredentialsManager: Direct array, count:', responseBody.length);
+        return responseBody;
+      }
+      
+      if (responseBody?.success && Array.isArray(responseBody.data)) {
+        console.log('✅ AwsCredentialsManager: Wrapped data, count:', responseBody.data.length);
+        return responseBody.data;
+      }
+      
+      // Fallback
+      const fallbackData = responseBody?.data || [];
+      console.log('⚠️ AwsCredentialsManager: Fallback, count:', fallbackData.length);
+      return fallbackData;
     },
     enabled: !!organizationId,
     staleTime: 2 * 60 * 1000,
@@ -65,6 +94,14 @@ const AwsCredentialsManager = () => {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
     placeholderData: (previousData) => previousData,
+  });
+
+  // Debug: Log query state
+  console.log('📊 AwsCredentialsManager: Query state', {
+    allAccountsCount: allAccounts?.length,
+    isLoading,
+    queryError: queryError?.message,
+    enabled: !!organizationId,
   });
 
   const credentials = allAccounts?.[0];
@@ -80,7 +117,7 @@ const AwsCredentialsManager = () => {
         payerAccountId
       });
       
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(result.error.message || 'Erro ao sincronizar contas');
       return result.data;
     },
     onSuccess: (data) => {
@@ -118,7 +155,7 @@ const AwsCredentialsManager = () => {
         accountId
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(result.error.message || 'Erro ao validar credenciais');
       const data = result.data;
 
       await queryClient.invalidateQueries({ queryKey: ['aws-validation-status'] });
@@ -159,12 +196,12 @@ const AwsCredentialsManager = () => {
     if (!accountToDelete) return;
 
     try {
-      const result = await apiClient.update('aws_credentials', 
-        { is_active: false, updated_at: new Date().toISOString() },
-        { eq: { id: accountToDelete } }
-      );
+      // Use Lambda endpoint instead of REST to avoid CORS issues
+      const result = await apiClient.invoke('update-aws-credentials', {
+        body: { id: accountToDelete, is_active: false }
+      });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(result.error.message || 'Erro ao desativar conta');
 
       toast({
         title: "✅ Conta desativada",
@@ -206,16 +243,16 @@ const AwsCredentialsManager = () => {
     }
 
     try {
-      const result = await apiClient.update('aws_credentials',
-        {
+      // Use Lambda endpoint instead of REST to avoid CORS issues
+      const result = await apiClient.invoke('update-aws-credentials', {
+        body: {
+          id: editingAccount.id,
           regions: editRegions,
           account_name: editAccountName,
-          updated_at: new Date().toISOString(),
-        },
-        { eq: { id: editingAccount.id } }
-      );
+        }
+      });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(result.error.message || 'Erro ao atualizar conta');
 
       toast({
         title: "✅ Conta atualizada",

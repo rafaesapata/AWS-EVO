@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { CostForecast } from "@/components/dashboard/cost-analysis/CostForecast";
 import { CostTrends } from "@/components/dashboard/cost-analysis/CostTrends";
+import { ExportManager } from "@/components/dashboard/cost-analysis/ExportManager";
 
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";

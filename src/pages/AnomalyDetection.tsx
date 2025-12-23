@@ -1,10 +1,16 @@
 import { AnomalyDashboard } from "@/components/dashboard/AnomalyDashboard";
+import { Layout } from "@/components/Layout";
+import { Activity } from "lucide-react";
 
 const AnomalyDetection = () => {
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <Layout 
+      title="Detecção de Anomalias" 
+      description="Identifique comportamentos anômalos em sua infraestrutura AWS"
+      icon={<Activity className="h-7 w-7 text-white" />}
+    >
       <AnomalyDashboard />
-    </div>
+    </Layout>
   );
 };
 

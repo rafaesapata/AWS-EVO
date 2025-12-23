@@ -27,23 +27,29 @@ export default function AWSStatusIndicator() {
     queryFn: async () => {
       if (!organizationId) return [];
       
-      // First get all active credentials for this organization
-      const accounts = await apiClient.select('aws_credentials', {
-        select: 'id, account_name, account_id, organization_id, access_key_id',
-        eq: { organization_id: organizationId, is_active: true },
-        order: { created_at: 'desc' }
-      });
+      // Use Lambda endpoint instead of REST to avoid CORS issues
+      const result = await apiClient.invoke<any>('list-aws-credentials', {});
       
-      if (accounts.error) {
-        console.error('Error fetching accounts:', accounts.error);
+      if (result.error) {
+        console.error('Error fetching accounts:', result.error);
         return [];
       }
 
-      if (!accounts.data || accounts.data.length === 0) return [];
+      // Handle both formats: direct array or wrapped in { success, data }
+      let accountsData: any[] = [];
+      if (Array.isArray(result.data)) {
+        accountsData = result.data;
+      } else if (result.data?.success && Array.isArray(result.data.data)) {
+        accountsData = result.data.data;
+      } else {
+        accountsData = result.data?.data || [];
+      }
+
+      if (accountsData.length === 0) return [];
 
       // Then get validation status for each account
       const accountsWithStatus = await Promise.all(
-        accounts.data.map(async (account: any) => {
+        accountsData.map(async (account: any) => {
           const validation = await apiClient.select('aws_validation_status', {
             select: '*',
             eq: { aws_account_id: account.id },

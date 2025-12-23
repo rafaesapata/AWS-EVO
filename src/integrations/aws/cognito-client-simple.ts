@@ -387,6 +387,22 @@ class CognitoAuthService {
         return null;
       }
 
+      // CRITICAL: Validate organization ID format (must be UUID)
+      const orgId = session.user?.organizationId;
+      if (orgId) {
+        const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+        if (!uuidRegex.test(orgId)) {
+          console.error('🔐 CognitoAuth: INVALID organization ID format detected!', orgId);
+          console.error('🔐 CognitoAuth: Forcing logout to get new token with valid UUID...');
+          await this.signOut();
+          // Redirect to login with reason
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login?reason=session_expired';
+          }
+          return null;
+        }
+      }
+
       console.log('🔐 CognitoAuth: Returning user with org:', session.user?.organizationId);
       return session.user;
     } catch (error) {
@@ -407,6 +423,21 @@ class CognitoAuthService {
       if (this.isTokenExpired(session.accessToken)) {
         await this.signOut();
         return null;
+      }
+
+      // CRITICAL: Validate organization ID format (must be UUID)
+      const orgId = session.user?.organizationId;
+      if (orgId) {
+        const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+        if (!uuidRegex.test(orgId)) {
+          console.error('🔐 CognitoAuth: getCurrentSession - INVALID organization ID format!', orgId);
+          console.error('🔐 CognitoAuth: Forcing logout to get new token...');
+          await this.signOut();
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login?reason=session_expired';
+          }
+          return null;
+        }
       }
 
       return session;

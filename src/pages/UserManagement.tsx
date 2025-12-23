@@ -108,16 +108,20 @@ export default function UserManagement() {
     queryKey: ['aws-accounts', organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const response = await apiClient.select('aws_credentials', {
-        select: 'aws_account_id, account_name',
-        eq: { organization_id: organizationId, is_active: true }
-      });
+      // Use Lambda endpoint instead of REST to avoid CORS issues
+      const result = await apiClient.invoke<any>('list-aws-credentials', {});
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (result.error) {
+        throw new Error(result.error.message);
       }
 
-      return response.data || [];
+      // Handle both formats: direct array or wrapped in { success, data }
+      if (Array.isArray(result.data)) {
+        return result.data;
+      } else if (result.data?.success && Array.isArray(result.data.data)) {
+        return result.data.data;
+      }
+      return result.data?.data || [];
     },
   });
 

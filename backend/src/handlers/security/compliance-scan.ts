@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para compliance scan
  * AWS Lambda Handler for compliance-scan
@@ -84,7 +85,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('Compliance scan started');
   
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   

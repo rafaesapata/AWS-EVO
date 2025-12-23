@@ -53,24 +53,35 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
     return null;
   });
 
-  // Fetch all AWS accounts for the organization
+  // Fetch all AWS accounts for the organization using Lambda endpoint
   const { data: accounts = [], isLoading: accountsLoading, error, refetch } = useQuery({
     queryKey: createQueryKey.awsAccounts(organizationId || ''),
     queryFn: async () => {
       if (!organizationId) return [];
       
       try {
-        const result = await apiClient.select('aws_credentials', {
-          select: 'id, account_name, account_id, regions, is_active',
-          eq: { organization_id: organizationId, is_active: true },
-          order: { column: 'account_name', ascending: true }
-        });
+        // Use Lambda endpoint instead of REST (same as AwsCredentialsManager)
+        const result = await apiClient.invoke<any>('list-aws-credentials', {});
         
         if (result.error) {
           throw ErrorFactory.databaseError('fetch AWS accounts', result.error);
         }
         
-        return result.data as AwsAccount[];
+        // Lambda returns { success: true, data: [...] } wrapped in apiClient response
+        const responseBody = result.data;
+        
+        // Handle both formats: direct array or wrapped in { success, data }
+        let allAccounts: AwsAccount[] = [];
+        if (Array.isArray(responseBody)) {
+          allAccounts = responseBody;
+        } else if (responseBody?.success && Array.isArray(responseBody.data)) {
+          allAccounts = responseBody.data;
+        } else {
+          allAccounts = responseBody?.data || [];
+        }
+        
+        // Filter only active accounts
+        return allAccounts.filter((acc: AwsAccount) => acc.is_active);
       } catch (err) {
         const appError = ErrorHandler.handle(err, {
           component: 'AwsAccountContext',

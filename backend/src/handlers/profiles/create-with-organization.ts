@@ -1,3 +1,4 @@
+import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Create Profile with Organization Handler
  * Cria um profile de usuário vinculado a uma organização
@@ -28,7 +29,7 @@ export async function handler(
     requestId: context.awsRequestId 
   });
 
-  if (event.requestContext.http.method === 'OPTIONS') {
+  if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
 

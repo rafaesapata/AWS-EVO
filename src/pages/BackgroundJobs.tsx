@@ -2,10 +2,16 @@ import BackgroundJobsMonitor from "@/components/admin/BackgroundJobsMonitor";
 import DeadLetterQueueMonitor from "@/components/admin/DeadLetterQueueMonitor";
 import { IntelligentAlerts } from "@/components/dashboard/IntelligentAlerts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Layout } from "@/components/Layout";
+import { Clock } from "lucide-react";
 
 const BackgroundJobs = () => {
   return (
-    <div className="container mx-auto p-6">
+    <Layout 
+      title="Background Jobs" 
+      description="Monitore e gerencie jobs em segundo plano e filas de processamento"
+      icon={<Clock className="h-7 w-7 text-white" />}
+    >
       <Tabs defaultValue="jobs" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="jobs">Background Jobs</TabsTrigger>
@@ -25,7 +31,7 @@ const BackgroundJobs = () => {
           <IntelligentAlerts />
         </TabsContent>
       </Tabs>
-    </div>
+    </Layout>
   );
 };
 
