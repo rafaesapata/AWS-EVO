@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { logger } from '../../lib/logging.js';
 import { PrismaClient } from '@prisma/client';
+import { safeParseJSON } from '../../lib/request-parser.js';
 import { 
   CognitoIdentityProviderClient, 
   AdminCreateUserCommand,
@@ -37,7 +38,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return { statusCode: 403, body: JSON.stringify({ error: 'Admin access required' }) };
     }
 
-    const body: CreateUserRequest = JSON.parse(event.body || '{}');
+    const body = safeParseJSON<CreateUserRequest>(event.body, {} as CreateUserRequest, 'create-user');
     const { email, name, organizationId, role, temporaryPassword, sendInvite = true, metadata } = body;
 
     // Validações

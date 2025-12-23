@@ -8,6 +8,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseEventBody } from '../../lib/request-parser.js';
 // DynamoDB imports removed - organization comes from auth context
 
 interface SaveCredentialsRequest {
@@ -39,7 +40,7 @@ export async function handler(
   }
   
   try {
-    const body: SaveCredentialsRequest = event.body ? JSON.parse(event.body) : {};
+    const body = parseEventBody<SaveCredentialsRequest>(event, {} as SaveCredentialsRequest, 'save-aws-credentials');
     
     // Validate required fields
     if (!body.account_name || !body.access_key_id || !body.secret_access_key || !body.account_id) {

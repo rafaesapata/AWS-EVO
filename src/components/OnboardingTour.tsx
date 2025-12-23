@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, ChevronRight, Sparkles, Zap, Shield, DollarSign, EyeOff, RefreshCw, FileCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
@@ -54,6 +54,16 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
   const { toast } = useToast();
+  const confettiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (!isVisible) return null;
 
@@ -112,7 +122,7 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
     confetti.innerHTML = '🎉';
     confetti.style.cssText = 'position:fixed;top:50%;left:50%;font-size:100px;animation:ping-once 1s;pointer-events:none;z-index:9999';
     document.body.appendChild(confetti);
-    setTimeout(() => confetti.remove(), 1000);
+    confettiTimeoutRef.current = setTimeout(() => confetti.remove(), 1000);
   };
 
   return (

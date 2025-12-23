@@ -58,18 +58,35 @@ export async function handler(
   }
 }
 
-async function detectCostAnomalies(prisma: any, organizationId: string) {
+async function detectCostAnomalies(prisma: any, organizationId: string): Promise<Array<{
+  type: string;
+  severity: string;
+  date: Date;
+  value: number;
+  expected: number;
+  deviation: string;
+}>> {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
   const costs = await prisma.dailyCost.groupBy({
     by: ['date'],
-    where: { organizationId, date: { gte: sevenDaysAgo } },
+    where: { organization_id: organizationId, date: { gte: sevenDaysAgo } },
     _sum: { cost: true },
   });
   
-  const anomalies = [];
+  const anomalies: Array<{
+    type: string;
+    severity: string;
+    date: Date;
+    value: number;
+    expected: number;
+    deviation: string;
+  }> = [];
   const values = costs.map((c: any) => c._sum.cost || 0);
+  
+  if (values.length === 0) return anomalies;
+  
   const avg = values.reduce((a: number, b: number) => a + b, 0) / values.length;
   const stdDev = Math.sqrt(values.reduce((sum: number, val: number) => sum + Math.pow(val - avg, 2), 0) / values.length);
   
@@ -90,8 +107,22 @@ async function detectCostAnomalies(prisma: any, organizationId: string) {
   return anomalies;
 }
 
-async function detectSecurityAnomalies(prisma: any, organizationId: string) {
-  const anomalies = [];
+async function detectSecurityAnomalies(prisma: any, organizationId: string): Promise<Array<{
+  type: string;
+  severity: string;
+  category: string;
+  userId?: string;
+  value: number;
+  message: string;
+}>> {
+  const anomalies: Array<{
+    type: string;
+    severity: string;
+    category: string;
+    userId?: string;
+    value: number;
+    message: string;
+  }> = [];
   const oneDayAgo = new Date();
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
   
@@ -99,18 +130,19 @@ async function detectSecurityAnomalies(prisma: any, organizationId: string) {
     // Detect unusual login patterns
     const recentLogins = await prisma.auditLog.findMany({
       where: {
-        organizationId,
+        organization_id: organizationId,
         action: 'login',
-        createdAt: { gte: oneDayAgo }
+        created_at: { gte: oneDayAgo }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { created_at: 'desc' }
     });
     
     // Group by IP and detect multiple IPs per user
     const userIps: Record<string, Set<string>> = {};
     for (const login of recentLogins) {
-      const userId = login.userId;
-      const ip = login.metadata?.ip || 'unknown';
+      const userId = login.user_id;
+      const details = login.details as Record<string, any> | null;
+      const ip = details?.ip || login.ip_address || 'unknown';
       if (!userIps[userId]) userIps[userId] = new Set();
       userIps[userId].add(ip);
     }
@@ -131,9 +163,9 @@ async function detectSecurityAnomalies(prisma: any, organizationId: string) {
     // Detect spike in failed logins
     const failedLogins = await prisma.auditLog.count({
       where: {
-        organizationId,
+        organization_id: organizationId,
         action: 'login_failed',
-        createdAt: { gte: oneDayAgo }
+        created_at: { gte: oneDayAgo }
       }
     });
     
@@ -150,9 +182,9 @@ async function detectSecurityAnomalies(prisma: any, organizationId: string) {
     // Detect new critical findings
     const newCriticalFindings = await prisma.finding.count({
       where: {
-        organizationId,
+        organization_id: organizationId,
         severity: 'critical',
-        createdAt: { gte: oneDayAgo }
+        created_at: { gte: oneDayAgo }
       }
     });
     
@@ -165,34 +197,53 @@ async function detectSecurityAnomalies(prisma: any, organizationId: string) {
         message: `${newCriticalFindings} new critical security findings detected`,
       });
     }
-  } catch (err) {
-    logger.warn('Error detecting security anomalies:', err);
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    logger.warn('Error detecting security anomalies:', { error: errMsg });
   }
   
   return anomalies;
 }
 
-async function detectPerformanceAnomalies(prisma: any, organizationId: string) {
-  const anomalies = [];
+async function detectPerformanceAnomalies(prisma: any, organizationId: string): Promise<Array<{
+  type: string;
+  severity: string;
+  category: string;
+  endpointId: string;
+  endpointUrl?: string;
+  value: number;
+  expected?: number;
+  message: string;
+}>> {
+  const anomalies: Array<{
+    type: string;
+    severity: string;
+    category: string;
+    endpointId: string;
+    endpointUrl?: string;
+    value: number;
+    expected?: number;
+    message: string;
+  }> = [];
   const oneHourAgo = new Date();
   oneHourAgo.setHours(oneHourAgo.getHours() - 1);
   
   try {
-    // Detect endpoint response time anomalies
-    const endpointResults = await prisma.endpointMonitorResult.findMany({
+    // Detect endpoint response time anomalies using EndpointCheckHistory
+    const endpointResults = await prisma.endpointCheckHistory.findMany({
       where: {
-        endpointMonitor: { organizationId },
-        createdAt: { gte: oneHourAgo }
+        endpoint: { organization_id: organizationId },
+        checked_at: { gte: oneHourAgo }
       },
-      include: { endpointMonitor: true }
+      include: { endpoint: true }
     });
     
     // Group by endpoint and calculate stats
     const endpointStats: Record<string, number[]> = {};
     for (const result of endpointResults) {
-      const endpointId = result.endpointMonitorId;
+      const endpointId = result.endpoint_id;
       if (!endpointStats[endpointId]) endpointStats[endpointId] = [];
-      endpointStats[endpointId].push(result.responseTimeMs || 0);
+      endpointStats[endpointId].push(result.response_time || 0);
     }
     
     for (const [endpointId, times] of Object.entries(endpointStats)) {
@@ -216,11 +267,11 @@ async function detectPerformanceAnomalies(prisma: any, organizationId: string) {
       }
     }
     
-    // Detect endpoint failures
-    const failedEndpoints = await prisma.endpointMonitor.findMany({
+    // Detect endpoint failures using MonitoredEndpoint
+    const failedEndpoints = await prisma.monitoredEndpoint.findMany({
       where: {
-        organizationId,
-        consecutiveFailures: { gte: 3 }
+        organization_id: organizationId,
+        last_status: 'error'
       }
     });
     
@@ -231,12 +282,13 @@ async function detectPerformanceAnomalies(prisma: any, organizationId: string) {
         category: 'endpoint_down',
         endpointId: endpoint.id,
         endpointUrl: endpoint.url,
-        value: endpoint.consecutiveFailures,
-        message: `Endpoint ${endpoint.name || endpoint.url} has ${endpoint.consecutiveFailures} consecutive failures`,
+        value: 1,
+        message: `Endpoint ${endpoint.name || endpoint.url} is down`,
       });
     }
-  } catch (err) {
-    logger.warn('Error detecting performance anomalies:', err);
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    logger.warn('Error detecting performance anomalies:', { error: errMsg });
   }
   
   return anomalies;

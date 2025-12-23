@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cognitoAuth, AuthSession, AuthUser } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
@@ -21,9 +21,19 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [lastValidLicense, setLastValidLicense] = useState<boolean | null>(null);
   const [authCheckAttempts, setAuthCheckAttempts] = useState(0);
+  const passwordCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Check license status
   const { data: licenseStatus, isLoading: licenseLoading, isFetching } = useLicenseValidation();
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (passwordCheckTimeoutRef.current) {
+        clearTimeout(passwordCheckTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Set up auth state listener
   useEffect(() => {
@@ -51,7 +61,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
           navigate('/auth');
         } else {
           // Check if user needs to change password
-          setTimeout(() => {
+          passwordCheckTimeoutRef.current = setTimeout(() => {
             checkPasswordChangeRequired(session.user.id);
           }, 0);
         }

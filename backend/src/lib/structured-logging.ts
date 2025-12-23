@@ -123,6 +123,41 @@ export class StructuredLogger {
   }
 
   /**
+   * Convenience method for INFO level logs
+   */
+  info(message: string, context: LogContext = {}): void {
+    this.log(LogLevel.INFO, message, context);
+  }
+
+  /**
+   * Convenience method for WARN level logs
+   */
+  warn(message: string, context: LogContext = {}): void {
+    this.log(LogLevel.WARN, message, context);
+  }
+
+  /**
+   * Convenience method for ERROR level logs
+   */
+  error(message: string, context: LogContext = {}, err?: Error): void {
+    this.log(LogLevel.ERROR, message, context, err);
+  }
+
+  /**
+   * Convenience method for DEBUG level logs
+   */
+  debug(message: string, context: LogContext = {}): void {
+    this.log(LogLevel.DEBUG, message, context);
+  }
+
+  /**
+   * Convenience method for CRITICAL level logs
+   */
+  critical(message: string, context: LogContext = {}, err?: Error): void {
+    this.log(LogLevel.CRITICAL, message, context, err);
+  }
+
+  /**
    * Log security event
    */
   async logSecurityEvent(

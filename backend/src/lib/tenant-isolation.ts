@@ -151,15 +151,24 @@ export class TenantIsolationManager {
    */
   private async auditCrossOrgAccess(entry: CrossOrgAuditEntry): Promise<void> {
     try {
-      // Persistir em banco de dados
-      await this.prisma.crossOrgAccessLog.create({
+      // Persistir em audit_logs table (crossOrgAccessLog não existe no schema)
+      await this.prisma.auditLog.create({
         data: {
+          id: `cross-org-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
           user_id: entry.userId,
-          source_organization_id: entry.sourceOrgId,
-          target_organization_id: entry.targetOrgId,
-          reason: entry.reason,
-          request_id: entry.requestId,
-          ip_address: entry.ipAddress,
+          organization_id: entry.sourceOrgId,
+          action: 'READ',
+          resource_type: 'cross_org_access',
+          resource_id: entry.targetOrgId,
+          ip_address: entry.ipAddress || null,
+          details: {
+            event_type: 'CROSS_ORG_ACCESS',
+            source_organization_id: entry.sourceOrgId,
+            target_organization_id: entry.targetOrgId,
+            reason: entry.reason,
+            request_id: entry.requestId,
+            timestamp: entry.timestamp
+          },
           created_at: new Date(entry.timestamp)
         }
       }).catch(() => {
@@ -167,7 +176,6 @@ export class TenantIsolationManager {
         console.log(JSON.stringify({
           level: 'AUDIT',
           event: 'CROSS_ORG_ACCESS',
-          timestamp: entry.timestamp,
           ...entry
         }));
       });
@@ -516,12 +524,15 @@ export async function logTenantIsolationViolation(
     await prisma.securityEvent.create({
       data: {
         organization_id: context.organizationId,
-        user_id: context.userId,
         event_type: 'TENANT_ISOLATION_VIOLATION',
         severity: 'CRITICAL',
-        details: JSON.stringify(violation),
-        ip_address: context.ipAddress,
-        user_agent: context.userAgent,
+        description: `Tenant isolation violation: ${violation.type} - ${violation.error}`,
+        metadata: {
+          user_id: context.userId,
+          ip_address: context.ipAddress,
+          user_agent: context.userAgent,
+          violation
+        },
         created_at: new Date()
       }
     }).catch(() => {

@@ -6,15 +6,31 @@
 import CryptoJS from 'crypto-js';
 
 const STORAGE_KEY_PREFIX = 'evo_secure_';
-const ENCRYPTION_KEY = import.meta.env.VITE_STORAGE_ENCRYPTION_KEY || 'default-dev-key-change-in-production';
+
+// SECURITY: Validate encryption key in production
+const getEncryptionKey = (): string => {
+  const key = import.meta.env.VITE_STORAGE_ENCRYPTION_KEY;
+  
+  if (import.meta.env.PROD) {
+    if (!key) {
+      throw new Error('CRITICAL: VITE_STORAGE_ENCRYPTION_KEY must be set in production');
+    }
+    if (key.length < 32) {
+      throw new Error('CRITICAL: Encryption key must be at least 32 characters');
+    }
+  }
+  
+  // In development, use a secure default but warn
+  return key || 'dev-only-key-not-for-production-use-32chars';
+};
+
+const ENCRYPTION_KEY = getEncryptionKey();
 
 export class SecureStorage {
   private static instance: SecureStorage;
 
   private constructor() {
-    if (!import.meta.env.VITE_STORAGE_ENCRYPTION_KEY && import.meta.env.PROD) {
-      console.warn('⚠️ Storage encryption key not configured for production');
-    }
+    // Validation happens in getEncryptionKey()
   }
 
   static getInstance(): SecureStorage {

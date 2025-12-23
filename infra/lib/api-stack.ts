@@ -103,20 +103,30 @@ export class ApiStack extends cdk.Stack {
       memorySize: 256,
     });
 
-    // API Gateway
+    // API Gateway with restricted CORS
+    const allowedOrigins = [
+      'https://app.evo-uds.com',
+      'https://staging.evo-uds.com',
+      'https://evo-uds.com',
+      ...(process.env.NODE_ENV === 'development' ? ['http://localhost:5173', 'http://localhost:3000'] : []),
+    ].filter(Boolean);
+
     this.api = new apigateway.RestApi(this, 'EvoUdsApi', {
       restApiName: 'EVO UDS API',
       description: 'EVO UDS System API',
       defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: apigateway.Cors.ALL_METHODS,
+        allowOrigins: allowedOrigins.length > 0 ? allowedOrigins : apigateway.Cors.ALL_ORIGINS,
+        allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',
           'X-Amz-Date',
           'Authorization',
           'X-Api-Key',
           'X-Amz-Security-Token',
+          'X-CSRF-Token',
         ],
+        allowCredentials: true,
+        maxAge: cdk.Duration.hours(1),
       },
       deployOptions: {
         stageName: process.env.NODE_ENV || 'dev',

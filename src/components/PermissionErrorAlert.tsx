@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Copy, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 interface PermissionErrorProps {
@@ -16,13 +16,29 @@ export default function PermissionErrorAlert({
   accountName 
 }: PermissionErrorProps) {
   const [copied, setCopied] = useState(false);
+  const [copiedTimeoutId, setCopiedTimeoutId] = useState<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutId) {
+        clearTimeout(copiedTimeoutId);
+      }
+    };
+  }, [copiedTimeoutId]);
 
   const handleCopyPermissions = () => {
     const permissionsText = missingPermissions.join('\n');
     navigator.clipboard.writeText(permissionsText);
     setCopied(true);
     toast.success('Permissões copiadas para a área de transferência');
-    setTimeout(() => setCopied(false), 2000);
+    
+    // Clear previous timeout if exists
+    if (copiedTimeoutId) {
+      clearTimeout(copiedTimeoutId);
+    }
+    const timeoutId = setTimeout(() => setCopied(false), 2000);
+    setCopiedTimeoutId(timeoutId);
   };
 
   const handleCopyIAMPolicy = () => {

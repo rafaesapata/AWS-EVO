@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { AwsAccountProvider } from "@/contexts/AwsAccountContext";
 import { TVDashboardProvider } from "@/contexts/TVDashboardContext";
+import { GlobalErrorBoundary } from "@/components/error-fallbacks";
 import AuthSimple from "./pages/Auth-simple";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
@@ -62,246 +63,248 @@ const queryClient = new QueryClient({
 });
 
 createRoot(document.getElementById("root")!).render(
-  <QueryClientProvider client={queryClient}>
-    <DefaultTVProvider>
-      <AwsAccountProvider>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <Routes>
-            <Route path="/" element={<AuthSimple />} />
-            <Route path="/auth" element={<AuthSimple />} />
-            <Route 
-              path="/app" 
-              element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/aws-settings" 
-              element={
-                <ProtectedRoute>
-                  <AWSSettings />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/system-monitoring" 
-              element={
-                <ProtectedRoute>
-                  <SystemMonitoring />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/resource-monitoring" 
-              element={
-                <ProtectedRoute>
-                  <ResourceMonitoring />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/threat-detection" 
-              element={
-                <ProtectedRoute>
-                  <ThreatDetection />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/attack-detection" 
-              element={
-                <ProtectedRoute>
-                  <AttackDetection />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/anomaly-detection" 
-              element={
-                <ProtectedRoute>
-                  <AnomalyDetection />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/ml-waste-detection" 
-              element={
-                <ProtectedRoute>
-                  <MLWasteDetection />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/well-architected" 
-              element={
-                <ProtectedRoute>
-                  <WellArchitected />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/license-management" 
-              element={
-                <ProtectedRoute>
-                  <LicenseManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/knowledge-base" 
-              element={
-                <ProtectedRoute>
-                  <KnowledgeBase />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/communication-center" 
-              element={
-                <ProtectedRoute>
-                  <CommunicationCenter />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/background-jobs" 
-              element={
-                <ProtectedRoute>
-                  <BackgroundJobs />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/predictive-incidents" 
-              element={
-                <ProtectedRoute>
-                  <PredictiveIncidents />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/bedrock-test" 
-              element={
-                <ProtectedRoute>
-                  <BedrockTestPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/change-password" 
-              element={
-                <ProtectedRoute>
-                  <ChangePassword />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/copilot-ai" 
-              element={
-                <ProtectedRoute>
-                  <CopilotAI />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/security-posture" 
-              element={
-                <ProtectedRoute>
-                  <SecurityPosture />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/intelligent-alerts" 
-              element={
-                <ProtectedRoute>
-                  <IntelligentAlerts />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/remediation-tickets" 
-              element={
-                <ProtectedRoute>
-                  <RemediationTickets />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/cost-optimization" 
-              element={
-                <ProtectedRoute>
-                  <CostOptimization />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/ri-savings-plans" 
-              element={
-                <ProtectedRoute>
-                  <RISavingsPlans />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/security-scans" 
-              element={
-                <ProtectedRoute>
-                  <SecurityScans />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/cloudtrail-audit" 
-              element={
-                <ProtectedRoute>
-                  <CloudTrailAudit />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/compliance" 
-              element={
-                <ProtectedRoute>
-                  <Compliance />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/endpoint-monitoring" 
-              element={
-                <ProtectedRoute>
-                  <EndpointMonitoring />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/edge-monitoring" 
-              element={
-                <ProtectedRoute>
-                  <EdgeMonitoring />
-                </ProtectedRoute>
-              } 
-            />
-            <Route path="/tv" element={<TVDashboard />} />
-            <Route path="/features" element={<Features />} />
-            <Route path="/terms" element={<TermsOfService />} />
-            <Route path="/404" element={<NotFound />} />
-            <Route path="*" element={<Navigate to="/404" replace />} />
-          </Routes>
-          <Toaster />
-        </BrowserRouter>
-      </AwsAccountProvider>
-    </DefaultTVProvider>
-  </QueryClientProvider>
+  <GlobalErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <DefaultTVProvider>
+        <AwsAccountProvider>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <Routes>
+              <Route path="/" element={<AuthSimple />} />
+              <Route path="/auth" element={<AuthSimple />} />
+              <Route 
+                path="/app" 
+                element={
+                  <ProtectedRoute>
+                    <Index />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/aws-settings" 
+                element={
+                  <ProtectedRoute>
+                    <AWSSettings />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/system-monitoring" 
+                element={
+                  <ProtectedRoute>
+                    <SystemMonitoring />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/resource-monitoring" 
+                element={
+                  <ProtectedRoute>
+                    <ResourceMonitoring />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/threat-detection" 
+                element={
+                  <ProtectedRoute>
+                    <ThreatDetection />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/attack-detection" 
+                element={
+                  <ProtectedRoute>
+                    <AttackDetection />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/anomaly-detection" 
+                element={
+                  <ProtectedRoute>
+                    <AnomalyDetection />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/ml-waste-detection" 
+                element={
+                  <ProtectedRoute>
+                    <MLWasteDetection />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/well-architected" 
+                element={
+                  <ProtectedRoute>
+                    <WellArchitected />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/license-management" 
+                element={
+                  <ProtectedRoute>
+                    <LicenseManagement />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/knowledge-base" 
+                element={
+                  <ProtectedRoute>
+                    <KnowledgeBase />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/communication-center" 
+                element={
+                  <ProtectedRoute>
+                    <CommunicationCenter />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/background-jobs" 
+                element={
+                  <ProtectedRoute>
+                    <BackgroundJobs />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/predictive-incidents" 
+                element={
+                  <ProtectedRoute>
+                    <PredictiveIncidents />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/bedrock-test" 
+                element={
+                  <ProtectedRoute>
+                    <BedrockTestPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/change-password" 
+                element={
+                  <ProtectedRoute>
+                    <ChangePassword />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/copilot-ai" 
+                element={
+                  <ProtectedRoute>
+                    <CopilotAI />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/security-posture" 
+                element={
+                  <ProtectedRoute>
+                    <SecurityPosture />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/intelligent-alerts" 
+                element={
+                  <ProtectedRoute>
+                    <IntelligentAlerts />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/remediation-tickets" 
+                element={
+                  <ProtectedRoute>
+                    <RemediationTickets />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/cost-optimization" 
+                element={
+                  <ProtectedRoute>
+                    <CostOptimization />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/ri-savings-plans" 
+                element={
+                  <ProtectedRoute>
+                    <RISavingsPlans />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/security-scans" 
+                element={
+                  <ProtectedRoute>
+                    <SecurityScans />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/cloudtrail-audit" 
+                element={
+                  <ProtectedRoute>
+                    <CloudTrailAudit />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/compliance" 
+                element={
+                  <ProtectedRoute>
+                    <Compliance />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/endpoint-monitoring" 
+                element={
+                  <ProtectedRoute>
+                    <EndpointMonitoring />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/edge-monitoring" 
+                element={
+                  <ProtectedRoute>
+                    <EdgeMonitoring />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="/tv" element={<TVDashboard />} />
+              <Route path="/features" element={<Features />} />
+              <Route path="/terms" element={<TermsOfService />} />
+              <Route path="/404" element={<NotFound />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Routes>
+            <Toaster />
+          </BrowserRouter>
+        </AwsAccountProvider>
+      </DefaultTVProvider>
+    </QueryClientProvider>
+  </GlobalErrorBoundary>
 );

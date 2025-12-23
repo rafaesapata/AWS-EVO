@@ -463,8 +463,9 @@ export class EmailService {
       ]);
       
       return { sent, delivered, bounced, complained, rejected };
-    } catch (error) {
-      logger.warn('Could not fetch email stats from CloudWatch:', error);
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.warn('Could not fetch email stats from CloudWatch:', { error: errMsg });
       return {
         sent: 0,
         delivered: 0,
@@ -493,7 +494,7 @@ export class EmailService {
    * Build raw email message with attachments
    */
   private buildRawMessage(options: EmailOptions): string {
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     const toAddresses = this.normalizeAddresses(options.to);
     const ccAddresses = options.cc ? this.normalizeAddresses(options.cc) : [];
     const bccAddresses = options.bcc ? this.normalizeAddresses(options.bcc) : [];

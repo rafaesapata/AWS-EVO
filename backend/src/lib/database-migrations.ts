@@ -484,12 +484,61 @@ export class DatabaseMigrationManager {
   }
 
   /**
+   * Validate SQL command for safety
+   */
+  private validateSQLCommand(sql: string, migrationId: string): void {
+    // Only allow DDL commands
+    const allowedPatterns = [
+      /^CREATE\s+TABLE/i,
+      /^ALTER\s+TABLE/i,
+      /^DROP\s+TABLE/i,
+      /^CREATE\s+INDEX/i,
+      /^DROP\s+INDEX/i,
+      /^CREATE\s+EXTENSION/i,
+      /^CREATE\s+TYPE/i,
+      /^INSERT\s+INTO/i,
+      /^UPDATE\s+/i,
+      /^DELETE\s+FROM/i,
+    ];
+
+    const trimmedSql = sql.trim();
+    const isAllowed = allowedPatterns.some(pattern => pattern.test(trimmedSql));
+    
+    if (!isAllowed) {
+      throw new Error(`Unauthorized SQL command in migration ${migrationId}: ${trimmedSql.substring(0, 50)}...`);
+    }
+
+    // Check for injection patterns
+    const injectionPatterns = [
+      /;\s*DROP\s+DATABASE/i,
+      /;\s*TRUNCATE/i,
+      /UNION\s+SELECT/i,
+      /--\s*$/m,
+      /\/\*.*\*\//,
+      /xp_cmdshell/i,
+      /EXEC\s*\(/i,
+    ];
+
+    if (injectionPatterns.some(pattern => pattern.test(sql))) {
+      throw new Error(`Potential SQL injection detected in migration ${migrationId}`);
+    }
+  }
+
+  /**
    * Execute migration script
    */
   private async executeScript(script: MigrationScript, migration: Migration): Promise<void> {
     if (script.custom) {
       await script.custom(this.prisma);
     } else if (script.sql) {
+      // SECURITY: Validate SQL before execution
+      this.validateSQLCommand(script.sql, migration.id);
+      
+      logger.info('Executing validated SQL migration', {
+        migrationId: migration.id,
+        sqlPreview: script.sql.substring(0, 100),
+      });
+      
       await this.prisma.$executeRawUnsafe(script.sql);
     } else if (script.prisma) {
       // Execute Prisma schema changes
@@ -519,6 +568,9 @@ export class DatabaseMigrationManager {
                   trimmedCommand.toLowerCase().startsWith('drop table') ||
                   trimmedCommand.toLowerCase().startsWith('create index') ||
                   trimmedCommand.toLowerCase().startsWith('drop index')) {
+                
+                // SECURITY: Validate command before execution
+                this.validateSQLCommand(trimmedCommand, migration.id);
                 
                 await this.prisma.$executeRawUnsafe(trimmedCommand);
                 logger.info('Executed Prisma command', { command: trimmedCommand });

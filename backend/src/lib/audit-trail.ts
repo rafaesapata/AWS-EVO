@@ -4,7 +4,7 @@
  */
 
 import { getPrismaClient } from './database.js';
-import { logger } from './structured-logging.js';
+import { logger, LogLevel } from './structured-logging.js';
 
 // ============================================================================
 // TYPES
@@ -52,7 +52,7 @@ export class AuditTrail {
    * Log audit event
    */
   async logEvent(event: AuditEvent): Promise<string> {
-    const auditId = `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const auditId = `audit-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
     try {
       // Sanitize sensitive values before persisting
@@ -64,23 +64,25 @@ export class AuditTrail {
           id: auditId,
           user_id: event.userId,
           organization_id: event.organizationId,
-          event_type: event.eventType,
+          action: event.action,
           resource_type: event.resourceType,
           resource_id: event.resourceId,
-          action: event.action,
-          old_value: sanitizedOldValue ? JSON.stringify(sanitizedOldValue) : null,
-          new_value: sanitizedNewValue ? JSON.stringify(sanitizedNewValue) : null,
           ip_address: event.ipAddress,
           user_agent: event.userAgent,
-          success: event.success,
-          error_message: event.errorMessage,
-          metadata: event.metadata ? JSON.stringify(event.metadata) : null,
+          details: {
+            event_type: event.eventType,
+            old_value: sanitizedOldValue,
+            new_value: sanitizedNewValue,
+            success: event.success,
+            error_message: event.errorMessage,
+            metadata: event.metadata
+          },
           created_at: new Date()
         }
       });
 
       // Structured log
-      await logger.log('INFO', 'Audit event logged', {
+      await logger.log(LogLevel.INFO, 'Audit event logged', {
         auditId,
         eventType: event.eventType,
         action: event.action,
@@ -94,9 +96,9 @@ export class AuditTrail {
 
     } catch (error: any) {
       // Never fail silently on audit
-      await logger.log('ERROR', 'Failed to log audit event', {
+      await logger.log(LogLevel.ERROR, 'Failed to log audit event', {
         event,
-        error: error.message
+        errorMessage: error.message
       });
 
       // Re-throw to ensure audit failures are handled
@@ -226,9 +228,12 @@ export class AuditTrail {
       period: { startDate, endDate },
       totalEvents: events.length,
       totalViolations: violations.length,
-      eventsByType: this.groupBy(events, 'event_type'),
+      eventsByType: this.groupBy(events, 'action'),
       eventsByAction: this.groupBy(events, 'action'),
-      failedOperations: events.filter(e => !e.success).length,
+      failedOperations: events.filter(e => {
+        const details = e.details as Record<string, any> | null;
+        return details && details.success === false;
+      }).length,
       uniqueUsers: new Set(events.map(e => e.user_id)).size,
       violationsBySeverity: this.groupBy(violations, 'severity')
     };
@@ -248,26 +253,35 @@ export class AuditTrail {
     ipAddress?: string;
   }): Promise<void> {
     try {
-      await this.prisma.crossOrgAccessLog.create({
+      // Log to audit_logs table instead of non-existent crossOrgAccessLog
+      await this.prisma.auditLog.create({
         data: {
+          id: `cross-org-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
           user_id: entry.userId,
-          source_organization_id: entry.sourceOrgId,
-          target_organization_id: entry.targetOrgId,
-          reason: entry.reason,
-          request_id: entry.requestId,
-          ip_address: entry.ipAddress,
+          organization_id: entry.sourceOrgId,
+          action: 'READ',
+          resource_type: 'organization',
+          resource_id: entry.targetOrgId,
+          ip_address: entry.ipAddress || null,
+          details: {
+            event_type: 'CROSS_ORG_ACCESS',
+            target_organization_id: entry.targetOrgId,
+            reason: entry.reason,
+            request_id: entry.requestId
+          },
           created_at: new Date()
         }
       });
 
-      console.log(JSON.stringify({
-        level: 'AUDIT',
+      await logger.log(LogLevel.INFO, 'Cross-org access logged', {
         event: 'CROSS_ORG_ACCESS',
-        timestamp: new Date().toISOString(),
         ...entry
-      }));
-    } catch (error) {
-      console.error('CRITICAL: Failed to log cross-org access audit:', error);
+      });
+    } catch (error: any) {
+      await logger.log(LogLevel.CRITICAL, 'CRITICAL: Failed to log cross-org access audit', { 
+        errorMessage: error?.message, 
+        entry 
+      });
       throw new AuditError('Failed to record audit trail for cross-org access', entry as any);
     }
   }
