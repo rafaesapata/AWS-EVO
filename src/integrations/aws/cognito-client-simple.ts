@@ -82,11 +82,9 @@ class CognitoAuthService {
 
       const session = this.buildSessionFromResponse(response);
       
-      // Validar vínculo de organização (desabilitado até deploy dos Lambdas)
-      // TODO: Habilitar após deploy do API Gateway com endpoints /profiles/*
-      const enableOrgValidation = import.meta.env.VITE_ENABLE_ORG_VALIDATION === 'true';
-      if (enableOrgValidation) {
-        await this.validateOrganizationBinding(session.user);
+      // Validar se usuário tem organização no token
+      if (!session.user.organizationId) {
+        throw new Error('Usuário sem organização vinculada. Entre em contato com o administrador.');
       }
       
       return session;
@@ -96,55 +94,7 @@ class CognitoAuthService {
     }
   }
 
-  /**
-   * Valida se o usuário tem vínculo com uma organização
-   * Se não tiver, cria automaticamente com a organização "UDS"
-   */
-  private async validateOrganizationBinding(user: AuthUser): Promise<void> {
-    try {
-      // Verificar se o usuário já tem profile com organização
-      const response = await fetch(`${this.apiBaseUrl}/api/profiles/check`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await this.getAccessToken()}`,
-        },
-        body: JSON.stringify({ userId: user.id }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao verificar vínculo de organização');
-      }
-
-      const result = await response.json();
-      
-      if (!result.hasOrganization) {
-        // Criar vínculo com organização UDS
-        const createResponse = await fetch(`${this.apiBaseUrl}/api/profiles/create-with-org`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${await this.getAccessToken()}`,
-          },
-          body: JSON.stringify({
-            userId: user.id,
-            email: user.email,
-            fullName: user.name,
-            organizationName: 'UDS',
-          }),
-        });
-
-        if (!createResponse.ok) {
-          throw new Error('Erro ao criar vínculo com organização');
-        }
-
-        console.log('✅ Usuário vinculado à organização UDS');
-      }
-    } catch (error) {
-      console.error('❌ Erro na validação de organização:', error);
-      throw new Error('Acesso negado: usuário sem vínculo de organização. Entre em contato com o administrador.');
-    }
-  }
+  // Método removido - validação agora é feita via atributo do token JWT
 
   // SECURITY: Fallback credentials removed for production security
 
