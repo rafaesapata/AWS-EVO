@@ -91,7 +91,7 @@ Resources:
       DBInstanceIdentifier: !Sub '${ProjectName}-${Environment}-postgres'
       DBInstanceClass: !Ref DBInstanceClass
       Engine: postgres
-      EngineVersion: '15.4'
+      EngineVersion: '15.10'
       DBName: !Ref DBName
       MasterUsername: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
       MasterUserPassword: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'

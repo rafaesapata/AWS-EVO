@@ -107,10 +107,11 @@ aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"
 
 ## Banco de Dados
 
-- **Tipo**: PostgreSQL 15
+- **Tipo**: PostgreSQL 15.10
 - **ORM**: Prisma
 - **Schema**: `backend/prisma/schema.prisma`
 - **Migrações**: `npx prisma migrate dev --name {nome}`
+- **Stack CloudFormation**: `evo-uds-v3-nodejs-infra`
 
 ## Autenticação
 
