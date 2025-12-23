@@ -329,6 +329,10 @@ const CloudFormationDeploy = () => {
       // Basic validation - check if Role ARN format is correct and External ID matches
       console.log('🔍 Validating Role ARN format and External ID...');
       
+      // Sanitize account name for storage
+      const sanitizedName = sanitizeAccountName(accountName) || `Conta AWS ${awsAccountId}`;
+      const trimmedArn = roleArn.trim();
+      
       // Validate Role ARN format more strictly
       if (!trimmedArn.includes(awsAccountId)) {
         throw new Error('O Role ARN não corresponde ao Account ID extraído. Verifique se copiou o ARN correto.');
@@ -340,84 +344,61 @@ const CloudFormationDeploy = () => {
       }
 
       console.log('✅ Basic validation passed');
-
-      // Sanitize account name for storage
-      const sanitizedName = sanitizeAccountName(accountName) || `Conta AWS ${awsAccountId}`;
-      const trimmedArn = roleArn.trim();
       
       // Calculate External ID expiration (TTL)
       const externalIdExpiresAt = getExternalIdExpiration();
 
-      // Save the role-based credentials
-      // First, ensure organization exists by calling the profiles endpoint
-      const profileCheckResult = await apiClient.invoke('profiles-check', {
-        body: { userId: user.id }
-      });
-
-      // If profile check fails, try to create organization
-      if (profileCheckResult.error) {
-        console.log('Profile check failed, attempting to create organization...');
-        await apiClient.invoke('profiles-create-org', {
-          body: {
-            userId: user.id,
-            email: user.email,
-            fullName: user.name || user.email?.split('@')[0] || 'User',
-            organizationName: `Organization ${organizationId?.substring(0, 8) || 'Default'}`
-          }
-        });
-      }
-
-      // Now save credentials directly to the database
-      const savedCredResult = await apiClient.insert('aws_credentials', {
-        organization_id: organizationId,
-        account_name: sanitizedName,
-        access_key_id: `ROLE:${trimmedArn}`,
-        secret_access_key: `EXTERNAL_ID:${capturedExternalId}`,
-        external_id: capturedExternalId,
-        regions: regions,
-        account_id: awsAccountId,
-        is_active: true,
+      // Save the role-based credentials via Lambda endpoint
+      // The Lambda will automatically create the organization if it doesn't exist
+      console.log('📤 Saving AWS credentials via Lambda...');
+      
+      const savedCredResult = await apiClient.invoke<{
+        id: string;
+        account_id: string;
+        account_name: string;
+        regions: string[];
+        is_active: boolean;
+        created_at: string;
+        updated?: boolean;
+      }>('save-aws-credentials', {
+        body: {
+          account_name: sanitizedName,
+          access_key_id: `ROLE:${trimmedArn}`,
+          secret_access_key: `EXTERNAL_ID:${capturedExternalId}`,
+          external_id: capturedExternalId,
+          regions: regions,
+          account_id: awsAccountId,
+          is_active: true,
+        }
       });
 
       if (savedCredResult.error) {
         console.error('Error saving credentials:', savedCredResult.error);
-        throw new Error(savedCredResult.error.message || t('cloudformation.errorSavingCredentials'));
+        // Check for specific error messages
+        const errorMsg = savedCredResult.error.message || '';
+        if (errorMsg.includes('Organization not found')) {
+          throw new Error('Organização não encontrada. Por favor, faça logout e login novamente.');
+        }
+        throw new Error(errorMsg || t('cloudformation.errorSavingCredentials'));
       }
 
       const savedCred = savedCredResult.data;
       if (!savedCred || !savedCred.id) {
         throw new Error(t('cloudformation.errorSavingCredentials'));
       }
-
-      // Create validation status (pending actual validation)
-      const statusResult = await apiClient.upsert('aws_validation_status', {
-        aws_account_id: savedCred.id,
-        is_connected: true,
-        has_all_permissions: false, // Will be validated via validate-permissions endpoint
-          missing_permissions: [],
-          validation_error: null,
-          last_validated_at: new Date().toISOString(),
-        });
-
-      if (statusResult.error) {
-        console.error('Error creating validation status:', statusResult.error);
-        // Non-fatal - continue
-      }
       
-      // Trigger permission validation in background
+      console.log('✅ Credentials saved successfully:', savedCred.id);
+
+      // Trigger permission validation in background (optional, non-blocking)
       try {
-        const session = await cognitoAuth.getCurrentSession();
-        if (session?.accessToken) {
-          // Fire and forget - don't block the UI
-          apiClient.invoke('validate-permissions', {
-            body: {
-              accountId: savedCred.id,
-              region: regions[0] || 'us-east-1',
-            }
-          }).catch(console.warn);
-        }
+        apiClient.invoke('validate-permissions', {
+          body: {
+            accountId: savedCred.id,
+            region: regions[0] || 'us-east-1',
+          }
+        }).catch(err => console.warn('Background permission validation failed (non-blocking):', err));
       } catch (e) {
-        console.warn('Background permission validation failed (non-blocking):', e);
+        console.warn('Background permission validation setup failed (non-blocking):', e);
       }
 
       // Log to audit trail

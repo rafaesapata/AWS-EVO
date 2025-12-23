@@ -18,13 +18,14 @@ export interface SecurityHeadersConfig {
 
 export const DEFAULT_SECURITY_HEADERS: SecurityHeadersConfig = {
   // Content Security Policy - Prevent XSS attacks
+  // SECURITY: Removed 'unsafe-eval' to prevent code injection attacks
   contentSecurityPolicy: [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://*.amazonaws.com",
+    "connect-src 'self' https://*.amazonaws.com https://*.cloudfront.net",
     "media-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",

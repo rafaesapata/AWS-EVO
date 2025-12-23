@@ -201,6 +201,35 @@ export class ApiStack extends cdk.Stack {
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // AWS Credentials Lambda - CRITICAL for CloudFormation connection
+    const saveAwsCredentialsFunction = new lambda.Function(this, 'SaveAwsCredentialsFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'save-aws-credentials.handler',
+      code: lambda.Code.fromAsset('backend/dist/handlers/aws'),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+    });
+
+    // AWS Credentials API Resources
+    const awsResource = this.api.root.addResource('aws');
+    const credentialsResource = awsResource.addResource('credentials');
+    credentialsResource.addMethod('POST', new apigateway.LambdaIntegration(saveAwsCredentialsFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // Also add under /functions for compatibility with apiClient.invoke
+    const functionsResource = this.api.root.addResource('functions');
+    const saveCredsFunctionResource = functionsResource.addResource('save-aws-credentials');
+    saveCredsFunctionResource.addMethod('POST', new apigateway.LambdaIntegration(saveAwsCredentialsFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
       value: this.api.url,
