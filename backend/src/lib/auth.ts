@@ -125,10 +125,10 @@ export function getOrganizationId(user: CognitoUser): string {
   const orgId = user['custom:organization_id'];
 
   if (!orgId) {
-    throw new Error('User has no organization');
+    throw new Error('Organization not found. Contact support.');
   }
 
-  // Validar formato do organizationId
+  // Validar formato do organizationId (UUID ou org-prefix)
   if (!/^org-[a-zA-Z0-9-]+$/.test(orgId) && !/^[a-f0-9-]{36}$/.test(orgId)) {
     throw new Error('Invalid organization ID format');
   }

@@ -6,7 +6,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { Footer } from "@/components/ui/footer";
 import { Button } from "@/components/ui/button";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { Users } from "lucide-react";
+import { Users, Building2 } from "lucide-react";
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,6 +20,8 @@ interface User {
   id: string;
   email: string;
   name?: string;
+  organizationId?: string;
+  organizationName?: string;
 }
 
 export function Layout({ children, title, description, icon, userRole = "admin" }: LayoutProps) {
@@ -94,24 +96,33 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
   useEffect(() => {
     const loadUser = async () => {
       try {
-        // Check local auth first
-        const localAuth = localStorage.getItem('evo-auth');
-        if (localAuth) {
-          const authData = JSON.parse(localAuth);
-          if (Date.now() - authData.timestamp < 24 * 60 * 60 * 1000) {
-            setUser(authData.user);
-            return;
-          }
-        }
-
-        // Try AWS Cognito
+        // Try AWS Cognito first (source of truth)
         const currentUser = await cognitoAuth.getCurrentUser();
         if (currentUser) {
+          console.log('🔍 User loaded from Cognito:', {
+            id: currentUser.id,
+            email: currentUser.email,
+            organizationId: currentUser.organizationId,
+            attributes: currentUser.attributes
+          });
+          
           setUser({
             id: currentUser.id,
             email: currentUser.email,
-            name: currentUser.name
+            name: currentUser.name,
+            organizationId: currentUser.organizationId,
+            organizationName: currentUser.attributes?.['custom:organization_name'] || currentUser.organizationId
           });
+          return;
+        }
+
+        // Fallback to local auth
+        const localAuth = localStorage.getItem('evo-auth');
+        if (localAuth) {
+          const authData = JSON.parse(localAuth);
+          if (authData.user) {
+            setUser(authData.user);
+          }
         }
       } catch (error) {
         console.error("Error loading user:", error);
@@ -170,6 +181,14 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
                 </div>
                 
                 <div className="flex items-center gap-4">
+                  {user?.organizationId && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                      <Building2 className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium text-primary">
+                        {user.organizationName || user.organizationId}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
                     <Users className="h-4 w-4 text-primary" />
                     <span className="text-sm font-medium">

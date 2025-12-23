@@ -9,8 +9,8 @@ import evoLogo from "@/assets/evo-logo.png";
 
 export default function AuthSimple() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin-user");
-  const [password, setPassword] = useState("AdminPass123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const { user, isLoading, error, signIn, clearError } = useAuthSafe();
 
   // Check if user is already logged in
@@ -62,7 +62,7 @@ export default function AuthSimple() {
                 <Input
                   id="email"
                   type="text"
-                  placeholder="admin-user"
+                  placeholder="seu.email@empresa.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -75,7 +75,7 @@ export default function AuthSimple() {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="AdminPass123!"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -87,14 +87,6 @@ export default function AuthSimple() {
                 {isLoading ? "Entrando..." : "Entrar"}
               </Button>
             </form>
-            
-            <div className="mt-4 p-3 bg-blue-50 rounded-md">
-              <p className="text-sm text-blue-800">
-                <strong>Credenciais de teste:</strong><br/>
-                Username: admin-user<br/>
-                Password: AdminPass123!
-              </p>
-            </div>
           </CardContent>
         </Card>
 

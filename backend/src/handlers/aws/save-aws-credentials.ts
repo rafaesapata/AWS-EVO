@@ -34,8 +34,8 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    organizationId = getOrganizationId(user);
     userId = user.sub || user.id || 'unknown';
+    organizationId = getOrganizationId(user);
   } catch (authError: any) {
     logger.error('Authentication error', authError);
     return error('Authentication failed: ' + (authError.message || 'Unknown error'));

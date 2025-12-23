@@ -203,46 +203,68 @@ export default function Auth() {
         return;
       }
 
-      // Check if MFA is required
-      if (session.challengeName === 'SOFTWARE_TOKEN_MFA') {
-        setMfaFactorId(session.session);
-        setShowMFAChallenge(true);
-        
+      // Check if it's a challenge response (MFA, etc)
+      if ('challengeName' in session && session.challengeName) {
+        // Check if MFA is required
+        if (session.challengeName === 'SOFTWARE_TOKEN_MFA') {
+          setMfaFactorId(session.session || '');
+          setShowMFAChallenge(true);
+          
+          toast({
+            title: "MFA Obrigatório",
+            description: "Digite o código do seu autenticador para continuar.",
+          });
+          
+          setIsLoading(false);
+          return;
+        }
+
+        // Check for WebAuthn/FIDO2 challenge
+        if (session.challengeName === 'CUSTOM_CHALLENGE') {
+          setTempUserId(session.challengeParameters?.userId || '');
+          setShowWebAuthnChallenge(true);
+          
+          toast({
+            title: "Autenticação WebAuthn",
+            description: "Use sua chave de segurança para continuar.",
+          });
+          
+          // Trigger WebAuthn immediately
+          setTimeout(() => {
+            handleWebAuthnLogin(session.challengeParameters?.userId || '');
+          }, 100);
+          
+          setIsLoading(false);
+          return;
+        }
+
+        // Unknown challenge
         toast({
-          title: "MFA Obrigatório",
-          description: "Digite o código do seu autenticador para continuar.",
+          variant: "destructive",
+          title: "Desafio de autenticação",
+          description: `Desafio não suportado: ${session.challengeName}`,
         });
-        
         setIsLoading(false);
         return;
       }
 
-      // Check for WebAuthn/FIDO2 challenge
-      if (session.challengeName === 'CUSTOM_CHALLENGE') {
-        setTempUserId(session.challengeParameters?.userId || '');
-        setShowWebAuthnChallenge(true);
-        
+      // Successful login - session is AuthSession with user
+      if ('user' in session && session.user) {
         toast({
-          title: "Autenticação WebAuthn",
-          description: "Use sua chave de segurança para continuar.",
+          title: "Login realizado com sucesso!",
+          description: "Redirecionando para o dashboard...",
         });
-        
-        // Trigger WebAuthn immediately
-        setTimeout(() => {
-          handleWebAuthnLogin(session.challengeParameters?.userId || '');
-        }, 100);
-        
-        setIsLoading(false);
+        // Delay navigation to prevent DOM reconciliation errors with toast portal
+        setTimeout(() => navigate("/app"), 100);
         return;
       }
 
-      // Successful login without MFA
+      // Fallback - something unexpected
       toast({
-        title: "Login realizado com sucesso!",
-        description: "Redirecionando para o dashboard...",
+        variant: "destructive",
+        title: "Erro ao fazer login",
+        description: "Resposta inesperada do servidor.",
       });
-      // Delay navigation to prevent DOM reconciliation errors with toast portal
-      setTimeout(() => navigate("/app"), 100);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
