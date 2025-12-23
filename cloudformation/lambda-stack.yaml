@@ -70,25 +70,6 @@ Resources:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:DescribeSecret
                 Resource: !Ref DatabaseSecretArn
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Query
-                  - dynamodb:Scan
-                  - dynamodb:BatchGetItem
-                  - dynamodb:BatchWriteItem
-                Resource:
-                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-${Environment}-organizations'
-                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-${Environment}-organizations/index/*'
-                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-${Environment}-profiles'
-                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-${Environment}-profiles/index/*'
         - PolicyName: CognitoAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -304,6 +285,37 @@ Resources:
         - Key: Name
           Value: !Sub '${ProjectName}-${Environment}-save-aws-credentials'
 
+  ValidateAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-aws-credentials'
+      Runtime: nodejs18.x
+      Handler: validate-aws-credentials.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/aws/validate-aws-credentials.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          USER_POOL_ID: !Ref UserPoolId
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-validate-aws-credentials'
+
   # ============================================================================
   # SECURITY SCAN LAMBDAS
   # ============================================================================
@@ -458,6 +470,10 @@ Outputs:
   SaveAwsCredentialsFunctionArn:
     Description: Save AWS Credentials Function ARN
     Value: !GetAtt SaveAwsCredentialsFunction.Arn
+
+  ValidateAwsCredentialsFunctionArn:
+    Description: Validate AWS Credentials Function ARN
+    Value: !GetAtt ValidateAwsCredentialsFunction.Arn
 
   SecurityScanFunctionArn:
     Description: Security Scan Function ARN

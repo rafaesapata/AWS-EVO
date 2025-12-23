@@ -58,6 +58,8 @@ interface User {
   id: string;
   email: string;
   name?: string;
+  organizationId?: string;
+  organizationName?: string;
 }
 
 const Index = () => {
@@ -97,11 +99,20 @@ const Index = () => {
 
         // Try AWS Cognito
         const currentUser = await cognitoAuth.getCurrentUser();
+        console.log('🔍 Index: getCurrentUser result:', currentUser);
         if (currentUser) {
+          console.log('✅ Index: User loaded:', {
+            id: currentUser.id,
+            email: currentUser.email,
+            organizationId: currentUser.organizationId,
+            organizationName: currentUser.attributes?.['custom:organization_name']
+          });
           setUser({
             id: currentUser.id,
             email: currentUser.email,
-            name: currentUser.name
+            name: currentUser.name,
+            organizationId: currentUser.organizationId,
+            organizationName: currentUser.attributes?.['custom:organization_name'] || currentUser.organizationId
           });
         } else {
           navigate("/");
@@ -221,13 +232,21 @@ const Index = () => {
                           Análise Detalhada de Custos
                         </h1>
                         <p className="text-muted-foreground text-sm">
-                          AWS Cloud Intelligence Platform v3.0
+                          AWS Cloud Intelligence Platform v3.2-test
                         </p>
                       </div>
                     </div>
                   </div>
                   
                   <div className="flex items-center gap-4">
+                    {user?.organizationId && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                        <Building2 className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium text-primary">
+                          {user.organizationName || user.organizationId}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
                       <Users className="h-4 w-4 text-primary" />
                       <span className="text-sm font-medium">
@@ -472,13 +491,21 @@ const Index = () => {
                         EVO UDS Platform
                       </h1>
                       <p className="text-muted-foreground text-sm">
-                        AWS Cloud Intelligence Platform v3.0
+                        AWS Cloud Intelligence Platform v3.2-test
                       </p>
                     </div>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-4">
+                  {user?.organizationId && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                      <Building2 className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium text-primary">
+                        {user.organizationName || user.organizationId}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
                     <Users className="h-4 w-4 text-primary" />
                     <span className="text-sm font-medium">

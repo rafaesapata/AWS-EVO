@@ -52,6 +52,8 @@ class CognitoAuthService {
   }
 
   async signIn(username: string, password: string): Promise<SignInResult> {
+    console.log('🔐 SignIn attempt:', { username, userPoolId: this.userPoolId, clientId: this.clientId, region: this.region });
+    
     if (!this.userPoolId || !this.clientId) {
       throw new Error('AWS Cognito não está configurado. Configure as variáveis de ambiente VITE_AWS_USER_POOL_ID e VITE_AWS_USER_POOL_CLIENT_ID.');
     }
@@ -70,7 +72,9 @@ class CognitoAuthService {
     });
 
     try {
+      console.log('🔐 Sending auth command to Cognito...');
       const response = await cognitoClient.send(authCommand);
+      console.log('🔐 Cognito response received:', { hasChallenge: !!response.ChallengeName, hasResult: !!response.AuthenticationResult });
       
       if (response.ChallengeName) {
         return {
@@ -87,8 +91,10 @@ class CognitoAuthService {
         throw new Error('Usuário sem organização vinculada. Entre em contato com o administrador.');
       }
       
+      console.log('🔐 Login successful:', { userId: session.user.id, organizationId: session.user.organizationId });
       return session;
-    } catch (error) {
+    } catch (error: any) {
+      console.error('🔐 Cognito error:', error.name, error.message, error);
       this.handleAuthError(error);
       throw error;
     }
@@ -357,19 +363,34 @@ class CognitoAuthService {
 
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
+      console.log('🔐 CognitoAuth: getCurrentUser called');
       const stored = secureStorage.getItem('evo-auth');
-      if (!stored) return null;
+      console.log('🔐 CognitoAuth: stored session exists:', !!stored);
+      
+      if (!stored) {
+        console.log('🔐 CognitoAuth: No stored session found');
+        return null;
+      }
 
       const session: AuthSession = JSON.parse(stored);
+      console.log('🔐 CognitoAuth: Parsed session user:', {
+        id: session.user?.id,
+        email: session.user?.email,
+        organizationId: session.user?.organizationId,
+        hasAttributes: !!session.user?.attributes
+      });
       
       // Check if session is still valid
       if (this.isTokenExpired(session.accessToken)) {
+        console.log('🔐 CognitoAuth: Token expired, signing out');
         await this.signOut();
         return null;
       }
 
+      console.log('🔐 CognitoAuth: Returning user with org:', session.user?.organizationId);
       return session.user;
-    } catch {
+    } catch (error) {
+      console.error('🔐 CognitoAuth: Error in getCurrentUser:', error);
       await this.signOut();
       return null;
     }

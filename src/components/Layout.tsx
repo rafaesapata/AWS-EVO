@@ -95,37 +95,47 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
   // Load user data
   useEffect(() => {
     const loadUser = async () => {
+      console.log('🔄 Layout: Loading user data...');
       try {
         // Try AWS Cognito first (source of truth)
         const currentUser = await cognitoAuth.getCurrentUser();
+        console.log('🔍 Layout: getCurrentUser result:', currentUser);
+        
         if (currentUser) {
-          console.log('🔍 User loaded from Cognito:', {
+          console.log('✅ Layout: User loaded from Cognito:', {
             id: currentUser.id,
             email: currentUser.email,
             organizationId: currentUser.organizationId,
-            attributes: currentUser.attributes
+            organizationName: currentUser.attributes?.['custom:organization_name'],
+            allAttributes: currentUser.attributes
           });
           
-          setUser({
+          const userData = {
             id: currentUser.id,
             email: currentUser.email,
             name: currentUser.name,
             organizationId: currentUser.organizationId,
             organizationName: currentUser.attributes?.['custom:organization_name'] || currentUser.organizationId
-          });
+          };
+          console.log('📝 Layout: Setting user state:', userData);
+          setUser(userData);
           return;
         }
 
+        console.log('⚠️ Layout: No Cognito user, checking localStorage...');
         // Fallback to local auth
         const localAuth = localStorage.getItem('evo-auth');
         if (localAuth) {
           const authData = JSON.parse(localAuth);
+          console.log('📦 Layout: localStorage auth data:', authData);
           if (authData.user) {
             setUser(authData.user);
           }
+        } else {
+          console.log('❌ Layout: No auth data found');
         }
       } catch (error) {
-        console.error("Error loading user:", error);
+        console.error("❌ Layout: Error loading user:", error);
       }
     };
 
@@ -174,7 +184,7 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
                         {title || "EVO UDS Platform"}
                       </h1>
                       <p className="text-muted-foreground text-sm">
-                        {description || "AWS Cloud Intelligence Platform v3.0"}
+                        {description || "AWS Cloud Intelligence Platform v3.1-debug"}
                       </p>
                     </div>
                   </div>

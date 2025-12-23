@@ -160,22 +160,6 @@ Resources:
           Value: !Ref ProjectName
 
   # ============================================================================
-  # DYNAMODB STACK
-  # ============================================================================
-  DynamoDBStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/dynamodb-stack.yaml'
-      Parameters:
-        Environment: !Ref Environment
-        ProjectName: !Ref ProjectName
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-
-  # ============================================================================
   # COGNITO STACK
   # ============================================================================
   CognitoStack:
@@ -200,7 +184,6 @@ Resources:
     DependsOn:
       - NetworkStack
       - DatabaseStack
-      - DynamoDBStack
       - CognitoStack
     Properties:
       TemplateURL: !Sub 'https://${ProjectName}-cloudformation-${AWS::AccountId}.s3.amazonaws.com/lambda-stack.yaml'
@@ -337,19 +320,6 @@ Outputs:
     Export:
       Name: !Sub '${ProjectName}-${Environment}-FrontendBucket'
 
-  # DynamoDB Outputs
-  OrganizationsTableName:
-    Description: DynamoDB Organizations Table
-    Value: !GetAtt DynamoDBStack.Outputs.OrganizationsTableName
-    Export:
-      Name: !Sub '${ProjectName}-${Environment}-OrganizationsTable'
-
-  ProfilesTableName:
-    Description: DynamoDB Profiles Table
-    Value: !GetAtt DynamoDBStack.Outputs.ProfilesTableName
-    Export:
-      Name: !Sub '${ProjectName}-${Environment}-ProfilesTable'
-
   # Summary
   DeploymentSummary:
     Description: Deployment Summary
@@ -364,6 +334,6 @@ Outputs:
       Next Steps:
       1. Deploy frontend build to S3: ${FrontendStack.Outputs.FrontendBucket}
       2. Deploy Lambda functions
-      3. Run database migrations
-      4. Create admin user in Cognito
+      3. Run database migrations with Prisma
+      4. Create admin user in Cognito with custom:organization_id attribute
       5. Configure custom domain (if applicable)

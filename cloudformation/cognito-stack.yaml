@@ -44,6 +44,23 @@ Resources:
           AttributeDataType: String
           Required: false
           Mutable: true
+        # Custom attributes for multi-tenancy
+        - Name: organization_id
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: organization_name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: roles
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: tenant_id
+          AttributeDataType: String
+          Required: false
+          Mutable: true
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -91,11 +108,19 @@ Resources:
         - name
         - given_name
         - family_name
+        - custom:organization_id
+        - custom:organization_name
+        - custom:roles
+        - custom:tenant_id
       WriteAttributes:
         - email
         - name
         - given_name
         - family_name
+        - custom:organization_id
+        - custom:organization_name
+        - custom:roles
+        - custom:tenant_id
 
   # ============================================================================
   # USER POOL DOMAIN
