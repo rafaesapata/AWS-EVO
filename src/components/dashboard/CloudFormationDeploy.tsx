@@ -348,18 +348,35 @@ const CloudFormationDeploy = () => {
       // Calculate External ID expiration (TTL)
       const externalIdExpiresAt = getExternalIdExpiration();
 
-      // Save the role-based credentials using the new endpoint that handles DynamoDB organizations
-      const savedCredResult = await apiClient.invoke('save-aws-credentials', {
-        body: {
-          account_name: sanitizedName,
-          access_key_id: `ROLE:${trimmedArn}`,
-          secret_access_key: `EXTERNAL_ID:${capturedExternalId}`,
-          external_id: capturedExternalId,
-          external_id_expires_at: externalIdExpiresAt,
-          regions: regions,
-          account_id: awsAccountId,
-          is_active: true,
-        }
+      // Save the role-based credentials
+      // First, ensure organization exists by calling the profiles endpoint
+      const profileCheckResult = await apiClient.invoke('profiles-check', {
+        body: { userId: user.id }
+      });
+
+      // If profile check fails, try to create organization
+      if (profileCheckResult.error) {
+        console.log('Profile check failed, attempting to create organization...');
+        await apiClient.invoke('profiles-create-org', {
+          body: {
+            userId: user.id,
+            email: user.email,
+            fullName: user.name || user.email?.split('@')[0] || 'User',
+            organizationName: `Organization ${organizationId?.substring(0, 8) || 'Default'}`
+          }
+        });
+      }
+
+      // Now save credentials directly to the database
+      const savedCredResult = await apiClient.insert('aws_credentials', {
+        organization_id: organizationId,
+        account_name: sanitizedName,
+        access_key_id: `ROLE:${trimmedArn}`,
+        secret_access_key: `EXTERNAL_ID:${capturedExternalId}`,
+        external_id: capturedExternalId,
+        regions: regions,
+        account_id: awsAccountId,
+        is_active: true,
       });
 
       if (savedCredResult.error) {

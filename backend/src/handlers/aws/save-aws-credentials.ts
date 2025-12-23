@@ -1,6 +1,6 @@
 /**
  * Lambda handler para salvar credenciais AWS
- * Usa DynamoDB para Organizations e PostgreSQL para Credentials
+ * Cria organização automaticamente se não existir
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -9,7 +9,6 @@ import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
-// DynamoDB imports removed - organization comes from auth context
 
 interface SaveCredentialsRequest {
   account_name: string;
@@ -26,18 +25,27 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  const user = getUserFromEvent(event);
-  const organizationId = getOrganizationId(user);
-  
-  logger.info('Save AWS credentials started', { 
-    organizationId,
-    userId: user.id,
-    requestId: context.awsRequestId 
-  });
-  
   if (event.requestContext.http.method === 'OPTIONS') {
     return corsOptions();
   }
+
+  let organizationId: string;
+  let userId: string;
+
+  try {
+    const user = getUserFromEvent(event);
+    organizationId = getOrganizationId(user);
+    userId = user.sub || user.id || 'unknown';
+  } catch (authError: any) {
+    logger.error('Authentication error', authError);
+    return error('Authentication failed: ' + (authError.message || 'Unknown error'));
+  }
+  
+  logger.info('Save AWS credentials started', { 
+    organizationId,
+    userId,
+    requestId: context.awsRequestId 
+  });
   
   try {
     const body = parseEventBody<SaveCredentialsRequest>(event, {} as SaveCredentialsRequest, 'save-aws-credentials');
@@ -47,38 +55,95 @@ export async function handler(
       return badRequest('Missing required fields: account_name, access_key_id, secret_access_key, account_id');
     }
     
-    // Use organizationId directly - it comes from the authenticated user
-    // No need to check DynamoDB as the organization is managed by the auth system
-    logger.info('Using organization from authenticated user', { organizationId });
-    
-    const organization = {
-      id: organizationId,
-      name: `Organization ${organizationId.substring(0, 8)}`
-    };
-    
-    // Save credentials to PostgreSQL
     const prisma = getPrismaClient();
+    
+    // CRITICAL: Ensure organization exists in database
+    // This handles the case where user was created in Cognito but organization doesn't exist in PostgreSQL
+    let organization = await prisma.organization.findUnique({
+      where: { id: organizationId }
+    });
+
+    if (!organization) {
+      logger.info('Organization not found, creating automatically', { organizationId });
+      
+      // Create organization with a slug derived from the ID
+      const slug = `org-${organizationId.substring(0, 8).toLowerCase()}`;
+      
+      try {
+        organization = await prisma.organization.create({
+          data: {
+            id: organizationId,
+            name: `Organization ${organizationId.substring(0, 8)}`,
+            slug: slug,
+          }
+        });
+        logger.info('Organization created successfully', { organizationId, slug });
+      } catch (createError: any) {
+        // Handle unique constraint violation on slug
+        if (createError.code === 'P2002') {
+          const uniqueSlug = `org-${organizationId.substring(0, 8).toLowerCase()}-${Date.now()}`;
+          organization = await prisma.organization.create({
+            data: {
+              id: organizationId,
+              name: `Organization ${organizationId.substring(0, 8)}`,
+              slug: uniqueSlug,
+            }
+          });
+          logger.info('Organization created with unique slug', { organizationId, slug: uniqueSlug });
+        } else {
+          throw createError;
+        }
+      }
+    }
     
     // Check if credentials already exist for this account
     const existingCred = await prisma.awsCredential.findFirst({
       where: {
         account_id: body.account_id,
-        organization_id: organization.id,
+        organization_id: organizationId,
       },
     });
     
     if (existingCred) {
       logger.warn('AWS credentials already exist for this account', { 
         accountId: body.account_id,
-        organizationId: organization.id 
+        organizationId 
       });
-      return badRequest(`AWS account ${body.account_id} is already connected to this organization`);
+      
+      // Update existing credentials instead of failing
+      const updatedCred = await prisma.awsCredential.update({
+        where: { id: existingCred.id },
+        data: {
+          account_name: body.account_name,
+          access_key_id: body.access_key_id,
+          secret_access_key: body.secret_access_key,
+          external_id: body.external_id,
+          regions: body.regions,
+          is_active: body.is_active !== false,
+        }
+      });
+
+      logger.info('AWS credentials updated successfully', { 
+        credentialId: updatedCred.id,
+        accountId: body.account_id,
+        organizationId 
+      });
+
+      return success({
+        id: updatedCred.id,
+        account_id: updatedCred.account_id,
+        account_name: updatedCred.account_name,
+        regions: updatedCred.regions,
+        is_active: updatedCred.is_active,
+        created_at: updatedCred.created_at,
+        updated: true,
+      });
     }
     
     // Create new credentials
     const credential = await prisma.awsCredential.create({
       data: {
-        organization_id: organization.id,
+        organization_id: organizationId,
         account_id: body.account_id,
         account_name: body.account_name,
         access_key_id: body.access_key_id,
@@ -92,7 +157,7 @@ export async function handler(
     logger.info('AWS credentials saved successfully', { 
       credentialId: credential.id,
       accountId: body.account_id,
-      organizationId: organization.id 
+      organizationId 
     });
     
     return success({
@@ -104,12 +169,19 @@ export async function handler(
       created_at: credential.created_at,
     });
     
-  } catch (err) {
-    logger.error('Save AWS credentials error', err as Error, { 
+  } catch (err: any) {
+    logger.error('Save AWS credentials error', err, { 
       organizationId,
-      userId: user.id,
-      requestId: context.awsRequestId 
+      userId,
+      requestId: context.awsRequestId,
+      errorCode: err.code,
+      errorMessage: err.message
     });
+    
+    // Provide more specific error messages
+    if (err.code === 'P2003') {
+      return error('Organization not found. Please contact support.');
+    }
     
     return error(err instanceof Error ? err.message : 'Failed to save AWS credentials');
   }
