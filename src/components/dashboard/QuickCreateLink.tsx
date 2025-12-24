@@ -34,10 +34,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 // ============================================================================
 
 // EVO Platform AWS Account ID - used to restrict IAM Role trust policy
-const EVO_PLATFORM_ACCOUNT_ID = '992382761234';
+const EVO_PLATFORM_ACCOUNT_ID = '383234048592';
 
 // Template paths - S3 direct access for CloudFormation compatibility
-const S3_TEMPLATE_URL = 'https://evo-uds-cloudformation-templates-418272799411.s3.amazonaws.com/evo-platform-role.yaml';
+const S3_TEMPLATE_URL = 'https://evo-uds-v3-production-frontend-383234048592.s3.amazonaws.com/cloudformation/evo-platform-role.yaml';
 const CLOUDFRONT_TEMPLATE_PATH = '/cloudformation/evo-platform-role.yaml';
 const LOCAL_TEMPLATE_PATH = '/cloudformation/evo-platform-role.yaml';
 

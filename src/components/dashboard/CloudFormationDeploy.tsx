@@ -32,7 +32,7 @@ import { QuickCreateLink } from "./QuickCreateLink";
 // ============================================================================
 
 // EVO Platform AWS Account ID - restricts who can assume the IAM Role
-export const EVO_PLATFORM_ACCOUNT_ID = '992382761234';
+export const EVO_PLATFORM_ACCOUNT_ID = '383234048592';
 
 // External ID TTL - 24 hours for unused external IDs
 const EXTERNAL_ID_TTL_HOURS = 24;
