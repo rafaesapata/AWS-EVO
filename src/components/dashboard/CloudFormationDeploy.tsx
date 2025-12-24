@@ -433,6 +433,7 @@ const CloudFormationDeploy = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['aws-credentials-all'] }),
         queryClient.invalidateQueries({ queryKey: ['aws-credentials-check'] }),
+        queryClient.invalidateQueries({ queryKey: ['aws-accounts'] }), // Refresh header account selector
       ]);
       
       // Save account data for Step 3 display
@@ -542,6 +543,7 @@ const CloudFormationDeploy = () => {
       
       // Invalidate queries to refresh UI
       queryClient.invalidateQueries({ queryKey: ['aws-credentials-all'] });
+      queryClient.invalidateQueries({ queryKey: ['aws-accounts'] }); // Refresh header account selector
     } catch (error) {
       console.error('Error saving regions:', error);
       toast({
