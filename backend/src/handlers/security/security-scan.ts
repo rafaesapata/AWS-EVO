@@ -4,9 +4,9 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest } from '../../lib/response.js';
-import { withSecurityMiddleware, withAuditLog, withPerformanceMonitoring, type MiddlewareContext } from '../../lib/middleware.js';
-import { withSecurityHeaders } from '../../lib/security-headers.js';
+import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getPrismaClient } from '../../lib/database.js';
 import { parseAndValidateBody, securityScanSchema } from '../../lib/validation.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { withAwsCircuitBreaker } from '../../lib/circuit-breaker.js';
@@ -45,9 +45,17 @@ const CRITICAL_PORTS: Record<number, string> = {
 
 async function securityScanHandler(
   event: AuthorizedEvent,
-  context: LambdaContext,
-  { user, organizationId, prisma }: MiddlewareContext
+  context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  // Handle CORS preflight
+  if (event.requestContext?.http?.method === 'OPTIONS') {
+    return corsOptions();
+  }
+
+  const user = getUserFromEvent(event);
+  const organizationId = getOrganizationId(user);
+  const prisma = getPrismaClient();
+
   const startTime = Date.now();
   logger.info('Security scan started', { 
     organizationId, 

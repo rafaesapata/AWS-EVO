@@ -56,7 +56,7 @@ export const NotificationSettings = () => {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
       
-      await apiClient.post('/user/notification-settings', settings);
+      await apiClient.lambda('save-notification-settings', settings);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notification-settings'] });

@@ -78,19 +78,21 @@ export default function SecurityAnalysisContent() {
   const itemsPerPage = 25;
   const { toast } = useToast();
 
-  // Get security posture (via edge function)
+  // Get security posture - query from security_posture table
   const { data: posture, refetch: refetchPosture, isLoading: isLoadingPosture } = useQuery({
     queryKey: ['security-posture', organizationId, selectedAccountId],
     enabled: !!organizationId && !!selectedAccountId,
     queryFn: async () => {
-      const session = await cognitoAuth.getCurrentSession();
-      if (!session) throw new Error('Not authenticated');
-      
-      const response = await apiClient.post('/security/posture', {
-        accountId: selectedAccountId
+      const response = await apiClient.select('security_posture', {
+        eq: { 
+          organization_id: organizationId,
+          aws_account_id: selectedAccountId
+        },
+        order: { column: 'updated_at', ascending: false },
+        limit: 1
       });
       if (response.error) throw new Error(response.error.message);
-      return response.data || null;
+      return response.data?.[0] || null;
     }
   });
 
@@ -154,7 +156,7 @@ export default function SecurityAnalysisContent() {
         return [];
       }
 
-      // Normal flow: fetch current findings
+      // Normal flow: fetch current findings from database
       const statusMap: Record<string, string> = {
         'pendente': 'pending',
         'resolvido': 'resolved',
@@ -164,11 +166,20 @@ export default function SecurityAnalysisContent() {
 
       const mappedStatus = statusMap[selectedStatus.toLowerCase()] || selectedStatus;
 
-      const response = await apiClient.post('/security/findings', {
-        severity: 'all', // CRITICAL: Get all severities, filter locally
-        status: mappedStatus,
-        source: 'security_scan',
-        accountId: selectedAccountId
+      // Build query filters
+      const filters: Record<string, any> = { 
+        organization_id: organizationId,
+        aws_account_id: selectedAccountId
+      };
+      
+      // Add status filter if not 'all'
+      if (mappedStatus !== 'all') {
+        filters.status = mappedStatus;
+      }
+
+      const response = await apiClient.select('findings', {
+        eq: filters,
+        order: { column: 'created_at', ascending: false }
       });
 
       if (response.error) throw new Error(response.error.message);
@@ -398,7 +409,7 @@ export default function SecurityAnalysisContent() {
       const user = await cognitoAuth.getCurrentUser();
       const userEmail = user?.email || 'Não disponível';
 
-      const response = await apiClient.post('/security/export-pdf', {
+      const response = await apiClient.lambda('security-export-pdf', {
         organizationId,
         findings: allFindings || [],
         posture: posture,
