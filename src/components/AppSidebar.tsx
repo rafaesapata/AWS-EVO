@@ -197,7 +197,7 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
     } else if (value === 'anomalies') {
       navigate('/anomaly-detection');
     } else if (value === 'waste') {
-      navigate('/ml-waste-detection');
+      navigate('/app?tab=waste');
     } else if (value === 'resource-monitoring') {
       navigate('/resource-monitoring');
     } else if (value === 'cost-analysis') {

@@ -67,11 +67,25 @@ export async function handler(
     // Processar cada conta AWS
     for (const account of awsAccounts) {
       try {
+        logger.info('Processing account', { 
+          accountId: account.id, 
+          accountName: account.account_name,
+          hasRoleArn: !!account.role_arn,
+          hasAccessKey: !!account.access_key_id
+        });
+        
         const resolvedCreds = await resolveAwsCredentials(account, 'us-east-1');
         
         const ceClient = new CostExplorerClient({
           region: 'us-east-1', // Cost Explorer sempre usa us-east-1
           credentials: toAwsCredentials(resolvedCreds),
+        });
+        
+        logger.info('Calling Cost Explorer API', { 
+          accountId: account.id,
+          startDate,
+          endDate,
+          granularity
         });
         
         const command = new GetCostAndUsageCommand({
@@ -91,6 +105,11 @@ export async function handler(
         
         const response = await ceClient.send(command);
         
+        logger.info('Cost Explorer response', { 
+          accountId: account.id,
+          resultsByTimeCount: response.ResultsByTime?.length || 0
+        });
+        
         // Processar resultados
         if (response.ResultsByTime) {
           for (const result of response.ResultsByTime) {
@@ -102,48 +121,60 @@ export async function handler(
                 const cost = parseFloat(group.Metrics?.UnblendedCost?.Amount || '0');
                 const usage = parseFloat(group.Metrics?.UsageQuantity?.Amount || '0');
                 
-                allCosts.push({
-                  accountId: account.id,
-                  accountName: account.account_name,
-                  date,
-                  service,
-                  cost,
-                  usage,
-                  currency: group.Metrics?.UnblendedCost?.Unit || 'USD',
-                });
-                
-                // Salvar no banco
-                await prisma.dailyCost.upsert({
-                  where: {
-                    account_id_date_service: {
-                      account_id: account.id,
-                      date: new Date(date!),
-                      service,
-                    },
-                  },
-                  update: {
-                    cost,
-                    usage,
-                  },
-                  create: {
-                    organization_id: organizationId,
-                    account_id: account.id,
-                    date: new Date(date!),
+                // Só adicionar se tiver custo > 0
+                if (cost > 0) {
+                  allCosts.push({
+                    accountId: account.id,
+                    accountName: account.account_name,
+                    date,
                     service,
                     cost,
                     usage,
-                    currency: 'USD'
-                  },
-                });
+                    currency: group.Metrics?.UnblendedCost?.Unit || 'USD',
+                  });
+                  
+                  // Salvar no banco
+                  await prisma.dailyCost.upsert({
+                    where: {
+                      account_id_date_service: {
+                        account_id: account.id,
+                        date: new Date(date!),
+                        service,
+                      },
+                    },
+                    update: {
+                      cost,
+                      usage,
+                    },
+                    create: {
+                      organization_id: organizationId,
+                      account_id: account.id,
+                      date: new Date(date!),
+                      service,
+                      cost,
+                      usage,
+                      currency: 'USD'
+                    },
+                  });
+                }
               }
             }
           }
         }
         
-        logger.info('Fetched costs for account', { accountId: account.id, accountName: account.account_name });
+        logger.info('Fetched costs for account', { 
+          accountId: account.id, 
+          accountName: account.account_name,
+          costsFound: allCosts.filter(c => c.accountId === account.id).length
+        });
         
-      } catch (err) {
-        logger.error('Error fetching costs for account', err as Error, { accountId: account.id });
+      } catch (err: any) {
+        logger.error('Error fetching costs for account', err as Error, { 
+          accountId: account.id,
+          errorName: err?.name,
+          errorMessage: err?.message,
+          errorCode: err?.Code || err?.$metadata?.httpStatusCode
+        });
       }
     }
     
@@ -159,6 +190,9 @@ export async function handler(
     
     return success({
       success: true,
+      data: {
+        dailyCosts: allCosts,
+      },
       costs: allCosts,
       summary: {
         totalCost: parseFloat(totalCost.toFixed(2)),
@@ -167,6 +201,7 @@ export async function handler(
         uniqueDates,
         uniqueServices,
         accounts: awsAccounts.length,
+        accountsProcessed: awsAccounts.map(a => ({ id: a.id, name: a.account_name })),
       },
     });
     

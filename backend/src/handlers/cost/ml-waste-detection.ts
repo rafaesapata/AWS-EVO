@@ -4,6 +4,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
  * AWS Lambda Handler for ml-waste-detection
  * 
  * Usa machine learning para detectar recursos AWS desperdiçados
+ * Otimizado para executar dentro do limite de 29s do API Gateway
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -20,6 +21,7 @@ interface MLWasteDetectionRequest {
   accountId?: string;
   regions?: string[];
   threshold?: number; // CPU threshold (default: 5%)
+  maxInstances?: number; // Limit instances to analyze (default: 20)
 }
 
 interface WasteItem {
@@ -40,6 +42,7 @@ export async function handler(
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const startTime = Date.now();
+  const MAX_EXECUTION_TIME = 25000; // 25 seconds to stay under API Gateway 29s limit
   
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
@@ -56,7 +59,7 @@ export async function handler(
   
   try {
     const body: MLWasteDetectionRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, regions: requestedRegions, threshold = 5 } = body;
+    const { accountId, regions: requestedRegions, threshold = 5, maxInstances = 20 } = body;
     
     const prisma = getPrismaClient();
     
@@ -67,6 +70,7 @@ export async function handler(
         is_active: true,
         ...(accountId && { id: accountId }),
       },
+      take: 1, // Process one account at a time for speed
     });
     
     if (awsAccounts.length === 0) {
@@ -75,53 +79,81 @@ export async function handler(
         message: 'No AWS credentials configured',
         wasteItems: [],
         totalSavings: 0,
+        analyzed_resources: 0,
+        total_monthly_savings: 0,
       });
     }
     
     const allWasteItems: WasteItem[] = [];
+    let totalAnalyzed = 0;
     
-    // Processar cada conta AWS
-    for (const account of awsAccounts) {
-      const regions = requestedRegions || account.regions || ['us-east-1'];
+    // Processar a conta AWS (apenas uma para manter dentro do timeout)
+    const account = awsAccounts[0];
+    const regions = requestedRegions || (account.regions as string[]) || ['us-east-1'];
+    
+    try {
+      const resolvedCreds = await resolveAwsCredentials(account, regions[0]);
       
-      try {
-        const resolvedCreds = await resolveAwsCredentials(account, regions[0]);
-        
-        // Analisar cada região
-        for (const region of regions) {
-          logger.info('Analyzing waste in region', { organizationId, region, accountId: account.id });
-          
-          const wasteItems = await detectWasteInRegion(
-            account.id,
-            region,
-            resolvedCreds,
-            threshold
-          );
-          
-          allWasteItems.push(...wasteItems);
-        }
-        
-        logger.info('Account analysis completed', { 
-          organizationId, 
-          accountId: account.id,
-          accountName: account.account_name 
-        });
-        
-      } catch (err) {
-        logger.error('Error analyzing account', err as Error, { 
-          organizationId, 
-          accountId: account.id 
+      // Analisar apenas a primeira região para manter rápido
+      const region = regions[0];
+      
+      // Check time before processing
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        logger.warn('Approaching timeout, returning partial results');
+        return success({
+          success: true,
+          partial: true,
+          message: 'Partial results due to time constraints',
+          wasteItems: allWasteItems,
+          analyzed_resources: totalAnalyzed,
+          total_monthly_savings: allWasteItems.reduce((sum, item) => sum + item.estimatedSavings, 0),
         });
       }
+      
+      logger.info('Analyzing waste in region', { organizationId, region, accountId: account.id });
+      
+      const { wasteItems, analyzed } = await detectWasteInRegionFast(
+        account.id,
+        region,
+        resolvedCreds,
+        threshold,
+        maxInstances,
+        MAX_EXECUTION_TIME - (Date.now() - startTime)
+      );
+      
+      allWasteItems.push(...wasteItems);
+      totalAnalyzed += analyzed;
+      
+      logger.info('Account analysis completed', { 
+        organizationId, 
+        accountId: account.id,
+        accountName: account.account_name,
+        wasteItemsFound: wasteItems.length
+      });
+      
+    } catch (err) {
+      logger.error('Error analyzing account', err as Error, { 
+        organizationId, 
+        accountId: account.id 
+      });
     }
     
-    // Salvar waste items detectados
+    // Salvar waste items detectados (em batch para velocidade)
     if (allWasteItems.length > 0) {
-      for (const item of allWasteItems) {
-        await prisma.wasteDetection.create({
-          data: {
+      try {
+        // Delete old detections for this account first
+        await prisma.wasteDetection.deleteMany({
+          where: {
             organization_id: organizationId,
-            account_id: item.resourceId.split(':')[0], // Extrair account ID
+            account_id: account.id,
+          }
+        });
+        
+        // Insert new ones
+        await prisma.wasteDetection.createMany({
+          data: allWasteItems.map(item => ({
+            organization_id: organizationId,
+            account_id: account.id,
             resource_id: item.resourceId,
             resource_type: item.resourceType,
             resource_name: item.resourceName,
@@ -132,8 +164,11 @@ export async function handler(
             estimated_savings: item.estimatedSavings,
             metrics: item.metrics as any,
             recommendation: item.recommendation
-          },
+          })),
+          skipDuplicates: true,
         });
+      } catch (dbErr) {
+        logger.error('Error saving waste detections', dbErr as Error);
       }
     }
     
@@ -157,6 +192,8 @@ export async function handler(
     return success({
       success: true,
       wasteItems: allWasteItems,
+      analyzed_resources: totalAnalyzed,
+      total_monthly_savings: parseFloat(totalSavings.toFixed(2)),
       summary: {
         totalItems: allWasteItems.length,
         totalSavings: parseFloat(totalSavings.toFixed(2)),
@@ -182,13 +219,17 @@ export async function handler(
   }
 }
 
-async function detectWasteInRegion(
+async function detectWasteInRegionFast(
   accountId: string,
   region: string,
   credentials: any,
-  cpuThreshold: number
-): Promise<WasteItem[]> {
+  cpuThreshold: number,
+  maxInstances: number,
+  remainingTime: number
+): Promise<{ wasteItems: WasteItem[], analyzed: number }> {
   const wasteItems: WasteItem[] = [];
+  let analyzed = 0;
+  const startTime = Date.now();
   
   try {
     const ec2Client = new EC2Client({
@@ -201,88 +242,95 @@ async function detectWasteInRegion(
       credentials: toAwsCredentials(credentials),
     });
     
-    // Obter todas as instâncias EC2
-    const response = await ec2Client.send(new DescribeInstancesCommand({}));
+    // Obter instâncias EC2 running
+    const response = await ec2Client.send(new DescribeInstancesCommand({
+      Filters: [{ Name: 'instance-state-name', Values: ['running'] }],
+      MaxResults: maxInstances,
+    }));
     
     if (response.Reservations) {
       for (const reservation of response.Reservations) {
         if (reservation.Instances) {
           for (const instance of reservation.Instances) {
-            // Ignorar instâncias stopped/terminated
-            if (instance.State?.Name !== 'running') continue;
+            // Check remaining time
+            if (Date.now() - startTime > remainingTime - 2000) {
+              logger.warn('Time limit reached, returning partial results');
+              return { wasteItems, analyzed };
+            }
             
             const instanceId = instance.InstanceId!;
             const instanceType = instance.InstanceType!;
             const instanceName = instance.Tags?.find(t => t.Key === 'Name')?.Value || null;
             
-            // Obter métricas de CPU dos últimos 7 dias
+            analyzed++;
+            
+            // Obter métricas de CPU dos últimos 3 dias (mais rápido que 7)
             const endTime = new Date();
-            const startTime = new Date(endTime.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const startTimeMetrics = new Date(endTime.getTime() - 3 * 24 * 60 * 60 * 1000);
             
-            const metricsCommand = new GetMetricStatisticsCommand({
-              Namespace: 'AWS/EC2',
-              MetricName: 'CPUUtilization',
-              Dimensions: [
-                {
-                  Name: 'InstanceId',
-                  Value: instanceId,
-                },
-              ],
-              StartTime: startTime,
-              EndTime: endTime,
-              Period: 3600, // 1 hora
-              Statistics: ['Average', 'Maximum'],
-            });
-            
-            const metricsResponse = await cwClient.send(metricsCommand);
-            
-            if (metricsResponse.Datapoints && metricsResponse.Datapoints.length > 0) {
-              const avgCpu = metricsResponse.Datapoints.reduce(
-                (sum, dp) => sum + (dp.Average || 0),
-                0
-              ) / metricsResponse.Datapoints.length;
+            try {
+              const metricsCommand = new GetMetricStatisticsCommand({
+                Namespace: 'AWS/EC2',
+                MetricName: 'CPUUtilization',
+                Dimensions: [{ Name: 'InstanceId', Value: instanceId }],
+                StartTime: startTimeMetrics,
+                EndTime: endTime,
+                Period: 3600 * 6, // 6 hours (fewer datapoints)
+                Statistics: ['Average', 'Maximum'],
+              });
               
-              const maxCpu = Math.max(
-                ...metricsResponse.Datapoints.map(dp => dp.Maximum || 0)
-              );
+              const metricsResponse = await cwClient.send(metricsCommand);
               
-              // Detectar waste baseado em CPU
-              if (avgCpu < cpuThreshold) {
-                const estimatedCost = getInstanceMonthlyCost(instanceType);
-                const confidence = calculateConfidence(avgCpu, maxCpu, cpuThreshold);
+              if (metricsResponse.Datapoints && metricsResponse.Datapoints.length > 0) {
+                const avgCpu = metricsResponse.Datapoints.reduce(
+                  (sum, dp) => sum + (dp.Average || 0),
+                  0
+                ) / metricsResponse.Datapoints.length;
                 
-                let wasteType: 'idle' | 'underutilized' | 'oversized' | 'zombie' = 'idle';
-                let recommendation = '';
-                let savingsPercent = 0;
+                const maxCpu = Math.max(
+                  ...metricsResponse.Datapoints.map(dp => dp.Maximum || 0)
+                );
                 
-                if (avgCpu < 1 && maxCpu < 5) {
-                  wasteType = 'zombie';
-                  recommendation = `Stop or terminate this instance. CPU usage is extremely low (avg: ${avgCpu.toFixed(2)}%, max: ${maxCpu.toFixed(2)}%)`;
-                  savingsPercent = 100;
-                } else if (avgCpu < cpuThreshold) {
-                  wasteType = 'underutilized';
-                  recommendation = `Consider downsizing to a smaller instance type. Current avg CPU: ${avgCpu.toFixed(2)}%`;
-                  savingsPercent = 50;
+                // Detectar waste baseado em CPU
+                if (avgCpu < cpuThreshold) {
+                  const estimatedCost = getInstanceMonthlyCost(instanceType);
+                  const confidence = calculateConfidence(avgCpu, maxCpu, cpuThreshold);
+                  
+                  let wasteType: 'idle' | 'underutilized' | 'oversized' | 'zombie' = 'idle';
+                  let recommendation = '';
+                  let savingsPercent = 0;
+                  
+                  if (avgCpu < 1 && maxCpu < 5) {
+                    wasteType = 'zombie';
+                    recommendation = `Stop or terminate this instance. CPU usage is extremely low (avg: ${avgCpu.toFixed(2)}%, max: ${maxCpu.toFixed(2)}%)`;
+                    savingsPercent = 100;
+                  } else if (avgCpu < cpuThreshold) {
+                    wasteType = 'underutilized';
+                    recommendation = `Consider downsizing to a smaller instance type. Current avg CPU: ${avgCpu.toFixed(2)}%`;
+                    savingsPercent = 50;
+                  }
+                  
+                  wasteItems.push({
+                    resourceId: instanceId,
+                    resourceType: 'EC2::Instance',
+                    resourceName: instanceName,
+                    region,
+                    wasteType,
+                    confidence,
+                    estimatedMonthlyCost: estimatedCost,
+                    estimatedSavings: estimatedCost * (savingsPercent / 100),
+                    metrics: {
+                      avgCpu: parseFloat(avgCpu.toFixed(2)),
+                      maxCpu: parseFloat(maxCpu.toFixed(2)),
+                      instanceType,
+                      datapoints: metricsResponse.Datapoints.length,
+                    },
+                    recommendation,
+                  });
                 }
-                
-                wasteItems.push({
-                  resourceId: instanceId,
-                  resourceType: 'EC2::Instance',
-                  resourceName: instanceName,
-                  region,
-                  wasteType,
-                  confidence,
-                  estimatedMonthlyCost: estimatedCost,
-                  estimatedSavings: estimatedCost * (savingsPercent / 100),
-                  metrics: {
-                    avgCpu: parseFloat(avgCpu.toFixed(2)),
-                    maxCpu: parseFloat(maxCpu.toFixed(2)),
-                    instanceType,
-                    datapoints: metricsResponse.Datapoints.length,
-                  },
-                  recommendation,
-                });
               }
+            } catch (metricErr) {
+              logger.warn('Error getting metrics for instance', { instanceId, error: (metricErr as Error).message });
             }
           }
         }
@@ -293,7 +341,7 @@ async function detectWasteInRegion(
     logger.error('Error detecting waste in region', err as Error, { region });
   }
   
-  return wasteItems;
+  return { wasteItems, analyzed };
 }
 
 function calculateConfidence(avgCpu: number, maxCpu: number, threshold: number): number {

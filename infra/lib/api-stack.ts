@@ -7,6 +7,8 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
+import * as path from 'path';
+
 export interface ApiStackProps extends cdk.StackProps {
   vpc: ec2.Vpc;
   database: rds.DatabaseInstance;
@@ -52,7 +54,7 @@ export class ApiStack extends cdk.Stack {
 
     // Lambda Layer for common dependencies
     const commonLayer = new lambda.LayerVersion(this, 'CommonLayer', {
-      code: lambda.Code.fromAsset('backend/dist/layers/common'),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/layers/common')),
       compatibleRuntimes: [lambda.Runtime.NODEJS_18_X],
       description: 'Common dependencies for EVO UDS Lambda functions',
     });
@@ -70,7 +72,7 @@ export class ApiStack extends cdk.Stack {
     const securityScanFunction = new lambda.Function(this, 'SecurityScanFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'security-scan.handler',
-      code: lambda.Code.fromAsset('backend/dist/handlers/security'),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -82,8 +84,8 @@ export class ApiStack extends cdk.Stack {
     // Cost Analysis Lambda
     const costAnalysisFunction = new lambda.Function(this, 'CostAnalysisFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'cost-analysis.handler',
-      code: lambda.Code.fromAsset('backend/dist/handlers/finops'),
+      handler: 'cost-optimization.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/cost')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -92,11 +94,11 @@ export class ApiStack extends cdk.Stack {
       memorySize: 1024,
     });
 
-    // Health Check Lambda
+    // Health Check Lambda - using run-migrations as placeholder
     const healthCheckFunction = new lambda.Function(this, 'HealthCheckFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'health.handler',
-      code: lambda.Code.fromAsset('backend/dist/handlers/system'),
+      handler: 'run-migrations.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/system')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       timeout: cdk.Duration.seconds(30),
@@ -166,7 +168,7 @@ export class ApiStack extends cdk.Stack {
     const checkOrganizationFunction = new lambda.Function(this, 'CheckOrganizationFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'check-organization.handler',
-      code: lambda.Code.fromAsset('backend/dist/handlers/profiles'),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/profiles')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -178,7 +180,7 @@ export class ApiStack extends cdk.Stack {
     const createWithOrgFunction = new lambda.Function(this, 'CreateWithOrgFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'create-with-organization.handler',
-      code: lambda.Code.fromAsset('backend/dist/handlers/profiles'),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/profiles')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -205,7 +207,7 @@ export class ApiStack extends cdk.Stack {
     const saveAwsCredentialsFunction = new lambda.Function(this, 'SaveAwsCredentialsFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'save-aws-credentials.handler',
-      code: lambda.Code.fromAsset('backend/dist/handlers/aws'),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/aws')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -222,10 +224,188 @@ export class ApiStack extends cdk.Stack {
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // Well-Architected Scan Lambda
+    const wellArchitectedScanFunction = new lambda.Function(this, 'WellArchitectedScanFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'well-architected-scan.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 512,
+    });
+
+    // Add Well-Architected permissions to Lambda role
+    wellArchitectedScanFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'wellarchitected:ListWorkloads',
+        'wellarchitected:GetWorkload',
+        'wellarchitected:ListLensReviews',
+        'wellarchitected:GetLensReview',
+        'sts:AssumeRole',
+      ],
+      resources: ['*'],
+    }));
+
     // Also add under /functions for compatibility with apiClient.invoke
     const functionsResource = this.api.root.addResource('functions');
     const saveCredsFunctionResource = functionsResource.addResource('save-aws-credentials');
     saveCredsFunctionResource.addMethod('POST', new apigateway.LambdaIntegration(saveAwsCredentialsFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // Well-Architected Scan route
+    const wellArchitectedResource = functionsResource.addResource('well-architected-scan');
+    wellArchitectedResource.addMethod('POST', new apigateway.LambdaIntegration(wellArchitectedScanFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // Security Posture Lambda
+    const getSecurityPostureFunction = new lambda.Function(this, 'GetSecurityPostureFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'get-security-posture.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+    });
+
+    // Get Findings Lambda
+    const getFindingsFunction = new lambda.Function(this, 'GetFindingsFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'get-findings.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+    });
+
+    // Query Table Lambda (generic data access)
+    const queryTableFunction = new lambda.Function(this, 'QueryTableFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'query-table.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/data')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+    });
+
+    // Security routes under /security
+    const postureResource = securityResource.addResource('posture');
+    postureResource.addMethod('POST', new apigateway.LambdaIntegration(getSecurityPostureFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    const findingsResource = securityResource.addResource('findings');
+    findingsResource.addMethod('POST', new apigateway.LambdaIntegration(getFindingsFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // Security PDF Export Lambda
+    const securityPdfExportFunction = new lambda.Function(this, 'SecurityPdfExportFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'security-scan-pdf-export.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/reports')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.minutes(2),
+      memorySize: 512,
+    });
+
+    const exportPdfResource = securityResource.addResource('export-pdf');
+    exportPdfResource.addMethod('POST', new apigateway.LambdaIntegration(securityPdfExportFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // Query table route under /api/functions
+    const queryTableResource = functionsResource.addResource('query-table');
+    queryTableResource.addMethod('POST', new apigateway.LambdaIntegration(queryTableFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // Fetch CloudWatch Metrics Lambda
+    const fetchCloudwatchMetricsFunction = new lambda.Function(this, 'FetchCloudwatchMetricsFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'fetch-cloudwatch-metrics.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/monitoring')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 512,
+    });
+
+    // Add CloudWatch permissions for Fetch Metrics
+    fetchCloudwatchMetricsFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'cloudwatch:GetMetricStatistics',
+        'cloudwatch:GetMetricData',
+        'cloudwatch:ListMetrics',
+        'sts:AssumeRole',
+      ],
+      resources: ['*'],
+    }));
+
+    // ML Waste Detection Lambda
+    const mlWasteDetectionFunction = new lambda.Function(this, 'MLWasteDetectionFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'ml-waste-detection.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/cost')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 1024,
+    });
+
+    // Add AWS permissions for ML Waste Detection
+    mlWasteDetectionFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ec2:DescribeInstances',
+        'ec2:DescribeVolumes',
+        'ec2:DescribeSnapshots',
+        'cloudwatch:GetMetricStatistics',
+        'cloudwatch:GetMetricData',
+        'sts:AssumeRole',
+      ],
+      resources: ['*'],
+    }));
+
+    // ML Waste Detection route under /functions
+    const mlWasteDetectionResource = functionsResource.addResource('ml-waste-detection');
+    mlWasteDetectionResource.addMethod('POST', new apigateway.LambdaIntegration(mlWasteDetectionFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // Fetch CloudWatch Metrics route under /api/lambda (for apiClient.lambda compatibility)
+    const lambdaResource = this.api.root.addResource('api').addResource('lambda');
+    const fetchMetricsResource = lambdaResource.addResource('fetch-cloudwatch-metrics');
+    fetchMetricsResource.addMethod('POST', new apigateway.LambdaIntegration(fetchCloudwatchMetricsFunction), {
       authorizer: cognitoAuthorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });

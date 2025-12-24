@@ -19,6 +19,8 @@ import { AppSidebar } from "@/components/AppSidebar";
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
 import UserMenu from "@/components/UserMenu";
+import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { AwsAccountSelector } from "@/components/AwsAccountSelector";
 
 const WellArchitected = () => {
   const { t } = useTranslation();
@@ -27,6 +29,7 @@ const WellArchitected = () => {
   const [mainTab, setMainTab] = useState<string>("analysis");
   const [viewingHistoricalScan, setViewingHistoricalScan] = useState<string | null>(null);
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
+  const { selectedAccountId } = useAwsAccount();
 
   const { data: userProfile } = useQuery({
     queryKey: ['user-profile'],
@@ -176,9 +179,18 @@ const WellArchitected = () => {
   );
 
   const runScan = async () => {
+    if (!selectedAccountId) {
+      toast.error('Selecione uma conta AWS', {
+        description: 'É necessário selecionar uma conta AWS para executar o scan'
+      });
+      return;
+    }
+    
     setIsScanning(true);
     try {
-      const result = await apiClient.invoke('well-architected-scan');
+      const result = await apiClient.invoke('well-architected-scan', {
+        body: { accountId: selectedAccountId }
+      });
       
       if (result.error) throw result.error;
       const data = result.data;
@@ -391,6 +403,7 @@ const WellArchitected = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-3">
+                  <AwsAccountSelector />
                   {viewingHistoricalScan && (
                     <Badge variant="secondary" className="gap-2">
                       <Shield className="h-3 w-3" />
@@ -411,7 +424,7 @@ const WellArchitected = () => {
                   {mainTab === "analysis" && !viewingHistoricalScan && (
                     <Button 
                       onClick={runScan} 
-                      disabled={isScanning}
+                      disabled={isScanning || !selectedAccountId}
                       className="gap-2"
                     >
                       {isScanning ? (
@@ -457,11 +470,14 @@ const WellArchitected = () => {
                   <AlertTriangle className="h-16 w-16 text-muted-foreground mb-4" />
                   <h3 className="text-xl font-semibold mb-2">Nenhum scan realizado</h3>
                   <p className="text-muted-foreground mb-6 max-w-md">
-                    Execute seu primeiro scan Well-Architected para avaliar sua infraestrutura AWS
+                    {!selectedAccountId 
+                      ? 'Selecione uma conta AWS no seletor acima para executar o scan'
+                      : 'Execute seu primeiro scan Well-Architected para avaliar sua infraestrutura AWS'
+                    }
                   </p>
-                  <Button onClick={runScan} disabled={isScanning}>
+                  <Button onClick={runScan} disabled={isScanning || !selectedAccountId}>
                     <Play className="h-4 w-4 mr-2" />
-                    Executar Primeiro Scan
+                    {!selectedAccountId ? 'Selecione uma Conta AWS' : 'Executar Primeiro Scan'}
                   </Button>
                 </CardContent>
               </Card>

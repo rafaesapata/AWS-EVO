@@ -34,8 +34,7 @@ export function CostForecast({ accountId }: Props) {
           organization_id: organizationId,
           aws_account_id: accountId 
         },
-        gte: { cost_date: ninetyDaysAgo.toISOString().split('T')[0] },
-        order: { cost_date: 'asc' }
+        order: { column: 'date', ascending: true }
       });
       
       if (response.error) {
@@ -43,8 +42,56 @@ export function CostForecast({ accountId }: Props) {
         throw new Error(response.error);
       }
       
-      console.log(`Fetched ${response.data?.length || 0} days of historical data for forecast`);
-      return response.data || [];
+      const rawData = response.data || [];
+      
+      // Transform raw data (per service) into aggregated format (per date)
+      // Raw schema: { id, organization_id, account_id, date, service, cost, usage, currency }
+      // Expected format: { cost_date, total_cost }
+      const dateMap = new Map<string, { cost_date: string; total_cost: number }>();
+      
+      for (const row of rawData) {
+        const dateValue = row.date || row.cost_date;
+        if (!dateValue) continue;
+        
+        let dateStr: string;
+        try {
+          if (typeof dateValue === 'string') {
+            dateStr = dateValue.split('T')[0];
+          } else if (dateValue instanceof Date) {
+            dateStr = dateValue.toISOString().split('T')[0];
+          } else {
+            const parsed = new Date(dateValue);
+            if (isNaN(parsed.getTime())) continue;
+            dateStr = parsed.toISOString().split('T')[0];
+          }
+        } catch {
+          continue;
+        }
+        
+        // Filter by date range
+        if (dateStr < ninetyDaysAgo.toISOString().split('T')[0]) continue;
+        
+        if (!dateMap.has(dateStr)) {
+          dateMap.set(dateStr, { cost_date: dateStr, total_cost: 0 });
+        }
+        
+        const entry = dateMap.get(dateStr)!;
+        const rawCost = typeof row.cost === 'number' ? row.cost : parseFloat(String(row.cost || '0'));
+        entry.total_cost += isNaN(rawCost) ? 0 : rawCost;
+      }
+      
+      const aggregatedData = Array.from(dateMap.values()).sort((a, b) => 
+        a.cost_date.localeCompare(b.cost_date)
+      );
+      
+      console.log(`CostForecast: Fetched ${rawData.length} raw records, aggregated to ${aggregatedData.length} days`);
+      if (aggregatedData.length > 0) {
+        console.log(`CostForecast: First day: ${aggregatedData[0].cost_date} = $${aggregatedData[0].total_cost.toFixed(2)}`);
+        console.log(`CostForecast: Last day: ${aggregatedData[aggregatedData.length-1].cost_date} = $${aggregatedData[aggregatedData.length-1].total_cost.toFixed(2)}`);
+        const total = aggregatedData.reduce((s, d) => s + d.total_cost, 0);
+        console.log(`CostForecast: Total cost: $${total.toFixed(2)}, Avg: $${(total/aggregatedData.length).toFixed(2)}`);
+      }
+      return aggregatedData;
     }
   });
 
@@ -130,9 +177,13 @@ export function CostForecast({ accountId }: Props) {
     })) || [])
   ];
 
-  const avgDailyCost = historicalCosts?.reduce((sum, c) => sum + c.total_cost, 0) / (historicalCosts?.length || 1);
-  const predictedMonthlyCost = forecasts?.reduce((sum, f) => sum + f.predicted_cost, 0) || 0;
-  const growthRate = ((predictedMonthlyCost - (avgDailyCost * 30)) / (avgDailyCost * 30)) * 100;
+  const avgDailyCost = historicalCosts && historicalCosts.length > 0 
+    ? historicalCosts.reduce((sum, c) => sum + (c.total_cost || 0), 0) / historicalCosts.length
+    : 0;
+  const predictedMonthlyCost = forecasts?.reduce((sum, f) => sum + (f.predicted_cost || 0), 0) || 0;
+  const growthRate = avgDailyCost > 0 
+    ? ((predictedMonthlyCost - (avgDailyCost * 30)) / (avgDailyCost * 30)) * 100 
+    : 0;
 
   return (
     <Card>
@@ -254,6 +305,11 @@ export function CostForecast({ accountId }: Props) {
             <p>Dados históricos insuficientes para gerar previsão</p>
             <p className="text-sm">Necessário pelo menos 7 dias de histórico</p>
             <p className="text-xs mt-2">Encontrados: {historicalCosts?.length || 0} dias</p>
+            {historicalCosts && historicalCosts.length > 0 && (
+              <p className="text-xs mt-1">
+                Total acumulado: ${historicalCosts.reduce((s, c) => s + (c.total_cost || 0), 0).toFixed(2)}
+              </p>
+            )}
           </div>
         )}
 

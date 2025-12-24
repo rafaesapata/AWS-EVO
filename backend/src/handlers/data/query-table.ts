@@ -73,7 +73,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
 // Mapeamento de campos do frontend para campos do Prisma
 // Também lista campos a IGNORAR (mapear para null) quando não existem no modelo
 const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
-  'daily_costs': { 'aws_account_id': 'account_id' },
+  'daily_costs': { 'aws_account_id': 'account_id', 'cost_date': 'date' },
   'waste_detections': { 'aws_account_id': 'account_id' },
   'waste_detection': { 'aws_account_id': 'account_id' },
   'resource_utilization_ml': { 'aws_account_id': 'account_id' },

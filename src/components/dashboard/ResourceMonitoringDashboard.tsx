@@ -202,17 +202,19 @@ export const ResourceMonitoringDashboard = () => {
     });
 
     try {
-      // Invocar edge function (otimizada com processamento paralelo) - USE GLOBAL selectedAccountId
-      const data = await apiClient.lambda('fetch-cloudwatch-metrics', {
+      // Invocar Lambda function via API Gateway - USE GLOBAL selectedAccountId
+      const response = await apiClient.invoke<any>('fetch-cloudwatch-metrics', {
         body: { accountId: selectedAccountId }
       });
 
-      if (error) {
-        throw new Error(error.message || 'Failed to fetch metrics');
-      }
+      // Handle API response format
+      const data = 'error' in response && response.error ? null : response.data || response;
 
-      if (!data || !data.success) {
-        throw new Error(data?.error || 'Failed to collect metrics');
+      if (!data || (data.success === false)) {
+        const errorMsg = typeof data?.error === 'string' 
+          ? data.error 
+          : data?.error?.message || JSON.stringify(data?.error) || 'Failed to collect metrics';
+        throw new Error(errorMsg);
       }
 
       // Armazenar erros de permissão se houver

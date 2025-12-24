@@ -77,24 +77,80 @@ export const CostAnalysisPage = () => {
         eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
       });
       const data = response.data;
-      const error = response.error;
-      // Remove duplicates by keeping only the latest entry per date and account
-      const uniqueCosts = data?.reduce((acc, current) => {
-        const key = `${current.aws_account_id}_${current.cost_date}`;
-        const existing = acc.find(item => `${item.aws_account_id}_${item.cost_date}` === key);
-        
-        if (!existing) {
-          acc.push(current);
-        } else {
-          const existingIndex = acc.indexOf(existing);
-          if (new Date(current.created_at) > new Date(existing.created_at)) {
-            acc[existingIndex] = current;
-          }
+      
+      if (!data || data.length === 0) return [];
+      
+      // Transform raw data (per service) into aggregated format (per date)
+      // Raw schema: { id, organization_id, account_id, date, service, cost, usage, currency }
+      // Expected format: { cost_date, aws_account_id, total_cost, service_breakdown, ... }
+      const dateMap = new Map<string, {
+        cost_date: string;
+        aws_account_id: string;
+        total_cost: number;
+        service_breakdown: Record<string, number>;
+        credits_used: number;
+        net_cost: number;
+        created_at: string;
+        id: string;
+      }>();
+      
+      for (const row of data) {
+        // Handle both 'date' and 'cost_date' field names
+        // Prisma returns Date objects, API might return strings
+        const dateValue = row.date || row.cost_date;
+        if (!dateValue) {
+          console.warn('Skipping row with no date:', row);
+          continue;
         }
-        return acc;
-      }, [] as typeof data) || [];
-
-      return uniqueCosts;
+        
+        let dateStr: string;
+        try {
+          if (typeof dateValue === 'string') {
+            dateStr = dateValue.split('T')[0];
+          } else if (dateValue instanceof Date) {
+            dateStr = dateValue.toISOString().split('T')[0];
+          } else {
+            // Try to parse as date
+            const parsed = new Date(dateValue);
+            if (isNaN(parsed.getTime())) {
+              console.warn('Invalid date value:', dateValue);
+              continue;
+            }
+            dateStr = parsed.toISOString().split('T')[0];
+          }
+        } catch (e) {
+          console.warn('Error parsing date:', dateValue, e);
+          continue;
+        }
+        
+        const accountId = row.account_id || row.aws_account_id || selectedAccountId;
+        
+        if (!dateMap.has(dateStr)) {
+          dateMap.set(dateStr, {
+            cost_date: dateStr,
+            aws_account_id: accountId,
+            total_cost: 0,
+            service_breakdown: {},
+            credits_used: 0,
+            net_cost: 0,
+            created_at: row.created_at || new Date().toISOString(),
+            id: row.id || crypto.randomUUID(),
+          });
+        }
+        
+        const entry = dateMap.get(dateStr)!;
+        const rawCost = typeof row.cost === 'number' ? row.cost : parseFloat(String(row.cost || '0'));
+        const cost = isNaN(rawCost) ? 0 : rawCost;
+        entry.total_cost += cost;
+        entry.net_cost += cost;
+        if (row.service) {
+          entry.service_breakdown[row.service] = (entry.service_breakdown[row.service] || 0) + cost;
+        }
+      }
+      
+      return Array.from(dateMap.values()).sort((a, b) => 
+        new Date(b.cost_date).getTime() - new Date(a.cost_date).getTime()
+      );
     },
   });
 
@@ -531,7 +587,10 @@ export const CostAnalysisPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    ${costs.reduce((sum, c) => sum + Number(c.total_cost), 0).toFixed(2)}
+                    ${costs.reduce((sum, c) => {
+                      const val = Number(c.total_cost);
+                      return sum + (isNaN(val) ? 0 : val);
+                    }, 0).toFixed(2)}
                   </div>
                 </CardContent>
               </Card>
@@ -541,7 +600,10 @@ export const CostAnalysisPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-green-600">
-                    ${costs.reduce((sum, c) => sum + Number(c.credits_used || 0), 0).toFixed(2)}
+                    ${costs.reduce((sum, c) => {
+                      const val = Number(c.credits_used || 0);
+                      return sum + (isNaN(val) ? 0 : val);
+                    }, 0).toFixed(2)}
                   </div>
                 </CardContent>
               </Card>
@@ -551,7 +613,10 @@ export const CostAnalysisPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    ${costs.reduce((sum, c) => sum + Number(c.net_cost || c.total_cost), 0).toFixed(2)}
+                    ${costs.reduce((sum, c) => {
+                      const val = Number(c.net_cost || c.total_cost);
+                      return sum + (isNaN(val) ? 0 : val);
+                    }, 0).toFixed(2)}
                   </div>
                 </CardContent>
               </Card>
@@ -642,15 +707,27 @@ export const CostAnalysisPage = () => {
                 ) : (
                   sortedDates.map((date, idx) => {
                     const dateCosts = costsByDate[date];
-                    const totalCost = dateCosts.reduce((sum, c) => sum + Number(c.total_cost), 0);
-                    const totalCredits = dateCosts.reduce((sum, c) => sum + Number(c.credits_used || 0), 0);
-                    const netCost = dateCosts.reduce((sum, c) => sum + Number(c.net_cost || c.total_cost), 0);
+                    const totalCost = dateCosts.reduce((sum, c) => {
+                      const val = Number(c.total_cost);
+                      return sum + (isNaN(val) ? 0 : val);
+                    }, 0);
+                    const totalCredits = dateCosts.reduce((sum, c) => {
+                      const val = Number(c.credits_used || 0);
+                      return sum + (isNaN(val) ? 0 : val);
+                    }, 0);
+                    const netCost = dateCosts.reduce((sum, c) => {
+                      const val = Number(c.net_cost || c.total_cost);
+                      return sum + (isNaN(val) ? 0 : val);
+                    }, 0);
                     const isExpanded = expandedDates.has(date);
                     
                     // Calculate day-over-day change
                     const prevDate = sortedDates[idx + 1];
                     const prevCosts = prevDate ? costsByDate[prevDate] : null;
-                    const prevNetCost = prevCosts?.reduce((sum, c) => sum + Number(c.net_cost || c.total_cost), 0) || 0;
+                    const prevNetCost = prevCosts?.reduce((sum, c) => {
+                      const val = Number(c.net_cost || c.total_cost);
+                      return sum + (isNaN(val) ? 0 : val);
+                    }, 0) || 0;
                     const change = prevNetCost > 0 ? ((netCost - prevNetCost) / prevNetCost) * 100 : 0;
 
                     return (

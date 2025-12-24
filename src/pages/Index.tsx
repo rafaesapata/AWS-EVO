@@ -24,7 +24,9 @@ import EdgeMonitoring from "@/pages/EdgeMonitoring";
 import SecurityScans from "@/pages/SecurityScans";
 import CloudTrailAudit from "@/pages/CloudTrailAudit";
 import Compliance from "@/pages/Compliance";
+import SecurityAnalysisContent from "@/components/dashboard/SecurityAnalysisContent";
 import RISavingsPlans from "@/pages/RISavingsPlans";
+import MLWasteDetection from "@/pages/MLWasteDetection";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { AwsAccountSelector } from "@/components/AwsAccountSelector";
@@ -466,6 +468,38 @@ const Index = () => {
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <EdgeMonitoring />
+            </main>
+            <Footer variant="minimal" />
+          </div>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  if (activeTab === "security-analysis") {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full animated-gradient">
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <main className="flex-1 p-6 overflow-auto">
+              <SecurityAnalysisContent />
+            </main>
+            <Footer variant="minimal" />
+          </div>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  if (activeTab === "waste") {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full animated-gradient">
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <main className="flex-1 p-6 overflow-auto">
+              <MLWasteDetection />
             </main>
             <Footer variant="minimal" />
           </div>

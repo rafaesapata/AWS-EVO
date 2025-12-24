@@ -46,7 +46,7 @@ export const MonthlyInvoicesPage = () => {
           organization_id: organizationId,
           aws_account_id: selectedAccountId
         },
-        order: { cost_date: 'desc' }
+        order: { date: 'desc' }
       });
 
       if (response.error) {
@@ -58,8 +58,14 @@ export const MonthlyInvoicesPage = () => {
   });
 
   // Process monthly data from daily costs
+  // Schema: id, organization_id, account_id, date, service, cost, usage, currency
   const monthlyData = allCosts?.reduce((acc, cost) => {
-    const monthKey = cost.cost_date.substring(0, 7); // YYYY-MM format
+    // Skip records without valid date
+    if (!cost.date) return acc;
+    
+    // date can be a Date object or ISO string
+    const dateStr = typeof cost.date === 'string' ? cost.date : new Date(cost.date).toISOString();
+    const monthKey = dateStr.substring(0, 7); // YYYY-MM format
     
     if (!acc[monthKey]) {
       acc[monthKey] = {
@@ -67,27 +73,36 @@ export const MonthlyInvoicesPage = () => {
         totalCost: 0,
         totalCredits: 0,
         netCost: 0,
-        days: 0,
+        days: new Set<string>(),
         serviceBreakdown: {} as Record<string, number>,
         dailyCosts: [] as any[]
       };
     }
 
-    acc[monthKey].totalCost += Number(cost.total_cost);
-    acc[monthKey].totalCredits += Number(cost.credits_used || 0);
-    acc[monthKey].netCost += Number(cost.net_cost || cost.total_cost);
-    acc[monthKey].days += 1;
-    acc[monthKey].dailyCosts.push(cost);
+    const costValue = Number(cost.cost) || 0;
+    acc[monthKey].totalCost += costValue;
+    acc[monthKey].netCost += costValue; // No credits in current schema
+    acc[monthKey].days.add(dateStr.substring(0, 10)); // Count unique days
+    acc[monthKey].dailyCosts.push({
+      ...cost,
+      cost_date: dateStr,
+      total_cost: costValue,
+      net_cost: costValue
+    });
 
-    // Aggregate service breakdown
-    if (cost.service_breakdown) {
-      Object.entries(cost.service_breakdown).forEach(([service, value]) => {
-        acc[monthKey].serviceBreakdown[service] = (acc[monthKey].serviceBreakdown[service] || 0) + (value as number);
-      });
+    // Aggregate by service
+    if (cost.service) {
+      acc[monthKey].serviceBreakdown[cost.service] = 
+        (acc[monthKey].serviceBreakdown[cost.service] || 0) + costValue;
     }
 
     return acc;
   }, {} as Record<string, any>) || {};
+
+  // Convert days Set to count
+  Object.values(monthlyData).forEach((data: any) => {
+    data.days = data.days.size;
+  });
 
   const sortedMonths = Object.keys(monthlyData).sort((a, b) => b.localeCompare(a));
   

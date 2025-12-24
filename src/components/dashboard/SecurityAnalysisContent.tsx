@@ -86,10 +86,11 @@ export default function SecurityAnalysisContent() {
       const session = await cognitoAuth.getCurrentSession();
       if (!session) throw new Error('Not authenticated');
       
-      const data = await apiClient.lambda('get-security-posture', {
+      const response = await apiClient.post('/security/posture', {
         accountId: selectedAccountId
       });
-      return data?.data || null;
+      if (response.error) throw new Error(response.error.message);
+      return response.data || null;
     }
   });
 
@@ -98,10 +99,17 @@ export default function SecurityAnalysisContent() {
     queryKey: ['latest-security-scan', organizationId, selectedAccountId],
     enabled: !!organizationId && !!selectedAccountId,
     queryFn: async () => {
-      const data = await apiClient.lambda('get-security-scan', {
-        accountId: selectedAccountId
+      // Query security_scans table for latest scan
+      const response = await apiClient.select('security_scans', {
+        eq: { 
+          organization_id: organizationId,
+          aws_account_id: selectedAccountId
+        },
+        order: { column: 'created_at', ascending: false },
+        limit: 1
       });
-      return data?.data || null;
+      if (response.error) throw new Error(response.error.message);
+      return response.data?.[0] || null;
     }
   });
 
@@ -156,17 +164,15 @@ export default function SecurityAnalysisContent() {
 
       const mappedStatus = statusMap[selectedStatus.toLowerCase()] || selectedStatus;
 
-      const data = await apiClient.lambda('get-findings', {
-        body: {
-          severity: 'all', // CRITICAL: Get all severities, filter locally
-          status: mappedStatus,
-          source: 'security_scan',
-          accountId: selectedAccountId
-        }
+      const response = await apiClient.post('/security/findings', {
+        severity: 'all', // CRITICAL: Get all severities, filter locally
+        status: mappedStatus,
+        source: 'security_scan',
+        accountId: selectedAccountId
       });
 
-      if (data.error) throw data.error;
-      return data?.data || [];
+      if (response.error) throw new Error(response.error.message);
+      return response.data || [];
     }
   });
 
@@ -186,24 +192,24 @@ export default function SecurityAnalysisContent() {
         description: `${levelInfo?.icon} ${levelInfo?.name}: ${t('securityAnalysis.analyzingInfra')} (${levelInfo?.estimatedTime})`,
       });
 
-      const data = await apiClient.lambda('security-scan', {
-        body: { 
-          accountId: selectedAccountId,
-          scanLevel: selectedScanLevel
-        }
+      const response = await apiClient.post('/security/scan', { 
+        accountId: selectedAccountId,
+        scanLevel: selectedScanLevel
       });
       
-      if (error) {
-        throw error;
+      if (response?.error) {
+        throw new Error(response.error.message || 'Security scan failed');
       }
       
-      if (!data?.success) {
-        throw new Error('Security scan failed');
+      const scanResult = response.data;
+      
+      if (!scanResult) {
+        throw new Error('No scan result returned');
       }
       
       toast({
         title: t('securityAnalysis.scanCompleted'),
-        description: `${levelInfo?.icon} ${data.totalFindings || 0} ${t('securityAnalysis.vulnerabilitiesFound')} (${data.criticalCount || 0} críticos)`,
+        description: `${levelInfo?.icon} ${scanResult.findings_count || 0} ${t('securityAnalysis.vulnerabilitiesFound')} (${scanResult.critical || 0} críticos)`,
       });
       
       // Invalidar queries para forçar atualização do banco
@@ -392,20 +398,19 @@ export default function SecurityAnalysisContent() {
       const user = await cognitoAuth.getCurrentUser();
       const userEmail = user?.email || 'Não disponível';
 
-      const data = await apiClient.lambda('generate-security-pdf', {
-        body: {
-          organizationId,
-          findings: allFindings || [],
-          posture: posture,
-          latestScan,
-          categoryBreakdown,
-          userEmail
-        }
+      const response = await apiClient.post('/security/export-pdf', {
+        organizationId,
+        findings: allFindings || [],
+        posture: posture,
+        latestScan,
+        categoryBreakdown,
+        userEmail
       });
 
-      
+      if (response.error) throw new Error(response.error.message);
+      const data = response.data;
 
-      if (data.pdf) {
+      if (data?.pdf) {
         // Convert base64 to blob and download as PDF
         const byteCharacters = atob(data.pdf);
         const byteNumbers = new Array(byteCharacters.length);

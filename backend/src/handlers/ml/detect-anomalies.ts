@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
+import { success, error, badRequest, notFound, unauthorized, corsOptions } from '../../lib/response.js';
 
 const prisma = new PrismaClient();
 const stsClient = new STSClient({});
@@ -32,17 +33,24 @@ interface Anomaly {
 }
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const origin = event.headers?.origin || event.headers?.Origin;
+  
+  // Handle CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+  
   try {
     const userId = event.requestContext.authorizer?.claims?.sub;
     if (!userId) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+      return unauthorized('Unauthorized', origin);
     }
 
     const body: AnomalyRequest = JSON.parse(event.body || '{}');
     const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = body;
 
     if (!awsAccountId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'awsAccountId is required' }) };
+      return badRequest('awsAccountId is required', undefined, origin);
     }
 
     // Buscar conta AWS
@@ -52,7 +60,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     });
 
     if (!awsAccount) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'AWS Account not found' }) };
+      return notFound('AWS Account not found', origin);
     }
 
     // Assume role (usando campos corretos do schema)
@@ -126,28 +134,23 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return acc;
     }, {} as Record<string, number>);
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        success: true,
-        summary: {
-          totalAnomalies: anomalies.length,
-          byCategory,
-          bySeverity,
-          analysisType,
-          sensitivity,
-          lookbackDays
-        },
-        anomalies: anomalies.sort((a, b) => {
-          const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-          return severityOrder[a.severity] - severityOrder[b.severity];
-        })
+    return success({
+      summary: {
+        totalAnomalies: anomalies.length,
+        byCategory,
+        bySeverity,
+        analysisType,
+        sensitivity,
+        lookbackDays
+      },
+      anomalies: anomalies.sort((a, b) => {
+        const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+        return severityOrder[a.severity] - severityOrder[b.severity];
       })
-    };
-  } catch (error) {
-    logger.error('Detect anomalies error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Internal server error' }) };
+    }, 200, origin);
+  } catch (err) {
+    logger.error('Detect anomalies error:', err);
+    return error('Internal server error', 500, undefined, origin);
   }
 };
 

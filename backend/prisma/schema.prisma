@@ -145,10 +145,31 @@ model SecurityScan {
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   aws_credential    AwsCredential @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)
   compliance_checks ComplianceCheck[]
+  well_architected_scores WellArchitectedScore[]
   
   @@index([organization_id])
   @@index([status])
   @@map("security_scans")
+}
+
+model WellArchitectedScore {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  scan_id           String   @db.Uuid
+  pillar            String
+  score             Int
+  checks_passed     Int      @default(0)
+  checks_failed     Int      @default(0)
+  critical_issues   Int      @default(0)
+  recommendations   Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  scan              SecurityScan @relation(fields: [scan_id], references: [id], onDelete: Cascade)
+  
+  @@index([organization_id])
+  @@index([scan_id])
+  @@index([pillar])
+  @@map("well_architected_scores")
 }
 
 model ComplianceCheck {

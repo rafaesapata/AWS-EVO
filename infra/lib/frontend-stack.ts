@@ -4,6 +4,7 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as path from 'path';
 import { Construct } from 'constructs';
 
 export interface FrontendStackProps extends cdk.StackProps {
@@ -77,7 +78,7 @@ export class FrontendStack extends cdk.Stack {
 
     // Deploy frontend assets
     new s3deploy.BucketDeployment(this, 'FrontendDeployment', {
-      sources: [s3deploy.Source.asset('dist')],
+      sources: [s3deploy.Source.asset(path.join(__dirname, '../../dist'))],
       destinationBucket: this.bucket,
       distribution: this.distribution,
       distributionPaths: ['/*'],
