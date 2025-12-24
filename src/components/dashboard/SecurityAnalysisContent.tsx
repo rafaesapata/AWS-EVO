@@ -192,7 +192,7 @@ export default function SecurityAnalysisContent() {
         description: `${levelInfo?.icon} ${levelInfo?.name}: ${t('securityAnalysis.analyzingInfra')} (${levelInfo?.estimatedTime})`,
       });
 
-      const response = await apiClient.post('/security/scan', { 
+      const response = await apiClient.lambda('security-scan', { 
         accountId: selectedAccountId,
         scanLevel: selectedScanLevel
       });

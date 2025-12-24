@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -185,18 +184,16 @@ export const EdgeMonitoring = () => {
 
     setIsRefreshing(true);
     try {
-      // Get session for authentication
-      const session = await cognitoAuth.getCurrentSession();
-      if (!session) {
-        throw new Error('Sessão não encontrada. Por favor, faça login novamente.');
-      }
-
-      const data = await apiClient.lambda('fetch-cloudwatch-metrics', {
-        body: { accountId: selectedAccountId },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+      // Call Lambda - auth headers are handled automatically by apiClient
+      const response = await apiClient.lambda('fetch-cloudwatch-metrics', {
+        accountId: selectedAccountId
       });
+      
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+      
+      const data = response.data;
 
       
 

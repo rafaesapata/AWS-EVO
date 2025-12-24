@@ -56,7 +56,7 @@ export default function AnomalyDetection() {
         description: "Analisando padrões de custo nos últimos 30 dias",
       });
 
-      const { data, error } = await apiClient.lambda('anomaly-detection');
+      const { data, error } = await apiClient.lambda('detect-anomalies');
 
       
 

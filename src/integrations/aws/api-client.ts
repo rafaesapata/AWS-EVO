@@ -192,7 +192,7 @@ class ApiClient {
     functionName: string,
     payload?: Record<string, any>
   ): Promise<ApiResponse<T> | ApiError> {
-    return this.request<T>(`/api/lambda/${functionName}`, {
+    return this.request<T>(`/api/functions/${functionName}`, {
       method: 'POST',
       body: payload ? JSON.stringify(payload) : undefined,
     });
