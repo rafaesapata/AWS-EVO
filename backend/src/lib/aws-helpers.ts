@@ -68,6 +68,21 @@ export async function resolveAwsCredentials(
   },
   region: string
 ): Promise<AWSCredentials> {
+  // Check if access_key_id contains ROLE: prefix (CloudFormation deployment pattern)
+  // In this case, the role ARN is stored in access_key_id with ROLE: prefix
+  // and external_id is stored in secret_access_key with EXTERNAL_ID: prefix
+  if (credential.access_key_id?.startsWith('ROLE:')) {
+    const roleArn = credential.access_key_id.replace('ROLE:', '');
+    const externalId = credential.external_id || 
+                       credential.secret_access_key?.replace('EXTERNAL_ID:', '') || '';
+    
+    console.log('🔐 Assuming role (from ROLE: prefix):', roleArn);
+    console.log('🔐 External ID:', externalId ? `${externalId.substring(0, 8)}...` : 'EMPTY');
+    console.log('🔐 credential.external_id:', credential.external_id ? 'SET' : 'NULL');
+    console.log('🔐 credential.secret_access_key starts with EXTERNAL_ID:', credential.secret_access_key?.startsWith('EXTERNAL_ID:'));
+    return assumeRole(roleArn, externalId, region);
+  }
+  
   // Se tem role_arn, usa AssumeRole
   if (credential.role_arn && credential.external_id) {
     console.log('🔐 Assuming role:', credential.role_arn);

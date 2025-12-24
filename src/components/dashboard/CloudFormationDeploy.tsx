@@ -798,6 +798,17 @@ const CloudFormationDeploy = () => {
               )}
             </div>
 
+            {/* Reopen CloudFormation Console */}
+            <div className="flex flex-col gap-3 pt-2 border-t">
+              <p className="text-sm text-muted-foreground">
+                Precisa reabrir o Console AWS CloudFormation?
+              </p>
+              <QuickCreateLink 
+                externalId={externalId}
+                initialRegion={regions[0] || 'us-east-1'}
+              />
+            </div>
+
             {/* Action Buttons */}
             <div className="flex gap-2">
               <Button
