@@ -334,10 +334,10 @@ export function AWSPermissionsGuide() {
         return;
       }
 
-      // Validar com edge function usando accountId do contexto global
+      // Validar com edge function usando credentialId do contexto global
       const result = await apiClient.invoke('validate-aws-credentials', {
         body: {
-          accountId: selectedAccountId
+          credentialId: selectedAccountId
         }
       });
 
