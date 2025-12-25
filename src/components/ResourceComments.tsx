@@ -28,7 +28,7 @@ export default function ResourceComments({ resourceType, resourceId }: ResourceC
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
 
-      const orgResult = await apiClient.invoke('get-user-organization', { userId: user.username });
+      const orgResult = await apiClient.invoke('get-user-organization', { body: { userId: user.username } });
       if (!orgResult.data) throw new Error('No organization found');
 
       const result = await apiClient.select('resource_comments', {
@@ -52,7 +52,7 @@ export default function ResourceComments({ resourceType, resourceId }: ResourceC
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
 
-      const orgResult = await apiClient.invoke('get-user-organization', { userId: user.username });
+      const orgResult = await apiClient.invoke('get-user-organization', { body: { userId: user.username } });
       if (!orgResult.data) throw new Error('No organization found');
 
       // Extract mentions (@username)
@@ -116,7 +116,7 @@ export default function ResourceComments({ resourceType, resourceId }: ResourceC
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
 
-      const orgResult = await apiClient.invoke('get-user-organization', { userId: user.username });
+      const orgResult = await apiClient.invoke('get-user-organization', { body: { userId: user.username } });
       if (!orgResult.data) throw new Error('No organization found');
 
       // Security: Only delete if comment belongs to user's organization

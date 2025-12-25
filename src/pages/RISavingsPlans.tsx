@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiClient } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { Layout } from "@/components/Layout";
 import { 
   DollarSign, 
   TrendingDown, 
@@ -273,48 +274,14 @@ export default function RISavingsPlans() {
   const COLORS = ['#3b82f6', '#10b981'];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-6 w-6 text-primary" />
-                Reserved Instances & Savings Plans
-              </CardTitle>
-              <CardDescription>
-                Gestão e otimização de Reserved Instances e Savings Plans para maximizar economia
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={riLoading || spLoading}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${riLoading || spLoading ? 'animate-spin' : ''}`} />
-                {riLoading || spLoading ? 'Atualizando...' : 'Atualizar'}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={exportReport}
-                className="glass"
-                disabled={(!reservedInstances || reservedInstances.length === 0) && (!savingsPlans || savingsPlans.length === 0)}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Exportar Relatório
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+    <Layout 
+      title="Reserved Instances & Savings Plans" 
+      description="Gestão e otimização de RI e Savings Plans para maximizar economia"
+      icon={<DollarSign className="h-5 w-5 text-white" />}
+    >
+      <div className="space-y-6">
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Reserved Instances</CardTitle>
@@ -772,6 +739,7 @@ export default function RISavingsPlans() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </Layout>
   );
 }

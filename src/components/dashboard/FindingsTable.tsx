@@ -244,14 +244,25 @@ const FindingsTable = ({ findings, onUpdate }: FindingsTableProps) => {
                   </td>
                   <td className="p-4 font-mono text-sm">{finding.event_name}</td>
                   <td className="p-4">
-                    {finding.details?.resourceId || finding.details?.resourceArn ? (
+                    {finding.resource_arn || finding.details?.resourceArn ? (
                       <div className="font-mono text-xs max-w-[200px]">
-                        <div className="truncate" title={finding.details?.resourceArn || finding.details?.resourceId}>
-                          {finding.details?.resourceArn || finding.details?.resourceId}
+                        <div className="truncate" title={finding.resource_arn || finding.details?.resourceArn}>
+                          {finding.resource_arn || finding.details?.resourceArn}
                         </div>
+                        {(finding.resource_id || finding.details?.resourceId) && (
+                          <div className="text-muted-foreground truncate" title={finding.resource_id || finding.details?.resourceId}>
+                            ID: {finding.resource_id || finding.details?.resourceId}
+                          </div>
+                        )}
                         {finding.details?.resourceType && (
                           <div className="text-muted-foreground">{finding.details?.resourceType}</div>
                         )}
+                      </div>
+                    ) : finding.resource_id || finding.details?.resourceId ? (
+                      <div className="font-mono text-xs max-w-[200px]">
+                        <div className="truncate" title={finding.resource_id || finding.details?.resourceId}>
+                          {finding.resource_id || finding.details?.resourceId}
+                        </div>
                       </div>
                     ) : (
                       <span className="text-muted-foreground text-xs">N/A</span>

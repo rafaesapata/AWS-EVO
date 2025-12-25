@@ -81,6 +81,9 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   'iam_behavior_anomalies': { 'aws_account_id': 'account_id' },
   'iam_behavior_analysis': { 'aws_account_id': 'account_id' },
   'optimization_recommendations': { 'aws_account_id': 'account_id' },
+  // findings - aws_account_id exists in schema but may not be in DB yet
+  'findings': { 'aws_account_id': 'aws_account_id' },
+  'scan_findings': { 'aws_account_id': 'aws_account_id' },
   // Tabelas que NÃO têm aws_account_id - ignorar esse campo
   'alerts': { 'aws_account_id': null },
   'security_alerts': { 'aws_account_id': null },

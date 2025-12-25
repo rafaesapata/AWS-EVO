@@ -12,14 +12,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface SecurityScan {
   id: string;
-  scan_date: string;
-  total_findings: number;
-  critical_count: number;
-  high_count: number;
-  medium_count: number;
-  low_count: number;
-  findings_summary?: { overall_score?: number; scan_id?: string };
-  execution_time_seconds?: number;
+  created_at: string;
+  started_at: string;
+  completed_at: string | null;
+  scan_type: string;
+  status: string;
+  findings_count: number | null;
+  critical_count: number | null;
+  high_count: number | null;
+  medium_count: number | null;
+  low_count: number | null;
+  scan_config?: any;
+  results?: any;
 }
 
 interface SecurityScanHistoryProps {
@@ -48,15 +52,22 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
 
       const response = await apiClient.select<SecurityScan>('security_scans', {
         eq: filters,
-        order: { column: 'scan_date', ascending: false },
+        order: { column: 'created_at', ascending: false },
         limit: 100
       });
       
-      if (response.error) return [];
+      if (response.error) {
+        console.error('SecurityScanHistory: API error', response.error);
+        return [];
+      }
       let data = response.data || [];
       
+      console.log('SecurityScanHistory: Raw data from API', { count: data.length, data });
+      
       if (cutoffDate) {
-        data = data.filter((s) => s.scan_date >= cutoffDate!);
+        const beforeFilter = data.length;
+        data = data.filter((s) => s.created_at >= cutoffDate!);
+        console.log('SecurityScanHistory: After date filter', { beforeFilter, afterFilter: data.length, cutoffDate });
       }
       
       return data;
@@ -64,20 +75,20 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
   });
 
   const chartData = scanHistory?.slice().reverse().map((scan) => ({
-    date: format(new Date(scan.scan_date), 'dd/MM', { locale: ptBR }),
-    fullDate: format(new Date(scan.scan_date), 'dd/MM/yyyy HH:mm', { locale: ptBR }),
-    total: scan.total_findings,
-    critical: scan.critical_count,
-    high: scan.high_count,
-    medium: scan.medium_count,
-    low: scan.low_count,
-    score: (scan.findings_summary as any)?.overall_score || 0
+    date: format(new Date(scan.created_at), 'dd/MM', { locale: ptBR }),
+    fullDate: format(new Date(scan.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }),
+    total: scan.findings_count || 0,
+    critical: scan.critical_count || 0,
+    high: scan.high_count || 0,
+    medium: scan.medium_count || 0,
+    low: scan.low_count || 0,
+    score: 0
   })) || [];
 
   const latestScan = scanHistory?.[0] as SecurityScan | undefined;
   const previousScan = scanHistory?.[1] as SecurityScan | undefined;
-  const totalTrend = latestScan && previousScan ? latestScan.total_findings - previousScan.total_findings : 0;
-  const criticalTrend = latestScan && previousScan ? latestScan.critical_count - previousScan.critical_count : 0;
+  const totalTrend = latestScan && previousScan ? (latestScan.findings_count || 0) - (previousScan.findings_count || 0) : 0;
+  const criticalTrend = latestScan && previousScan ? (latestScan.critical_count || 0) - (previousScan.critical_count || 0) : 0;
 
   if (isLoading) {
     return <Card><CardHeader><CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Histórico de Scans</CardTitle></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>;
@@ -108,7 +119,7 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total de Vulnerabilidades</p>
-                    <p className="text-2xl font-bold">{latestScan.total_findings}</p>
+                    <p className="text-2xl font-bold">{latestScan.findings_count || 0}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${totalTrend < 0 ? 'text-green-500' : totalTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {totalTrend < 0 ? <TrendingDown className="h-5 w-5" /> : totalTrend > 0 ? <TrendingUp className="h-5 w-5" /> : null}
@@ -122,7 +133,7 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Vulnerabilidades Críticas</p>
-                    <p className="text-2xl font-bold">{latestScan.critical_count}</p>
+                    <p className="text-2xl font-bold">{latestScan.critical_count || 0}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${criticalTrend < 0 ? 'text-green-500' : criticalTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {criticalTrend < 0 ? <TrendingDown className="h-5 w-5" /> : criticalTrend > 0 ? <TrendingUp className="h-5 w-5" /> : null}
@@ -193,19 +204,19 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <Shield className="h-4 w-4 text-primary" />
-                        <span className="font-medium">{format(new Date(scan.scan_date), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                        <span className="font-medium">{format(new Date(scan.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}</span>
                       </div>
                       <div className="flex gap-2 flex-wrap">
-                        <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">{scan.critical_count} Críticas</Badge>
-                        <Badge variant="outline" className="bg-orange-500/10 text-orange-500 border-orange-500/20">{scan.high_count} Altas</Badge>
-                        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">{scan.medium_count} Médias</Badge>
-                        <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">{scan.low_count} Baixas</Badge>
+                        <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">{scan.critical_count || 0} Críticas</Badge>
+                        <Badge variant="outline" className="bg-orange-500/10 text-orange-500 border-orange-500/20">{scan.high_count || 0} Altas</Badge>
+                        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">{scan.medium_count || 0} Médias</Badge>
+                        <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">{scan.low_count || 0} Baixas</Badge>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                      <Badge variant="secondary" className="text-lg font-bold">{scan.total_findings}</Badge>
-                      {onViewScan && (scan.findings_summary as any)?.scan_id && (
-                        <Button size="sm" variant="ghost" onClick={() => onViewScan((scan.findings_summary as any).scan_id)}>
+                      <Badge variant="secondary" className="text-lg font-bold">{scan.findings_count || 0}</Badge>
+                      {onViewScan && (
+                        <Button size="sm" variant="ghost" onClick={() => onViewScan(scan.id)}>
                           <Eye className="h-4 w-4 mr-1" />Ver Detalhes
                         </Button>
                       )}

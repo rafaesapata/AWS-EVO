@@ -4,10 +4,12 @@ import { useTranslation } from "react-i18next";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Footer } from "@/components/ui/footer";
-import { Button } from "@/components/ui/button";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { Users, Building2 } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { AwsAccountSelector } from "@/components/AwsAccountSelector";
+import ThemeToggle from "@/components/ThemeToggle";
+import LanguageToggle from "@/components/LanguageToggle";
+import UserMenu from "@/components/UserMenu";
 
 interface LayoutProps {
   children: ReactNode;
@@ -143,16 +145,6 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
     loadUser();
   }, []);
 
-  const handleSignOut = async () => {
-    try {
-      localStorage.removeItem('evo-auth');
-      await cognitoAuth.signOut();
-      navigate("/");
-    } catch (error) {
-      navigate("/");
-    }
-  };
-
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     // Navigation is handled by AppSidebar
@@ -160,23 +152,23 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full animated-gradient">
+      <div className="min-h-screen flex w-full bg-gradient-subtle">
         <AppSidebar 
           activeTab={activeTab} 
           onTabChange={handleTabChange} 
           userRole={userRole} 
         />
         
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <header className="glass sticky top-4 z-40 mx-4 rounded-2xl shadow-glass animate-slide-up">
-            <div className="px-6 py-6">
-              <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 flex flex-col">
+          {/* Header - Padrão Visual Consistente */}
+          <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
+            <div className="container mx-auto px-6 py-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <SidebarTrigger />
+                  <SidebarTrigger className="-ml-1" />
                   <div className="flex items-center gap-3">
                     {icon && (
-                      <div className="h-12 w-12 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow">
+                      <div className="h-10 w-10 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow">
                         {icon}
                       </div>
                     )}
@@ -184,46 +176,32 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
                       <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
                         {title || "EVO UDS Platform"}
                       </h1>
-                      <p className="text-muted-foreground text-sm">
-                        {description || "AWS Cloud Intelligence Platform v3.1-debug"}
+                      <p className="text-sm text-muted-foreground">
+                        {description || "AWS Cloud Intelligence Platform v3.2"}
                       </p>
                     </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  {/* AWS Account Selector */}
-                  <AwsAccountSelector compact />
-                  
                   {user?.organizationId && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
                       <Building2 className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium text-primary">
+                      <span className="text-sm font-medium">
                         {user.organizationName || user.organizationId}
                       </span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
-                    <Users className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">
-                      {user?.name || user?.email || "Usuário"}
-                    </span>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleSignOut}
-                    className="glass hover:shadow-elegant"
-                  >
-                    Sair
-                  </Button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <AwsAccountSelector />
+                  <LanguageToggle />
+                  <ThemeToggle />
+                  <UserMenu />
                 </div>
               </div>
             </div>
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 p-6 overflow-auto">
+          <main className="flex-1 container mx-auto px-6 py-6 overflow-auto">
             {children}
           </main>
           

@@ -98,10 +98,12 @@ export default function CopilotAI() {
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
       const response = await apiClient.invoke('bedrock-chat', {
-        message,
-        context: contextData,
-        accountId: selectedAccountId,
-        organizationId
+        body: {
+          message,
+          context: contextData,
+          accountId: selectedAccountId,
+          organizationId
+        }
       });
 
       if (response.error) {

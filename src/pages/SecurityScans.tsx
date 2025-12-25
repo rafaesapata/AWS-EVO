@@ -29,20 +29,17 @@ import {
 
 interface SecurityScan {
   id: string;
-  scan_type: 'vulnerability' | 'compliance' | 'configuration' | 'network';
-  scan_name: string;
-  status: 'running' | 'completed' | 'failed' | 'scheduled';
-  progress: number;
+  scan_type: string;
+  status: string;
   started_at: string;
   completed_at: string | null;
-  duration_seconds: number | null;
-  findings_count: number;
-  critical_findings: number;
-  high_findings: number;
-  medium_findings: number;
-  low_findings: number;
-  resources_scanned: number;
+  findings_count: number | null;
+  critical_count: number | null;
+  high_count: number | null;
+  medium_count: number | null;
+  low_count: number | null;
   scan_config: any;
+  created_at: string;
 }
 
 interface ScanFinding {
@@ -70,13 +67,19 @@ export default function SecurityScans() {
   // Get security scans
   const { data: scans, isLoading, refetch } = useQuery({
     queryKey: ['security-scans', organizationId, selectedAccountId, selectedScanType],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: !!organizationId, // Only require organizationId, accountId is optional
     staleTime: 30 * 1000, // 30 seconds for real-time updates
     queryFn: async () => {
+      console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType });
+      
       let filters: any = { 
-        organization_id: organizationId,
-        aws_account_id: selectedAccountId
+        organization_id: organizationId
       };
+      
+      // Only filter by account if one is selected
+      if (selectedAccountId) {
+        filters.aws_account_id = selectedAccountId;
+      }
 
       if (selectedScanType !== 'all') {
         filters.scan_type = selectedScanType;
@@ -85,11 +88,13 @@ export default function SecurityScans() {
       const response = await apiClient.select('security_scans', {
         select: '*',
         eq: filters,
-        order: { started_at: 'desc' }
+        order: { column: 'created_at', ascending: false }
       });
 
+      console.log('SecurityScans: API response', { error: response.error, dataLength: response.data?.length, data: response.data });
+
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(response.error.message || 'Error fetching scans');
       }
 
       return response.data || [];
@@ -99,23 +104,26 @@ export default function SecurityScans() {
   // Get scan findings for the latest completed scan
   const { data: findings, isLoading: findingsLoading } = useQuery({
     queryKey: ['scan-findings', organizationId, selectedAccountId],
-    enabled: !!organizationId && !!selectedAccountId && scans && scans.length > 0,
+    enabled: !!organizationId && scans && scans.length > 0,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       const latestCompletedScan = scans?.find(scan => scan.status === 'completed');
       if (!latestCompletedScan) return [];
 
-      const response = await apiClient.select('scan_findings', {
+      const filters: any = { 
+        organization_id: organizationId
+      };
+
+      const response = await apiClient.select('findings', {
         select: '*',
-        eq: { 
-          scan_id: latestCompletedScan.id,
-          organization_id: organizationId
-        },
-        order: { severity: 'desc' }
+        eq: filters,
+        order: { column: 'created_at', ascending: false },
+        limit: 100
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        console.error('Error fetching findings:', response.error);
+        return [];
       }
 
       return response.data || [];
@@ -126,9 +134,11 @@ export default function SecurityScans() {
   const startScanMutation = useMutation({
     mutationFn: async (scanType: string) => {
       const response = await apiClient.invoke('start-security-scan', {
-        scanType,
-        accountId: selectedAccountId,
-        organizationId
+        body: {
+          scanType,
+          accountId: selectedAccountId,
+          organizationId
+        }
       });
 
       if (response.error) {
@@ -255,8 +265,8 @@ export default function SecurityScans() {
   // Calculate summary metrics
   const runningScans = scans?.filter(scan => scan.status === 'running').length || 0;
   const completedScans = scans?.filter(scan => scan.status === 'completed').length || 0;
-  const totalFindings = scans?.reduce((sum, scan) => sum + scan.findings_count, 0) || 0;
-  const criticalFindings = scans?.reduce((sum, scan) => sum + scan.critical_findings, 0) || 0;
+  const totalFindings = scans?.reduce((sum, scan) => sum + (scan.findings_count || 0), 0) || 0;
+  const criticalFindings = scans?.reduce((sum, scan) => sum + (scan.critical_count || 0), 0) || 0;
 
   const scanTypes = [
     { value: 'vulnerability', label: 'Vulnerabilidades', description: 'Scan de vulnerabilidades conhecidas' },
@@ -450,9 +460,9 @@ export default function SecurityScans() {
                           <div className="flex items-start gap-3">
                             {TypeIcon}
                             <div className="space-y-1">
-                              <h4 className="font-semibold">{scan.scan_name}</h4>
+                              <h4 className="font-semibold">{scan.scan_type}</h4>
                               <p className="text-sm text-muted-foreground">
-                                {scan.scan_type.replace('_', ' ').toUpperCase()}
+                                {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
                               </p>
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <span>Iniciado: {new Date(scan.started_at).toLocaleString('pt-BR')}</span>
@@ -460,12 +470,6 @@ export default function SecurityScans() {
                                   <>
                                     <span>•</span>
                                     <span>Concluído: {new Date(scan.completed_at).toLocaleString('pt-BR')}</span>
-                                  </>
-                                )}
-                                {scan.duration_seconds && (
-                                  <>
-                                    <span>•</span>
-                                    <span>Duração: {Math.round(scan.duration_seconds / 60)}min</span>
                                   </>
                                 )}
                               </div>
@@ -476,33 +480,30 @@ export default function SecurityScans() {
                               {getStatusIcon(scan.status)}
                               {getStatusBadge(scan.status)}
                             </div>
-                            {scan.status === 'running' && (
-                              <Progress value={scan.progress} className="w-24 h-2" />
-                            )}
                           </div>
                         </div>
                         
                         {scan.status === 'completed' && (
                           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                             <div>
-                              <span className="text-muted-foreground">Recursos:</span>
-                              <div className="font-medium">{scan.resources_scanned}</div>
+                              <span className="text-muted-foreground">Total:</span>
+                              <div className="font-medium">{scan.findings_count || 0}</div>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Críticos:</span>
-                              <div className="font-medium text-red-500">{scan.critical_findings}</div>
+                              <div className="font-medium text-red-500">{scan.critical_count || 0}</div>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Altos:</span>
-                              <div className="font-medium text-orange-500">{scan.high_findings}</div>
+                              <div className="font-medium text-orange-500">{scan.high_count || 0}</div>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Médios:</span>
-                              <div className="font-medium text-yellow-500">{scan.medium_findings}</div>
+                              <div className="font-medium text-yellow-500">{scan.medium_count || 0}</div>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Baixos:</span>
-                              <div className="font-medium text-green-500">{scan.low_findings}</div>
+                              <div className="font-medium text-green-500">{scan.low_count || 0}</div>
                             </div>
                           </div>
                         )}

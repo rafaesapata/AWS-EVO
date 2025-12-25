@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { Layout } from "@/components/Layout";
 import { 
   Users, 
   Plus, 
@@ -130,9 +131,11 @@ export default function UserManagement() {
     mutationFn: async (userData: typeof newUser) => {
       // Create user in Cognito first
       const cognitoResponse = await apiClient.invoke('create-cognito-user', {
-        email: userData.email,
-        name: userData.name,
-        temporaryPassword: generateTemporaryPassword()
+        body: {
+          email: userData.email,
+          name: userData.name,
+          temporaryPassword: generateTemporaryPassword()
+        }
       });
 
       if (cognitoResponse.error) {
@@ -209,7 +212,7 @@ export default function UserManagement() {
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
       // Disable user in Cognito first
-      await apiClient.invoke('disable-cognito-user', { userId });
+      await apiClient.invoke('disable-cognito-user', { body: { userId } });
 
       // Update user status in database
       const response = await apiClient.update('users', {
@@ -305,149 +308,14 @@ export default function UserManagement() {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-6 w-6 text-primary" />
-                Gerenciamento de Usuários
-              </CardTitle>
-              <CardDescription>
-                Gerencie usuários, permissões e acesso às contas AWS
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => refetch()}
-                disabled={isLoading}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Atualizar
-              </Button>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2">
-                    <UserPlus className="h-4 w-4" />
-                    Novo Usuário
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Criar Novo Usuário</DialogTitle>
-                    <DialogDescription>
-                      Adicione um novo usuário à organização
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={newUser.email}
-                          onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-                          placeholder="usuario@empresa.com"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Nome Completo</Label>
-                        <Input
-                          id="name"
-                          value={newUser.name}
-                          onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="João Silva"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="role">Função</Label>
-                      <Select value={newUser.role} onValueChange={(value: any) => setNewUser(prev => ({ ...prev, role: value }))}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="viewer">Visualizador</SelectItem>
-                          <SelectItem value="user">Usuário</SelectItem>
-                          <SelectItem value="admin">Administrador</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Permissões</Label>
-                      <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-                        {availablePermissions.map((permission) => (
-                          <div key={permission.value} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id={permission.value}
-                              checked={newUser.permissions.includes(permission.value)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setNewUser(prev => ({ ...prev, permissions: [...prev.permissions, permission.value] }));
-                                } else {
-                                  setNewUser(prev => ({ ...prev, permissions: prev.permissions.filter(p => p !== permission.value) }));
-                                }
-                              }}
-                            />
-                            <Label htmlFor={permission.value} className="text-sm">
-                              {permission.label}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Contas AWS</Label>
-                      <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto">
-                        {awsAccounts?.map((account) => (
-                          <div key={account.aws_account_id} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id={account.aws_account_id}
-                              checked={newUser.aws_accounts.includes(account.aws_account_id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setNewUser(prev => ({ ...prev, aws_accounts: [...prev.aws_accounts, account.aws_account_id] }));
-                                } else {
-                                  setNewUser(prev => ({ ...prev, aws_accounts: prev.aws_accounts.filter(a => a !== account.aws_account_id) }));
-                                }
-                              }}
-                            />
-                            <Label htmlFor={account.aws_account_id} className="text-sm">
-                              {account.account_name || account.aws_account_id}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={handleCreateUser} disabled={createUserMutation.isPending}>
-                      {createUserMutation.isPending ? 'Criando...' : 'Criar Usuário'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+    <Layout 
+      title="Gerenciamento de Usuários" 
+      description="Gerencie usuários, permissões e acesso às contas AWS"
+      icon={<Users className="h-5 w-5 text-white" />}
+    >
+      <div className="space-y-6">
+        {/* Stats */}
+        <div className="grid gap-4 md:grid-cols-4">
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Usuários</CardTitle>
@@ -766,6 +634,114 @@ export default function UserManagement() {
           </DialogContent>
         </Dialog>
       )}
-    </div>
+
+      {/* Create User Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Usuário</DialogTitle>
+            <DialogDescription>
+              Adicione um novo usuário à organização
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="usuario@empresa.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome Completo</Label>
+                <Input
+                  id="name"
+                  value={newUser.name}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="João Silva"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="role">Função</Label>
+              <Select value={newUser.role} onValueChange={(value: any) => setNewUser(prev => ({ ...prev, role: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Visualizador</SelectItem>
+                  <SelectItem value="user">Usuário</SelectItem>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Permissões</Label>
+              <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                {availablePermissions.map((permission) => (
+                  <div key={permission.value} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={permission.value}
+                      checked={newUser.permissions.includes(permission.value)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setNewUser(prev => ({ ...prev, permissions: [...prev.permissions, permission.value] }));
+                        } else {
+                          setNewUser(prev => ({ ...prev, permissions: prev.permissions.filter(p => p !== permission.value) }));
+                        }
+                      }}
+                    />
+                    <Label htmlFor={permission.value} className="text-sm">
+                      {permission.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Contas AWS</Label>
+              <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto">
+                {awsAccounts?.map((account) => (
+                  <div key={account.aws_account_id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={account.aws_account_id}
+                      checked={newUser.aws_accounts.includes(account.aws_account_id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setNewUser(prev => ({ ...prev, aws_accounts: [...prev.aws_accounts, account.aws_account_id] }));
+                        } else {
+                          setNewUser(prev => ({ ...prev, aws_accounts: prev.aws_accounts.filter(a => a !== account.aws_account_id) }));
+                        }
+                      }}
+                    />
+                    <Label htmlFor={account.aws_account_id} className="text-sm">
+                      {account.account_name || account.aws_account_id}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateUser} disabled={createUserMutation.isPending}>
+              {createUserMutation.isPending ? 'Criando...' : 'Criar Usuário'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </div>
+    </Layout>
   );
 }

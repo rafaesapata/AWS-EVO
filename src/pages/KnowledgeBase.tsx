@@ -287,7 +287,7 @@ function KnowledgeBaseContent() {
   const markHelpfulMutation = useMutation({
     mutationFn: async (articleId: string) => {
       const result = await apiClient.invoke('increment_article_helpful', {
-        article_id: articleId
+        body: { article_id: articleId }
       });
       if (result.error) throw new Error(result.error);
     },
@@ -323,7 +323,7 @@ function KnowledgeBaseContent() {
   });
 
   const incrementViewCount = async (articleId: string) => {
-    await apiClient.invoke('increment_article_views', { article_id: articleId });
+    await apiClient.invoke('increment_article_views', { body: { article_id: articleId } });
   };
 
   const handleViewArticle = async (article: any) => {
@@ -331,8 +331,10 @@ function KnowledgeBaseContent() {
     
     // Track view for audit
     await apiClient.invoke('track_article_view_detailed', {
-      p_article_id: article.id,
-      p_device_type: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'mobile' : 'desktop'
+      body: {
+        p_article_id: article.id,
+        p_device_type: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'mobile' : 'desktop'
+      }
     });
   };
 
@@ -368,7 +370,7 @@ function KnowledgeBaseContent() {
   const handleExport = async (articleId: string, format: string) => {
     try {
       const result = await apiClient.invoke('kb-export-pdf', {
-        articleId, format
+        body: { articleId, format }
       });
 
       if (result.error) throw new Error(result.error);

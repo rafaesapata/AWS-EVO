@@ -42,30 +42,14 @@ export default function UserMenu() {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) return;
 
-      // Get profile from AWS API
-      const profileData = await apiClient.get('/user/profile');
-      if (profileData) {
-        setProfile({
-          full_name: profileData.full_name || user.name || 'User',
-          email: profileData.email || user.email,
-          avatar_url: profileData.avatar_url
-        });
-      }
+      // Use Cognito user data directly - profile data is in the token
+      setProfile({
+        full_name: user.name || user.attributes?.name || 'User',
+        email: user.email,
+        avatar_url: undefined
+      });
     } catch (error) {
       console.error('Error loading profile:', error);
-      // Fallback to user data from Cognito
-      try {
-        const user = await cognitoAuth.getCurrentUser();
-        if (user) {
-          setProfile({
-            full_name: user.name || 'User',
-            email: user.email,
-            avatar_url: undefined
-          });
-        }
-      } catch (fallbackError) {
-        console.error('Error loading user from Cognito:', fallbackError);
-      }
     }
   };
 

@@ -44,8 +44,10 @@ export function GlobalSystemUpdater({ accountId }: { accountId?: string }) {
     try {
       // CRITICAL: Pass BOTH accountId AND organizationId to Lambda functions for proper data isolation
       const result = await apiClient.invoke(routine.name, {
-        accountId: awsAccountId, 
-        organizationId: orgId
+        body: {
+          accountId: awsAccountId, 
+          organizationId: orgId
+        }
       });
 
       const duration = Date.now() - startTime;

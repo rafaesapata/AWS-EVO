@@ -229,5 +229,72 @@ export function withLogging<T extends (...args: any[]) => any>(
   }) as T;
 }
 
+/**
+ * Middleware for request ID tracking
+ * Extracts request ID from headers or generates one, and includes it in response
+ */
+export function withRequestId<T extends (...args: any[]) => any>(
+  handler: T
+): T {
+  return (async (event: any, context: any) => {
+    // Extract or generate request ID
+    const requestId = event?.headers?.['x-request-id'] || 
+                      event?.headers?.['X-Request-ID'] || 
+                      context?.awsRequestId || 
+                      `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const correlationId = event?.headers?.['x-correlation-id'] || 
+                          event?.headers?.['X-Correlation-ID'] || 
+                          requestId;
+    
+    // Set context for logging
+    logger.info('Request started', {
+      requestId,
+      correlationId,
+      method: event?.requestContext?.http?.method || event?.httpMethod,
+      path: event?.requestContext?.http?.path || event?.path,
+    });
+    
+    // Import and set request context for response headers
+    const { setRequestContext } = await import('./response.js');
+    setRequestContext(requestId, correlationId);
+    
+    const startTime = Date.now();
+    
+    try {
+      const result = await handler(event, context);
+      const duration = Date.now() - startTime;
+      
+      logger.info('Request completed', {
+        requestId,
+        correlationId,
+        duration,
+        statusCode: result?.statusCode,
+      });
+      
+      // Ensure request ID is in response headers
+      return {
+        ...result,
+        headers: {
+          ...result?.headers,
+          'X-Request-ID': requestId,
+          'X-Correlation-ID': correlationId,
+          'X-Response-Time': `${duration}ms`,
+        },
+      };
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      
+      logger.error('Request failed', error as Error, {
+        requestId,
+        correlationId,
+        duration,
+      });
+      
+      throw error;
+    }
+  }) as T;
+}
+
 // Export default logger instance
 export default logger;

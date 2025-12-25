@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiClient } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { Layout } from "@/components/Layout";
 import { 
   Shield, 
   CheckCircle, 
@@ -233,48 +234,14 @@ export default function Compliance() {
   const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#6b7280'];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-6 w-6 text-primary" />
-                Compliance & Conformidade
-              </CardTitle>
-              <CardDescription>
-                Verificação de conformidade com frameworks de segurança e regulamentações
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isLoading}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                {isLoading ? 'Atualizando...' : 'Atualizar'}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={exportCompliance}
-                className="glass"
-                disabled={!frameworks || frameworks.length === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Exportar Relatório
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+    <Layout 
+      title="Compliance & Conformidade" 
+      description="Verificação de conformidade com frameworks de segurança"
+      icon={<FileCheck className="h-5 w-5 text-white" />}
+    >
+      <div className="space-y-6">
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Frameworks</CardTitle>
@@ -630,6 +597,7 @@ export default function Compliance() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </Layout>
   );
 }

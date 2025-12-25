@@ -13,7 +13,8 @@ import type { APIGatewayProxyResultV2 } from '../types/lambda.js';
 
 const HTML_TAG_REGEX = /<[^>]*>/g;
 const SCRIPT_TAG_REGEX = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi;
-const SQL_INJECTION_REGEX = /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT|TRUNCATE|GRANT|REVOKE)\b)|[';\"\\]/gi;
+// Fixed: Don't match quotes in JSON - only match SQL keywords followed by suspicious patterns
+const SQL_INJECTION_REGEX = /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|TRUNCATE|GRANT|REVOKE)\s+(FROM|INTO|TABLE|DATABASE|ALL|WHERE|\*))|(-{2}|;--)|(\bOR\b\s+\d+\s*=\s*\d+)|(\bAND\b\s+\d+\s*=\s*\d+)/gi;
 
 /**
  * Padrões XSS adicionais para detecção avançada
@@ -312,7 +313,7 @@ export const commonSchemas = {
 
 // Security scan request validation
 export const securityScanSchema = z.object({
-  accountId: z.string().optional(),
+  accountId: z.string().nullish(), // Accept string, null, or undefined
   scanLevel: commonSchemas.scanLevel,
   regions: z.array(commonSchemas.awsRegion).optional(),
   scanTypes: z.array(z.string()).optional(),
@@ -415,7 +416,12 @@ export function parseAndValidateBody<T>(
         success: false,
         error: {
           statusCode: 400,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-API-Key, X-Request-ID, X-Correlation-ID, X-CSRF-Token',
+          },
           body: JSON.stringify({
             error: 'Malicious content detected',
             patterns: maliciousCheck.patterns

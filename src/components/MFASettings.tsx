@@ -59,7 +59,7 @@ export default function MFASettings() {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) return;
 
-      const result = await apiClient.invoke('mfa-list-factors', {});
+      const result = await apiClient.invoke('mfa-list-factors', { body: {} });
       const { data, error } = { data: result.data, error: result.error };
       
 
@@ -73,8 +73,10 @@ export default function MFASettings() {
     setLoading(true);
     try {
       const result = await apiClient.invoke('mfa-enroll', {
-        factorType: 'totp',
-        friendlyName: 'Autenticador TOTP'
+        body: {
+          factorType: 'totp',
+          friendlyName: 'Autenticador TOTP'
+        }
       });
       const { data, error } = { data: result.data, error: result.error };
 
@@ -99,8 +101,10 @@ export default function MFASettings() {
     setLoading(true);
     try {
       const result = await apiClient.invoke('mfa-challenge-verify', {
-        factorId: factorId,
-        code: verifyCode
+        body: {
+          factorId: factorId,
+          code: verifyCode
+        }
       });
       const { data, error } = { data: result.data, error: result.error };
 
@@ -130,7 +134,7 @@ export default function MFASettings() {
     try {
       // Step 1: Get challenge from backend
       const challengeResult = await apiClient.invoke('webauthn-register', {
-        action: 'generate-challenge'
+        body: { action: 'generate-challenge' }
       });
       const { data: challengeData, error: challengeError } = { data: challengeResult.data, error: challengeResult.error };
 
@@ -174,13 +178,15 @@ export default function MFASettings() {
 
       // Step 3: Send credential to backend for verification
       const verifyResult = await apiClient.invoke('webauthn-register', {
-        action: 'verify-registration',
-        credential: {
-          id: credential.id,
-          publicKey: btoa(String.fromCharCode(...new Uint8Array((credential.response as any).attestationObject))),
-          transports: (credential.response as any).getTransports?.() || [],
-        },
-        challengeId: challengeData.challenge
+        body: {
+          action: 'verify-registration',
+          credential: {
+            id: credential.id,
+            publicKey: btoa(String.fromCharCode(...new Uint8Array((credential.response as any).attestationObject))),
+            transports: (credential.response as any).getTransports?.() || [],
+          },
+          challengeId: challengeData.challenge
+        }
       });
       const { error: verifyError } = { error: verifyResult.error };
 
@@ -226,7 +232,7 @@ export default function MFASettings() {
 
         loadWebAuthnCredentials();
       } else {
-        const result = await apiClient.invoke('mfa-unenroll', { factorId });
+        const result = await apiClient.invoke('mfa-unenroll', { body: { factorId } });
         const { error } = { error: result.error };
         
 

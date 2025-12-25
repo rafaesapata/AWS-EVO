@@ -57,7 +57,7 @@ export default function LicenseManagement() {
       if (!user) throw new Error("Não autenticado");
 
       const orgData = await apiClient.invoke('get-user-organization', {
-        userId: user.username
+        body: { userId: user.username }
       });
 
       if (!orgData.data) throw new Error("Organização não encontrada");
@@ -82,7 +82,7 @@ export default function LicenseManagement() {
         body.customer_id = customerIdToValidate;
       }
 
-      const result = await apiClient.invoke("validate-license", body);
+      const result = await apiClient.invoke("validate-license", { body });
 
       if (result.error) throw result.error;
       if (!result.data?.valid) throw new Error("Licença inválida ou expirada");

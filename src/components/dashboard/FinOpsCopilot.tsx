@@ -40,8 +40,9 @@ export function FinOpsCopilot() {
       if (!user) throw new Error('User not authenticated');
 
       const result = await apiClient.invoke('finops-copilot', {
-        message: userMessage,
-        sessionId: sessionId,
+        body: {
+          message: userMessage,
+          sessionId: sessionId,
         userId: user.username
       });
       const { data, error } = { data: result.data, error: result.error };

@@ -1,0 +1,5 @@
+{
+  "name": "evo-uds-common-layer",
+  "version": "1.0.0",
+  "description": "Common dependencies for EVO UDS Lambda functions"
+}

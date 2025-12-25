@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/integrations/aws/api-client";
+import { Layout } from "@/components/Layout";
 import { 
   Building2, 
   Plus, 
@@ -222,107 +223,15 @@ export default function Organizations() {
   const totalMonthlyCost = organizations?.reduce((sum, org) => sum + org.monthly_cost, 0) || 0;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-6 w-6 text-primary" />
-                Gestão de Organizações
-                <Crown className="h-5 w-5 text-yellow-500" />
-              </CardTitle>
-              <CardDescription>
-                Gestão multi-tenant de organizações - Acesso Super Admin
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isLoading}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                {isLoading ? 'Atualizando...' : 'Atualizar'}
-              </Button>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Nova Organização
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Criar Nova Organização</DialogTitle>
-                    <DialogDescription>
-                      Adicione uma nova organização ao sistema multi-tenant
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Nome da Organização</Label>
-                        <Input
-                          id="name"
-                          value={newOrg.name}
-                          onChange={(e) => setNewOrg(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="Acme Corporation"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="domain">Domínio</Label>
-                        <Input
-                          id="domain"
-                          value={newOrg.domain}
-                          onChange={(e) => setNewOrg(prev => ({ ...prev, domain: e.target.value }))}
-                          placeholder="acme.com"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Descrição</Label>
-                      <Textarea
-                        id="description"
-                        value={newOrg.description}
-                        onChange={(e) => setNewOrg(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Descrição da organização"
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="billing_email">Email de Cobrança</Label>
-                      <Input
-                        id="billing_email"
-                        type="email"
-                        value={newOrg.billing_email}
-                        onChange={(e) => setNewOrg(prev => ({ ...prev, billing_email: e.target.value }))}
-                        placeholder="billing@acme.com"
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={handleCreateOrg} disabled={createOrgMutation.isPending}>
-                      {createOrgMutation.isPending ? 'Criando...' : 'Criar Organização'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <Layout 
+      title="Gestão de Organizações" 
+      description="Gestão multi-tenant de organizações - Acesso Super Admin"
+      icon={<Building2 className="h-5 w-5 text-white" />}
+      userRole="super_admin"
+    >
+      <div className="space-y-6">
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Organizações</CardTitle>
@@ -539,6 +448,71 @@ export default function Organizations() {
           </DialogContent>
         </Dialog>
       )}
-    </div>
+
+      {/* Create Organization Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Criar Nova Organização</DialogTitle>
+            <DialogDescription>
+              Adicione uma nova organização ao sistema multi-tenant
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome da Organização</Label>
+                <Input
+                  id="name"
+                  value={newOrg.name}
+                  onChange={(e) => setNewOrg(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Acme Corporation"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="domain">Domínio</Label>
+                <Input
+                  id="domain"
+                  value={newOrg.domain}
+                  onChange={(e) => setNewOrg(prev => ({ ...prev, domain: e.target.value }))}
+                  placeholder="acme.com"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrição</Label>
+              <Textarea
+                id="description"
+                value={newOrg.description}
+                onChange={(e) => setNewOrg(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Descrição da organização"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="billing_email">Email de Cobrança</Label>
+              <Input
+                id="billing_email"
+                type="email"
+                value={newOrg.billing_email}
+                onChange={(e) => setNewOrg(prev => ({ ...prev, billing_email: e.target.value }))}
+                placeholder="billing@acme.com"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateOrg} disabled={createOrgMutation.isPending}>
+              {createOrgMutation.isPending ? 'Criando...' : 'Criar Organização'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </div>
+    </Layout>
   );
 }

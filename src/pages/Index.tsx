@@ -30,6 +30,9 @@ import MLWasteDetection from "@/pages/MLWasteDetection";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { AwsAccountSelector } from "@/components/AwsAccountSelector";
+import ThemeToggle from "@/components/ThemeToggle";
+import LanguageToggle from "@/components/LanguageToggle";
+import UserMenu from "@/components/UserMenu";
 import { 
   Shield, 
   TrendingUp, 
@@ -479,10 +482,47 @@ const Index = () => {
   if (activeTab === "security-analysis") {
     return (
       <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
+        <div className="min-h-screen flex w-full bg-gradient-subtle">
           <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
+          <div className="flex-1 flex flex-col">
+            {/* Header - Padrão Visual Consistente */}
+            <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
+              <div className="container mx-auto px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <SidebarTrigger className="-ml-1" />
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow">
+                        <Shield className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                          Análise de Segurança AWS
+                        </h1>
+                        <p className="text-sm text-muted-foreground">
+                          Verificação abrangente de vulnerabilidades e configurações
+                        </p>
+                      </div>
+                    </div>
+                    {user?.organizationId && (
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
+                        <Building2 className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">
+                          {user.organizationName || user.organizationId}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <AwsAccountSelector />
+                    <LanguageToggle />
+                    <ThemeToggle />
+                    <UserMenu />
+                  </div>
+                </div>
+              </div>
+            </header>
+            <main className="flex-1 container mx-auto px-6 py-6 overflow-auto">
               <SecurityAnalysisContent />
             </main>
             <Footer variant="minimal" />

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { Layout } from "@/components/Layout";
 import { 
   Shield, 
   Globe, 
@@ -173,38 +174,14 @@ export default function EdgeMonitoring() {
   const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="h-6 w-6 text-primary" />
-                Monitoramento de Borda
-              </CardTitle>
-              <CardDescription>
-                CloudFront, WAF e Load Balancers - Monitoramento de serviços de borda AWS
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isLoading}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                {isLoading ? 'Atualizando...' : 'Atualizar'}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <Layout 
+      title="Monitoramento de Borda" 
+      description="CloudFront, WAF e Load Balancers - Serviços de borda AWS"
+      icon={<Globe className="h-5 w-5 text-white" />}
+    >
+      <div className="space-y-6">
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Requests/min</CardTitle>
@@ -497,6 +474,7 @@ export default function EdgeMonitoring() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </Layout>
   );
 }

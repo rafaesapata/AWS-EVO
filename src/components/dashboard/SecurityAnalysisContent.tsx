@@ -166,20 +166,31 @@ export default function SecurityAnalysisContent() {
 
       const mappedStatus = statusMap[selectedStatus.toLowerCase()] || selectedStatus;
 
-      // Build query filters
+      // Build query filters - organization_id is required, aws_account_id is optional
       const filters: Record<string, any> = { 
-        organization_id: organizationId,
-        aws_account_id: selectedAccountId
+        organization_id: organizationId
       };
+      
+      // Only filter by aws_account_id if selected (for multi-account support)
+      if (selectedAccountId) {
+        filters.aws_account_id = selectedAccountId;
+      }
       
       // Add status filter if not 'all'
       if (mappedStatus !== 'all') {
         filters.status = mappedStatus;
       }
 
+      console.log('SecurityAnalysisContent: Fetching findings with filters', filters);
+
       const response = await apiClient.select('findings', {
         eq: filters,
         order: { column: 'created_at', ascending: false }
+      });
+
+      console.log('SecurityAnalysisContent: Findings response', { 
+        count: response.data?.length || 0, 
+        error: response.error 
       });
 
       if (response.error) throw new Error(response.error.message);
@@ -203,9 +214,11 @@ export default function SecurityAnalysisContent() {
         description: `${levelInfo?.icon} ${levelInfo?.name}: ${t('securityAnalysis.analyzingInfra')} (${levelInfo?.estimatedTime})`,
       });
 
-      const response = await apiClient.lambda('security-scan', { 
-        accountId: selectedAccountId,
-        scanLevel: selectedScanLevel
+      const response = await apiClient.invoke('security-scan', { 
+        body: {
+          accountId: selectedAccountId,
+          scanLevel: selectedScanLevel
+        }
       });
       
       if (response?.error) {

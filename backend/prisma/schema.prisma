@@ -94,6 +94,7 @@ model AwsAccount {
 model Finding {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String?  @db.Uuid
+  aws_account_id    String?  @db.Uuid
   event_id          String?
   event_name        String?
   event_time        DateTime? @db.Timestamptz(6)
@@ -122,6 +123,7 @@ model Finding {
   @@index([severity])
   @@index([event_time])
   @@index([organization_id])
+  @@index([aws_account_id])
   @@map("findings")
 }
 

@@ -236,7 +236,7 @@ const CloudTrailAudit = () => {
       });
 
       const result = await apiClient.invoke('fetch-cloudtrail', {
-        maxEvents: requestedEvents
+        body: { maxEvents: requestedEvents }
       });
 
       if (result.error) throw new Error(result.error);
@@ -264,8 +264,10 @@ const CloudTrailAudit = () => {
       });
 
       const analyzeResult = await apiClient.invoke('analyze-cloudtrail', {
-        events: data.events, 
-        accountId: selectedAccountId
+        body: {
+          events: data.events, 
+          accountId: selectedAccountId
+        }
       });
 
       if (analyzeResult.error) throw new Error(analyzeResult.error);

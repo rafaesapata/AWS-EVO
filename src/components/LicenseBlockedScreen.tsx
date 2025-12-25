@@ -40,7 +40,7 @@ export default function LicenseBlockedScreen({ reason, message }: LicenseBlocked
       if (!session) throw new Error(t('licenseBlocked.notAuthenticated'));
 
       const result = await apiClient.invoke("validate-license", {
-        customer_id: customerId
+        body: { customer_id: customerId }
       });
       const { data, error } = { data: result.data, error: result.error };
 

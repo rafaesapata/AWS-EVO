@@ -297,10 +297,12 @@ export const SECURE_CORS_CONFIG: CORSConfig = {
     'X-Requested-With',
     'X-API-Key',
     'X-Request-ID',
+    'X-Correlation-ID',
     'X-CSRF-Token',
   ],
   exposedHeaders: [
     'X-Request-ID',
+    'X-Correlation-ID',
     'X-Response-Time',
     'X-RateLimit-Remaining',
   ],

@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { logger } from '../../lib/logging.js';
+import { success, error as errorResponse, corsOptions, unauthorized, badRequest } from '../../lib/response.js';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 
@@ -21,37 +22,49 @@ interface RegistrationRequest {
   challenge?: string;
 }
 
+// Extract origin from event for CORS
+function getOrigin(event: APIGatewayProxyEvent): string {
+  return event.headers?.origin || event.headers?.Origin || '*';
+}
+
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const origin = getOrigin(event);
+  
+  // Handle CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+  
   try {
     const authUserId = event.requestContext.authorizer?.claims?.sub;
     if (!authUserId) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+      return unauthorized('Authentication required', origin);
     }
 
     const body: RegistrationRequest = JSON.parse(event.body || '{}');
     const { action } = body;
 
     if (action === 'start') {
-      return await startRegistration(authUserId, body.deviceName);
+      return await startRegistration(authUserId, body.deviceName, origin);
     } else if (action === 'finish') {
-      return await finishRegistration(authUserId, body);
+      return await finishRegistration(authUserId, body, origin);
     }
 
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid action' }) };
+    return badRequest('Invalid action', undefined, origin);
   } catch (error) {
     logger.error('WebAuthn registration error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Internal server error' }) };
+    return errorResponse('Internal server error', 500, undefined, origin);
   }
 };
 
-async function startRegistration(userId: string, deviceName?: string): Promise<APIGatewayProxyResult> {
+async function startRegistration(userId: string, deviceName?: string, origin?: string): Promise<APIGatewayProxyResult> {
   // Buscar usuário
   const user = await prisma.user.findUnique({
     where: { id: userId }
   });
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return errorResponse('User not found', 404, undefined, origin);
   }
 
   // Gerar challenge
@@ -96,24 +109,18 @@ async function startRegistration(userId: string, deviceName?: string): Promise<A
     excludeCredentials: [] // Removido pois não incluímos webauthnCredentials na query
   };
 
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      success: true,
-      options: publicKeyCredentialCreationOptions
-    })
-  };
+  return success({ options: publicKeyCredentialCreationOptions }, 200, origin);
 }
 
 async function finishRegistration(
   userId: string,
-  body: RegistrationRequest
+  body: RegistrationRequest,
+  origin?: string
 ): Promise<APIGatewayProxyResult> {
   const { attestation, challenge, deviceName } = body;
 
   if (!attestation || !challenge) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Missing attestation or challenge' }) };
+    return badRequest('Missing attestation or challenge', undefined, origin);
   }
 
   // Buscar usuário
@@ -122,7 +129,7 @@ async function finishRegistration(
   });
 
   if (!user) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+    return errorResponse('User not found', 404, undefined, origin);
   }
 
   // Verificar challenge
@@ -135,7 +142,7 @@ async function finishRegistration(
   });
 
   if (!storedChallenge) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid or expired challenge' }) };
+    return badRequest('Invalid or expired challenge', undefined, origin);
   }
 
   // Deletar challenge usado
@@ -148,7 +155,7 @@ async function finishRegistration(
 
     // Verificar challenge no clientData
     if (clientData.challenge !== challenge) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Challenge mismatch' }) };
+      return badRequest('Challenge mismatch', undefined, origin);
     }
 
     // Verificar origin
@@ -188,20 +195,15 @@ async function finishRegistration(
       }
     });
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        success: true,
-        credential: {
-          id: credential.id,
-          deviceName: credential.device_name,
-          createdAt: credential.created_at
-        }
-      })
-    };
+    return success({
+      credential: {
+        id: credential.id,
+        deviceName: credential.device_name,
+        createdAt: credential.created_at
+      }
+    }, 200, origin);
   } catch (error) {
     logger.error('Attestation verification error:', error);
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid attestation' }) };
+    return badRequest('Invalid attestation', undefined, origin);
   }
 }

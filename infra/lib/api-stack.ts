@@ -402,6 +402,84 @@ export class ApiStack extends cdk.Stack {
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // WebAuthn Register Lambda
+    const webauthnRegisterFunction = new lambda.Function(this, 'WebauthnRegisterFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'webauthn-register.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/auth')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+    });
+
+    // WebAuthn Authenticate Lambda
+    const webauthnAuthenticateFunction = new lambda.Function(this, 'WebauthnAuthenticateFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'webauthn-authenticate.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/auth')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+    });
+
+    // WebAuthn routes under /functions
+    const webauthnRegisterResource = functionsResource.addResource('webauthn-register');
+    webauthnRegisterResource.addMethod('POST', new apigateway.LambdaIntegration(webauthnRegisterFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    webauthnRegisterResource.addMethod('OPTIONS', new apigateway.MockIntegration({
+      integrationResponses: [{
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+          'method.response.header.Access-Control-Allow-Methods': "'POST,OPTIONS'",
+          'method.response.header.Access-Control-Allow-Origin': "'*'",
+        },
+      }],
+      passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+      requestTemplates: { 'application/json': '{"statusCode": 200}' },
+    }), {
+      methodResponses: [{
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Access-Control-Allow-Headers': true,
+          'method.response.header.Access-Control-Allow-Methods': true,
+          'method.response.header.Access-Control-Allow-Origin': true,
+        },
+      }],
+    });
+
+    const webauthnAuthenticateResource = functionsResource.addResource('webauthn-authenticate');
+    webauthnAuthenticateResource.addMethod('POST', new apigateway.LambdaIntegration(webauthnAuthenticateFunction));
+    webauthnAuthenticateResource.addMethod('OPTIONS', new apigateway.MockIntegration({
+      integrationResponses: [{
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+          'method.response.header.Access-Control-Allow-Methods': "'POST,OPTIONS'",
+          'method.response.header.Access-Control-Allow-Origin': "'*'",
+        },
+      }],
+      passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+      requestTemplates: { 'application/json': '{"statusCode": 200}' },
+    }), {
+      methodResponses: [{
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Access-Control-Allow-Headers': true,
+          'method.response.header.Access-Control-Allow-Methods': true,
+          'method.response.header.Access-Control-Allow-Origin': true,
+        },
+      }],
+    });
+
     // Fetch CloudWatch Metrics route under /api/lambda (for apiClient.lambda compatibility)
     const lambdaResource = this.api.root.addResource('api').addResource('lambda');
     const fetchMetricsResource = lambdaResource.addResource('fetch-cloudwatch-metrics');

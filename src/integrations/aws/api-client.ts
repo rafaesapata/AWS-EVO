@@ -3,9 +3,14 @@ import { getCSRFHeader } from '@/lib/csrf-protection';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+// Session ID for correlation across requests
+const SESSION_ID = crypto.randomUUID();
+sessionStorage.setItem('sessionId', SESSION_ID);
+
 export interface ApiResponse<T = any> {
   data: T;
   error: null;
+  requestId?: string;
 }
 
 export interface ApiError {
@@ -14,14 +19,22 @@ export interface ApiError {
     message: string;
     code?: string;
     status?: number;
+    requestId?: string;
   };
 }
 
 class ApiClient {
   private async getAuthHeaders(): Promise<Record<string, string>> {
     const session = await cognitoAuth.getCurrentSession();
+    
+    // Generate unique request ID for tracing
+    const requestId = crypto.randomUUID();
+    const correlationId = sessionStorage.getItem('sessionId') || SESSION_ID;
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'X-Request-ID': requestId,
+      'X-Correlation-ID': correlationId,
       ...getCSRFHeader(), // Add CSRF protection to all requests
     };
 
@@ -40,6 +53,7 @@ class ApiClient {
           orgId: orgId,
           roles: payload['custom:roles'],
           exp: new Date(payload.exp * 1000).toISOString(),
+          requestId,
         });
         
         // CRITICAL: Validate UUID format - force logout if invalid
@@ -70,6 +84,7 @@ class ApiClient {
   ): Promise<ApiResponse<T> | ApiError> {
     try {
       const headers = await this.getAuthHeaders();
+      const requestId = headers['X-Request-ID'];
       
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
@@ -79,6 +94,9 @@ class ApiClient {
         },
       });
 
+      // Capture response request ID for tracing
+      const responseRequestId = response.headers.get('X-Request-ID') || requestId;
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return {
@@ -87,6 +105,7 @@ class ApiClient {
             message: errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
             code: errorData.code,
             status: response.status,
+            requestId: responseRequestId,
           },
         };
       }
@@ -96,11 +115,11 @@ class ApiClient {
       // Handle Lambda response format: { success: true, data: [...] }
       // Extract the inner data if present
       if (responseData && typeof responseData === 'object' && 'data' in responseData) {
-        return { data: responseData.data, error: null };
+        return { data: responseData.data, error: null, requestId: responseRequestId };
       }
       
       // Return as-is for other formats
-      return { data: responseData, error: null };
+      return { data: responseData, error: null, requestId: responseRequestId };
     } catch (error) {
       return {
         data: null,
@@ -186,15 +205,18 @@ class ApiClient {
   /**
    * Invoca uma Lambda function via API Gateway
    * @param functionName - Nome da função Lambda
-   * @param payload - Dados a enviar para a função
+   * @param payload - Dados a enviar para a função (será enviado como body)
+   * @deprecated Use apiClient.invoke() instead for consistency
    */
   async lambda<T>(
     functionName: string,
     payload?: Record<string, any>
   ): Promise<ApiResponse<T> | ApiError> {
+    // Handle both old format (direct payload) and new format ({ body: ... })
+    const body = payload?.body !== undefined ? payload.body : payload;
     return this.request<T>(`/api/functions/${functionName}`, {
       method: 'POST',
-      body: payload ? JSON.stringify(payload) : undefined,
+      body: body ? JSON.stringify(body) : undefined,
     });
   }
 

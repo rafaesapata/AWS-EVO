@@ -116,7 +116,7 @@ export default function ThreatDetection() {
       }
 
       const scanResult = await apiClient.invoke(functionName, {
-        accountId: credentialsData[0].id
+        body: { accountId: credentialsData[0].id }
       });
 
       if (scanResult.error) throw scanResult.error;

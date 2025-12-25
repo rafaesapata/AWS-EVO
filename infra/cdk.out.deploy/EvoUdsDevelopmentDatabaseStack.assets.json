@@ -1,0 +1,20 @@
+{
+  "version": "34.0.0",
+  "files": {
+    "e0fa66301c4c32271a6507840e3a591c78c871f9f1597b879a2e14a8f5943fd2": {
+      "source": {
+        "path": "EvoUdsDevelopmentDatabaseStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "383234048592-us-east-1": {
+          "bucketName": "cdk-hnb659fds-assets-383234048592-us-east-1",
+          "objectKey": "e0fa66301c4c32271a6507840e3a591c78c871f9f1597b879a2e14a8f5943fd2.json",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-file-publishing-role-383234048592-us-east-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

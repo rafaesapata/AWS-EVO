@@ -105,6 +105,15 @@ export interface Finding {
   scan_type?: string;
   ticket_id?: string;
   organization_id?: string;
+  resource_id?: string;
+  resource_arn?: string;
+  service?: string;
+  category?: string;
+  region?: string;
+  compliance?: string[];
+  remediation?: string;
+  risk_vector?: string;
+  evidence?: Record<string, any>;
   created_at: string;
   updated_at?: string;
   remediation_tickets?: {

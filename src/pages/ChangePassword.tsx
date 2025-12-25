@@ -102,10 +102,12 @@ export default function ChangePassword() {
 
         // Log the password change via API
         await apiClient.invoke('log-audit', {
-          action: 'PASSWORD_CHANGE',
-          resourceType: 'user',
-          resourceId: user.username,
-          details: { forced: mustChange }
+          body: {
+            action: 'PASSWORD_CHANGE',
+            resourceType: 'user',
+            resourceId: user.username,
+            details: { forced: mustChange }
+          }
         });
       }
 

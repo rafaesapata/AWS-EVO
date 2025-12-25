@@ -98,12 +98,14 @@ export default function CommunicationCenter() {
       if (!user) throw new Error('Not authenticated');
 
       const response = await apiClient.invoke('get-communication-logs', {
-        page,
-        pageSize,
-        channel: channelFilter !== 'all' ? channelFilter : undefined,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        search: searchTerm || undefined,
-        accountId: selectedAccountId || undefined,
+        body: {
+          page,
+          pageSize,
+          channel: channelFilter !== 'all' ? channelFilter : undefined,
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          search: searchTerm || undefined,
+          accountId: selectedAccountId || undefined,
+        }
       });
 
       if (response.error) throw response.error;

@@ -117,7 +117,7 @@ export default function RISPOptimizer() {
 
       // Chamar edge function para análise real de RI/SP
       const analysisResult = await apiClient.invoke('ri-sp-analyzer', {
-        accountId: selectedAccountId
+        body: { accountId: selectedAccountId }
       });
 
       if (analysisResult.error) {

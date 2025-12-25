@@ -1,0 +1,1 @@
+{"version":3,"file":"fetch-cloudtrail.d.ts","sourceRoot":"","sources":["../../../src/handlers/security/fetch-cloudtrail.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,oBAAoB,EAAE,qBAAqB,EAAE,MAAM,YAAY,CAAC;AAmCzE,eAAO,MAAM,OAAO,GAAU,OAAO,oBAAoB,KAAG,OAAO,CAAC,qBAAqB,CA2IxF,CAAC"}

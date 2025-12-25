@@ -22,10 +22,12 @@ export const SecurityScan = ({ onScanComplete }: SecurityScanProps) => {
     error: string;
     missingPermissions: string[];
   }>>([]);
-  const { data: organizationId } = useOrganization();
+  const { data: organizationId, isLoading: orgLoading } = useOrganization();
   
   // Use global account context for multi-account isolation
   const { selectedAccountId, selectedAccount } = useAwsAccount();
+  
+  console.log('SecurityScan: State', { organizationId, orgLoading, selectedAccountId });
 
   const handleSecurityScan = async () => {
     setIsScanning(true);
@@ -43,15 +45,26 @@ export const SecurityScan = ({ onScanComplete }: SecurityScanProps) => {
       });
 
       // SECURITY: Pass accountId for proper data isolation
-      const data = await apiClient.lambda('security-scan', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        },
+      const response = await apiClient.invoke<{
+        scan_id: string;
+        findings_count: number;
+        critical: number;
+        high: number;
+        medium: number;
+        low: number;
+        permissionErrors?: Array<{ service?: string; error: string; missingPermissions: string[] }>;
+      }>('security-scan', {
         body: { accountId: selectedAccountId }
       });
 
-      if (error) {
-        throw error;
+      // Check for API errors
+      if (response.error) {
+        throw new Error(response.error.message || 'Erro ao executar scan');
+      }
+
+      const data = response.data;
+      if (!data) {
+        throw new Error('Nenhum dado retornado do scan');
       }
 
       // Capturar erros de permissão se houver

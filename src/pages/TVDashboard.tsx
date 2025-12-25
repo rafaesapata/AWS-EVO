@@ -49,7 +49,7 @@ export default function TVDashboard() {
     setLoading(true);
     try {
       const result = await apiClient.invoke('verify-tv-token', {
-        token
+        body: { token }
       });
 
       if (result.error || !result.data?.success) {

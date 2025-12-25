@@ -14,19 +14,48 @@ const BASE_HEADERS = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
 };
 
+// Request context for tracking
+let currentRequestId: string | undefined;
+let currentCorrelationId: string | undefined;
+
 /**
- * Generate response headers with CORS and security
+ * Set request context for response headers
+ */
+export function setRequestContext(requestId?: string, correlationId?: string): void {
+  currentRequestId = requestId;
+  currentCorrelationId = correlationId;
+}
+
+/**
+ * Get request context
+ */
+export function getRequestContext(): { requestId?: string; correlationId?: string } {
+  return { requestId: currentRequestId, correlationId: currentCorrelationId };
+}
+
+/**
+ * Generate response headers with CORS, security, and request tracking
  * CORS headers are ALWAYS included - uses '*' as fallback when origin is not provided
  */
 function getResponseHeaders(origin?: string, additionalHeaders?: Record<string, string>): Record<string, string> {
   // Always generate CORS headers - use '*' as fallback for maximum compatibility
   const corsHeaders = generateCORSHeaders(origin || '*', SECURE_CORS_CONFIG);
   
-  return {
+  const headers: Record<string, string> = {
     ...BASE_HEADERS,
     ...corsHeaders,
     ...additionalHeaders,
   };
+  
+  // Add request tracking headers
+  if (currentRequestId) {
+    headers['X-Request-ID'] = currentRequestId;
+  }
+  if (currentCorrelationId) {
+    headers['X-Correlation-ID'] = currentCorrelationId;
+  }
+  
+  return headers;
 }
 
 export function success<T = any>(

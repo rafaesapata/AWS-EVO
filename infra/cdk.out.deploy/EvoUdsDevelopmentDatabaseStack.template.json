@@ -1,0 +1,353 @@
+{
+ "Description": "EVO UDS Database Infrastructure",
+ "Resources": {
+  "DatabaseSecret86DBB7B3": {
+   "Type": "AWS::SecretsManager::Secret",
+   "Properties": {
+    "Description": "EVO UDS Database credentials",
+    "GenerateSecretString": {
+     "ExcludeCharacters": "\"@/\\",
+     "GenerateStringKey": "password",
+     "SecretStringTemplate": "{\"username\":\"postgres\"}"
+    },
+    "Tags": [
+     {
+      "Key": "DeployedAt",
+      "Value": "2025-12-24T17:22:44.314Z"
+     },
+     {
+      "Key": "Environment",
+      "Value": "development"
+     },
+     {
+      "Key": "ManagedBy",
+      "Value": "CDK"
+     },
+     {
+      "Key": "Project",
+      "Value": "EVO-UDS"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "EvoUdsDevelopmentDatabaseStack/DatabaseSecret/Resource"
+   }
+  },
+  "DatabaseSecretAttachment9A63A3D4": {
+   "Type": "AWS::SecretsManager::SecretTargetAttachment",
+   "Properties": {
+    "SecretId": {
+     "Ref": "DatabaseSecret86DBB7B3"
+    },
+    "TargetId": {
+     "Ref": "DatabaseB269D8BB"
+    },
+    "TargetType": "AWS::RDS::DBInstance"
+   },
+   "Metadata": {
+    "aws:cdk:path": "EvoUdsDevelopmentDatabaseStack/DatabaseSecret/Attachment/Resource"
+   }
+  },
+  "DatabaseSubnetGroup": {
+   "Type": "AWS::RDS::DBSubnetGroup",
+   "Properties": {
+    "DBSubnetGroupDescription": "Subnet group for EVO UDS database",
+    "SubnetIds": [
+     {
+      "Fn::ImportValue": "EvoUdsDevelopmentNetworkStack:ExportsOutputRefEvoUdsVpcDatabaseSubnet1SubnetA59A562B7E74C26F"
+     },
+     {
+      "Fn::ImportValue": "EvoUdsDevelopmentNetworkStack:ExportsOutputRefEvoUdsVpcDatabaseSubnet2Subnet47FED35C88D94764"
+     },
+     {
+      "Fn::ImportValue": "EvoUdsDevelopmentNetworkStack:ExportsOutputRefEvoUdsVpcDatabaseSubnet3SubnetC5D6D41AB577997F"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "DeployedAt",
+      "Value": "2025-12-24T17:22:44.314Z"
+     },
+     {
+      "Key": "Environment",
+      "Value": "development"
+     },
+     {
+      "Key": "ManagedBy",
+      "Value": "CDK"
+     },
+     {
+      "Key": "Project",
+      "Value": "EVO-UDS"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "EvoUdsDevelopmentDatabaseStack/DatabaseSubnetGroup/Default"
+   }
+  },
+  "DatabaseSecurityGroup5C91FDCB": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Security group for Database database",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic by default",
+      "IpProtocol": "-1"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "DeployedAt",
+      "Value": "2025-12-24T17:22:44.314Z"
+     },
+     {
+      "Key": "Environment",
+      "Value": "development"
+     },
+     {
+      "Key": "ManagedBy",
+      "Value": "CDK"
+     },
+     {
+      "Key": "Project",
+      "Value": "EVO-UDS"
+     }
+    ],
+    "VpcId": {
+     "Fn::ImportValue": "EvoUdsDevelopmentNetworkStack:ExportsOutputRefEvoUdsVpcFE7C157B8508BA0F"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "EvoUdsDevelopmentDatabaseStack/Database/SecurityGroup/Resource"
+   }
+  },
+  "DatabaseMonitoringRole576991DA": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "monitoring.rds.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+       ]
+      ]
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "DeployedAt",
+      "Value": "2025-12-24T17:22:44.314Z"
+     },
+     {
+      "Key": "Environment",
+      "Value": "development"
+     },
+     {
+      "Key": "ManagedBy",
+      "Value": "CDK"
+     },
+     {
+      "Key": "Project",
+      "Value": "EVO-UDS"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "EvoUdsDevelopmentDatabaseStack/Database/MonitoringRole/Resource"
+   }
+  },
+  "DatabaseB269D8BB": {
+   "Type": "AWS::RDS::DBInstance",
+   "Properties": {
+    "AllocatedStorage": "20",
+    "BackupRetentionPeriod": 7,
+    "CopyTagsToSnapshot": true,
+    "DBInstanceClass": "db.t3.micro",
+    "DBName": "evouds",
+    "DBSubnetGroupName": {
+     "Ref": "DatabaseSubnetGroup"
+    },
+    "DeleteAutomatedBackups": false,
+    "DeletionProtection": false,
+    "EnablePerformanceInsights": true,
+    "Engine": "postgres",
+    "EngineVersion": "15",
+    "MasterUserPassword": {
+     "Fn::Join": [
+      "",
+      [
+       "{{resolve:secretsmanager:",
+       {
+        "Ref": "DatabaseSecret86DBB7B3"
+       },
+       ":SecretString:password::}}"
+      ]
+     ]
+    },
+    "MasterUsername": {
+     "Fn::Join": [
+      "",
+      [
+       "{{resolve:secretsmanager:",
+       {
+        "Ref": "DatabaseSecret86DBB7B3"
+       },
+       ":SecretString:username::}}"
+      ]
+     ]
+    },
+    "MaxAllocatedStorage": 100,
+    "MonitoringInterval": 60,
+    "MonitoringRoleArn": {
+     "Fn::GetAtt": [
+      "DatabaseMonitoringRole576991DA",
+      "Arn"
+     ]
+    },
+    "MultiAZ": false,
+    "PerformanceInsightsRetentionPeriod": 7,
+    "StorageEncrypted": true,
+    "StorageType": "gp2",
+    "Tags": [
+     {
+      "Key": "DeployedAt",
+      "Value": "2025-12-24T17:22:44.314Z"
+     },
+     {
+      "Key": "Environment",
+      "Value": "development"
+     },
+     {
+      "Key": "ManagedBy",
+      "Value": "CDK"
+     },
+     {
+      "Key": "Project",
+      "Value": "EVO-UDS"
+     }
+    ],
+    "VPCSecurityGroups": [
+     {
+      "Fn::GetAtt": [
+       "DatabaseSecurityGroup5C91FDCB",
+       "GroupId"
+      ]
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Snapshot",
+   "DeletionPolicy": "Snapshot",
+   "Metadata": {
+    "aws:cdk:path": "EvoUdsDevelopmentDatabaseStack/Database/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/11Oyw6CMBD8Fu9lReIP+EiMJxPwbpayahUK6W4lpum/G0GNepqdx04mg1maQjrBnhNdXZPalBAKQX1V2PMhMGlHwg1aPJGDUAxcrY72dY2wR3ciWYigPjdkvwL/TlSuYgiFLy3JxrW+e2bXy29hjYIlMm0tC1pNY+LNoiKdDUu8M3L/dPwIURlsIORtPXw/MUaVE7fejYU7L50fhr7VqGxbEVx4esvmMMsgnVzYmMR5K6YhyEd8APbmf94zAQAA"
+   },
+   "Metadata": {
+    "aws:cdk:path": "EvoUdsDevelopmentDatabaseStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "DatabaseEndpoint": {
+   "Description": "Database endpoint",
+   "Value": {
+    "Fn::GetAtt": [
+     "DatabaseB269D8BB",
+     "Endpoint.Address"
+    ]
+   }
+  },
+  "DatabaseSecretArn": {
+   "Description": "Database secret ARN",
+   "Value": {
+    "Ref": "DatabaseSecret86DBB7B3"
+   }
+  },
+  "ExportsOutputRefDatabaseSecretAttachment9A63A3D478416D8E": {
+   "Value": {
+    "Ref": "DatabaseSecretAttachment9A63A3D4"
+   },
+   "Export": {
+    "Name": "EvoUdsDevelopmentDatabaseStack:ExportsOutputRefDatabaseSecretAttachment9A63A3D478416D8E"
+   }
+  },
+  "ExportsOutputFnGetAttDatabaseB269D8BBEndpointAddressA4DBD059": {
+   "Value": {
+    "Fn::GetAtt": [
+     "DatabaseB269D8BB",
+     "Endpoint.Address"
+    ]
+   },
+   "Export": {
+    "Name": "EvoUdsDevelopmentDatabaseStack:ExportsOutputFnGetAttDatabaseB269D8BBEndpointAddressA4DBD059"
+   }
+  },
+  "ExportsOutputRefDatabaseB269D8BB88F4B1C4": {
+   "Value": {
+    "Ref": "DatabaseB269D8BB"
+   },
+   "Export": {
+    "Name": "EvoUdsDevelopmentDatabaseStack:ExportsOutputRefDatabaseB269D8BB88F4B1C4"
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

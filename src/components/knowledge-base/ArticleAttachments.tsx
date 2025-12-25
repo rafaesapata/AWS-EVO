@@ -43,9 +43,11 @@ export function ArticleAttachments({ articleId, organizationId, isAuthor }: Arti
       
       // Upload to S3 storage via API
       const uploadResult = await apiClient.invoke('upload-attachment', {
-        fileName,
-        fileContent: await file.arrayBuffer(),
-        contentType: file.type
+        body: {
+          fileName,
+          fileContent: await file.arrayBuffer(),
+          contentType: file.type
+        }
       });
 
       if (uploadError) throw uploadError;
@@ -64,8 +66,10 @@ export function ArticleAttachments({ articleId, organizationId, isAuthor }: Arti
       if (result.error) {
         // Rollback storage upload if DB insert fails
         await apiClient.invoke('storage-delete', {
-          bucket: 'knowledge-base-attachments',
-          paths: [fileName]
+          body: {
+            bucket: 'knowledge-base-attachments',
+            paths: [fileName]
+          }
         });
         throw new Error(result.error);
       }
@@ -87,8 +91,10 @@ export function ArticleAttachments({ articleId, organizationId, isAuthor }: Arti
     mutationFn: async ({ id, filePath }: { id: string; filePath: string }) => {
       // Delete from storage
       const storageResult = await apiClient.invoke('storage-delete', {
-        bucket: 'knowledge-base-attachments',
-        paths: [filePath]
+        body: {
+          bucket: 'knowledge-base-attachments',
+          paths: [filePath]
+        }
       });
 
       if (storageResult.error) throw new Error(storageResult.error);
@@ -138,8 +144,10 @@ export function ArticleAttachments({ articleId, organizationId, isAuthor }: Arti
 
   const handleDownload = async (attachment: any) => {
     const result = await apiClient.invoke('storage-download', {
-      bucket: 'knowledge-base-attachments',
-      path: attachment.file_path
+      body: {
+        bucket: 'knowledge-base-attachments',
+        path: attachment.file_path
+      }
     });
     const { data, error } = { data: result.data, error: result.error };
 

@@ -114,7 +114,7 @@ const AwsCredentialsManager = () => {
   const syncOrgMutation = useMutation({
     mutationFn: async (payerAccountId: string) => {
       const result = await apiClient.invoke('sync-organization-accounts', {
-        payerAccountId
+        body: { payerAccountId }
       });
       
       if (result.error) throw new Error(result.error.message || 'Erro ao sincronizar contas');
@@ -152,7 +152,7 @@ const AwsCredentialsManager = () => {
       });
 
       const result = await apiClient.invoke('validate-aws-credentials', {
-        accountId
+        body: { accountId }
       });
 
       if (result.error) throw new Error(result.error.message || 'Erro ao validar credenciais');

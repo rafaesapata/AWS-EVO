@@ -9,6 +9,10 @@ import { logger } from '../../lib/logging.js';
 
 // SQL de migração inicial - cada comando separado
 const MIGRATION_COMMANDS = [
+  // Add aws_account_id to findings table (new migration)
+  `ALTER TABLE "findings" ADD COLUMN IF NOT EXISTS "aws_account_id" UUID`,
+  `CREATE INDEX IF NOT EXISTS "findings_aws_account_id_idx" ON "findings"("aws_account_id")`,
+  
   // Organizations
   `CREATE TABLE IF NOT EXISTS "organizations" (
     "id" UUID NOT NULL,

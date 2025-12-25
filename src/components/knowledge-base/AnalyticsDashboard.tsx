@@ -18,7 +18,7 @@ export default function AnalyticsDashboard() {
     ['kb-analytics-dashboard'],
     async (orgId) => {
       const result = await apiClient.invoke('kb-analytics-dashboard', {
-        organizationId: orgId
+        body: { organizationId: orgId }
       });
       const { data, error } = { data: result.data, error: result.error };
 

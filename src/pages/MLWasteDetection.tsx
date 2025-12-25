@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
-import { Brain, TrendingDown, Zap, BarChart3, Clock, AlertCircle } from "lucide-react";
+import { Brain, TrendingDown, Zap, BarChart3, Clock, AlertCircle, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Layout } from "@/components/Layout";
 
 export default function MLWasteDetection() {
   const { toast } = useToast();
@@ -49,7 +50,7 @@ export default function MLWasteDetection() {
     try {
       // Call ML waste detection with selected account
       const result = await apiClient.invoke('ml-waste-detection', {
-        accountId: selectedAccountId
+        body: { accountId: selectedAccountId }
       });
 
       if (result.error) throw result.error;
@@ -62,9 +63,12 @@ export default function MLWasteDetection() {
 
       refetch();
     } catch (error: any) {
+      const errorMessage = typeof error?.message === 'string' 
+        ? error.message 
+        : (typeof error === 'string' ? error : 'Unknown error occurred');
       toast({
         title: "Analysis failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -78,11 +82,11 @@ export default function MLWasteDetection() {
 
   if (!selectedAccountId) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">ML-Powered Waste Detection 2.0</h1>
-          <p className="text-muted-foreground">Machine Learning analysis of resource utilization patterns</p>
-        </div>
+      <Layout 
+        title="ML-Powered Waste Detection 2.0" 
+        description="Machine Learning analysis of resource utilization patterns"
+        icon={<Trash2 className="h-5 w-5 text-white" />}
+      >
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>No AWS Account Selected</AlertTitle>
@@ -90,22 +94,23 @@ export default function MLWasteDetection() {
             Please select an AWS account from the header to run ML waste detection analysis.
           </AlertDescription>
         </Alert>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">ML-Powered Waste Detection 2.0</h1>
-          <p className="text-muted-foreground">Machine Learning analysis of resource utilization patterns</p>
+    <Layout 
+      title="ML-Powered Waste Detection 2.0" 
+      description="Machine Learning analysis of resource utilization patterns"
+      icon={<Trash2 className="h-5 w-5 text-white" />}
+    >
+      <div className="space-y-6">
+        <div className="flex items-center justify-end">
+          <Button onClick={runMLAnalysis} disabled={analyzing}>
+            <Brain className={`h-4 w-4 mr-2 ${analyzing ? 'animate-pulse' : ''}`} />
+            Run ML Analysis
+          </Button>
         </div>
-        <Button onClick={runMLAnalysis} disabled={analyzing}>
-          <Brain className={`h-4 w-4 mr-2 ${analyzing ? 'animate-pulse' : ''}`} />
-          Run ML Analysis
-        </Button>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -244,6 +249,7 @@ export default function MLWasteDetection() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </Layout>
   );
 }

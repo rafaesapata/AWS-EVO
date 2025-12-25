@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { Layout } from "@/components/Layout";
 import { 
   Ticket, 
   Plus, 
@@ -278,163 +279,14 @@ export default function RemediationTickets() {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Ticket className="h-6 w-6 text-primary" />
-                Tickets de Remediação
-              </CardTitle>
-              <CardDescription>
-                Sistema de workflow para rastreamento e resolução de problemas identificados
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isLoading}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                {isLoading ? 'Atualizando...' : 'Atualizar'}
-              </Button>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Novo Ticket
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Criar Novo Ticket</DialogTitle>
-                    <DialogDescription>
-                      Crie um novo ticket de remediação para rastrear problemas
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="title">Título</Label>
-                      <Input
-                        id="title"
-                        value={newTicket.title}
-                        onChange={(e) => setNewTicket(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="Título do problema"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Descrição</Label>
-                      <Textarea
-                        id="description"
-                        value={newTicket.description}
-                        onChange={(e) => setNewTicket(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Descreva o problema detalhadamente"
-                        rows={4}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="severity">Severidade</Label>
-                        <Select value={newTicket.severity} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, severity: value }))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">Baixa</SelectItem>
-                            <SelectItem value="medium">Média</SelectItem>
-                            <SelectItem value="high">Alta</SelectItem>
-                            <SelectItem value="critical">Crítica</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="priority">Prioridade</Label>
-                        <Select value={newTicket.priority} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, priority: value }))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">Baixa</SelectItem>
-                            <SelectItem value="medium">Média</SelectItem>
-                            <SelectItem value="high">Alta</SelectItem>
-                            <SelectItem value="urgent">Urgente</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="category">Categoria</Label>
-                        <Select value={newTicket.category} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, category: value }))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((cat) => (
-                              <SelectItem key={cat.value} value={cat.value}>
-                                {cat.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="due_date">Data de Vencimento</Label>
-                        <Input
-                          id="due_date"
-                          type="date"
-                          value={newTicket.due_date}
-                          onChange={(e) => setNewTicket(prev => ({ ...prev, due_date: e.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="effort">Esforço Estimado (horas)</Label>
-                        <Input
-                          id="effort"
-                          type="number"
-                          value={newTicket.estimated_effort_hours}
-                          onChange={(e) => setNewTicket(prev => ({ ...prev, estimated_effort_hours: Number(e.target.value) }))}
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="business_impact">Impacto no Negócio</Label>
-                      <Textarea
-                        id="business_impact"
-                        value={newTicket.business_impact}
-                        onChange={(e) => setNewTicket(prev => ({ ...prev, business_impact: e.target.value }))}
-                        placeholder="Descreva o impacto no negócio"
-                        rows={2}
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={handleCreateTicket} disabled={createTicketMutation.isPending}>
-                      {createTicketMutation.isPending ? 'Criando...' : 'Criar Ticket'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+    <Layout 
+      title="Tickets de Remediação" 
+      description="Sistema de workflow para rastreamento e resolução de problemas"
+      icon={<Ticket className="h-5 w-5 text-white" />}
+    >
+      <div className="space-y-6">
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Tickets</CardTitle>
@@ -666,6 +518,128 @@ export default function RemediationTickets() {
           )}
         </CardContent>
       </Card>
-    </div>
+
+      {/* Create Ticket Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Ticket</DialogTitle>
+            <DialogDescription>
+              Crie um novo ticket de remediação para rastrear problemas
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Título</Label>
+              <Input
+                id="title"
+                value={newTicket.title}
+                onChange={(e) => setNewTicket(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Título do problema"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrição</Label>
+              <Textarea
+                id="description"
+                value={newTicket.description}
+                onChange={(e) => setNewTicket(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Descreva o problema detalhadamente"
+                rows={4}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="severity">Severidade</Label>
+                <Select value={newTicket.severity} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, severity: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="critical">Crítica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="priority">Prioridade</Label>
+                <Select value={newTicket.priority} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, priority: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="urgent">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Categoria</Label>
+                <Select value={newTicket.category} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, category: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="due_date">Data de Vencimento</Label>
+                <Input
+                  id="due_date"
+                  type="date"
+                  value={newTicket.due_date}
+                  onChange={(e) => setNewTicket(prev => ({ ...prev, due_date: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="effort">Esforço Estimado (horas)</Label>
+                <Input
+                  id="effort"
+                  type="number"
+                  value={newTicket.estimated_effort_hours}
+                  onChange={(e) => setNewTicket(prev => ({ ...prev, estimated_effort_hours: Number(e.target.value) }))}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="business_impact">Impacto no Negócio</Label>
+              <Textarea
+                id="business_impact"
+                value={newTicket.business_impact}
+                onChange={(e) => setNewTicket(prev => ({ ...prev, business_impact: e.target.value }))}
+                placeholder="Descreva o impacto no negócio"
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateTicket} disabled={createTicketMutation.isPending}>
+              {createTicketMutation.isPending ? 'Criando...' : 'Criar Ticket'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </div>
+    </Layout>
   );
 }

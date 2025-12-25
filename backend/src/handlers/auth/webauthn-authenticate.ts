@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { logger } from '../../lib/logging.js';
+import { success, error as errorResponse, corsOptions, badRequest, unauthorized } from '../../lib/response.js';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 
@@ -22,25 +23,37 @@ interface AuthenticationRequest {
   challenge?: string;
 }
 
+// Extract origin from event for CORS
+function getOrigin(event: APIGatewayProxyEvent): string {
+  return event.headers?.origin || event.headers?.Origin || '*';
+}
+
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const origin = getOrigin(event);
+  
+  // Handle CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+  
   try {
     const body: AuthenticationRequest = JSON.parse(event.body || '{}');
     const { action } = body;
 
     if (action === 'start') {
-      return await startAuthentication(body.email);
+      return await startAuthentication(body.email, origin);
     } else if (action === 'finish') {
-      return await finishAuthentication(body, event);
+      return await finishAuthentication(body, event, origin);
     }
 
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid action' }) };
+    return badRequest('Invalid action', undefined, origin);
   } catch (error) {
     logger.error('WebAuthn authentication error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Internal server error' }) };
+    return errorResponse('Internal server error', 500, undefined, origin);
   }
 };
 
-async function startAuthentication(email?: string): Promise<APIGatewayProxyResult> {
+async function startAuthentication(email?: string, origin?: string): Promise<APIGatewayProxyResult> {
   let allowCredentials: { type: string; id: string }[] = [];
 
   if (email) {
@@ -50,7 +63,7 @@ async function startAuthentication(email?: string): Promise<APIGatewayProxyResul
     });
 
     if (!user) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'User not found' }) };
+      return errorResponse('User not found', 404, undefined, origin);
     }
 
     // Buscar credenciais WebAuthn separadamente
@@ -59,7 +72,7 @@ async function startAuthentication(email?: string): Promise<APIGatewayProxyResul
     });
 
     if (webauthnCredentials.length === 0) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'No WebAuthn credentials found' }) };
+      return errorResponse('No WebAuthn credentials found', 404, undefined, origin);
     }
 
     allowCredentials = webauthnCredentials.map(cred => ({
@@ -91,24 +104,18 @@ async function startAuthentication(email?: string): Promise<APIGatewayProxyResul
     allowCredentials: allowCredentials.length > 0 ? allowCredentials : undefined
   };
 
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      success: true,
-      options: publicKeyCredentialRequestOptions
-    })
-  };
+  return success({ options: publicKeyCredentialRequestOptions }, 200, origin);
 }
 
 async function finishAuthentication(
   body: AuthenticationRequest,
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  origin?: string
 ): Promise<APIGatewayProxyResult> {
   const { assertion, challenge } = body;
 
   if (!assertion || !challenge) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Missing assertion or challenge' }) };
+    return badRequest('Missing assertion or challenge', undefined, origin);
   }
 
   // Verificar challenge
@@ -120,7 +127,7 @@ async function finishAuthentication(
   });
 
   if (!storedChallenge) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid or expired challenge' }) };
+    return badRequest('Invalid or expired challenge', undefined, origin);
   }
 
   // Deletar challenge usado
@@ -143,7 +150,7 @@ async function finishAuthentication(
       }
     });
 
-    return { statusCode: 401, body: JSON.stringify({ error: 'Invalid credential' }) };
+    return unauthorized('Invalid credential', origin);
   }
 
   try {
@@ -153,12 +160,12 @@ async function finishAuthentication(
 
     // Verificar challenge
     if (clientData.challenge !== challenge) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Challenge mismatch' }) };
+      return badRequest('Challenge mismatch', undefined, origin);
     }
 
     // Verificar tipo
     if (clientData.type !== 'webauthn.get') {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid type' }) };
+      return badRequest('Invalid type', undefined, origin);
     }
 
     // Decodificar authenticatorData
@@ -179,7 +186,7 @@ async function finishAuthentication(
         }
       });
 
-      return { statusCode: 401, body: JSON.stringify({ error: 'Replay attack detected' }) };
+      return unauthorized('Replay attack detected', origin);
     }
 
     // Atualizar counter
@@ -211,25 +218,20 @@ async function finishAuthentication(
       }
     });
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        success: true,
-        sessionToken,
-        expiresAt: sessionExpiry.toISOString(),
-        user: {
-          id: credential.user_id,
-          email: 'user@example.com',
-          name: 'User',
-          role: 'user',
-          organizationId: 'default',
-          organizationName: 'Default Organization'
-        }
-      })
-    };
+    return success({
+      sessionToken,
+      expiresAt: sessionExpiry.toISOString(),
+      user: {
+        id: credential.user_id,
+        email: 'user@example.com',
+        name: 'User',
+        role: 'user',
+        organizationId: 'default',
+        organizationName: 'Default Organization'
+      }
+    }, 200, origin);
   } catch (error) {
     logger.error('Assertion verification error:', error);
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid assertion' }) };
+    return badRequest('Invalid assertion', undefined, origin);
   }
 }

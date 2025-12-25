@@ -128,8 +128,10 @@ export function ComplianceFrameworks() {
 
       // Call the compliance-scan Lambda function
       const result = await apiClient.invoke('compliance-scan', { 
-        frameworkId,
-        scanId: scanData.data.id 
+        body: {
+          frameworkId,
+          scanId: scanData.data.id 
+        }
       });
 
       if (result.error) {

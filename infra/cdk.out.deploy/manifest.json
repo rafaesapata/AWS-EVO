@@ -1,0 +1,1866 @@
+{
+  "version": "34.0.0",
+  "artifacts": {
+    "EvoUdsDevelopmentNetworkStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "EvoUdsDevelopmentNetworkStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "EvoUdsDevelopmentNetworkStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://383234048592/us-east-1",
+      "properties": {
+        "templateFile": "EvoUdsDevelopmentNetworkStack.template.json",
+        "terminationProtection": false,
+        "tags": {
+          "DeployedAt": "2025-12-24T17:22:44.314Z",
+          "Environment": "development",
+          "ManagedBy": "CDK",
+          "Project": "EVO-UDS"
+        },
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-deploy-role-383234048592-us-east-1",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-cfn-exec-role-383234048592-us-east-1",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-383234048592-us-east-1/5ef85e851d4d4f6ddc95f59ea30f223f93efee8e839923de72d04eef10078137.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "EvoUdsDevelopmentNetworkStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-lookup-role-383234048592-us-east-1",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "EvoUdsDevelopmentNetworkStack.assets"
+      ],
+      "metadata": {
+        "/EvoUdsDevelopmentNetworkStack": [
+          {
+            "type": "aws:cdk:stack-tags",
+            "data": [
+              {
+                "Key": "DeployedAt",
+                "Value": "2025-12-24T17:22:44.314Z"
+              },
+              {
+                "Key": "Environment",
+                "Value": "development"
+              },
+              {
+                "Key": "ManagedBy",
+                "Value": "CDK"
+              },
+              {
+                "Key": "Project",
+                "Value": "EVO-UDS"
+              }
+            ]
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcFE7C157B"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet1/Subnet": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet1Subnet0DCFE8C5"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet1/RouteTable": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet1RouteTableBE0F1ACB"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet1/RouteTableAssociation": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet1RouteTableAssociation2F36D8C1"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet1/DefaultRoute": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet1DefaultRoute58D443E7"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet1/EIP": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet1EIPBC40C497"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet1/NATGateway": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet1NATGateway9CAFAAFF"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet2/Subnet": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet2SubnetA7FCBA81"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet2/RouteTable": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet2RouteTable75989816"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet2/RouteTableAssociation": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet2RouteTableAssociationD404B267"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet2/DefaultRoute": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet2DefaultRoute9225EEE6"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet2/EIP": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet2EIPD5054F2C"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet2/NATGateway": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet2NATGateway836B6760"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet3/Subnet": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet3Subnet6E6E9DC6"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet3/RouteTable": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet3RouteTable28913D18"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet3/RouteTableAssociation": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet3RouteTableAssociation8E21F6E4"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PublicSubnet3/DefaultRoute": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPublicSubnet3DefaultRouteFB0C033D"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet1/Subnet": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet1SubnetAFC3BF0A"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet1/RouteTable": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet1RouteTable3A15E6E5"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet1/RouteTableAssociation": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet1RouteTableAssociation7D99A787"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet1/DefaultRoute": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet1DefaultRoute1A5E78AF"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet2/Subnet": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet2SubnetCBF8E2B0"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet2/RouteTable": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet2RouteTable79BA2837"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet2/RouteTableAssociation": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet2RouteTableAssociation5B699A22"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet2/DefaultRoute": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet2DefaultRouteC84536E3"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet3/Subnet": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet3SubnetB22A6AC0"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet3/RouteTable": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet3RouteTableF2B1089A"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet3/RouteTableAssociation": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet3RouteTableAssociation47D53797"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/PrivateSubnet3/DefaultRoute": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcPrivateSubnet3DefaultRouteBEAD02DC"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DatabaseSubnet1/Subnet": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDatabaseSubnet1SubnetA59A562B"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DatabaseSubnet1/RouteTable": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDatabaseSubnet1RouteTable0815AE1E"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DatabaseSubnet1/RouteTableAssociation": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDatabaseSubnet1RouteTableAssociation08C9ECAF"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DatabaseSubnet2/Subnet": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDatabaseSubnet2Subnet47FED35C"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DatabaseSubnet2/RouteTable": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDatabaseSubnet2RouteTableF42AEC75"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DatabaseSubnet2/RouteTableAssociation": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDatabaseSubnet2RouteTableAssociation37C96865"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DatabaseSubnet3/Subnet": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDatabaseSubnet3SubnetC5D6D41A"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DatabaseSubnet3/RouteTable": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDatabaseSubnet3RouteTable9287B062"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DatabaseSubnet3/RouteTableAssociation": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDatabaseSubnet3RouteTableAssociation9C108F6D"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/IGW": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcIGW528C0F90"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/VPCGW": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcVPCGW8A38E83B"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/RestrictDefaultSecurityGroupCustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcRestrictDefaultSecurityGroupCustomResource43DA3C19"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/S3Endpoint/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcS3Endpoint22CBEB2B"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/EvoUdsVpc/DynamoDBEndpoint/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsVpcDynamoDBEndpointE9E7A0BC"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/Custom::VpcRestrictDefaultSGCustomResourceProvider/Role": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomVpcRestrictDefaultSGCustomResourceProviderRole26592FE0"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/Custom::VpcRestrictDefaultSGCustomResourceProvider/Handler": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomVpcRestrictDefaultSGCustomResourceProviderHandlerDC833E5E"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/LambdaSecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LambdaSecurityGroup0BD9FC99"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/RdsSecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "RdsSecurityGroup632A77E4"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/RdsSecurityGroup/from EvoUdsDevelopmentNetworkStackLambdaSecurityGroupA9566C5E:5432": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "RdsSecurityGroupfromEvoUdsDevelopmentNetworkStackLambdaSecurityGroupA9566C5E5432F9C3D76D"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/VpcId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "VpcId"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/LambdaSecurityGroupId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LambdaSecurityGroupId"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/RdsSecurityGroupId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "RdsSecurityGroupId"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/Exports/Output{\"Ref\":\"EvoUdsVpcDatabaseSubnet1SubnetA59A562B\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefEvoUdsVpcDatabaseSubnet1SubnetA59A562B7E74C26F"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/Exports/Output{\"Ref\":\"EvoUdsVpcDatabaseSubnet2Subnet47FED35C\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefEvoUdsVpcDatabaseSubnet2Subnet47FED35C88D94764"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/Exports/Output{\"Ref\":\"EvoUdsVpcDatabaseSubnet3SubnetC5D6D41A\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefEvoUdsVpcDatabaseSubnet3SubnetC5D6D41AB577997F"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/Exports/Output{\"Ref\":\"EvoUdsVpcFE7C157B\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefEvoUdsVpcFE7C157B8508BA0F"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/Exports/Output{\"Ref\":\"EvoUdsVpcPrivateSubnet1SubnetAFC3BF0A\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefEvoUdsVpcPrivateSubnet1SubnetAFC3BF0AA71F342C"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/Exports/Output{\"Ref\":\"EvoUdsVpcPrivateSubnet2SubnetCBF8E2B0\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefEvoUdsVpcPrivateSubnet2SubnetCBF8E2B0EABA0082"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/Exports/Output{\"Ref\":\"EvoUdsVpcPrivateSubnet3SubnetB22A6AC0\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefEvoUdsVpcPrivateSubnet3SubnetB22A6AC041A6E27F"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/EvoUdsDevelopmentNetworkStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "EvoUdsDevelopmentNetworkStack"
+    },
+    "EvoUdsDevelopmentDatabaseStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "EvoUdsDevelopmentDatabaseStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "EvoUdsDevelopmentDatabaseStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://383234048592/us-east-1",
+      "properties": {
+        "templateFile": "EvoUdsDevelopmentDatabaseStack.template.json",
+        "terminationProtection": false,
+        "tags": {
+          "DeployedAt": "2025-12-24T17:22:44.314Z",
+          "Environment": "development",
+          "ManagedBy": "CDK",
+          "Project": "EVO-UDS"
+        },
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-deploy-role-383234048592-us-east-1",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-cfn-exec-role-383234048592-us-east-1",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-383234048592-us-east-1/e0fa66301c4c32271a6507840e3a591c78c871f9f1597b879a2e14a8f5943fd2.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "EvoUdsDevelopmentDatabaseStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-lookup-role-383234048592-us-east-1",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "EvoUdsDevelopmentNetworkStack",
+        "EvoUdsDevelopmentDatabaseStack.assets"
+      ],
+      "metadata": {
+        "/EvoUdsDevelopmentDatabaseStack": [
+          {
+            "type": "aws:cdk:stack-tags",
+            "data": [
+              {
+                "Key": "DeployedAt",
+                "Value": "2025-12-24T17:22:44.314Z"
+              },
+              {
+                "Key": "Environment",
+                "Value": "development"
+              },
+              {
+                "Key": "ManagedBy",
+                "Value": "CDK"
+              },
+              {
+                "Key": "Project",
+                "Value": "EVO-UDS"
+              }
+            ]
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/DatabaseSecret/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseSecret86DBB7B3"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/DatabaseSecret/Attachment/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseSecretAttachment9A63A3D4"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/DatabaseSubnetGroup/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseSubnetGroup"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/Database/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseSecurityGroup5C91FDCB"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/Database/MonitoringRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseMonitoringRole576991DA"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/Database/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseB269D8BB"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/DatabaseEndpoint": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseEndpoint"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/DatabaseSecretArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseSecretArn"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/Exports/Output{\"Ref\":\"DatabaseSecretAttachment9A63A3D4\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefDatabaseSecretAttachment9A63A3D478416D8E"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/Exports/Output{\"Fn::GetAtt\":[\"DatabaseB269D8BB\",\"Endpoint.Address\"]}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputFnGetAttDatabaseB269D8BBEndpointAddressA4DBD059"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/Exports/Output{\"Ref\":\"DatabaseB269D8BB\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefDatabaseB269D8BB88F4B1C4"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/EvoUdsDevelopmentDatabaseStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "EvoUdsDevelopmentDatabaseStack"
+    },
+    "EvoUdsDevelopmentAuthStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "EvoUdsDevelopmentAuthStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "EvoUdsDevelopmentAuthStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://383234048592/us-east-1",
+      "properties": {
+        "templateFile": "EvoUdsDevelopmentAuthStack.template.json",
+        "terminationProtection": false,
+        "tags": {
+          "DeployedAt": "2025-12-24T17:22:44.314Z",
+          "Environment": "development",
+          "ManagedBy": "CDK",
+          "Project": "EVO-UDS"
+        },
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-deploy-role-383234048592-us-east-1",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-cfn-exec-role-383234048592-us-east-1",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-383234048592-us-east-1/6a0d64458cd7679d7faf7d8b67d9111f9010f1300928130841991cc7664daea9.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "EvoUdsDevelopmentAuthStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-lookup-role-383234048592-us-east-1",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "EvoUdsDevelopmentAuthStack.assets"
+      ],
+      "metadata": {
+        "/EvoUdsDevelopmentAuthStack": [
+          {
+            "type": "aws:cdk:stack-tags",
+            "data": [
+              {
+                "Key": "DeployedAt",
+                "Value": "2025-12-24T17:22:44.314Z"
+              },
+              {
+                "Key": "Environment",
+                "Value": "development"
+              },
+              {
+                "Key": "ManagedBy",
+                "Value": "CDK"
+              },
+              {
+                "Key": "Project",
+                "Value": "EVO-UDS"
+              }
+            ]
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/UserPool/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "UserPool6BA7E5F2"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/UserPool/UserPoolDomain/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "UserPoolUserPoolDomain9F01E991"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/UserPoolClient/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "UserPoolClient2F5918F7"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/UserPoolId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "UserPoolId"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/UserPoolClientId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "UserPoolClientId"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/UserPoolDomain": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "UserPoolDomain"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/Exports/Output{\"Ref\":\"UserPool6BA7E5F2\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefUserPool6BA7E5F296FD7236"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/Exports/Output{\"Fn::GetAtt\":[\"UserPool6BA7E5F2\",\"Arn\"]}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputFnGetAttUserPool6BA7E5F2Arn686ACC00"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/EvoUdsDevelopmentAuthStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "EvoUdsDevelopmentAuthStack"
+    },
+    "EvoUdsDevelopmentApiStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "EvoUdsDevelopmentApiStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "EvoUdsDevelopmentApiStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://383234048592/us-east-1",
+      "properties": {
+        "templateFile": "EvoUdsDevelopmentApiStack.template.json",
+        "terminationProtection": false,
+        "tags": {
+          "DeployedAt": "2025-12-24T17:22:44.314Z",
+          "Environment": "development",
+          "ManagedBy": "CDK",
+          "Project": "EVO-UDS"
+        },
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-deploy-role-383234048592-us-east-1",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-cfn-exec-role-383234048592-us-east-1",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-383234048592-us-east-1/8b48ee4849b12ac9c0b991fc87e58e2ecde9dc1994b906bd9b762726858ec24a.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "EvoUdsDevelopmentApiStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-lookup-role-383234048592-us-east-1",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "EvoUdsDevelopmentDatabaseStack",
+        "EvoUdsDevelopmentAuthStack",
+        "EvoUdsDevelopmentNetworkStack",
+        "EvoUdsDevelopmentApiStack.assets"
+      ],
+      "metadata": {
+        "/EvoUdsDevelopmentApiStack": [
+          {
+            "type": "aws:cdk:stack-tags",
+            "data": [
+              {
+                "Key": "DeployedAt",
+                "Value": "2025-12-24T17:22:44.314Z"
+              },
+              {
+                "Key": "Environment",
+                "Value": "development"
+              },
+              {
+                "Key": "ManagedBy",
+                "Value": "CDK"
+              },
+              {
+                "Key": "Project",
+                "Value": "EVO-UDS"
+              }
+            ]
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/LambdaExecutionRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LambdaExecutionRoleD5C26073"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/LambdaExecutionRole/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LambdaExecutionRoleDefaultPolicy6D69732F"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CommonLayer/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CommonLayer306767A0"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/SecurityScanFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SecurityScanFunctionSecurityGroup4A5C0F26"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/SecurityScanFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SecurityScanFunctionF898CDCE"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CostAnalysisFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CostAnalysisFunctionSecurityGroup7A6635FD"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CostAnalysisFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CostAnalysisFunctionB6CE3CB7"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/HealthCheckFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "HealthCheckFunctionC4679183"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiD405EAB6"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/CloudWatchRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiCloudWatchRoleBCC06376"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Account": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiAccount955A75D9"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Deployment/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiDeployment185893F823d0e1fb505b8279452351dc7ed0979f"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/DeploymentStage.dev/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiDeploymentStagedev225983DF"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Endpoint": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiEndpointD2FB1DD6"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiOPTIONS0E57B881"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/health/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApihealthD016699E"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/health/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApihealthOPTIONS911F0571"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/health/GET/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.GET..health": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApihealthGETApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46GEThealthA1E654E9"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/health/GET/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.GET..health": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApihealthGETApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46GEThealthF6E1C498"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/health/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApihealthGETC7554056"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurity855487FB"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityOPTIONSCA0FC53A"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/scan/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityscan6470AD31"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/scan/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityscanOPTIONSBBFE55F5"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/scan/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..security.scan": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityscanPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTsecurityscan00611DA8"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/scan/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..security.scan": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityscanPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTsecurityscan94C1D38E"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/scan/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityscanPOST2D533CEE"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/posture/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecuritypostureFA600B03"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/posture/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecuritypostureOPTIONSE5F39F64"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/posture/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..security.posture": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityposturePOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTsecuritypostureB9C528FE"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/posture/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..security.posture": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityposturePOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTsecuritypostureBF01AF2F"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/posture/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityposturePOST3E85C430"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/findings/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityfindings2BC72668"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/findings/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityfindingsOPTIONSD5066748"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/findings/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..security.findings": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityfindingsPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTsecurityfindings9F0DCF7D"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/findings/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..security.findings": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityfindingsPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTsecurityfindingsACED712F"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/findings/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityfindingsPOST57C9A0A9"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/export-pdf/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityexportpdf8998BE46"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/export-pdf/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityexportpdfOPTIONS5D6185E0"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/export-pdf/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..security.export-pdf": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityexportpdfPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTsecurityexportpdfA691F81F"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/export-pdf/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..security.export-pdf": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityexportpdfPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTsecurityexportpdf92E33CE5"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/security/export-pdf/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApisecurityexportpdfPOSTC71BCFFC"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/finops/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifinopsD1A239D1"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/finops/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifinopsOPTIONSE4AD0E9D"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/finops/cost-analysis/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifinopscostanalysisD0BD2006"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/finops/cost-analysis/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifinopscostanalysisOPTIONS82219E84"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/finops/cost-analysis/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..finops.cost-analysis": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifinopscostanalysisPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfinopscostanalysis7D167627"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/finops/cost-analysis/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..finops.cost-analysis": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifinopscostanalysisPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfinopscostanalysisC7F178B6"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/finops/cost-analysis/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifinopscostanalysisPOSTF5A457B0"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofiles5A54CF82"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilesOPTIONS141492F3"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/check/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescheck827EDC32"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/check/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescheckOPTIONS5A1821E5"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/check/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..profiles.check": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescheckPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTprofilescheckF1203412"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/check/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..profiles.check": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescheckPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTprofilescheck6B0182A5"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/check/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescheckPOST30593A95"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/create-with-org/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescreatewithorg5DD1C7D1"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/create-with-org/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescreatewithorgOPTIONS9100295B"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/create-with-org/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..profiles.create-with-org": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescreatewithorgPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTprofilescreatewithorg7D112764"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/create-with-org/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..profiles.create-with-org": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescreatewithorgPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTprofilescreatewithorgB683291F"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/profiles/create-with-org/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiprofilescreatewithorgPOSTCBC21CB8"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/aws/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiaws82E19DBC"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/aws/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiawsOPTIONS4DF16096"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/aws/credentials/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiawscredentials5F004D34"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/aws/credentials/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiawscredentialsOPTIONSBEFE1EEA"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/aws/credentials/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..aws.credentials": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiawscredentialsPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTawscredentialsEE67FCB7"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/aws/credentials/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..aws.credentials": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiawscredentialsPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTawscredentialsF8B51913"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/aws/credentials/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiawscredentialsPOSTC2FB5D98"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctions8E970C2A"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsOPTIONSACE1DB90"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/save-aws-credentials/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionssaveawscredentialsCD8C0231"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/save-aws-credentials/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionssaveawscredentialsOPTIONSB55E86AE"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/save-aws-credentials/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..functions.save-aws-credentials": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionssaveawscredentialsPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfunctionssaveawscredentialsE145B2BE"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/save-aws-credentials/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..functions.save-aws-credentials": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionssaveawscredentialsPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfunctionssaveawscredentials7D4CCE79"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/save-aws-credentials/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionssaveawscredentialsPOSTE8A326EF"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/well-architected-scan/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionswellarchitectedscan1773A60B"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/well-architected-scan/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionswellarchitectedscanOPTIONS223EEF38"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/well-architected-scan/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..functions.well-architected-scan": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionswellarchitectedscanPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfunctionswellarchitectedscan9681BD04"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/well-architected-scan/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..functions.well-architected-scan": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionswellarchitectedscanPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfunctionswellarchitectedscan3DF16486"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/well-architected-scan/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionswellarchitectedscanPOST5FC2BAF3"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/query-table/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsquerytable26371A46"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/query-table/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsquerytableOPTIONS2FE59ADB"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/query-table/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..functions.query-table": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsquerytablePOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfunctionsquerytable9BC54549"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/query-table/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..functions.query-table": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsquerytablePOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfunctionsquerytableC606792A"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/query-table/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsquerytablePOST843EF62B"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/ml-waste-detection/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsmlwastedetection6EB1C00D"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/ml-waste-detection/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsmlwastedetectionOPTIONS90BE23B3"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/ml-waste-detection/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..functions.ml-waste-detection": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsmlwastedetectionPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfunctionsmlwastedetectionEB9CA63C"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/ml-waste-detection/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..functions.ml-waste-detection": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsmlwastedetectionPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTfunctionsmlwastedetection22895626"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/functions/ml-waste-detection/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApifunctionsmlwastedetectionPOSTCB35D799"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/api/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiapiB0C06361"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/api/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiapiOPTIONS7ABA4563"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/api/lambda/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiapilambda206BC7D9"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/api/lambda/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiapilambdaOPTIONS5E7817AC"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/api/lambda/fetch-cloudwatch-metrics/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiapilambdafetchcloudwatchmetricsF29B3535"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/api/lambda/fetch-cloudwatch-metrics/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiapilambdafetchcloudwatchmetricsOPTIONSD7FF9D79"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/api/lambda/fetch-cloudwatch-metrics/POST/ApiPermission.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..api.lambda.fetch-cloudwatch-metrics": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiapilambdafetchcloudwatchmetricsPOSTApiPermissionEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTapilambdafetchcloudwatchmetricsCFB81561"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/api/lambda/fetch-cloudwatch-metrics/POST/ApiPermission.Test.EvoUdsDevelopmentApiStackEvoUdsApi34B05A46.POST..api.lambda.fetch-cloudwatch-metrics": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiapilambdafetchcloudwatchmetricsPOSTApiPermissionTestEvoUdsDevelopmentApiStackEvoUdsApi34B05A46POSTapilambdafetchcloudwatchmetrics38161458"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/EvoUdsApi/Default/api/lambda/fetch-cloudwatch-metrics/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsApiapilambdafetchcloudwatchmetricsPOSTE78C913A"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CognitoAuthorizer/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CognitoAuthorizerF3215DBC"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CheckOrganizationFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckOrganizationFunctionSecurityGroup908C569E"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CheckOrganizationFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckOrganizationFunctionAD64D862"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CreateWithOrgFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CreateWithOrgFunctionSecurityGroupC61ABA02"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CreateWithOrgFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CreateWithOrgFunction9C5D0419"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/SaveAwsCredentialsFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SaveAwsCredentialsFunctionSecurityGroup075F8056"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/SaveAwsCredentialsFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SaveAwsCredentialsFunction7A060BCE"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/WellArchitectedScanFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "WellArchitectedScanFunctionSecurityGroupF2496D8D"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/WellArchitectedScanFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "WellArchitectedScanFunctionE8F855CF"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/GetSecurityPostureFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GetSecurityPostureFunctionSecurityGroupE5C51F50"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/GetSecurityPostureFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GetSecurityPostureFunction333D62A0"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/GetFindingsFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GetFindingsFunctionSecurityGroupEBDE54B3"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/GetFindingsFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GetFindingsFunctionF5DB173B"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/QueryTableFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "QueryTableFunctionSecurityGroup343000DB"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/QueryTableFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "QueryTableFunction1F3065EA"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/SecurityPdfExportFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SecurityPdfExportFunctionSecurityGroupFAF87D25"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/SecurityPdfExportFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SecurityPdfExportFunction9C0BD602"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/FetchCloudwatchMetricsFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FetchCloudwatchMetricsFunctionSecurityGroupDC47D42D"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/FetchCloudwatchMetricsFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FetchCloudwatchMetricsFunctionF7B3B7A5"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/MLWasteDetectionFunction/SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "MLWasteDetectionFunctionSecurityGroup95067E0D"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/MLWasteDetectionFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "MLWasteDetectionFunctionCB3BA973"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/ApiUrl": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ApiUrl"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/ApiId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ApiId"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/Exports/Output{\"Ref\":\"EvoUdsApiD405EAB6\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefEvoUdsApiD405EAB6B68B462C"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/Exports/Output{\"Ref\":\"EvoUdsApiDeploymentStagedev225983DF\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefEvoUdsApiDeploymentStagedev225983DF7E21AD52"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/EvoUdsDevelopmentApiStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "EvoUdsDevelopmentApiStack"
+    },
+    "EvoUdsDevelopmentFrontendStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "EvoUdsDevelopmentFrontendStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "EvoUdsDevelopmentFrontendStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://383234048592/us-east-1",
+      "properties": {
+        "templateFile": "EvoUdsDevelopmentFrontendStack.template.json",
+        "terminationProtection": false,
+        "tags": {
+          "DeployedAt": "2025-12-24T17:22:44.314Z",
+          "Environment": "development",
+          "ManagedBy": "CDK",
+          "Project": "EVO-UDS"
+        },
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-deploy-role-383234048592-us-east-1",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-cfn-exec-role-383234048592-us-east-1",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-383234048592-us-east-1/8fe41f33dd60909a4d2c9b249912a45375c11eaf00b4c1ebde0b85b68a8dcf99.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "EvoUdsDevelopmentFrontendStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-lookup-role-383234048592-us-east-1",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "EvoUdsDevelopmentApiStack",
+        "EvoUdsDevelopmentFrontendStack.assets"
+      ],
+      "metadata": {
+        "/EvoUdsDevelopmentFrontendStack": [
+          {
+            "type": "aws:cdk:stack-tags",
+            "data": [
+              {
+                "Key": "DeployedAt",
+                "Value": "2025-12-24T17:22:44.314Z"
+              },
+              {
+                "Key": "Environment",
+                "Value": "development"
+              },
+              {
+                "Key": "ManagedBy",
+                "Value": "CDK"
+              },
+              {
+                "Key": "Project",
+                "Value": "EVO-UDS"
+              }
+            ]
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/FrontendBucket/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FrontendBucketEFE2E19C"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/FrontendBucket/Policy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FrontendBucketPolicy1DFF75D9"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/FrontendBucket/AutoDeleteObjectsCustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FrontendBucketAutoDeleteObjectsCustomResourceDB860B32"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/OAI/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "OAIE1EFC67F"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/FrontendDistribution/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FrontendDistributionE6EAF405"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/FrontendDeployment/AwsCliLayer/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FrontendDeploymentAwsCliLayer77737BA0"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/FrontendDeployment/CustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FrontendDeploymentCustomResource068A52DB"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/FrontendUrl": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FrontendUrl"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/FrontendBucketName": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "FrontendBucketName"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/CloudFrontDistributionId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CloudFrontDistributionId"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/EvoUdsDevelopmentFrontendStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "EvoUdsDevelopmentFrontendStack"
+    },
+    "EvoUdsDevelopmentMonitoringStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "EvoUdsDevelopmentMonitoringStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "EvoUdsDevelopmentMonitoringStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://383234048592/us-east-1",
+      "properties": {
+        "templateFile": "EvoUdsDevelopmentMonitoringStack.template.json",
+        "terminationProtection": false,
+        "tags": {
+          "DeployedAt": "2025-12-24T17:22:44.314Z",
+          "Environment": "development",
+          "ManagedBy": "CDK",
+          "Project": "EVO-UDS"
+        },
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-deploy-role-383234048592-us-east-1",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-cfn-exec-role-383234048592-us-east-1",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-383234048592-us-east-1/5787818d137804df256f7384ce267fd0a57a2b6809acc622fd289fdef0a55774.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "EvoUdsDevelopmentMonitoringStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::383234048592:role/cdk-hnb659fds-lookup-role-383234048592-us-east-1",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "EvoUdsDevelopmentApiStack",
+        "EvoUdsDevelopmentDatabaseStack",
+        "EvoUdsDevelopmentMonitoringStack.assets"
+      ],
+      "metadata": {
+        "/EvoUdsDevelopmentMonitoringStack": [
+          {
+            "type": "aws:cdk:stack-tags",
+            "data": [
+              {
+                "Key": "DeployedAt",
+                "Value": "2025-12-24T17:22:44.314Z"
+              },
+              {
+                "Key": "Environment",
+                "Value": "development"
+              },
+              {
+                "Key": "ManagedBy",
+                "Value": "CDK"
+              },
+              {
+                "Key": "Project",
+                "Value": "EVO-UDS"
+              }
+            ]
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/AlertTopic/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AlertTopic2720D535"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/AlertTopic/admin@evo-uds.com/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AlertTopicadminevoudscom193178DE"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/ApiErrorAlarm/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ApiErrorAlarmD3E841A2"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/ApiLatencyAlarm/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ApiLatencyAlarm453002C0"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/DatabaseConnectionAlarm/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseConnectionAlarmEA17567A"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/DatabaseCpuAlarm/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseCpuAlarmFB0E33CD"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/EvoUdsDashboard/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvoUdsDashboard01F445BE"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/AlertTopicArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AlertTopicArn"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/DashboardUrl": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DashboardUrl"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/EvoUdsDevelopmentMonitoringStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "EvoUdsDevelopmentMonitoringStack"
+    },
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    }
+  }
+}

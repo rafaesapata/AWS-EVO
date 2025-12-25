@@ -61,7 +61,7 @@ export function AnomalyDashboard() {
       });
 
       const result = await apiClient.invoke('detect-anomalies', {
-        organization_id: organizationId
+        body: { organization_id: organizationId }
       });
       const { error } = { error: result.error };
 
