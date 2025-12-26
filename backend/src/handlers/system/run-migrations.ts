@@ -13,6 +13,35 @@ const MIGRATION_COMMANDS = [
   `ALTER TABLE "findings" ADD COLUMN IF NOT EXISTS "aws_account_id" UUID`,
   `CREATE INDEX IF NOT EXISTS "findings_aws_account_id_idx" ON "findings"("aws_account_id")`,
   
+  // ML Waste Detection table
+  `CREATE TABLE IF NOT EXISTS "resource_utilization_ml" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID NOT NULL,
+    "resource_id" VARCHAR(255) NOT NULL,
+    "resource_name" VARCHAR(255),
+    "resource_type" VARCHAR(100) NOT NULL,
+    "region" VARCHAR(50) NOT NULL,
+    "current_size" VARCHAR(100),
+    "current_monthly_cost" DOUBLE PRECISION,
+    "recommendation_type" VARCHAR(50),
+    "recommended_size" VARCHAR(100),
+    "potential_monthly_savings" DOUBLE PRECISION,
+    "ml_confidence" DOUBLE PRECISION,
+    "utilization_patterns" JSONB,
+    "auto_scaling_eligible" BOOLEAN DEFAULT false,
+    "auto_scaling_config" JSONB,
+    "implementation_complexity" VARCHAR(20),
+    "analyzed_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "resource_utilization_ml_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "resource_utilization_ml_unique" UNIQUE ("organization_id", "aws_account_id", "resource_id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "resource_utilization_ml_org_idx" ON "resource_utilization_ml"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "resource_utilization_ml_account_idx" ON "resource_utilization_ml"("aws_account_id")`,
+  `CREATE INDEX IF NOT EXISTS "resource_utilization_ml_type_idx" ON "resource_utilization_ml"("recommendation_type")`,
+  
   // Resource Monitoring tables
   `CREATE TABLE IF NOT EXISTS "monitored_resources" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),

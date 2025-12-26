@@ -50,6 +50,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'webauthn_credentials': 'webAuthnCredential',
   'monitored_resources': 'monitoredResource',
   'resource_metrics': 'resourceMetric',
+  'resource_utilization_ml': 'resourceUtilizationML',
   
   // Aliases do frontend para tabelas reais
   'security_alerts': 'alert',
@@ -66,7 +67,6 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'well_architected_scans_history': 'securityScan',
   'application_logs': 'systemEvent',
   'performance_metrics': 'monitoredEndpoint',
-  'resource_utilization_ml': 'wasteDetection',
   'waste_detection': 'wasteDetection',
   'user_roles': 'profile',
   'knowledge_base_favorites': 'knowledgeBaseArticle',
@@ -115,13 +115,13 @@ const TABLES_WITH_ORG_ID = new Set([
   'iam_behavior_anomalies', 'cloudtrail_fetches', 'audit_logs',
   'security_events', 'security_findings', 'system_events',
   'cost_optimizations', 'compliance_scans', 'jira_tickets',
-  'monitored_resources', 'resource_metrics',
+  'monitored_resources', 'resource_metrics', 'resource_utilization_ml',
   // Aliases
   'security_alerts', 'alert_history', 'aws_resources', 'scan_findings',
   'optimization_recommendations', 'iam_behavior_analysis',
   'lateral_movement_detections', 'cloudtrail_events', 'audit_insights',
   'remediation_tickets', 'well_architected_scores', 'application_logs',
-  'performance_metrics', 'resource_utilization_ml', 'waste_detection',
+  'performance_metrics', 'waste_detection',
 ]);
 
 interface QueryRequest {

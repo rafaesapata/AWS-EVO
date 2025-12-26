@@ -1,12 +1,12 @@
-import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
- * Lambda handler for ML Waste Detection
- * AWS Lambda Handler for ml-waste-detection
+ * ML Waste Detection Lambda Handler
  * 
- * Usa machine learning para detectar recursos AWS desperdiçados
- * Otimizado para executar dentro do limite de 29s do API Gateway
+ * Uses machine learning analysis to detect AWS resource waste.
+ * Analyzes EC2, RDS, and Lambda resources using CloudWatch metrics.
+ * Optimized to execute within API Gateway 29s timeout.
  */
 
+import { getHttpMethod } from '../../lib/middleware.js';
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
@@ -15,34 +15,52 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logging.js';
 import { businessMetrics } from '../../lib/metrics.js';
 import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
-import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
+import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
+import { LambdaClient, ListFunctionsCommand, GetFunctionCommand } from '@aws-sdk/client-lambda';
+import { CloudWatchClient, GetMetricStatisticsCommand, type Dimension } from '@aws-sdk/client-cloudwatch';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  analyzeUtilization,
+  classifyWaste,
+  generateUtilizationPatterns,
+  getImplementationComplexity,
+  type CloudWatchDatapoint,
+  type UtilizationMetrics,
+} from '../../lib/ml-analysis/index.js';
+import { getMonthlyCost, getLambdaMonthlyCost } from '../../lib/cost/pricing.js';
 
 interface MLWasteDetectionRequest {
   accountId?: string;
   regions?: string[];
-  threshold?: number; // CPU threshold (default: 5%)
-  maxInstances?: number; // Limit instances to analyze (default: 20)
+  analysisDepth?: 'standard' | 'deep';
+  maxResources?: number;
 }
 
-interface WasteItem {
+interface MLResult {
   resourceId: string;
-  resourceType: string;
   resourceName: string | null;
+  resourceType: string;
   region: string;
-  wasteType: 'idle' | 'underutilized' | 'oversized' | 'zombie';
-  confidence: number; // 0-100
-  estimatedMonthlyCost: number;
-  estimatedSavings: number;
-  metrics: any;
-  recommendation: string;
+  currentSize: string;
+  currentMonthlyCost: number;
+  recommendationType: 'terminate' | 'downsize' | 'auto-scale' | 'optimize';
+  recommendedSize: string | null;
+  potentialMonthlySavings: number;
+  mlConfidence: number;
+  utilizationPatterns: any;
+  autoScalingEligible: boolean;
+  autoScalingConfig: any | null;
+  implementationComplexity: 'low' | 'medium' | 'high';
 }
+
+const DEFAULT_REGIONS = ['us-east-1'];
+const MAX_EXECUTION_TIME = 25000; // 25 seconds
 
 export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const startTime = Date.now();
-  const MAX_EXECUTION_TIME = 25000; // 25 seconds to stay under API Gateway 29s limit
   
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
@@ -59,146 +77,158 @@ export async function handler(
   
   try {
     const body: MLWasteDetectionRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, regions: requestedRegions, threshold = 5, maxInstances = 20 } = body;
+    const { 
+      accountId, 
+      regions: requestedRegions, 
+      analysisDepth = 'standard',
+      maxResources = 50 
+    } = body;
     
     const prisma = getPrismaClient();
     
-    // Buscar credenciais AWS ativas
+    // Get AWS credentials
     const awsAccounts = await prisma.awsCredential.findMany({
       where: {
         organization_id: organizationId,
         is_active: true,
         ...(accountId && { id: accountId }),
       },
-      take: 1, // Process one account at a time for speed
+      take: 1,
     });
     
     if (awsAccounts.length === 0) {
       return success({
         success: true,
         message: 'No AWS credentials configured',
-        wasteItems: [],
-        totalSavings: 0,
         analyzed_resources: 0,
         total_monthly_savings: 0,
+        recommendations: [],
       });
     }
     
-    const allWasteItems: WasteItem[] = [];
+    const account = awsAccounts[0];
+    const regions = requestedRegions || (account.regions as string[]) || DEFAULT_REGIONS;
+    const allResults: MLResult[] = [];
     let totalAnalyzed = 0;
     
-    // Processar a conta AWS (apenas uma para manter dentro do timeout)
-    const account = awsAccounts[0];
-    const regions = requestedRegions || (account.regions as string[]) || ['us-east-1'];
+    logger.info('Starting ML analysis', { 
+      organizationId, 
+      accountId: account.id,
+      regions,
+      analysisDepth 
+    });
     
-    try {
-      const resolvedCreds = await resolveAwsCredentials(account, regions[0]);
-      
-      // Analisar apenas a primeira região para manter rápido
-      const region = regions[0];
-      
-      // Check time before processing
+    // Process each region
+    for (const region of regions) {
       if (Date.now() - startTime > MAX_EXECUTION_TIME) {
         logger.warn('Approaching timeout, returning partial results');
-        return success({
-          success: true,
-          partial: true,
-          message: 'Partial results due to time constraints',
-          wasteItems: allWasteItems,
-          analyzed_resources: totalAnalyzed,
-          total_monthly_savings: allWasteItems.reduce((sum, item) => sum + item.estimatedSavings, 0),
-        });
+        break;
       }
       
-      logger.info('Analyzing waste in region', { organizationId, region, accountId: account.id });
-      
-      const { wasteItems, analyzed } = await detectWasteInRegionFast(
-        account.id,
-        region,
-        resolvedCreds,
-        threshold,
-        maxInstances,
-        MAX_EXECUTION_TIME - (Date.now() - startTime)
-      );
-      
-      allWasteItems.push(...wasteItems);
-      totalAnalyzed += analyzed;
-      
-      logger.info('Account analysis completed', { 
-        organizationId, 
-        accountId: account.id,
-        accountName: account.account_name,
-        wasteItemsFound: wasteItems.length
-      });
-      
-    } catch (err) {
-      logger.error('Error analyzing account', err as Error, { 
-        organizationId, 
-        accountId: account.id 
-      });
-    }
-    
-    // Salvar waste items detectados (em batch para velocidade)
-    if (allWasteItems.length > 0) {
       try {
-        // Delete old detections for this account first
-        await prisma.wasteDetection.deleteMany({
-          where: {
-            organization_id: organizationId,
-            account_id: account.id,
-          }
-        });
+        const resolvedCreds = await resolveAwsCredentials(account, region);
+        const credentials = toAwsCredentials(resolvedCreds);
         
-        // Insert new ones
-        await prisma.wasteDetection.createMany({
-          data: allWasteItems.map(item => ({
-            organization_id: organizationId,
-            account_id: account.id,
-            resource_id: item.resourceId,
-            resource_type: item.resourceType,
-            resource_name: item.resourceName,
-            region: item.region,
-            waste_type: item.wasteType,
-            confidence: item.confidence,
-            estimated_monthly_cost: item.estimatedMonthlyCost,
-            estimated_savings: item.estimatedSavings,
-            metrics: item.metrics as any,
-            recommendation: item.recommendation
-          })),
-          skipDuplicates: true,
-        });
-      } catch (dbErr) {
-        logger.error('Error saving waste detections', dbErr as Error);
+        // Analyze EC2 instances
+        const ec2Results = await analyzeEC2Instances(
+          credentials, 
+          region, 
+          maxResources,
+          MAX_EXECUTION_TIME - (Date.now() - startTime)
+        );
+        allResults.push(...ec2Results);
+        totalAnalyzed += ec2Results.length;
+        
+        // Check time before RDS
+        if (Date.now() - startTime > MAX_EXECUTION_TIME) break;
+        
+        // Analyze RDS instances
+        const rdsResults = await analyzeRDSInstances(
+          credentials, 
+          region,
+          MAX_EXECUTION_TIME - (Date.now() - startTime)
+        );
+        allResults.push(...rdsResults);
+        totalAnalyzed += rdsResults.length;
+        
+        // Check time before Lambda (only in deep analysis)
+        if (analysisDepth === 'deep' && Date.now() - startTime < MAX_EXECUTION_TIME) {
+          const lambdaResults = await analyzeLambdaFunctions(
+            credentials, 
+            region,
+            20, // Limit Lambda analysis
+            MAX_EXECUTION_TIME - (Date.now() - startTime)
+          );
+          allResults.push(...lambdaResults);
+          totalAnalyzed += lambdaResults.length;
+        }
+        
+      } catch (err) {
+        logger.error('Error analyzing region', err as Error, { region });
       }
     }
     
-    // Calcular estatísticas
-    const executionTime = ((Date.now() - startTime) / 1000).toFixed(2);
-    const totalSavings = allWasteItems.reduce((sum, item) => sum + item.estimatedSavings, 0);
+    // Filter to only actionable recommendations (exclude 'optimize' with 0 savings)
+    const actionableResults = allResults.filter(
+      r => r.recommendationType !== 'optimize' || r.potentialMonthlySavings > 0
+    );
+    
+    // Save results to database
+    if (actionableResults.length > 0) {
+      await saveMLResults(prisma, organizationId, account.id, actionableResults);
+    }
+    
+    // Calculate summary
+    const totalSavings = actionableResults.reduce((sum, r) => sum + r.potentialMonthlySavings, 0);
     const byType = {
-      idle: allWasteItems.filter(i => i.wasteType === 'idle').length,
-      underutilized: allWasteItems.filter(i => i.wasteType === 'underutilized').length,
-      oversized: allWasteItems.filter(i => i.wasteType === 'oversized').length,
-      zombie: allWasteItems.filter(i => i.wasteType === 'zombie').length,
+      terminate: actionableResults.filter(r => r.recommendationType === 'terminate').length,
+      downsize: actionableResults.filter(r => r.recommendationType === 'downsize').length,
+      'auto-scale': actionableResults.filter(r => r.recommendationType === 'auto-scale').length,
+      optimize: actionableResults.filter(r => r.recommendationType === 'optimize').length,
     };
+    const byResourceType: Record<string, { count: number; savings: number }> = {};
+    for (const r of actionableResults) {
+      const type = r.resourceType.split('::')[0];
+      if (!byResourceType[type]) byResourceType[type] = { count: 0, savings: 0 };
+      byResourceType[type].count++;
+      byResourceType[type].savings += r.potentialMonthlySavings;
+    }
+    
+    const executionTime = ((Date.now() - startTime) / 1000).toFixed(2);
     
     logger.info('ML Waste Detection completed', { 
       organizationId,
-      wasteItemsCount: allWasteItems.length,
+      totalAnalyzed,
+      recommendationsCount: actionableResults.length,
       totalSavings: parseFloat(totalSavings.toFixed(2)),
       executionTime
     });
     
     return success({
       success: true,
-      wasteItems: allWasteItems,
       analyzed_resources: totalAnalyzed,
       total_monthly_savings: parseFloat(totalSavings.toFixed(2)),
+      recommendations: actionableResults.map(r => ({
+        id: uuidv4(),
+        resource_id: r.resourceId,
+        resource_name: r.resourceName,
+        resource_type: r.resourceType,
+        region: r.region,
+        current_size: r.currentSize,
+        recommended_size: r.recommendedSize,
+        recommendation_type: r.recommendationType,
+        potential_monthly_savings: r.potentialMonthlySavings,
+        ml_confidence: r.mlConfidence,
+        utilization_patterns: r.utilizationPatterns,
+        auto_scaling_eligible: r.autoScalingEligible,
+        auto_scaling_config: r.autoScalingConfig,
+        implementation_complexity: r.implementationComplexity,
+        analyzed_at: new Date().toISOString(),
+      })),
       summary: {
-        totalItems: allWasteItems.length,
-        totalSavings: parseFloat(totalSavings.toFixed(2)),
-        byType,
-        executionTime,
+        by_type: byResourceType,
+        by_recommendation: byType,
+        execution_time: executionTime,
       },
     });
     
@@ -219,158 +249,445 @@ export async function handler(
   }
 }
 
-async function detectWasteInRegionFast(
-  accountId: string,
-  region: string,
+/**
+ * Analyze EC2 instances for waste
+ */
+async function analyzeEC2Instances(
   credentials: any,
-  cpuThreshold: number,
+  region: string,
   maxInstances: number,
   remainingTime: number
-): Promise<{ wasteItems: WasteItem[], analyzed: number }> {
-  const wasteItems: WasteItem[] = [];
-  let analyzed = 0;
+): Promise<MLResult[]> {
+  const results: MLResult[] = [];
   const startTime = Date.now();
   
   try {
-    const ec2Client = new EC2Client({
-      region,
-      credentials: toAwsCredentials(credentials),
-    });
+    const ec2Client = new EC2Client({ region, credentials });
+    const cwClient = new CloudWatchClient({ region, credentials });
     
-    const cwClient = new CloudWatchClient({
-      region,
-      credentials: toAwsCredentials(credentials),
-    });
-    
-    // Obter instâncias EC2 running
     const response = await ec2Client.send(new DescribeInstancesCommand({
       Filters: [{ Name: 'instance-state-name', Values: ['running'] }],
       MaxResults: maxInstances,
     }));
     
-    if (response.Reservations) {
-      for (const reservation of response.Reservations) {
-        if (reservation.Instances) {
-          for (const instance of reservation.Instances) {
-            // Check remaining time
-            if (Date.now() - startTime > remainingTime - 2000) {
-              logger.warn('Time limit reached, returning partial results');
-              return { wasteItems, analyzed };
-            }
-            
-            const instanceId = instance.InstanceId!;
-            const instanceType = instance.InstanceType!;
-            const instanceName = instance.Tags?.find(t => t.Key === 'Name')?.Value || null;
-            
-            analyzed++;
-            
-            // Obter métricas de CPU dos últimos 3 dias (mais rápido que 7)
-            const endTime = new Date();
-            const startTimeMetrics = new Date(endTime.getTime() - 3 * 24 * 60 * 60 * 1000);
-            
-            try {
-              const metricsCommand = new GetMetricStatisticsCommand({
-                Namespace: 'AWS/EC2',
-                MetricName: 'CPUUtilization',
-                Dimensions: [{ Name: 'InstanceId', Value: instanceId }],
-                StartTime: startTimeMetrics,
-                EndTime: endTime,
-                Period: 3600 * 6, // 6 hours (fewer datapoints)
-                Statistics: ['Average', 'Maximum'],
-              });
-              
-              const metricsResponse = await cwClient.send(metricsCommand);
-              
-              if (metricsResponse.Datapoints && metricsResponse.Datapoints.length > 0) {
-                const avgCpu = metricsResponse.Datapoints.reduce(
-                  (sum, dp) => sum + (dp.Average || 0),
-                  0
-                ) / metricsResponse.Datapoints.length;
-                
-                const maxCpu = Math.max(
-                  ...metricsResponse.Datapoints.map(dp => dp.Maximum || 0)
-                );
-                
-                // Detectar waste baseado em CPU
-                if (avgCpu < cpuThreshold) {
-                  const estimatedCost = getInstanceMonthlyCost(instanceType);
-                  const confidence = calculateConfidence(avgCpu, maxCpu, cpuThreshold);
-                  
-                  let wasteType: 'idle' | 'underutilized' | 'oversized' | 'zombie' = 'idle';
-                  let recommendation = '';
-                  let savingsPercent = 0;
-                  
-                  if (avgCpu < 1 && maxCpu < 5) {
-                    wasteType = 'zombie';
-                    recommendation = `Stop or terminate this instance. CPU usage is extremely low (avg: ${avgCpu.toFixed(2)}%, max: ${maxCpu.toFixed(2)}%)`;
-                    savingsPercent = 100;
-                  } else if (avgCpu < cpuThreshold) {
-                    wasteType = 'underutilized';
-                    recommendation = `Consider downsizing to a smaller instance type. Current avg CPU: ${avgCpu.toFixed(2)}%`;
-                    savingsPercent = 50;
-                  }
-                  
-                  wasteItems.push({
-                    resourceId: instanceId,
-                    resourceType: 'EC2::Instance',
-                    resourceName: instanceName,
-                    region,
-                    wasteType,
-                    confidence,
-                    estimatedMonthlyCost: estimatedCost,
-                    estimatedSavings: estimatedCost * (savingsPercent / 100),
-                    metrics: {
-                      avgCpu: parseFloat(avgCpu.toFixed(2)),
-                      maxCpu: parseFloat(maxCpu.toFixed(2)),
-                      instanceType,
-                      datapoints: metricsResponse.Datapoints.length,
-                    },
-                    recommendation,
-                  });
-                }
-              }
-            } catch (metricErr) {
-              logger.warn('Error getting metrics for instance', { instanceId, error: (metricErr as Error).message });
-            }
+    for (const reservation of response.Reservations || []) {
+      for (const instance of reservation.Instances || []) {
+        if (Date.now() - startTime > remainingTime - 2000) {
+          logger.warn('Time limit reached in EC2 analysis');
+          return results;
+        }
+        
+        const instanceId = instance.InstanceId!;
+        const instanceType = instance.InstanceType!;
+        const instanceName = instance.Tags?.find(t => t.Key === 'Name')?.Value || null;
+        
+        try {
+          // Get 7-day CloudWatch metrics
+          const cpuMetrics = await getCloudWatchMetrics(
+            cwClient,
+            'AWS/EC2',
+            'CPUUtilization',
+            [{ Name: 'InstanceId', Value: instanceId }],
+            7
+          );
+          
+          if (cpuMetrics.length === 0) continue;
+          
+          // Analyze utilization
+          const utilization = analyzeUtilization(cpuMetrics);
+          
+          // Classify waste
+          const recommendation = classifyWaste(utilization, 'EC2', instanceType);
+          
+          // Only include if there's a meaningful recommendation
+          if (recommendation.type === 'optimize' && recommendation.savings === 0) {
+            continue;
           }
+          
+          const currentCost = getMonthlyCost('EC2', instanceType);
+          
+          results.push({
+            resourceId: instanceId,
+            resourceName: instanceName,
+            resourceType: 'EC2::Instance',
+            region,
+            currentSize: instanceType,
+            currentMonthlyCost: parseFloat(currentCost.toFixed(2)),
+            recommendationType: recommendation.type,
+            recommendedSize: recommendation.recommendedSize || null,
+            potentialMonthlySavings: parseFloat(recommendation.savings.toFixed(2)),
+            mlConfidence: parseFloat(recommendation.confidence.toFixed(4)),
+            utilizationPatterns: generateUtilizationPatterns(utilization),
+            autoScalingEligible: recommendation.type === 'auto-scale',
+            autoScalingConfig: recommendation.autoScalingConfig || null,
+            implementationComplexity: recommendation.complexity,
+          });
+          
+        } catch (metricErr) {
+          logger.warn('Error getting metrics for EC2 instance', { 
+            instanceId, 
+            error: (metricErr as Error).message 
+          });
         }
       }
     }
     
   } catch (err) {
-    logger.error('Error detecting waste in region', err as Error, { region });
+    logger.error('Error in EC2 analysis', err as Error, { region });
   }
   
-  return { wasteItems, analyzed };
+  return results;
 }
 
-function calculateConfidence(avgCpu: number, maxCpu: number, threshold: number): number {
-  // Quanto menor o uso e mais consistente, maior a confiança
-  const avgFactor = (threshold - avgCpu) / threshold;
-  const maxFactor = (threshold - maxCpu) / threshold;
-  const confidence = ((avgFactor * 0.7) + (maxFactor * 0.3)) * 100;
-  return Math.max(0, Math.min(100, confidence));
-}
-
-function getInstanceMonthlyCost(instanceType: string): number {
-  // Custos aproximados mensais (730 horas) em USD
-  const costs: Record<string, number> = {
-    't2.micro': 8.5,
-    't2.small': 17,
-    't2.medium': 34,
-    't2.large': 68,
-    't3.micro': 7.5,
-    't3.small': 15,
-    't3.medium': 30,
-    't3.large': 60,
-    'm5.large': 70,
-    'm5.xlarge': 140,
-    'm5.2xlarge': 280,
-    'c5.large': 62,
-    'c5.xlarge': 124,
-    'r5.large': 91,
-    'r5.xlarge': 182,
-  };
+/**
+ * Analyze RDS instances for waste
+ */
+async function analyzeRDSInstances(
+  credentials: any,
+  region: string,
+  remainingTime: number
+): Promise<MLResult[]> {
+  const results: MLResult[] = [];
+  const startTime = Date.now();
   
-  return costs[instanceType] || 50; // Default estimate
+  try {
+    const rdsClient = new RDSClient({ region, credentials });
+    const cwClient = new CloudWatchClient({ region, credentials });
+    
+    const response = await rdsClient.send(new DescribeDBInstancesCommand({}));
+    
+    for (const instance of response.DBInstances || []) {
+      if (Date.now() - startTime > remainingTime - 2000) {
+        logger.warn('Time limit reached in RDS analysis');
+        return results;
+      }
+      
+      const dbIdentifier = instance.DBInstanceIdentifier!;
+      const instanceClass = instance.DBInstanceClass!;
+      
+      try {
+        // Get CPU metrics
+        const cpuMetrics = await getCloudWatchMetrics(
+          cwClient,
+          'AWS/RDS',
+          'CPUUtilization',
+          [{ Name: 'DBInstanceIdentifier', Value: dbIdentifier }],
+          7
+        );
+        
+        // Get connection metrics
+        const connMetrics = await getCloudWatchMetrics(
+          cwClient,
+          'AWS/RDS',
+          'DatabaseConnections',
+          [{ Name: 'DBInstanceIdentifier', Value: dbIdentifier }],
+          7
+        );
+        
+        if (cpuMetrics.length === 0) continue;
+        
+        // Analyze utilization
+        const utilization = analyzeUtilization(cpuMetrics);
+        
+        // Check for idle database (no connections)
+        const avgConnections = connMetrics.length > 0
+          ? connMetrics.reduce((sum, dp) => sum + (dp.Average || 0), 0) / connMetrics.length
+          : -1;
+        
+        // If no connections, recommend terminate
+        if (avgConnections >= 0 && avgConnections < 1) {
+          const currentCost = getMonthlyCost('RDS', instanceClass);
+          results.push({
+            resourceId: dbIdentifier,
+            resourceName: dbIdentifier,
+            resourceType: 'RDS::DBInstance',
+            region,
+            currentSize: instanceClass,
+            currentMonthlyCost: parseFloat(currentCost.toFixed(2)),
+            recommendationType: 'terminate',
+            recommendedSize: null,
+            potentialMonthlySavings: parseFloat(currentCost.toFixed(2)),
+            mlConfidence: 0.95,
+            utilizationPatterns: {
+              ...generateUtilizationPatterns(utilization),
+              avgConnections: parseFloat(avgConnections.toFixed(2)),
+            },
+            autoScalingEligible: false,
+            autoScalingConfig: null,
+            implementationComplexity: 'medium',
+          });
+          continue;
+        }
+        
+        // Classify waste based on CPU
+        const recommendation = classifyWaste(utilization, 'RDS', instanceClass);
+        
+        if (recommendation.type === 'optimize' && recommendation.savings === 0) {
+          continue;
+        }
+        
+        const currentCost = getMonthlyCost('RDS', instanceClass);
+        
+        results.push({
+          resourceId: dbIdentifier,
+          resourceName: dbIdentifier,
+          resourceType: 'RDS::DBInstance',
+          region,
+          currentSize: instanceClass,
+          currentMonthlyCost: parseFloat(currentCost.toFixed(2)),
+          recommendationType: recommendation.type,
+          recommendedSize: recommendation.recommendedSize || null,
+          potentialMonthlySavings: parseFloat(recommendation.savings.toFixed(2)),
+          mlConfidence: parseFloat(recommendation.confidence.toFixed(4)),
+          utilizationPatterns: {
+            ...generateUtilizationPatterns(utilization),
+            avgConnections: avgConnections >= 0 ? parseFloat(avgConnections.toFixed(2)) : undefined,
+          },
+          autoScalingEligible: false, // RDS auto-scaling is different
+          autoScalingConfig: null,
+          implementationComplexity: getImplementationComplexity(recommendation.type, 'RDS'),
+        });
+        
+      } catch (metricErr) {
+        logger.warn('Error getting metrics for RDS instance', { 
+          dbIdentifier, 
+          error: (metricErr as Error).message 
+        });
+      }
+    }
+    
+  } catch (err) {
+    logger.error('Error in RDS analysis', err as Error, { region });
+  }
+  
+  return results;
+}
+
+/**
+ * Analyze Lambda functions for waste
+ */
+async function analyzeLambdaFunctions(
+  credentials: any,
+  region: string,
+  maxFunctions: number,
+  remainingTime: number
+): Promise<MLResult[]> {
+  const results: MLResult[] = [];
+  const startTime = Date.now();
+  
+  try {
+    const lambdaClient = new LambdaClient({ region, credentials });
+    const cwClient = new CloudWatchClient({ region, credentials });
+    
+    const response = await lambdaClient.send(new ListFunctionsCommand({
+      MaxItems: maxFunctions,
+    }));
+    
+    for (const fn of response.Functions || []) {
+      if (Date.now() - startTime > remainingTime - 2000) {
+        logger.warn('Time limit reached in Lambda analysis');
+        return results;
+      }
+      
+      const functionName = fn.FunctionName!;
+      const memorySize = fn.MemorySize || 128;
+      
+      try {
+        // Get invocation metrics
+        const invocationMetrics = await getCloudWatchMetrics(
+          cwClient,
+          'AWS/Lambda',
+          'Invocations',
+          [{ Name: 'FunctionName', Value: functionName }],
+          7
+        );
+        
+        // Get duration metrics
+        const durationMetrics = await getCloudWatchMetrics(
+          cwClient,
+          'AWS/Lambda',
+          'Duration',
+          [{ Name: 'FunctionName', Value: functionName }],
+          7
+        );
+        
+        // Calculate total invocations
+        const totalInvocations = invocationMetrics.reduce(
+          (sum, dp) => sum + (dp.Sum || 0), 
+          0
+        );
+        
+        // If no invocations in 7 days, recommend terminate
+        if (totalInvocations === 0) {
+          const estimatedCost = getLambdaMonthlyCost(0, 0, memorySize);
+          results.push({
+            resourceId: functionName,
+            resourceName: functionName,
+            resourceType: 'Lambda::Function',
+            region,
+            currentSize: `${memorySize}MB`,
+            currentMonthlyCost: 0,
+            recommendationType: 'terminate',
+            recommendedSize: null,
+            potentialMonthlySavings: 0, // No cost if not invoked
+            mlConfidence: 0.90,
+            utilizationPatterns: {
+              avgCpuUsage: 0,
+              avgMemoryUsage: 0,
+              peakHours: [],
+              hasRealMetrics: true,
+              totalInvocations: 0,
+              avgDuration: 0,
+            },
+            autoScalingEligible: false,
+            autoScalingConfig: null,
+            implementationComplexity: 'low',
+          });
+          continue;
+        }
+        
+        // Calculate average duration
+        const avgDuration = durationMetrics.length > 0
+          ? durationMetrics.reduce((sum, dp) => sum + (dp.Average || 0), 0) / durationMetrics.length
+          : 0;
+        
+        // Estimate monthly cost
+        const monthlyInvocations = (totalInvocations / 7) * 30;
+        const estimatedCost = getLambdaMonthlyCost(monthlyInvocations, avgDuration, memorySize);
+        
+        // Check if memory is oversized (if avg duration is very low)
+        if (avgDuration < 100 && memorySize > 256) {
+          const newMemory = Math.max(128, Math.floor(memorySize / 2));
+          const newCost = getLambdaMonthlyCost(monthlyInvocations, avgDuration, newMemory);
+          const savings = estimatedCost - newCost;
+          
+          if (savings > 1) { // Only if savings > $1/month
+            results.push({
+              resourceId: functionName,
+              resourceName: functionName,
+              resourceType: 'Lambda::Function',
+              region,
+              currentSize: `${memorySize}MB`,
+              currentMonthlyCost: parseFloat(estimatedCost.toFixed(2)),
+              recommendationType: 'downsize',
+              recommendedSize: `${newMemory}MB`,
+              potentialMonthlySavings: parseFloat(savings.toFixed(2)),
+              mlConfidence: 0.70,
+              utilizationPatterns: {
+                avgCpuUsage: 0,
+                avgMemoryUsage: 0,
+                peakHours: [],
+                hasRealMetrics: true,
+                totalInvocations,
+                avgDuration: parseFloat(avgDuration.toFixed(2)),
+              },
+              autoScalingEligible: false,
+              autoScalingConfig: null,
+              implementationComplexity: 'low',
+            });
+          }
+        }
+        
+      } catch (metricErr) {
+        logger.warn('Error getting metrics for Lambda function', { 
+          functionName, 
+          error: (metricErr as Error).message 
+        });
+      }
+    }
+    
+  } catch (err) {
+    logger.error('Error in Lambda analysis', err as Error, { region });
+  }
+  
+  return results;
+}
+
+/**
+ * Get CloudWatch metrics for a resource
+ */
+async function getCloudWatchMetrics(
+  client: CloudWatchClient,
+  namespace: string,
+  metricName: string,
+  dimensions: Dimension[],
+  days: number
+): Promise<CloudWatchDatapoint[]> {
+  const endTime = new Date();
+  const startTime = new Date(endTime.getTime() - days * 24 * 60 * 60 * 1000);
+  
+  // Use 1-hour period for efficiency (168 datapoints for 7 days)
+  const response = await client.send(new GetMetricStatisticsCommand({
+    Namespace: namespace,
+    MetricName: metricName,
+    Dimensions: dimensions,
+    StartTime: startTime,
+    EndTime: endTime,
+    Period: 3600, // 1 hour
+    Statistics: ['Average', 'Maximum', 'Minimum', 'Sum'],
+  }));
+  
+  return (response.Datapoints || []).map(dp => ({
+    Timestamp: dp.Timestamp,
+    Average: dp.Average,
+    Maximum: dp.Maximum,
+    Minimum: dp.Minimum,
+    Sum: dp.Sum,
+    SampleCount: dp.SampleCount,
+  }));
+}
+
+/**
+ * Save ML results to database
+ */
+async function saveMLResults(
+  prisma: any,
+  organizationId: string,
+  accountId: string,
+  results: MLResult[]
+): Promise<void> {
+  try {
+    // Delete old results for this account
+    await prisma.resourceUtilizationML.deleteMany({
+      where: {
+        organization_id: organizationId,
+        aws_account_id: accountId,
+      },
+    });
+    
+    // Insert new results
+    for (const result of results) {
+      await prisma.resourceUtilizationML.create({
+        data: {
+          id: uuidv4(),
+          organization_id: organizationId,
+          aws_account_id: accountId,
+          resource_id: result.resourceId,
+          resource_name: result.resourceName,
+          resource_type: result.resourceType,
+          region: result.region,
+          current_size: result.currentSize,
+          current_monthly_cost: result.currentMonthlyCost,
+          recommendation_type: result.recommendationType,
+          recommended_size: result.recommendedSize,
+          potential_monthly_savings: result.potentialMonthlySavings,
+          ml_confidence: result.mlConfidence,
+          utilization_patterns: result.utilizationPatterns,
+          auto_scaling_eligible: result.autoScalingEligible,
+          auto_scaling_config: result.autoScalingConfig,
+          implementation_complexity: result.implementationComplexity,
+          analyzed_at: new Date(),
+        },
+      });
+    }
+    
+    logger.info('ML results saved to database', { 
+      organizationId, 
+      accountId, 
+      count: results.length 
+    });
+    
+  } catch (err) {
+    logger.error('Error saving ML results', err as Error);
+  }
 }

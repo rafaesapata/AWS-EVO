@@ -938,3 +938,45 @@ model ResourceMetric {
   @@index([timestamp])
   @@map("resource_metrics")
 }
+
+
+// ==================== ML WASTE DETECTION ====================
+
+model ResourceUtilizationML {
+  id                        String   @id @default(uuid()) @db.Uuid
+  organization_id           String   @db.Uuid
+  aws_account_id            String   @db.Uuid
+  resource_id               String
+  resource_name             String?
+  resource_type             String
+  region                    String
+  
+  // Current state
+  current_size              String?
+  current_monthly_cost      Float?
+  
+  // ML Analysis results
+  recommendation_type       String?  // 'terminate', 'downsize', 'auto-scale', 'optimize'
+  recommended_size          String?
+  potential_monthly_savings Float?
+  ml_confidence             Float?   // 0.0 to 1.0
+  
+  // Utilization patterns (JSON)
+  utilization_patterns      Json?
+  
+  // Auto-scaling configuration
+  auto_scaling_eligible     Boolean  @default(false)
+  auto_scaling_config       Json?
+  
+  // Metadata
+  implementation_complexity String?  // 'low', 'medium', 'high'
+  analyzed_at               DateTime @default(now()) @db.Timestamptz(6)
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@unique([organization_id, aws_account_id, resource_id])
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([recommendation_type])
+  @@map("resource_utilization_ml")
+}
