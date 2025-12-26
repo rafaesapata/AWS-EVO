@@ -13,6 +13,46 @@ const MIGRATION_COMMANDS = [
   `ALTER TABLE "findings" ADD COLUMN IF NOT EXISTS "aws_account_id" UUID`,
   `CREATE INDEX IF NOT EXISTS "findings_aws_account_id_idx" ON "findings"("aws_account_id")`,
   
+  // Resource Monitoring tables
+  `CREATE TABLE IF NOT EXISTS "monitored_resources" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID NOT NULL,
+    "resource_id" VARCHAR(255) NOT NULL,
+    "resource_name" VARCHAR(255) NOT NULL,
+    "resource_type" VARCHAR(100) NOT NULL,
+    "region" VARCHAR(50) NOT NULL,
+    "status" VARCHAR(50) DEFAULT 'unknown',
+    "metadata" JSONB,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "monitored_resources_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "monitored_resources_unique" UNIQUE ("organization_id", "aws_account_id", "resource_id", "resource_type")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "monitored_resources_org_idx" ON "monitored_resources"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "monitored_resources_account_idx" ON "monitored_resources"("aws_account_id")`,
+  `CREATE INDEX IF NOT EXISTS "monitored_resources_type_idx" ON "monitored_resources"("resource_type")`,
+  
+  `CREATE TABLE IF NOT EXISTS "resource_metrics" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID NOT NULL,
+    "resource_id" VARCHAR(255) NOT NULL,
+    "resource_name" VARCHAR(255),
+    "resource_type" VARCHAR(100) NOT NULL,
+    "metric_name" VARCHAR(100) NOT NULL,
+    "metric_value" DOUBLE PRECISION NOT NULL,
+    "metric_unit" VARCHAR(50),
+    "timestamp" TIMESTAMPTZ(6) NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "resource_metrics_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "resource_metrics_unique" UNIQUE ("organization_id", "aws_account_id", "resource_id", "metric_name", "timestamp")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "resource_metrics_org_idx" ON "resource_metrics"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "resource_metrics_account_idx" ON "resource_metrics"("aws_account_id")`,
+  `CREATE INDEX IF NOT EXISTS "resource_metrics_resource_idx" ON "resource_metrics"("resource_id")`,
+  `CREATE INDEX IF NOT EXISTS "resource_metrics_timestamp_idx" ON "resource_metrics"("timestamp")`,
+  
   // Organizations
   `CREATE TABLE IF NOT EXISTS "organizations" (
     "id" UUID NOT NULL,

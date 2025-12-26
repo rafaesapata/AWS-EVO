@@ -894,3 +894,47 @@ model ComplianceScan {
   @@index([aws_account_id])
   @@map("compliance_scans")
 }
+
+
+// ==================== RESOURCE MONITORING ====================
+
+model MonitoredResource {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String   @db.Uuid
+  resource_id       String
+  resource_name     String
+  resource_type     String
+  region            String
+  status            String   @default("unknown")
+  metadata          Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@unique([organization_id, aws_account_id, resource_id, resource_type])
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([resource_type])
+  @@map("monitored_resources")
+}
+
+model ResourceMetric {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String   @db.Uuid
+  resource_id       String
+  resource_name     String?
+  resource_type     String
+  metric_name       String
+  metric_value      Float
+  metric_unit       String?
+  timestamp         DateTime @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@unique([organization_id, aws_account_id, resource_id, metric_name, timestamp])
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([resource_id])
+  @@index([timestamp])
+  @@map("resource_metrics")
+}

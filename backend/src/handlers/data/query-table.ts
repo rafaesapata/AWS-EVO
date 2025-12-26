@@ -48,6 +48,8 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'compliance_scans': 'complianceScan',
   'jira_tickets': 'jiraTicket',
   'webauthn_credentials': 'webAuthnCredential',
+  'monitored_resources': 'monitoredResource',
+  'resource_metrics': 'resourceMetric',
   
   // Aliases do frontend para tabelas reais
   'security_alerts': 'alert',
@@ -113,6 +115,7 @@ const TABLES_WITH_ORG_ID = new Set([
   'iam_behavior_anomalies', 'cloudtrail_fetches', 'audit_logs',
   'security_events', 'security_findings', 'system_events',
   'cost_optimizations', 'compliance_scans', 'jira_tickets',
+  'monitored_resources', 'resource_metrics',
   // Aliases
   'security_alerts', 'alert_history', 'aws_resources', 'scan_findings',
   'optimization_recommendations', 'iam_behavior_analysis',
