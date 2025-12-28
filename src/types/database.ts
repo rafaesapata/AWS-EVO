@@ -473,3 +473,106 @@ export interface ErrorResponse {
   code?: string;
   details?: Record<string, unknown>;
 }
+
+
+// ML Waste Detection v3.0
+export interface MLWasteRecommendation {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  aws_account_number?: string;
+  resource_id: string;
+  resource_arn?: string;
+  resource_name?: string;
+  resource_type: string;
+  resource_subtype?: string;
+  region: string;
+  
+  // Current state
+  current_size?: string;
+  current_monthly_cost?: number;
+  current_hourly_cost?: number;
+  
+  // ML Analysis results
+  recommendation_type?: 'terminate' | 'downsize' | 'auto-scale' | 'optimize' | 'migrate';
+  recommendation_priority?: number;
+  recommended_size?: string;
+  potential_monthly_savings?: number;
+  potential_annual_savings?: number;
+  ml_confidence?: number;
+  
+  // Patterns and metadata
+  utilization_patterns?: MLUtilizationPatterns;
+  resource_metadata?: Record<string, any>;
+  dependencies?: ResourceDependency[];
+  
+  // Auto-scaling
+  auto_scaling_eligible: boolean;
+  auto_scaling_config?: MLAutoScalingConfig;
+  
+  // Implementation
+  implementation_complexity?: 'low' | 'medium' | 'high';
+  implementation_steps?: MLImplementationStep[];
+  risk_assessment?: 'low' | 'medium' | 'high';
+  
+  // Activity tracking
+  last_activity_at?: string;
+  days_since_activity?: number;
+  
+  analyzed_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MLUtilizationPatterns {
+  avgCpuUsage: number;
+  maxCpuUsage?: number;
+  avgMemoryUsage: number;
+  maxMemoryUsage?: number;
+  peakHours: number[];
+  weekdayPattern?: number[];
+  hasRealMetrics: boolean;
+  dataCompleteness?: number;
+  trend?: 'increasing' | 'stable' | 'decreasing';
+  seasonality?: 'daily' | 'weekly' | 'monthly' | 'none';
+  totalInvocations?: number;
+  avgDuration?: number;
+  avgConnections?: number;
+}
+
+export interface MLAutoScalingConfig {
+  min_capacity: number;
+  max_capacity: number;
+  target_cpu: number;
+  scale_in_cooldown: number;
+  scale_out_cooldown: number;
+}
+
+export interface MLImplementationStep {
+  order: number;
+  action: string;
+  command?: string;
+  riskLevel: 'safe' | 'review' | 'destructive';
+  rollbackCommand?: string;
+  notes?: string;
+}
+
+export interface ResourceDependency {
+  resourceArn: string;
+  resourceType: string;
+  dependencyType: 'uses' | 'used-by' | 'attached-to';
+}
+
+export interface MLWasteDetectionResponse {
+  success: boolean;
+  analyzed_resources: number;
+  total_monthly_savings: number;
+  total_annual_savings: number;
+  recommendations: MLWasteRecommendation[];
+  summary: {
+    by_type: Record<string, { count: number; savings: number }>;
+    by_recommendation: Record<string, number>;
+    execution_time: string;
+    aws_account_number?: string;
+  };
+}

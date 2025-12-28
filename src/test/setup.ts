@@ -1,4 +1,4 @@
-import { expect, afterEach, vi } from 'vitest';
+import { expect, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
 
@@ -9,45 +9,35 @@ afterEach(() => {
   cleanup();
 });
 
-// Mock AWS clients
-vi.mock('@/integrations/aws/cognito-client-simple', () => ({
-  cognitoAuth: {
-    getCurrentUser: vi.fn(() => Promise.resolve(null)),
-    getCurrentSession: vi.fn(() => Promise.resolve(null)),
-    signIn: vi.fn(() => Promise.resolve({})),
-    signUp: vi.fn(() => Promise.resolve()),
-    signOut: vi.fn(() => Promise.resolve()),
-  },
-}));
+// Polyfill for ResizeObserver (needed for recharts)
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
 
-vi.mock('@/integrations/aws/api-client', () => ({
-  apiClient: {
-    select: vi.fn(() => Promise.resolve({ data: [], error: null })),
-    insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
-    update: vi.fn(() => Promise.resolve({ data: null, error: null })),
-    delete: vi.fn(() => Promise.resolve({ data: null, error: null })),
-    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
-    invoke: vi.fn(() => Promise.resolve({ data: null, error: null })),
-  },
-}));
-
-// Mock React Router
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => vi.fn(),
-    useLocation: () => ({ pathname: '/' }),
-  };
+// Polyfill for matchMedia
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
 });
 
-// Mock sonner toast
-vi.mock('sonner', () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warning: vi.fn(),
-  },
-  Toaster: () => null,
-}));
+// Polyfill for IntersectionObserver
+global.IntersectionObserver = class IntersectionObserver {
+  root = null;
+  rootMargin = '';
+  thresholds = [];
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() { return []; }
+};

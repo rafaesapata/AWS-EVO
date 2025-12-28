@@ -1,23 +1,38 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '../../lib/database.js';
+import { success, error, badRequest, corsOptions, tooManyRequests } from '../../lib/response.js';
+import { getOrigin } from '../../lib/middleware.js';
 import * as crypto from 'crypto';
-
-const prisma = new PrismaClient();
 
 interface TVTokenRequest {
   token: string;
   deviceId: string;
 }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+
+  // Note: TV token verification doesn't use standard Cognito auth
+  // It uses its own token-based authentication
+
   try {
+    const prisma = getPrismaClient();
     const body: TVTokenRequest = JSON.parse(event.body || '{}');
     const { token, deviceId } = body;
 
     if (!token || !deviceId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'token and deviceId are required' }) };
+      return badRequest('token and deviceId are required', undefined, origin);
     }
+
 
     // Buscar token no banco
     const tvToken = await prisma.tvDisplayToken.findFirst({
@@ -29,7 +44,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     });
 
     if (!tvToken) {
-      // Registrar tentativa falha
       await prisma.securityEvent.create({
         data: {
           organization_id: 'default',
@@ -39,128 +53,67 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           metadata: { deviceId, tokenPrefix: token.substring(0, 8) }
         }
       });
-
-      return { statusCode: 401, body: JSON.stringify({ error: 'Invalid or expired token' }) };
+      return error('Invalid or expired token', 401, undefined, origin);
     }
 
-    // Verificar rate limiting
+    // Rate limiting
     const recentRequests = await prisma.tvTokenUsage.count({
       where: {
         token_id: tvToken.id,
-        used_at: { gt: new Date(Date.now() - 60000) } // último minuto
+        used_at: { gt: new Date(Date.now() - 60000) }
       }
     });
 
     if (recentRequests > 60) {
-      return { statusCode: 429, body: JSON.stringify({ error: 'Rate limit exceeded' }) };
+      return tooManyRequests('Rate limit exceeded', 60, origin);
     }
 
     // Registrar uso
+    const sourceIp = event.requestContext?.identity?.sourceIp || 
+                     event.headers?.['x-forwarded-for']?.split(',')[0] || 'unknown';
     await prisma.tvTokenUsage.create({
-      data: {
-        token_id: tvToken.id,
-        ip_address: event.requestContext.identity?.sourceIp
-      }
+      data: { token_id: tvToken.id, ip_address: sourceIp }
     });
-
-    // Atualizar último uso (campo não existe no schema, removendo)
-    // await prisma.tvDisplayToken.update({
-    //   where: { id: tvToken.id },
-    //   data: { lastUsedAt: new Date() }
-    // });
 
     // Gerar token de sessão temporário
     const sessionToken = crypto.randomBytes(32).toString('hex');
-    const sessionExpiry = new Date(Date.now() + 3600000); // 1 hora
+    const sessionExpiry = new Date(Date.now() + 3600000);
 
     await prisma.tvSession.create({
-      data: {
-        token_id: tvToken.id,
-        session_data: { sessionToken, deviceId }
-      }
+      data: { token_id: tvToken.id, session_data: { sessionToken, deviceId } }
     });
 
-    // Buscar dados do dashboard configurado
-    const dashboardData = await getDashboardData('default', tvToken.organization_id);
+    // Buscar dados do dashboard
+    const dashboardData = await getDashboardData(tvToken.organization_id);
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        success: true,
-        sessionToken,
-        expiresAt: sessionExpiry.toISOString(),
-        organization: {
-          id: tvToken.organization_id,
-          name: 'Organization'
-        },
-        dashboard: {
-          id: 'default',
-          name: 'Default Dashboard',
-          type: 'security',
-          config: {}
-        },
-        data: dashboardData,
-        refreshInterval: 60
-      })
-    };
-  } catch (error) {
-    logger.error('TV token verification error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Internal server error' }) };
-  }
-};
-
-async function getDashboardData(dashboardId: string | null, organizationId: string): Promise<Record<string, unknown>> {
-  if (!dashboardId) {
-    // Retornar dados padrão
-    return getDefaultDashboardData(organizationId);
-  }
-
-  const dashboard = await prisma.dashboard.findUnique({
-    where: { id: dashboardId }
-  });
-
-  if (!dashboard) {
-    return getDefaultDashboardData(organizationId);
-  }
-
-  // Buscar dados baseado no tipo de dashboard (usando config como fallback)
-  const dashboardType = (dashboard.config as any)?.type || 'SECURITY_OVERVIEW';
-  switch (dashboardType) {
-    case 'SECURITY_OVERVIEW':
-      return getSecurityOverviewData(organizationId);
-    case 'COST_OVERVIEW':
-      return getCostOverviewData(organizationId);
-    case 'COMPLIANCE_STATUS':
-      return getComplianceStatusData(organizationId);
-    default:
-      return getDefaultDashboardData(organizationId);
+    return success({
+      sessionToken,
+      expiresAt: sessionExpiry.toISOString(),
+      organization: { id: tvToken.organization_id },
+      dashboard: { id: 'default', name: 'Default Dashboard', type: 'security' },
+      data: dashboardData,
+      refreshInterval: 60
+    }, 200, origin);
+  } catch (err) {
+    logger.error('TV token verification error:', err);
+    return error('Internal server error', 500, undefined, origin);
   }
 }
 
-async function getDefaultDashboardData(organizationId: string): Promise<Record<string, unknown>> {
-  const [securityStats, costStats, complianceStats] = await Promise.all([
+async function getDashboardData(organizationId: string): Promise<Record<string, unknown>> {
+  const prisma = getPrismaClient();
+  
+  const [securityStats, costStats] = await Promise.all([
     getSecurityStats(organizationId),
-    getCostStats(organizationId),
-    getComplianceStats(organizationId)
+    getCostStats(organizationId)
   ]);
 
-  return { security: securityStats, cost: costStats, compliance: complianceStats };
-}
-
-async function getSecurityOverviewData(organizationId: string): Promise<Record<string, unknown>> {
-  return { security: await getSecurityStats(organizationId) };
-}
-
-async function getCostOverviewData(organizationId: string): Promise<Record<string, unknown>> {
-  return { cost: await getCostStats(organizationId) };
-}
-
-async function getComplianceStatusData(organizationId: string): Promise<Record<string, unknown>> {
-  return { compliance: await getComplianceStats(organizationId) };
+  return { security: securityStats, cost: costStats };
 }
 
 async function getSecurityStats(organizationId: string): Promise<Record<string, unknown>> {
+  const prisma = getPrismaClient();
+  
   const [openFindings, recentScans] = await Promise.all([
     prisma.securityFinding.groupBy({
       by: ['severity'],
@@ -176,13 +129,15 @@ async function getSecurityStats(organizationId: string): Promise<Record<string, 
   ]);
 
   return {
-    findingsBySeverity: openFindings.reduce((acc, f) => ({ ...acc, [f.severity]: (f._count || 0) }), {}),
+    findingsBySeverity: openFindings.reduce((acc, f) => ({ ...acc, [f.severity]: f._count }), {}),
     recentScans,
     totalOpenFindings: openFindings.reduce((sum, f) => sum + f._count, 0)
   };
 }
 
 async function getCostStats(organizationId: string): Promise<Record<string, unknown>> {
+  const prisma = getPrismaClient();
+  
   const accounts = await prisma.awsAccount.findMany({
     where: { organization_id: organizationId },
     select: { id: true, account_name: true }
@@ -196,27 +151,9 @@ async function getCostStats(organizationId: string): Promise<Record<string, unkn
     orderBy: { date: 'desc' }
   });
 
-  const totalCost = costData.reduce((sum, c) => sum + c.cost, 0);
-
   return {
-    totalLast30Days: totalCost,
+    totalLast30Days: costData.reduce((sum, c) => sum + c.cost, 0),
     accountCount: accounts.length,
     trend: costData.slice(0, 7).map(c => ({ date: c.date, amount: c.cost }))
-  };
-}
-
-async function getComplianceStats(organizationId: string): Promise<Record<string, unknown>> {
-  const complianceScans = await prisma.complianceScan.findMany({
-    where: { organization_id: organizationId },
-    orderBy: { created_at: 'desc' },
-    take: 1
-  });
-
-  const latestScan = complianceScans[0];
-
-  return {
-    lastScanDate: latestScan?.created_at,
-    overallScore: 85, // Mock score
-    frameworks: { 'CIS': 90, 'PCI-DSS': 80 }
   };
 }

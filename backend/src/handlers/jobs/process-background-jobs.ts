@@ -2,12 +2,43 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Process Background Jobs
  * AWS Lambda Handler for process-background-jobs
+ * 
+ * SECURITY NOTE: This handler processes jobs from ALL organizations.
+ * This is intentional because:
+ * 1. It's a system-level job processor triggered by EventBridge/CloudWatch
+ * 2. Each job has its own organization_id and is processed in isolation
+ * 3. Job results are stored with the correct organization_id
+ * 
+ * Rate limiting is applied per-organization to prevent any single org
+ * from monopolizing the job queue.
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+
+// Rate limiting per organization (max jobs per minute)
+const ORG_JOB_LIMITS = new Map<string, { count: number; resetTime: number }>();
+const MAX_JOBS_PER_ORG_PER_MINUTE = 10;
+
+function checkOrgRateLimit(organizationId: string): boolean {
+  const now = Date.now();
+  const limit = ORG_JOB_LIMITS.get(organizationId);
+  
+  if (!limit || now > limit.resetTime) {
+    ORG_JOB_LIMITS.set(organizationId, { count: 1, resetTime: now + 60000 });
+    return true;
+  }
+  
+  if (limit.count >= MAX_JOBS_PER_ORG_PER_MINUTE) {
+    logger.warn('Organization rate limit exceeded for background jobs', { organizationId });
+    return false;
+  }
+  
+  limit.count++;
+  return true;
+}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -22,7 +53,8 @@ export async function handler(
   try {
     const prisma = getPrismaClient();
     
-    // Buscar jobs pendentes
+    // Buscar jobs pendentes (sistema processa de todas as orgs)
+    // Cada job é isolado por organization_id
     const pendingJobs = await prisma.backgroundJob.findMany({
       where: {
         status: 'pending',
@@ -36,6 +68,18 @@ export async function handler(
     const results = [];
     
     for (const job of pendingJobs) {
+      // Rate limiting per organization
+      const jobOrgId = (job as any).organization_id;
+      if (jobOrgId && !checkOrgRateLimit(jobOrgId)) {
+        results.push({
+          jobId: job.id,
+          jobType: job.job_type,
+          status: 'rate_limited',
+          organizationId: jobOrgId,
+        });
+        continue;
+      }
+      
       try {
         // Marcar como em execução
         await prisma.backgroundJob.update({
@@ -46,7 +90,7 @@ export async function handler(
           },
         });
         
-        // Processar job
+        // Processar job (isolado por organization_id do job)
         const result = await processJob(prisma, job);
         
         // Marcar como completo
@@ -63,9 +107,14 @@ export async function handler(
           jobId: job.id,
           jobType: job.job_type,
           status: 'completed',
+          organizationId: jobOrgId,
         });
         
-        logger.info('Background job completed', { jobId: job.id, jobType: job.job_type });
+        logger.info('Background job completed', { 
+          jobId: job.id, 
+          jobType: job.job_type,
+          organizationId: jobOrgId 
+        });
         
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -84,9 +133,14 @@ export async function handler(
           jobType: job.job_type,
           status: 'failed',
           error: errorMessage,
+          organizationId: jobOrgId,
         });
         
-        logger.error('Background job failed', err as Error, { jobId: job.id, jobType: job.job_type });
+        logger.error('Background job failed', err as Error, { 
+          jobId: job.id, 
+          jobType: job.job_type,
+          organizationId: jobOrgId 
+        });
       }
     }
     

@@ -1,7 +1,11 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '../../lib/database.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { success, error, badRequest, notFound, forbidden, corsOptions } from '../../lib/response.js';
 import { safeParseJSON } from '../../lib/request-parser.js';
+import { getOrigin } from '../../lib/middleware.js';
+import * as crypto from 'crypto';
 import { 
   CognitoIdentityProviderClient, 
   AdminCreateUserCommand,
@@ -9,45 +13,69 @@ import {
   AdminSetUserPasswordCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 
-const prisma = new PrismaClient();
 const cognitoClient = new CognitoIdentityProviderClient({});
 
 interface CreateUserRequest {
   email: string;
   name: string;
-  organizationId: string;
+  organizationId?: string; // Optional - will use auth org if not provided
   role: 'ADMIN' | 'USER' | 'VIEWER' | 'AUDITOR';
   temporaryPassword?: string;
   sendInvite?: boolean;
   metadata?: Record<string, string>;
 }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+
+  let adminUserId: string;
+  let authOrganizationId: string;
+  
   try {
-    const adminUserId = event.requestContext.authorizer?.claims?.sub;
-    if (!adminUserId) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
+    const user = getUserFromEvent(event);
+    adminUserId = user.sub || user.id || 'unknown';
+    authOrganizationId = getOrganizationId(user);
+  } catch (authError) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
+
+
+  try {
+    const prisma = getPrismaClient();
 
     // Verificar se é admin
-    const adminUser = await prisma.user.findUnique({
-      where: { id: adminUserId }
+    const adminProfile = await prisma.profile.findFirst({
+      where: { 
+        user_id: adminUserId,
+        organization_id: authOrganizationId
+      }
     });
 
-    if (!adminUser || !adminUser.is_active) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Admin access required' }) };
+    if (!adminProfile || !adminProfile.role || !['ADMIN', 'SUPER_ADMIN'].includes(adminProfile.role)) {
+      return forbidden('Admin access required', origin);
     }
 
     const body = safeParseJSON<CreateUserRequest>(event.body, {} as CreateUserRequest, 'create-user');
-    const { email, name, organizationId, role, temporaryPassword, sendInvite = true, metadata } = body;
+    const { email, name, role, temporaryPassword, sendInvite = true } = body;
+    
+    // Use auth organization - CRITICAL: Multi-tenancy enforcement
+    const organizationId = authOrganizationId;
 
-    // Validações
-    if (!email || !name || !organizationId || !role) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields' }) };
+    if (!email || !name || !role) {
+      return badRequest('Missing required fields: email, name, role', undefined, origin);
     }
 
     if (!isValidEmail(email)) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid email format' }) };
+      return badRequest('Invalid email format', undefined, origin);
     }
 
     // Verificar se organização existe
@@ -56,32 +84,32 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     });
 
     if (!organization) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Organization not found' }) };
+      return notFound('Organization not found', origin);
     }
 
     // Verificar se email já existe
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return { statusCode: 409, body: JSON.stringify({ error: 'User with this email already exists' }) };
+      return badRequest('User with this email already exists', undefined, origin);
     }
 
-    // Verificar limite de usuários da organização
-    const userCount = await prisma.user.count({ where: { id: organizationId } });
+    // Verificar limite de usuários
+    const userCount = await prisma.profile.count({ where: { organization_id: organizationId } });
     const license = await prisma.license.findFirst({
       where: { organization_id: organizationId, is_active: true }
     });
 
     if (license && userCount >= license.max_users) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'User limit reached for this organization' }) };
+      return forbidden('User limit reached for this organization', origin);
     }
 
     // Criar usuário no Cognito
     const userPoolId = process.env.COGNITO_USER_POOL_ID;
     if (!userPoolId) {
-      return { statusCode: 500, body: JSON.stringify({ error: 'Cognito not configured' }) };
+      return error('Cognito not configured', 500, undefined, origin);
     }
 
-    const password = temporaryPassword || generateTemporaryPassword();
+    const password = temporaryPassword || generateSecurePassword();
 
     const cognitoResponse = await cognitoClient.send(new AdminCreateUserCommand({
       UserPoolId: userPoolId,
@@ -99,7 +127,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     const cognitoId = cognitoResponse.User?.Username;
 
-    // Se não enviar invite, definir senha permanente
     if (!sendInvite && temporaryPassword) {
       await cognitoClient.send(new AdminSetUserPasswordCommand({
         UserPoolId: userPoolId,
@@ -109,7 +136,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }));
     }
 
-    // Adicionar ao grupo do Cognito baseado no role
+    // Adicionar ao grupo do Cognito
     const groupName = `${organizationId}-${role.toLowerCase()}`;
     try {
       await cognitoClient.send(new AdminAddUserToGroupCommand({
@@ -123,14 +150,19 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // Criar usuário no banco
     const newUser = await prisma.user.create({
+      data: { email, full_name: name, is_active: true }
+    });
+
+    // Criar profile
+    await prisma.profile.create({
       data: {
-        email,
-        full_name: name,
-        is_active: true
+        user_id: newUser.id,
+        organization_id: organizationId,
+        role: role
       }
     });
 
-    // Registrar ação de auditoria
+    // Registrar auditoria
     await prisma.auditLog.create({
       data: {
         organization_id: organizationId,
@@ -138,45 +170,57 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         action: 'CREATE_USER',
         resource_type: 'USER',
         resource_id: newUser.id,
-        details: { email, role, createdBy: adminUser.email },
-        ip_address: event.requestContext.identity?.sourceIp,
-        user_agent: event.headers['User-Agent']
+        details: { email, role, createdBy: adminUserId },
+        ip_address: event.requestContext?.identity?.sourceIp || event.headers?.['x-forwarded-for']?.split(',')[0],
+        user_agent: event.headers?.['user-agent']
       }
     });
 
-    return {
-      statusCode: 201,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          name: newUser.full_name,
-          isActive: newUser.is_active
-        },
-        inviteSent: sendInvite
-      })
-    };
-  } catch (error) {
-    logger.error('Create user error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error', details: String(error) })
-    };
+    return success({
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.full_name,
+        isActive: newUser.is_active
+      },
+      inviteSent: sendInvite
+    }, 201, origin);
+  } catch (err) {
+    logger.error('Create user error:', err);
+    return error('Internal server error', 500, undefined, origin);
   }
-};
+}
 
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
-function generateTemporaryPassword(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+function generateSecurePassword(): string {
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const special = '!@#$%^&*';
+  const all = upper + lower + numbers + special;
+  
+  // Garantir pelo menos um de cada tipo
   let password = '';
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  password += upper[crypto.randomInt(upper.length)];
+  password += lower[crypto.randomInt(lower.length)];
+  password += numbers[crypto.randomInt(numbers.length)];
+  password += special[crypto.randomInt(special.length)];
+  
+  // Completar com caracteres aleatórios
+  for (let i = 4; i < 16; i++) {
+    password += all[crypto.randomInt(all.length)];
   }
-  return password;
+  
+  // Embaralhar (Fisher-Yates)
+  const arr = password.split('');
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  
+  return arr.join('');
 }

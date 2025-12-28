@@ -29,6 +29,7 @@ inclusion: always
 2. **NÃO usar DynamoDB** - O banco de dados é PostgreSQL via Prisma
 3. **NÃO criar arquivos .py** no projeto
 4. **NÃO mudar a arquitetura** sem aprovação explícita do usuário
+5. **JAMAIS usar mocks em testes** - Testes DEVEM usar dados e serviços reais, nunca mocks ou stubs
 
 ## ✅ Padrões Obrigatórios
 

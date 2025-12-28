@@ -11,7 +11,7 @@ import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
-import { getHttpMethod } from '../../lib/http-helpers.js';
+import { getHttpMethod } from '../../lib/middleware.js';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 
 interface FetchDailyCostsRequest {

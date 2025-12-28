@@ -1,10 +1,9 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
 import { success, error as errorResponse, corsOptions, badRequest, unauthorized } from '../../lib/response.js';
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '../../lib/database.js';
+import { getOrigin } from '../../lib/middleware.js';
 import * as crypto from 'crypto';
-
-const prisma = new PrismaClient();
 
 interface AuthenticationRequest {
   action: 'start' | 'finish';
@@ -23,21 +22,20 @@ interface AuthenticationRequest {
   challenge?: string;
 }
 
-// Extract origin from event for CORS
-function getOrigin(event: APIGatewayProxyEvent): string {
-  return event.headers?.origin || event.headers?.Origin || '*';
-}
-
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
   const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
   
   // Handle CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
+  if (httpMethod === 'OPTIONS') {
     return corsOptions(origin);
   }
   
   try {
-    const body: AuthenticationRequest = JSON.parse(event.body || '{}');
+    const body: AuthenticationRequest = event.body ? JSON.parse(event.body) : {};
     const { action } = body;
 
     if (action === 'start') {
@@ -47,13 +45,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     return badRequest('Invalid action', undefined, origin);
-  } catch (error) {
-    logger.error('WebAuthn authentication error:', error);
+  } catch (err) {
+    logger.error('WebAuthn authentication error:', err);
     return errorResponse('Internal server error', 500, undefined, origin);
   }
-};
+}
 
-async function startAuthentication(email?: string, origin?: string): Promise<APIGatewayProxyResult> {
+async function startAuthentication(email?: string, origin?: string): Promise<APIGatewayProxyResultV2> {
+  const prisma = getPrismaClient();
   let allowCredentials: { type: string; id: string }[] = [];
 
   if (email) {
@@ -109,9 +108,10 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
 
 async function finishAuthentication(
   body: AuthenticationRequest,
-  event: APIGatewayProxyEvent,
+  event: AuthorizedEvent,
   origin?: string
-): Promise<APIGatewayProxyResult> {
+): Promise<APIGatewayProxyResultV2> {
+  const prisma = getPrismaClient();
   const { assertion, challenge } = body;
 
   if (!assertion || !challenge) {

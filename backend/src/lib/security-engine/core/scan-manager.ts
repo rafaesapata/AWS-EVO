@@ -9,7 +9,7 @@ import { ParallelExecutor } from './parallel-executor.js';
 import { AWSClientFactory } from './client-factory.js';
 import { GLOBAL_SERVICES, REGIONAL_SERVICES } from '../config.js';
 import { logger } from '../../logging.js';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 // Import all scanners
 import { scanIAM } from '../scanners/iam/index.js';
@@ -128,7 +128,7 @@ export class ScanManager {
   }
 
   async scan(): Promise<ScanResult> {
-    const scanId = uuidv4();
+    const scanId = randomUUID();
     const startTime = Date.now();
     const allFindings: Finding[] = [];
     let totalErrors = 0;

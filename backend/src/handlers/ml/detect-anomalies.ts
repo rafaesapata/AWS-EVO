@@ -1,13 +1,12 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '../../lib/database.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
-import { success, error, badRequest, notFound, unauthorized, corsOptions } from '../../lib/response.js';
-
-const prisma = new PrismaClient();
-const stsClient = new STSClient({});
+import { success, error, badRequest, notFound, corsOptions } from '../../lib/response.js';
+import { getOrigin } from '../../lib/middleware.js';
 
 interface AnomalyRequest {
   awsAccountId: string;
@@ -32,30 +31,47 @@ interface Anomaly {
   recommendation: string;
 }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  const origin = event.headers?.origin || event.headers?.Origin;
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
   
   // Handle CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
+  if (httpMethod === 'OPTIONS') {
     return corsOptions(origin);
   }
   
+  let organizationId: string;
+  let userId: string;
+  
   try {
-    const userId = event.requestContext.authorizer?.claims?.sub;
-    if (!userId) {
-      return unauthorized('Unauthorized', origin);
-    }
+    const user = getUserFromEvent(event);
+    userId = user.sub || user.id || 'unknown';
+    organizationId = getOrganizationId(user);
+  } catch (authError: any) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
 
-    const body: AnomalyRequest = JSON.parse(event.body || '{}');
+  try {
+    const body: AnomalyRequest = event.body ? JSON.parse(event.body) : {};
     const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = body;
 
     if (!awsAccountId) {
       return badRequest('awsAccountId is required', undefined, origin);
     }
 
-    // Buscar conta AWS
+    const prisma = getPrismaClient();
+    const stsClient = new STSClient({});
+
+    // Buscar conta AWS - FILTRAR POR ORGANIZATION_ID
     const awsAccount = await prisma.awsAccount.findFirst({
-      where: { id: awsAccountId },
+      where: { 
+        id: awsAccountId,
+        organization_id: organizationId  // CRITICAL: Multi-tenancy filter
+      },
       include: { organization: true }
     });
 
@@ -276,6 +292,7 @@ async function detectSecurityAnomalies(
   lookbackDays: number,
   thresholds: { securityThreshold: number }
 ): Promise<Anomaly[]> {
+  const prisma = getPrismaClient();
   const anomalies: Anomaly[] = [];
 
   // Buscar eventos de segurança recentes

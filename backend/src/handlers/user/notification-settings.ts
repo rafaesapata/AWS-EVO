@@ -3,11 +3,12 @@
  * Manages user notification preferences
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { success, badRequest, error } from '../../lib/response.js';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
+import { success, badRequest, error, corsOptions } from '../../lib/response.js';
 import { logger } from '../../lib/logging.js';
-import { withMetrics } from '../../lib/monitoring-alerting.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { getOrigin } from '../../lib/middleware.js';
 
 interface NotificationSettings {
   email_enabled: boolean;
@@ -33,27 +34,36 @@ interface NotificationSettings {
 /**
  * Get user notification settings
  */
-export const getHandler = withMetrics(async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+export async function getHandler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+
+
+  let userId: string;
+  
   try {
-    logger.info('Get notification settings request received');
+    const user = getUserFromEvent(event);
+    userId = user.sub || user.id || 'unknown';
+    getOrganizationId(user); // Validate auth
+  } catch (authError) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
 
-    // Get user ID from JWT token
-    const userId = event.requestContext.authorizer?.claims?.sub;
-    if (!userId) {
-      return badRequest('User ID not found in token');
-    }
-
+  try {
     const prisma = getPrismaClient();
-
-    // Try to get existing settings
     const existingSettings = await prisma.notificationSettings.findUnique({
       where: { userId },
     });
 
     if (!existingSettings) {
-      // Return default settings
       const defaultSettings: NotificationSettings = {
         email_enabled: true,
         webhook_enabled: false,
@@ -66,143 +76,113 @@ export const getHandler = withMetrics(async (
         notify_on_medium: false,
         notify_on_scan_complete: true,
       };
-
-      return success(defaultSettings);
+      return success(defaultSettings, 200, origin);
     }
 
     logger.info('Notification settings retrieved', { userId });
-
-    return success(existingSettings);
-
+    return success(existingSettings, 200, origin);
   } catch (err) {
     logger.error('Failed to get notification settings', err as Error);
-    return error('Failed to get notification settings');
+    return error('Failed to get notification settings', 500, undefined, origin);
   }
-}, 'GetNotificationSettings');
+}
 
 /**
  * Update user notification settings
  */
-export const postHandler = withMetrics(async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+export async function postHandler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+
+  let userId: string;
+  
   try {
-    logger.info('Update notification settings request received');
+    const user = getUserFromEvent(event);
+    userId = user.sub || user.id || 'unknown';
+    getOrganizationId(user);
+  } catch (authError) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
 
+  try {
     if (!event.body) {
-      return badRequest('Request body is required');
-    }
-
-    // Get user ID from JWT token
-    const userId = event.requestContext.authorizer?.claims?.sub;
-    if (!userId) {
-      return badRequest('User ID not found in token');
+      return badRequest('Request body is required', undefined, origin);
     }
 
     const settings: NotificationSettings = JSON.parse(event.body);
 
-    // Validate required fields
     if (typeof settings.email_enabled !== 'boolean') {
-      return badRequest('email_enabled is required and must be boolean');
+      return badRequest('email_enabled is required and must be boolean', undefined, origin);
     }
 
-    // Validate webhook URL if enabled
+    // Validate URLs
     if (settings.webhook_enabled && settings.webhook_url) {
-      try {
-        new URL(settings.webhook_url);
-      } catch {
-        return badRequest('Invalid webhook URL format');
+      try { new URL(settings.webhook_url); } catch {
+        return badRequest('Invalid webhook URL format', undefined, origin);
       }
     }
 
-    // Validate Slack webhook URL if enabled
     if (settings.slack_enabled && settings.slack_webhook_url) {
       if (!settings.slack_webhook_url.startsWith('https://hooks.slack.com/')) {
-        return badRequest('Invalid Slack webhook URL format');
-      }
-    }
-
-    // Validate Graylog URL if enabled
-    if (settings.graylog_enabled && settings.graylog_url) {
-      try {
-        new URL(settings.graylog_url);
-      } catch {
-        return badRequest('Invalid Graylog URL format');
-      }
-    }
-
-    // Validate Zabbix URL if enabled
-    if (settings.zabbix_enabled && settings.zabbix_url) {
-      try {
-        new URL(settings.zabbix_url);
-      } catch {
-        return badRequest('Invalid Zabbix URL format');
+        return badRequest('Invalid Slack webhook URL format', undefined, origin);
       }
     }
 
     const prisma = getPrismaClient();
-
-    // Upsert settings
     const updatedSettings = await prisma.notificationSettings.upsert({
       where: { userId },
-      update: {
-        ...settings,
-        updated_at: new Date(),
-      },
-      create: {
-        userId,
-        ...settings,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
+      update: { ...settings, updated_at: new Date() },
+      create: { userId, ...settings, created_at: new Date(), updated_at: new Date() },
     });
 
-    logger.info('Notification settings updated', {
-      userId,
-      settingsId: updatedSettings.id,
-    });
-
-    return success({
-      message: 'Notification settings updated successfully',
-      settings: updatedSettings,
-    });
-
+    logger.info('Notification settings updated', { userId, settingsId: updatedSettings.id });
+    return success({ message: 'Notification settings updated successfully', settings: updatedSettings }, 200, origin);
   } catch (err) {
     logger.error('Failed to update notification settings', err as Error);
-    return error('Failed to update notification settings');
+    return error('Failed to update notification settings', 500, undefined, origin);
   }
-}, 'UpdateNotificationSettings');
+}
 
 /**
  * Delete user notification settings (reset to defaults)
  */
-export const deleteHandler = withMetrics(async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+export async function deleteHandler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+
+  let userId: string;
+  
   try {
-    logger.info('Delete notification settings request received');
+    const user = getUserFromEvent(event);
+    userId = user.sub || user.id || 'unknown';
+    getOrganizationId(user);
+  } catch (authError) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
 
-    // Get user ID from JWT token
-    const userId = event.requestContext.authorizer?.claims?.sub;
-    if (!userId) {
-      return badRequest('User ID not found in token');
-    }
-
+  try {
     const prisma = getPrismaClient();
-
-    // Delete existing settings
-    await prisma.notificationSettings.deleteMany({
-      where: { userId },
-    });
-
+    await prisma.notificationSettings.deleteMany({ where: { userId } });
     logger.info('Notification settings deleted (reset to defaults)', { userId });
-
-    return success({
-      message: 'Notification settings reset to defaults',
-    });
-
+    return success({ message: 'Notification settings reset to defaults' }, 200, origin);
   } catch (err) {
     logger.error('Failed to delete notification settings', err as Error);
-    return error('Failed to delete notification settings');
+    return error('Failed to delete notification settings', 500, undefined, origin);
   }
-}, 'DeleteNotificationSettings');
+}

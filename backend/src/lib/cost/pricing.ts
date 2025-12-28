@@ -153,6 +153,31 @@ export const EIP_PRICING = {
   monthlyUnassociated: 3.60, // ~$3.60 per month
 };
 
+// S3 pricing (USD/GB-month, us-east-1)
+export const S3_PRICING = {
+  standard: 0.023, // First 50 TB
+  intelligentTiering: 0.0125, // Frequent access tier
+  standardIA: 0.0125, // Infrequent Access
+  oneZoneIA: 0.01,
+  glacier: 0.004,
+  glacierDeepArchive: 0.00099,
+  // Request pricing
+  putRequestPer1000: 0.005,
+  getRequestPer1000: 0.0004,
+};
+
+// DynamoDB pricing (USD, us-east-1)
+export const DYNAMODB_PRICING = {
+  // On-Demand
+  onDemandWritePerMillion: 1.25, // $1.25 per million WCU
+  onDemandReadPerMillion: 0.25, // $0.25 per million RCU
+  // Provisioned
+  provisionedWritePerHour: 0.00065, // per WCU per hour
+  provisionedReadPerHour: 0.00013, // per RCU per hour
+  // Storage
+  storagePerGBMonth: 0.25,
+};
+
 // Hours per month (average)
 const HOURS_PER_MONTH = 730;
 
@@ -320,4 +345,40 @@ export function calculateDownsizeSavings(
   const currentCost = getMonthlyCost(resourceType, currentSize);
   const newCost = getMonthlyCost(resourceType, recommendedSize);
   return Math.max(0, currentCost - newCost);
+}
+
+/**
+ * Get S3 bucket monthly cost estimate
+ */
+export function getS3MonthlyCost(sizeGB: number, storageClass: string = 'STANDARD'): number {
+  const classMap: Record<string, number> = {
+    'STANDARD': S3_PRICING.standard,
+    'INTELLIGENT_TIERING': S3_PRICING.intelligentTiering,
+    'STANDARD_IA': S3_PRICING.standardIA,
+    'ONEZONE_IA': S3_PRICING.oneZoneIA,
+    'GLACIER': S3_PRICING.glacier,
+    'DEEP_ARCHIVE': S3_PRICING.glacierDeepArchive,
+  };
+  const pricePerGB = classMap[storageClass] || S3_PRICING.standard;
+  return sizeGB * pricePerGB;
+}
+
+/**
+ * Get DynamoDB table monthly cost estimate (provisioned mode)
+ */
+export function getDynamoDBProvisionedMonthlyCost(readCapacity: number, writeCapacity: number, storageSizeGB: number): number {
+  const readCost = readCapacity * DYNAMODB_PRICING.provisionedReadPerHour * HOURS_PER_MONTH;
+  const writeCost = writeCapacity * DYNAMODB_PRICING.provisionedWritePerHour * HOURS_PER_MONTH;
+  const storageCost = storageSizeGB * DYNAMODB_PRICING.storagePerGBMonth;
+  return readCost + writeCost + storageCost;
+}
+
+/**
+ * Get DynamoDB table monthly cost estimate (on-demand mode)
+ */
+export function getDynamoDBOnDemandMonthlyCost(readUnits: number, writeUnits: number, storageSizeGB: number): number {
+  const readCost = (readUnits / 1000000) * DYNAMODB_PRICING.onDemandReadPerMillion;
+  const writeCost = (writeUnits / 1000000) * DYNAMODB_PRICING.onDemandWritePerMillion;
+  const storageCost = storageSizeGB * DYNAMODB_PRICING.storagePerGBMonth;
+  return readCost + writeCost + storageCost;
 }

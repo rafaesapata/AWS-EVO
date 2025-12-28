@@ -16,3 +16,11 @@ export {
   type AutoScalingConfig,
   type UtilizationPatterns,
 } from './waste-analyzer.js';
+
+export {
+  buildResourceArn,
+  parseArn,
+  getConsoleUrlFromArn,
+  getServiceFromResourceType,
+  type ArnComponents,
+} from './arn-builder.js';

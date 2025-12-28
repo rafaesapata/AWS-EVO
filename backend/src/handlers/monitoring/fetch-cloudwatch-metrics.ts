@@ -20,7 +20,7 @@ import { ECSClient, ListClustersCommand, ListServicesCommand, DescribeServicesCo
 import { ElastiCacheClient, DescribeCacheClustersCommand } from '@aws-sdk/client-elasticache';
 import { ElasticLoadBalancingV2Client, DescribeLoadBalancersCommand, DescribeTargetGroupsCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { APIGatewayClient, GetRestApisCommand } from '@aws-sdk/client-api-gateway';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 interface FetchMetricsRequest {
   accountId: string;
@@ -567,7 +567,7 @@ async function upsertResource(
     } else {
       await prisma.monitoredResource.create({
         data: {
-          id: uuidv4(),
+          id: randomUUID(),
           organization_id: organizationId,
           aws_account_id: accountId,
           resource_id: resource.resourceId,
@@ -610,7 +610,7 @@ async function saveMetric(
     if (!existing) {
       await prisma.resourceMetric.create({
         data: {
-          id: uuidv4(),
+          id: randomUUID(),
           organization_id: organizationId,
           aws_account_id: accountId,
           resource_id: resource.resourceId,

@@ -285,10 +285,12 @@ export const SECURE_CORS_CONFIG: CORSConfig = {
     'https://api-evo.ai.udstec.io',
     'https://app.evo-uds.com',
     'https://dashboard.evo-uds.com',
-    'http://localhost:8080',
-    'http://localhost:3000',
-    'http://localhost:5173',
-    '*', // Allow all origins for testing
+    // Development origins - only in non-production
+    ...(process.env.NODE_ENV !== 'production' ? [
+      'http://localhost:8080',
+      'http://localhost:3000',
+      'http://localhost:5173',
+    ] : []),
   ],
   allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
@@ -299,32 +301,55 @@ export const SECURE_CORS_CONFIG: CORSConfig = {
     'X-Request-ID',
     'X-Correlation-ID',
     'X-CSRF-Token',
+    'X-Amz-Date',
+    'X-Amz-Security-Token',
   ],
   exposedHeaders: [
     'X-Request-ID',
     'X-Correlation-ID',
     'X-Response-Time',
     'X-RateLimit-Remaining',
+    'X-RateLimit-Limit',
+    'X-RateLimit-Reset',
   ],
   maxAge: 86400, // 24 hours
   credentials: true,
 };
 
 /**
- * Generate CORS headers
+ * Generate CORS headers - SECURITY HARDENED
+ * Never allows '*' origin in production when credentials are enabled
  */
 export function generateCORSHeaders(
   origin: string | undefined,
   config: CORSConfig = SECURE_CORS_CONFIG
 ): Record<string, string> {
   const headers: Record<string, string> = {};
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  // ALWAYS allow CORS for testing - use '*' as fallback
-  if (origin && (config.allowedOrigins.includes(origin) || config.allowedOrigins.includes('*'))) {
+  // Check if origin is in allowed list
+  const isAllowedOrigin = origin && config.allowedOrigins.includes(origin);
+  
+  // In production, NEVER use '*' - always validate origin
+  if (isAllowedOrigin) {
     headers['Access-Control-Allow-Origin'] = origin;
+    if (config.credentials) {
+      headers['Access-Control-Allow-Credentials'] = 'true';
+    }
+  } else if (!isProduction && origin) {
+    // In development, allow localhost origins dynamically
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      headers['Access-Control-Allow-Origin'] = origin;
+      if (config.credentials) {
+        headers['Access-Control-Allow-Credentials'] = 'true';
+      }
+    } else {
+      // Unknown origin in dev - use first allowed origin (no credentials)
+      headers['Access-Control-Allow-Origin'] = config.allowedOrigins[0] || 'https://evo.ai.udstec.io';
+    }
   } else {
-    // Default to '*' for testing purposes
-    headers['Access-Control-Allow-Origin'] = '*';
+    // Production with unknown origin - use primary domain (no credentials)
+    headers['Access-Control-Allow-Origin'] = 'https://evo.ai.udstec.io';
   }
 
   headers['Access-Control-Allow-Methods'] = config.allowedMethods.join(', ');
@@ -336,11 +361,6 @@ export function generateCORSHeaders(
 
   if (config.maxAge) {
     headers['Access-Control-Max-Age'] = config.maxAge.toString();
-  }
-
-  // Note: credentials can't be used with '*' origin
-  if (config.credentials && origin && origin !== '*') {
-    headers['Access-Control-Allow-Credentials'] = 'true';
   }
 
   // Security headers for CORS

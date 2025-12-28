@@ -8,7 +8,7 @@ import { ArnBuilder } from '../arn-builder.js';
 import { ResourceCache } from './resource-cache.js';
 import { AWSClientFactory } from './client-factory.js';
 import { logger } from '../../logging.js';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export abstract class BaseScanner {
   protected region: string;
@@ -75,7 +75,7 @@ export abstract class BaseScanner {
     };
 
     return {
-      id: `${this.serviceName.toLowerCase()}_${params.scan_type}_${params.resource_id}_${uuidv4().slice(0, 8)}`,
+      id: `${this.serviceName.toLowerCase()}_${params.scan_type}_${params.resource_id}_${randomUUID().slice(0, 8)}`,
       severity: params.severity,
       title: params.title,
       description: params.description,

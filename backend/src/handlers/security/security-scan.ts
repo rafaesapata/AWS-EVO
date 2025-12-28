@@ -13,11 +13,8 @@ import { resolveAwsCredentials } from '../../lib/aws-helpers.js';
 import { withAwsCircuitBreaker } from '../../lib/circuit-breaker.js';
 import { logger } from '../../lib/logging.js';
 import { businessMetrics } from '../../lib/metrics.js';
+import { getOrigin } from '../../lib/middleware.js';
 import { runSecurityScan, type ScanContext, resetGlobalCache } from '../../lib/security-engine/index.js';
-
-function getOrigin(event: AuthorizedEvent): string {
-  return event.headers?.origin || event.headers?.Origin || '*';
-}
 
 async function securityScanHandler(
   event: AuthorizedEvent,

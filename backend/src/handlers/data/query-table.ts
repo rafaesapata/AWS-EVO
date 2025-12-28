@@ -78,7 +78,7 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   'daily_costs': { 'aws_account_id': 'account_id', 'cost_date': 'date' },
   'waste_detections': { 'aws_account_id': 'account_id' },
   'waste_detection': { 'aws_account_id': 'account_id' },
-  'resource_utilization_ml': { 'aws_account_id': 'account_id' },
+  'resource_utilization_ml': { },  // aws_account_id exists in schema, no mapping needed
   'compliance_violations': { 'aws_account_id': 'account_id' },
   'iam_behavior_anomalies': { 'aws_account_id': 'account_id' },
   'iam_behavior_analysis': { 'aws_account_id': 'account_id' },

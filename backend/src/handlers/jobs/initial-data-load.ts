@@ -1,6 +1,9 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '../../lib/database.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { success, error, badRequest, notFound, corsOptions } from '../../lib/response.js';
+import { getOrigin } from '../../lib/middleware.js';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { EC2Client, DescribeInstancesCommand, DescribeVpcsCommand, DescribeSecurityGroupsCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
@@ -8,7 +11,6 @@ import { S3Client, ListBucketsCommand } from '@aws-sdk/client-s3';
 import { LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda';
 import { IAMClient, ListUsersCommand, ListRolesCommand } from '@aws-sdk/client-iam';
 
-const prisma = new PrismaClient();
 const stsClient = new STSClient({});
 
 interface LoadProgress {
@@ -18,33 +20,54 @@ interface LoadProgress {
   errors: string[];
 }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  try {
-    const userId = event.requestContext.authorizer?.claims?.sub;
-    if (!userId) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
 
+  let organizationId: string;
+  let userId: string;
+  
+  try {
+    const user = getUserFromEvent(event);
+    userId = user.sub || user.id || 'unknown';
+    organizationId = getOrganizationId(user);
+  } catch (authError) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
+
+  try {
+    const prisma = getPrismaClient();
     const body = JSON.parse(event.body || '{}');
     const { awsAccountId, regions = ['us-east-1'], resourceTypes } = body;
 
     if (!awsAccountId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'awsAccountId is required' }) };
+      return badRequest('awsAccountId is required', undefined, origin);
     }
 
-    // Buscar conta AWS
+    // Buscar conta AWS - FILTRAR POR ORGANIZATION_ID
     const awsAccount = await prisma.awsAccount.findFirst({
-      where: { id: awsAccountId },
+      where: { 
+        id: awsAccountId,
+        organization_id: organizationId  // CRITICAL: Multi-tenancy filter
+      },
       include: { organization: true }
     });
 
     if (!awsAccount) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'AWS Account not found' }) };
+      return notFound('AWS Account not found', origin);
     }
 
-    // Assume role (usando campos corretos do schema)
+    // Assume role
     const assumeRoleResponse = await stsClient.send(new AssumeRoleCommand({
-      RoleArn: `arn:aws:iam::${awsAccount.account_id}:role/EvoUdsRole`, // Usar account_id do schema
+      RoleArn: `arn:aws:iam::${awsAccount.account_id}:role/EvoUdsRole`,
       RoleSessionName: 'InitialDataLoadSession',
       DurationSeconds: 3600
     }));
@@ -62,7 +85,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Criar registro de job
     const job = await prisma.backgroundJob.create({
       data: {
-        organization_id: awsAccount.organization_id,
+        organization_id: organizationId,  // Use organizationId from auth
         job_type: 'INITIAL_DATA_LOAD',
         job_name: 'Initial Data Load',
         status: 'RUNNING',
@@ -75,7 +98,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       for (const region of regions) {
         const ec2Client = new EC2Client({ region, credentials });
         const rdsClient = new RDSClient({ region, credentials });
-        const s3Client = new S3Client({ region, credentials });
         const lambdaClient = new LambdaClient({ region, credentials });
 
         // EC2 Instances
@@ -260,7 +282,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             }
           },
           create: {
-            organization_id: awsAccount.organization_id,
+            organization_id: organizationId,  // Use organizationId from auth
             aws_account_id: awsAccountId,
             resource_id: r.resourceId,
             resource_type: r.resourceType,
@@ -285,29 +307,24 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         }
       });
 
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          success: true,
-          jobId: job.id,
-          resourcesLoaded: allResources.length,
-          byType: groupByType(allResources),
-          errors: progress.errors
-        })
-      };
-    } catch (error) {
+      return success({
+        jobId: job.id,
+        resourcesLoaded: allResources.length,
+        byType: groupByType(allResources),
+        errors: progress.errors
+      }, 200, origin);
+    } catch (jobError) {
       await prisma.backgroundJob.update({
         where: { id: job.id },
-        data: { status: 'FAILED', completed_at: new Date(), error: String(error) }
+        data: { status: 'FAILED', completed_at: new Date(), error: String(jobError) }
       });
-      throw error;
+      throw jobError;
     }
-  } catch (error) {
-    logger.error('Initial data load error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Internal server error' }) };
+  } catch (err) {
+    logger.error('Initial data load error:', err);
+    return error('Internal server error', 500, undefined, origin);
   }
-};
+}
 
 function groupByType(resources: unknown[]): Record<string, number> {
   return (resources as { resourceType: string }[]).reduce((acc, r) => {

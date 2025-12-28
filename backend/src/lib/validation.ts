@@ -233,8 +233,18 @@ export function sanitizeObject(obj: any): any {
  * Validate email format with strict security
  */
 export function validateEmail(email: string): boolean {
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  // Strict email regex that requires:
+  // - No consecutive dots in local part
+  // - Valid domain with TLD (at least 2 chars)
+  // - No leading/trailing dots
+  const emailRegex = /^[a-zA-Z0-9](?:[a-zA-Z0-9._%+-]*[a-zA-Z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
   const sanitized = sanitizeString(email);
+  
+  // Check for consecutive dots
+  if (/\.\./.test(sanitized)) {
+    return false;
+  }
+  
   return emailRegex.test(sanitized) && sanitized.length <= 254;
 }
 

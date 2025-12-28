@@ -533,19 +533,7 @@ const Index = () => {
   }
 
   if (activeTab === "waste") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <MLWasteDetection />
-            </main>
-            <Footer variant="minimal" />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <MLWasteDetection />;
   }
 
   return (

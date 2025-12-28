@@ -126,11 +126,12 @@ async function detectCostAnomalies(
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
+  // PADRONIZADO: usar organization_id (snake_case) conforme schema Prisma
   const recentCosts = await prisma.dailyCost.groupBy({
     by: ['date'],
     where: {
-      organizationId,
-      ...(accountId && { accountId }),
+      organization_id: organizationId,
+      ...(accountId && { account_id: accountId }),
       date: {
         gte: sevenDaysAgo,
       },
@@ -181,13 +182,14 @@ async function detectCriticalFindings(
   const oneDayAgo = new Date();
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
   
+  // PADRONIZADO: usar organization_id e account_id (snake_case) conforme schema Prisma
   const criticalFindings = await prisma.finding.findMany({
     where: {
-      organizationId,
-      ...(accountId && { accountId }),
+      organization_id: organizationId,
+      ...(accountId && { account_id: accountId }),
       severity: 'CRITICAL',
       status: 'ACTIVE',
-      createdAt: {
+      created_at: {
         gte: oneDayAgo,
       },
     },
@@ -220,9 +222,10 @@ async function detectCriticalDrifts(
   const oneDayAgo = new Date();
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
   
+  // PADRONIZADO: usar organization_id (snake_case) conforme schema Prisma
   const criticalDrifts = await prisma.driftDetection.findMany({
     where: {
-      organizationId,
+      organization_id: organizationId,
       ...(accountId && { aws_account_id: accountId }),
       severity: 'critical',
       detected_at: {
@@ -258,12 +261,13 @@ async function detectComplianceViolations(
   const oneDayAgo = new Date();
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
   
+  // PADRONIZADO: usar organization_id e account_id (snake_case) conforme schema Prisma
   const recentViolations = await prisma.complianceViolation.findMany({
     where: {
-      organizationId,
-      ...(accountId && { accountId }),
+      organization_id: organizationId,
+      ...(accountId && { account_id: accountId }),
       status: 'OPEN',
-      detectedAt: {
+      detected_at: {
         gte: oneDayAgo,
       },
     },

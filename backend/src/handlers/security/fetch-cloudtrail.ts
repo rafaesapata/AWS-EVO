@@ -1,11 +1,11 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '../../lib/database.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { getOrigin } from '../../lib/middleware.js';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { CloudTrailClient, LookupEventsCommand, LookupAttribute } from '@aws-sdk/client-cloudtrail';
-
-const prisma = new PrismaClient();
-const stsClient = new STSClient({});
 
 interface CloudTrailRequest {
   awsAccountId: string;
@@ -33,28 +33,51 @@ interface CloudTrailEvent {
   rawEvent: Record<string, unknown>;
 }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+  
+  let organizationId: string;
+  let userId: string;
+  
   try {
-    const userId = event.requestContext.authorizer?.claims?.sub;
-    if (!userId) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
+    const user = getUserFromEvent(event);
+    userId = user.sub || user.id || 'unknown';
+    organizationId = getOrganizationId(user);
+  } catch (authError: any) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
 
-    const body: CloudTrailRequest = JSON.parse(event.body || '{}');
+  try {
+    const body: CloudTrailRequest = event.body ? JSON.parse(event.body) : {};
     const { awsAccountId, startTime, endTime, eventName, resourceType, resourceName, username, maxResults = 50 } = body;
 
     if (!awsAccountId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'awsAccountId is required' }) };
+      return badRequest('awsAccountId is required', undefined, origin);
     }
 
-    // Buscar credenciais AWS
+    const prisma = getPrismaClient();
+    const stsClient = new STSClient({});
+
+    // Buscar credenciais AWS - FILTRAR POR ORGANIZATION_ID
     const awsCredential = await prisma.awsCredential.findFirst({
-      where: { id: awsAccountId },
+      where: { 
+        id: awsAccountId,
+        organization_id: organizationId  // CRITICAL: Multi-tenancy filter
+      },
       include: { organization: true }
     });
 
     if (!awsCredential) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'AWS Credential not found' }) };
+      return error('AWS Credential not found', 404, undefined, origin);
     }
 
     // Assume role

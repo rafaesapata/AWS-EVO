@@ -1,12 +1,13 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '../../lib/database.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { getOrigin } from '../../lib/middleware.js';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { CostExplorerClient, GetCostAndUsageCommand, GetCostForecastCommand } from '@aws-sdk/client-cost-explorer';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
-const prisma = new PrismaClient();
-const stsClient = new STSClient({});
 const bedrockClient = new BedrockRuntimeClient({ region: 'us-east-1' });
 
 interface CopilotQuery {
@@ -24,33 +25,56 @@ interface CostData {
   forecast?: { date: string; cost: number }[];
 }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+  
+  let organizationId: string;
+  let userId: string;
+  
   try {
-    const userId = event.requestContext.authorizer?.claims?.sub;
-    if (!userId) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
+    const user = getUserFromEvent(event);
+    userId = user.sub || user.id || 'unknown';
+    organizationId = getOrganizationId(user);
+  } catch (authError: any) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
 
-    const body: CopilotQuery = JSON.parse(event.body || '{}');
-    const { question, awsAccountId, context = 'general', timeRange } = body;
+  try {
+    const body: CopilotQuery = event.body ? JSON.parse(event.body) : {};
+    const { question, awsAccountId, context: queryContext = 'general', timeRange } = body;
 
     if (!question || !awsAccountId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'question and awsAccountId required' }) };
+      return badRequest('question and awsAccountId required', undefined, origin);
     }
 
-    // Buscar conta AWS
+    const prisma = getPrismaClient();
+    const stsClient = new STSClient({});
+
+    // Buscar conta AWS - FILTRAR POR ORGANIZATION_ID
     const awsAccount = await prisma.awsAccount.findFirst({
-      where: { id: awsAccountId },
+      where: { 
+        id: awsAccountId,
+        organization_id: organizationId  // CRITICAL: Multi-tenancy filter
+      },
       include: { organization: true }
     });
 
     if (!awsAccount) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'AWS Account not found' }) };
+      return error('AWS Account not found', 404, undefined, origin);
     }
 
     // Assume role na conta do cliente (usando campos corretos do schema)
     const assumeRoleResponse = await stsClient.send(new AssumeRoleCommand({
-      RoleArn: `arn:aws:iam::${awsAccount.account_id}:role/EvoUdsRole`, // Usar account_id do schema
+      RoleArn: `arn:aws:iam::${awsAccount.account_id}:role/EvoUdsRole`,
       RoleSessionName: 'FinOpsCopilotV2Session',
       DurationSeconds: 3600
     }));
@@ -66,17 +90,20 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Coletar dados de custo
     const costData = await collectCostData(ceClient, timeRange);
 
-    // Buscar histórico de otimizações
+    // Buscar histórico de otimizações - FILTRAR POR ORGANIZATION_ID
     const optimizations = await prisma.costOptimization.findMany({
-      where: { aws_account_id: awsAccountId },
+      where: { 
+        aws_account_id: awsAccountId,
+        organization_id: organizationId  // CRITICAL: Multi-tenancy filter
+      },
       orderBy: { created_at: 'desc' },
       take: 10
     });
 
-    // Buscar alertas de custo ativos (removido campo type que não existe no schema)
+    // Buscar alertas de custo ativos
     const costAlerts = await prisma.alert.findMany({
       where: {
-        organization_id: awsAccount.organization_id,
+        organization_id: organizationId,  // Use organizationId from auth
         severity: { in: ['CRITICAL', 'HIGH'] }
       }
     });
@@ -85,7 +112,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const aiContext = buildAIContext(costData, optimizations, costAlerts, awsAccount.account_name);
 
     // Chamar Bedrock para resposta inteligente
-    const aiResponse = await generateAIResponse(question, aiContext, context);
+    const aiResponse = await generateAIResponse(question, aiContext, queryContext);
 
     // Registrar interação
     await prisma.copilotInteraction.create({
@@ -94,7 +121,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         user_id: userId,
         query: question,
         response: aiResponse.answer,
-        context: { costData, context } as any
+        context: { costData, queryContext } as any
       }
     });
 

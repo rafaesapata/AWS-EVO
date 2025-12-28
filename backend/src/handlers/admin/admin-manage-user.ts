@@ -99,6 +99,18 @@ export async function handler(
       }
       
       case 'update': {
+        // Verificar que o usuário pertence à mesma organização (segurança multi-tenant)
+        const targetProfile = await prisma.profile.findFirst({
+          where: {
+            user_id: email,
+            organization_id: organizationId,
+          },
+        });
+        
+        if (!targetProfile) {
+          return forbidden('Cannot update user from another organization');
+        }
+        
         // Atualizar atributos do usuário
         const updateAttributes = [];
         
@@ -106,8 +118,10 @@ export async function handler(
           updateAttributes.push({ Name: 'name', Value: attributes.full_name });
         }
         
-        if (attributes?.organization_id) {
-          updateAttributes.push({ Name: 'custom:organization_id', Value: attributes.organization_id });
+        // SEGURANÇA: Admin não pode mudar organization_id de usuário
+        // Isso seria uma violação de isolamento multi-tenant
+        if (attributes?.organization_id && attributes.organization_id !== organizationId) {
+          return forbidden('Cannot change user organization');
         }
         
         if (attributes?.roles) {
@@ -128,6 +142,18 @@ export async function handler(
       }
       
       case 'delete': {
+        // Verificar que o usuário pertence à mesma organização (segurança multi-tenant)
+        const targetProfile = await prisma.profile.findFirst({
+          where: {
+            user_id: email,
+            organization_id: organizationId,
+          },
+        });
+        
+        if (!targetProfile) {
+          return forbidden('Cannot delete user from another organization');
+        }
+        
         // Deletar usuário
         await cognitoClient.send(
           new AdminDeleteUserCommand({

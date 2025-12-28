@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
 import { 
@@ -87,7 +87,7 @@ export default function UserManagement() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       let filteredUsers = response.data || [];
@@ -139,7 +139,10 @@ export default function UserManagement() {
       });
 
       if (cognitoResponse.error) {
-        throw new Error(cognitoResponse.error);
+        const errorMsg = typeof cognitoResponse.error === 'object' 
+          ? (cognitoResponse.error as any).message || JSON.stringify(cognitoResponse.error)
+          : String(cognitoResponse.error);
+        throw new Error(errorMsg);
       }
 
       // Create user record in database
@@ -151,7 +154,10 @@ export default function UserManagement() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        const errorMsg = typeof response.error === 'object' 
+          ? (response.error as any).message || JSON.stringify(response.error)
+          : String(response.error);
+        throw new Error(errorMsg);
       }
 
       return response.data;
@@ -186,7 +192,7 @@ export default function UserManagement() {
       const response = await apiClient.update('users', userData);
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data;
@@ -221,7 +227,7 @@ export default function UserManagement() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data;

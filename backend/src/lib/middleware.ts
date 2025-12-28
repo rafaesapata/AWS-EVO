@@ -23,6 +23,13 @@ export function getHttpPath(event: AuthorizedEvent): string {
   return event.path || event.rawPath || event.requestContext?.http?.path || '/unknown';
 }
 
+/**
+ * Helper to get origin from event headers for CORS
+ */
+export function getOrigin(event: AuthorizedEvent): string {
+  return event.headers?.origin || event.headers?.Origin || '*';
+}
+
 export interface MiddlewareContext {
   user: CognitoUser;
   organizationId: string;

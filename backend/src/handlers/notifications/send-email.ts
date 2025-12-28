@@ -3,11 +3,12 @@
  * Handles email sending requests via Amazon SES
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { success, error, badRequest } from '../../lib/response.js';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
+import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { emailService, EmailOptions } from '../../lib/email-service.js';
 import { logger } from '../../lib/logging.js';
-import { withMetrics } from '../../lib/monitoring-alerting.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getOrigin } from '../../lib/middleware.js';
 
 interface SendEmailRequest {
   type: 'single' | 'bulk' | 'notification' | 'alert' | 'security' | 'welcome' | 'password-reset';
@@ -22,7 +23,6 @@ interface SendEmailRequest {
   priority?: 'high' | 'normal' | 'low';
   tags?: Record<string, string>;
   
-  // For specific email types
   alertData?: {
     id: string;
     severity: 'low' | 'medium' | 'high' | 'critical';
@@ -63,27 +63,43 @@ interface SendEmailRequest {
 /**
  * Send email handler
  */
-export const handler = withMetrics(async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+
+  let organizationId: string;
+  
+  try {
+    const user = getUserFromEvent(event);
+    organizationId = getOrganizationId(user);
+  } catch (authError) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
+
   try {
     logger.info('Send email request received', {
-      path: event.path,
-      method: event.httpMethod,
+      organizationId,
+      method: httpMethod,
     });
 
     if (!event.body) {
-      return badRequest('Request body is required');
+      return badRequest('Request body is required', undefined, origin);
     }
 
     const request: SendEmailRequest = JSON.parse(event.body);
 
-    // Validate required fields
     if (!request.type || !request.to) {
-      return badRequest('type and to fields are required');
+      return badRequest('type and to fields are required', undefined, origin);
     }
 
-    // Convert string addresses to EmailAddress format
     const normalizeEmails = (emails: string | string[]) => {
       const emailArray = Array.isArray(emails) ? emails : [emails];
       return emailArray.map(email => ({ email }));
@@ -94,7 +110,7 @@ export const handler = withMetrics(async (
     switch (request.type) {
       case 'single':
         if (!request.subject) {
-          return badRequest('subject is required for single emails');
+          return badRequest('subject is required for single emails', undefined, origin);
         }
 
         const emailOptions: EmailOptions = {
@@ -113,7 +129,7 @@ export const handler = withMetrics(async (
 
       case 'notification':
         if (!request.notificationData || !request.subject) {
-          return badRequest('notificationData and subject are required for notifications');
+          return badRequest('notificationData and subject are required for notifications', undefined, origin);
         }
 
         result = await emailService.sendNotification(
@@ -126,7 +142,7 @@ export const handler = withMetrics(async (
 
       case 'alert':
         if (!request.alertData) {
-          return badRequest('alertData is required for alert emails');
+          return badRequest('alertData is required for alert emails', undefined, origin);
         }
 
         result = await emailService.sendAlert(
@@ -140,7 +156,7 @@ export const handler = withMetrics(async (
 
       case 'security':
         if (!request.securityEvent) {
-          return badRequest('securityEvent is required for security emails');
+          return badRequest('securityEvent is required for security emails', undefined, origin);
         }
 
         result = await emailService.sendSecurityNotification(
@@ -154,7 +170,7 @@ export const handler = withMetrics(async (
 
       case 'welcome':
         if (!request.welcomeData || Array.isArray(request.to)) {
-          return badRequest('welcomeData is required and to must be a single email for welcome emails');
+          return badRequest('welcomeData is required and to must be a single email for welcome emails', undefined, origin);
         }
 
         result = await emailService.sendWelcomeEmail(
@@ -165,7 +181,7 @@ export const handler = withMetrics(async (
 
       case 'password-reset':
         if (!request.resetData || Array.isArray(request.to)) {
-          return badRequest('resetData is required and to must be a single email for password reset emails');
+          return badRequest('resetData is required and to must be a single email for password reset emails', undefined, origin);
         }
 
         result = await emailService.sendPasswordResetEmail(
@@ -175,7 +191,7 @@ export const handler = withMetrics(async (
         break;
 
       default:
-        return badRequest(`Unsupported email type: ${request.type}`);
+        return badRequest(`Unsupported email type: ${request.type}`, undefined, origin);
     }
 
     logger.info('Email sent successfully', {
@@ -187,31 +203,47 @@ export const handler = withMetrics(async (
     return success({
       message: 'Email sent successfully',
       result,
-    });
+    }, 200, origin);
 
   } catch (err) {
     logger.error('Failed to send email', err as Error);
-    return error('Failed to send email');
+    return error('Failed to send email', 500, undefined, origin);
   }
-}, 'SendEmail');
+}
 
 /**
  * Send bulk email handler
  */
-export const bulkHandler = withMetrics(async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+export async function bulkHandler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+
+  try {
+    const user = getUserFromEvent(event);
+    getOrganizationId(user); // Validate auth
+  } catch (authError) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
+
   try {
     logger.info('Send bulk email request received');
 
     if (!event.body) {
-      return badRequest('Request body is required');
+      return badRequest('Request body is required', undefined, origin);
     }
 
     const request = JSON.parse(event.body);
 
     if (!request.template || !request.recipients || !Array.isArray(request.recipients)) {
-      return badRequest('template and recipients array are required');
+      return badRequest('template and recipients array are required', undefined, origin);
     }
 
     const result = await emailService.sendBulkEmail({
@@ -232,20 +264,36 @@ export const bulkHandler = withMetrics(async (
     return success({
       message: 'Bulk email sent successfully',
       result,
-    });
+    }, 200, origin);
 
   } catch (err) {
     logger.error('Failed to send bulk email', err as Error);
-    return error('Failed to send bulk email');
+    return error('Failed to send bulk email', 500, undefined, origin);
   }
-}, 'SendBulkEmail');
+}
 
 /**
  * Get email statistics handler
  */
-export const statsHandler = withMetrics(async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+export async function statsHandler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+
+  try {
+    const user = getUserFromEvent(event);
+    getOrganizationId(user); // Validate auth
+  } catch (authError) {
+    logger.error('Authentication error', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
+
   try {
     logger.info('Get email stats request received');
 
@@ -264,10 +312,10 @@ export const statsHandler = withMetrics(async (
         start: startDate.toISOString(),
         end: endDate.toISOString(),
       },
-    });
+    }, 200, origin);
 
   } catch (err) {
     logger.error('Failed to get email stats', err as Error);
-    return error('Failed to get email stats');
+    return error('Failed to get email stats', 500, undefined, origin);
   }
-}, 'GetEmailStats');
+}

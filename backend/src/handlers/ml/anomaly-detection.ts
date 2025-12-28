@@ -9,6 +9,7 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import type { PrismaClient } from '@prisma/client';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -26,7 +27,7 @@ export async function handler(
     
     const prisma = getPrismaClient();
     
-    const anomalies: any[] = [];
+    const anomalies: AnomalyResult[] = [];
     
     // Detectar anomalias de custo
     const costAnomalies = await detectCostAnomalies(prisma, organizationId);
@@ -59,14 +60,42 @@ export async function handler(
   }
 }
 
-async function detectCostAnomalies(prisma: any, organizationId: string): Promise<Array<{
-  type: string;
+// Type definitions for anomaly results
+interface CostAnomaly {
+  type: 'cost';
   severity: string;
   date: Date;
   value: number;
   expected: number;
   deviation: string;
-}>> {
+}
+
+interface SecurityAnomaly {
+  type: 'security';
+  severity: string;
+  category: string;
+  userId?: string;
+  value: number;
+  message: string;
+}
+
+interface PerformanceAnomaly {
+  type: 'performance';
+  severity: string;
+  category: string;
+  endpointId: string;
+  endpointUrl?: string;
+  value: number;
+  expected?: number;
+  message: string;
+}
+
+type AnomalyResult = CostAnomaly | SecurityAnomaly | PerformanceAnomaly;
+
+async function detectCostAnomalies(
+  prisma: PrismaClient,
+  organizationId: string
+): Promise<CostAnomaly[]> {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
@@ -76,15 +105,8 @@ async function detectCostAnomalies(prisma: any, organizationId: string): Promise
     _sum: { cost: true },
   });
   
-  const anomalies: Array<{
-    type: string;
-    severity: string;
-    date: Date;
-    value: number;
-    expected: number;
-    deviation: string;
-  }> = [];
-  const values = costs.map((c: any) => c._sum.cost || 0);
+  const anomalies: CostAnomaly[] = [];
+  const values = costs.map((c: { _sum: { cost: number | null } }) => c._sum.cost || 0);
   
   if (values.length === 0) return anomalies;
   
@@ -92,12 +114,13 @@ async function detectCostAnomalies(prisma: any, organizationId: string): Promise
   const stdDev = Math.sqrt(values.reduce((sum: number, val: number) => sum + Math.pow(val - avg, 2), 0) / values.length);
   
   for (let i = 0; i < costs.length; i++) {
-    const cost = costs[i]._sum.cost || 0;
+    const costEntry = costs[i] as { date: Date; _sum: { cost: number | null } };
+    const cost = costEntry._sum.cost || 0;
     if (cost > avg + (2 * stdDev)) {
       anomalies.push({
         type: 'cost',
         severity: 'high',
-        date: costs[i].date,
+        date: costEntry.date,
         value: cost,
         expected: avg,
         deviation: ((cost - avg) / avg * 100).toFixed(1) + '%',
@@ -108,22 +131,11 @@ async function detectCostAnomalies(prisma: any, organizationId: string): Promise
   return anomalies;
 }
 
-async function detectSecurityAnomalies(prisma: any, organizationId: string): Promise<Array<{
-  type: string;
-  severity: string;
-  category: string;
-  userId?: string;
-  value: number;
-  message: string;
-}>> {
-  const anomalies: Array<{
-    type: string;
-    severity: string;
-    category: string;
-    userId?: string;
-    value: number;
-    message: string;
-  }> = [];
+async function detectSecurityAnomalies(
+  prisma: PrismaClient,
+  organizationId: string
+): Promise<SecurityAnomaly[]> {
+  const anomalies: SecurityAnomaly[] = [];
   const oneDayAgo = new Date();
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
   
@@ -142,6 +154,7 @@ async function detectSecurityAnomalies(prisma: any, organizationId: string): Pro
     const userIps: Record<string, Set<string>> = {};
     for (const login of recentLogins) {
       const userId = login.user_id;
+      if (!userId) continue; // Skip entries without user_id
       const details = login.details as Record<string, any> | null;
       const ip = details?.ip || login.ip_address || 'unknown';
       if (!userIps[userId]) userIps[userId] = new Set();
@@ -206,26 +219,11 @@ async function detectSecurityAnomalies(prisma: any, organizationId: string): Pro
   return anomalies;
 }
 
-async function detectPerformanceAnomalies(prisma: any, organizationId: string): Promise<Array<{
-  type: string;
-  severity: string;
-  category: string;
-  endpointId: string;
-  endpointUrl?: string;
-  value: number;
-  expected?: number;
-  message: string;
-}>> {
-  const anomalies: Array<{
-    type: string;
-    severity: string;
-    category: string;
-    endpointId: string;
-    endpointUrl?: string;
-    value: number;
-    expected?: number;
-    message: string;
-  }> = [];
+async function detectPerformanceAnomalies(
+  prisma: PrismaClient,
+  organizationId: string
+): Promise<PerformanceAnomaly[]> {
+  const anomalies: PerformanceAnomaly[] = [];
   const oneHourAgo = new Date();
   oneHourAgo.setHours(oneHourAgo.getHours() - 1);
   

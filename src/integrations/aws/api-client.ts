@@ -23,6 +23,26 @@ export interface ApiError {
   };
 }
 
+/**
+ * Extract error message from API response error
+ * Handles both object and string error formats
+ */
+export function getErrorMessage(error: ApiError['error'] | string | unknown): string {
+  if (!error) return 'Unknown error occurred';
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && 'message' in error) {
+    return (error as { message: string }).message;
+  }
+  return JSON.stringify(error);
+}
+
+/**
+ * Throw an error with proper message extraction from API response
+ */
+export function throwApiError(response: ApiError): never {
+  throw new Error(getErrorMessage(response.error));
+}
+
 class ApiClient {
   private async getAuthHeaders(): Promise<Record<string, string>> {
     const session = await cognitoAuth.getCurrentSession();

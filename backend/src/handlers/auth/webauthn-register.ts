@@ -1,10 +1,10 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { success, error as errorResponse, corsOptions, unauthorized, badRequest } from '../../lib/response.js';
-import { PrismaClient } from '@prisma/client';
+import { success, error as errorResponse, corsOptions, badRequest } from '../../lib/response.js';
+import { getPrismaClient } from '../../lib/database.js';
+import { getUserFromEvent } from '../../lib/auth.js';
+import { getOrigin } from '../../lib/middleware.js';
 import * as crypto from 'crypto';
-
-const prisma = new PrismaClient();
 
 interface RegistrationRequest {
   action: 'start' | 'finish';
@@ -22,26 +22,32 @@ interface RegistrationRequest {
   challenge?: string;
 }
 
-// Extract origin from event for CORS
-function getOrigin(event: APIGatewayProxyEvent): string {
-  return event.headers?.origin || event.headers?.Origin || '*';
-}
-
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
   const origin = getOrigin(event);
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
   
   // Handle CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
+  if (httpMethod === 'OPTIONS') {
     return corsOptions(origin);
   }
   
   try {
-    const authUserId = event.requestContext.authorizer?.claims?.sub;
-    if (!authUserId) {
-      return unauthorized('Authentication required', origin);
+    let authUserId: string;
+    try {
+      const user = getUserFromEvent(event);
+      authUserId = user.sub || user.id;
+    } catch {
+      return errorResponse('Authentication required', 401, undefined, origin);
     }
 
-    const body: RegistrationRequest = JSON.parse(event.body || '{}');
+    if (!authUserId) {
+      return errorResponse('Authentication required', 401, undefined, origin);
+    }
+
+    const body: RegistrationRequest = event.body ? JSON.parse(event.body) : {};
     const { action } = body;
 
     if (action === 'start') {
@@ -51,13 +57,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     return badRequest('Invalid action', undefined, origin);
-  } catch (error) {
-    logger.error('WebAuthn registration error:', error);
+  } catch (err) {
+    logger.error('WebAuthn registration error:', err);
     return errorResponse('Internal server error', 500, undefined, origin);
   }
-};
+}
 
-async function startRegistration(userId: string, deviceName?: string, origin?: string): Promise<APIGatewayProxyResult> {
+async function startRegistration(userId: string, deviceName?: string, origin?: string): Promise<APIGatewayProxyResultV2> {
+  const prisma = getPrismaClient();
+  
   // Buscar usuário
   const user = await prisma.user.findUnique({
     where: { id: userId }
@@ -67,7 +75,7 @@ async function startRegistration(userId: string, deviceName?: string, origin?: s
     return errorResponse('User not found', 404, undefined, origin);
   }
 
-  // Gerar challenge
+  // Gerar challenge com crypto seguro
   const challenge = crypto.randomBytes(32).toString('base64url');
   const challengeExpiry = new Date(Date.now() + 300000); // 5 minutos
 
@@ -116,7 +124,8 @@ async function finishRegistration(
   userId: string,
   body: RegistrationRequest,
   origin?: string
-): Promise<APIGatewayProxyResult> {
+): Promise<APIGatewayProxyResultV2> {
+  const prisma = getPrismaClient();
   const { attestation, challenge, deviceName } = body;
 
   if (!attestation || !challenge) {
@@ -181,14 +190,20 @@ async function finishRegistration(
       }
     });
 
-    // Registrar evento de segurança (removido userId pois não existe no schema)
+    // Buscar profile para obter organization_id
+    const profile = await prisma.profile.findFirst({
+      where: { user_id: user.id }
+    });
+
+    // Registrar evento de segurança
     await prisma.securityEvent.create({
       data: {
-        organization_id: user.id, // Usar como placeholder
+        organization_id: profile?.organization_id || user.id, // Usar organization_id do profile
         event_type: 'WEBAUTHN_REGISTERED',
         severity: 'INFO',
         description: `WebAuthn credential registered for device: ${credential.device_name}`,
         metadata: {
+          userId: user.id,
           credentialId: credential.id,
           deviceName: credential.device_name
         } as any
