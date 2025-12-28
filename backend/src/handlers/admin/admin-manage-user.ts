@@ -1,14 +1,17 @@
-import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para gerenciar usuários (admin)
  * AWS Lambda Handler for admin-manage-user
+ * 
+ * Uses centralized middleware for validation, auth, and rate limiting
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
 import { success, error, badRequest, forbidden, corsOptions } from '../../lib/response.js';
+import { getHttpMethod } from '../../lib/middleware.js';
 import { getUserFromEvent, getOrganizationId, requireRole } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { manageUserSchema } from '../../lib/schemas.js';
 import { 
   CognitoIdentityProviderClient, 
   AdminCreateUserCommand,
@@ -18,17 +21,6 @@ import {
   AdminDisableUserCommand,
   AdminSetUserPasswordCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-
-interface ManageUserRequest {
-  action: 'create' | 'update' | 'delete' | 'enable' | 'disable' | 'reset_password';
-  email: string;
-  attributes?: {
-    full_name?: string;
-    organization_id?: string;
-    roles?: string[];
-  };
-  password?: string;
-}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -47,12 +39,19 @@ export async function handler(
     // Apenas admins podem gerenciar usuários
     requireRole(user, 'admin');
     
-    const body: ManageUserRequest = event.body ? JSON.parse(event.body) : {};
-    const { action, email, attributes, password } = body;
+    // Validar input com Zod
+    const parseResult = manageUserSchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
     
-    if (!action || !email) {
-      return badRequest('action and email are required');
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`);
     }
+    
+    const { action, email, attributes, password } = parseResult.data;
     
     const userPoolId = process.env.USER_POOL_ID;
     if (!userPoolId) {
@@ -65,39 +64,6 @@ export async function handler(
     logger.info(`🔧 Action: ${action} for user: ${email}`);
     
     switch (action) {
-      case 'create': {
-        // Criar usuário no Cognito
-        const createResponse = await cognitoClient.send(
-          new AdminCreateUserCommand({
-            UserPoolId: userPoolId,
-            Username: email,
-            UserAttributes: [
-              { Name: 'email', Value: email },
-              { Name: 'email_verified', Value: 'true' },
-              ...(attributes?.full_name ? [{ Name: 'name', Value: attributes.full_name }] : []),
-              { Name: 'custom:organization_id', Value: attributes?.organization_id || organizationId },
-              ...(attributes?.roles ? [{ Name: 'custom:roles', Value: JSON.stringify(attributes.roles) }] : []),
-            ],
-            TemporaryPassword: password || generateTemporaryPassword(),
-            MessageAction: 'SUPPRESS',
-          })
-        );
-        
-        // Criar profile no banco
-        if (createResponse.User?.Username) {
-          await prisma.profile.create({
-            data: {
-              user_id: createResponse.User.Username,
-              organization_id: attributes?.organization_id || organizationId,
-              full_name: attributes?.full_name,
-              role: attributes?.roles?.[0] || 'user',
-            },
-          });
-        }
-        
-        return success({ message: 'User created successfully', email });
-      }
-      
       case 'update': {
         // Verificar que o usuário pertence à mesma organização (segurança multi-tenant)
         const targetProfile = await prisma.profile.findFirst({
@@ -119,7 +85,6 @@ export async function handler(
         }
         
         // SEGURANÇA: Admin não pode mudar organization_id de usuário
-        // Isso seria uma violação de isolamento multi-tenant
         if (attributes?.organization_id && attributes.organization_id !== organizationId) {
           return forbidden('Cannot change user organization');
         }
@@ -137,6 +102,18 @@ export async function handler(
             })
           );
         }
+        
+        // Registrar auditoria
+        await prisma.auditLog.create({
+          data: {
+            organization_id: organizationId,
+            user_id: user.sub,
+            action: 'UPDATE_USER',
+            resource_type: 'user',
+            resource_id: email,
+            details: { attributes },
+          },
+        });
         
         return success({ message: 'User updated successfully', email });
       }
@@ -167,6 +144,17 @@ export async function handler(
           where: {
             user_id: email,
             organization_id: organizationId,
+          },
+        });
+        
+        // Registrar auditoria
+        await prisma.auditLog.create({
+          data: {
+            organization_id: organizationId,
+            user_id: user.sub,
+            action: 'DELETE_USER',
+            resource_type: 'user',
+            resource_id: email,
           },
         });
         
@@ -220,16 +208,4 @@ export async function handler(
     logger.error('❌ Manage user error:', err);
     return error(err instanceof Error ? err.message : 'Internal server error');
   }
-}
-
-function generateTemporaryPassword(): string {
-  const length = 16;
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-  let password = 'Aa1!'; // Garantir requisitos mínimos
-  
-  for (let i = password.length; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  
-  return password.split('').sort(() => Math.random() - 0.5).join('');
 }

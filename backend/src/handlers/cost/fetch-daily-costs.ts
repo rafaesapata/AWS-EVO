@@ -6,42 +6,48 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
-import { getHttpMethod } from '../../lib/middleware.js';
+import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
+import { fetchDailyCostsSchema, type FetchDailyCostsInput } from '../../lib/schemas.js';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
-
-interface FetchDailyCostsRequest {
-  accountId?: string;
-  startDate?: string; // YYYY-MM-DD
-  endDate?: string;   // YYYY-MM-DD
-  granularity?: 'DAILY' | 'MONTHLY';
-}
 
 export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
   logger.info('Fetch Daily Costs started', { requestId: context.awsRequestId });
   
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationId(user);
     
-    const body: FetchDailyCostsRequest = event.body ? JSON.parse(event.body) : {};
+    // Validar input com Zod
+    const parseResult = fetchDailyCostsSchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
+    
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+    }
+    
     const { 
       accountId, 
       startDate = getDateDaysAgo(30), 
       endDate = getDateDaysAgo(0),
       granularity = 'DAILY'
-    } = body;
+    } = parseResult.data;
     
     const prisma = getPrismaClient();
     

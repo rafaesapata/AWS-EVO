@@ -4,18 +4,12 @@ import { getPrismaClient } from '../../lib/database.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { finopsCopilotSchema } from '../../lib/schemas.js';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { CostExplorerClient, GetCostAndUsageCommand, GetCostForecastCommand } from '@aws-sdk/client-cost-explorer';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
 const bedrockClient = new BedrockRuntimeClient({ region: 'us-east-1' });
-
-interface CopilotQuery {
-  question: string;
-  awsAccountId: string;
-  context?: 'cost' | 'optimization' | 'forecast' | 'comparison' | 'general';
-  timeRange?: { start: string; end: string };
-}
 
 interface CostData {
   totalCost: number;
@@ -49,12 +43,19 @@ export async function handler(
   }
 
   try {
-    const body: CopilotQuery = event.body ? JSON.parse(event.body) : {};
-    const { question, awsAccountId, context: queryContext = 'general', timeRange } = body;
-
-    if (!question || !awsAccountId) {
-      return badRequest('question and awsAccountId required', undefined, origin);
+    // Validar input com Zod
+    const parseResult = finopsCopilotSchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
+    
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
     }
+    
+    const { question, awsAccountId, context: queryContext = 'general', timeRange } = parseResult.data;
 
     const prisma = getPrismaClient();
     const stsClient = new STSClient({});

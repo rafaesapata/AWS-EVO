@@ -7,13 +7,7 @@ import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cl
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 import { success, error, badRequest, notFound, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
-
-interface AnomalyRequest {
-  awsAccountId: string;
-  analysisType: 'cost' | 'security' | 'performance' | 'all';
-  sensitivity?: 'low' | 'medium' | 'high';
-  lookbackDays?: number;
-}
+import { detectAnomaliesSchema } from '../../lib/schemas.js';
 
 interface Anomaly {
   id: string;
@@ -56,12 +50,19 @@ export async function handler(
   }
 
   try {
-    const body: AnomalyRequest = event.body ? JSON.parse(event.body) : {};
-    const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = body;
-
-    if (!awsAccountId) {
-      return badRequest('awsAccountId is required', undefined, origin);
+    // Validar input com Zod
+    const parseResult = detectAnomaliesSchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
+    
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
     }
+    
+    const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = parseResult.data;
 
     const prisma = getPrismaClient();
     const stsClient = new STSClient({});
