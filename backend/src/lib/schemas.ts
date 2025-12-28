@@ -25,12 +25,26 @@ export const dateRangeSchema = z.object({
 });
 
 // ============================================================================
-// AUTH SCHEMAS
+// AUTH/MFA SCHEMAS
 // ============================================================================
 
 export const mfaSetupSchema = z.object({
   action: z.enum(['setup', 'verify', 'disable']),
   code: z.string().length(6).optional(),
+});
+
+export const mfaEnrollSchema = z.object({
+  factorType: z.enum(['totp', 'sms']),
+  friendlyName: z.string().max(100).optional(),
+});
+
+export const mfaVerifySchema = z.object({
+  factorId: uuidSchema,
+  code: z.string().min(6).max(8),
+});
+
+export const mfaUnenrollSchema = z.object({
+  factorId: uuidSchema,
 });
 
 export const webauthnRegisterSchema = z.object({
@@ -112,9 +126,21 @@ export const securityScanRequestSchema = z.object({
 });
 
 export const complianceScanSchema = z.object({
-  frameworkId: z.string().optional(),
+  frameworkId: z.enum(['cis', 'lgpd', 'pci-dss', 'nist', 'soc2', 'well-architected']),
   scanId: uuidSchema.optional(),
   accountId: uuidSchema.optional(),
+});
+
+// ============================================================================
+// NOTIFICATION SCHEMAS  
+// ============================================================================
+
+export const sendNotificationSchema = z.object({
+  channel: z.enum(['email', 'slack', 'webhook', 'sms', 'sns']),
+  recipient: z.string().min(1),
+  subject: z.string().max(200).optional(),
+  message: z.string().min(1).max(10000),
+  metadata: z.record(z.any()).optional(),
 });
 
 // ============================================================================
@@ -198,17 +224,7 @@ export const generateExcelReportSchema = z.object({
   endDate: z.string().optional(),
 });
 
-// ============================================================================
-// NOTIFICATION SCHEMAS
-// ============================================================================
-
-export const sendNotificationSchema = z.object({
-  channel: z.enum(['email', 'slack', 'webhook', 'sms']),
-  recipient: z.string().min(1),
-  subject: z.string().max(200).optional(),
-  message: z.string().min(1).max(10000),
-  metadata: z.record(z.any()).optional(),
-});
+// sendNotificationSchema já definido acima
 
 export const sendEmailSchema = z.object({
   type: z.enum(['single', 'bulk', 'notification', 'alert', 'security', 'welcome', 'password-reset']),

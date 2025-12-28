@@ -1,4 +1,4 @@
-import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
+import { getHttpMethod, getHttpPath, getOrigin } from '../../lib/middleware.js';
 /**
  * Lambda handler para compliance scan
  * AWS Lambda Handler for compliance-scan
@@ -9,12 +9,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
-
-interface ComplianceScanRequest {
-  frameworkId: string;
-  scanId?: string;
-  accountId?: string;
-}
+import { complianceScanSchema } from '../../lib/schemas.js';
 
 interface ComplianceControl {
   control_id: string;
@@ -83,22 +78,30 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
   logger.info('Compliance scan started');
   
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationId(user);
     
-    const body: ComplianceScanRequest = event.body ? JSON.parse(event.body) : {};
-    const { frameworkId, scanId, accountId } = body;
+    // Validar input com Zod
+    const parseResult = complianceScanSchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
     
-    if (!frameworkId) {
-      return badRequest('frameworkId is required');
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
     }
+    
+    const { frameworkId, scanId, accountId } = parseResult.data;
     
     logger.info('Starting compliance scan', { frameworkId });
     

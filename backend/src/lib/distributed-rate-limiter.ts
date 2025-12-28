@@ -9,6 +9,7 @@
  * - Configurable limits by operation type
  */
 
+import Redis from 'ioredis';
 import { logger } from './logging.js';
 
 // ============================================================================
@@ -50,6 +51,162 @@ const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
   api_heavy: { maxRequests: 20, windowMs: 60000, blockDurationMs: 300000 },
   webhook: { maxRequests: 50, windowMs: 60000, blockDurationMs: 120000 },
 };
+
+// ============================================================================
+// REDIS CLIENT (Singleton with lazy initialization)
+// ============================================================================
+
+let redisClient: Redis | null = null;
+let redisAvailable = false;
+let lastRedisCheck = 0;
+const REDIS_CHECK_INTERVAL = 30000; // 30 seconds
+
+function getRedisClient(): Redis | null {
+  const redisUrl = process.env.REDIS_URL || process.env.ELASTICACHE_ENDPOINT;
+  
+  if (!redisUrl) {
+    return null;
+  }
+
+  if (!redisClient) {
+    try {
+      redisClient = new Redis(redisUrl, {
+        maxRetriesPerRequest: 1,
+        connectTimeout: 2000,
+        commandTimeout: 1000,
+        retryStrategy: (times) => {
+          if (times > 2) return null; // Stop retrying
+          return Math.min(times * 100, 500);
+        },
+        lazyConnect: true,
+      });
+
+      redisClient.on('error', (err) => {
+        logger.warn('Redis connection error', { error: err.message });
+        redisAvailable = false;
+      });
+
+      redisClient.on('connect', () => {
+        logger.info('Redis connected');
+        redisAvailable = true;
+      });
+
+      redisClient.on('close', () => {
+        redisAvailable = false;
+      });
+    } catch (err) {
+      logger.warn('Failed to create Redis client', { error: (err as Error).message });
+      return null;
+    }
+  }
+
+  return redisClient;
+}
+
+async function isRedisAvailable(): Promise<boolean> {
+  const now = Date.now();
+  
+  // Use cached result if recent
+  if (now - lastRedisCheck < REDIS_CHECK_INTERVAL) {
+    return redisAvailable;
+  }
+
+  const client = getRedisClient();
+  if (!client) {
+    redisAvailable = false;
+    lastRedisCheck = now;
+    return false;
+  }
+
+  try {
+    await client.ping();
+    redisAvailable = true;
+  } catch {
+    redisAvailable = false;
+  }
+
+  lastRedisCheck = now;
+  return redisAvailable;
+}
+
+// ============================================================================
+// REDIS RATE LIMITING (Sliding Window)
+// ============================================================================
+
+async function redisRateLimit(
+  key: string,
+  config: RateLimitConfig
+): Promise<RateLimitResult | null> {
+  const client = getRedisClient();
+  if (!client || !await isRedisAvailable()) {
+    return null; // Fallback to in-memory
+  }
+
+  const now = Date.now();
+  const windowStart = now - config.windowMs;
+  const blockKey = `${key}:blocked`;
+
+  try {
+    // Check if blocked
+    const blockExpiry = await client.get(blockKey);
+    if (blockExpiry && parseInt(blockExpiry) > now) {
+      const expiryTime = parseInt(blockExpiry);
+      return {
+        allowed: false,
+        remaining: 0,
+        resetTime: expiryTime,
+        retryAfter: Math.ceil((expiryTime - now) / 1000),
+        blocked: true,
+      };
+    }
+
+    // Use Redis sorted set for sliding window
+    const multi = client.multi();
+    
+    // Remove old entries outside the window
+    multi.zremrangebyscore(key, 0, windowStart);
+    
+    // Add current request
+    multi.zadd(key, now.toString(), `${now}:${Math.random()}`);
+    
+    // Count requests in window
+    multi.zcard(key);
+    
+    // Set expiry on the key
+    multi.expire(key, Math.ceil(config.windowMs / 1000) + 60);
+    
+    const results = await multi.exec();
+    const count = results?.[2]?.[1] as number || 0;
+
+    const remaining = Math.max(0, config.maxRequests - count);
+    const resetTime = now + config.windowMs;
+
+    if (count > config.maxRequests) {
+      // Block the key
+      const blockExpiry = now + config.blockDurationMs;
+      await client.setex(blockKey, Math.ceil(config.blockDurationMs / 1000), blockExpiry.toString());
+
+      return {
+        allowed: false,
+        remaining: 0,
+        resetTime: blockExpiry,
+        retryAfter: Math.ceil(config.blockDurationMs / 1000),
+        blocked: true,
+      };
+    }
+
+    return {
+      allowed: true,
+      remaining,
+      resetTime,
+    };
+  } catch (err) {
+    logger.warn('Redis rate limit error, falling back to in-memory', { 
+      error: (err as Error).message 
+    });
+    return null; // Fallback to in-memory
+  }
+}
 
 // ============================================================================
 // IN-MEMORY RATE LIMITING (Default - works without Redis)
@@ -132,7 +289,7 @@ setInterval(() => {
 
 /**
  * Check rate limit for a request
- * Uses in-memory by default, can be extended to use Redis/ElastiCache
+ * Uses Redis when available, falls back to in-memory
  */
 export async function checkRateLimit(
   context: RateLimitContext
@@ -148,7 +305,13 @@ export async function checkRateLimit(
   
   const key = keyParts.join(':');
 
-  // Use in-memory rate limiting (Redis can be added later)
+  // Try Redis first
+  const redisResult = await redisRateLimit(key, config);
+  if (redisResult) {
+    return redisResult;
+  }
+
+  // Fallback to in-memory rate limiting
   return inMemoryRateLimit(key, config);
 }
 

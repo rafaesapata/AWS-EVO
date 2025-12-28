@@ -3,31 +3,16 @@
  * Inclui: mfa-list-factors, mfa-enroll, mfa-challenge-verify, mfa-unenroll
  */
 
-import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
+import { getHttpMethod, getHttpPath, getOrigin } from '../../lib/middleware.js';
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { mfaEnrollSchema, mfaVerifySchema, mfaUnenrollSchema } from '../../lib/schemas.js';
 import { CognitoIdentityProviderClient, AdminSetUserMFAPreferenceCommand, AdminGetUserCommand, AssociateSoftwareTokenCommand, VerifySoftwareTokenCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION || 'us-east-1' });
 const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'us-east-1_qGmGkvmpL';
-
-interface MFAListRequest {}
-
-interface MFAEnrollRequest {
-  factorType: 'totp' | 'sms';
-  friendlyName?: string;
-}
-
-interface MFAVerifyRequest {
-  factorId: string;
-  code: string;
-}
-
-interface MFAUnenrollRequest {
-  factorId: string;
-}
 
 // MFA List Factors Handler
 export async function listFactorsHandler(
@@ -107,21 +92,29 @@ export async function enrollHandler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
   console.log('🔐 MFA Enroll');
   
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
   try {
     const user = getUserFromEvent(event);
-    const body: MFAEnrollRequest = event.body ? JSON.parse(event.body) : {};
-    const { factorType, friendlyName } = body;
     
-    if (!factorType) {
-      return badRequest('Factor type is required');
+    // Validar input com Zod
+    const parseResult = mfaEnrollSchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
+    
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
     }
     
+    const { factorType, friendlyName } = parseResult.data;
     const prisma = getPrismaClient();
     
     if (factorType === 'totp') {
@@ -159,21 +152,29 @@ export async function verifyHandler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
   console.log('🔐 MFA Challenge Verify');
   
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
   try {
     const user = getUserFromEvent(event);
-    const body: MFAVerifyRequest = event.body ? JSON.parse(event.body) : {};
-    const { factorId, code } = body;
     
-    if (!factorId || !code) {
-      return badRequest('Factor ID and code are required');
+    // Validar input com Zod
+    const parseResult = mfaVerifySchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
+    
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
     }
     
+    const { factorId, code } = parseResult.data;
     const prisma = getPrismaClient();
     
     // Get factor using raw query
@@ -225,21 +226,29 @@ export async function unenrollHandler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
   console.log('🔐 MFA Unenroll');
   
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
   try {
     const user = getUserFromEvent(event);
-    const body: MFAUnenrollRequest = event.body ? JSON.parse(event.body) : {};
-    const { factorId } = body;
     
-    if (!factorId) {
-      return badRequest('Factor ID is required');
+    // Validar input com Zod
+    const parseResult = mfaUnenrollSchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
+    
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
     }
     
+    const { factorId } = parseResult.data;
     const prisma = getPrismaClient();
     
     // Deactivate factor using raw query

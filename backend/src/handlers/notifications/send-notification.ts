@@ -1,4 +1,4 @@
-import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
+import { getHttpMethod, getHttpPath, getOrigin } from '../../lib/middleware.js';
 /**
  * Lambda handler para enviar notificações
  * AWS Lambda Handler for send-notification
@@ -9,23 +9,18 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { sendNotificationSchema } from '../../lib/schemas.js';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
-
-interface SendNotificationRequest {
-  channel: 'email' | 'sms' | 'sns';
-  recipient: string;
-  subject?: string;
-  message: string;
-  metadata?: Record<string, any>;
-}
 
 export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = getOrigin(event);
+  
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
   const user = getUserFromEvent(event);
@@ -38,12 +33,19 @@ export async function handler(
   });
   
   try {
-    const body: SendNotificationRequest = event.body ? JSON.parse(event.body) : {};
-    const { channel, recipient, subject, message, metadata } = body;
+    // Validar input com Zod
+    const parseResult = sendNotificationSchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
     
-    if (!channel || !recipient || !message) {
-      return badRequest('channel, recipient, and message are required');
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
     }
+    
+    const { channel, recipient, subject, message, metadata } = parseResult.data;
     
     logger.info('Sending notification', { 
       organizationId, 
@@ -164,11 +166,9 @@ export async function handler(
     
     // Log do erro
     try {
-      const user = getUserFromEvent(event);
-      const organizationId = getOrganizationId(user);
-      const body: SendNotificationRequest = event.body ? JSON.parse(event.body) : {};
-      
       const prisma = getPrismaClient();
+      const body = event.body ? JSON.parse(event.body) : {};
+      
       await prisma.communicationLog.create({
         data: {
           organization_id: organizationId,
