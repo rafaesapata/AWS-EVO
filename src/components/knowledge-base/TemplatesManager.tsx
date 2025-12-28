@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganizationQuery } from "@/hooks/useOrganizationQuery";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -65,7 +65,7 @@ export default function TemplatesManager({ onSelectTemplate }: TemplatesManagerP
           created_by: user.username,
         });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       return result.data;
     },
     onSuccess: () => {
@@ -92,7 +92,7 @@ export default function TemplatesManager({ onSelectTemplate }: TemplatesManagerP
         eq: { id }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kb-templates'] });
@@ -110,7 +110,7 @@ export default function TemplatesManager({ onSelectTemplate }: TemplatesManagerP
         eq: { id }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       return result.data;
     },
     onSuccess: () => {

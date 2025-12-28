@@ -24,6 +24,16 @@ export function CostForecast({ accountId }: Props) {
     staleTime: Infinity, // Manter cache até invalidação manual
     gcTime: 60 * 60 * 1000, // Garbage collection após 1 hora
     refetchOnWindowFocus: false,
+    retry: (failureCount, error) => {
+      // Don't retry aborted/cancelled requests
+      if (error instanceof Error) {
+        const msg = error.message || '';
+        if (msg.includes('Failed to fetch') || msg.includes('aborted') || msg.includes('cancelled')) {
+          return false;
+        }
+      }
+      return failureCount < 2;
+    },
     queryFn: async () => {
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -38,6 +48,12 @@ export function CostForecast({ accountId }: Props) {
       });
       
       if (response.error) {
+        // Gracefully handle aborted/cancelled requests
+        const errorMsg = typeof response.error === 'string' ? response.error : (response.error as any)?.message || '';
+        if (errorMsg.includes('Failed to fetch') || errorMsg.includes('aborted') || errorMsg.includes('cancelled')) {
+          console.log('CostForecast: Request was aborted/cancelled, returning empty array');
+          return [];
+        }
         console.error('Error fetching historical costs:', response.error);
         throw new Error(response.error);
       }

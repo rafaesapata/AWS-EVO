@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { format } from "date-fns";
@@ -102,7 +102,7 @@ const CloudTrailAudit = () => {
         order: { created_at: 'desc' }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       
       // Client-side filter for account isolation
       if (selectedAccountId && result.data) {
@@ -147,7 +147,7 @@ const CloudTrailAudit = () => {
       });
 
       if (result.error) {
-        throw new Error(result.error);
+        throw new Error(getErrorMessage(result.error));
       }
       return result.data || [];
     },
@@ -239,7 +239,7 @@ const CloudTrailAudit = () => {
         body: { maxEvents: requestedEvents }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       const data = result.data;
 
       if (data?.success === false || data?.error) {

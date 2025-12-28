@@ -38,6 +38,7 @@ import CloudTrailAudit from "./pages/CloudTrailAudit";
 import Compliance from "./pages/Compliance";
 import EndpointMonitoring from "./pages/EndpointMonitoring";
 import EdgeMonitoring from "./pages/EdgeMonitoring";
+import Organizations from "./pages/Organizations";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./i18n/config";
 import "./index.css";
@@ -292,6 +293,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <EdgeMonitoring />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/organizations" 
+                element={
+                  <ProtectedRoute>
+                    <Organizations />
                   </ProtectedRoute>
                 } 
               />

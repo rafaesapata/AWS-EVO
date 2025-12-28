@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MessageSquare, Send, Trash2, AtSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganizationQuery } from "@/hooks/useOrganizationQuery";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -34,7 +34,7 @@ export default function CommentsThread({ articleId }: CommentsThreadProps) {
         order: { created_at: 'desc' }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
 
       const commentsWithReplies = await Promise.all(
         (result.data || []).map(async (comment: any) => {
@@ -44,7 +44,7 @@ export default function CommentsThread({ articleId }: CommentsThreadProps) {
             order: { created_at: 'asc' }
           });
 
-          if (replies.error) throw new Error(replies.error);
+          if (replies.error) throw new Error(getErrorMessage(replies.error));
           return { ...comment, replies: replies.data || [], author_email: 'User' };
         })
       );
@@ -69,7 +69,7 @@ export default function CommentsThread({ articleId }: CommentsThreadProps) {
         parent_comment_id: parentId || null,
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       return result.data;
     },
     onSuccess: () => {
@@ -101,7 +101,7 @@ export default function CommentsThread({ articleId }: CommentsThreadProps) {
         eq: { id: commentId, organization_id: organizationId }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['article-comments', articleId] });

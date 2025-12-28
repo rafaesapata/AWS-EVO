@@ -7,13 +7,13 @@ import { Layout } from "@/components/Layout";
 import AwsCredentialsManager from "@/components/dashboard/AwsCredentialsManager";
 import { AWSPermissionsGuide } from "@/components/dashboard/AWSPermissionsGuide";
 import PermissionErrorAlert from "@/components/PermissionErrorAlert";
-import { useOrganizationQuery } from "@/hooks/useOrganizationQuery";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { AWSToolsConfiguration } from "@/components/dashboard/AWSToolsConfiguration";
 import { AWSServicesMonitoring } from "@/components/dashboard/AWSServicesMonitoring";
+import { useAwsAccount } from "@/contexts/AwsAccountContext";
 
 export default function AWSSettings() {
   const { t } = useTranslation();
@@ -29,34 +29,8 @@ export default function AWSSettings() {
     return () => window.removeEventListener('switchToPermissionsTab', handleSwitchTab);
   }, []);
   
-  // Get all AWS accounts and their validation status
-  const { data: awsAccounts } = useOrganizationQuery(
-    ['aws-accounts-status'],
-    async (organizationId) => {
-      // Use Lambda endpoint instead of REST
-      const result = await apiClient.invoke<any>('list-aws-credentials', {});
-      
-      if (result.error) throw new Error(result.error.message);
-      
-      // Lambda returns { success: true, data: [...] } wrapped in apiClient response
-      const responseBody = result.data;
-      
-      // Handle both formats: direct array or wrapped in { success, data }
-      if (Array.isArray(responseBody)) {
-        return responseBody;
-      }
-      
-      if (responseBody?.success && Array.isArray(responseBody.data)) {
-        return responseBody.data;
-      }
-      
-      return responseBody?.data || [];
-    },
-    {
-      staleTime: 2 * 60 * 1000,
-      gcTime: 5 * 60 * 1000,
-    }
-  );
+  // Use centralized AWS account context instead of direct API call
+  const { accounts: awsAccounts } = useAwsAccount();
 
   const hasConnectedAccounts = awsAccounts && awsAccounts.length > 0;
   const allAccountsValid = awsAccounts?.every(acc => 

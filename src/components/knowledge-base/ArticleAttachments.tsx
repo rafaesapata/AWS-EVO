@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Paperclip, Upload, Download, Trash2, File } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -71,7 +71,7 @@ export function ArticleAttachments({ articleId, organizationId, isAuthor }: Arti
             paths: [fileName]
           }
         });
-        throw new Error(result.error);
+        throw new Error(getErrorMessage(result.error));
       }
     },
     onSuccess: () => {
@@ -97,14 +97,14 @@ export function ArticleAttachments({ articleId, organizationId, isAuthor }: Arti
         }
       });
 
-      if (storageResult.error) throw new Error(storageResult.error);
+      if (storageResult.error) throw new Error(getErrorMessage(storageResult.error));
 
       // Delete from database
       const result = await apiClient.delete('knowledge_base_attachments', {
         eq: { id }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['article-attachments', articleId] });

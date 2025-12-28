@@ -65,6 +65,8 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'remediation_tickets': 'jiraTicket',
   'well_architected_scores': 'securityPosture',
   'well_architected_scans_history': 'securityScan',
+  'security_scans_history': 'securityScan',
+  'security_scan_history': 'securityScan',
   'application_logs': 'systemEvent',
   'performance_metrics': 'monitoredEndpoint',
   'waste_detection': 'wasteDetection',
@@ -122,6 +124,7 @@ const TABLES_WITH_ORG_ID = new Set([
   'lateral_movement_detections', 'cloudtrail_events', 'audit_insights',
   'remediation_tickets', 'well_architected_scores', 'application_logs',
   'performance_metrics', 'waste_detection',
+  'security_scans_history', 'security_scan_history', 'well_architected_scans_history',
 ]);
 
 interface QueryRequest {

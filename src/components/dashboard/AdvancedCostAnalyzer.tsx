@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { TrendingDown, Server, Database, Zap, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 export function AdvancedCostAnalyzer() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { data: organizationId } = useOrganization();
+  const { accounts, selectedAccount } = useAwsAccount();
 
   const { data: recommendations = [], refetch } = useQuery({
     queryKey: ['advanced-cost-recommendations', organizationId],
@@ -40,22 +42,8 @@ export function AdvancedCostAnalyzer() {
       if (!user) throw new Error('Not authenticated');
       if (!organizationId) throw new Error('Organization not found');
 
-      // Use Lambda endpoint instead of REST to avoid CORS issues
-      const result = await apiClient.invoke<any>('list-aws-credentials', {});
-      
-      if (result.error) throw new Error(result.error.message);
-      
-      // Handle both formats: direct array or wrapped in { success, data }
-      let credentialsData: any[] = [];
-      if (Array.isArray(result.data)) {
-        credentialsData = result.data;
-      } else if (result.data?.success && Array.isArray(result.data.data)) {
-        credentialsData = result.data.data;
-      } else {
-        credentialsData = result.data?.data || [];
-      }
-      
-      const credentials = credentialsData[0];
+      // Use accounts from context instead of making another API call
+      const credentials = selectedAccount || accounts[0];
       
       if (!credentials) {
         toast.error("Nenhuma conta AWS ativa encontrada");

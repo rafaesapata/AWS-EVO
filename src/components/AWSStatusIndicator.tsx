@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,7 @@ import { Cloud, CheckCircle2, AlertCircle, XCircle, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useTranslation } from "react-i18next";
+import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import {
   Popover,
   PopoverContent,
@@ -17,39 +17,21 @@ export default function AWSStatusIndicator() {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const { data: organizationId } = useOrganization();
+  const { accounts, isLoading: accountsLoading } = useAwsAccount();
   
   const dateLocale = i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US';
   
+  // Only fetch validation status, accounts come from context
   const { data: validationStatus, isLoading } = useQuery({
-    queryKey: ['aws-validation-status', organizationId],
+    queryKey: ['aws-validation-status', organizationId, accounts.map(a => a.id).join(',')],
     refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
-    enabled: !!organizationId,
+    enabled: !!organizationId && accounts.length > 0,
     queryFn: async () => {
-      if (!organizationId) return [];
-      
-      // Use Lambda endpoint instead of REST to avoid CORS issues
-      const result = await apiClient.invoke<any>('list-aws-credentials', {});
-      
-      if (result.error) {
-        console.error('Error fetching accounts:', result.error);
-        return [];
-      }
+      if (!organizationId || accounts.length === 0) return [];
 
-      // Handle both formats: direct array or wrapped in { success, data }
-      let accountsData: any[] = [];
-      if (Array.isArray(result.data)) {
-        accountsData = result.data;
-      } else if (result.data?.success && Array.isArray(result.data.data)) {
-        accountsData = result.data.data;
-      } else {
-        accountsData = result.data?.data || [];
-      }
-
-      if (accountsData.length === 0) return [];
-
-      // Then get validation status for each account
+      // Get validation status for each account from context
       const accountsWithStatus = await Promise.all(
-        accountsData.map(async (account: any) => {
+        accounts.map(async (account: any) => {
           const validation = await apiClient.select('aws_validation_status', {
             select: '*',
             eq: { aws_account_id: account.id },
@@ -70,7 +52,7 @@ export default function AWSStatusIndicator() {
   });
 
   // Show loading state instead of "no accounts" while fetching
-  if (isLoading || !organizationId) {
+  if (isLoading || accountsLoading || !organizationId) {
     return (
       <Badge variant="outline" className="bg-muted">
         <Cloud className="h-3 w-3 mr-1 animate-pulse" />

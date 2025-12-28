@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { History, TrendingDown, TrendingUp, Shield, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -33,23 +33,30 @@ export const SecurityAnalysisHistory = ({ organizationId, accountId, onViewScan 
         cutoffDate = date.toISOString();
       }
 
-      // Execute query 
-      const result = await apiClient.select('security_scans_history', {
+      // Execute query - use security_scans table (the actual table name)
+      const result = await apiClient.select('security_scans', {
         select: '*',
         eq: { organization_id: organizationId },
-        order: { scan_date: 'desc' },
+        order: { created_at: 'desc' },
         limit: 50
       });
       
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       
-      // Apply client-side filters for accountId and date  
-      let filtered = (result.data || []) as any[];
+      // Apply client-side filters for accountId and date
+      // Map fields from actual schema to expected format
+      let filtered = (result.data || []).map((scan: any) => ({
+        ...scan,
+        scan_date: scan.started_at || scan.created_at,
+        total_findings: scan.findings_count || 0,
+        findings_summary: scan.results || {},
+      })) as any[];
+      
       if (accountId) {
         filtered = filtered.filter((s: any) => s.aws_account_id === accountId);
       }
       if (cutoffDate) {
-        filtered = filtered.filter((s: any) => s.scan_date >= cutoffDate);
+        filtered = filtered.filter((s: any) => (s.scan_date || s.created_at) >= cutoffDate);
       }
       
       return filtered;

@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
+import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { 
   Users, 
   Plus, 
@@ -104,27 +105,8 @@ export default function UserManagement() {
     },
   });
 
-  // Get AWS accounts for assignment
-  const { data: awsAccounts } = useQuery({
-    queryKey: ['aws-accounts', organizationId],
-    enabled: !!organizationId,
-    queryFn: async () => {
-      // Use Lambda endpoint instead of REST to avoid CORS issues
-      const result = await apiClient.invoke<any>('list-aws-credentials', {});
-
-      if (result.error) {
-        throw new Error(result.error.message);
-      }
-
-      // Handle both formats: direct array or wrapped in { success, data }
-      if (Array.isArray(result.data)) {
-        return result.data;
-      } else if (result.data?.success && Array.isArray(result.data.data)) {
-        return result.data.data;
-      }
-      return result.data?.data || [];
-    },
-  });
+  // Use centralized AWS account context instead of direct API call
+  const { accounts: awsAccounts } = useAwsAccount();
 
   // Create user
   const createUserMutation = useMutation({

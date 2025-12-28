@@ -64,6 +64,12 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
         const result = await apiClient.invoke<any>('list-aws-credentials', {});
         
         if (result.error) {
+          // Ignore aborted requests (user navigated away) - return cached data or empty array
+          const errorMsg = result.error.message || '';
+          if (errorMsg.includes('ERR_ABORTED') || errorMsg.includes('aborted') || errorMsg.includes('Failed to fetch')) {
+            console.log('🔄 AwsAccountContext: Request was aborted/cancelled, returning empty array');
+            return [];
+          }
           throw ErrorFactory.databaseError('fetch AWS accounts', result.error);
         }
         
@@ -83,6 +89,15 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
         // Filter only active accounts
         return allAccounts.filter((acc: AwsAccount) => acc.is_active);
       } catch (err) {
+        // Check if this is an aborted request error
+        if (err instanceof Error) {
+          const msg = err.message || '';
+          if (msg.includes('ERR_ABORTED') || msg.includes('aborted') || msg.includes('Failed to fetch') || msg.includes('cancelled')) {
+            console.log('🔄 AwsAccountContext: Request was aborted/cancelled in catch, returning empty array');
+            return [];
+          }
+        }
+        
         const appError = ErrorHandler.handle(err, {
           component: 'AwsAccountContext',
           action: 'buscar contas AWS',
@@ -95,9 +110,12 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
     retry: (failureCount, error) => {
-      // Don't retry auth errors
-      if (error instanceof Error && error.message.includes('auth')) {
-        return false;
+      // Don't retry auth errors or aborted requests
+      if (error instanceof Error) {
+        const msg = error.message || '';
+        if (msg.includes('auth') || msg.includes('ERR_ABORTED') || msg.includes('aborted')) {
+          return false;
+        }
       }
       return failureCount < 3;
     },

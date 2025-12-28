@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { CheckCircle2, Clock, PlayCircle, XCircle, Plus, DollarSign, Ticket, Calendar } from "lucide-react";
@@ -87,7 +87,7 @@ export const RemediationTickets = () => {
         eq: { organization_id: organizationId }
       });
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
     },
     enabled: !!organizationId,
@@ -129,7 +129,7 @@ export const RemediationTickets = () => {
         offset: (page - 1) * pageSize
       });
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(getErrorMessage(response.error));
       
       // Parse comments from JSON to proper type
       return (response.data || []).map((ticket: any) => ({
@@ -152,7 +152,7 @@ export const RemediationTickets = () => {
         created_by: user.id
       });
       
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       return result.data;
     },
     onSuccess: () => {
@@ -180,7 +180,7 @@ export const RemediationTickets = () => {
         eq: { id, organization_id: organizationId }
       });
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
     },
     onSuccess: () => {
@@ -199,7 +199,7 @@ export const RemediationTickets = () => {
         { eq: { id, organization_id: organizationId } }
       );
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
     },
     onSuccess: () => {
@@ -221,7 +221,7 @@ export const RemediationTickets = () => {
         { eq: { id, organization_id: organizationId } }
       );
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
     },
     onSuccess: () => {
@@ -243,7 +243,7 @@ export const RemediationTickets = () => {
         limit: 1
       });
       
-      if (ticketResponse.error) throw new Error(ticketResponse.error);
+      if (ticketResponse.error) throw new Error(getErrorMessage(ticketResponse.error));
       const ticketData = ticketResponse.data?.[0];
       if (!ticketData) throw new Error('Ticket not found');
 
@@ -262,7 +262,7 @@ export const RemediationTickets = () => {
         { eq: { id: ticketId, organization_id: organizationId } }
       );
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
     },
     onSuccess: () => {

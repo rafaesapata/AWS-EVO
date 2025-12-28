@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Layout } from "@/components/Layout";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
@@ -107,7 +107,7 @@ export default function CopilotAI() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data;

@@ -6,7 +6,7 @@ import { CheckCircle, XCircle } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface ArticleReviewActionsProps {
@@ -28,7 +28,7 @@ export function ArticleReviewActions({ article, currentUserId }: ArticleReviewAc
         approved_at: new Date().toISOString(),
         rejection_reason: null,
       }, { eq: { id: article.id } });
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
@@ -54,7 +54,7 @@ export function ArticleReviewActions({ article, currentUserId }: ArticleReviewAc
         approved_at: new Date().toISOString(),
         rejection_reason: reason,
       }, { eq: { id: article.id } });
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });

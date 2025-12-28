@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { Shield, CheckCircle2, AlertTriangle, XCircle, PlayCircle, Loader2, Ticket, ExternalLink, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -98,7 +98,7 @@ export function ComplianceFrameworks() {
         order: { created_at: 'desc' }
       });
       
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       return result.data;
     },
     enabled: !!organizationId,
@@ -119,7 +119,7 @@ export function ComplianceFrameworks() {
         organization_id: organizationId,
       });
 
-      if (scanData.error) throw new Error(scanData.error);
+      if (scanData.error) throw new Error(getErrorMessage(scanData.error));
 
       toast({
         title: "Compliance scan iniciado",
@@ -139,7 +139,7 @@ export function ComplianceFrameworks() {
         await apiClient.update('security_scans', {
           status: 'failed'
         }, { eq: { id: scanData.data.id } });
-        throw new Error(result.error);
+        throw new Error(getErrorMessage(result.error));
       }
 
       await apiClient.update('security_scans', {

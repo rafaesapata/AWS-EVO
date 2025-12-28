@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useOrganizationQuery } from "@/hooks/useOrganizationQuery";
@@ -145,7 +145,7 @@ function KnowledgeBaseContent() {
         eq: { organization_id: orgId }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
 
       const data = result.data || [];
       return {
@@ -176,7 +176,7 @@ function KnowledgeBaseContent() {
         approval_status: 'draft',
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
@@ -210,7 +210,7 @@ function KnowledgeBaseContent() {
         tags,
       }, { eq: { id } });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
@@ -235,7 +235,7 @@ function KnowledgeBaseContent() {
         eq: { id }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
@@ -270,13 +270,13 @@ function KnowledgeBaseContent() {
         const result = await apiClient.delete('knowledge_base_favorites', {
           eq: { id: existing.data.id }
         });
-        if (result.error) throw new Error(result.error);
+        if (result.error) throw new Error(getErrorMessage(result.error));
       } else {
         const result = await apiClient.insert('knowledge_base_favorites', {
           article_id: articleId,
           user_id: user.username,
         });
-        if (result.error) throw new Error(result.error);
+        if (result.error) throw new Error(getErrorMessage(result.error));
       }
     },
     onSuccess: () => {
@@ -289,7 +289,7 @@ function KnowledgeBaseContent() {
       const result = await apiClient.invoke('increment_article_helpful', {
         body: { article_id: articleId }
       });
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
@@ -310,7 +310,7 @@ function KnowledgeBaseContent() {
         rejection_reason: status === 'rejected' ? reason : null,
       }, { eq: { id } });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
@@ -373,7 +373,7 @@ function KnowledgeBaseContent() {
         body: { articleId, format }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       const data = result.data;
 
       // Create download link

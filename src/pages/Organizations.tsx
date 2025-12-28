@@ -51,18 +51,17 @@ export default function Organizations() {
     billing_email: ''
   });
 
-  // Get organizations (Super Admin only)
+  // Get organizations (Super Admin only) - uses dedicated Lambda handler
   const { data: organizations, isLoading, refetch } = useQuery({
     queryKey: ['organizations'],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const response = await apiClient.select('organizations', {
-        select: '*',
-        order: { created_at: 'desc' }
+      const response = await apiClient.invoke<Organization[]>('manage-organizations', {
+        body: { action: 'list' }
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
       }
 
       return response.data || [];
@@ -72,17 +71,18 @@ export default function Organizations() {
   // Create organization
   const createOrgMutation = useMutation({
     mutationFn: async (orgData: typeof newOrg) => {
-      const response = await apiClient.insert('organizations', {
-        ...orgData,
-        status: 'active',
-        user_count: 0,
-        aws_account_count: 0,
-        monthly_cost: 0,
-        admin_users: []
+      const response = await apiClient.invoke('manage-organizations', {
+        body: {
+          action: 'create',
+          name: orgData.name,
+          description: orgData.description,
+          domain: orgData.domain,
+          billing_email: orgData.billing_email,
+        }
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
       }
 
       return response.data;
@@ -113,13 +113,19 @@ export default function Organizations() {
   // Update organization
   const updateOrgMutation = useMutation({
     mutationFn: async (orgData: Partial<Organization> & { id: string }) => {
-      const response = await apiClient.update('organizations', {
-        ...orgData,
-        updated_at: new Date().toISOString()
+      const response = await apiClient.invoke('manage-organizations', {
+        body: {
+          action: 'update',
+          id: orgData.id,
+          name: orgData.name,
+          description: orgData.description,
+          domain: orgData.domain,
+          billing_email: orgData.billing_email,
+        }
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
       }
 
       return response.data;
@@ -144,14 +150,16 @@ export default function Organizations() {
   // Toggle organization status
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const response = await apiClient.update('organizations', {
-        id,
-        status,
-        updated_at: new Date().toISOString()
+      const response = await apiClient.invoke('manage-organizations', {
+        body: {
+          action: 'toggle_status',
+          id,
+          status,
+        }
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
       }
 
       return response.data;

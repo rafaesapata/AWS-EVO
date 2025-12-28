@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Progress } from "./ui/progress";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useToast } from "@/hooks/use-toast";
 
 const ONBOARDING_STEPS = [
@@ -93,7 +93,7 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
           show_onboarding: false
         }, { eq: { id: user.username } });
 
-        if (result.error) throw new Error(result.error);
+        if (result.error) throw new Error(getErrorMessage(result.error));
 
         toast({
           title: "Preferência salva",

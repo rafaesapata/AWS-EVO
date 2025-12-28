@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
@@ -87,7 +87,7 @@ export default function DevTools() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data || [];
@@ -111,7 +111,7 @@ export default function DevTools() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data || [];

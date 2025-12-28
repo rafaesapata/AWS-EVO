@@ -12,11 +12,14 @@ import { useOrganization } from "@/hooks/useOrganization";
 import VirtualTable from "@/components/dashboard/VirtualTable";
 import { PageHeader } from "@/components/ui/page-header";
 import { Layout } from "@/components/Layout";
+import { useAwsAccount } from "@/contexts/AwsAccountContext";
 
 export default function ThreatDetection() {
   const { toast } = useToast();
   const [scanning, setScanning] = useState(false);
   const { data: organizationId } = useOrganization();
+  // Use centralized AWS account context instead of direct API call
+  const { accounts: awsAccounts } = useAwsAccount();
 
   const { data: guarddutyFindings, refetch: refetchGuardDuty } = useQuery({
     queryKey: ['guardduty-findings', organizationId],
@@ -81,27 +84,18 @@ export default function ThreatDetection() {
       return;
     }
 
+    // Use centralized AWS accounts from context
+    if (!awsAccounts || awsAccounts.length === 0) {
+      toast({
+        title: "No AWS credentials",
+        description: "No active AWS credentials found. Please connect your AWS account first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setScanning(true);
     try {
-      // Use Lambda endpoint instead of REST to avoid CORS issues
-      const result = await apiClient.invoke<any>('list-aws-credentials', {});
-      
-      if (result.error) throw result.error;
-
-      // Handle both formats: direct array or wrapped in { success, data }
-      let credentialsData: any[] = [];
-      if (Array.isArray(result.data)) {
-        credentialsData = result.data;
-      } else if (result.data?.success && Array.isArray(result.data.data)) {
-        credentialsData = result.data.data;
-      } else {
-        credentialsData = result.data?.data || [];
-      }
-
-      if (credentialsData.length === 0) {
-        throw new Error('No active AWS credentials found. Please connect your AWS account first.');
-      }
-
       let functionName = '';
       switch (scanType) {
         case 'guardduty':
@@ -116,7 +110,7 @@ export default function ThreatDetection() {
       }
 
       const scanResult = await apiClient.invoke(functionName, {
-        body: { accountId: credentialsData[0].id }
+        body: { accountId: awsAccounts[0].id }
       });
 
       if (scanResult.error) throw scanResult.error;

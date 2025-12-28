@@ -215,11 +215,11 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
     } else if (value === 'users') {
       navigate('/app?tab=users');
     } else if (value === 'organizations') {
-      navigate('/app?tab=organizations');
+      navigate('/organizations');
     } else if (value === 'audit') {
       navigate('/app?tab=audit');
     } else if (value === 'setup') {
-      navigate('/app?tab=setup');
+      navigate('/aws-settings');
     } else if (value === 'security-analysis') {
       navigate('/app?tab=security-analysis');
     } else {

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Lock, UserPlus, X, Search } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -54,7 +54,7 @@ export function ArticlePermissionsManager({
         eq: { article_id: articleId }
       });
       
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       return result.data;
     },
     enabled: isOpen && !!organizationId,
@@ -77,7 +77,7 @@ export function ArticlePermissionsManager({
         ...filters,
         limit: 10
       });
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       
       // Filter out users who already have permission
       const permissionedUserIds = permissions?.map((p: any) => p.user_id) || [];
@@ -94,7 +94,7 @@ export function ArticlePermissionsManager({
         user_id: userId,
         granted_by: user?.username,
       });
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['article-permissions', articleId, organizationId] });
@@ -124,7 +124,7 @@ export function ArticlePermissionsManager({
       const result = await apiClient.delete('knowledge_base_article_permissions', {
         eq: { id: permissionId }
       });
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['article-permissions', articleId, organizationId] });

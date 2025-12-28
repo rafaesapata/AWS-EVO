@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
-import { apiClient } from '@/integrations/aws/api-client';
+import { apiClient, getErrorMessage } from '@/integrations/aws/api-client';
 import { useOrganization } from '@/hooks/useOrganization';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -113,7 +113,7 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
         organization_id: organizationId
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
 
       toast({
         title: t('anomalyDetection.ticketCreated'),
@@ -145,7 +145,7 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
       });
 
       if (result.error) {
-        throw new Error(result.error);
+        throw new Error(getErrorMessage(result.error));
       }
 
       toast({
@@ -178,7 +178,7 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
       });
 
       if (result.error) {
-        throw new Error(result.error);
+        throw new Error(getErrorMessage(result.error));
       }
 
       toast({
@@ -211,7 +211,7 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
       });
 
       if (result.error) {
-        throw new Error(result.error);
+        throw new Error(getErrorMessage(result.error));
       }
 
       toast({

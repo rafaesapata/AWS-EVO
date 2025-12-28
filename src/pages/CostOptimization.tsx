@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Layout } from "@/components/Layout";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
@@ -96,7 +96,7 @@ export default function CostOptimization() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data || [];

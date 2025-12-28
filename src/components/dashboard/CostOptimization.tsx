@@ -21,6 +21,7 @@ import {
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
+// Note: CostOptimization already uses useAwsAccount for selectedAccountId
 
 interface CostOptimizationProps {
   onAnalysisComplete: () => void;

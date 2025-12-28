@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Key, Trash2, Building2, TestTube, Pencil, CloudCog, Copy, AlertTriangle } from "lucide-react";
 import { RegionSelector } from "./RegionSelector";
@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAwsAccount } from "@/contexts/AwsAccountContext";
 
 
 const AwsCredentialsManager = () => {
@@ -41,59 +42,14 @@ const AwsCredentialsManager = () => {
   const [editRegions, setEditRegions] = useState<string[]>([]);
   const [editAccountName, setEditAccountName] = useState("");
 
+  // Use centralized AWS account context instead of direct API call
+  const { accounts: allAccounts, isLoading, refreshAccounts: refetch, error: queryError } = useAwsAccount();
+
   // Debug: Log organization state
   console.log('🏢 AwsCredentialsManager: Organization state', {
     organizationId,
     isLoadingOrg,
     orgError: orgError?.message,
-  });
-
-  // Get all accounts for the user's organization with robust caching
-  const { data: allAccounts, refetch, isLoading, error: queryError } = useQuery({
-    queryKey: ['aws-credentials-all', organizationId],
-    queryFn: async () => {
-      if (!organizationId) throw new Error('Organization not found');
-
-      console.log('🔍 AwsCredentialsManager: Fetching credentials for org:', organizationId);
-      
-      // Use Lambda endpoint instead of REST
-      const result = await apiClient.invoke<any>('list-aws-credentials', {});
-      
-      console.log('📦 AwsCredentialsManager: Raw API result:', result);
-      
-      if (result.error) {
-        console.error('❌ AwsCredentialsManager: API error:', result.error);
-        throw new Error(result.error.message);
-      }
-      
-      // Lambda returns { success: true, data: [...] } wrapped in apiClient response
-      // apiClient.invoke returns { data: { success: true, data: [...] }, error: null }
-      const responseBody = result.data;
-      
-      console.log('📦 AwsCredentialsManager: Response body:', responseBody);
-      
-      // Handle both formats: direct array or wrapped in { success, data }
-      if (Array.isArray(responseBody)) {
-        console.log('✅ AwsCredentialsManager: Direct array, count:', responseBody.length);
-        return responseBody;
-      }
-      
-      if (responseBody?.success && Array.isArray(responseBody.data)) {
-        console.log('✅ AwsCredentialsManager: Wrapped data, count:', responseBody.data.length);
-        return responseBody.data;
-      }
-      
-      // Fallback
-      const fallbackData = responseBody?.data || [];
-      console.log('⚠️ AwsCredentialsManager: Fallback, count:', fallbackData.length);
-      return fallbackData;
-    },
-    enabled: !!organizationId,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
-    placeholderData: (previousData) => previousData,
   });
 
   // Debug: Log query state

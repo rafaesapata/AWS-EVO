@@ -8,31 +8,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useAwsAccount } from "@/contexts/AwsAccountContext";
 
 export function MultiAccountComparison() {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { data: accounts = [], isLoading } = useOrganizationQuery(
-    ['aws-accounts-comparison'],
-    async (organizationId) => {
-      // Use Lambda endpoint instead of REST to avoid CORS issues
-      const result = await apiClient.invoke<any>('list-aws-credentials', {});
-      
-      if (result.error) return [];
-      
-      // Handle both formats: direct array or wrapped in { success, data }
-      if (Array.isArray(result.data)) {
-        return result.data;
-      } else if (result.data?.success && Array.isArray(result.data.data)) {
-        return result.data.data;
-      }
-      return result.data?.data || [];
-    },
-    { staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 }
-  );
+  // Use centralized AWS account context instead of direct API call
+  const { accounts, isLoading } = useAwsAccount();
 
   const { data: metricsData = [] } = useOrganizationQuery(
-    ['multi-account-metrics'],
+    ['multi-account-metrics', accounts?.length],
     async (organizationId) => {
       const accountIds = accounts?.map((a: any) => a.id) || [];
       if (accountIds.length === 0) return [];
@@ -44,7 +29,7 @@ export function MultiAccountComparison() {
       if (response.error) return [];
       return response.data || [];
     },
-    { enabled: (accounts?.length || 0) > 0, staleTime: 2 * 60 * 1000, gcTime: 5 * 60 * 1000 }
+    { enabled: accounts.length > 0, staleTime: 2 * 60 * 1000, gcTime: 5 * 60 * 1000 }
   );
 
   const accountMetrics = accounts.map((account: any) => {

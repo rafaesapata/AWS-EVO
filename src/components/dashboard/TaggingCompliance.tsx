@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useQuery } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { Tag, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
@@ -42,7 +42,7 @@ export function TaggingCompliance() {
         }
       });
       
-      if (scansResult.error) throw new Error(scansResult.error);
+      if (scansResult.error) throw new Error(getErrorMessage(scansResult.error));
       
       const scanIds = scansResult.data?.map((s: any) => s.id) || [];
       if (scanIds.length === 0) return [];
@@ -55,7 +55,7 @@ export function TaggingCompliance() {
         limit: 100
       });
       
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       return result.data || [];
     },
     enabled: !!organizationId,

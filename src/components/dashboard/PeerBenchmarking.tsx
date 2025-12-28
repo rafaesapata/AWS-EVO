@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { TrendingUp, TrendingDown, Users, Award, RefreshCw, Building2, Shield } from "lucide-react";
@@ -49,7 +49,7 @@ export default function PeerBenchmarking() {
         limit: 1
       });
       
-      if (metricsResponse.error) throw new Error(metricsResponse.error);
+      if (metricsResponse.error) throw new Error(getErrorMessage(metricsResponse.error));
       const metrics = metricsResponse.data?.[0];
       
       // Get peer benchmarks
@@ -60,7 +60,7 @@ export default function PeerBenchmarking() {
         limit: 50
       });
       
-      if (benchmarkResponse.error) throw new Error(benchmarkResponse.error);
+      if (benchmarkResponse.error) throw new Error(getErrorMessage(benchmarkResponse.error));
       const peers = benchmarkResponse.data;
 
       // Get real cost efficiency from daily costs - FILTERED BY ACCOUNT
@@ -74,7 +74,7 @@ export default function PeerBenchmarking() {
         limit: 30
       });
       
-      if (costResponse.error) throw new Error(costResponse.error);
+      if (costResponse.error) throw new Error(getErrorMessage(costResponse.error));
       const costData = costResponse.data;
       
       // Calculate cost efficiency based on optimization recommendations
@@ -83,7 +83,7 @@ export default function PeerBenchmarking() {
         eq: { organization_id: organizationId }
       });
       
-      if (recommendationsResponse.error) throw new Error(recommendationsResponse.error);
+      if (recommendationsResponse.error) throw new Error(getErrorMessage(recommendationsResponse.error));
       const recommendations = recommendationsResponse.data;
             const rawPotentialSavings = recommendations?.reduce((sum, r) => sum + (r.projected_savings_monthly || 0), 0) || 0;
       const totalSpend = costData?.reduce((sum, c) => sum + (c.total_cost || 0), 0) || 1;

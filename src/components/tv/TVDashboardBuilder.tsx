@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { Tv, Plus, Trash2, Copy, ExternalLink, RefreshCw, Eye } from "lucide-react";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -86,7 +86,7 @@ export default function TVDashboardBuilder() {
         order: { created_at: 'desc' }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       setDashboards(result.data || []);
     } catch (error: any) {
       toast({
@@ -136,7 +136,7 @@ export default function TVDashboardBuilder() {
         access_token: token
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
 
       toast({
         title: t('common.success'),
@@ -182,7 +182,7 @@ export default function TVDashboardBuilder() {
         { eq: { id: id, organization_id: organizationId } }
       );
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
 
       toast({
         title: t('common.success'),
@@ -210,7 +210,7 @@ export default function TVDashboardBuilder() {
         eq: { id: id, organization_id: organizationId }
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
 
       toast({
         title: t('common.success'),

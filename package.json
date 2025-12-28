@@ -51,7 +51,11 @@
     "deploy:frontend:prod": "./scripts/deploy-frontend.sh --env=production --verbose",
     "prod:local": "./scripts/start-production-local.sh",
     "dev:restore": "tsx scripts/restore-development.ts",
-    "prod:test": "npm run build && npm run preview"
+    "prod:test": "npm run build && npm run preview",
+    "e2e": "npx tsx tests/e2e/run-e2e-tests.ts",
+    "e2e:headed": "npx tsx tests/e2e/run-e2e-tests.ts --headed --verbose",
+    "e2e:debug": "npx tsx tests/e2e/run-e2e-tests.ts --headed --verbose --iterations=1",
+    "e2e:full": "npx tsx tests/e2e/run-e2e-tests.ts --verbose --iterations=5"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.948.0",
@@ -140,6 +144,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/dompurify": "^3.0.5",
     "@types/node": "^22.16.5",
@@ -152,6 +157,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "playwright": "^1.57.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",

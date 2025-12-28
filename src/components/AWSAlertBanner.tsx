@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { AlertTriangle, XCircle, CheckCircle2, X, ChevronRight } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useAwsAccount } from "@/contexts/AwsAccountContext";
 
 interface AWSAlertBannerProps {
   onViewDetails?: () => void;
@@ -14,34 +14,19 @@ interface AWSAlertBannerProps {
 export default function AWSAlertBanner({ onViewDetails }: AWSAlertBannerProps) {
   const { t } = useTranslation();
   const { data: organizationId } = useOrganization();
+  const { accounts, isLoading: accountsLoading } = useAwsAccount();
   const [dismissed, setDismissed] = useState(false);
   
+  // Only fetch validation status, accounts come from context
   const { data: validationStatus, isLoading } = useQuery({
-    queryKey: ['aws-validation-status-banner', organizationId],
+    queryKey: ['aws-validation-status-banner', organizationId, accounts.map(a => a.id).join(',')],
     refetchInterval: 5 * 60 * 1000,
-    enabled: !!organizationId,
+    enabled: !!organizationId && accounts.length > 0,
     queryFn: async () => {
-      if (!organizationId) return [];
-      
-      // Use Lambda endpoint instead of REST to avoid CORS issues
-      const result = await apiClient.invoke<any>('list-aws-credentials', {});
-      
-      if (result.error) return [];
-      
-      // Handle both formats: direct array or wrapped in { success, data }
-      let accountsData: any[] = [];
-      if (Array.isArray(result.data)) {
-        accountsData = result.data;
-      } else if (result.data?.success && Array.isArray(result.data.data)) {
-        accountsData = result.data.data;
-      } else {
-        accountsData = result.data?.data || [];
-      }
-
-      if (accountsData.length === 0) return [];
+      if (!organizationId || accounts.length === 0) return [];
 
       const accountsWithStatus = await Promise.all(
-        accountsData.map(async (account: any) => {
+        accounts.map(async (account: any) => {
           const validation = await apiClient.select('aws_validation_status', {
             select: '*',
             eq: { aws_account_id: account.id },
@@ -61,7 +46,7 @@ export default function AWSAlertBanner({ onViewDetails }: AWSAlertBannerProps) {
     },
   });
 
-  if (isLoading || !organizationId || dismissed) return null;
+  if (isLoading || accountsLoading || !organizationId || dismissed) return null;
   if (!validationStatus || validationStatus.length === 0) return null;
 
   // Check for issues

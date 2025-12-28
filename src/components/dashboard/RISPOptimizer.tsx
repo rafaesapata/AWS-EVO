@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { Zap, DollarSign, TrendingUp, Clock, Target, RefreshCw, CheckCircle2, Eye, MessageSquare, AlertCircle, Plus } from "lucide-react";
@@ -76,7 +76,7 @@ export default function RISPOptimizer() {
         limit: 50
       });
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) throw new Error(getErrorMessage(result.error));
       setRecommendations(result.data || []);
 
       // Se não houver recomendações, não gera automaticamente
@@ -615,7 +615,7 @@ export default function RISPOptimizer() {
                                 { eq: { id: selectedRec.id } }
                               );
                               
-                              if (result.error) throw new Error(result.error);
+                              if (result.error) throw new Error(getErrorMessage(result.error));
                               
                               setSelectedRec({ ...selectedRec, status: selectedPriority });
                               setEditingPriority(false);

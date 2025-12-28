@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Layout } from "@/components/Layout";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
@@ -106,7 +106,7 @@ export default function IntelligentAlerts() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data || [];
@@ -130,7 +130,7 @@ export default function IntelligentAlerts() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data || [];
@@ -155,7 +155,7 @@ export default function IntelligentAlerts() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data;
@@ -196,7 +196,7 @@ export default function IntelligentAlerts() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data;
@@ -223,7 +223,7 @@ export default function IntelligentAlerts() {
       const response = await apiClient.delete('alert_rules', { id });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data;

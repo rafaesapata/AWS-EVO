@@ -8,7 +8,7 @@
  * - Supports authentication and security schemes
  */
 
-import { z, ZodSchema, ZodObject, ZodString, ZodNumber, ZodBoolean, ZodArray, ZodEnum, ZodOptional, ZodDefault, ZodUnion } from 'zod';
+import { ZodSchema, ZodObject, ZodString, ZodNumber, ZodBoolean, ZodArray, ZodEnum, ZodOptional, ZodDefault, ZodUnion } from 'zod';
 import * as schemas from './schemas.js';
 
 // ============================================================================
