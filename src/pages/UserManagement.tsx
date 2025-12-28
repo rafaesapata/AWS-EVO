@@ -71,34 +71,51 @@ export default function UserManagement() {
     enabled: !!organizationId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
+      // Query profiles table which has organization_id and role
       let filters: any = { organization_id: organizationId };
 
       if (roleFilter !== 'all') {
         filters.role = roleFilter;
       }
 
-      if (statusFilter !== 'all') {
-        filters.status = statusFilter;
-      }
-
-      const response = await apiClient.select('users', {
+      const response = await apiClient.select('profiles', {
         select: '*',
         eq: filters,
-        order: { created_at: 'desc' }
+        order: { column: 'created_at', ascending: false }
       });
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
       }
 
-      let filteredUsers = response.data || [];
+      let filteredUsers = (response.data || []).map((profile: any) => ({
+        id: profile.id,
+        email: profile.full_name || 'N/A', // Profile doesn't have email, use full_name
+        name: profile.full_name || 'Usuário',
+        role: profile.role || 'user',
+        status: 'active', // Default status since profiles don't have status
+        last_login: null,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+        permissions: [],
+        aws_accounts: [],
+        user_id: profile.user_id
+      }));
 
       // Apply search filter
       if (searchTerm) {
-        filteredUsers = filteredUsers.filter(user => 
-          user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.name.toLowerCase().includes(searchTerm.toLowerCase())
+        filteredUsers = filteredUsers.filter((user: any) => 
+          (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (user.name || '').toLowerCase().includes(searchTerm.toLowerCase())
         );
+      }
+
+      // Apply status filter (simulated since profiles don't have status)
+      if (statusFilter !== 'all') {
+        // For now, all profiles are considered active
+        if (statusFilter !== 'active') {
+          filteredUsers = [];
+        }
       }
 
       return filteredUsers;
