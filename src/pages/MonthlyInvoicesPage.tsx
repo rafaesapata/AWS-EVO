@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
+import { parseDateString, compareDates, getDayOfMonth } from "@/lib/utils";
 
 export const MonthlyInvoicesPage = () => {
   const { t, i18n } = useTranslation();
@@ -170,7 +171,7 @@ export const MonthlyInvoicesPage = () => {
       'Custos Diários',
       'Data,Custo Total,Créditos,Custo Líquido',
       ...data.dailyCosts
-        .sort((a, b) => new Date(a.cost_date).getTime() - new Date(b.cost_date).getTime())
+        .sort((a, b) => compareDates(a.cost_date, b.cost_date))
         .map(cost => `${cost.cost_date},${cost.total_cost},${cost.credits_used || 0},${cost.net_cost || cost.total_cost}`)
     ].join('\n');
 
@@ -463,9 +464,9 @@ export const MonthlyInvoicesPage = () => {
                 <ResponsiveContainer width="100%" height={400}>
                   <LineChart 
                     data={selectedMonthData.dailyCosts
-                      .sort((a, b) => new Date(a.cost_date).getTime() - new Date(b.cost_date).getTime())
+                      .sort((a, b) => compareDates(a.cost_date, b.cost_date))
                       .map(cost => ({
-                        date: new Date(cost.cost_date).getDate(),
+                        date: getDayOfMonth(cost.cost_date),
                         total: Number(cost.total_cost),
                         net: Number(cost.net_cost || cost.total_cost),
                         credits: Number(cost.credits_used || 0),

@@ -274,8 +274,18 @@ const FindingsTable = ({ findings, onUpdate }: FindingsTableProps) => {
                     </Badge>
                   </td>
                   <td className="p-4">
-                    <Badge variant={finding.source === 'security_scan' ? 'default' : 'secondary'}>
-                      {finding.source === 'security_scan' ? 'Security Scan' : 'CloudTrail'}
+                    <Badge variant={
+                      finding.source === 'security-engine' || finding.source === 'security_scan' 
+                        ? 'default' 
+                        : finding.source === 'cloudtrail' 
+                          ? 'secondary' 
+                          : 'outline'
+                    }>
+                      {finding.source === 'security-engine' || finding.source === 'security_scan' 
+                        ? 'Security Scan' 
+                        : finding.source === 'cloudtrail' 
+                          ? 'CloudTrail' 
+                          : finding.source || 'Desconhecido'}
                     </Badge>
                   </td>
                   <td className="p-4 text-sm">

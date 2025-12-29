@@ -102,12 +102,15 @@ export interface AWSCredentials {
   externalId?: string;
 }
 
+// Scan level types - backend uses quick/standard/deep, frontend uses basic/advanced/military
+export type ScanLevel = 'quick' | 'standard' | 'deep' | 'basic' | 'advanced' | 'military';
+
 export interface ScanContext {
   organizationId: string;
   awsAccountId: string;
   regions: string[];
   credentials: AWSCredentials;
-  scanLevel: 'quick' | 'standard' | 'deep';
+  scanLevel: ScanLevel;
   enabledServices?: string[];
   excludedServices?: string[];
 }

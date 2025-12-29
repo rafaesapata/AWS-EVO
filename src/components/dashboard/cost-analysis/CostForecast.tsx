@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
 import { TrendingUp, AlertTriangle, Info } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { formatDateBR } from "@/lib/utils";
 
 interface Props {
   accountId: string;
@@ -178,7 +179,7 @@ export function CostForecast({ accountId }: Props) {
   // Combinar dados históricos e previsões
   const chartData = [
     ...(historicalCosts?.map(c => ({
-      date: new Date(c.cost_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      date: formatDateBR(c.cost_date, { day: '2-digit', month: '2-digit' }),
       actual: c.total_cost,
       predicted: null,
       low: null,

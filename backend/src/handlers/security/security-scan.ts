@@ -14,7 +14,7 @@ import { withAwsCircuitBreaker } from '../../lib/circuit-breaker.js';
 import { logger } from '../../lib/logging.js';
 import { businessMetrics } from '../../lib/metrics.js';
 import { getOrigin } from '../../lib/middleware.js';
-import { runSecurityScan, type ScanContext, resetGlobalCache } from '../../lib/security-engine/index.js';
+import { runSecurityScan, type ScanContext, type ScanLevel, resetGlobalCache } from '../../lib/security-engine/index.js';
 
 async function securityScanHandler(
   event: AuthorizedEvent,
@@ -98,7 +98,7 @@ async function securityScanHandler(
         roleArn: credential.role_arn || undefined,
         externalId: credential.external_id || undefined,
       },
-      scanLevel: scanLevel as 'quick' | 'standard' | 'deep',
+      scanLevel: scanLevel as ScanLevel,
     };
     
     // Run the security scan using Security Engine V2

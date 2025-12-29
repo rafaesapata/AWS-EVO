@@ -162,7 +162,7 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
         <div className="flex-1 flex flex-col">
           {/* Header - Padrão Visual Consistente */}
           <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
-            <div className="container mx-auto px-6 py-4">
+            <div className="w-full px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <SidebarTrigger className="-ml-1" />
@@ -201,7 +201,7 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 container mx-auto px-6 py-6 overflow-auto">
+          <main className="flex-1 w-full px-6 py-6 overflow-auto">
             {children}
           </main>
           

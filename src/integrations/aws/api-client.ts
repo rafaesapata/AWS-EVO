@@ -157,6 +157,10 @@ class ApiClient {
     order?: { column: string; ascending?: boolean };
     limit?: number;
     ilike?: Record<string, string>;
+    gte?: Record<string, any>;
+    lte?: Record<string, any>;
+    gt?: Record<string, any>;
+    lt?: Record<string, any>;
   } = {}): Promise<ApiResponse<T[]> | ApiError> {
     // Use Lambda query-table instead of direct REST calls
     return this.request<T[]>(`/api/functions/query-table`, {
@@ -168,6 +172,10 @@ class ApiClient {
         order: options.order,
         limit: options.limit,
         ilike: options.ilike,
+        gte: options.gte,
+        lte: options.lte,
+        gt: options.gt,
+        lt: options.lt,
       }),
     });
   }

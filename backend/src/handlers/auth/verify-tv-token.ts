@@ -145,15 +145,15 @@ async function getCostStats(organizationId: string): Promise<Record<string, unkn
 
   const costData = await prisma.dailyCost.findMany({
     where: {
-      account_id: { in: accounts.map(a => a.id) },
-      date: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+      aws_account_id: { in: accounts.map(a => a.id) },
+      cost_date: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     },
-    orderBy: { date: 'desc' }
+    orderBy: { cost_date: 'desc' }
   });
 
   return {
-    totalLast30Days: costData.reduce((sum, c) => sum + c.cost, 0),
+    totalLast30Days: costData.reduce((sum, c) => sum + Number(c.total_cost), 0),
     accountCount: accounts.length,
-    trend: costData.slice(0, 7).map(c => ({ date: c.date, amount: c.cost }))
+    trend: costData.slice(0, 7).map(c => ({ date: c.cost_date, amount: Number(c.total_cost) }))
   };
 }

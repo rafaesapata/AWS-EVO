@@ -40,6 +40,8 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'endpoint_check_history': 'endpointCheckHistory',
   'iam_behavior_anomalies': 'iAMBehaviorAnomaly',
   'cloudtrail_fetches': 'cloudTrailFetch',
+  'cloudtrail_events': 'cloudTrailEvent',
+  'cloudtrail_analyses': 'cloudTrailAnalysis',
   'audit_logs': 'auditLog',
   'security_events': 'securityEvent',
   'security_findings': 'securityFinding',
@@ -60,7 +62,6 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'optimization_recommendations': 'costOptimization',
   'iam_behavior_analysis': 'iAMBehaviorAnomaly',
   'lateral_movement_detections': 'securityEvent',
-  'cloudtrail_events': 'cloudTrailFetch',
   'audit_insights': 'auditLog',
   'remediation_tickets': 'jiraTicket',
   'well_architected_scores': 'securityPosture',
@@ -99,6 +100,8 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   'application_logs': { 'aws_account_id': null },
   'jira_tickets': { 'aws_account_id': null },
   'remediation_tickets': { 'aws_account_id': null },
+  // cloudtrail_events - aws_account_id exists in schema
+  'cloudtrail_events': { },
   'security_posture': { 'aws_account_id': null },
   'well_architected_scores': { 'aws_account_id': null },
   'knowledge_base_articles': { 'aws_account_id': null },
@@ -114,7 +117,7 @@ const TABLES_WITH_ORG_ID = new Set([
   'guardduty_findings', 'security_posture', 'knowledge_base_articles',
   'communication_logs', 'waste_detections', 'drift_detections',
   'resource_inventory', 'compliance_violations', 'alerts', 'alert_rules',
-  'iam_behavior_anomalies', 'cloudtrail_fetches', 'audit_logs',
+  'iam_behavior_anomalies', 'cloudtrail_fetches', 'cloudtrail_analyses', 'audit_logs',
   'security_events', 'security_findings', 'system_events',
   'cost_optimizations', 'compliance_scans', 'jira_tickets',
   'monitored_resources', 'resource_metrics', 'resource_utilization_ml',
@@ -134,6 +137,10 @@ interface QueryRequest {
   order?: { column: string; ascending?: boolean };
   limit?: number;
   ilike?: Record<string, string>;
+  gte?: Record<string, any>;  // Greater than or equal
+  lte?: Record<string, any>;  // Less than or equal
+  gt?: Record<string, any>;   // Greater than
+  lt?: Record<string, any>;   // Less than
 }
 
 function getOriginFromEvent(event: AuthorizedEvent): string {
@@ -217,6 +224,50 @@ export async function handler(
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         where[mappedKey || key] = { contains: value.replace(/%/g, ''), mode: 'insensitive' };
+      }
+    }
+    
+    // Add gte filters (greater than or equal)
+    if (body.gte) {
+      const fieldMap = FIELD_MAPPING[body.table] || {};
+      for (const [key, value] of Object.entries(body.gte)) {
+        const mappedKey = fieldMap[key];
+        if (mappedKey === null) continue;
+        const fieldName = mappedKey || key;
+        where[fieldName] = { ...where[fieldName], gte: value };
+      }
+    }
+    
+    // Add lte filters (less than or equal)
+    if (body.lte) {
+      const fieldMap = FIELD_MAPPING[body.table] || {};
+      for (const [key, value] of Object.entries(body.lte)) {
+        const mappedKey = fieldMap[key];
+        if (mappedKey === null) continue;
+        const fieldName = mappedKey || key;
+        where[fieldName] = { ...where[fieldName], lte: value };
+      }
+    }
+    
+    // Add gt filters (greater than)
+    if (body.gt) {
+      const fieldMap = FIELD_MAPPING[body.table] || {};
+      for (const [key, value] of Object.entries(body.gt)) {
+        const mappedKey = fieldMap[key];
+        if (mappedKey === null) continue;
+        const fieldName = mappedKey || key;
+        where[fieldName] = { ...where[fieldName], gt: value };
+      }
+    }
+    
+    // Add lt filters (less than)
+    if (body.lt) {
+      const fieldMap = FIELD_MAPPING[body.table] || {};
+      for (const [key, value] of Object.entries(body.lt)) {
+        const mappedKey = fieldMap[key];
+        if (mappedKey === null) continue;
+        const fieldName = mappedKey || key;
+        where[fieldName] = { ...where[fieldName], lt: value };
       }
     }
     

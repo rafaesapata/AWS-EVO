@@ -15,6 +15,7 @@ import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useExecutiveDashboardRefresh } from "@/hooks/useAutoRefresh";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 import { InfoTooltip, tooltipContent } from "@/components/ui/info-tooltip";
+import { formatDateBR } from "@/lib/utils";
 
 export const ExecutiveDashboard = () => {
   const { t } = useTranslation();
@@ -274,7 +275,7 @@ export const ExecutiveDashboard = () => {
 
   // Dados do gráfico de custos
   const costChartData = last30DaysCosts?.map(c => ({
-    date: new Date(c.cost_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+    date: formatDateBR(c.cost_date, { day: '2-digit', month: 'short' }),
     custo: Number(c.total_cost || 0),
     creditos: Number(c.credits_used || 0),
     liquido: Number(c.net_cost || c.total_cost),

@@ -138,10 +138,7 @@ export default function UserManagement() {
       });
 
       if (cognitoResponse.error) {
-        const errorMsg = typeof cognitoResponse.error === 'object' 
-          ? (cognitoResponse.error as any).message || JSON.stringify(cognitoResponse.error)
-          : String(cognitoResponse.error);
-        throw new Error(errorMsg);
+        throw new Error(getErrorMessage(cognitoResponse.error));
       }
 
       // Create user record in database
@@ -153,10 +150,7 @@ export default function UserManagement() {
       });
 
       if (response.error) {
-        const errorMsg = typeof response.error === 'object' 
-          ? (response.error as any).message || JSON.stringify(response.error)
-          : String(response.error);
-        throw new Error(errorMsg);
+        throw new Error(getErrorMessage(response.error));
       }
 
       return response.data;

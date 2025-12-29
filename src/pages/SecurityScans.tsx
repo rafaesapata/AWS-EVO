@@ -68,7 +68,13 @@ export default function SecurityScans() {
   const { data: scans, isLoading, refetch } = useQuery({
     queryKey: ['security-scans', organizationId, selectedAccountId, selectedScanType],
     enabled: !!organizationId, // Only require organizationId, accountId is optional
-    staleTime: 30 * 1000, // 30 seconds for real-time updates
+    staleTime: 10 * 1000, // 10 seconds - faster updates for running scans
+    refetchInterval: (query) => {
+      // Auto-refresh every 5 seconds if there are running scans
+      const data = query.state.data as SecurityScan[] | undefined;
+      const hasRunningScans = data?.some(scan => scan.status === 'running');
+      return hasRunningScans ? 5000 : false;
+    },
     queryFn: async () => {
       console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType });
       

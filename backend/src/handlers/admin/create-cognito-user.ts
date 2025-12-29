@@ -137,7 +137,9 @@ export async function handler(
       Username: email,
       UserAttributes: userAttributes,
       TemporaryPassword: password,
-      MessageAction: sendInvite ? 'RESEND' : 'SUPPRESS',
+      // Don't use RESEND for new users - it's only for existing users
+      // SUPPRESS = don't send email, undefined = send welcome email
+      MessageAction: sendInvite ? undefined : 'SUPPRESS',
       DesiredDeliveryMediums: sendInvite ? ['EMAIL'] : undefined
     }));
     

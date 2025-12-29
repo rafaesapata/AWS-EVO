@@ -88,7 +88,7 @@ const CostOverview = () => {
           };
 
           if (fetchError) {
-            const errorMsg = fetchError.message || JSON.stringify(fetchError) || String(fetchError);
+            const errorMsg = fetchError.message || String(fetchError);
             if (checkAssumeRoleError(errorMsg)) {
               setAwsRoleError(errorMsg);
               return [];
@@ -154,7 +154,7 @@ const CostOverview = () => {
       };
       
       if (invokeError) {
-        const errorMsg = invokeError.message || JSON.stringify(invokeError) || String(invokeError);
+        const errorMsg = invokeError.message || String(invokeError);
         
         if (checkAssumeRoleError(errorMsg)) {
           setAwsRoleError(errorMsg);

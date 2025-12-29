@@ -82,19 +82,26 @@ export async function handler(
       prisma.finding.count({ where }),
     ]);
     
-    // Get summary statistics
+    // Get summary statistics (case-insensitive severity)
     const stats = await prisma.finding.groupBy({
       by: ['severity'],
       where: { organization_id: organizationId },
       _count: true,
     });
     
+    // Normalize severity counts (handle both upper and lower case)
+    const normalizedStats: Record<string, number> = {};
+    stats.forEach(s => {
+      const key = (s.severity || 'low').toLowerCase();
+      normalizedStats[key] = (normalizedStats[key] || 0) + s._count;
+    });
+    
     const summary = {
       total,
-      critical: stats.find(s => s.severity === 'critical')?._count || 0,
-      high: stats.find(s => s.severity === 'high')?._count || 0,
-      medium: stats.find(s => s.severity === 'medium')?._count || 0,
-      low: stats.find(s => s.severity === 'low')?._count || 0,
+      critical: normalizedStats['critical'] || 0,
+      high: normalizedStats['high'] || 0,
+      medium: normalizedStats['medium'] || 0,
+      low: normalizedStats['low'] || 0,
     };
     
     logger.info('Findings retrieved successfully', { 

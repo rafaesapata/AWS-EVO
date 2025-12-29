@@ -359,7 +359,7 @@ export class AdvancedAnalytics {
       const dailyCosts = await this.prisma.dailyCost.findMany({
         where: {
           organization_id: organizationId,
-          date: {
+          cost_date: {
             gte: timeRange.start,
             lte: timeRange.end,
           },
@@ -378,7 +378,7 @@ export class AdvancedAnalytics {
       });
 
       // Calculate summary metrics
-      const totalCost = dailyCosts.reduce((sum, cost) => sum + cost.cost, 0);
+      const totalCost = dailyCosts.reduce((sum, cost) => sum + Number(cost.total_cost), 0);
       const potentialSavings = wasteDetections.reduce((sum, waste) => sum + waste.estimated_savings, 0);
       const wastePercentage = totalCost > 0 ? (potentialSavings / totalCost) * 100 : 0;
 
@@ -386,18 +386,23 @@ export class AdvancedAnalytics {
       const projectedCost = this.projectFutureCosts(dailyCosts);
       const costTrend = this.calculateCostTrend(dailyCosts);
 
-      // Service breakdown
-      const serviceCosts = dailyCosts.reduce((acc, cost) => {
-        acc[cost.service] = (acc[cost.service] || 0) + cost.cost;
-        return acc;
-      }, {} as Record<string, number>);
+      // Service breakdown from service_breakdown JSON field
+      const serviceCosts: Record<string, number> = {};
+      dailyCosts.forEach(cost => {
+        const breakdown = cost.service_breakdown as Record<string, number> | null;
+        if (breakdown) {
+          Object.entries(breakdown).forEach(([service, value]) => {
+            serviceCosts[service] = (serviceCosts[service] || 0) + Number(value);
+          });
+        }
+      });
 
       const serviceBreakdown = Object.entries(serviceCosts)
         .sort(([, a], [, b]) => b - a)
         .map(([service, cost]) => ({
           service,
           cost,
-          percentage: (cost / totalCost) * 100,
+          percentage: totalCost > 0 ? (cost / totalCost) * 100 : 0,
           trend: 0, // Would calculate based on historical data
         }));
 
@@ -889,7 +894,7 @@ export class AdvancedAnalytics {
   private projectFutureCosts(dailyCosts: any[]): number {
     if (dailyCosts.length === 0) return 0;
     
-    const totalCost = dailyCosts.reduce((sum, cost) => sum + cost.cost, 0);
+    const totalCost = dailyCosts.reduce((sum, cost) => sum + Number(cost.total_cost), 0);
     const avgDailyCost = totalCost / dailyCosts.length;
     
     // Project for next 30 days
@@ -899,13 +904,14 @@ export class AdvancedAnalytics {
   private calculateCostTrend(dailyCosts: any[]): number {
     if (dailyCosts.length < 2) return 0;
     
-    const sortedCosts = dailyCosts.sort((a, b) => a.date.getTime() - b.date.getTime());
+    const sortedCosts = dailyCosts.sort((a, b) => new Date(a.cost_date).getTime() - new Date(b.cost_date).getTime());
     const firstHalf = sortedCosts.slice(0, Math.floor(sortedCosts.length / 2));
     const secondHalf = sortedCosts.slice(Math.floor(sortedCosts.length / 2));
     
-    const firstAvg = firstHalf.reduce((sum, cost) => sum + cost.cost, 0) / firstHalf.length;
-    const secondAvg = secondHalf.reduce((sum, cost) => sum + cost.cost, 0) / secondHalf.length;
+    const firstAvg = firstHalf.reduce((sum, cost) => sum + Number(cost.total_cost), 0) / firstHalf.length;
+    const secondAvg = secondHalf.reduce((sum, cost) => sum + Number(cost.total_cost), 0) / secondHalf.length;
     
+    if (firstAvg === 0) return 0;
     return ((secondAvg - firstAvg) / firstAvg) * 100;
   }
 

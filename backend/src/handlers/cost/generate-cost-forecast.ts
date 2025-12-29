@@ -49,19 +49,19 @@ export async function handler(
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
     
     const historicalCosts = await prisma.dailyCost.groupBy({
-      by: ['date'],
+      by: ['cost_date'],
       where: {
         organization_id: organizationId,
-        ...(accountId && { account_id: accountId }),
-        date: {
+        ...(accountId && { aws_account_id: accountId }),
+        cost_date: {
           gte: ninetyDaysAgo,
         },
       },
       _sum: {
-        cost: true,
+        total_cost: true,
       },
       orderBy: {
-        date: 'asc',
+        cost_date: 'asc',
       },
     });
     
@@ -70,7 +70,7 @@ export async function handler(
     }
     
     // Extrair valores de custo
-    const costs = historicalCosts.map(c => c._sum?.cost || 0);
+    const costs = historicalCosts.map(c => Number(c._sum?.total_cost) || 0);
     
     // Calcular tendência usando regressão linear simples
     const n = costs.length;

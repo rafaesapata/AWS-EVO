@@ -30,21 +30,37 @@ export async function handler(
   try {
     const prisma = getPrismaClient();
     
-    // Contar findings por severidade
+    // Contar findings por severidade (case-insensitive, incluindo pending e active)
     const criticalFindings = await prisma.finding.count({
-      where: { organization_id: organizationId, severity: 'CRITICAL', status: 'ACTIVE' },
+      where: { 
+        organization_id: organizationId, 
+        severity: { in: ['critical', 'CRITICAL'] },
+        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+      },
     });
     
     const highFindings = await prisma.finding.count({
-      where: { organization_id: organizationId, severity: 'HIGH', status: 'ACTIVE' },
+      where: { 
+        organization_id: organizationId, 
+        severity: { in: ['high', 'HIGH'] },
+        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+      },
     });
     
     const mediumFindings = await prisma.finding.count({
-      where: { organization_id: organizationId, severity: 'MEDIUM', status: 'ACTIVE' },
+      where: { 
+        organization_id: organizationId, 
+        severity: { in: ['medium', 'MEDIUM'] },
+        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+      },
     });
     
     const lowFindings = await prisma.finding.count({
-      where: { organization_id: organizationId, severity: 'LOW', status: 'ACTIVE' },
+      where: { 
+        organization_id: organizationId, 
+        severity: { in: ['low', 'LOW'] },
+        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+      },
     });
     
     // Calcular score (0-100)

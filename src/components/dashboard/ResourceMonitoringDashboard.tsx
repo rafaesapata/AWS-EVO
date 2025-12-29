@@ -207,13 +207,21 @@ export const ResourceMonitoringDashboard = () => {
         body: { accountId: selectedAccountId }
       });
 
-      // Handle API response format
-      const data = 'error' in response && response.error ? null : response.data || response;
+      // Handle API error response
+      if ('error' in response && response.error) {
+        const errorMsg = typeof response.error === 'string' 
+          ? response.error 
+          : response.error?.message || 'Erro ao coletar métricas';
+        throw new Error(errorMsg);
+      }
 
-      if (!data || (data.success === false)) {
+      // Get data from response
+      const data = response.data;
+
+      if (!data || data.success === false) {
         const errorMsg = typeof data?.error === 'string' 
           ? data.error 
-          : data?.error?.message || JSON.stringify(data?.error) || 'Failed to collect metrics';
+          : data?.error?.message || data?.message || 'Falha ao coletar métricas';
         throw new Error(errorMsg);
       }
 

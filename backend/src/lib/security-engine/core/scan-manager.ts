@@ -207,11 +207,41 @@ export class ScanManager {
       );
     }
 
+    // Normalize scan level (frontend uses basic/advanced/military, backend uses quick/standard/deep)
+    const scanLevel = this.context.scanLevel;
+    const isQuick = scanLevel === 'quick' || scanLevel === 'basic';
+    const isStandard = scanLevel === 'standard' || scanLevel === 'advanced';
+    // Deep/Military is the default (all scanners)
+
     // Adjust based on scan level
-    if (this.context.scanLevel === 'quick') {
-      // Quick scan: only critical services
+    // Quick/Basic: Only critical security services (~6 scanners, ~2 min)
+    // Standard/Advanced: Core AWS services (~20 scanners, ~5 min)
+    // Deep/Military: All services including advanced security tools (~38 scanners, ~10 min)
+    
+    if (isQuick) {
+      // Quick scan: only critical services (6 scanners)
       const quickServices = ['IAM', 'S3', 'EC2', 'RDS', 'Lambda', 'GuardDuty'];
       scanners = scanners.filter(s => quickServices.includes(s.name));
+      logger.info('Quick/Basic scan: using 6 critical scanners');
+    } else if (isStandard) {
+      // Standard scan: core AWS services (20 scanners)
+      const standardServices = [
+        // Critical (from quick)
+        'IAM', 'S3', 'EC2', 'RDS', 'Lambda', 'GuardDuty',
+        // Network & Security
+        'SecurityHub', 'WAF', 'CloudTrail', 'KMS', 'SecretsManager', 'ACM',
+        // Compute & Containers
+        'ECS', 'EKS', 'ELB',
+        // Data & Messaging
+        'DynamoDB', 'SQS', 'SNS',
+        // API & Identity
+        'APIGateway', 'Cognito'
+      ];
+      scanners = scanners.filter(s => standardServices.includes(s.name));
+      logger.info('Standard/Advanced scan: using 20 core scanners');
+    } else {
+      // Deep/Military scan: all scanners
+      logger.info('Deep/Military scan: using all 38 scanners');
     }
 
     return scanners;

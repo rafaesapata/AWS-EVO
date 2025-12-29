@@ -70,6 +70,7 @@ export default function SecurityAnalysisContent() {
   const [selectedSeverity, setSelectedSeverity] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedRegion, setSelectedRegion] = useState<string>("all");
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [selectedFindings, setSelectedFindings] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -204,6 +205,43 @@ export default function SecurityAnalysisContent() {
   const mediumCount = allFindings?.filter(f => f.severity === 'medium').length || 0;
   const lowCount = allFindings?.filter(f => f.severity === 'low').length || 0;
 
+  // Extrair origens únicas dos findings
+  const uniqueSources = useMemo(() => {
+    if (!allFindings) return [];
+    const sources = new Set<string>();
+    allFindings.forEach(f => {
+      if (f.source) sources.add(f.source);
+    });
+    return Array.from(sources).sort();
+  }, [allFindings]);
+
+  // Helper para formatar nome da origem
+  const formatSourceName = (source: string) => {
+    const sourceNames: Record<string, string> = {
+      'security-engine': 'Security Scan',
+      'security_scan': 'Security Scan',
+      'cloudtrail': 'CloudTrail',
+      'guardduty': 'GuardDuty',
+      'inspector': 'Inspector',
+      'securityhub': 'Security Hub',
+    };
+    return sourceNames[source] || source;
+  };
+
+  // Toggle source selection
+  const toggleSource = (source: string) => {
+    setSelectedSources(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(source)) {
+        newSet.delete(source);
+      } else {
+        newSet.add(source);
+      }
+      return newSet;
+    });
+    setCurrentPage(1);
+  };
+
   const runSecurityScan = async () => {
     setIsScanning(true);
     
@@ -320,11 +358,11 @@ export default function SecurityAnalysisContent() {
   // Calcular breakdown por categoria baseado nos findings reais
   const categoryBreakdown = useMemo(() => {
     if (!allFindings || allFindings.length === 0) return {
-      identity: 0,
-      network: 0,
-      data: 0,
-      compute: 0,
-      monitoring: 0
+      identity: { score: 100, critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+      network: { score: 100, critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+      data: { score: 100, critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+      compute: { score: 100, critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+      monitoring: { score: 100, critical: 0, high: 0, medium: 0, low: 0, total: 0 }
     };
 
     const categoryMapping: Record<string, string[]> = {
@@ -335,12 +373,12 @@ export default function SecurityAnalysisContent() {
       monitoring: ['CloudTrail', 'CloudWatch', 'GuardDuty', 'Config', 'Security Hub', 'Logging', 'Alarm']
     };
 
-    const counts = {
-      identity: 0,
-      network: 0,
-      data: 0,
-      compute: 0,
-      monitoring: 0
+    const counts: Record<string, { critical: number; high: number; medium: number; low: number; total: number }> = {
+      identity: { critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+      network: { critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+      data: { critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+      compute: { critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+      monitoring: { critical: 0, high: 0, medium: 0, low: 0, total: 0 }
     };
 
     allFindings.forEach(finding => {
@@ -348,34 +386,48 @@ export default function SecurityAnalysisContent() {
       const details = JSON.stringify(finding.details || {});
       const scanType = finding.scan_type || '';
       const combined = (title + ' ' + details + ' ' + scanType).toLowerCase();
+      const severity = (finding.severity || 'low').toLowerCase();
 
       Object.entries(categoryMapping).forEach(([category, keywords]) => {
         if (keywords.some(kw => combined.includes(kw.toLowerCase()))) {
-          counts[category as keyof typeof counts]++;
+          counts[category].total++;
+          if (severity === 'critical') counts[category].critical++;
+          else if (severity === 'high') counts[category].high++;
+          else if (severity === 'medium') counts[category].medium++;
+          else counts[category].low++;
         }
       });
     });
 
-    // Calcular score baseado em findings (inverso: menos findings = melhor score)
-    const totalFindings = allFindings.length;
+    // Calcular score baseado em findings ponderados por severidade
+    // Usar escala logarítmica para melhor visualização
+    const calculateScore = (cat: { critical: number; high: number; medium: number; low: number; total: number }) => {
+      if (cat.total === 0) return 100;
+      // Peso por severidade
+      const weightedSum = cat.critical * 25 + cat.high * 10 + cat.medium * 3 + cat.low * 1;
+      // Escala logarítmica para não zerar rapidamente
+      const penalty = Math.min(100, Math.log10(weightedSum + 1) * 30);
+      return Math.max(5, 100 - penalty); // Mínimo de 5% para sempre mostrar algo
+    };
+
     return {
-      identity: Math.max(0, 100 - (counts.identity / Math.max(1, totalFindings)) * 200),
-      network: Math.max(0, 100 - (counts.network / Math.max(1, totalFindings)) * 200),
-      data: Math.max(0, 100 - (counts.data / Math.max(1, totalFindings)) * 200),
-      compute: Math.max(0, 100 - (counts.compute / Math.max(1, totalFindings)) * 200),
-      monitoring: Math.max(0, 100 - (counts.monitoring / Math.max(1, totalFindings)) * 200)
+      identity: { score: calculateScore(counts.identity), ...counts.identity },
+      network: { score: calculateScore(counts.network), ...counts.network },
+      data: { score: calculateScore(counts.data), ...counts.data },
+      compute: { score: calculateScore(counts.compute), ...counts.compute },
+      monitoring: { score: calculateScore(counts.monitoring), ...counts.monitoring }
     };
   }, [allFindings]);
 
   const categories = [
-    { name: t('securityAnalysis.identityAccess'), score: categoryBreakdown.identity, icon: Shield },
-    { name: t('securityAnalysis.networkSecurity'), score: categoryBreakdown.network, icon: Shield },
-    { name: t('securityAnalysis.dataProtection'), score: categoryBreakdown.data, icon: Shield },
-    { name: t('securityAnalysis.computeSecurity'), score: categoryBreakdown.compute, icon: Shield },
-    { name: t('securityAnalysis.monitoringLogging'), score: categoryBreakdown.monitoring, icon: Shield },
+    { name: t('securityAnalysis.identityAccess'), ...categoryBreakdown.identity, icon: Shield },
+    { name: t('securityAnalysis.networkSecurity'), ...categoryBreakdown.network, icon: Shield },
+    { name: t('securityAnalysis.dataProtection'), ...categoryBreakdown.data, icon: Shield },
+    { name: t('securityAnalysis.computeSecurity'), ...categoryBreakdown.compute, icon: Shield },
+    { name: t('securityAnalysis.monitoringLogging'), ...categoryBreakdown.monitoring, icon: Shield },
   ];
 
-  // Filtrar findings por busca, região e severity (tabs)
+  // Filtrar findings por busca, região, severity e origem
   const filteredFindings = useMemo(() => {
     if (!allFindings) return [];
     
@@ -384,6 +436,11 @@ export default function SecurityAnalysisContent() {
     // Filtrar por severity (do dropdown)
     if (selectedSeverity !== 'all') {
       filtered = filtered.filter(f => f.severity === selectedSeverity);
+    }
+    
+    // Filtrar por origem (múltipla seleção)
+    if (selectedSources.size > 0) {
+      filtered = filtered.filter(f => selectedSources.has(f.source || ''));
     }
     
     // Filtrar por busca
@@ -406,48 +463,69 @@ export default function SecurityAnalysisContent() {
     }
     
     return filtered;
-  }, [allFindings, selectedSeverity, searchQuery, selectedRegion]);
+  }, [allFindings, selectedSeverity, selectedSources, searchQuery, selectedRegion]);
 
-  // Paginação
-  const totalPages = Math.ceil((filteredFindings?.length || 0) / itemsPerPage);
+  // Findings filtrados por severidade (para as tabs)
+  const criticalFindings = useMemo(() => filteredFindings?.filter(f => f.severity === 'critical') || [], [filteredFindings]);
+  const highFindings = useMemo(() => filteredFindings?.filter(f => f.severity === 'high') || [], [filteredFindings]);
+  const mediumFindings = useMemo(() => filteredFindings?.filter(f => f.severity === 'medium') || [], [filteredFindings]);
+  const lowFindings = useMemo(() => filteredFindings?.filter(f => f.severity === 'low') || [], [filteredFindings]);
+
+  // Estado para tab ativa de severidade
+  const [activeSeverityTab, setActiveSeverityTab] = useState<string>('all');
+
+  // Findings para a tab ativa
+  const findingsForActiveTab = useMemo(() => {
+    switch (activeSeverityTab) {
+      case 'critical': return criticalFindings;
+      case 'high': return highFindings;
+      case 'medium': return mediumFindings;
+      case 'low': return lowFindings;
+      default: return filteredFindings || [];
+    }
+  }, [activeSeverityTab, filteredFindings, criticalFindings, highFindings, mediumFindings, lowFindings]);
+
+  // Paginação baseada na tab ativa
+  const totalPages = Math.ceil((findingsForActiveTab?.length || 0) / itemsPerPage);
   const paginatedFindings = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
-    return filteredFindings?.slice(start, start + itemsPerPage) || [];
-  }, [filteredFindings, currentPage, itemsPerPage]);
+    return findingsForActiveTab?.slice(start, start + itemsPerPage) || [];
+  }, [findingsForActiveTab, currentPage, itemsPerPage]);
 
   const exportToPDF = async () => {
     setIsExporting(true);
     try {
-      // Get user email
-      const user = await cognitoAuth.getCurrentUser();
-      const userEmail = user?.email || 'Não disponível';
+      // Verificar se há um scan disponível
+      if (!latestScan?.id) {
+        toast({
+          title: t('securityAnalysis.exportError'),
+          description: 'Nenhum scan disponível para exportar. Execute uma análise primeiro.',
+          variant: "destructive"
+        });
+        return;
+      }
 
-      const response = await apiClient.lambda('security-export-pdf', {
-        organizationId,
-        findings: allFindings || [],
-        posture: posture,
-        latestScan,
-        categoryBreakdown,
-        userEmail
+      const response = await apiClient.invoke('security-scan-pdf-export', {
+        body: {
+          scanId: latestScan.id,
+          format: 'detailed',
+          includeRemediation: true,
+          language: 'pt-BR'
+        }
       });
 
       if (response.error) throw new Error(response.error.message);
       const data = response.data;
 
-      if (data?.pdf) {
-        // Convert base64 to blob and download as PDF
-        const byteCharacters = atob(data.pdf);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/pdf' });
+      if (data?.downloadUrl) {
+        // Baixar automaticamente usando fetch + blob
+        const downloadResponse = await fetch(data.downloadUrl);
+        const blob = await downloadResponse.blob();
         
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = data.filename || 'evo-security-report.pdf';
+        link.download = data.filename || `evo-security-report-${new Date().toISOString().split('T')[0]}.html`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -457,6 +535,8 @@ export default function SecurityAnalysisContent() {
           title: `✅ ${t('securityAnalysis.pdfExported')}`,
           description: t('securityAnalysis.securityReportGenerated')
         });
+      } else {
+        throw new Error('Nenhum arquivo gerado');
       }
     } catch (error: any) {
       toast({
@@ -691,12 +771,37 @@ export default function SecurityAnalysisContent() {
                     <span className="font-medium">{category.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`font-bold ${getScoreColor(category.score)}`}>
-                      {category.score.toFixed(0)}
+                    <span className={`font-bold ${category.total > 0 ? (category.critical > 0 ? 'text-red-500' : category.high > 0 ? 'text-orange-500' : 'text-yellow-500') : 'text-green-500'}`}>
+                      {category.total}
                     </span>
-                    <Badge variant="outline" className={getScoreColor(category.score)}>
-                      {getScoreLabel(category.score)}
-                    </Badge>
+                    {category.total > 0 ? (
+                      <div className="flex items-center gap-1 text-xs flex-wrap justify-end">
+                        {category.critical > 0 && (
+                          <Badge variant="destructive" className="text-xs px-1.5 py-0">
+                            {category.critical} crítico{category.critical > 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                        {category.high > 0 && (
+                          <Badge variant="outline" className="text-xs px-1.5 py-0 text-orange-500 border-orange-500">
+                            {category.high} alto{category.high > 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                        {category.medium > 0 && (
+                          <Badge variant="outline" className="text-xs px-1.5 py-0 text-yellow-500 border-yellow-500">
+                            {category.medium} médio{category.medium > 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                        {category.low > 0 && (
+                          <Badge variant="outline" className="text-xs px-1.5 py-0 text-blue-500 border-blue-500">
+                            {category.low} baixo{category.low > 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-green-500 border-green-500">
+                        Sem problemas
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <Progress value={category.score} />
@@ -818,6 +923,46 @@ export default function SecurityAnalysisContent() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Filtro por Origem */}
+            {uniqueSources.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Origem</label>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueSources.map(source => (
+                    <Badge
+                      key={source}
+                      variant={selectedSources.has(source) ? "default" : "outline"}
+                      className="cursor-pointer hover:bg-primary/80 transition-colors"
+                      onClick={() => toggleSource(source)}
+                    >
+                      <Checkbox
+                        checked={selectedSources.has(source)}
+                        className="mr-2 h-3 w-3"
+                        onCheckedChange={() => toggleSource(source)}
+                      />
+                      {formatSourceName(source)}
+                      <span className="ml-1 text-xs opacity-70">
+                        ({allFindings?.filter(f => f.source === source).length || 0})
+                      </span>
+                    </Badge>
+                  ))}
+                  {selectedSources.size > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedSources(new Set());
+                        setCurrentPage(1);
+                      }}
+                      className="h-6 px-2 text-xs"
+                    >
+                      Limpar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -862,34 +1007,21 @@ export default function SecurityAnalysisContent() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="all" onValueChange={() => setCurrentPage(1)}>
+          <Tabs defaultValue="all" value={activeSeverityTab} onValueChange={(value) => {
+            setActiveSeverityTab(value);
+            setCurrentPage(1);
+          }}>
             <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="all">Todos ({allFindings?.length || 0})</TabsTrigger>
-              <TabsTrigger value="critical">Críticos ({criticalCount})</TabsTrigger>
-              <TabsTrigger value="high">Altos ({highCount})</TabsTrigger>
-              <TabsTrigger value="medium">Médios ({mediumCount})</TabsTrigger>
-              <TabsTrigger value="low">Baixos ({lowCount})</TabsTrigger>
+              <TabsTrigger value="all">Todos ({filteredFindings?.length || 0})</TabsTrigger>
+              <TabsTrigger value="critical">Críticos ({criticalFindings.length})</TabsTrigger>
+              <TabsTrigger value="high">Altos ({highFindings.length})</TabsTrigger>
+              <TabsTrigger value="medium">Médios ({mediumFindings.length})</TabsTrigger>
+              <TabsTrigger value="low">Baixos ({lowFindings.length})</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="all" className="mt-6">
+            <div className="mt-6">
               <FindingsTable findings={paginatedFindings} onUpdate={refetchFindings} />
-            </TabsContent>
-            
-            <TabsContent value="critical" className="mt-6">
-              <FindingsTable findings={paginatedFindings.filter(f => f.severity === 'critical')} onUpdate={refetchFindings} />
-            </TabsContent>
-            
-            <TabsContent value="high" className="mt-6">
-              <FindingsTable findings={paginatedFindings.filter(f => f.severity === 'high')} onUpdate={refetchFindings} />
-            </TabsContent>
-            
-            <TabsContent value="medium" className="mt-6">
-              <FindingsTable findings={paginatedFindings.filter(f => f.severity === 'medium')} onUpdate={refetchFindings} />
-            </TabsContent>
-            
-            <TabsContent value="low" className="mt-6">
-              <FindingsTable findings={paginatedFindings.filter(f => f.severity === 'low')} onUpdate={refetchFindings} />
-            </TabsContent>
+            </div>
           </Tabs>
 
           {totalPages > 1 && (

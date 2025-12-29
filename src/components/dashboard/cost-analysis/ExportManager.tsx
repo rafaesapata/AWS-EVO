@@ -12,6 +12,7 @@ import {
 import { Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
+import { formatDateBR } from "@/lib/utils";
 
 interface Props {
   costs: any[];
@@ -43,7 +44,7 @@ export function ExportManager({ costs, accounts, selectedAccountId }: Props) {
         : '';
       
       return [
-        new Date(cost.cost_date).toLocaleDateString('pt-BR'),
+        formatDateBR(cost.cost_date),
         accounts?.find(a => a.id === cost.aws_account_id)?.account_name || cost.aws_account_id,
         cost.total_cost.toFixed(2),
         (cost.credits_used || 0).toFixed(2),

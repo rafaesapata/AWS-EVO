@@ -8,6 +8,7 @@ export type {
   Finding,
   ScanResult,
   ScanContext,
+  ScanLevel,
   ScanSummary,
   ScanMetricsReport,
   AWSCredentials,

@@ -116,53 +116,66 @@ export async function handler(
           resultsByTimeCount: response.ResultsByTime?.length || 0
         });
         
-        // Processar resultados
+        // Processar resultados - agregar por dia
         if (response.ResultsByTime) {
           for (const result of response.ResultsByTime) {
             const date = result.TimePeriod?.Start;
+            if (!date) continue;
+            
+            // Agregar custos por serviço para este dia
+            const serviceBreakdown: Record<string, number> = {};
+            let dailyTotal = 0;
             
             if (result.Groups) {
               for (const group of result.Groups) {
                 const service = group.Keys?.[0] || 'Unknown';
                 const cost = parseFloat(group.Metrics?.UnblendedCost?.Amount || '0');
-                const usage = parseFloat(group.Metrics?.UsageQuantity?.Amount || '0');
                 
-                // Só adicionar se tiver custo > 0
                 if (cost > 0) {
+                  serviceBreakdown[service] = cost;
+                  dailyTotal += cost;
+                  
                   allCosts.push({
                     accountId: account.id,
                     accountName: account.account_name,
                     date,
                     service,
                     cost,
-                    usage,
                     currency: group.Metrics?.UnblendedCost?.Unit || 'USD',
                   });
-                  
-                  // Salvar no banco
-                  await prisma.dailyCost.upsert({
-                    where: {
-                      account_id_date_service: {
-                        account_id: account.id,
-                        date: new Date(date!),
-                        service,
-                      },
-                    },
-                    update: {
-                      cost,
-                      usage,
-                    },
-                    create: {
-                      organization_id: organizationId,
-                      account_id: account.id,
-                      date: new Date(date!),
-                      service,
-                      cost,
-                      usage,
-                      currency: 'USD'
-                    },
-                  });
                 }
+              }
+            }
+            
+            // Salvar custo diário agregado no banco
+            if (dailyTotal > 0) {
+              try {
+                await prisma.dailyCost.upsert({
+                  where: {
+                    aws_account_id_cost_date_organization_id: {
+                      aws_account_id: account.id,
+                      cost_date: new Date(date),
+                      organization_id: organizationId,
+                    },
+                  },
+                  update: {
+                    total_cost: dailyTotal,
+                    service_breakdown: serviceBreakdown,
+                    net_cost: dailyTotal, // Sem créditos por enquanto
+                    updated_at: new Date(),
+                  },
+                  create: {
+                    organization_id: organizationId,
+                    aws_account_id: account.id,
+                    cost_date: new Date(date),
+                    total_cost: dailyTotal,
+                    service_breakdown: serviceBreakdown,
+                    net_cost: dailyTotal,
+                    credits_used: 0,
+                  },
+                });
+              } catch (dbErr) {
+                logger.warn('Failed to save daily cost', { date, error: dbErr });
               }
             }
           }

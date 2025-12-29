@@ -18,6 +18,7 @@ import { ExportManager } from "./cost-analysis/ExportManager";
 import { useQueryCache, CACHE_CONFIGS } from "@/hooks/useQueryCache";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { formatDateBR } from "@/lib/utils";
 
 export const CostAnalysis = () => {
   const { toast } = useToast();
@@ -255,7 +256,7 @@ export const CostAnalysis = () => {
         : '';
       
       return [
-        new Date(cost.cost_date).toLocaleDateString('pt-BR'),
+        formatDateBR(cost.cost_date),
         allAccounts?.find(a => a.id === cost.aws_account_id)?.account_name || cost.aws_account_id,
         cost.total_cost.toString(),
         (cost.credits_used || 0).toString(),
@@ -301,7 +302,7 @@ export const CostAnalysis = () => {
     const dateServiceMap: Record<string, Record<string, number>> = {};
     
     costs.forEach(cost => {
-      const date = new Date(cost.cost_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const date = formatDateBR(cost.cost_date, { day: '2-digit', month: '2-digit' });
       
       if (!dateServiceMap[date]) {
         dateServiceMap[date] = {};
@@ -657,7 +658,7 @@ export const CostAnalysis = () => {
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
-                              {new Date(date).toLocaleDateString('pt-BR', { 
+                              {formatDateBR(date, { 
                                 weekday: 'short', 
                                 day: '2-digit', 
                                 month: 'short',
@@ -708,7 +709,7 @@ export const CostAnalysis = () => {
                           <TableRow key={`${date}-breakdown`}>
                             <TableCell colSpan={8} className="bg-muted/30 p-0">
                               <div className="p-4 space-y-4">
-                                <h4 className="font-semibold text-sm">Breakdown de Serviços - {new Date(date).toLocaleDateString('pt-BR')}</h4>
+                                <h4 className="font-semibold text-sm">Breakdown de Serviços - {formatDateBR(date)}</h4>
                                 {dateCosts.map((cost) => {
                                   if (!cost.service_breakdown) return null;
 

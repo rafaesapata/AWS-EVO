@@ -141,6 +141,71 @@ const MIGRATION_COMMANDS = [
         FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
     END IF;
   END $$`,
+
+  // CloudTrail Events table
+  `CREATE TABLE IF NOT EXISTS "cloudtrail_events" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID NOT NULL,
+    "event_id" VARCHAR(255) NOT NULL,
+    "event_name" VARCHAR(255) NOT NULL,
+    "event_source" VARCHAR(255),
+    "event_time" TIMESTAMPTZ(6) NOT NULL,
+    "aws_region" VARCHAR(50),
+    "source_ip_address" VARCHAR(100),
+    "user_agent" TEXT,
+    "user_identity" JSONB,
+    "user_name" VARCHAR(255),
+    "user_type" VARCHAR(100),
+    "user_arn" TEXT,
+    "error_code" VARCHAR(100),
+    "error_message" TEXT,
+    "request_parameters" JSONB,
+    "response_elements" JSONB,
+    "resources" JSONB,
+    "risk_level" VARCHAR(20) DEFAULT 'low',
+    "risk_reasons" TEXT[],
+    "is_security_event" BOOLEAN DEFAULT false,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "cloudtrail_events_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "cloudtrail_events_unique" UNIQUE ("organization_id", "event_id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "cloudtrail_events_org_idx" ON "cloudtrail_events"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "cloudtrail_events_account_idx" ON "cloudtrail_events"("aws_account_id")`,
+  `CREATE INDEX IF NOT EXISTS "cloudtrail_events_event_time_idx" ON "cloudtrail_events"("event_time")`,
+  `CREATE INDEX IF NOT EXISTS "cloudtrail_events_risk_level_idx" ON "cloudtrail_events"("risk_level")`,
+  `CREATE INDEX IF NOT EXISTS "cloudtrail_events_user_name_idx" ON "cloudtrail_events"("user_name")`,
+  `CREATE INDEX IF NOT EXISTS "cloudtrail_events_is_security_idx" ON "cloudtrail_events"("is_security_event")`,
+  
+  // CloudTrail Analyses table (for async analysis tracking)
+  `CREATE TABLE IF NOT EXISTS "cloudtrail_analyses" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID NOT NULL,
+    "status" VARCHAR(50) DEFAULT 'pending',
+    "hours_back" INTEGER DEFAULT 24,
+    "max_results" INTEGER DEFAULT 5000,
+    "events_processed" INTEGER,
+    "events_saved" INTEGER,
+    "critical_count" INTEGER,
+    "high_count" INTEGER,
+    "medium_count" INTEGER,
+    "low_count" INTEGER,
+    "error_message" TEXT,
+    "started_at" TIMESTAMPTZ(6),
+    "completed_at" TIMESTAMPTZ(6),
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "cloudtrail_analyses_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "cloudtrail_analyses_org_idx" ON "cloudtrail_analyses"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "cloudtrail_analyses_account_idx" ON "cloudtrail_analyses"("aws_account_id")`,
+  `CREATE INDEX IF NOT EXISTS "cloudtrail_analyses_status_idx" ON "cloudtrail_analyses"("status")`,
+  
+  // Fix stuck security scans - mark as failed if running for more than 30 minutes
+  `UPDATE "security_scans" SET status = 'failed', completed_at = NOW() WHERE status = 'running' AND started_at < NOW() - INTERVAL '30 minutes'`,
+  
+  // Fix stuck cloudtrail analyses - mark as failed if running for more than 10 minutes
+  `UPDATE "cloudtrail_analyses" SET status = 'failed', completed_at = NOW(), error_message = 'Timeout' WHERE status = 'running' AND started_at < NOW() - INTERVAL '10 minutes'`,
 ];
 
 export async function handler(): Promise<APIGatewayProxyResultV2> {

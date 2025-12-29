@@ -38,6 +38,13 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
   const { data: scanHistory, isLoading } = useQuery({
     queryKey: ['security-scan-history', organizationId, accountId, selectedPeriod],
     enabled: !!organizationId,
+    staleTime: 10 * 1000, // 10 seconds
+    refetchInterval: (query) => {
+      // Auto-refresh every 5 seconds if there are running scans
+      const data = query.state.data as SecurityScan[] | undefined;
+      const hasRunningScans = data?.some(scan => scan.status === 'running');
+      return hasRunningScans ? 5000 : false;
+    },
     queryFn: async () => {
       let cutoffDate: string | null = null;
       if (selectedPeriod !== 'all') {
