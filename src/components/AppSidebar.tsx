@@ -131,7 +131,13 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
   const { t } = useTranslation();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["ml", "scans", "optimization"]));
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set([
+    "costs", 
+    "ml", 
+    "monitoring", 
+    "scans", 
+    "optimization"
+  ]));
   
   const isSuperAdmin = Array.isArray(userRole) 
     ? userRole.includes('super_admin')

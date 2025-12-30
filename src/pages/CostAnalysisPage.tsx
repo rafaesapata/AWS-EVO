@@ -17,7 +17,6 @@ import { CostForecast } from "@/components/dashboard/cost-analysis/CostForecast"
 import { CostTrends } from "@/components/dashboard/cost-analysis/CostTrends";
 import { ExportManager } from "@/components/dashboard/cost-analysis/ExportManager";
 import { formatDateBR, compareDates } from "@/lib/utils";
-import { CostDataDebug } from "@/components/debug/CostDataDebug";
 
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -530,9 +529,6 @@ export const CostAnalysisPage = () => {
 
   return (
     <div className="space-y-4">
-      {/* Debug Component - Temporary */}
-      <CostDataDebug />
-      
       {/* Previsão e Tendências */}
       <div className="grid gap-4 md:grid-cols-2">
         <CostForecast accountId={selectedAccountId === 'all' ? (allAccounts?.[0]?.id || 'all') : selectedAccountId} />
