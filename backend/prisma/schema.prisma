@@ -394,8 +394,8 @@ model CommunicationLog {
 
 model DailyCost {
   id              String   @id @default(uuid()) @db.Uuid
-  organization_id String?  @db.Uuid
-  aws_account_id  String?  @db.Uuid  // UUID reference to aws_accounts.id
+  organization_id String   @db.Uuid
+  aws_account_id  String   @db.Uuid
   date            DateTime @db.Date
   service         String?
   cost            Float    @default(0)
@@ -403,6 +403,7 @@ model DailyCost {
   currency        String?  @default("USD")
   created_at      DateTime @default(now()) @db.Timestamptz(6)
   
+  @@unique([organization_id, aws_account_id, date, service])
   @@index([organization_id])
   @@index([date])
   @@index([organization_id, date])

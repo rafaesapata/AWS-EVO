@@ -301,8 +301,8 @@ export const ResourceMonitoringDashboard = () => {
     async (organizationId) => {
       if (!selectedAccountId) return [];
       
-      // Verificar se a conta pertence à organização
-      const accountResponse = await apiClient.select('aws_accounts', { 
+      // Verificar se a conta pertence à organização (usando aws_credentials, não aws_accounts)
+      const accountResponse = await apiClient.select('aws_credentials', { 
         eq: { id: selectedAccountId, organization_id: organizationId } 
       });
       if (accountResponse.error || !accountResponse.data || (accountResponse.data as AwsAccount[]).length === 0) return [];

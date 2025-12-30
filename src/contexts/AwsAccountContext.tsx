@@ -126,10 +126,19 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
     if (accounts.length > 0) {
       const currentSelected = accounts.find(a => a.id === selectedAccountId);
       if (!currentSelected) {
-        // Select first account if current selection is invalid
-        const firstAccount = accounts[0];
-        setSelectedAccountIdState(firstAccount.id);
-        localStorage.setItem(STORAGE_KEY, firstAccount.id);
+        // Check if there's a saved preference in localStorage
+        const savedAccountId = localStorage.getItem(STORAGE_KEY);
+        const savedAccount = savedAccountId ? accounts.find(a => a.id === savedAccountId) : null;
+        
+        if (savedAccount) {
+          // Use saved preference if valid
+          setSelectedAccountIdState(savedAccount.id);
+        } else {
+          // Select first account if no valid saved preference
+          const firstAccount = accounts[0];
+          setSelectedAccountIdState(firstAccount.id);
+          localStorage.setItem(STORAGE_KEY, firstAccount.id);
+        }
       }
     } else if (accounts.length === 0 && !accountsLoading) {
       // No accounts, clear selection

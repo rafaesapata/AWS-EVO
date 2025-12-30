@@ -779,7 +779,7 @@ async function fetchCostOptimization(orgId: string, accountId: string): Promise<
 }> {
   // Fetch waste detections
   const wasteResponse = await apiClient.select('waste_detections', {
-    eq: { organization_id: orgId, account_id: accountId },
+    eq: { organization_id: orgId, aws_account_id: accountId },
     order: { column: 'detected_at', ascending: false },
     limit: 50
   });
@@ -789,7 +789,7 @@ async function fetchCostOptimization(orgId: string, accountId: string): Promise<
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
   const costsResponse = await apiClient.select('daily_costs', {
-    eq: { organization_id: orgId, account_id: accountId },
+    eq: { organization_id: orgId, aws_account_id: accountId },
     order: { column: 'date', ascending: false },
     limit: 1000
   });
