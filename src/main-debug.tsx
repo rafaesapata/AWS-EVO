@@ -18,7 +18,7 @@ function DebugApp() {
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
         <h1 style={{ color: '#1f2937', marginBottom: '1rem' }}>
-          🔍 EVO UDS - Debug Mode
+          🔍 EVO - Debug Mode
         </h1>
         
         <div style={{ marginBottom: '1rem' }}>

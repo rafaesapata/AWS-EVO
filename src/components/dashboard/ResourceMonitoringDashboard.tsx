@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Server, Database, Layers, Zap, Cloud, Activity, ArrowLeft, Link2 } from "lucide-react";
+import { RefreshCw, Server, Database, Layers, Zap, Cloud, Activity, ArrowLeft, Link2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
@@ -21,6 +21,7 @@ import { AWSPermissionError } from "./AWSPermissionError";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { useMetricsCache } from "@/hooks/useMetricsCache";
 import {
   Pagination,
   PaginationContent,
@@ -30,6 +31,131 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from "@/components/ui/pagination";
+
+// ============================================
+// PERFORMANCE: Memoized Resource Card Component
+// ============================================
+interface ResourceCardProps {
+  resource: any;
+  metrics: any[];
+  onSelect: (resource: any) => void;
+}
+
+const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) => {
+  const resourceKey = `${resource.resource_type}-${resource.resource_id}`;
+  
+  // Memoize metrics filtering for this specific resource
+  const resourceSpecificMetrics = useMemo(() => 
+    metrics?.filter(m => 
+      m.resource_id === resource.resource_id && 
+      m.resource_type === resource.resource_type
+    ) || [],
+    [metrics, resource.resource_id, resource.resource_type]
+  );
+  
+  // Memoize primary metric calculation
+  const primaryMetric = useMemo(() => {
+    if (resourceSpecificMetrics.length === 0) return null;
+    
+    const type = resource.resource_type;
+    let metric = null;
+    
+    if (type === 'ec2' || type === 'rds' || type === 'elasticache') {
+      metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'CPUUtilization');
+    } else if (type === 'lambda') {
+      metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Duration');
+    } else if (type === 'apigateway') {
+      metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Latency');
+    } else if (type === 'alb' || type === 'nlb') {
+      metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'RequestCount');
+    }
+    
+    return metric || resourceSpecificMetrics[0];
+  }, [resourceSpecificMetrics, resource.resource_type]);
+
+  const hasMetrics = resourceSpecificMetrics.length > 0;
+  
+  // Format value based on metric type
+  const formatPrimaryValue = useCallback(() => {
+    if (!primaryMetric) return '';
+    const value = Number(primaryMetric.metric_value);
+    const name = primaryMetric.metric_name;
+    
+    if (COUNT_METRICS.has(name)) {
+      return Math.round(value).toLocaleString();
+    }
+    if (name === 'CPUUtilization') {
+      return `${value.toFixed(1)}%`;
+    }
+    if (name === 'Duration' || name === 'Latency' || name === 'IntegrationLatency') {
+      return `${value.toFixed(2)} ms`;
+    }
+    return value.toFixed(2);
+  }, [primaryMetric]);
+
+  const handleClick = useCallback(() => onSelect(resource), [onSelect, resource]);
+
+  return (
+    <div 
+      key={resourceKey} 
+      className="border rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer"
+      onClick={handleClick}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Badge variant="outline">{resource.resource_type.toUpperCase()}</Badge>
+            <h4 className="font-semibold">{resource.resource_name}</h4>
+            <Badge variant={
+              resource.status === 'running' || resource.status === 'active' 
+                ? 'default' 
+                : 'secondary'
+            }>
+              {resource.status}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground mb-2">
+            ID: {resource.resource_id} | Região: {resource.region}
+          </p>
+
+          {primaryMetric ? (
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm">{primaryMetric.metric_name}</span>
+                <span className="text-sm font-medium">{formatPrimaryValue()}</span>
+              </div>
+              {primaryMetric.metric_name === 'CPUUtilization' && (
+                <Progress value={Number(primaryMetric.metric_value)} className="h-2" />
+              )}
+            </div>
+          ) : !hasMetrics ? (
+            <p className="text-sm text-muted-foreground mt-2">
+              Clique para ver detalhes ou Atualizar para coletar métricas
+            </p>
+          ) : null}
+
+          {resourceSpecificMetrics.length > 0 && (
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {resourceSpecificMetrics
+                .filter((m: any) => m.metric_name !== 'CPUUtilization')
+                .slice(0, 4)
+                .map((metric: any) => (
+                  <div key={metric.id} className="text-sm">
+                    <span className="text-muted-foreground">{metric.metric_name}:</span>{' '}
+                    <span className="font-medium">
+                      {formatMetricValue(metric.metric_name, Number(metric.metric_value))} {metric.metric_unit}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+ResourceCard.displayName = 'ResourceCard';
 
 const RESOURCE_TYPES = [
   { value: 'ec2', label: 'EC2 Instances', icon: Server },
@@ -42,6 +168,41 @@ const RESOURCE_TYPES = [
   { value: 'nlb', label: 'Network LB (NLB)', icon: Activity },
   { value: 'apigateway', label: 'API Gateway', icon: Link2 }
 ];
+
+// ============================================
+// Type definitions for resources and metrics
+// ============================================
+interface MonitoredResource {
+  id: string;
+  resource_id: string;
+  resource_name: string;
+  resource_type: string;
+  region: string;
+  status: string;
+  aws_account_id: string;
+  organization_id: string;
+  metadata?: Record<string, any>;
+}
+
+interface ResourceMetric {
+  id: string;
+  resource_id: string;
+  resource_type: string;
+  resource_name?: string;
+  metric_name: string;
+  metric_value: number;
+  metric_unit: string;
+  timestamp: string;
+  aws_account_id: string;
+  organization_id: string;
+}
+
+interface AwsAccount {
+  id: string;
+  organization_id: string;
+  account_id: string;
+  account_name: string;
+}
 
 // Métricas que devem ser exibidas como inteiros (contadores)
 const COUNT_METRICS = new Set([
@@ -73,14 +234,26 @@ export const ResourceMonitoringDashboard = () => {
   // CRITICAL: Use global account selector instead of local state
   const { selectedAccountId, accounts, isLoading: accountsLoading } = useAwsAccount();
   
+  // PERFORMANCE: Use intelligent metrics cache to avoid refetching already loaded periods
+  const { 
+    fetchMetrics, 
+    getMetricsFromCache, 
+    isPeriodCached, 
+    clearCache: clearMetricsCache,
+    getCacheStats,
+    isLoading: metricsLoading 
+  } = useMetricsCache();
+  
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedResourceType, setSelectedResourceType] = useState<string>("all");
-  const [selectedResource, setSelectedResource] = useState<any>(null);
+  const [selectedResource, setSelectedResource] = useState<MonitoredResource | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedRegion, setSelectedRegion] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<string>("off");
   const [metricsPeriod, setMetricsPeriod] = useState<MetricsPeriod>("3h");
+  const [metrics, setMetrics] = useState<ResourceMetric[]>([]);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [permissionErrors, setPermissionErrors] = useState<Array<{
     resourceType: string;
     region: string;
@@ -90,7 +263,7 @@ export const ResourceMonitoringDashboard = () => {
   const itemsPerPage = 10;
 
   // Função para filtrar por tipo de recurso e fazer scroll
-  const handleResourceTypeFilter = (type: string) => {
+  const handleResourceTypeFilter = useCallback((type: string) => {
     setSelectedResourceType(type);
     setCurrentPage(1);
     
@@ -106,7 +279,7 @@ export const ResourceMonitoringDashboard = () => {
       title: "Filtro aplicado",
       description: `Exibindo apenas recursos do tipo ${RESOURCE_TYPES.find(r => r.value === type)?.label || type}`,
     });
-  };
+  }, [toast]);
 
   // Auto-refresh effect - USE GLOBAL selectedAccountId
   useEffect(() => {
@@ -116,14 +289,14 @@ export const ResourceMonitoringDashboard = () => {
                        autoRefreshInterval === "30s" ? 30000 : 60000;
 
     const interval = setInterval(() => {
-      handleRefresh();
+      handleRefresh(true); // Force refresh on auto-refresh
     }, intervalMs);
 
     return () => clearInterval(interval);
   }, [autoRefreshInterval, selectedAccountId]);
 
   // Buscar recursos monitorados - FILTERED BY GLOBAL ACCOUNT
-  const { data: resources, isLoading: loadingResources } = useOrganizationQuery(
+  const { data: resources, isLoading: loadingResources } = useOrganizationQuery<MonitoredResource[]>(
     ['monitored-resources', selectedAccountId],
     async (organizationId) => {
       if (!selectedAccountId) return [];
@@ -132,12 +305,12 @@ export const ResourceMonitoringDashboard = () => {
       const accountResponse = await apiClient.select('aws_accounts', { 
         eq: { id: selectedAccountId, organization_id: organizationId } 
       });
-      if (accountResponse.error || !accountResponse.data) return [];
+      if (accountResponse.error || !accountResponse.data || (accountResponse.data as AwsAccount[]).length === 0) return [];
       
       const resourceResponse = await apiClient.select('monitored_resources', { 
         eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
       });
-      return resourceResponse.data || [];
+      return (resourceResponse.data || []) as MonitoredResource[];
     },
     {
       ...CACHE_CONFIGS.FREQUENT,
@@ -145,45 +318,65 @@ export const ResourceMonitoringDashboard = () => {
     }
   );
 
-  // Buscar métricas recentes - FILTERED BY GLOBAL ACCOUNT
-  // CRITICAL: Include metricsPeriod in query key to force refetch when period changes
-  const { data: metrics, isLoading: loadingMetrics, refetch: refetchMetrics } = useOrganizationQuery(
-    ['resource-metrics', selectedAccountId, metricsPeriod],
-    async (organizationId) => {
-      if (!selectedAccountId) return [];
-      
-      // Verificar se a conta pertence à organização
-      const accountResponse = await apiClient.select('aws_accounts', { 
-        eq: { id: selectedAccountId, organization_id: organizationId } 
-      });
-      if (accountResponse.error || !accountResponse.data) return [];
-      
-      // CRITICAL: Buscar métricas mais recentes primeiro (DESC) e limitar para evitar sobrecarga
-      // Ordenando DESC para garantir dados mais recentes primeiro
-      const cutoffTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      
-      const metricsResponse = await apiClient.select('resource_metrics', {
-        eq: { 
-          organization_id: organizationId,
-          aws_account_id: selectedAccountId 
-        },
-        order: { column: 'timestamp', ascending: false },
-        limit: 1000 // Limit for performance, most recent data first
-      });
-      const data = metricsResponse.data;
-      
-      // Reverter para ordem cronológica para exibição nos gráficos
-      return (data || []).reverse();
-    },
-    {
-      ...CACHE_CONFIGS.FREQUENT,
-      enabled: !!selectedAccountId,
-      staleTime: 0, // Always refetch - metrics data should always be fresh
-      gcTime: 60 * 1000, // Keep in cache for 1 minute only
+  // PERFORMANCE: Load metrics using intelligent cache
+  // Only fetches from backend if period not already cached
+  const loadMetricsWithCache = useCallback(async (forceRefresh: boolean = false) => {
+    if (!selectedAccountId) return;
+    
+    // Check if we already have this period cached
+    if (!forceRefresh && isPeriodCached(selectedAccountId, metricsPeriod)) {
+      const cachedMetrics = getMetricsFromCache(selectedAccountId, metricsPeriod);
+      if (cachedMetrics) {
+        setMetrics(cachedMetrics as ResourceMetric[]);
+        // Show cache hit indicator
+        const stats = getCacheStats(selectedAccountId);
+        console.log(`[MetricsCache] Cache hit for ${metricsPeriod}:`, stats);
+        return;
+      }
     }
-  );
+    
+    setLoadingMetrics(true);
+    try {
+      // Get organization ID from aws_credentials table (where selectedAccountId comes from)
+      const orgResponse = await apiClient.select('aws_credentials', { 
+        eq: { id: selectedAccountId } 
+      });
+      const accountData = orgResponse.data as AwsAccount[] | null;
+      const organizationId = accountData?.[0]?.organization_id;
+      
+      if (!organizationId) {
+        console.error('[MetricsCache] No organization ID found for account:', selectedAccountId);
+        return;
+      }
+      
+      const fetchedMetrics = await fetchMetrics(
+        selectedAccountId, 
+        organizationId, 
+        metricsPeriod, 
+        forceRefresh
+      );
+      
+      setMetrics(fetchedMetrics as ResourceMetric[]);
+      
+      // Log cache stats for debugging
+      const stats = getCacheStats(selectedAccountId);
+      console.log(`[MetricsCache] Loaded ${fetchedMetrics.length} metrics:`, stats);
+      
+    } catch (err) {
+      console.error('[MetricsCache] Error loading metrics:', err);
+    } finally {
+      setLoadingMetrics(false);
+    }
+  }, [selectedAccountId, metricsPeriod, isPeriodCached, getMetricsFromCache, fetchMetrics, getCacheStats]);
 
-  const handleRefresh = async () => {
+  // Load metrics when account or period changes
+  useEffect(() => {
+    if (selectedAccountId) {
+      loadMetricsWithCache(false);
+    }
+  }, [selectedAccountId, metricsPeriod, loadMetricsWithCache]);
+
+  const handleRefresh = useCallback(async (forceRefresh: boolean = true) => {
     if (!selectedAccountId) {
       toast({
         title: "Selecione uma conta",
@@ -232,19 +425,21 @@ export const ResourceMonitoringDashboard = () => {
         setPermissionErrors([]);
       }
 
-      // Invalidar cache completamente e forçar refetch
+      // PERFORMANCE: Clear metrics cache and reload with fresh data
+      clearMetricsCache(selectedAccountId);
+      
+      // Invalidar cache de recursos
       queryClient.removeQueries({ queryKey: ['monitored-resources'] });
-      queryClient.removeQueries({ queryKey: ['resource-metrics'] });
 
       toast({
         title: "✅ Métricas atualizadas",
         description: data.message || `${data.metricsCollected || 0} métricas coletadas de ${data.resourcesFound || 0} recursos`,
       });
 
-      // Refetch em paralelo
+      // Refetch resources and reload metrics with force refresh
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['monitored-resources'] }),
-        queryClient.refetchQueries({ queryKey: ['resource-metrics'] })
+        loadMetricsWithCache(true) // Force refresh from backend
       ]);
     } catch (error: any) {
       toast({
@@ -255,44 +450,68 @@ export const ResourceMonitoringDashboard = () => {
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [selectedAccountId, toast, clearMetricsCache, queryClient, loadMetricsWithCache]);
 
-  // Get unique regions from resources
-  const availableRegions = Array.from(new Set(resources?.map(r => r.region) || [])).sort();
+  // PERFORMANCE: Memoize available regions
+  const availableRegions = useMemo(() => {
+    const resourceList = (resources || []) as MonitoredResource[];
+    return Array.from(new Set(resourceList.map(r => r.region))).sort();
+  }, [resources]);
 
-  // Filtrar e ordenar recursos por tipo, região e busca (ativos primeiro)
-  const allFilteredResources = (selectedResourceType === 'all' 
-    ? resources 
-    : resources?.filter(r => r.resource_type === selectedResourceType))
-    ?.filter(r => selectedRegion === 'all' || r.region === selectedRegion)
-    ?.filter(r => {
-      if (!searchTerm) return true;
+  // PERFORMANCE: Memoize filtered and sorted resources
+  const allFilteredResources = useMemo(() => {
+    const statusOrder: Record<string, number> = {
+      'running': 0,
+      'active': 0,
+      'available': 0,
+      'stopped': 1,
+      'terminated': 2,
+      'unknown': 3
+    };
+    
+    let filtered: MonitoredResource[] = (resources || []) as MonitoredResource[];
+    
+    // Filter by type
+    if (selectedResourceType !== 'all') {
+      filtered = filtered.filter(r => r.resource_type === selectedResourceType);
+    }
+    
+    // Filter by region
+    if (selectedRegion !== 'all') {
+      filtered = filtered.filter(r => r.region === selectedRegion);
+    }
+    
+    // Filter by search term
+    if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      return r.resource_name?.toLowerCase().includes(term) || 
-             r.resource_id?.toLowerCase().includes(term) ||
-             r.resource_type?.toLowerCase().includes(term) ||
-             r.region?.toLowerCase().includes(term);
-    })
-    ?.sort((a, b) => {
-      // Colocar recursos ativos primeiro
-      const statusOrder: Record<string, number> = {
-        'running': 0,
-        'active': 0,
-        'available': 0,
-        'stopped': 1,
-        'terminated': 2,
-        'unknown': 3
-      };
+      filtered = filtered.filter(r => 
+        r.resource_name?.toLowerCase().includes(term) || 
+        r.resource_id?.toLowerCase().includes(term) ||
+        r.resource_type?.toLowerCase().includes(term) ||
+        r.region?.toLowerCase().includes(term)
+      );
+    }
+    
+    // Sort by status (active first)
+    return [...filtered].sort((a, b) => {
       const aOrder = statusOrder[a.status?.toLowerCase()] ?? 3;
       const bOrder = statusOrder[b.status?.toLowerCase()] ?? 3;
       return aOrder - bOrder;
-    }) || [];
+    });
+  }, [resources, selectedResourceType, selectedRegion, searchTerm]);
 
-  // Calcular paginação
-  const totalPages = Math.ceil(allFilteredResources.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const filteredResources = allFilteredResources.slice(startIndex, endIndex);
+  // PERFORMANCE: Memoize pagination calculations
+  const { totalPages, startIndex, endIndex, filteredResources } = useMemo(() => {
+    const total = Math.ceil(allFilteredResources.length / itemsPerPage);
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    return {
+      totalPages: total,
+      startIndex: start,
+      endIndex: end,
+      filteredResources: allFilteredResources.slice(start, end)
+    };
+  }, [allFilteredResources, currentPage, itemsPerPage]);
 
   // Reset para primeira página quando filtros mudarem
   useEffect(() => {
@@ -300,7 +519,7 @@ export const ResourceMonitoringDashboard = () => {
   }, [selectedResourceType, selectedRegion, searchTerm]);
 
   // Agrupar métricas por recurso
-  const resourceMetrics = metrics?.reduce((acc: any, metric: any) => {
+  const resourceMetrics = metrics?.reduce((acc: Record<string, { resource: ResourceMetric; metrics: ResourceMetric[] }>, metric: ResourceMetric) => {
     const key = `${metric.resource_type}-${metric.resource_id}`;
     if (!acc[key]) {
       acc[key] = {
@@ -313,42 +532,46 @@ export const ResourceMonitoringDashboard = () => {
   }, {}) || {};
 
   // Estatísticas por tipo de recurso
-  const resourceStats = RESOURCE_TYPES.map(type => {
-    const count = resources?.filter(r => r.resource_type === type.value).length || 0;
+  const resourceStats = useMemo(() => {
+    const resourceList = (resources || []) as MonitoredResource[];
     
-    // Filtrar apenas recursos com status ativo para cálculo de CPU média
-    const activeResourceIds = new Set(
-      resources
-        ?.filter(r => 
-          r.resource_type === type.value && 
-          ['running', 'active', 'available'].includes(r.status?.toLowerCase())
-        )
-        .map(r => r.resource_id) || []
-    );
-    
-    // Contar quantos estão ativos/ligados (especialmente importante para EC2)
-    const runningCount = activeResourceIds.size;
-    
-    const cpuMetrics = metrics
-      ?.filter(m => 
-        m.resource_type === type.value && 
-        m.metric_name === 'CPUUtilization' &&
-        activeResourceIds.has(m.resource_id)
-      ) || [];
-    
-    const avgCpu = cpuMetrics.length > 0
-      ? cpuMetrics.reduce((sum, m) => sum + Number(m.metric_value), 0) / cpuMetrics.length
-      : null;
+    return RESOURCE_TYPES.map(type => {
+      const count = resourceList.filter(r => r.resource_type === type.value).length;
+      
+      // Filtrar apenas recursos com status ativo para cálculo de CPU média
+      const activeResourceIds = new Set(
+        resourceList
+          .filter(r => 
+            r.resource_type === type.value && 
+            ['running', 'active', 'available'].includes(r.status?.toLowerCase() || '')
+          )
+          .map(r => r.resource_id)
+      );
+      
+      // Contar quantos estão ativos/ligados (especialmente importante para EC2)
+      const runningCount = activeResourceIds.size;
+      
+      const cpuMetrics = metrics
+        ?.filter(m => 
+          m.resource_type === type.value && 
+          m.metric_name === 'CPUUtilization' &&
+          activeResourceIds.has(m.resource_id)
+        ) || [];
+      
+      const avgCpu = cpuMetrics.length > 0
+        ? cpuMetrics.reduce((sum, m) => sum + Number(m.metric_value), 0) / cpuMetrics.length
+        : null;
 
-    return {
-      type: type.value,
-      label: type.label,
-      icon: type.icon,
-      count,
-      runningCount,
-      avgCpu: avgCpu !== null && !isNaN(avgCpu) ? avgCpu : null
-    };
-  });
+      return {
+        type: type.value,
+        label: type.label,
+        icon: type.icon,
+        count,
+        runningCount,
+        avgCpu: avgCpu !== null && !isNaN(avgCpu) ? avgCpu : null
+      };
+    });
+  }, [resources, metrics]);
 
   if (!accounts || accounts.length === 0) {
     return (
@@ -427,7 +650,15 @@ export const ResourceMonitoringDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <MetricsPeriodSelector value={metricsPeriod} onChange={setMetricsPeriod} />
+            <div className="flex items-center gap-2">
+              <MetricsPeriodSelector value={metricsPeriod} onChange={setMetricsPeriod} />
+              {selectedAccountId && isPeriodCached(selectedAccountId, metricsPeriod) && (
+                <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Cache
+                </Badge>
+              )}
+            </div>
             <Select value={autoRefreshInterval} onValueChange={setAutoRefreshInterval}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Auto-refresh" />
@@ -440,7 +671,7 @@ export const ResourceMonitoringDashboard = () => {
               </SelectContent>
             </Select>
             <Button 
-              onClick={handleRefresh} 
+              onClick={() => handleRefresh(true)} 
               disabled={isRefreshing || !selectedAccountId}
               className="gap-2"
               size="sm"
@@ -513,7 +744,7 @@ export const ResourceMonitoringDashboard = () => {
             </SelectContent>
           </Select>
           <Button 
-            onClick={handleRefresh} 
+            onClick={() => handleRefresh(true)} 
             disabled={isRefreshing || !selectedAccountId}
             className="gap-2"
           >

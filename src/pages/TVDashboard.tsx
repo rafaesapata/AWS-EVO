@@ -110,7 +110,7 @@ export default function TVDashboard() {
       <div className="min-h-screen bg-background">
       {/* TV Header - Compact */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="container mx-auto px-6 py-3">
+        <div className="w-full px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-gradient-primary">
@@ -136,7 +136,7 @@ export default function TVDashboard() {
       </header>
 
       {/* Dashboard Content - Fullscreen optimized */}
-      <main className="container mx-auto px-6 py-6">
+      <main className="w-full px-6 py-6">
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {dashboard.layout.map((item, index) => (
             <div key={`widget-${index}`} className="tv-widget">

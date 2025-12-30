@@ -13,8 +13,12 @@ let prisma: PrismaClient | null = null;
  */
 export function getPrismaClient(): PrismaClient {
   if (!prisma) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     prisma = new PrismaClient({
-      log: ['query', 'info', 'warn', 'error'],
+      log: isProduction 
+        ? ['warn', 'error'] 
+        : ['query', 'info', 'warn', 'error'],
       datasources: {
         db: {
           url: process.env.DATABASE_URL,
@@ -329,15 +333,19 @@ export function withTenantIsolation<T>(
   return callback(tenantPrisma);
 }
 
-// Graceful shutdown handling
-process.on('SIGINT', async () => {
-  logger.info('Received SIGINT, disconnecting from database...');
-  await disconnectDatabase();
-  process.exit(0);
-});
+// Graceful shutdown handling - apenas para ambientes não-Lambda
+const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
-process.on('SIGTERM', async () => {
-  logger.info('Received SIGTERM, disconnecting from database...');
-  await disconnectDatabase();
-  process.exit(0);
-});
+if (!isLambda) {
+  process.on('SIGINT', async () => {
+    logger.info('Received SIGINT, disconnecting from database...');
+    await disconnectDatabase();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    logger.info('Received SIGTERM, disconnecting from database...');
+    await disconnectDatabase();
+    process.exit(0);
+  });
+}

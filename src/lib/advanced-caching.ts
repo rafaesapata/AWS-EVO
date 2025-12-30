@@ -333,7 +333,7 @@ export function useEnhancedCache() {
  * Persistent cache using IndexedDB
  */
 export class PersistentCache {
-  private dbName = 'evo-uds-cache';
+  private dbName = 'evo-cache';
   private version = 1;
   private db?: IDBDatabase;
 

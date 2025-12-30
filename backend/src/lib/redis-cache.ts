@@ -1,11 +1,15 @@
 /**
  * Redis Cache Implementation
  * High-performance distributed caching system
+ * 
+ * NOTA: Usa cache em memória (não depende de ioredis)
+ * Para usar Redis real, adicionar ioredis ao Lambda layer
  */
 
-import Redis, { RedisOptions } from 'ioredis';
-import { logger } from './logging';
-import { metricsCollector } from './metrics-collector';
+import { logger } from './logging.js';
+
+// In-memory cache fallback
+const memoryCache = new Map<string, { value: any; expiry: number }>();
 
 export interface CacheOptions {
   ttl?: number; // Time to live in seconds
@@ -25,9 +29,10 @@ export interface CacheStats {
 
 /**
  * Redis Cache Manager
+ * Usa cache em memória por padrão (funciona em Lambda sem dependências extras)
  */
 export class RedisCacheManager {
-  private redis: Redis;
+  private redis: any = null;
   private stats: CacheStats = {
     hits: 0,
     misses: 0,
@@ -38,55 +43,11 @@ export class RedisCacheManager {
   };
   private defaultTTL = 3600; // 1 hour
   private keyPrefix = 'evo-uds:';
+  private useMemoryFallback = true; // Sempre usar memória por padrão
 
-  constructor(options?: RedisOptions) {
-    const redisConfig: RedisOptions = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
-      db: parseInt(process.env.REDIS_DB || '0'),
-      
-      // Connection settings
-      connectTimeout: 10000,
-      lazyConnect: true,
-      maxRetriesPerRequest: 3,
-      
-      // Performance settings
-      enableReadyCheck: false,
-      
-      // Cluster support
-      enableOfflineQueue: false,
-      
-      ...options
-    };
-
-    this.redis = new Redis(redisConfig);
-
-    // Event handlers
-    this.redis.on('connect', () => {
-      logger.info('Redis connected');
-    });
-
-    this.redis.on('ready', () => {
-      logger.info('Redis ready');
-    });
-
-    this.redis.on('error', (error) => {
-      logger.error('Redis error', error);
-      this.stats.errors++;
-      metricsCollector.recordCounter('redis_error', 1);
-    });
-
-    this.redis.on('close', () => {
-      logger.warn('Redis connection closed');
-    });
-
-    this.redis.on('reconnecting', () => {
-      logger.info('Redis reconnecting');
-    });
-
-    // Start stats reporting
-    this.startStatsReporting();
+  constructor(options?: any) {
+    // Sempre usar cache em memória (mais simples e funciona em Lambda)
+    logger.info('Using in-memory cache');
   }
 
   /**
@@ -95,35 +56,17 @@ export class RedisCacheManager {
   async get<T = any>(key: string, options: CacheOptions = {}): Promise<T | null> {
     try {
       const fullKey = this.buildKey(key, options.prefix);
-      const startTime = Date.now();
       
-      const value = await this.redis.get(fullKey);
-      
-      const duration = Date.now() - startTime;
-      metricsCollector.recordTimer('redis_get_duration', duration);
-
-      if (value === null) {
+      const cached = memoryCache.get(fullKey);
+      if (!cached || cached.expiry < Date.now()) {
+        if (cached) memoryCache.delete(fullKey);
         this.stats.misses++;
-        metricsCollector.recordCounter('redis_cache_miss', 1, { key: fullKey });
         return null;
       }
-
       this.stats.hits++;
-      metricsCollector.recordCounter('redis_cache_hit', 1, { key: fullKey });
-
-      // Deserialize if needed
-      if (options.serialize !== false) {
-        try {
-          return JSON.parse(value);
-        } catch (error) {
-          logger.warn('Failed to parse cached value', { key: fullKey, error });
-          return value as T;
-        }
-      }
-
-      return value as T;
+      return cached.value as T;
     } catch (error) {
-      logger.error('Redis get error', error as Error, { key });
+      logger.error('Cache get error', error as Error, { key });
       this.stats.errors++;
       return null;
     }
@@ -140,40 +83,15 @@ export class RedisCacheManager {
     try {
       const fullKey = this.buildKey(key, options.prefix);
       const ttl = options.ttl || this.defaultTTL;
-      const startTime = Date.now();
 
-      let serializedValue: string;
-      
-      // Serialize if needed
-      if (options.serialize !== false && typeof value !== 'string') {
-        serializedValue = JSON.stringify(value);
-      } else {
-        serializedValue = String(value);
-      }
-
-      // Compress if needed (implement compression logic here)
-      if (options.compress && serializedValue.length > 1024) {
-        // Could implement gzip compression here
-        // serializedValue = await compress(serializedValue);
-      }
-
-      const result = await this.redis.setex(fullKey, ttl, serializedValue);
-      
-      const duration = Date.now() - startTime;
-      metricsCollector.recordTimer('redis_set_duration', duration);
-
-      if (result === 'OK') {
-        this.stats.sets++;
-        metricsCollector.recordCounter('redis_cache_set', 1, { 
-          key: fullKey,
-          size: serializedValue.length.toString() 
-        });
-        return true;
-      }
-
-      return false;
+      memoryCache.set(fullKey, {
+        value: value,
+        expiry: Date.now() + (ttl * 1000)
+      });
+      this.stats.sets++;
+      return true;
     } catch (error) {
-      logger.error('Redis set error', error as Error, { key });
+      logger.error('Cache set error', error as Error, { key });
       this.stats.errors++;
       return false;
     }
@@ -185,17 +103,13 @@ export class RedisCacheManager {
   async delete(key: string, options: CacheOptions = {}): Promise<boolean> {
     try {
       const fullKey = this.buildKey(key, options.prefix);
-      const result = await this.redis.del(fullKey);
       
-      if (result > 0) {
-        this.stats.deletes++;
-        metricsCollector.recordCounter('redis_cache_delete', 1, { key: fullKey });
-        return true;
-      }
-
-      return false;
+      const existed = memoryCache.has(fullKey);
+      memoryCache.delete(fullKey);
+      if (existed) this.stats.deletes++;
+      return existed;
     } catch (error) {
-      logger.error('Redis delete error', error as Error, { key });
+      logger.error('Cache delete error', error as Error, { key });
       this.stats.errors++;
       return false;
     }
@@ -207,10 +121,15 @@ export class RedisCacheManager {
   async exists(key: string, options: CacheOptions = {}): Promise<boolean> {
     try {
       const fullKey = this.buildKey(key, options.prefix);
-      const result = await this.redis.exists(fullKey);
-      return result === 1;
+      
+      const cached = memoryCache.get(fullKey);
+      if (!cached || cached.expiry < Date.now()) {
+        if (cached) memoryCache.delete(fullKey);
+        return false;
+      }
+      return true;
     } catch (error) {
-      logger.error('Redis exists error', error as Error, { key });
+      logger.error('Cache exists error', error as Error, { key });
       return false;
     }
   }
@@ -221,29 +140,19 @@ export class RedisCacheManager {
   async mget<T = any>(keys: string[], options: CacheOptions = {}): Promise<(T | null)[]> {
     try {
       const fullKeys = keys.map(key => this.buildKey(key, options.prefix));
-      const values = await this.redis.mget(...fullKeys);
       
-      return values.map((value, index) => {
-        if (value === null) {
+      return fullKeys.map(fullKey => {
+        const cached = memoryCache.get(fullKey);
+        if (!cached || cached.expiry < Date.now()) {
+          if (cached) memoryCache.delete(fullKey);
           this.stats.misses++;
           return null;
         }
-
         this.stats.hits++;
-        
-        if (options.serialize !== false) {
-          try {
-            return JSON.parse(value);
-          } catch (error) {
-            logger.warn('Failed to parse cached value', { key: fullKeys[index], error });
-            return value as T;
-          }
-        }
-
-        return value as T;
+        return cached.value as T;
       });
     } catch (error) {
-      logger.error('Redis mget error', error as Error, { keys });
+      logger.error('Cache mget error', error as Error, { keys });
       this.stats.errors++;
       return keys.map(() => null);
     }
@@ -258,31 +167,16 @@ export class RedisCacheManager {
   ): Promise<boolean> {
     try {
       const ttl = options.ttl || this.defaultTTL;
-      const pipeline = this.redis.pipeline();
-
+      
+      const expiry = Date.now() + (ttl * 1000);
       for (const [key, value] of keyValuePairs) {
         const fullKey = this.buildKey(key, options.prefix);
-        let serializedValue: string;
-        
-        if (options.serialize !== false && typeof value !== 'string') {
-          serializedValue = JSON.stringify(value);
-        } else {
-          serializedValue = String(value);
-        }
-
-        pipeline.setex(fullKey, ttl, serializedValue);
+        memoryCache.set(fullKey, { value, expiry });
       }
-
-      const results = await pipeline.exec();
-      const success = results?.every(([error, result]) => error === null && result === 'OK') ?? false;
-
-      if (success) {
-        this.stats.sets += keyValuePairs.length;
-      }
-
-      return success;
+      this.stats.sets += keyValuePairs.length;
+      return true;
     } catch (error) {
-      logger.error('Redis mset error', error as Error);
+      logger.error('Cache mset error', error as Error);
       this.stats.errors++;
       return false;
     }
@@ -294,17 +188,15 @@ export class RedisCacheManager {
   async increment(key: string, by: number = 1, options: CacheOptions = {}): Promise<number> {
     try {
       const fullKey = this.buildKey(key, options.prefix);
-      const result = await this.redis.incrby(fullKey, by);
       
-      // Set TTL if this is a new key
-      if (result === by) {
-        const ttl = options.ttl || this.defaultTTL;
-        await this.redis.expire(fullKey, ttl);
-      }
-
-      return result;
+      const cached = memoryCache.get(fullKey);
+      const currentValue = cached && cached.expiry > Date.now() ? (cached.value as number) : 0;
+      const newValue = currentValue + by;
+      const ttl = options.ttl || this.defaultTTL;
+      memoryCache.set(fullKey, { value: newValue, expiry: Date.now() + (ttl * 1000) });
+      return newValue;
     } catch (error) {
-      logger.error('Redis increment error', error as Error, { key });
+      logger.error('Cache increment error', error as Error, { key });
       this.stats.errors++;
       return 0;
     }
@@ -316,15 +208,21 @@ export class RedisCacheManager {
   async sadd(key: string, members: string[], options: CacheOptions = {}): Promise<number> {
     try {
       const fullKey = this.buildKey(key, options.prefix);
-      const result = await this.redis.sadd(fullKey, ...members);
       
-      if (options.ttl) {
-        await this.redis.expire(fullKey, options.ttl);
+      const cached = memoryCache.get(fullKey);
+      const currentSet = cached && cached.expiry > Date.now() ? new Set(cached.value as string[]) : new Set<string>();
+      let added = 0;
+      for (const member of members) {
+        if (!currentSet.has(member)) {
+          currentSet.add(member);
+          added++;
+        }
       }
-
-      return result;
+      const ttl = options.ttl || this.defaultTTL;
+      memoryCache.set(fullKey, { value: Array.from(currentSet), expiry: Date.now() + (ttl * 1000) });
+      return added;
     } catch (error) {
-      logger.error('Redis sadd error', error as Error, { key });
+      logger.error('Cache sadd error', error as Error, { key });
       this.stats.errors++;
       return 0;
     }
@@ -336,9 +234,15 @@ export class RedisCacheManager {
   async smembers(key: string, options: CacheOptions = {}): Promise<string[]> {
     try {
       const fullKey = this.buildKey(key, options.prefix);
-      return await this.redis.smembers(fullKey);
+      
+      const cached = memoryCache.get(fullKey);
+      if (!cached || cached.expiry < Date.now()) {
+        if (cached) memoryCache.delete(fullKey);
+        return [];
+      }
+      return cached.value as string[];
     } catch (error) {
-      logger.error('Redis smembers error', error as Error, { key });
+      logger.error('Cache smembers error', error as Error, { key });
       this.stats.errors++;
       return [];
     }
@@ -350,9 +254,21 @@ export class RedisCacheManager {
   async srem(key: string, members: string[], options: CacheOptions = {}): Promise<number> {
     try {
       const fullKey = this.buildKey(key, options.prefix);
-      return await this.redis.srem(fullKey, ...members);
+      
+      const cached = memoryCache.get(fullKey);
+      if (!cached || cached.expiry < Date.now()) {
+        if (cached) memoryCache.delete(fullKey);
+        return 0;
+      }
+      const currentSet = new Set(cached.value as string[]);
+      let removed = 0;
+      for (const member of members) {
+        if (currentSet.delete(member)) removed++;
+      }
+      memoryCache.set(fullKey, { value: Array.from(currentSet), expiry: cached.expiry });
+      return removed;
     } catch (error) {
-      logger.error('Redis srem error', error as Error, { key });
+      logger.error('Cache srem error', error as Error, { key });
       this.stats.errors++;
       return 0;
     }
@@ -364,9 +280,24 @@ export class RedisCacheManager {
   async keys(pattern: string, options: CacheOptions = {}): Promise<string[]> {
     try {
       const fullPattern = this.buildKey(pattern, options.prefix);
-      return await this.redis.keys(fullPattern);
+      
+      const now = Date.now();
+      const matchingKeys: string[] = [];
+      const regexPattern = fullPattern.replace(/\*/g, '.*');
+      const regex = new RegExp(`^${regexPattern}$`);
+      
+      for (const [key, cached] of memoryCache.entries()) {
+        if (cached.expiry < now) {
+          memoryCache.delete(key);
+          continue;
+        }
+        if (regex.test(key)) {
+          matchingKeys.push(key);
+        }
+      }
+      return matchingKeys;
     } catch (error) {
-      logger.error('Redis keys error', error as Error, { pattern });
+      logger.error('Cache keys error', error as Error, { pattern });
       this.stats.errors++;
       return [];
     }
@@ -380,11 +311,13 @@ export class RedisCacheManager {
       const keys = await this.keys(pattern, options);
       if (keys.length === 0) return 0;
 
-      const result = await this.redis.del(...keys);
-      this.stats.deletes += result;
-      return result;
+      for (const key of keys) {
+        memoryCache.delete(key);
+      }
+      this.stats.deletes += keys.length;
+      return keys.length;
     } catch (error) {
-      logger.error('Redis delete pattern error', error as Error, { pattern });
+      logger.error('Cache delete pattern error', error as Error, { pattern });
       this.stats.errors++;
       return 0;
     }
@@ -420,11 +353,11 @@ export class RedisCacheManager {
    */
   async flush(): Promise<boolean> {
     try {
-      await this.redis.flushdb();
-      logger.info('Redis cache flushed');
+      memoryCache.clear();
+      logger.info('Memory cache flushed');
       return true;
     } catch (error) {
-      logger.error('Redis flush error', error as Error);
+      logger.error('Cache flush error', error as Error);
       return false;
     }
   }
@@ -433,7 +366,7 @@ export class RedisCacheManager {
    * Close connection
    */
   async close(): Promise<void> {
-    await this.redis.quit();
+    // No-op for memory cache
   }
 
   /**
@@ -442,24 +375,6 @@ export class RedisCacheManager {
   private buildKey(key: string, prefix?: string): string {
     const fullPrefix = prefix ? `${this.keyPrefix}${prefix}:` : this.keyPrefix;
     return `${fullPrefix}${key}`;
-  }
-
-  /**
-   * Start periodic stats reporting
-   */
-  private startStatsReporting(): void {
-    setInterval(() => {
-      const stats = this.getStats();
-      
-      metricsCollector.recordPercent('redis_cache_hit_rate', stats.hitRate);
-      metricsCollector.recordCounter('redis_cache_hits_total', stats.hits);
-      metricsCollector.recordCounter('redis_cache_misses_total', stats.misses);
-      metricsCollector.recordCounter('redis_cache_sets_total', stats.sets);
-      metricsCollector.recordCounter('redis_cache_deletes_total', stats.deletes);
-      metricsCollector.recordCounter('redis_cache_errors_total', stats.errors);
-
-      logger.debug('Redis cache stats', stats);
-    }, 60000); // Every minute
   }
 }
 
@@ -582,10 +497,469 @@ export class CostCacheManager {
   }
 }
 
+/**
+ * Metrics Cache Manager
+ * Specialized cache for CloudWatch metrics with intelligent TTL and period-based caching
+ */
+export class MetricsCacheManager {
+  private cache: RedisCacheManager;
+  private prefix = 'metrics';
+
+  // TTL por período de métricas (em segundos)
+  private readonly PERIOD_TTL: Record<string, number> = {
+    '3h': 5 * 60,      // 5 minutos para dados de 3 horas
+    '24h': 15 * 60,    // 15 minutos para dados de 24 horas
+    '7d': 60 * 60,     // 1 hora para dados de 7 dias
+    'default': 5 * 60, // 5 minutos padrão
+  };
+
+  constructor(cache: RedisCacheManager) {
+    this.cache = cache;
+  }
+
+  /**
+   * Gera chave de cache para métricas
+   */
+  private buildMetricsKey(accountId: string, resourceType?: string, period?: string): string {
+    const parts = ['account', accountId];
+    if (resourceType) parts.push('type', resourceType);
+    if (period) parts.push('period', period);
+    return parts.join(':');
+  }
+
+  /**
+   * Cache de métricas por conta e período
+   */
+  async cacheMetrics(
+    accountId: string,
+    metrics: any[],
+    period: string = 'default'
+  ): Promise<boolean> {
+    const key = this.buildMetricsKey(accountId, undefined, period);
+    const ttl = this.PERIOD_TTL[period] || this.PERIOD_TTL['default'];
+    
+    logger.info(`[MetricsCache] Caching ${metrics.length} metrics for account ${accountId}, period ${period}, TTL ${ttl}s`);
+    
+    return this.cache.set(key, {
+      metrics,
+      cachedAt: Date.now(),
+      period,
+      count: metrics.length,
+    }, { 
+      prefix: this.prefix, 
+      ttl 
+    });
+  }
+
+  /**
+   * Buscar métricas do cache
+   */
+  async getMetrics(
+    accountId: string,
+    period: string = 'default'
+  ): Promise<{ metrics: any[]; cachedAt: number; fromCache: boolean } | null> {
+    const key = this.buildMetricsKey(accountId, undefined, period);
+    const cached = await this.cache.get<{ metrics: any[]; cachedAt: number; period: string; count: number }>(key, { prefix: this.prefix });
+    
+    if (cached) {
+      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
+      logger.info(`[MetricsCache] Cache HIT for account ${accountId}, period ${period}, age ${cacheAge}s, ${cached.count} metrics`);
+      return {
+        metrics: cached.metrics,
+        cachedAt: cached.cachedAt,
+        fromCache: true,
+      };
+    }
+    
+    logger.info(`[MetricsCache] Cache MISS for account ${accountId}, period ${period}`);
+    return null;
+  }
+
+  /**
+   * Cache de recursos descobertos
+   */
+  async cacheResources(
+    accountId: string,
+    resources: any[],
+    ttl: number = 300 // 5 minutos
+  ): Promise<boolean> {
+    const key = `resources:${accountId}`;
+    
+    logger.info(`[MetricsCache] Caching ${resources.length} resources for account ${accountId}`);
+    
+    return this.cache.set(key, {
+      resources,
+      cachedAt: Date.now(),
+      count: resources.length,
+    }, { 
+      prefix: this.prefix, 
+      ttl 
+    });
+  }
+
+  /**
+   * Buscar recursos do cache
+   */
+  async getResources(accountId: string): Promise<{ resources: any[]; cachedAt: number; fromCache: boolean } | null> {
+    const key = `resources:${accountId}`;
+    const cached = await this.cache.get<{ resources: any[]; cachedAt: number; count: number }>(key, { prefix: this.prefix });
+    
+    if (cached) {
+      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
+      logger.info(`[MetricsCache] Resources cache HIT for account ${accountId}, age ${cacheAge}s, ${cached.count} resources`);
+      return {
+        resources: cached.resources,
+        cachedAt: cached.cachedAt,
+        fromCache: true,
+      };
+    }
+    
+    logger.info(`[MetricsCache] Resources cache MISS for account ${accountId}`);
+    return null;
+  }
+
+  /**
+   * Cache de resultado completo de coleta (recursos + métricas)
+   */
+  async cacheCollectionResult(
+    accountId: string,
+    result: {
+      resources: any[];
+      metrics: any[];
+      regionsScanned: string[];
+      permissionErrors?: any[];
+    },
+    ttl: number = 300
+  ): Promise<boolean> {
+    const key = `collection:${accountId}`;
+    
+    return this.cache.set(key, {
+      ...result,
+      cachedAt: Date.now(),
+      resourceCount: result.resources.length,
+      metricCount: result.metrics.length,
+    }, { 
+      prefix: this.prefix, 
+      ttl 
+    });
+  }
+
+  /**
+   * Buscar resultado de coleta do cache
+   */
+  async getCollectionResult(accountId: string): Promise<{
+    resources: any[];
+    metrics: any[];
+    regionsScanned: string[];
+    permissionErrors?: any[];
+    cachedAt: number;
+    fromCache: boolean;
+  } | null> {
+    const key = `collection:${accountId}`;
+    const cached = await this.cache.get<any>(key, { prefix: this.prefix });
+    
+    if (cached) {
+      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
+      logger.info(`[MetricsCache] Collection cache HIT for account ${accountId}, age ${cacheAge}s`);
+      return {
+        ...cached,
+        fromCache: true,
+      };
+    }
+    
+    return null;
+  }
+
+  /**
+   * Invalidar cache de uma conta
+   */
+  async invalidateAccount(accountId: string): Promise<number> {
+    logger.info(`[MetricsCache] Invalidating all cache for account ${accountId}`);
+    return this.cache.deletePattern(`*${accountId}*`, { prefix: this.prefix });
+  }
+
+  /**
+   * Invalidar todo o cache de métricas
+   */
+  async invalidateAll(): Promise<number> {
+    logger.info(`[MetricsCache] Invalidating all metrics cache`);
+    return this.cache.deletePattern('*', { prefix: this.prefix });
+  }
+
+  /**
+   * Verificar se cache existe e é válido
+   */
+  async isCacheValid(accountId: string, maxAgeSeconds: number = 300): Promise<boolean> {
+    const key = `collection:${accountId}`;
+    const cached = await this.cache.get<{ cachedAt: number }>(key, { prefix: this.prefix });
+    
+    if (!cached) return false;
+    
+    const cacheAge = (Date.now() - cached.cachedAt) / 1000;
+    return cacheAge < maxAgeSeconds;
+  }
+
+  /**
+   * Obter estatísticas do cache de métricas
+   */
+  async getCacheInfo(accountId: string): Promise<{
+    hasCache: boolean;
+    cacheAge?: number;
+    resourceCount?: number;
+    metricCount?: number;
+  }> {
+    const key = `collection:${accountId}`;
+    const cached = await this.cache.get<any>(key, { prefix: this.prefix });
+    
+    if (!cached) {
+      return { hasCache: false };
+    }
+    
+    return {
+      hasCache: true,
+      cacheAge: Math.round((Date.now() - cached.cachedAt) / 1000),
+      resourceCount: cached.resourceCount,
+      metricCount: cached.metricCount,
+    };
+  }
+}
+
+/**
+ * Edge Services Cache Manager
+ * Specialized cache for CloudFront, WAF, and Load Balancer edge services
+ */
+export class EdgeCacheManager {
+  private cache: RedisCacheManager;
+  private prefix = 'edge';
+
+  // TTL por período (em segundos)
+  private readonly PERIOD_TTL: Record<string, number> = {
+    '1h': 5 * 60,      // 5 minutos para dados de 1 hora
+    '24h': 15 * 60,    // 15 minutos para dados de 24 horas
+    '7d': 60 * 60,     // 1 hora para dados de 7 dias
+    'default': 5 * 60, // 5 minutos padrão
+  };
+
+  constructor(cache: RedisCacheManager) {
+    this.cache = cache;
+  }
+
+  /**
+   * Cache de serviços de borda descobertos
+   */
+  async cacheEdgeServices(
+    accountId: string,
+    services: any[],
+    ttl: number = 300
+  ): Promise<boolean> {
+    const key = `services:${accountId}`;
+    
+    logger.info(`[EdgeCache] Caching ${services.length} edge services for account ${accountId}`);
+    
+    return this.cache.set(key, {
+      services,
+      cachedAt: Date.now(),
+      count: services.length,
+    }, { 
+      prefix: this.prefix, 
+      ttl 
+    });
+  }
+
+  /**
+   * Buscar serviços de borda do cache
+   */
+  async getEdgeServices(accountId: string): Promise<{ services: any[]; cachedAt: number; fromCache: boolean } | null> {
+    const key = `services:${accountId}`;
+    const cached = await this.cache.get<{ services: any[]; cachedAt: number; count: number }>(key, { prefix: this.prefix });
+    
+    if (cached) {
+      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
+      logger.info(`[EdgeCache] Services cache HIT for account ${accountId}, age ${cacheAge}s, ${cached.count} services`);
+      return {
+        services: cached.services,
+        cachedAt: cached.cachedAt,
+        fromCache: true,
+      };
+    }
+    
+    logger.info(`[EdgeCache] Services cache MISS for account ${accountId}`);
+    return null;
+  }
+
+  /**
+   * Cache de métricas de borda
+   */
+  async cacheEdgeMetrics(
+    accountId: string,
+    metrics: any[],
+    period: string = 'default'
+  ): Promise<boolean> {
+    const key = `metrics:${accountId}:${period}`;
+    const ttl = this.PERIOD_TTL[period] || this.PERIOD_TTL['default'];
+    
+    logger.info(`[EdgeCache] Caching ${metrics.length} edge metrics for account ${accountId}, period ${period}, TTL ${ttl}s`);
+    
+    return this.cache.set(key, {
+      metrics,
+      cachedAt: Date.now(),
+      period,
+      count: metrics.length,
+    }, { 
+      prefix: this.prefix, 
+      ttl 
+    });
+  }
+
+  /**
+   * Buscar métricas de borda do cache
+   */
+  async getEdgeMetrics(
+    accountId: string,
+    period: string = 'default'
+  ): Promise<{ metrics: any[]; cachedAt: number; fromCache: boolean } | null> {
+    const key = `metrics:${accountId}:${period}`;
+    const cached = await this.cache.get<{ metrics: any[]; cachedAt: number; period: string; count: number }>(key, { prefix: this.prefix });
+    
+    if (cached) {
+      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
+      logger.info(`[EdgeCache] Metrics cache HIT for account ${accountId}, period ${period}, age ${cacheAge}s, ${cached.count} metrics`);
+      return {
+        metrics: cached.metrics,
+        cachedAt: cached.cachedAt,
+        fromCache: true,
+      };
+    }
+    
+    logger.info(`[EdgeCache] Metrics cache MISS for account ${accountId}, period ${period}`);
+    return null;
+  }
+
+  /**
+   * Cache de resultado completo de descoberta (serviços + métricas)
+   */
+  async cacheDiscoveryResult(
+    accountId: string,
+    result: {
+      services: any[];
+      metrics: any[];
+      regionsScanned: string[];
+      permissionErrors?: any[];
+      breakdown?: {
+        cloudfront: number;
+        waf: number;
+        loadBalancer: number;
+      };
+    },
+    ttl: number = 300
+  ): Promise<boolean> {
+    const key = `discovery:${accountId}`;
+    
+    logger.info(`[EdgeCache] Caching discovery result for account ${accountId}, ${result.services.length} services, ${result.metrics.length} metrics`);
+    
+    return this.cache.set(key, {
+      ...result,
+      cachedAt: Date.now(),
+      serviceCount: result.services.length,
+      metricCount: result.metrics.length,
+    }, { 
+      prefix: this.prefix, 
+      ttl 
+    });
+  }
+
+  /**
+   * Buscar resultado de descoberta do cache
+   */
+  async getDiscoveryResult(accountId: string): Promise<{
+    services: any[];
+    metrics: any[];
+    regionsScanned: string[];
+    permissionErrors?: any[];
+    breakdown?: {
+      cloudfront: number;
+      waf: number;
+      loadBalancer: number;
+    };
+    cachedAt: number;
+    fromCache: boolean;
+  } | null> {
+    const key = `discovery:${accountId}`;
+    const cached = await this.cache.get<any>(key, { prefix: this.prefix });
+    
+    if (cached) {
+      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
+      logger.info(`[EdgeCache] Discovery cache HIT for account ${accountId}, age ${cacheAge}s`);
+      return {
+        ...cached,
+        fromCache: true,
+      };
+    }
+    
+    logger.info(`[EdgeCache] Discovery cache MISS for account ${accountId}`);
+    return null;
+  }
+
+  /**
+   * Obter informações do cache
+   */
+  async getCacheInfo(accountId: string): Promise<{
+    hasCache: boolean;
+    cacheAge?: number;
+    serviceCount?: number;
+    metricCount?: number;
+  }> {
+    const key = `discovery:${accountId}`;
+    const cached = await this.cache.get<any>(key, { prefix: this.prefix });
+    
+    if (!cached) {
+      return { hasCache: false };
+    }
+    
+    return {
+      hasCache: true,
+      cacheAge: Math.round((Date.now() - cached.cachedAt) / 1000),
+      serviceCount: cached.serviceCount,
+      metricCount: cached.metricCount,
+    };
+  }
+
+  /**
+   * Invalidar cache de uma conta
+   */
+  async invalidateAccount(accountId: string): Promise<number> {
+    logger.info(`[EdgeCache] Invalidating all cache for account ${accountId}`);
+    return this.cache.deletePattern(`*${accountId}*`, { prefix: this.prefix });
+  }
+
+  /**
+   * Invalidar todo o cache de edge
+   */
+  async invalidateAll(): Promise<number> {
+    logger.info(`[EdgeCache] Invalidating all edge cache`);
+    return this.cache.deletePattern('*', { prefix: this.prefix });
+  }
+
+  /**
+   * Verificar se cache existe e é válido
+   */
+  async isCacheValid(accountId: string, maxAgeSeconds: number = 300): Promise<boolean> {
+    const key = `discovery:${accountId}`;
+    const cached = await this.cache.get<{ cachedAt: number }>(key, { prefix: this.prefix });
+    
+    if (!cached) return false;
+    
+    const cacheAge = (Date.now() - cached.cachedAt) / 1000;
+    return cacheAge < maxAgeSeconds;
+  }
+}
+
 // Global cache manager instance
 export const cacheManager = new RedisCacheManager();
 export const securityCache = new SecurityCacheManager(cacheManager);
 export const costCache = new CostCacheManager(cacheManager);
+export const metricsCache = new MetricsCacheManager(cacheManager);
+export const edgeCache = new EdgeCacheManager(cacheManager);
 
 // Health check for Redis
 export async function checkRedisHealth(): Promise<{

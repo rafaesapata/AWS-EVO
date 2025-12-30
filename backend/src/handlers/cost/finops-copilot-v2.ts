@@ -74,9 +74,13 @@ export async function handler(
     }
 
     // Assume role na conta do cliente (usando campos corretos do schema)
+    // ExternalId é obrigatório para prevenir confused deputy attacks
+    // Usar organization_id como ExternalId padrão
+    const externalId = awsAccount.organization_id;
     const assumeRoleResponse = await stsClient.send(new AssumeRoleCommand({
       RoleArn: `arn:aws:iam::${awsAccount.account_id}:role/EvoUdsRole`,
       RoleSessionName: 'FinOpsCopilotV2Session',
+      ExternalId: externalId,
       DurationSeconds: 3600
     }));
 

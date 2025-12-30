@@ -42,7 +42,7 @@ export const Footer = ({ className = "", variant = "default" }: FooterProps) => 
       <footer className={`glass border-t border-primary/20 ${className}`}>
         <div className="px-6 py-3">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>EVO UDS Platform</span>
+            <span>EVO Platform</span>
             <span>{getVersionString()}</span>
           </div>
         </div>
@@ -59,7 +59,7 @@ export const Footer = ({ className = "", variant = "default" }: FooterProps) => 
               <div className="h-6 w-6 rounded bg-gradient-primary flex items-center justify-center">
                 <Zap className="h-3 w-3 text-white" />
               </div>
-              <span className="text-sm font-medium">EVO UDS Platform</span>
+              <span className="text-sm font-medium">EVO Platform</span>
             </div>
             
             <Badge variant="secondary" className="glass">

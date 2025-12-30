@@ -205,8 +205,8 @@ export interface CORSConfig {
 
 export const SECURE_CORS_CONFIG: CORSConfig = {
   allowedOrigins: [
-    'https://app.evo-uds.com',
-    'https://staging.evo-uds.com',
+    'https://app.evo.ai',
+    'https://staging.evo.ai',
     ...(process.env.NODE_ENV === 'development' ? ['http://localhost:8080', 'http://localhost:3000'] : [])
   ],
   allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

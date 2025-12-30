@@ -25,7 +25,7 @@ export async function handler(
   const user = getUserFromEvent(event);
   
   logger.info('Create profile with organization started', { 
-    userId: user.id,
+    userId: user.sub,
     requestId: context.awsRequestId 
   });
 
@@ -102,7 +102,7 @@ export async function handler(
     });
   } catch (err) {
     logger.error('Create profile with organization error', err as Error, { 
-      userId: user.id,
+      userId: user.sub,
       requestId: context.awsRequestId 
     });
     return error('Erro ao criar profile com organização');

@@ -324,7 +324,7 @@ export class Logger {
 
 // Global logger instance
 export const logger = new Logger({
-  component: 'EVO-UDS',
+  component: 'EVO',
   level: process.env.NODE_ENV === 'development' ? LogLevel.DEBUG : LogLevel.INFO,
 });
 

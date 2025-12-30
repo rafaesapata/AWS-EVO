@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EventBridge Scheduler for Daily License Sync'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+      - development
+  
+  LambdaFunctionArn:
+    Type: String
+    Description: ARN of the scheduled-license-sync Lambda function
+
+Resources:
+  # EventBridge Rule for Daily License Sync
+  DailyLicenseSyncRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'evo-uds-${Environment}-daily-license-sync'
+      Description: 'Triggers daily license sync at 2:00 AM UTC'
+      ScheduleExpression: 'cron(0 2 * * ? *)'  # Every day at 2:00 AM UTC
+      State: ENABLED
+      Targets:
+        - Id: LicenseSyncLambda
+          Arn: !Ref LambdaFunctionArn
+
+  # Permission for EventBridge to invoke Lambda
+  LicenseSyncLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaFunctionArn
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailyLicenseSyncRule.Arn
+
+Outputs:
+  RuleArn:
+    Description: ARN of the EventBridge Rule
+    Value: !GetAtt DailyLicenseSyncRule.Arn
+  
+  RuleName:
+    Description: Name of the EventBridge Rule
+    Value: !Ref DailyLicenseSyncRule

@@ -81,16 +81,27 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
     }
   });
 
-  const chartData = scanHistory?.slice().reverse().map((scan) => ({
-    date: format(new Date(scan.created_at), 'dd/MM', { locale: ptBR }),
-    fullDate: format(new Date(scan.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }),
-    total: scan.findings_count || 0,
-    critical: scan.critical_count || 0,
-    high: scan.high_count || 0,
-    medium: scan.medium_count || 0,
-    low: scan.low_count || 0,
-    score: 0
-  })) || [];
+  const chartData = scanHistory?.slice().reverse().map((scan) => {
+    // Calculate security score based on findings
+    // Formula: 100 - (critical*10 + high*5 + medium*2 + low*0.5), min 0
+    const critical = scan.critical_count || 0;
+    const high = scan.high_count || 0;
+    const medium = scan.medium_count || 0;
+    const low = scan.low_count || 0;
+    const penalty = (critical * 10) + (high * 5) + (medium * 2) + (low * 0.5);
+    const score = Math.max(0, Math.round(100 - penalty));
+    
+    return {
+      date: format(new Date(scan.created_at), 'dd/MM', { locale: ptBR }),
+      fullDate: format(new Date(scan.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }),
+      total: scan.findings_count || 0,
+      critical,
+      high,
+      medium,
+      low,
+      score
+    };
+  }) || [];
 
   const latestScan = scanHistory?.[0] as SecurityScan | undefined;
   const previousScan = scanHistory?.[1] as SecurityScan | undefined;

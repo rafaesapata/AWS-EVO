@@ -4,7 +4,7 @@ import { Badge } from './ui/badge';
 export default function VersionInfo() {
   return (
     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-      <span>EVO UDS</span>
+      <span>EVO</span>
       <Badge variant="outline" className="text-xs">
         {getVersionString()}
       </Badge>

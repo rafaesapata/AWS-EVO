@@ -81,6 +81,27 @@ const Index = () => {
   const { selectedAccountId } = useAwsAccount();
   const { data: organizationId } = useOrganization();
 
+  // Fetch user role from Cognito token (custom:roles attribute)
+  const { data: userRole } = useQuery({
+    queryKey: ['user-role'],
+    queryFn: async () => {
+      const currentUser = await cognitoAuth.getCurrentUser();
+      if (!currentUser) return ['org_user'];
+
+      // Get roles from Cognito token attributes
+      const rolesStr = currentUser.attributes?.['custom:roles'];
+      if (!rolesStr) return ['org_user'];
+
+      try {
+        const roles = JSON.parse(rolesStr);
+        return Array.isArray(roles) ? roles : [roles];
+      } catch {
+        return ['org_user'];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Update activeTab when URL changes
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -221,7 +242,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           
           <div className="flex-1 flex flex-col overflow-hidden">
             <header className="glass sticky top-4 z-40 mx-4 rounded-2xl shadow-glass animate-slide-up">
@@ -291,7 +312,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <MonthlyInvoicesPage />
@@ -307,7 +328,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <CopilotAI />
@@ -323,7 +344,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <SecurityPosture />
@@ -339,7 +360,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <IntelligentAlerts />
@@ -355,7 +376,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <CostOptimization />
@@ -371,7 +392,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <RISavingsPlans />
@@ -387,7 +408,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <UserManagement />
@@ -403,7 +424,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <SecurityScans />
@@ -419,7 +440,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <CloudTrailAudit />
@@ -435,7 +456,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <Compliance />
@@ -451,7 +472,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <EndpointMonitoring />
@@ -467,7 +488,7 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
               <EdgeMonitoring />
@@ -483,11 +504,11 @@ const Index = () => {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-gradient-subtle">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole="admin" />
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col">
             {/* Header - Padrão Visual Consistente */}
             <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
-              <div className="container mx-auto px-6 py-4">
+              <div className="w-full px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <SidebarTrigger className="-ml-1" />
@@ -522,7 +543,7 @@ const Index = () => {
                 </div>
               </div>
             </header>
-            <main className="flex-1 container mx-auto px-6 py-6 overflow-auto">
+            <main className="flex-1 w-full px-6 py-6 overflow-auto">
               <SecurityAnalysisContent />
             </main>
             <Footer variant="minimal" />
@@ -539,7 +560,7 @@ const Index = () => {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full animated-gradient">
-        <AppSidebar activeTab={activeTab === "overview" ? "executive" : activeTab} onTabChange={setActiveTab} userRole="admin" />
+        <AppSidebar activeTab={activeTab === "overview" ? "executive" : activeTab} onTabChange={setActiveTab} userRole={userRole} />
         
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Header */}
@@ -554,7 +575,7 @@ const Index = () => {
                     </div>
                     <div>
                       <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                        EVO UDS Platform
+                        EVO Platform
                       </h1>
                       <p className="text-muted-foreground text-sm">
                         AWS Cloud Intelligence Platform v3.2-test

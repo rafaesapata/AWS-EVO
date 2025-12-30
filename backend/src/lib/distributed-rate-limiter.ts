@@ -271,8 +271,9 @@ function inMemoryRateLimit(
   };
 }
 
-// Cleanup in-memory store periodically
-setInterval(() => {
+// Cleanup in-memory store - chamado manualmente ou no início de cada request
+// NOTA: setInterval removido - não funciona corretamente em Lambda
+export function cleanupInMemoryStore(): void {
   const now = Date.now();
   for (const [key, entry] of inMemoryStore.entries()) {
     const isExpired = now - entry.windowStart > 600000; // 10 minutes
@@ -281,7 +282,7 @@ setInterval(() => {
       inMemoryStore.delete(key);
     }
   }
-}, 60000);
+}
 
 // ============================================================================
 // PUBLIC API

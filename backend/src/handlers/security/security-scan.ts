@@ -44,7 +44,7 @@ async function securityScanHandler(
   const prisma = getPrismaClient();
   const startTime = Date.now();
   
-  logger.info('Security scan started', { organizationId, userId: user.id });
+  logger.info('Security scan started', { organizationId, userId: user.sub });
 
   try {
     const bodyValidation = parseAndValidateBody(securityScanSchema, event.body || null);
@@ -66,7 +66,37 @@ async function securityScanHandler(
     }
     
     const regions = credential.regions?.length ? credential.regions : ['us-east-1'];
-    const awsAccountId = credential.account_id || '000000000000';
+    
+    // Obter AWS Account ID de forma segura
+    let awsAccountId: string = credential.account_id || '';
+    if (!awsAccountId || awsAccountId === '000000000000') {
+      // Tentar obter via STS se não tiver account_id válido
+      try {
+        const { STSClient, GetCallerIdentityCommand } = await import('@aws-sdk/client-sts');
+        const resolvedCredsForSts = await resolveAwsCredentials(credential, 'us-east-1');
+        const stsClient = new STSClient({ 
+          region: 'us-east-1',
+          credentials: {
+            accessKeyId: resolvedCredsForSts.accessKeyId,
+            secretAccessKey: resolvedCredsForSts.secretAccessKey,
+            sessionToken: resolvedCredsForSts.sessionToken,
+          }
+        });
+        const identity = await stsClient.send(new GetCallerIdentityCommand({}));
+        if (identity.Account) {
+          awsAccountId = identity.Account;
+          // Atualizar no banco para próximas consultas
+          await prisma.awsCredential.update({
+            where: { id: credential.id },
+            data: { account_id: identity.Account }
+          });
+          logger.info('AWS Account ID obtained via STS', { accountId: awsAccountId });
+        }
+      } catch (stsError) {
+        logger.warn('Could not obtain AWS Account ID via STS', { error: stsError });
+        awsAccountId = 'unknown';
+      }
+    }
     
     // Create scan record
     const scan = await prisma.securityScan.create({
@@ -105,10 +135,9 @@ async function securityScanHandler(
     logger.info('Running Security Engine', { regions, scanLevel, scanId: scan.id });
     const scanResult = await runSecurityScan(scanContext);
     
-    // Save findings to database
+    // Save findings to database using batch insert for efficiency
     // Strategy: Delete old pending findings from this scan source and create new ones
     // This ensures we don't accumulate duplicate findings across scans
-    const savedFindings: any[] = [];
     
     // Delete old pending findings from security-engine for this account
     const deletedCount = await prisma.finding.deleteMany({
@@ -121,40 +150,55 @@ async function securityScanHandler(
     });
     logger.info('Deleted old pending findings', { deletedCount: deletedCount.count });
     
-    for (const finding of scanResult.findings) {
-      try {
-        const savedFinding = await prisma.finding.create({
-          data: {
-            organization_id: organizationId,
-            aws_account_id: credential.id,
-            severity: finding.severity,
-            description: `${finding.title}\n\n${finding.description}\n\n${finding.analysis}`,
-            details: {
-              title: finding.title,
-              analysis: finding.analysis,
-              region: finding.region,
-              risk_score: finding.risk_score,
-              attack_vectors: finding.attack_vectors,
-              business_impact: finding.business_impact,
-            },
-            resource_id: finding.resource_id,
-            resource_arn: finding.resource_arn,
-            service: finding.service,
-            category: finding.category,
-            scan_type: finding.scan_type,
-            compliance: finding.compliance?.map(c => `${c.framework} ${c.control_id}: ${c.control_title}`) || [],
-            remediation: finding.remediation ? JSON.stringify(finding.remediation) : undefined,
-            evidence: finding.evidence,
-            risk_vector: finding.risk_vector,
-            source: 'security-engine',
-            status: 'pending',
-          },
-        });
-        savedFindings.push(savedFinding);
-      } catch (saveError) {
-        logger.warn('Failed to save finding', { title: finding.title, error: (saveError as Error).message });
-      }
+    // Prepare findings data for batch insert
+    const findingsData = scanResult.findings.map(finding => ({
+      organization_id: organizationId,
+      aws_account_id: credential.id,
+      severity: finding.severity,
+      description: `${finding.title}\n\n${finding.description}\n\n${finding.analysis}`,
+      details: {
+        title: finding.title,
+        analysis: finding.analysis,
+        region: finding.region,
+        risk_score: finding.risk_score,
+        attack_vectors: finding.attack_vectors,
+        business_impact: finding.business_impact,
+      },
+      resource_id: finding.resource_id,
+      resource_arn: finding.resource_arn,
+      service: finding.service,
+      category: finding.category,
+      scan_type: finding.scan_type,
+      compliance: finding.compliance?.map(c => `${c.framework} ${c.control_id}: ${c.control_title}`) || [],
+      remediation: finding.remediation ? JSON.stringify(finding.remediation) : undefined,
+      evidence: finding.evidence,
+      risk_vector: finding.risk_vector,
+      source: 'security-engine',
+      status: 'pending',
+    }));
+    
+    // Batch insert - much more efficient than individual creates
+    let savedFindingsCount = 0;
+    if (findingsData.length > 0) {
+      const batchResult = await prisma.finding.createMany({
+        data: findingsData,
+        skipDuplicates: true,
+      });
+      savedFindingsCount = batchResult.count;
+      logger.info('Batch inserted findings', { count: savedFindingsCount });
     }
+    
+    // Fetch the saved findings for the response
+    const savedFindings = await prisma.finding.findMany({
+      where: {
+        organization_id: organizationId,
+        aws_account_id: credential.id,
+        source: 'security-engine',
+        status: 'pending',
+      },
+      orderBy: { created_at: 'desc' },
+      take: findingsData.length,
+    });
     
     // Update scan status
     const duration = Date.now() - startTime;
@@ -164,7 +208,7 @@ async function securityScanHandler(
       data: {
         status: 'completed',
         completed_at: new Date(),
-        findings_count: savedFindings.length,
+        findings_count: savedFindingsCount,
         critical_count: scanResult.summary.critical,
         high_count: scanResult.summary.high,
         medium_count: scanResult.summary.medium,

@@ -188,6 +188,13 @@ export function useMultipleLoadingStates<T extends Record<string, any>>(
   initialStates: T,
   options: LoadingOptions = {}
 ) {
+  const {
+    retryCount = 0,
+    retryDelay = 1000,
+    onSuccess,
+    onError,
+  } = options;
+
   const [states, setStates] = useState<Record<keyof T, LoadingState>>(() => {
     const initial: Record<keyof T, LoadingState> = {} as any;
     for (const key in initialStates) {
@@ -202,35 +209,46 @@ export function useMultipleLoadingStates<T extends Record<string, any>>(
 
   const execute = useCallback(async <K extends keyof T>(
     key: K,
-    operation: () => Promise<T[K]>
+    operation: () => Promise<T[K]>,
+    currentRetry = 0
   ): Promise<T[K] | null> => {
-    const { execute: singleExecute } = useLoadingState(initialStates[key], options);
-    
     setStates(prev => ({
       ...prev,
       [key]: { ...prev[key], isLoading: true, error: null },
     }));
 
     try {
-      const result = await singleExecute(operation);
+      const result = await operation();
       
       setStates(prev => ({
         ...prev,
         [key]: { isLoading: false, error: null, data: result },
       }));
 
+      onSuccess?.(result);
       return result;
     } catch (error) {
       const appError = ErrorHandler.normalizeError(error);
+      
+      // Handle retries
+      if (currentRetry < retryCount && shouldRetry(appError)) {
+        return new Promise((resolve) => {
+          setTimeout(async () => {
+            const result = await execute(key, operation, currentRetry + 1);
+            resolve(result);
+          }, retryDelay * (currentRetry + 1));
+        });
+      }
       
       setStates(prev => ({
         ...prev,
         [key]: { isLoading: false, error: appError, data: null },
       }));
 
+      onError?.(appError);
       return null;
     }
-  }, [initialStates, options]);
+  }, [initialStates, retryCount, retryDelay, onSuccess, onError]);
 
   const reset = useCallback(<K extends keyof T>(key?: K) => {
     if (key) {

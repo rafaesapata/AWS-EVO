@@ -305,6 +305,8 @@ export function checkUserRateLimit(
 
 /**
  * Limpa entradas expiradas do cache de rate limiting
+ * NOTA: Em ambiente Lambda, este cache é local à instância.
+ * Para rate limiting distribuído real, usar Redis via redis-cache.ts
  */
 export function cleanupRateLimitCache(): void {
   const now = Date.now();
@@ -316,5 +318,6 @@ export function cleanupRateLimitCache(): void {
   }
 }
 
-// Cleanup automático a cada 5 minutos
-setInterval(cleanupRateLimitCache, 5 * 60 * 1000);
+// NOTA: setInterval removido - não funciona corretamente em Lambda
+// O cleanup é feito automaticamente quando checkUserRateLimit é chamado
+// Para cleanup periódico, usar EventBridge Scheduler ou chamar cleanupRateLimitCache() no início do handler

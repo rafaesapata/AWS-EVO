@@ -989,7 +989,7 @@ const Index = () => {
                     </div>
                     <div>
                       <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                        EVO UDS Platform
+                        EVO Platform
                       </h1>
                       <p className="text-muted-foreground text-sm">
                         FinOps & Security Intelligence v2.1.0

@@ -63,9 +63,12 @@ export class TenantIsolationManager {
       );
     }
 
-    // Validar formato do organizationId
-    if (!/^org-[a-zA-Z0-9-]+$/.test(context.organizationId) && 
-        !/^[a-f0-9-]{36}$/.test(context.organizationId)) {
+    // Validar formato do organizationId com regex UUID completo
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const ORG_PREFIX_REGEX = /^org-[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/;
+    
+    if (!ORG_PREFIX_REGEX.test(context.organizationId) && 
+        !UUID_REGEX.test(context.organizationId)) {
       throw new TenantIsolationError(
         'Invalid organization ID format',
         'INVALID_ORGANIZATION_ID',
@@ -489,7 +492,8 @@ export class TenantIsolatedQueries {
       }
     }
 
-    return operationFn(params);
+    // Call method with proper 'this' binding
+    return modelClient[operation](params);
   }
 }
 

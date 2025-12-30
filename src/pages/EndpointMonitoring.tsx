@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
   Activity, 
@@ -17,57 +15,72 @@ import {
   CheckCircle, 
   XCircle, 
   Clock,
-  TrendingUp,
   AlertTriangle,
   RefreshCw,
   BarChart3,
-  Zap
+  Zap,
+  ShieldCheck,
+  Bell,
+  CheckCheck,
+  Eye
 } from "lucide-react";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from "recharts";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, BarChart, Bar } from "recharts";
+import { CreateEndpointDialog } from "@/components/endpoint-monitoring/CreateEndpointDialog";
 
-interface EndpointHealth {
+interface MonitoredEndpoint {
   id: string;
-  endpoint_url: string;
-  endpoint_name: string;
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  response_time: number;
-  uptime_percentage: number;
-  last_check: string;
-  region: string;
-  service_type: 'api_gateway' | 'load_balancer' | 'cloudfront' | 'custom';
-  ssl_status: 'valid' | 'expiring' | 'expired' | 'invalid';
+  organization_id: string;
+  name: string;
+  url: string;
+  timeout: number;
+  is_active: boolean;
+  alert_on_failure: boolean;
+  monitor_ssl: boolean;
+  ssl_alert_days: number;
   ssl_expiry_date: string | null;
+  ssl_issuer: string | null;
+  ssl_valid: boolean | null;
+  last_status: string | null;
+  last_checked_at: string | null;
+  last_response_time: number | null;
+  created_at: string;
+  check_history?: EndpointCheckHistory[];
 }
 
-interface EndpointMetrics {
+interface EndpointCheckHistory {
+  id: string;
   endpoint_id: string;
-  timestamp: string;
+  status: string;
+  status_code: number | null;
   response_time: number;
-  status_code: number;
-  availability: boolean;
-  error_rate: number;
+  error: string | null;
+  checked_at: string;
+}
+
+interface Alert {
+  id: string;
+  organization_id: string;
+  severity: string;
+  title: string;
+  message: string;
+  metadata: any;
+  triggered_at: string;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
 }
 
 export default function EndpointMonitoring() {
   const { toast } = useToast();
-  const { selectedAccountId } = useAwsAccount();
   const { data: organizationId } = useOrganization();
-  const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
+  const queryClient = useQueryClient();
 
-  // Get endpoint health data
+  // Get monitored endpoints
   const { data: endpoints, isLoading, refetch } = useQuery({
-    queryKey: ['endpoint-health', organizationId, selectedAccountId],
-    enabled: !!organizationId && !!selectedAccountId,
+    queryKey: ['monitored-endpoints', organizationId],
+    enabled: !!organizationId,
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
-      const response = await apiClient.select('endpoint_health', {
-        select: '*',
-        eq: { 
-          organization_id: organizationId,
-          aws_account_id: selectedAccountId
-        },
-        order: { last_check: 'desc' }
-      });
+      const response = await apiClient.get<MonitoredEndpoint[]>('/monitored_endpoints');
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
@@ -77,36 +90,50 @@ export default function EndpointMonitoring() {
     },
   });
 
-  // Get endpoint metrics for charts
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
-    queryKey: ['endpoint-metrics', organizationId, selectedAccountId, selectedTimeRange],
-    enabled: !!organizationId && !!selectedAccountId,
-    staleTime: 2 * 60 * 1000,
+  // Get alerts
+  const { data: alerts, isLoading: alertsLoading, refetch: refetchAlerts } = useQuery({
+    queryKey: ['endpoint-alerts', organizationId],
+    enabled: !!organizationId,
+    staleTime: 1 * 60 * 1000,
     queryFn: async () => {
-      const hoursBack = selectedTimeRange === '24h' ? 24 : selectedTimeRange === '7d' ? 168 : 720;
-      const startTime = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
-
-      const response = await apiClient.select('endpoint_metrics', {
-        select: '*',
-        eq: { 
-          organization_id: organizationId,
-          aws_account_id: selectedAccountId
-        },
-        gte: { timestamp: startTime.toISOString() },
-        order: { timestamp: 'asc' }
-      });
+      const response = await apiClient.get<Alert[]>('/alerts');
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
       }
 
       return response.data || [];
+    },
+  });
+
+  // Mutation for acknowledging/resolving alerts
+  const alertMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: 'acknowledge' | 'resolve' }) => {
+      const response = await apiClient.put('/alerts', { id, action });
+      if (response.error) {
+        throw new Error(getErrorMessage(response.error));
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['endpoint-alerts'] });
+      toast({
+        title: "Alerta atualizado",
+        description: "O status do alerta foi atualizado com sucesso.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
   const handleRefresh = async () => {
     try {
-      await refetch();
+      await Promise.all([refetch(), refetchAlerts()]);
       toast({
         title: "Dados atualizados",
         description: "O monitoramento de endpoints foi atualizado.",
@@ -148,24 +175,68 @@ export default function EndpointMonitoring() {
     }
   };
 
+  const getSSLDaysRemaining = (expiryDate: string | null): number | null => {
+    if (!expiryDate) return null;
+    const expiry = new Date(expiryDate);
+    const now = new Date();
+    const diffTime = expiry.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const getSSLDaysBadge = (expiryDate: string | null) => {
+    const days = getSSLDaysRemaining(expiryDate);
+    if (days === null) return null;
+    
+    if (days <= 0) {
+      return (
+        <Badge variant="destructive" className="gap-1">
+          <ShieldCheck className="h-3 w-3" />
+          SSL Expirado
+        </Badge>
+      );
+    } else if (days <= 7) {
+      return (
+        <Badge variant="destructive" className="gap-1">
+          <ShieldCheck className="h-3 w-3" />
+          {days} {days === 1 ? 'dia' : 'dias'} restantes
+        </Badge>
+      );
+    } else if (days <= 30) {
+      return (
+        <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-600 border-yellow-500/30">
+          <ShieldCheck className="h-3 w-3" />
+          {days} dias restantes
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="outline" className="gap-1 bg-green-500/10 text-green-600 border-green-500/30">
+          <ShieldCheck className="h-3 w-3" />
+          {days} dias restantes
+        </Badge>
+      );
+    }
+  };
+
   // Calculate summary metrics
-  const healthyCount = endpoints?.filter(e => e.status === 'healthy').length || 0;
-  const degradedCount = endpoints?.filter(e => e.status === 'degraded').length || 0;
-  const unhealthyCount = endpoints?.filter(e => e.status === 'unhealthy').length || 0;
+  const upCount = endpoints?.filter(e => e.last_status === 'up').length || 0;
+  const degradedCount = endpoints?.filter(e => e.last_status === 'degraded').length || 0;
+  const downCount = endpoints?.filter(e => e.last_status === 'down').length || 0;
   const totalCount = endpoints?.length || 0;
+  const activeCount = endpoints?.filter(e => e.is_active).length || 0;
   const avgResponseTime = endpoints?.length > 0 
-    ? endpoints.reduce((sum, e) => sum + e.response_time, 0) / endpoints.length 
-    : 0;
-  const avgUptime = endpoints?.length > 0 
-    ? endpoints.reduce((sum, e) => sum + e.uptime_percentage, 0) / endpoints.length 
+    ? endpoints.filter(e => e.last_response_time).reduce((sum, e) => sum + (e.last_response_time || 0), 0) / endpoints.filter(e => e.last_response_time).length 
     : 0;
 
-  // Prepare chart data
-  const responseTimeData = metrics?.map(m => ({
-    time: new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    response_time: m.response_time,
-    availability: m.availability ? 100 : 0
-  })) || [];
+  // Prepare chart data from check history
+  const responseTimeData = endpoints?.flatMap(e => 
+    (e.check_history || []).map(h => ({
+      time: new Date(h.checked_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      response_time: h.response_time,
+      availability: h.status === 'up' ? 100 : 0
+    }))
+  ).slice(0, 50) || [];
 
   return (
     <Layout 
@@ -198,6 +269,7 @@ export default function EndpointMonitoring() {
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                 {isLoading ? 'Atualizando...' : 'Atualizar'}
               </Button>
+              <CreateEndpointDialog />
             </div>
           </div>
         </CardHeader>
@@ -220,13 +292,13 @@ export default function EndpointMonitoring() {
 
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Saudáveis</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Online</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-green-500">{healthyCount}</div>
+              <div className="text-2xl font-bold text-green-500">{upCount}</div>
             )}
           </CardContent>
         </Card>
@@ -239,7 +311,7 @@ export default function EndpointMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-red-500">{unhealthyCount + degradedCount}</div>
+              <div className="text-2xl font-bold text-red-500">{downCount + degradedCount}</div>
             )}
           </CardContent>
         </Card>
@@ -252,22 +324,22 @@ export default function EndpointMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold">{avgResponseTime.toFixed(0)}ms</div>
+              <div className="text-2xl font-bold">{avgResponseTime ? avgResponseTime.toFixed(0) : '-'}ms</div>
             )}
           </CardContent>
         </Card>
 
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Uptime Médio</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Ativos</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
               <div className="space-y-2">
-                <div className="text-2xl font-bold">{avgUptime.toFixed(1)}%</div>
-                <Progress value={avgUptime} className="h-2" />
+                <div className="text-2xl font-bold">{activeCount}/{totalCount}</div>
+                <Progress value={totalCount > 0 ? (activeCount / totalCount) * 100 : 0} className="h-2" />
               </div>
             )}
           </CardContent>
@@ -289,10 +361,10 @@ export default function EndpointMonitoring() {
             <Card className="glass border-primary/20">
               <CardHeader>
                 <CardTitle>Tempo de Resposta</CardTitle>
-                <CardDescription>Últimas {selectedTimeRange}</CardDescription>
+                <CardDescription>Histórico recente</CardDescription>
               </CardHeader>
               <CardContent>
-                {metricsLoading ? (
+                {isLoading ? (
                   <Skeleton className="h-[300px] w-full" />
                 ) : responseTimeData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
@@ -343,11 +415,11 @@ export default function EndpointMonitoring() {
                     <div className="flex justify-between items-center">
                       <span className="text-sm flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
-                        Saudáveis
+                        Online
                       </span>
-                      <span className="font-medium">{healthyCount}</span>
+                      <span className="font-medium">{upCount}</span>
                     </div>
-                    <Progress value={totalCount > 0 ? (healthyCount / totalCount) * 100 : 0} className="h-2" />
+                    <Progress value={totalCount > 0 ? (upCount / totalCount) * 100 : 0} className="h-2" />
                   </div>
                   
                   <div className="space-y-2">
@@ -365,11 +437,11 @@ export default function EndpointMonitoring() {
                     <div className="flex justify-between items-center">
                       <span className="text-sm flex items-center gap-2">
                         <XCircle className="h-4 w-4 text-red-500" />
-                        Não Saudáveis
+                        Offline
                       </span>
-                      <span className="font-medium">{unhealthyCount}</span>
+                      <span className="font-medium">{downCount}</span>
                     </div>
-                    <Progress value={totalCount > 0 ? (unhealthyCount / totalCount) * 100 : 0} className="h-2" />
+                    <Progress value={totalCount > 0 ? (downCount / totalCount) * 100 : 0} className="h-2" />
                   </div>
                 </div>
               </CardContent>
@@ -396,42 +468,59 @@ export default function EndpointMonitoring() {
                     <div key={endpoint.id} className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
-                          {getStatusIcon(endpoint.status)}
+                          {getStatusIcon(endpoint.last_status || 'unknown')}
                           <div className="space-y-1">
-                            <h4 className="font-semibold">{endpoint.endpoint_name}</h4>
-                            <p className="text-sm text-muted-foreground">{endpoint.endpoint_url}</p>
+                            <h4 className="font-semibold">{endpoint.name}</h4>
+                            <p className="text-sm text-muted-foreground">{endpoint.url}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>{endpoint.service_type.replace('_', ' ').toUpperCase()}</span>
+                              <span>Timeout: {endpoint.timeout}ms</span>
                               <span>•</span>
-                              <span>{endpoint.region}</span>
-                              <span>•</span>
-                              <span>Última verificação: {new Date(endpoint.last_check).toLocaleString('pt-BR')}</span>
+                              <span>{endpoint.is_active ? 'Ativo' : 'Inativo'}</span>
+                              {endpoint.last_checked_at && (
+                                <>
+                                  <span>•</span>
+                                  <span>Última verificação: {new Date(endpoint.last_checked_at).toLocaleString('pt-BR')}</span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
-                        <div className="text-right space-y-2">
-                          {getStatusBadge(endpoint.status)}
-                          {getSSLBadge(endpoint.ssl_status)}
+                        <div className="text-right space-y-2 flex flex-col items-end gap-1">
+                          {getStatusBadge(endpoint.last_status || 'unknown')}
+                          {endpoint.is_active ? (
+                            <Badge variant="outline" className="bg-green-500/10 text-green-600">Ativo</Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-gray-500/10 text-gray-600">Inativo</Badge>
+                          )}
+                          {endpoint.monitor_ssl && getSSLDaysBadge(endpoint.ssl_expiry_date)}
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div className="grid grid-cols-4 gap-4 text-sm">
                         <div>
                           <span className="text-muted-foreground">Tempo de Resposta:</span>
-                          <div className="font-medium">{endpoint.response_time}ms</div>
+                          <div className="font-medium">{endpoint.last_response_time ? `${endpoint.last_response_time}ms` : '-'}</div>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Uptime:</span>
-                          <div className="font-medium">{endpoint.uptime_percentage.toFixed(2)}%</div>
+                          <span className="text-muted-foreground">Alertas:</span>
+                          <div className="font-medium">{endpoint.alert_on_failure ? 'Ativados' : 'Desativados'}</div>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">SSL Expira:</span>
+                          <span className="text-muted-foreground">SSL:</span>
                           <div className="font-medium">
-                            {endpoint.ssl_expiry_date 
-                              ? new Date(endpoint.ssl_expiry_date).toLocaleDateString('pt-BR')
-                              : 'N/A'
-                            }
+                            {endpoint.monitor_ssl ? (
+                              endpoint.ssl_expiry_date ? (
+                                <span className={endpoint.ssl_valid ? 'text-green-600' : 'text-red-600'}>
+                                  {new Date(endpoint.ssl_expiry_date).toLocaleDateString('pt-BR')}
+                                  {endpoint.ssl_issuer && <span className="text-muted-foreground text-xs ml-1">({endpoint.ssl_issuer})</span>}
+                                </span>
+                              ) : 'Aguardando verificação'
+                            ) : 'Não monitorado'}
                           </div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Criado em:</span>
+                          <div className="font-medium">{new Date(endpoint.created_at).toLocaleDateString('pt-BR')}</div>
                         </div>
                       </div>
                     </div>
@@ -441,9 +530,10 @@ export default function EndpointMonitoring() {
                 <div className="text-center py-12">
                   <Globe className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                   <h3 className="text-xl font-semibold mb-2">Nenhum endpoint configurado</h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground mb-4">
                     Configure endpoints para começar o monitoramento.
                   </p>
+                  <CreateEndpointDialog />
                 </div>
               )}
             </CardContent>
@@ -457,13 +547,116 @@ export default function EndpointMonitoring() {
               <CardDescription>Análise histórica de performance dos endpoints</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Métricas detalhadas em desenvolvimento</h3>
-                  <p>Análises avançadas de performance serão exibidas aqui.</p>
+              {isLoading ? (
+                <Skeleton className="h-[400px] w-full" />
+              ) : endpoints && endpoints.length > 0 ? (
+                <div className="space-y-6">
+                  {/* Response Time per Endpoint */}
+                  <div>
+                    <h4 className="text-sm font-medium mb-4">Tempo de Resposta por Endpoint</h4>
+                    <div className="grid gap-4">
+                      {endpoints.map((endpoint) => {
+                        const history = endpoint.check_history || [];
+                        const chartData = history.map(h => ({
+                          time: new Date(h.checked_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                          response_time: h.response_time,
+                          status: h.status
+                        })).reverse();
+                        
+                        const avgTime = history.length > 0 
+                          ? Math.round(history.reduce((sum, h) => sum + h.response_time, 0) / history.length)
+                          : 0;
+                        const uptime = history.length > 0
+                          ? Math.round((history.filter(h => h.status === 'up').length / history.length) * 100)
+                          : 0;
+                        
+                        return (
+                          <div key={endpoint.id} className="border rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                {getStatusIcon(endpoint.last_status || 'unknown')}
+                                <span className="font-medium">{endpoint.name}</span>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm">
+                                <span className="text-muted-foreground">Média: <span className="font-medium text-foreground">{avgTime}ms</span></span>
+                                <span className="text-muted-foreground">Uptime: <span className={`font-medium ${uptime >= 99 ? 'text-green-600' : uptime >= 95 ? 'text-yellow-600' : 'text-red-600'}`}>{uptime}%</span></span>
+                              </div>
+                            </div>
+                            {chartData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height={120}>
+                                <AreaChart data={chartData}>
+                                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                                  <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                                  <Tooltip 
+                                    contentStyle={{
+                                      backgroundColor: 'hsl(var(--card))',
+                                      border: '1px solid hsl(var(--border))',
+                                      borderRadius: '8px',
+                                    }}
+                                  />
+                                  <Area 
+                                    type="monotone" 
+                                    dataKey="response_time" 
+                                    stroke="#3b82f6" 
+                                    fill="#3b82f6" 
+                                    fillOpacity={0.2}
+                                    name="Tempo (ms)"
+                                  />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            ) : (
+                              <div className="h-[120px] flex items-center justify-center text-muted-foreground text-sm">
+                                Nenhum histórico disponível
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <Card className="glass">
+                      <CardContent className="pt-4">
+                        <div className="text-2xl font-bold text-green-600">{upCount}</div>
+                        <div className="text-sm text-muted-foreground">Endpoints Online</div>
+                      </CardContent>
+                    </Card>
+                    <Card className="glass">
+                      <CardContent className="pt-4">
+                        <div className="text-2xl font-bold">{avgResponseTime ? avgResponseTime.toFixed(0) : '-'}ms</div>
+                        <div className="text-sm text-muted-foreground">Tempo Médio</div>
+                      </CardContent>
+                    </Card>
+                    <Card className="glass">
+                      <CardContent className="pt-4">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {endpoints.filter(e => e.monitor_ssl && e.ssl_valid).length}/{endpoints.filter(e => e.monitor_ssl).length}
+                        </div>
+                        <div className="text-sm text-muted-foreground">SSL Válidos</div>
+                      </CardContent>
+                    </Card>
+                    <Card className="glass">
+                      <CardContent className="pt-4">
+                        <div className="text-2xl font-bold text-yellow-600">
+                          {alerts?.filter(a => !a.resolved_at).length || 0}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Alertas Ativos</div>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <BarChart3 className="h-12 w-12 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhum endpoint configurado</h3>
+                    <p>Configure endpoints para visualizar métricas.</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -471,17 +664,110 @@ export default function EndpointMonitoring() {
         <TabsContent value="alerts" className="space-y-4">
           <Card className="glass border-primary/20">
             <CardHeader>
-              <CardTitle>Configuração de Alertas</CardTitle>
-              <CardDescription>Configure alertas para endpoints críticos</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Alertas de Endpoints
+              </CardTitle>
+              <CardDescription>Alertas gerados pelo monitoramento de endpoints e SSL</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <Zap className="h-12 w-12 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Configuração de alertas em desenvolvimento</h3>
-                  <p>Sistema de alertas personalizados será implementado em breve.</p>
+              {alertsLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
                 </div>
-              </div>
+              ) : alerts && alerts.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Filter tabs */}
+                  <div className="flex gap-2 mb-4">
+                    <Badge variant="outline" className="cursor-pointer">
+                      Todos ({alerts.length})
+                    </Badge>
+                    <Badge variant="outline" className="cursor-pointer bg-red-500/10 text-red-600">
+                      Ativos ({alerts.filter(a => !a.resolved_at).length})
+                    </Badge>
+                    <Badge variant="outline" className="cursor-pointer bg-green-500/10 text-green-600">
+                      Resolvidos ({alerts.filter(a => a.resolved_at).length})
+                    </Badge>
+                  </div>
+                  
+                  {alerts.map((alert) => (
+                    <div key={alert.id} className={`border rounded-lg p-4 ${alert.resolved_at ? 'opacity-60' : ''}`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          {alert.severity === 'CRITICAL' ? (
+                            <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                          ) : alert.severity === 'HIGH' ? (
+                            <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
+                          ) : (
+                            <Bell className="h-5 w-5 text-yellow-500 mt-0.5" />
+                          )}
+                          <div className="space-y-1">
+                            <h4 className="font-semibold">{alert.title}</h4>
+                            <p className="text-sm text-muted-foreground">{alert.message}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>Disparado: {new Date(alert.triggered_at).toLocaleString('pt-BR')}</span>
+                              {alert.acknowledged_at && (
+                                <>
+                                  <span>•</span>
+                                  <span>Reconhecido: {new Date(alert.acknowledged_at).toLocaleString('pt-BR')}</span>
+                                </>
+                              )}
+                              {alert.resolved_at && (
+                                <>
+                                  <span>•</span>
+                                  <span>Resolvido: {new Date(alert.resolved_at).toLocaleString('pt-BR')}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant={alert.severity === 'CRITICAL' ? 'destructive' : alert.severity === 'HIGH' ? 'secondary' : 'outline'}
+                          >
+                            {alert.severity}
+                          </Badge>
+                          {!alert.resolved_at && (
+                            <div className="flex gap-1">
+                              {!alert.acknowledged_at && (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => alertMutation.mutate({ id: alert.id, action: 'acknowledge' })}
+                                  disabled={alertMutation.isPending}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  Reconhecer
+                                </Button>
+                              )}
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-green-600"
+                                onClick={() => alertMutation.mutate({ id: alert.id, action: 'resolve' })}
+                                disabled={alertMutation.isPending}
+                              >
+                                <CheckCheck className="h-4 w-4 mr-1" />
+                                Resolver
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhum alerta</h3>
+                    <p>Todos os endpoints estão funcionando normalmente.</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

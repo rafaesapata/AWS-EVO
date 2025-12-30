@@ -16,7 +16,7 @@ function AppDashboard() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          🎉 EVO UDS Dashboard - AWS Migration Complete!
+          🎉 EVO Dashboard - AWS Migration Complete!
         </h1>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

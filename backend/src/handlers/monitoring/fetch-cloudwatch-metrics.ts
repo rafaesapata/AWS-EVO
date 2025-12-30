@@ -1,30 +1,33 @@
-import { getHttpMethod } from '../../lib/middleware.js';
 /**
  * Lambda handler for Fetch CloudWatch Metrics
  * 
- * Descobre recursos AWS e coleta métricas do CloudWatch automaticamente
- * Suporta: EC2, RDS, Lambda, ECS, ElastiCache, ALB, NLB, API Gateway
+ * Coleta TODOS os recursos e métricas usando paralelismo otimizado
+ * Sem limites artificiais - o usuário vê tudo
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { CloudWatchClient, GetMetricStatisticsCommand, type Statistic, type Dimension } from '@aws-sdk/client-cloudwatch';
+import { withAwsCircuitBreaker } from '../../lib/circuit-breaker.js';
+import { getOrigin } from '../../lib/middleware.js';
+import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
 import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda';
 import { ECSClient, ListClustersCommand, ListServicesCommand, DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import { ElastiCacheClient, DescribeCacheClustersCommand } from '@aws-sdk/client-elasticache';
-import { ElasticLoadBalancingV2Client, DescribeLoadBalancersCommand, DescribeTargetGroupsCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
+import { ElasticLoadBalancingV2Client, DescribeLoadBalancersCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { APIGatewayClient, GetRestApisCommand } from '@aws-sdk/client-api-gateway';
 import { randomUUID } from 'crypto';
 
 interface FetchMetricsRequest {
   accountId: string;
   regions?: string[];
+  forceRefresh?: boolean;
+  period?: '3h' | '24h' | '7d';
 }
 
 interface ResourceInfo {
@@ -36,15 +39,15 @@ interface ResourceInfo {
   metadata?: Record<string, any>;
 }
 
-interface MetricConfig {
-  namespace: string;
+interface MetricDataPoint {
+  resourceId: string;
+  resourceName: string;
+  resourceType: string;
   metricName: string;
-  dimensions: Dimension[];
-  statistics: Statistic[];
+  value: number;
+  timestamp: Date;
+  unit: string;
 }
-
-// Regiões padrão para scan
-const DEFAULT_REGIONS = ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1'];
 
 // Métricas por tipo de recurso
 const METRICS_CONFIG: Record<string, { namespace: string; metrics: string[]; dimensionKey: string }> = {
@@ -75,46 +78,103 @@ const METRICS_CONFIG: Record<string, { namespace: string; metrics: string[]; dim
   },
   alb: {
     namespace: 'AWS/ApplicationELB',
-    metrics: ['RequestCount', 'TargetResponseTime', 'HTTPCode_Target_2XX_Count', 'HTTPCode_Target_4XX_Count', 'HTTPCode_Target_5XX_Count'],
+    metrics: ['RequestCount', 'TargetResponseTime', 'HTTPCode_Target_2XX_Count'],
     dimensionKey: 'LoadBalancer',
   },
   nlb: {
     namespace: 'AWS/NetworkELB',
-    metrics: ['ProcessedBytes', 'ActiveFlowCount', 'NewFlowCount', 'ProcessedPackets'],
+    metrics: ['ProcessedBytes', 'ActiveFlowCount', 'NewFlowCount'],
     dimensionKey: 'LoadBalancer',
   },
   apigateway: {
     namespace: 'AWS/ApiGateway',
-    metrics: ['Count', 'Latency', 'IntegrationLatency', '4XXError', '5XXError'],
+    metrics: ['Count', 'Latency', '4XXError', '5XXError'],
     dimensionKey: 'ApiName',
   },
 };
 
-export async function handler(
+// Unidades de métricas
+const METRIC_UNITS: Record<string, string> = {
+  CPUUtilization: 'Percent',
+  MemoryUtilization: 'Percent',
+  NetworkIn: 'Bytes',
+  NetworkOut: 'Bytes',
+  NetworkBytesIn: 'Bytes',
+  NetworkBytesOut: 'Bytes',
+  DiskReadOps: 'Count',
+  DiskWriteOps: 'Count',
+  DatabaseConnections: 'Count',
+  FreeStorageSpace: 'Bytes',
+  ReadIOPS: 'Count/Second',
+  WriteIOPS: 'Count/Second',
+  Invocations: 'Count',
+  Errors: 'Count',
+  Duration: 'Milliseconds',
+  Throttles: 'Count',
+  ConcurrentExecutions: 'Count',
+  CurrConnections: 'Count',
+  RequestCount: 'Count',
+  TargetResponseTime: 'Seconds',
+  HTTPCode_Target_2XX_Count: 'Count',
+  ProcessedBytes: 'Bytes',
+  ActiveFlowCount: 'Count',
+  NewFlowCount: 'Count',
+  Count: 'Count',
+  Latency: 'Milliseconds',
+  '4XXError': 'Count',
+  '5XXError': 'Count',
+};
+
+/**
+ * Handler principal
+ */
+async function fetchCloudwatchMetricsHandler(
   event: AuthorizedEvent,
-  context: LambdaContext
+  _context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  logger.info('🚀 Fetch CloudWatch Metrics started');
+  const origin = getOrigin(event);
   
-  if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+  if (event.requestContext?.http?.method === 'OPTIONS' || (event as any).httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+
+  let user: ReturnType<typeof getUserFromEvent>;
+  let organizationId: string;
+  
+  try {
+    user = getUserFromEvent(event);
+  } catch (authError) {
+    return error('Unauthorized - user not found', 401, undefined, origin);
   }
   
   try {
-    const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
-    
-    const body: FetchMetricsRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, regions = DEFAULT_REGIONS } = body;
-    
-    if (!accountId) {
-      return error('Missing required parameter: accountId');
+    organizationId = getOrganizationId(user);
+  } catch (orgError) {
+    return error('Unauthorized - organization not found', 401, undefined, origin);
+  }
+  
+  const prisma = getPrismaClient();
+  const startTime = Date.now();
+  
+  logger.info('Fetch CloudWatch Metrics started', { organizationId, userId: user.sub });
+
+  try {
+    // Parse request body
+    let body: FetchMetricsRequest;
+    try {
+      body = event.body ? JSON.parse(event.body) : {};
+    } catch {
+      return badRequest('Invalid JSON body', undefined, origin);
     }
     
-    const prisma = getPrismaClient();
+    const { accountId, regions = ['us-east-1'], period = '3h' } = body;
+    
+    if (!accountId) {
+      return badRequest('Missing required parameter: accountId', undefined, origin);
+    }
     
     // Buscar credenciais AWS
-    const account = await prisma.awsCredential.findFirst({
+    const credential = await prisma.awsCredential.findFirst({
       where: {
         id: accountId,
         organization_id: organizationId,
@@ -122,118 +182,183 @@ export async function handler(
       },
     });
     
-    if (!account) {
-      return error('AWS account not found or inactive');
+    if (!credential) {
+      return badRequest('AWS credentials not found', undefined, origin);
     }
     
-    logger.info(`📊 Collecting metrics for account ${account.account_name} in regions: ${regions.join(', ')}`);
+    logger.info('Starting full resource discovery', { 
+      accountId: credential.account_name, 
+      regions,
+      period 
+    });
     
-    let totalResources = 0;
-    let totalMetrics = 0;
-    const permissionErrors: Array<{ resourceType: string; region: string; error: string; missingPermissions: string[] }> = [];
+    // Descobrir TODOS os recursos em TODAS as regiões em paralelo
+    const allResources: ResourceInfo[] = [];
+    const allMetrics: MetricDataPoint[] = [];
+    const permissionErrors: string[] = [];
     
-    // Processar cada região em paralelo
+    // Processar TODAS as regiões em paralelo
     const regionResults = await Promise.allSettled(
       regions.map(async (region) => {
-        const resolvedCreds = await resolveAwsCredentials(account, region);
+        const regionStart = Date.now();
+        const resolvedCreds = await resolveAwsCredentials(credential, region);
         const credentials = toAwsCredentials(resolvedCreds);
         
-        // Descobrir recursos em paralelo
-        const [ec2Resources, rdsResources, lambdaResources, ecsResources, elasticacheResources, albResources, apiGatewayResources] = await Promise.allSettled([
-          discoverEC2Instances(credentials, region, permissionErrors),
-          discoverRDSInstances(credentials, region, permissionErrors),
-          discoverLambdaFunctions(credentials, region, permissionErrors),
-          discoverECSServices(credentials, region, permissionErrors),
-          discoverElastiCacheClusters(credentials, region, permissionErrors),
-          discoverLoadBalancers(credentials, region, permissionErrors),
-          discoverAPIGateways(credentials, region, permissionErrors),
+        // Descobrir TODOS os tipos de recursos em paralelo
+        const discoveryResults = await Promise.allSettled([
+          discoverEC2(credentials, region),
+          discoverRDS(credentials, region),
+          discoverLambda(credentials, region),
+          discoverECS(credentials, region),
+          discoverElastiCache(credentials, region),
+          discoverLoadBalancers(credentials, region),
+          discoverAPIGateways(credentials, region),
         ]);
         
-        const allResources: ResourceInfo[] = [
-          ...(ec2Resources.status === 'fulfilled' ? ec2Resources.value : []),
-          ...(rdsResources.status === 'fulfilled' ? rdsResources.value : []),
-          ...(lambdaResources.status === 'fulfilled' ? lambdaResources.value : []),
-          ...(ecsResources.status === 'fulfilled' ? ecsResources.value : []),
-          ...(elasticacheResources.status === 'fulfilled' ? elasticacheResources.value : []),
-          ...(albResources.status === 'fulfilled' ? albResources.value : []),
-          ...(apiGatewayResources.status === 'fulfilled' ? apiGatewayResources.value : []),
-        ];
+        const resources: ResourceInfo[] = [];
+        for (const result of discoveryResults) {
+          if (result.status === 'fulfilled') {
+            resources.push(...result.value);
+          } else {
+            permissionErrors.push(`${region}: ${result.reason?.message || 'Discovery failed'}`);
+          }
+        }
         
-        return { region, resources: allResources, credentials };
+        logger.info(`Region ${region}: discovered ${resources.length} resources in ${Date.now() - regionStart}ms`);
+        
+        return { region, resources, credentials };
       })
     );
     
-    // Processar resultados e coletar métricas
+    // Coletar recursos de todas as regiões
+    const regionData: Array<{ region: string; resources: ResourceInfo[]; credentials: any }> = [];
     for (const result of regionResults) {
-      if (result.status !== 'fulfilled') continue;
-      
-      const { region, resources, credentials } = result.value;
-      totalResources += resources.length;
-      
-      // Salvar recursos no banco
-      for (const resource of resources) {
-        await upsertResource(prisma, organizationId, accountId, resource);
-      }
-      
-      // Coletar métricas para cada recurso
-      const cwClient = new CloudWatchClient({ region, credentials });
-      
-      for (const resource of resources) {
-        const config = METRICS_CONFIG[resource.resourceType];
-        if (!config) continue;
-        
-        for (const metricName of config.metrics) {
-          try {
-            const datapoints = await fetchMetric(
-              cwClient,
-              config.namespace,
-              metricName,
-              [{ Name: config.dimensionKey, Value: resource.resourceId }]
-            );
-            
-            if (datapoints.length > 0) {
-              // Salvar métricas no banco
-              for (const dp of datapoints) {
-                await saveMetric(prisma, organizationId, accountId, resource, metricName, dp);
-                totalMetrics++;
-              }
-            }
-          } catch (err) {
-            // Ignorar erros de métricas individuais
-            logger.warn(`Failed to fetch ${metricName} for ${resource.resourceId}: ${err}`);
-          }
-        }
+      if (result.status === 'fulfilled' && result.value) {
+        allResources.push(...result.value.resources);
+        regionData.push(result.value);
       }
     }
     
-    logger.info(`✅ Collected ${totalMetrics} metrics from ${totalResources} resources`);
+    logger.info(`Total discovered: ${allResources.length} resources across ${regions.length} regions`);
+    
+    // Coletar métricas de TODOS os recursos em paralelo
+    const periodHours = period === '7d' ? 168 : period === '24h' ? 24 : 3;
+    
+    // Processar métricas por região em paralelo
+    const metricsResults = await Promise.allSettled(
+      regionData.map(async ({ region, resources, credentials }) => {
+        const cwClient = new CloudWatchClient({ region, credentials });
+        const regionMetrics: MetricDataPoint[] = [];
+        
+        // Processar recursos em batches de 10 para não sobrecarregar
+        const batches = chunk(resources, 10);
+        
+        for (const batch of batches) {
+          const batchResults = await Promise.allSettled(
+            batch.map(async (resource) => {
+              const config = METRICS_CONFIG[resource.resourceType];
+              if (!config) return [];
+              
+              const resourceMetrics: MetricDataPoint[] = [];
+              
+              // Buscar todas as métricas do recurso em paralelo
+              const metricResults = await Promise.allSettled(
+                config.metrics.map(metricName => 
+                  fetchMetric(cwClient, config.namespace, metricName, config.dimensionKey, resource, periodHours)
+                )
+              );
+              
+              for (const result of metricResults) {
+                if (result.status === 'fulfilled') {
+                  resourceMetrics.push(...result.value);
+                }
+              }
+              
+              return resourceMetrics;
+            })
+          );
+          
+          for (const result of batchResults) {
+            if (result.status === 'fulfilled') {
+              regionMetrics.push(...result.value);
+            }
+          }
+        }
+        
+        return regionMetrics;
+      })
+    );
+    
+    // Coletar todas as métricas
+    for (const result of metricsResults) {
+      if (result.status === 'fulfilled') {
+        allMetrics.push(...result.value);
+      }
+    }
+    
+    logger.info(`Total collected: ${allMetrics.length} metrics`);
+    
+    // Salvar TODOS os recursos em batch
+    if (allResources.length > 0) {
+      await saveResourcesBatch(prisma, organizationId, accountId, allResources);
+    }
+    
+    // Salvar TODAS as métricas em batch
+    if (allMetrics.length > 0) {
+      await saveMetricsBatch(prisma, organizationId, accountId, allMetrics);
+    }
+    
+    const duration = Date.now() - startTime;
+    
+    logger.info('Fetch CloudWatch Metrics completed', {
+      organizationId,
+      duration,
+      resourcesFound: allResources.length,
+      metricsCollected: allMetrics.length,
+    });
     
     return success({
       success: true,
-      message: `Coletadas ${totalMetrics} métricas de ${totalResources} recursos`,
-      resourcesFound: totalResources,
-      metricsCollected: totalMetrics,
+      message: `Coletadas ${allMetrics.length} métricas de ${allResources.length} recursos`,
+      resourcesFound: allResources.length,
+      metricsCollected: allMetrics.length,
       regionsScanned: regions,
+      resources: allResources,
+      metrics: allMetrics,
       permissionErrors: permissionErrors.length > 0 ? permissionErrors : undefined,
-    });
+      duration,
+    }, 200, origin);
     
   } catch (err) {
-    logger.error('❌ Fetch CloudWatch Metrics error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    logger.error('Fetch CloudWatch Metrics failed', { 
+      error: (err as Error).message, 
+      stack: (err as Error).stack 
+    });
+    return error('Fetch metrics failed: ' + (err as Error).message, 500, undefined, origin);
   }
 }
 
-// Descobrir instâncias EC2
-async function discoverEC2Instances(
-  credentials: any,
-  region: string,
-  permissionErrors: any[]
-): Promise<ResourceInfo[]> {
-  try {
-    const client = new EC2Client({ region, credentials });
-    const response = await client.send(new DescribeInstancesCommand({}));
+// Utility: dividir array em chunks
+function chunk<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
+
+// Descobrir EC2
+async function discoverEC2(credentials: any, region: string): Promise<ResourceInfo[]> {
+  const client = new EC2Client({ region, credentials });
+  const resources: ResourceInfo[] = [];
+  let nextToken: string | undefined;
+  
+  do {
+    const response = await client.send(new DescribeInstancesCommand({ 
+      MaxResults: 100,
+      NextToken: nextToken 
+    }));
     
-    const resources: ResourceInfo[] = [];
     for (const reservation of response.Reservations || []) {
       for (const instance of reservation.Instances || []) {
         const nameTag = instance.Tags?.find(t => t.Key === 'Name');
@@ -243,267 +368,156 @@ async function discoverEC2Instances(
           resourceType: 'ec2',
           region,
           status: instance.State?.Name || 'unknown',
-          metadata: {
-            instanceType: instance.InstanceType,
-            privateIp: instance.PrivateIpAddress,
-            publicIp: instance.PublicIpAddress,
-          },
+          metadata: { instanceType: instance.InstanceType },
         });
       }
     }
-    return resources;
-  } catch (err: any) {
-    logger.warn(`EC2 discovery failed in ${region}: ${err.message}`);
-    if (err.name === 'AccessDeniedException' || err.Code === 'UnauthorizedOperation') {
-      permissionErrors.push({
-        resourceType: 'ec2',
-        region,
-        error: err.message,
-        missingPermissions: ['ec2:DescribeInstances'],
-      });
-    }
-    return [];
-  }
+    
+    nextToken = response.NextToken;
+  } while (nextToken);
+  
+  return resources;
 }
 
-// Descobrir instâncias RDS
-async function discoverRDSInstances(
-  credentials: any,
-  region: string,
-  permissionErrors: any[]
-): Promise<ResourceInfo[]> {
-  try {
-    const client = new RDSClient({ region, credentials });
-    const response = await client.send(new DescribeDBInstancesCommand({}));
-    
-    return (response.DBInstances || []).map(db => ({
-      resourceId: db.DBInstanceIdentifier || '',
-      resourceName: db.DBInstanceIdentifier || '',
-      resourceType: 'rds',
-      region,
-      status: db.DBInstanceStatus || 'unknown',
-      metadata: {
-        engine: db.Engine,
-        engineVersion: db.EngineVersion,
-        instanceClass: db.DBInstanceClass,
-      },
+// Descobrir RDS
+async function discoverRDS(credentials: any, region: string): Promise<ResourceInfo[]> {
+  const client = new RDSClient({ region, credentials });
+  const resources: ResourceInfo[] = [];
+  let marker: string | undefined;
+  
+  do {
+    const response = await client.send(new DescribeDBInstancesCommand({ 
+      MaxRecords: 100,
+      Marker: marker 
     }));
-  } catch (err: any) {
-    logger.warn(`RDS discovery failed in ${region}: ${err.message}`);
-    if (err.name === 'AccessDeniedException') {
-      permissionErrors.push({
+    
+    for (const db of response.DBInstances || []) {
+      resources.push({
+        resourceId: db.DBInstanceIdentifier || '',
+        resourceName: db.DBInstanceIdentifier || '',
         resourceType: 'rds',
         region,
-        error: err.message,
-        missingPermissions: ['rds:DescribeDBInstances'],
+        status: db.DBInstanceStatus || 'unknown',
+        metadata: { engine: db.Engine, instanceClass: db.DBInstanceClass },
       });
     }
-    return [];
-  }
+    
+    marker = response.Marker;
+  } while (marker);
+  
+  return resources;
 }
 
-// Descobrir funções Lambda
-async function discoverLambdaFunctions(
-  credentials: any,
-  region: string,
-  permissionErrors: any[]
-): Promise<ResourceInfo[]> {
-  try {
-    const client = new LambdaClient({ region, credentials });
-    const response = await client.send(new ListFunctionsCommand({}));
-    
-    return (response.Functions || []).map(fn => ({
-      resourceId: fn.FunctionName || '',
-      resourceName: fn.FunctionName || '',
-      resourceType: 'lambda',
-      region,
-      status: 'active',
-      metadata: {
-        runtime: fn.Runtime,
-        memorySize: fn.MemorySize,
-        timeout: fn.Timeout,
-      },
+// Descobrir Lambda
+async function discoverLambda(credentials: any, region: string): Promise<ResourceInfo[]> {
+  const client = new LambdaClient({ region, credentials });
+  const resources: ResourceInfo[] = [];
+  let marker: string | undefined;
+  
+  do {
+    const response = await client.send(new ListFunctionsCommand({ 
+      MaxItems: 50,
+      Marker: marker 
     }));
-  } catch (err: any) {
-    logger.warn(`Lambda discovery failed in ${region}: ${err.message}`);
-    if (err.name === 'AccessDeniedException') {
-      permissionErrors.push({
+    
+    for (const fn of response.Functions || []) {
+      resources.push({
+        resourceId: fn.FunctionName || '',
+        resourceName: fn.FunctionName || '',
         resourceType: 'lambda',
         region,
-        error: err.message,
-        missingPermissions: ['lambda:ListFunctions'],
+        status: 'active',
+        metadata: { runtime: fn.Runtime, memorySize: fn.MemorySize },
       });
     }
-    return [];
-  }
+    
+    marker = response.NextMarker;
+  } while (marker);
+  
+  return resources;
 }
 
-// Descobrir serviços ECS
-async function discoverECSServices(
-  credentials: any,
-  region: string,
-  permissionErrors: any[]
-): Promise<ResourceInfo[]> {
-  try {
-    const client = new ECSClient({ region, credentials });
-    const clustersResponse = await client.send(new ListClustersCommand({}));
+// Descobrir ECS
+async function discoverECS(credentials: any, region: string): Promise<ResourceInfo[]> {
+  const client = new ECSClient({ region, credentials });
+  const resources: ResourceInfo[] = [];
+  
+  const clustersResponse = await client.send(new ListClustersCommand({}));
+  
+  for (const clusterArn of clustersResponse.clusterArns || []) {
+    const servicesResponse = await client.send(new ListServicesCommand({ cluster: clusterArn }));
     
-    const resources: ResourceInfo[] = [];
-    for (const clusterArn of clustersResponse.clusterArns || []) {
-      const servicesResponse = await client.send(new ListServicesCommand({ cluster: clusterArn }));
+    if (servicesResponse.serviceArns && servicesResponse.serviceArns.length > 0) {
+      const describeResponse = await client.send(new DescribeServicesCommand({
+        cluster: clusterArn,
+        services: servicesResponse.serviceArns,
+      }));
       
-      if (servicesResponse.serviceArns && servicesResponse.serviceArns.length > 0) {
-        const describeResponse = await client.send(new DescribeServicesCommand({
-          cluster: clusterArn,
-          services: servicesResponse.serviceArns,
-        }));
-        
-        for (const service of describeResponse.services || []) {
-          resources.push({
-            resourceId: service.serviceName || '',
-            resourceName: service.serviceName || '',
-            resourceType: 'ecs',
-            region,
-            status: service.status || 'unknown',
-            metadata: {
-              clusterArn,
-              desiredCount: service.desiredCount,
-              runningCount: service.runningCount,
-            },
-          });
-        }
+      for (const service of describeResponse.services || []) {
+        resources.push({
+          resourceId: service.serviceName || '',
+          resourceName: service.serviceName || '',
+          resourceType: 'ecs',
+          region,
+          status: service.status || 'unknown',
+          metadata: { clusterArn, desiredCount: service.desiredCount, runningCount: service.runningCount },
+        });
       }
     }
-    return resources;
-  } catch (err: any) {
-    logger.warn(`ECS discovery failed in ${region}: ${err.message}`);
-    if (err.name === 'AccessDeniedException') {
-      permissionErrors.push({
-        resourceType: 'ecs',
-        region,
-        error: err.message,
-        missingPermissions: ['ecs:ListClusters', 'ecs:ListServices', 'ecs:DescribeServices'],
-      });
-    }
-    return [];
   }
+  
+  return resources;
 }
 
-// Descobrir clusters ElastiCache
-async function discoverElastiCacheClusters(
-  credentials: any,
-  region: string,
-  permissionErrors: any[]
-): Promise<ResourceInfo[]> {
-  try {
-    const client = new ElastiCacheClient({ region, credentials });
-    const response = await client.send(new DescribeCacheClustersCommand({}));
+// Descobrir ElastiCache
+async function discoverElastiCache(credentials: any, region: string): Promise<ResourceInfo[]> {
+  const client = new ElastiCacheClient({ region, credentials });
+  const response = await client.send(new DescribeCacheClustersCommand({}));
+  
+  return (response.CacheClusters || []).map(cluster => ({
+    resourceId: cluster.CacheClusterId || '',
+    resourceName: cluster.CacheClusterId || '',
+    resourceType: 'elasticache',
+    region,
+    status: cluster.CacheClusterStatus || 'unknown',
+    metadata: { engine: cluster.Engine, cacheNodeType: cluster.CacheNodeType },
+  }));
+}
+
+// Descobrir Load Balancers
+async function discoverLoadBalancers(credentials: any, region: string): Promise<ResourceInfo[]> {
+  const client = new ElasticLoadBalancingV2Client({ region, credentials });
+  const response = await client.send(new DescribeLoadBalancersCommand({}));
+  
+  return (response.LoadBalancers || []).map(lb => {
+    const type = lb.Type === 'application' ? 'alb' : lb.Type === 'network' ? 'nlb' : 'elb';
+    const arnParts = lb.LoadBalancerArn?.split(':loadbalancer/') || [];
+    const lbDimension = arnParts[1] || lb.LoadBalancerName || '';
     
-    return (response.CacheClusters || []).map(cluster => ({
-      resourceId: cluster.CacheClusterId || '',
-      resourceName: cluster.CacheClusterId || '',
-      resourceType: 'elasticache',
+    return {
+      resourceId: lbDimension,
+      resourceName: lb.LoadBalancerName || '',
+      resourceType: type,
       region,
-      status: cluster.CacheClusterStatus || 'unknown',
-      metadata: {
-        engine: cluster.Engine,
-        engineVersion: cluster.EngineVersion,
-        cacheNodeType: cluster.CacheNodeType,
-      },
-    }));
-  } catch (err: any) {
-    logger.warn(`ElastiCache discovery failed in ${region}: ${err.message}`);
-    if (err.name === 'AccessDeniedException') {
-      permissionErrors.push({
-        resourceType: 'elasticache',
-        region,
-        error: err.message,
-        missingPermissions: ['elasticache:DescribeCacheClusters'],
-      });
-    }
-    return [];
-  }
-}
-
-// Descobrir Load Balancers (ALB/NLB)
-async function discoverLoadBalancers(
-  credentials: any,
-  region: string,
-  permissionErrors: any[]
-): Promise<ResourceInfo[]> {
-  try {
-    const client = new ElasticLoadBalancingV2Client({ region, credentials });
-    const response = await client.send(new DescribeLoadBalancersCommand({}));
-    
-    return (response.LoadBalancers || []).map(lb => {
-      const type = lb.Type === 'application' ? 'alb' : lb.Type === 'network' ? 'nlb' : 'elb';
-      // Extract the LoadBalancer dimension value from ARN
-      // Format: arn:aws:elasticloadbalancing:region:account:loadbalancer/app/name/id
-      const arnParts = lb.LoadBalancerArn?.split(':loadbalancer/') || [];
-      const lbDimension = arnParts[1] || lb.LoadBalancerName || '';
-      
-      return {
-        resourceId: lbDimension,
-        resourceName: lb.LoadBalancerName || '',
-        resourceType: type,
-        region,
-        status: lb.State?.Code || 'unknown',
-        metadata: {
-          dnsName: lb.DNSName,
-          scheme: lb.Scheme,
-          vpcId: lb.VpcId,
-          arn: lb.LoadBalancerArn,
-        },
-      };
-    });
-  } catch (err: any) {
-    logger.warn(`ELB discovery failed in ${region}: ${err.message}`);
-    if (err.name === 'AccessDeniedException') {
-      permissionErrors.push({
-        resourceType: 'alb/nlb',
-        region,
-        error: err.message,
-        missingPermissions: ['elasticloadbalancing:DescribeLoadBalancers'],
-      });
-    }
-    return [];
-  }
+      status: lb.State?.Code || 'unknown',
+      metadata: { dnsName: lb.DNSName, scheme: lb.Scheme },
+    };
+  });
 }
 
 // Descobrir API Gateways
-async function discoverAPIGateways(
-  credentials: any,
-  region: string,
-  permissionErrors: any[]
-): Promise<ResourceInfo[]> {
-  try {
-    const client = new APIGatewayClient({ region, credentials });
-    const response = await client.send(new GetRestApisCommand({}));
-    
-    return (response.items || []).map(api => ({
-      resourceId: api.name || api.id || '',
-      resourceName: api.name || '',
-      resourceType: 'apigateway',
-      region,
-      status: 'active',
-      metadata: {
-        apiId: api.id,
-        description: api.description,
-        createdDate: api.createdDate?.toISOString(),
-      },
-    }));
-  } catch (err: any) {
-    logger.warn(`API Gateway discovery failed in ${region}: ${err.message}`);
-    if (err.name === 'AccessDeniedException') {
-      permissionErrors.push({
-        resourceType: 'apigateway',
-        region,
-        error: err.message,
-        missingPermissions: ['apigateway:GET'],
-      });
-    }
-    return [];
-  }
+async function discoverAPIGateways(credentials: any, region: string): Promise<ResourceInfo[]> {
+  const client = new APIGatewayClient({ region, credentials });
+  const response = await client.send(new GetRestApisCommand({}));
+  
+  return (response.items || []).map(api => ({
+    resourceId: api.name || api.id || '',
+    resourceName: api.name || '',
+    resourceType: 'apigateway',
+    region,
+    status: 'active',
+    metadata: { apiId: api.id, description: api.description },
+  }));
 }
 
 // Buscar métrica do CloudWatch
@@ -511,159 +525,143 @@ async function fetchMetric(
   client: CloudWatchClient,
   namespace: string,
   metricName: string,
-  dimensions: Dimension[]
-): Promise<Array<{ timestamp: Date; value: number }>> {
-  const endTime = new Date();
-  const startTime = new Date(endTime.getTime() - 3 * 60 * 60 * 1000); // 3 hours ago
-  
-  const response = await client.send(new GetMetricStatisticsCommand({
-    Namespace: namespace,
-    MetricName: metricName,
-    Dimensions: dimensions,
-    StartTime: startTime,
-    EndTime: endTime,
-    Period: 300, // 5 minutes
-    Statistics: ['Average', 'Sum', 'Maximum'],
-  }));
-  
-  return (response.Datapoints || [])
-    .filter(dp => dp.Timestamp && (dp.Average !== undefined || dp.Sum !== undefined))
-    .map(dp => ({
-      timestamp: dp.Timestamp!,
-      value: dp.Average ?? dp.Sum ?? 0,
-      maximum: dp.Maximum,
-      sum: dp.Sum,
-    }));
-}
-
-// Upsert recurso no banco
-async function upsertResource(
-  prisma: any,
-  organizationId: string,
-  accountId: string,
-  resource: ResourceInfo
-): Promise<void> {
-  try {
-    const existing = await prisma.monitoredResource.findFirst({
-      where: {
-        organization_id: organizationId,
-        aws_account_id: accountId,
-        resource_id: resource.resourceId,
-        resource_type: resource.resourceType,
-      },
-    });
-    
-    if (existing) {
-      await prisma.monitoredResource.update({
-        where: { id: existing.id },
-        data: {
-          resource_name: resource.resourceName,
-          status: resource.status,
-          region: resource.region,
-          metadata: resource.metadata,
-          updated_at: new Date(),
-        },
-      });
-    } else {
-      await prisma.monitoredResource.create({
-        data: {
-          id: randomUUID(),
-          organization_id: organizationId,
-          aws_account_id: accountId,
-          resource_id: resource.resourceId,
-          resource_name: resource.resourceName,
-          resource_type: resource.resourceType,
-          region: resource.region,
-          status: resource.status,
-          metadata: resource.metadata,
-          created_at: new Date(),
-          updated_at: new Date(),
-        },
-      });
-    }
-  } catch (err) {
-    logger.warn(`Failed to upsert resource ${resource.resourceId}: ${err}`);
-  }
-}
-
-// Salvar métrica no banco
-async function saveMetric(
-  prisma: any,
-  organizationId: string,
-  accountId: string,
+  dimensionKey: string,
   resource: ResourceInfo,
-  metricName: string,
-  datapoint: { timestamp: Date; value: number; maximum?: number; sum?: number }
-): Promise<void> {
+  periodHours: number
+): Promise<MetricDataPoint[]> {
   try {
-    // Check if metric already exists for this timestamp
-    const existing = await prisma.resourceMetric.findFirst({
-      where: {
-        organization_id: organizationId,
-        aws_account_id: accountId,
-        resource_id: resource.resourceId,
-        metric_name: metricName,
-        timestamp: datapoint.timestamp,
-      },
-    });
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - periodHours * 60 * 60 * 1000);
+    const aggregationPeriod = periodHours > 24 ? 3600 : periodHours > 3 ? 900 : 300;
     
-    if (!existing) {
-      await prisma.resourceMetric.create({
-        data: {
-          id: randomUUID(),
-          organization_id: organizationId,
-          aws_account_id: accountId,
-          resource_id: resource.resourceId,
-          resource_name: resource.resourceName,
-          resource_type: resource.resourceType,
-          metric_name: metricName,
-          metric_value: datapoint.value,
-          metric_unit: getMetricUnit(metricName),
-          timestamp: datapoint.timestamp,
-          created_at: new Date(),
-        },
-      });
-    }
-  } catch (err) {
-    // Ignore duplicate key errors
-    if (!(err as any)?.code?.includes('P2002')) {
-      logger.warn(`Failed to save metric ${metricName} for ${resource.resourceId}: ${err}`);
-    }
+    const response = await client.send(new GetMetricStatisticsCommand({
+      Namespace: namespace,
+      MetricName: metricName,
+      Dimensions: [{ Name: dimensionKey, Value: resource.resourceId }],
+      StartTime: startTime,
+      EndTime: endTime,
+      Period: aggregationPeriod,
+      Statistics: ['Average', 'Sum', 'Maximum'],
+    }));
+    
+    return (response.Datapoints || [])
+      .filter(dp => dp.Timestamp && (dp.Average !== undefined || dp.Sum !== undefined))
+      .map(dp => ({
+        resourceId: resource.resourceId,
+        resourceName: resource.resourceName,
+        resourceType: resource.resourceType,
+        metricName,
+        value: dp.Average ?? dp.Sum ?? 0,
+        timestamp: dp.Timestamp!,
+        unit: METRIC_UNITS[metricName] || 'None',
+      }));
+  } catch {
+    return [];
   }
 }
 
-// Obter unidade da métrica
-function getMetricUnit(metricName: string): string {
-  const units: Record<string, string> = {
-    CPUUtilization: 'Percent',
-    MemoryUtilization: 'Percent',
-    NetworkIn: 'Bytes',
-    NetworkOut: 'Bytes',
-    DiskReadOps: 'Count',
-    DiskWriteOps: 'Count',
-    DatabaseConnections: 'Count',
-    FreeStorageSpace: 'Bytes',
-    ReadIOPS: 'Count/Second',
-    WriteIOPS: 'Count/Second',
-    Invocations: 'Count',
-    Errors: 'Count',
-    Duration: 'Milliseconds',
-    Throttles: 'Count',
-    ConcurrentExecutions: 'Count',
-    RequestCount: 'Count',
-    TargetResponseTime: 'Seconds',
-    ProcessedBytes: 'Bytes',
-    ActiveFlowCount: 'Count',
-    NewFlowCount: 'Count',
-    ProcessedPackets: 'Count',
-    Count: 'Count',
-    Latency: 'Milliseconds',
-    IntegrationLatency: 'Milliseconds',
-    '4XXError': 'Count',
-    '5XXError': 'Count',
-    NetworkBytesIn: 'Bytes',
-    NetworkBytesOut: 'Bytes',
-    CurrConnections: 'Count',
-  };
-  return units[metricName] || 'None';
+// Salvar recursos em batch
+async function saveResourcesBatch(
+  prisma: any, 
+  organizationId: string, 
+  accountId: string, 
+  resources: ResourceInfo[]
+): Promise<void> {
+  if (resources.length === 0) return;
+  
+  try {
+    // Processar em batches de 50 para evitar timeout do Prisma
+    const batches = chunk(resources, 50);
+    
+    for (const batch of batches) {
+      await prisma.$transaction(
+        batch.map(resource => 
+          prisma.monitoredResource.upsert({
+            where: {
+              organization_id_aws_account_id_resource_id_resource_type: {
+                organization_id: organizationId,
+                aws_account_id: accountId,
+                resource_id: resource.resourceId,
+                resource_type: resource.resourceType,
+              },
+            },
+            update: {
+              resource_name: resource.resourceName,
+              status: resource.status,
+              region: resource.region,
+              metadata: resource.metadata,
+              updated_at: new Date(),
+            },
+            create: {
+              id: randomUUID(),
+              organization_id: organizationId,
+              aws_account_id: accountId,
+              resource_id: resource.resourceId,
+              resource_name: resource.resourceName,
+              resource_type: resource.resourceType,
+              region: resource.region,
+              status: resource.status,
+              metadata: resource.metadata,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          })
+        )
+      );
+    }
+    
+    logger.info(`Saved ${resources.length} resources to DB`);
+  } catch (err) {
+    logger.warn('Failed to save resources batch', { error: (err as Error).message });
+  }
 }
+
+// Salvar métricas em batch
+async function saveMetricsBatch(
+  prisma: any, 
+  organizationId: string, 
+  accountId: string, 
+  metrics: MetricDataPoint[]
+): Promise<void> {
+  if (metrics.length === 0) return;
+  
+  try {
+    // Processar em batches de 100 para evitar timeout
+    const batches = chunk(metrics, 100);
+    
+    for (const batch of batches) {
+      const data = batch.map(m => ({
+        id: randomUUID(),
+        organization_id: organizationId,
+        aws_account_id: accountId,
+        resource_id: m.resourceId,
+        resource_name: m.resourceName,
+        resource_type: m.resourceType,
+        metric_name: m.metricName,
+        metric_value: m.value,
+        metric_unit: m.unit,
+        timestamp: m.timestamp,
+        created_at: new Date(),
+      }));
+      
+      await prisma.resourceMetric.createMany({
+        data,
+        skipDuplicates: true,
+      });
+    }
+    
+    logger.info(`Saved ${metrics.length} metrics to DB`);
+  } catch (err) {
+    logger.warn('Failed to save metrics batch', { error: (err as Error).message });
+  }
+}
+
+// Export com circuit breaker
+export const handler = async (
+  event: AuthorizedEvent, 
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> => {
+  return withAwsCircuitBreaker('fetch-cloudwatch-metrics', () => 
+    fetchCloudwatchMetricsHandler(event, context)
+  );
+};

@@ -20,15 +20,21 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastValidLicense, setLastValidLicense] = useState<boolean | null>(null);
-  const [authCheckAttempts, setAuthCheckAttempts] = useState(0);
+  
+  // SECURITY: Use refs to prevent race conditions
+  const isCheckingRef = useRef(false);
+  const attemptsRef = useRef(0);
+  const isMountedRef = useRef(true);
   const passwordCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Check license status
   const { data: licenseStatus, isLoading: licenseLoading, isFetching } = useLicenseValidation();
 
-  // Cleanup timeout on unmount
+  // Track mounted state
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (passwordCheckTimeoutRef.current) {
         clearTimeout(passwordCheckTimeoutRef.current);
       }
@@ -37,47 +43,66 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
   // Set up auth state listener
   useEffect(() => {
+    // SECURITY: Prevent multiple simultaneous auth checks
+    if (isCheckingRef.current) return;
+    
     // Prevent infinite loops by limiting auth check attempts
-    if (authCheckAttempts >= 3) {
+    if (attemptsRef.current >= 3) {
       console.error('❌ Too many auth check attempts, redirecting to login');
-      setIsLoading(false);
-      navigate('/auth');
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        navigate('/auth', { replace: true });
+      }
       return;
     }
 
-    // Setup cache invalidation patterns
-    setupCommonInvalidationPatterns();
+    // Setup cache invalidation patterns (only once)
+    if (attemptsRef.current === 0) {
+      setupCommonInvalidationPatterns();
+    }
     
     // Check for existing session with error handling
     const checkAuth = async () => {
+      isCheckingRef.current = true;
+      attemptsRef.current++;
+      
       try {
-        setAuthCheckAttempts(prev => prev + 1);
         const session = await cognitoAuth.getCurrentSession();
         
-        setSession(session);
-        setUser(session?.user ?? null);
+        // SECURITY: Check if component is still mounted before updating state
+        if (!isMountedRef.current) return;
         
         if (!session) {
-          navigate('/auth');
-        } else {
-          // Check if user needs to change password
+          navigate('/auth', { replace: true });
+          return;
+        }
+        
+        setSession(session);
+        setUser(session.user);
+        
+        // Check if user needs to change password (with proper delay)
+        if (session.user?.id) {
           passwordCheckTimeoutRef.current = setTimeout(() => {
-            checkPasswordChangeRequired(session.user.id);
-          }, 0);
+            if (isMountedRef.current) {
+              checkPasswordChangeRequired(session.user.id);
+            }
+          }, 100); // Small delay to prevent race condition
         }
       } catch (error) {
         console.error('❌ Auth check failed:', error);
-        navigate('/auth');
+        if (isMountedRef.current) {
+          navigate('/auth', { replace: true });
+        }
       } finally {
-        setIsLoading(false);
+        isCheckingRef.current = false;
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 
     checkAuth();
-
-    // Note: Cognito auth state changes would need to be implemented
-    // with custom event listeners or periodic session checks
-  }, [navigate, authCheckAttempts]);
+  }, [navigate]); // SECURITY: Removed authCheckAttempts from deps to prevent loops
 
   // Track last valid license state to prevent flickering
   useEffect(() => {
@@ -102,6 +127,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   }, [licenseStatus, location.pathname, navigate, isLoading, licenseLoading]);
 
   const checkPasswordChangeRequired = async (userId: string) => {
+    // SECURITY: Check if still mounted
+    if (!isMountedRef.current) return;
+    
     try {
       const result = await apiClient.select('profiles', {
         select: 'force_password_change',
@@ -114,8 +142,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
       const profile = result.data?.[0];
 
-      if (profile?.force_password_change && window.location.pathname !== '/change-password') {
-        navigate('/change-password');
+      if (isMountedRef.current && profile?.force_password_change && window.location.pathname !== '/change-password') {
+        navigate('/change-password', { replace: true });
       }
     } catch (error) {
       ErrorHandler.handleSilent(error, {

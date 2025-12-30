@@ -53,6 +53,9 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'monitored_resources': 'monitoredResource',
   'resource_metrics': 'resourceMetric',
   'resource_utilization_ml': 'resourceUtilizationML',
+  'ml_analysis_history': 'mLAnalysisHistory',
+  'edge_services': 'edgeService',
+  'edge_metrics': 'edgeMetric',
   
   // Aliases do frontend para tabelas reais
   'security_alerts': 'alert',
@@ -71,7 +74,8 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'application_logs': 'systemEvent',
   'performance_metrics': 'monitoredEndpoint',
   'waste_detection': 'wasteDetection',
-  'user_roles': 'profile',
+  'waste_detection_history': 'mLAnalysisHistory',
+  'user_roles': 'userRole',
   'knowledge_base_favorites': 'knowledgeBaseArticle',
 };
 
@@ -121,6 +125,7 @@ const TABLES_WITH_ORG_ID = new Set([
   'security_events', 'security_findings', 'system_events',
   'cost_optimizations', 'compliance_scans', 'jira_tickets',
   'monitored_resources', 'resource_metrics', 'resource_utilization_ml',
+  'ml_analysis_history', 'waste_detection_history',
   // Aliases
   'security_alerts', 'alert_history', 'aws_resources', 'scan_findings',
   'optimization_recommendations', 'iam_behavior_analysis',
@@ -128,6 +133,8 @@ const TABLES_WITH_ORG_ID = new Set([
   'remediation_tickets', 'well_architected_scores', 'application_logs',
   'performance_metrics', 'waste_detection',
   'security_scans_history', 'security_scan_history', 'well_architected_scans_history',
+  // Edge services
+  'edge_services', 'edge_metrics',
 ]);
 
 interface QueryRequest {

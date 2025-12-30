@@ -121,8 +121,14 @@ export function useRealtime(options: UseRealtimeOptions = {}) {
 
     setConnectionState('connecting');
 
-    const wsUrl = `${import.meta.env.VITE_WS_URL}?orgId=${organizationId}`;
-    ws.current = new WebSocket(wsUrl);
+    const wsUrl = import.meta.env.VITE_WS_URL;
+    if (!wsUrl) {
+      console.error('WebSocket URL not configured (VITE_WS_URL)');
+      setConnectionState('error');
+      return;
+    }
+    
+    ws.current = new WebSocket(`${wsUrl}?orgId=${organizationId}`);
 
     ws.current.onopen = () => {
       setConnectionState('connected');

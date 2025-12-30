@@ -81,7 +81,7 @@ export async function handler(
   
   logger.info('Create Cognito user started', { 
     organizationId,
-    userId: user.id,
+    userId: user.sub,
     requestId: context.awsRequestId 
   });
   
@@ -177,7 +177,7 @@ export async function handler(
   } catch (err: any) {
     logger.error('Create Cognito user error', err, { 
       organizationId,
-      userId: user.id,
+      userId: user.sub,
       requestId: context.awsRequestId 
     });
     

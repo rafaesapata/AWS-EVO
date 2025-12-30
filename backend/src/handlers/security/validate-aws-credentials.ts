@@ -30,7 +30,7 @@ export async function handler(
   
   logger.info('Validate AWS credentials started', { 
     organizationId,
-    userId: user.id,
+    userId: user.sub,
     requestId: context.awsRequestId 
   });
   
@@ -123,7 +123,7 @@ export async function handler(
   } catch (err) {
     logger.error('Validate AWS credentials error', err as Error, { 
       organizationId,
-      userId: user.id,
+      userId: user.sub,
       requestId: context.awsRequestId 
     });
     

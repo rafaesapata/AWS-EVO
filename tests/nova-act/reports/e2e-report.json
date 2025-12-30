@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-12-30T13:56:09.632Z",
+  "duration": 1935,
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1
+  },
+  "results": [
+    {
+      "name": "Login com Credenciais Válidas",
+      "category": "auth",
+      "success": false,
+      "duration": 75,
+      "steps": [
+        "Aguardando página de login...",
+        "Procurando campo de email...",
+        "❌ Erro: Campo de email não encontrado"
+      ],
+      "error": "Campo de email não encontrado"
+    }
+  ]
+}

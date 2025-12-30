@@ -65,7 +65,7 @@ export function createStore<T extends Record<string, any>>(
           )
         ),
         {
-          name: `evo-uds-${name}`,
+          name: `evo-${name}`,
           partialize: (state) => {
             // Only persist non-sensitive data
             const { ...persistedState } = state;

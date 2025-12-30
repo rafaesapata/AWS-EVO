@@ -260,7 +260,7 @@ const Features = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
       {/* Hero Section */}
       <div className="border-b bg-card/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-16">
+        <div className="w-full px-6 py-16">
           <div className="text-center max-w-4xl mx-auto">
             <Badge className="mb-4" variant="secondary">
               Platform Features
@@ -284,7 +284,7 @@ const Features = () => {
       </div>
 
       {/* Stats Section */}
-      <div className="container mx-auto px-4 py-12">
+      <div className="w-full px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
           {[
             { label: "Security Features", value: "15+", icon: Shield },
@@ -304,7 +304,7 @@ const Features = () => {
       </div>
 
       {/* Features by Category */}
-      <div className="container mx-auto px-4 py-12">
+      <div className="w-full px-6 py-12">
         {featureCategories.map((category, categoryIndex) => (
           <div key={categoryIndex} className="mb-16">
             <div className="flex items-center gap-3 mb-8">
@@ -346,7 +346,7 @@ const Features = () => {
 
       {/* CTA Section */}
       <div className="border-t bg-card/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-16">
+        <div className="w-full px-6 py-16">
           <div className="text-center max-w-3xl mx-auto">
             <h2 className="text-4xl font-bold mb-4">
               Ready to Optimize Your AWS Infrastructure?

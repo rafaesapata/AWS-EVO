@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ElastiCache Redis for EVO UDS v3 - Metrics Cache'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+      - development
+  
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID where Redis will be deployed
+    Default: vpc-09773244a2156129c
+  
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private subnet IDs for Redis
+    Default: subnet-0dbb444e4ef54d211,subnet-05383447666913b7b
+  
+  NodeType:
+    Type: String
+    Default: cache.t3.micro
+    AllowedValues:
+      - cache.t3.micro
+      - cache.t3.small
+      - cache.t3.medium
+      - cache.r6g.large
+    Description: ElastiCache node type
+  
+  NumCacheNodes:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 6
+    Description: Number of cache nodes
+
+Resources:
+  # Security Group for Redis
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub 'evo-uds-${Environment}-redis-sg'
+      GroupDescription: Security group for ElastiCache Redis
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # Allow Redis port from VPC CIDR
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          CidrIp: 10.0.0.0/16
+          Description: Redis access from VPC
+      Tags:
+        - Key: Name
+          Value: !Sub 'evo-uds-${Environment}-redis-sg'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: evo-uds-v3
+
+  # Subnet Group for Redis
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      CacheSubnetGroupName: !Sub 'evo-uds-${Environment}-redis-subnet-group'
+      Description: Subnet group for EVO UDS Redis
+      SubnetIds: !Ref SubnetIds
+      Tags:
+        - Key: Name
+          Value: !Sub 'evo-uds-${Environment}-redis-subnet-group'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Parameter Group for Redis 7.x
+  RedisParameterGroup:
+    Type: AWS::ElastiCache::ParameterGroup
+    Properties:
+      CacheParameterGroupFamily: redis7
+      Description: Parameter group for EVO UDS Redis
+      Properties:
+        maxmemory-policy: allkeys-lru
+        timeout: '300'
+      Tags:
+        - Key: Name
+          Value: !Sub 'evo-uds-${Environment}-redis-params'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ElastiCache Redis Cluster
+  RedisCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      ClusterName: !Sub 'evo-uds-${Environment}-redis'
+      Engine: redis
+      EngineVersion: '7.1'
+      CacheNodeType: !Ref NodeType
+      NumCacheNodes: !Ref NumCacheNodes
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      CacheParameterGroupName: !Ref RedisParameterGroup
+      VpcSecurityGroupIds:
+        - !GetAtt RedisSecurityGroup.GroupId
+      Port: 6379
+      PreferredMaintenanceWindow: sun:05:00-sun:06:00
+      SnapshotRetentionLimit: 1
+      SnapshotWindow: 03:00-04:00
+      AutoMinorVersionUpgrade: true
+      Tags:
+        - Key: Name
+          Value: !Sub 'evo-uds-${Environment}-redis'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: evo-uds-v3
+
+  # SSM Parameter for Redis Endpoint
+  RedisEndpointParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/evo-uds/${Environment}/redis/endpoint'
+      Type: String
+      Value: !GetAtt RedisCluster.RedisEndpoint.Address
+      Description: ElastiCache Redis endpoint for EVO UDS
+      Tags:
+        Environment: !Ref Environment
+        Project: evo-uds-v3
+
+  # SSM Parameter for Redis Port
+  RedisPortParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/evo-uds/${Environment}/redis/port'
+      Type: String
+      Value: !GetAtt RedisCluster.RedisEndpoint.Port
+      Description: ElastiCache Redis port for EVO UDS
+      Tags:
+        Environment: !Ref Environment
+        Project: evo-uds-v3
+
+Outputs:
+  RedisClusterId:
+    Description: ElastiCache Redis Cluster ID
+    Value: !Ref RedisCluster
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisClusterId'
+
+  RedisEndpoint:
+    Description: ElastiCache Redis Endpoint
+    Value: !GetAtt RedisCluster.RedisEndpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisEndpoint'
+
+  RedisPort:
+    Description: ElastiCache Redis Port
+    Value: !GetAtt RedisCluster.RedisEndpoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisPort'
+
+  RedisSecurityGroupId:
+    Description: Security Group ID for Redis
+    Value: !GetAtt RedisSecurityGroup.GroupId
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisSecurityGroupId'
+
+  ConnectionString:
+    Description: Redis connection string for applications
+    Value: !Sub 'redis://${RedisCluster.RedisEndpoint.Address}:${RedisCluster.RedisEndpoint.Port}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ConnectionString'

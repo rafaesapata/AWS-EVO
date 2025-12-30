@@ -97,7 +97,7 @@ export async function handler(
   
   logger.info('ML Waste Detection v3.0 started', { 
     organizationId,
-    userId: user.id,
+    userId: user.sub,
     requestId: context.awsRequestId 
   });
   
@@ -138,11 +138,29 @@ export async function handler(
     let totalAnalyzed = 0;
     let awsAccountNumber = '';
     
+    // Create history record for this scan
+    const historyId = randomUUID();
+    const scanStartTime = new Date();
+    
+    await prisma.mLAnalysisHistory.create({
+      data: {
+        id: historyId,
+        organization_id: organizationId,
+        aws_account_id: account.id,
+        scan_type: 'ml-waste-detection',
+        status: 'running',
+        analysis_depth: analysisDepth,
+        regions_scanned: regions,
+        started_at: scanStartTime,
+      },
+    });
+    
     logger.info('Starting ML analysis v3.0', { 
       organizationId, 
       accountId: account.id,
       regions,
-      analysisDepth 
+      analysisDepth,
+      historyId
     });
 
     // Process each region
@@ -284,13 +302,35 @@ export async function handler(
     
     const executionTime = ((Date.now() - startTime) / 1000).toFixed(2);
     
+    // Update history record with results
+    await prisma.mLAnalysisHistory.update({
+      where: { id: historyId },
+      data: {
+        status: 'completed',
+        aws_account_number: awsAccountNumber || null,
+        total_resources_analyzed: totalAnalyzed,
+        total_recommendations: actionableResults.length,
+        total_monthly_savings: parseFloat(totalMonthlySavings.toFixed(2)),
+        total_annual_savings: parseFloat(totalAnnualSavings.toFixed(2)),
+        terminate_count: byType.terminate,
+        downsize_count: byType.downsize,
+        autoscale_count: byType['auto-scale'],
+        optimize_count: byType.optimize,
+        migrate_count: byType.migrate,
+        by_resource_type: byResourceType,
+        execution_time_seconds: parseFloat(executionTime),
+        completed_at: new Date(),
+      },
+    });
+    
     logger.info('ML Waste Detection v3.0 completed', { 
       organizationId,
       totalAnalyzed,
       recommendationsCount: actionableResults.length,
       totalMonthlySavings: parseFloat(totalMonthlySavings.toFixed(2)),
       totalAnnualSavings: parseFloat(totalAnnualSavings.toFixed(2)),
-      executionTime
+      executionTime,
+      historyId
     });
 
     return success({
@@ -339,9 +379,28 @@ export async function handler(
   } catch (err) {
     logger.error('ML Waste Detection error', err as Error, { 
       organizationId,
-      userId: user.id,
+      userId: user.sub,
       requestId: context.awsRequestId 
     });
+    
+    // Update history record with error status if historyId exists
+    try {
+      const prisma = getPrismaClient();
+      // Try to find and update any running history for this org/account
+      await prisma.mLAnalysisHistory.updateMany({
+        where: {
+          organization_id: organizationId,
+          status: 'running',
+        },
+        data: {
+          status: 'failed',
+          error_message: err instanceof Error ? err.message : 'Unknown error',
+          completed_at: new Date(),
+        },
+      });
+    } catch (updateErr) {
+      logger.warn('Failed to update history record on error', { error: (updateErr as Error).message });
+    }
     
     await businessMetrics.errorOccurred(
       'ml_waste_detection_error',

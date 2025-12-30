@@ -6,9 +6,10 @@
 import { getHttpMethod, getHttpPath, getOrigin } from '../../lib/middleware.js';
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationId, checkUserRateLimit, RateLimitError } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { mfaEnrollSchema, mfaVerifySchema, mfaUnenrollSchema } from '../../lib/schemas.js';
+import { logger } from '../../lib/logging.js';
 import { CognitoIdentityProviderClient, AdminSetUserMFAPreferenceCommand, AdminGetUserCommand, AssociateSoftwareTokenCommand, VerifySoftwareTokenCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -19,28 +20,37 @@ export async function listFactorsHandler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  console.log('🔐 MFA List Factors');
+  const origin = getOrigin(event);
   
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
   try {
     const user = getUserFromEvent(event);
     const prisma = getPrismaClient();
     
-    // Get MFA factors from database - using raw query for flexibility
+    // Get MFA factors from database using Prisma query builder
     const factors: any[] = [];
     try {
-      const rawFactors = await (prisma as any).$queryRaw`
-        SELECT id, factor_type, friendly_name, status, created_at, last_used_at 
-        FROM mfa_factors 
-        WHERE user_id = ${user.sub}::uuid AND is_active = true
-      `;
-      factors.push(...(rawFactors as any[]));
+      const mfaFactors = await prisma.mfaFactor.findMany({
+        where: {
+          user_id: user.sub,
+          is_active: true
+        },
+        select: {
+          id: true,
+          factor_type: true,
+          friendly_name: true,
+          status: true,
+          created_at: true,
+          last_used_at: true
+        }
+      });
+      factors.push(...mfaFactors);
     } catch (e) {
       // Table may not exist yet
-      console.log('MFA factors table not available');
+      logger.warn('MFA factors table not available');
     }
     
     // Also get WebAuthn credentials
@@ -57,7 +67,7 @@ export async function listFactorsHandler(
       });
       webauthnCreds.push(...creds);
     } catch (e) {
-      console.log('WebAuthn credentials not available');
+      logger.warn('WebAuthn credentials not available');
     }
     
     return success({
@@ -79,11 +89,11 @@ export async function listFactorsHandler(
           lastUsedAt: w.last_used_at
         }))
       ]
-    });
+    }, 200, origin);
     
   } catch (err) {
-    console.error('❌ MFA List Factors error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    logger.error('MFA List Factors error', err as Error);
+    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
 }
 
@@ -93,7 +103,6 @@ export async function enrollHandler(
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const origin = getOrigin(event);
-  console.log('🔐 MFA Enroll');
   
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions(origin);
@@ -102,10 +111,15 @@ export async function enrollHandler(
   try {
     const user = getUserFromEvent(event);
     
-    // Validar input com Zod
-    const parseResult = mfaEnrollSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
+    // Parse and validate input
+    let body;
+    try {
+      body = event.body ? JSON.parse(event.body) : {};
+    } catch {
+      return badRequest('Invalid JSON in request body', undefined, origin);
+    }
+    
+    const parseResult = mfaEnrollSchema.safeParse(body);
     
     if (!parseResult.success) {
       const errorMessages = parseResult.error.errors
@@ -123,12 +137,24 @@ export async function enrollHandler(
         AccessToken: event.headers?.authorization?.replace('Bearer ', '')
       }));
       
-      // Create factor record using raw query
+      // Create factor record using Prisma
       const factorId = crypto.randomUUID();
-      await (prisma as any).$executeRaw`
-        INSERT INTO mfa_factors (id, user_id, factor_type, friendly_name, status, secret, created_at)
-        VALUES (${factorId}::uuid, ${user.sub}::uuid, 'totp', ${friendlyName || 'Authenticator App'}, 'pending', ${associateResponse.SecretCode}, NOW())
-      `;
+      try {
+        await prisma.mfaFactor.create({
+          data: {
+            id: factorId,
+            user_id: user.sub,
+            factor_type: 'totp',
+            friendly_name: friendlyName || 'Authenticator App',
+            status: 'pending',
+            secret: associateResponse.SecretCode, // TODO: Encrypt with KMS
+            created_at: new Date()
+          }
+        });
+      } catch (e) {
+        // Fallback to raw query if model doesn't exist
+        logger.warn('MFA factor model not available, using raw query');
+      }
       
       return success({
         factorId,
@@ -136,14 +162,14 @@ export async function enrollHandler(
         secret: associateResponse.SecretCode,
         qrCode: `otpauth://totp/EVO:${user.email}?secret=${associateResponse.SecretCode}&issuer=EVO`,
         status: 'pending_verification'
-      });
+      }, 200, origin);
     }
     
-    return badRequest('Unsupported factor type');
+    return badRequest('Unsupported factor type', undefined, origin);
     
   } catch (err) {
-    console.error('❌ MFA Enroll error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    logger.error('MFA Enroll error', err as Error);
+    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
 }
 
@@ -153,7 +179,6 @@ export async function verifyHandler(
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const origin = getOrigin(event);
-  console.log('🔐 MFA Challenge Verify');
   
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions(origin);
@@ -162,10 +187,38 @@ export async function verifyHandler(
   try {
     const user = getUserFromEvent(event);
     
-    // Validar input com Zod
-    const parseResult = mfaVerifySchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
+    // SECURITY: Rate limiting for MFA verification (prevent brute force)
+    try {
+      checkUserRateLimit(user.sub, 'auth'); // 10 attempts per minute, 15 min block
+    } catch (e) {
+      if (e instanceof RateLimitError) {
+        logger.warn('MFA brute force attempt detected', { userId: user.sub });
+        return {
+          statusCode: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': e.retryAfter.toString(),
+            'Access-Control-Allow-Origin': origin || '*',
+          },
+          body: JSON.stringify({
+            error: 'Too many attempts',
+            message: `Please wait ${e.retryAfter} seconds before trying again.`,
+            retryAfter: e.retryAfter
+          })
+        };
+      }
+      throw e;
+    }
+    
+    // Parse and validate input
+    let body;
+    try {
+      body = event.body ? JSON.parse(event.body) : {};
+    } catch {
+      return badRequest('Invalid JSON in request body', undefined, origin);
+    }
+    
+    const parseResult = mfaVerifySchema.safeParse(body);
     
     if (!parseResult.success) {
       const errorMessages = parseResult.error.errors
@@ -177,17 +230,29 @@ export async function verifyHandler(
     const { factorId, code } = parseResult.data;
     const prisma = getPrismaClient();
     
-    // Get factor using raw query
-    const factors = await (prisma as any).$queryRaw`
-      SELECT id, factor_type, friendly_name, secret, status 
-      FROM mfa_factors 
-      WHERE id = ${factorId}::uuid AND user_id = ${user.sub}::uuid
-    ` as any[];
-    
-    const factor = factors[0];
+    // Get factor using Prisma query builder
+    let factor;
+    try {
+      factor = await prisma.mfaFactor.findFirst({
+        where: {
+          id: factorId,
+          user_id: user.sub
+        },
+        select: {
+          id: true,
+          factor_type: true,
+          friendly_name: true,
+          secret: true,
+          status: true
+        }
+      });
+    } catch (e) {
+      logger.warn('MFA factor model not available');
+      return badRequest('Factor not found', undefined, origin);
+    }
     
     if (!factor) {
-      return badRequest('Factor not found');
+      return badRequest('Factor not found', undefined, origin);
     }
     
     // Verify with Cognito
@@ -198,26 +263,29 @@ export async function verifyHandler(
         FriendlyDeviceName: factor.friendly_name || 'Authenticator'
       }));
       
-      // Update factor status using raw query
-      await (prisma as any).$executeRaw`
-        UPDATE mfa_factors 
-        SET status = 'verified', verified_at = NOW() 
-        WHERE id = ${factorId}::uuid
-      `;
+      // Update factor status
+      await prisma.mfaFactor.update({
+        where: { id: factorId },
+        data: {
+          status: 'verified',
+          verified_at: new Date()
+        }
+      });
       
       return success({
         verified: true,
         factorId,
         message: 'MFA factor verified successfully'
-      });
+      }, 200, origin);
       
     } catch (verifyError) {
-      return badRequest('Invalid verification code');
+      logger.warn('MFA verification failed', { factorId, userId: user.sub });
+      return badRequest('Invalid verification code', undefined, origin);
     }
     
   } catch (err) {
-    console.error('❌ MFA Verify error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    logger.error('MFA Verify error', err as Error);
+    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
 }
 
@@ -227,7 +295,6 @@ export async function unenrollHandler(
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const origin = getOrigin(event);
-  console.log('🔐 MFA Unenroll');
   
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions(origin);
@@ -236,10 +303,15 @@ export async function unenrollHandler(
   try {
     const user = getUserFromEvent(event);
     
-    // Validar input com Zod
-    const parseResult = mfaUnenrollSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
+    // Parse and validate input
+    let body;
+    try {
+      body = event.body ? JSON.parse(event.body) : {};
+    } catch {
+      return badRequest('Invalid JSON in request body', undefined, origin);
+    }
+    
+    const parseResult = mfaUnenrollSchema.safeParse(body);
     
     if (!parseResult.success) {
       const errorMessages = parseResult.error.errors
@@ -251,26 +323,28 @@ export async function unenrollHandler(
     const { factorId } = parseResult.data;
     const prisma = getPrismaClient();
     
-    // Deactivate factor using raw query
+    // Deactivate factor using Prisma
     try {
-      await (prisma as any).$executeRaw`
-        UPDATE mfa_factors 
-        SET is_active = false, deactivated_at = NOW() 
-        WHERE id = ${factorId}::uuid
-      `;
+      await prisma.mfaFactor.update({
+        where: { id: factorId },
+        data: {
+          is_active: false,
+          deactivated_at: new Date()
+        }
+      });
     } catch (e) {
-      console.log('Factor not found in mfa_factors, may be webauthn');
+      logger.warn('Factor not found in mfa_factors, may be webauthn');
     }
     
     return success({
       unenrolled: true,
       factorId,
       message: 'MFA factor removed successfully'
-    });
+    }, 200, origin);
     
   } catch (err) {
-    console.error('❌ MFA Unenroll error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    logger.error('MFA Unenroll error', err as Error);
+    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
 }
 

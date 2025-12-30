@@ -23,7 +23,7 @@ export async function handler(
   
   logger.info('Get Security Posture started', { 
     organizationId,
-    userId: user.id,
+    userId: user.sub,
     requestId: context.awsRequestId 
   });
   
@@ -116,7 +116,7 @@ export async function handler(
   } catch (err) {
     logger.error('Get Security Posture error', err as Error, { 
       organizationId,
-      userId: user.id,
+      userId: user.sub,
       requestId: context.awsRequestId 
     });
     return error(err instanceof Error ? err.message : 'Internal server error');

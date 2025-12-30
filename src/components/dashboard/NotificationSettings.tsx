@@ -76,7 +76,7 @@ export const NotificationSettings = () => {
       // Test email notification using AWS SES
       return await emailClient.sendNotification(
         user.email,
-        'Teste de Notificação - EVO-UDS',
+        'Teste de Notificação - EVO',
         'Este é um email de teste para verificar se as notificações por email estão funcionando corretamente. Se você recebeu este email, sua configuração está funcionando!',
         'info'
       );

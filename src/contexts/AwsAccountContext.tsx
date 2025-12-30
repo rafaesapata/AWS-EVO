@@ -156,7 +156,7 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
         newAccountId: id 
       });
     }
-  }, [queryClient, selectedAccountId, organizationId, invalidateByTrigger]);
+  }, [selectedAccountId, organizationId, invalidateByTrigger]);
 
   const selectedAccount = accounts.find(a => a.id === selectedAccountId) || null;
   const hasMultipleAccounts = accounts.length > 1;

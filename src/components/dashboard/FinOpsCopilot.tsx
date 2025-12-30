@@ -18,7 +18,7 @@ export function FinOpsCopilot() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Olá! Sou o FinOps Copilot da UDS. Posso ajudar com perguntas sobre custos AWS, otimizações, segurança e compliance. Como posso ajudar?'
+      content: 'Olá! Sou o FinOps Copilot. Posso ajudar com perguntas sobre custos AWS, otimizações, segurança e compliance. Como posso ajudar?'
     }
   ]);
   const [input, setInput] = useState('');

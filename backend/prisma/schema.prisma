@@ -299,20 +299,60 @@ model License {
   license_key       String   @unique
   customer_id       String?
   plan_type         String
+  product_type      String?  // pilotone, enterprise, etc.
   max_accounts      Int
-  max_users         Int
+  max_users         Int      // total_seats from external API
+  used_seats        Int      @default(0)
+  available_seats   Int      @default(0)
   features          String[]
   valid_from        DateTime @db.Timestamptz(6)
   valid_until       DateTime @db.Timestamptz(6)
   is_active         Boolean  @default(true)
+  is_trial          Boolean  @default(false)
+  is_expired        Boolean  @default(false)
+  days_remaining    Int?
+  last_sync_at      DateTime? @db.Timestamptz(6)
+  sync_error        String?
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   updated_at        DateTime @updatedAt @db.Timestamptz(6)
   
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  seat_assignments  LicenseSeatAssignment[]
   
   @@index([organization_id])
   @@index([is_active])
+  @@index([customer_id])
   @@map("licenses")
+}
+
+model LicenseSeatAssignment {
+  id                String   @id @default(uuid()) @db.Uuid
+  license_id        String   @db.Uuid
+  user_id           String   @db.Uuid
+  assigned_at       DateTime @default(now()) @db.Timestamptz(6)
+  assigned_by       String?  @db.Uuid
+  
+  license           License @relation(fields: [license_id], references: [id], onDelete: Cascade)
+  
+  @@unique([license_id, user_id])
+  @@index([license_id])
+  @@index([user_id])
+  @@map("license_seat_assignments")
+}
+
+model OrganizationLicenseConfig {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @unique @db.Uuid
+  customer_id       String   // External customer ID for license validation
+  auto_sync         Boolean  @default(true)
+  last_sync_at      DateTime? @db.Timestamptz(6)
+  sync_status       String?  // success, error, pending
+  sync_error        String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([customer_id])
+  @@map("organization_license_configs")
 }
 
 // ==================== WEBAUTHN ====================
@@ -531,6 +571,11 @@ model MonitoredEndpoint {
   timeout             Int      @default(5000)
   is_active           Boolean  @default(true)
   alert_on_failure    Boolean  @default(true)
+  monitor_ssl         Boolean  @default(true)
+  ssl_alert_days      Int      @default(30)
+  ssl_expiry_date     DateTime? @db.Timestamptz(6)
+  ssl_issuer          String?
+  ssl_valid           Boolean?
   last_status         String?
   last_checked_at     DateTime? @db.Timestamptz(6)
   last_response_time  Int?
@@ -1065,6 +1110,51 @@ model ResourceUtilizationML {
   @@map("resource_utilization_ml")
 }
 
+model MLAnalysisHistory {
+  id                      String   @id @default(uuid()) @db.Uuid
+  organization_id         String   @db.Uuid
+  aws_account_id          String   @db.Uuid
+  aws_account_number      String?
+  
+  // Scan metadata
+  scan_type               String   @default("ml-waste-detection") // 'ml-waste-detection', 'cost-optimization', etc.
+  status                  String   @default("running") // 'running', 'completed', 'failed'
+  
+  // Results summary
+  total_resources_analyzed Int     @default(0)
+  total_recommendations    Int     @default(0)
+  total_monthly_savings    Float   @default(0)
+  total_annual_savings     Float   @default(0)
+  
+  // Breakdown by type
+  terminate_count          Int     @default(0)
+  downsize_count           Int     @default(0)
+  autoscale_count          Int     @default(0)
+  optimize_count           Int     @default(0)
+  migrate_count            Int     @default(0)
+  
+  // Breakdown by resource type (JSON)
+  by_resource_type         Json?
+  
+  // Execution details
+  regions_scanned          Json?   // Array of regions
+  analysis_depth           String? // 'standard', 'deep'
+  execution_time_seconds   Float?
+  error_message            String?
+  
+  // Timestamps
+  started_at               DateTime @default(now()) @db.Timestamptz(6)
+  completed_at             DateTime? @db.Timestamptz(6)
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([scan_type])
+  @@index([status])
+  @@index([started_at])
+  @@map("ml_analysis_history")
+}
+
 
 // ==================== MFA FACTORS ====================
 
@@ -1153,4 +1243,79 @@ model AwsResource {
   @@index([aws_account_id])
   @@index([resource_type])
   @@map("aws_resources")
+}
+
+
+// ==================== EDGE SERVICES (CloudFront, WAF, Load Balancers) ====================
+
+model EdgeService {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organization_id       String   @db.Uuid
+  aws_account_id        String   @db.Uuid
+  service_type          String   // 'cloudfront', 'waf', 'load_balancer'
+  service_name          String
+  service_id            String   // CloudFront Distribution ID, WAF Web ACL ID, or ALB/NLB ARN
+  status                String   @default("active") // 'active', 'inactive', 'error'
+  region                String   @default("global")
+  domain_name           String?  // CloudFront domain or ALB DNS name
+  origin_domain         String?  // Origin domain for CloudFront
+  requests_per_minute   Float    @default(0)
+  cache_hit_rate        Float    @default(0)
+  error_rate            Float    @default(0)
+  blocked_requests      Int      @default(0)
+  metadata              Json?    // Additional service-specific data
+  last_updated          DateTime @default(now()) @db.Timestamptz(6)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  
+  metrics               EdgeMetric[]
+  
+  @@unique([organization_id, aws_account_id, service_id])
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([service_type])
+  @@map("edge_services")
+}
+
+model EdgeMetric {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String   @db.Uuid
+  service_id        String   @db.Uuid
+  timestamp         DateTime @db.Timestamptz(6)
+  requests          Int      @default(0)
+  cache_hits        Int      @default(0)
+  cache_misses      Int      @default(0)
+  blocked_requests  Int      @default(0)
+  response_time     Float    @default(0) // Average response time in ms
+  bandwidth_gb      Float    @default(0)
+  error_4xx         Int      @default(0)
+  error_5xx         Int      @default(0)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  edge_service      EdgeService @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  
+  @@unique([service_id, timestamp])
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([service_id])
+  @@index([timestamp])
+  @@map("edge_metrics")
+}
+
+
+// ==================== USER ROLES ====================
+
+model UserRole {
+  id                String   @id @default(uuid()) @db.Uuid
+  user_id           String   @db.Uuid
+  organization_id   String   @db.Uuid
+  role              String   // 'super_admin', 'org_admin', 'org_user', 'viewer'
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@unique([user_id, organization_id, role])
+  @@index([user_id])
+  @@index([organization_id])
+  @@index([role])
+  @@map("user_roles")
 }

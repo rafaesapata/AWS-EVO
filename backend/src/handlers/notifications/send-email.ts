@@ -7,8 +7,57 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { emailService, EmailOptions } from '../../lib/email-service.js';
 import { logger } from '../../lib/logging.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationId, checkUserRateLimit, RateLimitError } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { sanitizeStringAdvanced } from '../../lib/validation.js';
+
+// Allowed domains for password reset URLs
+const ALLOWED_RESET_DOMAINS = [
+  'evo.ai.udstec.io',
+  'api-evo.ai.udstec.io',
+  'localhost',
+  process.env.ALLOWED_RESET_DOMAIN
+].filter(Boolean) as string[];
+
+// Rate limits by email type
+const EMAIL_RATE_LIMITS: Record<string, { type: 'default' | 'auth' | 'sensitive' | 'export' }> = {
+  'single': { type: 'default' },
+  'bulk': { type: 'export' },
+  'notification': { type: 'default' },
+  'alert': { type: 'default' },
+  'security': { type: 'sensitive' },
+  'welcome': { type: 'auth' },
+  'password-reset': { type: 'auth' }
+};
+
+/**
+ * Validate reset URL against whitelist
+ */
+function validateResetUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return ALLOWED_RESET_DOMAINS.some(domain => 
+      parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sanitize HTML content to prevent injection
+ */
+function sanitizeHtmlContent(html: string): string {
+  // Remove script tags and event handlers
+  let sanitized = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+    .replace(/javascript:/gi, '')
+    .replace(/vbscript:/gi, '')
+    .replace(/data:text\/html/gi, '');
+  
+  return sanitized;
+}
 
 interface SendEmailRequest {
   type: 'single' | 'bulk' | 'notification' | 'alert' | 'security' | 'welcome' | 'password-reset';
@@ -94,10 +143,37 @@ export async function handler(
       return badRequest('Request body is required', undefined, origin);
     }
 
-    const request: SendEmailRequest = JSON.parse(event.body);
+    let request: SendEmailRequest;
+    try {
+      request = JSON.parse(event.body);
+    } catch {
+      return badRequest('Invalid JSON in request body', undefined, origin);
+    }
 
     if (!request.type || !request.to) {
       return badRequest('type and to fields are required', undefined, origin);
+    }
+
+    // SECURITY: Rate limiting by email type
+    const rateConfig = EMAIL_RATE_LIMITS[request.type] || EMAIL_RATE_LIMITS['single'];
+    try {
+      checkUserRateLimit(`${organizationId}:email`, rateConfig.type);
+    } catch (e) {
+      if (e instanceof RateLimitError) {
+        return {
+          statusCode: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': e.retryAfter.toString(),
+            'Access-Control-Allow-Origin': origin || '*',
+          },
+          body: JSON.stringify({
+            error: 'Email rate limit exceeded',
+            retryAfter: e.retryAfter
+          })
+        };
+      }
+      throw e;
     }
 
     const normalizeEmails = (emails: string | string[]) => {
@@ -117,9 +193,9 @@ export async function handler(
           to: normalizeEmails(request.to),
           cc: request.cc ? normalizeEmails(request.cc) : undefined,
           bcc: request.bcc ? normalizeEmails(request.bcc) : undefined,
-          subject: request.subject,
-          htmlBody: request.htmlBody,
-          textBody: request.textBody,
+          subject: sanitizeStringAdvanced(request.subject),
+          htmlBody: request.htmlBody ? sanitizeHtmlContent(request.htmlBody) : undefined,
+          textBody: request.textBody ? sanitizeStringAdvanced(request.textBody) : undefined,
           priority: request.priority,
           tags: request.tags,
         };
@@ -182,6 +258,15 @@ export async function handler(
       case 'password-reset':
         if (!request.resetData || Array.isArray(request.to)) {
           return badRequest('resetData is required and to must be a single email for password reset emails', undefined, origin);
+        }
+
+        // SECURITY: Validate reset URL against whitelist
+        if (!validateResetUrl(request.resetData.resetUrl)) {
+          logger.warn('Invalid reset URL domain attempted', { 
+            url: request.resetData.resetUrl,
+            organizationId 
+          });
+          return badRequest('Invalid reset URL domain', undefined, origin);
         }
 
         result = await emailService.sendPasswordResetEmail(

@@ -14,10 +14,39 @@ import { getVersionString } from "@/lib/version";
 import { z } from "@/lib/zod-config";
 
 export default function Auth() {
+  // Lista completa de domínios de email gratuitos
+  const FREE_EMAIL_DOMAINS = new Set([
+    'gmail.com', 'googlemail.com',
+    'hotmail.com', 'hotmail.co.uk', 'hotmail.fr', 'hotmail.de', 'hotmail.es', 'hotmail.it',
+    'outlook.com', 'outlook.co.uk', 'outlook.fr', 'outlook.de',
+    'yahoo.com', 'yahoo.co.uk', 'yahoo.fr', 'yahoo.de', 'yahoo.es', 'yahoo.it', 'ymail.com',
+    'live.com', 'live.co.uk', 'live.fr',
+    'protonmail.com', 'protonmail.ch', 'pm.me', 'proton.me',
+    'icloud.com', 'me.com', 'mac.com',
+    'aol.com', 'aol.co.uk',
+    'mail.com',
+    'zoho.com', 'zohomail.com',
+    'gmx.com', 'gmx.net', 'gmx.de',
+    'yandex.com', 'yandex.ru',
+    'mail.ru',
+    'tutanota.com', 'tutanota.de', 'tutamail.com',
+    'fastmail.com', 'fastmail.fm',
+    'hey.com',
+    'msn.com',
+    'qq.com',
+    '163.com', '126.com',
+    'web.de',
+    'freenet.de',
+    't-online.de',
+    'orange.fr', 'wanadoo.fr',
+    'libero.it', 'virgilio.it',
+    'terra.com.br', 'uol.com.br', 'bol.com.br',
+  ]);
+
   // Schemas definidos dentro do componente para evitar problemas de hoisting
   const loginSchema = z.object({
     email: z.string().email("Email inválido"),
-    password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+    password: z.string().min(8, "Senha deve ter no mínimo 8 caracteres"),
   });
 
   const signupSchema = z.object({
@@ -25,13 +54,17 @@ export default function Auth() {
     email: z.string().email("Email inválido").refine(
       (email) => {
         const domain = email.split('@')[1]?.toLowerCase();
-        const freeDomains = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'live.com'];
-        return !freeDomains.includes(domain);
+        return !FREE_EMAIL_DOMAINS.has(domain);
       },
       "Apenas emails corporativos são permitidos. Emails gratuitos (Gmail, Hotmail, etc.) não são aceitos."
     ),
     companyName: z.string().optional(),
-    password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+    password: z.string()
+      .min(12, "Senha deve ter no mínimo 12 caracteres")
+      .regex(/[A-Z]/, "Deve conter pelo menos uma letra maiúscula")
+      .regex(/[a-z]/, "Deve conter pelo menos uma letra minúscula")
+      .regex(/[0-9]/, "Deve conter pelo menos um número")
+      .regex(/[^A-Za-z0-9]/, "Deve conter pelo menos um caractere especial"),
     confirmPassword: z.string(),
   }).refine((data) => data.password === data.confirmPassword, {
     message: "As senhas não coincidem",
@@ -771,7 +804,7 @@ export default function Auth() {
             </a>
           </p>
           <p className="text-xs text-muted-foreground/60 font-mono">
-            EVO UDS {getVersionString()}
+            EVO {getVersionString()}
           </p>
         </div>
       </div>

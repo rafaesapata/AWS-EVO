@@ -460,7 +460,7 @@ export const OptimizedLogo: React.FC<OptimizedLogoProps> = ({
     <OptimizedImage
       {...props}
       src={logoSrc}
-      alt="EVO UDS Logo"
+      alt="EVO Logo"
       className={cn('w-auto', sizeClasses[size], className)}
       priority
       loading="eager"

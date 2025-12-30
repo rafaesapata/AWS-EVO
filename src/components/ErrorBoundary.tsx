@@ -98,7 +98,7 @@ Please describe what you were doing when this error occurred:
 
     `);
     
-    window.open(`mailto:support@evo-uds.com?subject=${subject}&body=${body}`);
+    window.open(`mailto:support@evo.ai?subject=${subject}&body=${body}`);
   };
 
   render() {

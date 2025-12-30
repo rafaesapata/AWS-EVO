@@ -174,7 +174,7 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
                     )}
                     <div>
                       <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                        {title || "EVO UDS Platform"}
+                        {title || "EVO Platform"}
                       </h1>
                       <p className="text-sm text-muted-foreground">
                         {description || "AWS Cloud Intelligence Platform v3.2"}

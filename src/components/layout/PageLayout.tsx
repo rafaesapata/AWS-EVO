@@ -57,20 +57,27 @@ export function PageLayout({
         limit: 1
       });
 
-      const roles = await apiClient.select('user_roles', {
-        select: 'role',
-        eq: { user_id: user.username }
-      });
+      // Get roles from Cognito token attributes instead of database
+      const rolesStr = user.attributes?.['custom:roles'];
+      let roles: string[] = ['org_user'];
+      if (rolesStr) {
+        try {
+          const parsed = JSON.parse(rolesStr);
+          roles = Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          roles = ['org_user'];
+        }
+      }
 
       return {
         ...profile.data?.[0],
-        roles: roles.data?.map(r => r.role) || []
+        roles
       };
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  const userRole = userProfile?.roles?.[0] || 'org_user';
+  const userRole = userProfile?.roles || ['org_user'];
 
   const handleTabChange = (tab: string) => {
     // Navigation is handled by AppSidebar
@@ -84,7 +91,7 @@ export function PageLayout({
         <div className="flex-1 flex flex-col">
           {/* Header Padrão */}
           <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
-            <div className="container mx-auto px-6 py-4">
+            <div className="w-full px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <SidebarTrigger className="-ml-1" />
@@ -132,7 +139,7 @@ export function PageLayout({
           </header>
 
           {/* Conteúdo Principal */}
-          <main className="flex-1 container mx-auto px-6 py-6 overflow-auto">
+          <main className="flex-1 w-full px-6 py-6 overflow-auto">
             {children}
           </main>
 

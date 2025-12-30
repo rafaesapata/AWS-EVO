@@ -26,7 +26,8 @@ import {
   Eye,
   Settings,
   FileText,
-  BarChart3
+  BarChart3,
+  AlertTriangle
 } from "lucide-react";
 
 interface LogEntry {
@@ -150,17 +151,37 @@ export default function DevTools() {
     }
   };
 
+  // Sanitize CSV value to prevent CSV injection
+  const sanitizeCSVValue = (value: any): string => {
+    let sanitized = String(value || '').replace(/[\r\n]/g, ' ');
+    
+    // If starts with dangerous character, add apostrophe
+    if (/^[=+\-@\t\r]/.test(sanitized)) {
+      sanitized = "'" + sanitized;
+    }
+    
+    // Escape double quotes
+    sanitized = sanitized.replace(/"/g, '""');
+    
+    // Wrap in quotes if contains comma or quotes
+    if (sanitized.includes(',') || sanitized.includes('"')) {
+      sanitized = `"${sanitized}"`;
+    }
+    
+    return sanitized;
+  };
+
   const exportLogs = () => {
     if (!logs) return;
 
     const csvContent = [
       'Timestamp,Level,Service,Message,Trace ID',
       ...logs.map(log => [
-        log.timestamp,
-        log.level,
-        log.service,
-        `"${log.message}"`,
-        log.trace_id
+        sanitizeCSVValue(log.timestamp),
+        sanitizeCSVValue(log.level),
+        sanitizeCSVValue(log.service),
+        sanitizeCSVValue(log.message),
+        sanitizeCSVValue(log.trace_id)
       ].join(','))
     ].join('\n');
 
@@ -476,32 +497,18 @@ export default function DevTools() {
           <Card className="glass border-primary/20">
             <CardHeader>
               <CardTitle>Database Query Tool</CardTitle>
-              <CardDescription>Execute queries SQL diretamente no banco de dados</CardDescription>
+              <CardDescription>Ferramenta de consulta ao banco de dados (desabilitada por segurança)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">SQL Query</label>
-                <Textarea
-                  value={sqlQuery}
-                  onChange={(e) => setSqlQuery(e.target.value)}
-                  placeholder="Digite sua query SQL aqui..."
-                  rows={6}
-                  className="font-mono"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={executeQuery} className="gap-2">
-                  <Play className="h-4 w-4" />
-                  Executar Query
-                </Button>
-                <Button variant="outline" onClick={() => setSqlQuery('')}>
-                  Limpar
-                </Button>
-              </div>
-              <div className="border rounded-lg p-4 bg-muted/30">
-                <p className="text-sm text-muted-foreground">
-                  ⚠️ Cuidado: Esta ferramenta executa queries diretamente no banco de produção. 
-                  Use apenas queries SELECT para consultas seguras.
+              <div className="border rounded-lg p-6 bg-muted/30 text-center">
+                <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Funcionalidade Desabilitada</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Por razões de segurança, a execução de queries SQL arbitrárias foi desabilitada.
+                  Use as ferramentas de relatório ou entre em contato com o administrador do sistema.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Para consultas específicas, utilize os endpoints da API ou o painel de administração.
                 </p>
               </div>
             </CardContent>

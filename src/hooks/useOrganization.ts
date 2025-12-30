@@ -4,81 +4,86 @@ import { CACHE_CONFIGS } from './useQueryCache';
 import { useTVDashboard } from '@/contexts/TVDashboardContext';
 
 /**
+ * Result type for useOrganization hook
+ */
+interface UseOrganizationResult {
+  data: string | null;
+  isLoading: boolean;
+  isError: boolean;
+  isSuccess: boolean;
+  error: Error | null;
+  refetch: () => Promise<{ data: string | null }>;
+}
+
+/**
  * Hook para obter a organização do usuário atual
  * Inclui suporte a impersonation para super admins e modo TV Dashboard
  * Cache isolado por sessão de usuário com retry automático
  */
-export const useOrganization = () => {
+export const useOrganization = (): UseOrganizationResult => {
   const { organizationId: tvOrgId, isTVMode } = useTVDashboard();
   
-  console.log('🔐 useOrganization: Context values', { tvOrgId, isTVMode });
-  
-  // In TV mode, return organization ID directly from context without query
-  if (isTVMode && tvOrgId) {
-    console.log('🔐 useOrganization: TV mode with orgId, returning directly');
-    return {
-      data: tvOrgId,
-      isLoading: false,
-      isError: false,
-      isSuccess: true,
-      error: null,
-      refetch: () => Promise.resolve({ data: tvOrgId }),
-    } as any;
-  }
-  
-  // If in TV mode but no orgId yet, show loading
-  if (isTVMode && !tvOrgId) {
-    console.log('🔐 useOrganization: TV mode without orgId, returning loading');
-    return {
-      data: null,
-      isLoading: true,
-      isError: false,
-      isSuccess: false,
-      error: null,
-      refetch: () => Promise.resolve({ data: null }),
-    } as any;
-  }
-  
-  console.log('🔐 useOrganization: Normal mode, using query');
-  
-  return useQuery({
+  // Always call useQuery to follow React hooks rules
+  // Use 'enabled' option to control when the query runs
+  const query = useQuery({
     queryKey: ['user-organization'],
     queryFn: async () => {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
-
-      console.log('🔐 useOrganization: Getting organization for user', {
-        userId: user.id,
-        email: user.email,
-        organizationId: user.organizationId,
-      });
 
       // Use organization ID from AWS Cognito user attributes (primary and only source)
       if (user.organizationId) {
         // Validate UUID format
         const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
         if (!uuidRegex.test(user.organizationId)) {
-          console.error('🔐 useOrganization: Invalid organization ID format, forcing logout');
           // Force logout to get new token
           await cognitoAuth.signOut();
-          window.location.href = '/login?reason=session_expired';
-          throw new Error('Session expired. Redirecting to login...');
+          throw new Error('Session expired - invalid organization ID format');
         }
         
-        console.log('🔐 useOrganization: Using organizationId from Cognito token:', user.organizationId);
         return user.organizationId;
       }
 
       // No valid organization found - force logout
-      console.error('🔐 useOrganization: No organization found for user. Forcing logout.');
       await cognitoAuth.signOut();
-      window.location.href = '/login?reason=no_organization';
-      throw new Error('Organization not found. Redirecting to login...');
+      throw new Error('Organization not found');
     },
+    enabled: !isTVMode, // Disable query in TV mode
     ...CACHE_CONFIGS.SETTINGS, // 5 minutos de cache
-    // Reduce retry count and delays for faster feedback
     retry: 0, // Don't retry - if org is invalid, logout immediately
-    // Keep previous data while refetching to prevent UI flickering
     placeholderData: (previousData) => previousData,
   });
+  
+  // In TV mode, return organization ID directly from context
+  if (isTVMode) {
+    return {
+      data: tvOrgId || null,
+      isLoading: !tvOrgId,
+      isError: false,
+      isSuccess: !!tvOrgId,
+      error: null,
+      refetch: () => Promise.resolve({ data: tvOrgId || null }),
+    };
+  }
+  
+  // Handle redirect on specific errors
+  if (query.error) {
+    const errorMessage = query.error.message;
+    if (errorMessage.includes('Session expired') || errorMessage.includes('Organization not found')) {
+      const reason = errorMessage.includes('Session expired') ? 'session_expired' : 'no_organization';
+      window.location.href = `/login?reason=${reason}`;
+    }
+  }
+  
+  return {
+    data: query.data ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    isSuccess: query.isSuccess,
+    error: query.error,
+    refetch: async () => {
+      const result = await query.refetch();
+      return { data: result.data ?? null };
+    },
+  };
 };

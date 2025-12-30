@@ -179,6 +179,8 @@ const WellArchitected = () => {
   );
 
   const runScan = async () => {
+    console.log('🔍 runScan called, selectedAccountId:', selectedAccountId);
+    
     if (!selectedAccountId) {
       toast.error('Selecione uma conta AWS', {
         description: 'É necessário selecionar uma conta AWS para executar o scan'
@@ -187,13 +189,23 @@ const WellArchitected = () => {
     }
     
     setIsScanning(true);
+    toast.info('Iniciando scan Well-Architected...', { duration: 2000 });
+    
     try {
+      console.log('🔍 Calling API with accountId:', selectedAccountId);
       const result = await apiClient.invoke('well-architected-scan', {
         body: { accountId: selectedAccountId }
       });
       
-      if (result.error) throw result.error;
+      console.log('🔍 API result:', result);
+      
+      if (result.error) {
+        console.error('🔍 API error:', result.error);
+        throw result.error;
+      }
+      
       const data = result.data;
+      console.log('🔍 API data:', data);
       
       if (data?.overall_score !== undefined) {
         toast.success('Scan Well-Architected concluído!', {
@@ -205,6 +217,7 @@ const WellArchitected = () => {
       
       setTimeout(() => refetch(), 1000);
     } catch (error) {
+      console.error('🔍 Scan error:', error);
       toast.error('Erro ao executar scan Well-Architected', {
         description: error instanceof Error ? error.message : 'Erro desconhecido'
       });
@@ -372,7 +385,7 @@ const WellArchitected = () => {
         <div className="flex-1 flex flex-col">
           {/* Header - IGUAL À INDEX */}
           <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
-            <div className="container mx-auto px-6 py-4">
+            <div className="w-full px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <SidebarTrigger className="-ml-1" />
@@ -449,7 +462,7 @@ const WellArchitected = () => {
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 container mx-auto px-4 py-8 space-y-8">
+          <main className="flex-1 w-full px-6 py-8 space-y-8">
             <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-6">
               <TabsList className="grid w-full max-w-md grid-cols-2">
                 <TabsTrigger value="analysis">Nova Análise</TabsTrigger>

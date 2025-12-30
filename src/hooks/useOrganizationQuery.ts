@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { useOrganization } from './useOrganization';
 
 interface OrganizationQueryOptions {
@@ -8,15 +8,23 @@ interface OrganizationQueryOptions {
   gcTime?: number;
 }
 
+interface OrganizationQueryResult<TData> {
+  data: TData | undefined;
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => Promise<any>;
+  isFetching: boolean;
+}
+
 /**
  * Hook wrapper que automaticamente adiciona organization_id nas query keys
  * Garante isolamento de cache entre organizações
  */
-export function useOrganizationQuery<TData = any>(
+export function useOrganizationQuery<TData = unknown>(
   baseQueryKey: string[],
   queryFn: (organizationId: string) => Promise<TData>,
   options?: OrganizationQueryOptions
-) {
+): OrganizationQueryResult<TData> {
   const { data: organizationId, isLoading, error } = useOrganization();
 
   const result = useQuery<TData, Error>({
@@ -38,8 +46,10 @@ export function useOrganizationQuery<TData = any>(
 
   // Return combined loading state
   return {
-    ...result,
+    data: result.data,
     isLoading: isLoading || result.isLoading,
     error: error || result.error,
+    refetch: result.refetch,
+    isFetching: result.isFetching,
   };
 }

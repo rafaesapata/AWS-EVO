@@ -2,6 +2,7 @@ import { cognitoAuth } from './cognito-client-simple';
 import { getCSRFHeader } from '@/lib/csrf-protection';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 
 // Session ID for correlation across requests
 const SESSION_ID = crypto.randomUUID();
@@ -21,6 +22,28 @@ export interface ApiError {
     status?: number;
     requestId?: string;
   };
+}
+
+/**
+ * Safely decode JWT payload with proper base64url handling
+ */
+function decodeJWTPayload(token: string): Record<string, any> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    
+    // Add padding if necessary
+    const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+    const paddedBase64 = base64 + padding;
+    
+    const decoded = atob(paddedBase64);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -62,37 +85,19 @@ class ApiClient {
       // Use idToken for Cognito User Pools Authorizer (contains custom attributes)
       headers['Authorization'] = `Bearer ${session.idToken}`;
       
-      // DEBUG: Log token info and validate organization ID format
-      try {
-        const payload = JSON.parse(atob(session.idToken.split('.')[1]));
+      // Validate organization ID format from token
+      const payload = decodeJWTPayload(session.idToken);
+      if (payload) {
         const orgId = payload['custom:organization_id'];
-        
-        console.log('🔐 API Client: Token payload', {
-          sub: payload.sub,
-          email: payload.email,
-          orgId: orgId,
-          roles: payload['custom:roles'],
-          exp: new Date(payload.exp * 1000).toISOString(),
-          requestId,
-        });
         
         // CRITICAL: Validate UUID format - force logout if invalid
         const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
         if (orgId && !uuidRegex.test(orgId)) {
-          console.error('🔐 API Client: INVALID organization ID format detected!', orgId);
-          console.error('🔐 API Client: Forcing logout to get new token...');
           await cognitoAuth.signOut();
           window.location.href = '/login?reason=session_expired';
           throw new Error('Session expired. Please login again.');
         }
-      } catch (e) {
-        if (e instanceof Error && e.message.includes('Session expired')) {
-          throw e;
-        }
-        console.warn('🔐 API Client: Could not decode token', e);
       }
-    } else {
-      console.warn('🔐 API Client: No session available');
     }
 
     return headers;
@@ -100,19 +105,26 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    timeoutMs: number = DEFAULT_TIMEOUT_MS
   ): Promise<ApiResponse<T> | ApiError> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
     try {
       const headers = await this.getAuthHeaders();
       const requestId = headers['X-Request-ID'];
       
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
+        signal: controller.signal,
         headers: {
           ...headers,
           ...options.headers,
         },
       });
+      
+      clearTimeout(timeoutId);
 
       // Capture response request ID for tracing
       const responseRequestId = response.headers.get('X-Request-ID') || requestId;
@@ -141,6 +153,18 @@ class ApiClient {
       // Return as-is for other formats
       return { data: responseData, error: null, requestId: responseRequestId };
     } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        return {
+          data: null,
+          error: {
+            message: 'Request timeout',
+            code: 'TIMEOUT',
+          },
+        };
+      }
+      
       return {
         data: null,
         error: {

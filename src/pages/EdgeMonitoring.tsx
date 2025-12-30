@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,8 @@ import {
   RefreshCw,
   Cloud,
   Lock,
-  Activity
+  Activity,
+  Search
 } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 
@@ -56,6 +57,36 @@ export default function EdgeMonitoring() {
   const { selectedAccountId } = useAwsAccount();
   const { data: organizationId } = useOrganization();
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
+  const queryClient = useQueryClient();
+
+  // Mutation to discover edge services
+  const discoverMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post('/api/functions/fetch-edge-services', {
+        accountId: selectedAccountId,
+        regions: ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1']
+      });
+      if (response.error) {
+        throw new Error(getErrorMessage(response.error));
+      }
+      return response.data;
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['edge-services'] });
+      queryClient.invalidateQueries({ queryKey: ['edge-metrics'] });
+      toast({
+        title: "Descoberta concluída",
+        description: `Encontrados ${data?.servicesFound || 0} serviços de borda.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro na descoberta",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
 
   // Get edge services data
   const { data: edgeServices, isLoading, refetch } = useQuery({
@@ -69,7 +100,7 @@ export default function EdgeMonitoring() {
           organization_id: organizationId,
           aws_account_id: selectedAccountId
         },
-        order: { last_updated: 'desc' }
+        order: { column: 'last_updated', ascending: false }
       });
 
       if (response.error) {
@@ -96,7 +127,7 @@ export default function EdgeMonitoring() {
           aws_account_id: selectedAccountId
         },
         gte: { timestamp: startTime.toISOString() },
-        order: { timestamp: 'asc' }
+        order: { column: 'timestamp', ascending: true }
       });
 
       if (response.error) {
@@ -180,6 +211,25 @@ export default function EdgeMonitoring() {
       icon={<Globe className="h-5 w-5 text-white" />}
     >
       <div className="space-y-6">
+        {/* Action Buttons */}
+        <div className="flex justify-end gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+          <Button 
+            onClick={() => discoverMutation.mutate()}
+            disabled={discoverMutation.isPending || !selectedAccountId}
+          >
+            <Search className={`h-4 w-4 mr-2 ${discoverMutation.isPending ? 'animate-spin' : ''}`} />
+            {discoverMutation.isPending ? 'Descobrindo...' : 'Descobrir Serviços'}
+          </Button>
+        </div>
+
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="glass border-primary/20">

@@ -422,15 +422,20 @@ export function parseAndValidateBody<T>(
     const bodyStr = JSON.stringify(parsed);
     const maliciousCheck = detectMaliciousPatterns(bodyStr);
     if (maliciousCheck.isMalicious) {
+      // Use allowed origins from environment or default to production domain
+      const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://evo.ai.udstec.io').split(',');
+      const defaultOrigin = allowedOrigins[0];
+      
       return {
         success: false,
         error: {
           statusCode: 400,
           headers: { 
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Origin': defaultOrigin,
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-API-Key, X-Request-ID, X-Correlation-ID, X-CSRF-Token',
+            'Access-Control-Allow-Credentials': 'true',
           },
           body: JSON.stringify({
             error: 'Malicious content detected',
@@ -457,9 +462,12 @@ function getObjectDepth(obj: any, depth = 0): number {
   
   if (obj && typeof obj === 'object') {
     if (Array.isArray(obj)) {
+      if (obj.length === 0) return depth;
       return Math.max(...obj.map(item => getObjectDepth(item, depth + 1)));
     } else {
-      return Math.max(...Object.values(obj).map(value => getObjectDepth(value, depth + 1)));
+      const values = Object.values(obj);
+      if (values.length === 0) return depth;
+      return Math.max(...values.map(value => getObjectDepth(value, depth + 1)));
     }
   }
   
@@ -679,6 +687,8 @@ export function checkRateLimitSlidingWindow(
 
 /**
  * Limpa entradas expiradas do cache de rate limiting
+ * NOTA: Em ambiente Lambda, este cache é local à instância.
+ * Para rate limiting distribuído real, usar Redis via redis-cache.ts
  */
 export function cleanupRateLimitCache(): void {
   const now = Date.now();
@@ -690,5 +700,6 @@ export function cleanupRateLimitCache(): void {
   }
 }
 
-// Cleanup automático a cada 5 minutos
-setInterval(cleanupRateLimitCache, 5 * 60 * 1000);
+// NOTA: setInterval removido - não funciona corretamente em Lambda
+// O cleanup é feito automaticamente quando checkRateLimit é chamado
+// Para cleanup periódico, usar EventBridge Scheduler ou chamar cleanupRateLimitCache() no início do handler

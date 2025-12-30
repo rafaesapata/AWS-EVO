@@ -15,6 +15,49 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { secureStorage } from '@/lib/secure-storage';
 
+/**
+ * SECURITY: Decode Base64URL (used in JWT) to string
+ * atob() doesn't support Base64URL encoding, this function handles it properly
+ */
+function base64UrlDecode(str: string): string {
+  // Replace Base64URL characters with Base64
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  
+  // Add padding if necessary
+  const padding = base64.length % 4;
+  if (padding) {
+    base64 += '='.repeat(4 - padding);
+  }
+  
+  try {
+    // Decode Base64 and convert to UTF-8
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch (e) {
+    throw new Error('Failed to decode JWT payload');
+  }
+}
+
+/**
+ * SECURITY: Parse JWT payload safely
+ */
+function parseJwtPayload(token: string): any {
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    throw new Error('Invalid JWT structure');
+  }
+  
+  try {
+    return JSON.parse(base64UrlDecode(parts[1]));
+  } catch (e) {
+    throw new Error('Failed to parse JWT payload');
+  }
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -115,8 +158,8 @@ class CognitoAuthService {
       throw new Error('Tokens de autenticação não recebidos');
     }
 
-    // Decode JWT payload to get user info
-    const payload = JSON.parse(atob(idToken.split('.')[1]));
+    // SECURITY: Decode JWT payload using Base64URL decoder
+    const payload = parseJwtPayload(idToken);
     
     const user: AuthUser = {
       id: payload.sub,
@@ -173,7 +216,8 @@ class CognitoAuthService {
       const parts = token.split('.');
       if (parts.length !== 3) return false;
       
-      const payload = JSON.parse(atob(parts[1]));
+      // SECURITY: Use Base64URL decoder
+      const payload = parseJwtPayload(token);
       
       // Validate issuer
       const expectedIssuer = `https://cognito-idp.${this.region}.amazonaws.com/${this.userPoolId}`;
@@ -244,29 +288,41 @@ class CognitoAuthService {
 
   /**
    * Verifica se o token foi revogado
+   * Retorna false (não revogado) em caso de erro de rede para não bloquear o usuário
    */
   private async checkTokenRevocation(token: string): Promise<boolean> {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      
       const response = await fetch(`${this.apiBaseUrl}/auth/check-revocation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Request-ID': crypto.randomUUID()
         },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ token }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        // Em caso de erro, assumir que o token pode estar comprometido
-        return true;
+        // Log error but don't block user on server errors
+        console.warn('Token revocation check failed with status:', response.status);
+        return false;
       }
 
       const { revoked } = await response.json();
-      return revoked;
+      return revoked === true;
     } catch (error) {
-      console.error('Token revocation check error:', error);
-      // Em caso de erro, assumir que o token pode estar comprometido
-      return true;
+      // Network errors should not block the user
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn('Token revocation check timed out');
+      } else {
+        console.warn('Token revocation check error:', error);
+      }
+      return false;
     }
   }
 
@@ -332,7 +388,7 @@ class CognitoAuthService {
       }
 
       // 5. Decodificar e retornar claims
-      const payload = JSON.parse(atob(parts[1]));
+      const payload = parseJwtPayload(token);
       return { valid: true, claims: payload };
     } catch (error: any) {
       return { valid: false, error: error.message };
@@ -559,10 +615,8 @@ class CognitoAuthService {
    */
   private isTokenExpired(token: string): boolean {
     try {
-      const parts = token.split('.');
-      if (parts.length !== 3) return true;
-
-      const payload = JSON.parse(atob(parts[1]));
+      // SECURITY: Use Base64URL decoder
+      const payload = parseJwtPayload(token);
       const exp = payload.exp;
 
       return Date.now() >= exp * 1000;

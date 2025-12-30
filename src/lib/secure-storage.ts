@@ -1,41 +1,61 @@
 /**
  * Secure Storage Manager
  * Implements encrypted storage for sensitive data
+ * SECURITY: Production requires VITE_STORAGE_ENCRYPTION_KEY (min 32 chars)
  */
 
 import CryptoJS from 'crypto-js';
 
 const STORAGE_KEY_PREFIX = 'evo_secure_';
 
-// SECURITY: Get encryption key with fallback for production
+// Flag to track if we're in a degraded security mode
+let isSecurityDegraded = false;
+
+// SECURITY: Get encryption key - FAIL in production if not configured
 const getEncryptionKey = (): string => {
   const key = import.meta.env.VITE_STORAGE_ENCRYPTION_KEY;
   
+  // Valid key provided
   if (key && key.length >= 32) {
     return key;
   }
   
-  // In production without proper key, generate a session-based key
-  // This is less secure but prevents app from crashing
-  if (import.meta.env.PROD && !key) {
-    console.warn('SECURITY WARNING: VITE_STORAGE_ENCRYPTION_KEY not set. Using session-derived key.');
-    // Generate a deterministic key based on session
-    const sessionId = sessionStorage.getItem('_evo_session_id') || crypto.randomUUID();
-    sessionStorage.setItem('_evo_session_id', sessionId);
-    return `evo-prod-session-${sessionId}`.padEnd(32, 'x');
+  // PRODUCTION: MUST have proper key configured
+  if (import.meta.env.PROD) {
+    if (!key || key.length < 32) {
+      // Log critical error
+      console.error('FATAL SECURITY ERROR: VITE_STORAGE_ENCRYPTION_KEY must be set in production (min 32 chars)');
+      console.error('Application cannot securely store sensitive data without proper encryption key.');
+      
+      // Set degraded mode flag
+      isSecurityDegraded = true;
+      
+      // In production, we throw to prevent insecure operation
+      // The app should show an error screen instead of operating insecurely
+      throw new Error('Application security misconfigured. Please contact your administrator.');
+    }
+    return key;
   }
   
-  // In development, use a secure default but warn
-  if (!import.meta.env.PROD) {
-    return key || 'dev-only-key-not-for-production-use-32chars';
+  // DEVELOPMENT: Use dev key but warn
+  if (!key) {
+    console.warn('DEV WARNING: Using development encryption key. Set VITE_STORAGE_ENCRYPTION_KEY for production.');
   }
-  
-  // Fallback for production with short key
-  console.warn('SECURITY WARNING: Encryption key too short. Using padded version.');
-  return (key || 'evo-fallback-key').padEnd(32, 'x');
+  return key || 'dev-only-key-not-for-production-use-32chars';
 };
 
-const ENCRYPTION_KEY = getEncryptionKey();
+// Initialize encryption key with error handling
+let ENCRYPTION_KEY: string;
+try {
+  ENCRYPTION_KEY = getEncryptionKey();
+} catch (error) {
+  // In production, this will throw and should be caught by error boundary
+  if (import.meta.env.PROD) {
+    throw error;
+  }
+  // In dev, use fallback
+  ENCRYPTION_KEY = 'dev-only-key-not-for-production-use-32chars';
+}
 
 export class SecureStorage {
   private static instance: SecureStorage;
