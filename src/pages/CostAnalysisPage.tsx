@@ -82,7 +82,7 @@ export const CostAnalysisPage = () => {
       if (!data || data.length === 0) return [];
       
       // Transform raw data (per service) into aggregated format (per date)
-      // Raw schema: { id, organization_id, account_id, date, service, cost, usage, currency }
+      // Raw schema: { id, organization_id, aws_account_id, date, service, cost, usage, currency }
       // Expected format: { cost_date, aws_account_id, total_cost, service_breakdown, ... }
       const dateMap = new Map<string, {
         cost_date: string;
@@ -124,7 +124,7 @@ export const CostAnalysisPage = () => {
           continue;
         }
         
-        const accountId = row.account_id || row.aws_account_id || selectedAccountId;
+        const accountId = row.aws_account_id || selectedAccountId;
         
         if (!dateMap.has(dateStr)) {
           dateMap.set(dateStr, {
@@ -581,13 +581,13 @@ export const CostAnalysisPage = () => {
 
           {/* Summary Stats */}
           {costs && costs.length > 0 && (
-            <div className="grid gap-4 md:grid-cols-4">
-              <Card className="border-border">
+            <div className="grid gap-4 md:grid-cols-4 animate-stagger">
+              <Card className="glass border-primary/20 card-hover-lift">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">{t('costAnalysis.periodTotal')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-bold tabular-nums">
                     ${costs.reduce((sum, c) => {
                       const val = Number(c.total_cost);
                       return sum + (isNaN(val) ? 0 : val);
@@ -595,12 +595,12 @@ export const CostAnalysisPage = () => {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-border">
+              <Card className="glass border-primary/20 card-hover-lift">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">{t('costAnalysis.creditsUsed')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-2xl font-bold text-green-600 tabular-nums">
                     ${costs.reduce((sum, c) => {
                       const val = Number(c.credits_used || 0);
                       return sum + (isNaN(val) ? 0 : val);
@@ -608,12 +608,12 @@ export const CostAnalysisPage = () => {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-border">
+              <Card className="glass border-primary/20 card-hover-lift">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">{t('costAnalysis.netCost')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-bold tabular-nums">
                     ${costs.reduce((sum, c) => {
                       const val = Number(c.net_cost || c.total_cost);
                       return sum + (isNaN(val) ? 0 : val);
@@ -621,12 +621,12 @@ export const CostAnalysisPage = () => {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-border">
+              <Card className="glass border-primary/20 card-hover-lift">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">{t('costAnalysis.daysAnalyzed')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{sortedDates.length}</div>
+                  <div className="text-2xl font-bold tabular-nums">{sortedDates.length}</div>
                 </CardContent>
               </Card>
             </div>
@@ -634,7 +634,7 @@ export const CostAnalysisPage = () => {
 
           {/* Service Cost Chart */}
           {chartData.length > 0 && (
-            <Card className="border-border">
+            <Card className="glass border-primary/20">
               <CardHeader>
                 <CardTitle>{t('costAnalysis.costDistribution')}</CardTitle>
                 <CardDescription>{t('costAnalysis.costDistributionDesc')}</CardDescription>

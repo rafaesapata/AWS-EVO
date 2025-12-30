@@ -5,8 +5,15 @@
 
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+// Get the directory of this config file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from tests/nova-act directory
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // Schema de validação da configuração
 const ConfigSchema = z.object({

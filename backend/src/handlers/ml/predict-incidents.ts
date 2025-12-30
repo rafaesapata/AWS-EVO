@@ -61,13 +61,13 @@ export async function handler(
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
     const recentCosts = await prisma.dailyCost.groupBy({
-      by: ['cost_date'],
+      by: ['date'],
       where: {
         organization_id: organizationId,
-        cost_date: { gte: sevenDaysAgo },
+        date: { gte: sevenDaysAgo },
       },
-      _sum: { total_cost: true },
-      orderBy: { cost_date: 'asc' },
+      _sum: { cost: true },
+      orderBy: { date: 'asc' },
     });
     
     // Calcular score de risco
@@ -107,7 +107,7 @@ export async function handler(
     
     // Predição 3: Spike de custos
     if (recentCosts.length >= 2) {
-      const costs = recentCosts.map(c => Number(c._sum?.total_cost) || 0);
+      const costs = recentCosts.map(c => Number(c._sum?.cost) || 0);
       const lastCost = costs[costs.length - 1];
       const avgCost = costs.reduce((a, b) => a + b, 0) / costs.length;
       

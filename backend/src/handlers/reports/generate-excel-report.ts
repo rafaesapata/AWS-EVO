@@ -108,7 +108,7 @@ async function getSecurityData(prisma: any, organizationId: string, accountId?: 
   return await prisma.finding.findMany({
     where: {
       organization_id: organizationId,
-      ...(accountId && { account_id: accountId }),
+      ...(accountId && { aws_account_id: accountId }),
     },
     orderBy: { created_at: 'desc' },
     take: 1000,
@@ -125,7 +125,7 @@ async function getCostData(
   return await prisma.dailyCost.findMany({
     where: {
       organization_id: organizationId,
-      ...(accountId && { account_id: accountId }),
+      ...(accountId && { aws_account_id: accountId }),
       ...(startDate && endDate && {
         date: {
           gte: new Date(startDate),
@@ -142,7 +142,7 @@ async function getComplianceData(prisma: any, organizationId: string, accountId?
   return await prisma.complianceViolation.findMany({
     where: {
       organization_id: organizationId,
-      ...(accountId && { account_id: accountId }),
+      ...(accountId && { aws_account_id: accountId }),
     },
     orderBy: { detected_at: 'desc' },
     take: 1000,

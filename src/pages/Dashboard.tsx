@@ -181,7 +181,7 @@ export default function Dashboard() {
 
           {/* Tabs Content */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="glass grid w-full grid-cols-4">
               <TabsTrigger value="overview">Visão Geral</TabsTrigger>
               <TabsTrigger value="costs">Custos</TabsTrigger>
               <TabsTrigger value="security">Segurança</TabsTrigger>
@@ -290,7 +290,7 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
 
-                <Card className="lg:col-span-2">
+                <Card className="lg:col-span-2 glass border-primary/20">
                   <CardHeader>
                     <CardTitle>Recomendações de Otimização</CardTitle>
                   </CardHeader>

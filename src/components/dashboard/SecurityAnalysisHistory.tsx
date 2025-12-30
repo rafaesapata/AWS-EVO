@@ -115,12 +115,12 @@ export const SecurityAnalysisHistory = ({ organizationId, accountId, onViewScan 
   }
 
   return (
-    <Card>
+    <Card className="glass border-primary/20">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
+              <History className="h-5 w-5 text-primary icon-pulse" />
               Histórico de Análises de Segurança AWS
             </CardTitle>
             <CardDescription>
@@ -134,6 +134,7 @@ export const SecurityAnalysisHistory = ({ organizationId, accountId, onViewScan 
                 variant={selectedPeriod === period ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setSelectedPeriod(period)}
+                className={selectedPeriod !== period ? 'glass' : 'hover-glow'}
               >
                 {period === '7d' && '7 dias'}
                 {period === '30d' && '30 dias'}
@@ -147,40 +148,40 @@ export const SecurityAnalysisHistory = ({ organizationId, accountId, onViewScan 
       <CardContent className="space-y-6">
         {/* Trend Summary */}
         {latestScan && previousScan && (
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <Card>
+          <div className="grid grid-cols-2 gap-4 mb-6 animate-stagger">
+            <Card className="glass border-primary/20 card-hover-lift">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total de Vulnerabilidades</p>
-                    <p className="text-2xl font-bold">{latestScan.total_findings}</p>
+                    <p className="text-2xl font-bold tabular-nums">{latestScan.total_findings}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${totalTrend < 0 ? 'text-green-500' : totalTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {totalTrend < 0 ? (
-                      <TrendingDown className="h-5 w-5" />
+                      <TrendingDown className="h-5 w-5 icon-bounce" />
                     ) : totalTrend > 0 ? (
-                      <TrendingUp className="h-5 w-5" />
+                      <TrendingUp className="h-5 w-5 icon-pulse" />
                     ) : null}
-                    <span className="font-semibold">{Math.abs(totalTrend)}</span>
+                    <span className="font-semibold tabular-nums">{Math.abs(totalTrend)}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
             
-            <Card>
+            <Card className={`glass border-primary/20 card-hover-lift ${latestScan.critical_count > 0 ? 'glow-danger' : ''}`}>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Vulnerabilidades Críticas</p>
-                    <p className="text-2xl font-bold">{latestScan.critical_count}</p>
+                    <p className="text-2xl font-bold tabular-nums">{latestScan.critical_count}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${criticalTrend < 0 ? 'text-green-500' : criticalTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {criticalTrend < 0 ? (
-                      <TrendingDown className="h-5 w-5" />
+                      <TrendingDown className="h-5 w-5 icon-bounce" />
                     ) : criticalTrend > 0 ? (
-                      <TrendingUp className="h-5 w-5" />
+                      <TrendingUp className="h-5 w-5 icon-pulse" />
                     ) : null}
-                    <span className="font-semibold">{Math.abs(criticalTrend)}</span>
+                    <span className="font-semibold tabular-nums">{Math.abs(criticalTrend)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -255,20 +256,20 @@ export const SecurityAnalysisHistory = ({ organizationId, accountId, onViewScan 
         {/* Scan List */}
         <div className="space-y-2">
           <h4 className="text-sm font-medium">Análises Recentes</h4>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div className="space-y-2 max-h-64 overflow-y-auto animate-stagger">
             {scanHistory?.map((scan) => (
-              <Card key={scan.id} className="hover:bg-accent/50 transition-colors">
+              <Card key={scan.id} className="glass border-primary/20 hover:bg-accent/50 transition-all hover:translate-x-1 card-hover-lift">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <Shield className="h-4 w-4 text-primary" />
+                        <Shield className="h-4 w-4 text-primary icon-pulse" />
                         <span className="font-medium">
                           {format(new Date(scan.scan_date), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
                         </span>
                       </div>
                       <div className="flex gap-2 flex-wrap">
-                        <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">
+                        <Badge variant="outline" className={`bg-red-500/10 text-red-500 border-red-500/20 ${scan.critical_count > 0 ? 'alert-pulse' : ''}`}>
                           {scan.critical_count} Críticas
                         </Badge>
                         <Badge variant="outline" className="bg-orange-500/10 text-orange-500 border-orange-500/20">
@@ -282,13 +283,13 @@ export const SecurityAnalysisHistory = ({ organizationId, accountId, onViewScan 
                         </Badge>
                       </div>
                       {scan.execution_time_seconds && (
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="text-xs text-muted-foreground mt-2 tabular-nums">
                           Tempo de execução: {Math.round(scan.execution_time_seconds)}s
                         </p>
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                      <Badge variant="secondary" className="text-lg font-bold">
+                      <Badge variant="secondary" className="text-lg font-bold tabular-nums">
                         {scan.total_findings}
                       </Badge>
                       {onViewScan && (scan.findings_summary as any)?.scan_id && (
@@ -296,6 +297,7 @@ export const SecurityAnalysisHistory = ({ organizationId, accountId, onViewScan 
                           size="sm"
                           variant="ghost"
                           onClick={() => onViewScan((scan.findings_summary as any).scan_id)}
+                          className="hover-glow"
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           Ver Detalhes

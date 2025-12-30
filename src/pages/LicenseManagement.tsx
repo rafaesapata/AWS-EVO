@@ -15,10 +15,8 @@ import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { RefreshCw, CheckCircle2, XCircle, AlertTriangle, Key, Calendar, Users, Shield, CreditCard } from "lucide-react";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/AppSidebar";
 import { SeatManagement } from "@/components/license/SeatManagement";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageLayout } from "@/components/layout/PageLayout";
 
 interface License {
   license_key: string;
@@ -41,13 +39,14 @@ interface LicenseValidationResponse {
   total_licenses: number;
   licenses: License[];
   organization_id: string;
+  configured?: boolean;
+  _isNewLink?: boolean;
 }
 
 export default function LicenseManagement() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [customerId, setCustomerId] = useState("");
-  const [licenseData, setLicenseData] = useState<LicenseValidationResponse | null>(null);
 
   // Get organization data
   const { data: organization, isLoading: orgLoading } = useOrganizationQuery(
@@ -72,61 +71,58 @@ export default function LicenseManagement() {
     }
   );
 
-  const validateLicenseMutation = useMutation({
-    mutationFn: async (customerIdToValidate?: string) => {
+  // Auto-fetch license data using useQuery (not mutation) for initial load
+  const { data: licenseData, isLoading: licenseLoading, refetch: refetchLicense } = useQuery({
+    queryKey: ['license-data', organization?.id],
+    queryFn: async () => {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error("Não autenticado");
 
-      const body: any = {};
-      if (customerIdToValidate) {
-        body.customer_id = customerIdToValidate;
-      }
-
-      const result = await apiClient.invoke("validate-license", { body });
-
-      if (result.error) throw result.error;
-      if (!result.data?.valid) throw new Error("Licença inválida ou expirada");
-
-      // If linking a new customer_id, refresh the organization data
-      if (customerIdToValidate) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
-      return result.data as LicenseValidationResponse;
-    },
-    onSuccess: (data) => {
-      setLicenseData(data);
-      
-      const isNewLink = !organization?.customer_id;
-      
-      toast({
-        title: "Licença validada com sucesso",
-        description: isNewLink 
-          ? "Customer ID vinculado! Redirecionando..."
-          : `${data.total_licenses} licença(s) ativa(s) encontrada(s)`,
+      const result = await apiClient.invoke<LicenseValidationResponse>("validate-license", { 
+        body: {} // Empty body to just check status
       });
 
-      if (isNewLink) {
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 1500);
+      if (result.error) throw result.error;
+      return result.data;
+    },
+    enabled: !!organization?.id,
+    staleTime: 0, // Always refetch
+    refetchOnMount: 'always',
+  });
+
+  // Mutation for linking new customer_id
+  const linkCustomerIdMutation = useMutation({
+    mutationFn: async (newCustomerId: string) => {
+      const user = await cognitoAuth.getCurrentUser();
+      if (!user) throw new Error("Não autenticado");
+
+      const result = await apiClient.invoke<LicenseValidationResponse>("validate-license", { 
+        body: { customer_id: newCustomerId }
+      });
+
+      if (result.error) throw result.error;
+      if (!result.data?.valid) {
+        throw new Error("Licença inválida ou expirada");
       }
+
+      return result.data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Licença vinculada com sucesso",
+        description: `${data.total_licenses || 0} licença(s) ativa(s) encontrada(s)`,
+      });
+      // Refetch license data
+      refetchLicense();
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao validar licença",
+        title: "Erro ao vincular licença",
         description: error.message,
         variant: "destructive",
       });
     },
   });
-
-  // Auto-fetch license data when organization has customer_id
-  useEffect(() => {
-    if (organization?.customer_id && !licenseData && !validateLicenseMutation.isPending) {
-      validateLicenseMutation.mutate(undefined);
-    }
-  }, [organization?.customer_id]);
 
   const handleLinkCustomerId = () => {
     if (!customerId.trim()) {
@@ -138,11 +134,11 @@ export default function LicenseManagement() {
       return;
     }
 
-    validateLicenseMutation.mutate(customerId);
+    linkCustomerIdMutation.mutate(customerId);
   };
 
   const handleRefreshLicense = () => {
-    validateLicenseMutation.mutate(undefined);
+    refetchLicense();
   };
 
   const getStatusBadge = (status: string, isExpired: boolean) => {
@@ -185,41 +181,37 @@ export default function LicenseManagement() {
   });
 
   const isAdmin = userRoles?.includes('org_admin') || userRoles?.includes('super_admin');
-  const hasCustomerId = organization?.customer_id;
+  // Check if license is configured based on licenseData response, not organization
+  const hasCustomerId = licenseData?.customer_id || licenseData?.configured;
 
   if (orgLoading) {
     return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background">
-          <AppSidebar activeTab="license" onTabChange={() => {}} />
-          <main className="flex-1 p-6">
-            <div className="max-w-4xl mx-auto space-y-6">
-              <Skeleton className="h-12 w-64" />
-              <Skeleton className="h-96 w-full" />
-            </div>
-          </main>
+      <PageLayout
+        activeTab="license"
+        title="Gerenciamento de Licença"
+        subtitle="Visualize e gerencie sua licença da plataforma EVO"
+        icon={CreditCard}
+        showAwsAccountSelector={false}
+      >
+        <div className="max-w-4xl mx-auto space-y-6">
+          <Skeleton className="h-12 w-64" />
+          <Skeleton className="h-96 w-full" />
         </div>
-      </SidebarProvider>
+      </PageLayout>
     );
   }
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
-        <AppSidebar activeTab="license" onTabChange={(tab) => navigate(`/?tab=${tab}`)} />
-        <main className="flex-1 overflow-auto">
-          <div className="p-6">
-            <div className="max-w-4xl mx-auto space-y-6">
-              <div className="flex items-center gap-4">
-                <SidebarTrigger />
-                <PageHeader
-                  icon={CreditCard}
-                  title="Gerenciamento de Licença"
-                  description="Visualize e gerencie sua licença da plataforma EVO"
-                />
-              </div>
+    <PageLayout
+      activeTab="license"
+      title="Gerenciamento de Licença"
+      subtitle="Visualize e gerencie sua licença da plataforma EVO"
+      icon={CreditCard}
+      showAwsAccountSelector={false}
+    >
+      <div className="max-w-4xl mx-auto space-y-6">
 
-              {!hasCustomerId && !licenseData && (
+              {!hasCustomerId && !licenseData && !linkCustomerIdMutation.isPending || licenseLoading && (
                 <Alert className="border-primary/20 bg-primary/5">
                   <Key className="h-4 w-4 text-primary" />
                   <AlertDescription>
@@ -228,7 +220,19 @@ export default function LicenseManagement() {
                 </Alert>
               )}
 
-              {!hasCustomerId && !licenseData ? (
+              {/* Show loading while checking license status */}
+              {linkCustomerIdMutation.isPending || licenseLoading && !licenseData && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-center py-8">
+                      <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                      <span className="ml-3 text-muted-foreground">Verificando status da licença...</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {!hasCustomerId && !licenseData && !linkCustomerIdMutation.isPending || licenseLoading ? (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -255,10 +259,10 @@ export default function LicenseManagement() {
                     </div>
                     <Button
                       onClick={handleLinkCustomerId}
-                      disabled={validateLicenseMutation.isPending}
+                      disabled={linkCustomerIdMutation.isPending || licenseLoading}
                       className="w-full"
                     >
-                      {validateLicenseMutation.isPending ? (
+                      {linkCustomerIdMutation.isPending || licenseLoading ? (
                         <>
                           <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                           Validando...
@@ -286,11 +290,11 @@ export default function LicenseManagement() {
                         </div>
                         <Button
                           onClick={handleRefreshLicense}
-                          disabled={validateLicenseMutation.isPending}
+                          disabled={linkCustomerIdMutation.isPending || licenseLoading}
                           variant="outline"
                           size="sm"
                         >
-                          {validateLicenseMutation.isPending ? (
+                          {linkCustomerIdMutation.isPending || licenseLoading ? (
                             <>
                               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                               Atualizando...
@@ -307,7 +311,7 @@ export default function LicenseManagement() {
                   </Card>
 
                   {/* Loading state */}
-                  {validateLicenseMutation.isPending && !licenseData && (
+                  {linkCustomerIdMutation.isPending || licenseLoading && !licenseData && (
                     <Card>
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-center py-8">
@@ -320,19 +324,19 @@ export default function LicenseManagement() {
 
                   {licenseData && (
                     <Tabs defaultValue="details" className="w-full">
-                      <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      <TabsList className={`glass grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
                         <TabsTrigger value="details">Detalhes da Licença</TabsTrigger>
                         {isAdmin && <TabsTrigger value="seats">Gerenciar Assentos</TabsTrigger>}
                       </TabsList>
 
                       <TabsContent value="details" className="space-y-4 mt-4">
-                        {licenseData.licenses.map((license, index) => (
-                          <Card key={index}>
+                        {(licenseData.licenses || []).map((license, index) => (
+                          <Card key={index} className="glass border-primary/20">
                             <CardHeader className="pb-4">
                               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                                 <div className="space-y-1">
                                   <CardTitle className="flex items-center gap-2 text-lg">
-                                    <Shield className="h-5 w-5 text-primary" />
+                                    <Shield className="h-5 w-5 text-primary icon-pulse" />
                                     Licença EVO {license.is_trial && <Badge variant="outline" className="ml-2">Trial</Badge>}
                                   </CardTitle>
                                   <CardDescription className="font-mono text-xs">
@@ -428,7 +432,7 @@ export default function LicenseManagement() {
                         ))}
                       </TabsContent>
 
-                      {isAdmin && licenseData.licenses[0] && (
+                      {isAdmin && licenseData.licenses?.length > 0 && licenseData.licenses[0] && (
                         <TabsContent value="seats" className="mt-4">
                           <SeatManagement
                             organizationId={organization!.id}
@@ -442,9 +446,6 @@ export default function LicenseManagement() {
                 </div>
               )}
             </div>
-          </div>
-        </main>
-      </div>
-    </SidebarProvider>
+    </PageLayout>
   );
 }

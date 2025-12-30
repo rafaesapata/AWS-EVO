@@ -30,19 +30,19 @@ export const PillarCard = ({ pillar, icon: Icon, name, isExpanded, onToggle }: P
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
-      <Card className="border-border">
+      <Card className="glass border-primary/20 card-hover-lift transition-all">
         <CollapsibleTrigger asChild>
           <div className="p-4 cursor-pointer hover:bg-muted/50 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1">
-                <Icon className="h-5 w-5 text-primary" />
+                <Icon className="h-5 w-5 text-primary icon-pulse" />
                 <div className="flex-1">
                   <h4 className="font-semibold text-sm">{name}</h4>
                   <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                    <span>✓ {pillar.checks_passed} checks</span>
-                    <span>✗ {pillar.checks_failed} falhas</span>
+                    <span className="tabular-nums">✓ {pillar.checks_passed} checks</span>
+                    <span className="tabular-nums">✗ {pillar.checks_failed} falhas</span>
                     {pillar.critical_issues > 0 && (
-                      <Badge variant="destructive" className="text-xs py-0">
+                      <Badge variant="destructive" className="text-xs py-0 alert-pulse">
                         {pillar.critical_issues} críticos
                       </Badge>
                     )}
@@ -51,10 +51,10 @@ export const PillarCard = ({ pillar, icon: Icon, name, isExpanded, onToggle }: P
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className={`text-2xl font-bold ${getScoreColor(pillar.score)}`}>
+                  <p className={`text-2xl font-bold tabular-nums ${getScoreColor(pillar.score)}`}>
                     {pillar.score.toFixed(0)}
                   </p>
-                  <Progress value={pillar.score} className="h-2 w-24 mt-1" />
+                  <Progress value={pillar.score} className="h-2 w-24 mt-1 progress-shimmer" />
                 </div>
                 {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </div>
@@ -62,13 +62,13 @@ export const PillarCard = ({ pillar, icon: Icon, name, isExpanded, onToggle }: P
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="px-4 pb-4 pt-2 border-t border-border">
+          <div className="px-4 pb-4 pt-2 border-t border-border animate-stagger">
             <div className="space-y-2">
               {pillar.recommendations && pillar.recommendations.length > 0 ? (
                 pillar.recommendations.map((rec: any, idx: number) => (
-                  <div key={idx} className="p-3 bg-muted/30 rounded text-sm">
+                  <div key={idx} className="p-3 bg-muted/30 rounded text-sm transition-all hover:bg-muted/50 hover:translate-x-1">
                     <div className="flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-warning mt-0.5 flex-shrink-0" />
+                      <AlertTriangle className={`h-4 w-4 text-warning mt-0.5 flex-shrink-0 ${rec.severity === 'critical' ? 'icon-pulse' : ''}`} />
                       <div className="flex-1">
                         <p className="font-medium">{rec.check_name}</p>
                         <p className="text-muted-foreground mt-1">{rec.description}</p>
@@ -78,7 +78,7 @@ export const PillarCard = ({ pillar, icon: Icon, name, isExpanded, onToggle }: P
                           </p>
                         )}
                       </div>
-                      <Badge variant={rec.severity === 'critical' ? 'destructive' : 'secondary'}>
+                      <Badge variant={rec.severity === 'critical' ? 'destructive' : 'secondary'} className={rec.severity === 'critical' ? 'alert-pulse' : ''}>
                         {rec.severity}
                       </Badge>
                     </div>

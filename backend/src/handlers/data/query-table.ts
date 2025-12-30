@@ -82,17 +82,17 @@ const TABLE_TO_MODEL: Record<string, string> = {
 // Mapeamento de campos do frontend para campos do Prisma
 // Também lista campos a IGNORAR (mapear para null) quando não existem no modelo
 const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
-  'daily_costs': { 'aws_account_id': 'account_id', 'cost_date': 'date' },
-  'waste_detections': { 'aws_account_id': 'account_id' },
-  'waste_detection': { 'aws_account_id': 'account_id' },
-  'resource_utilization_ml': { },  // aws_account_id exists in schema, no mapping needed
-  'compliance_violations': { 'aws_account_id': 'account_id' },
-  'iam_behavior_anomalies': { 'aws_account_id': 'account_id' },
-  'iam_behavior_analysis': { 'aws_account_id': 'account_id' },
-  'optimization_recommendations': { 'aws_account_id': 'account_id' },
-  // findings - aws_account_id exists in schema but may not be in DB yet
-  'findings': { 'aws_account_id': 'aws_account_id' },
-  'scan_findings': { 'aws_account_id': 'aws_account_id' },
+  'daily_costs': { 'cost_date': 'date' },  // aws_account_id now exists directly
+  'waste_detections': { },  // aws_account_id now exists directly
+  'waste_detection': { },   // aws_account_id now exists directly
+  'resource_utilization_ml': { },  // aws_account_id exists in schema
+  'compliance_violations': { },  // aws_account_id now exists directly
+  'iam_behavior_anomalies': { },  // aws_account_id now exists directly
+  'iam_behavior_analysis': { },   // aws_account_id now exists directly
+  'optimization_recommendations': { },  // aws_account_id exists
+  // findings - aws_account_id exists in schema
+  'findings': { },
+  'scan_findings': { },
   // Tabelas que NÃO têm aws_account_id - ignorar esse campo
   'alerts': { 'aws_account_id': null },
   'security_alerts': { 'aws_account_id': null },

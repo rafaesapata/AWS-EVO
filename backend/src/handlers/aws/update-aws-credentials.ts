@@ -106,7 +106,7 @@ export async function handler(
       data: updateData,
       select: {
         id: true,
-        account_id: true,
+        aws_account_number: true,
         account_name: true,
         regions: true,
         is_active: true,
@@ -116,7 +116,7 @@ export async function handler(
     
     logger.info('AWS credentials updated successfully', { 
       credentialId: updatedCred.id,
-      accountId: updatedCred.account_id,
+      accountId: updatedCred.aws_account_number,
       organizationId,
       isActive: updatedCred.is_active,
     });

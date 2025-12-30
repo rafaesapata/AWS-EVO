@@ -54,7 +54,7 @@ export async function handler(
       data.findings = await prisma.finding.findMany({
         where: {
           organization_id: organizationId,
-          ...(accountId && { account_id: accountId }),
+          ...(accountId && { aws_account_id: accountId }),
           status: 'pending',
         },
         orderBy: { created_at: 'desc' },
@@ -66,7 +66,7 @@ export async function handler(
       data.violations = await prisma.complianceViolation.findMany({
         where: {
           organization_id: organizationId,
-          ...(accountId && { account_id: accountId }),
+          ...(accountId && { aws_account_id: accountId }),
           status: 'OPEN',
         },
         take: 100,

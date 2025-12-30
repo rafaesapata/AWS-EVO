@@ -28,7 +28,7 @@ const PredictiveIncidents = () => {
       icon={<Activity className="h-7 w-7 text-white" />}
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList>
+        <TabsList className="glass">
           <TabsTrigger value="prediction" className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
             Nova Predição

@@ -143,17 +143,20 @@ async function getCostStats(organizationId: string): Promise<Record<string, unkn
     select: { id: true, account_name: true }
   });
 
-  const costData = await prisma.dailyCost.findMany({
+  // Aggregate costs by date for the organization
+  const costData = await prisma.dailyCost.groupBy({
+    by: ['date'],
     where: {
-      aws_account_id: { in: accounts.map(a => a.id) },
-      cost_date: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+      organization_id: organizationId,
+      date: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     },
-    orderBy: { cost_date: 'desc' }
+    _sum: { cost: true },
+    orderBy: { date: 'desc' }
   });
 
   return {
-    totalLast30Days: costData.reduce((sum, c) => sum + Number(c.total_cost), 0),
+    totalLast30Days: costData.reduce((sum, c) => sum + Number(c._sum.cost || 0), 0),
     accountCount: accounts.length,
-    trend: costData.slice(0, 7).map(c => ({ date: c.cost_date, amount: Number(c.total_cost) }))
+    trend: costData.slice(0, 7).map(c => ({ date: c.date, amount: Number(c._sum.cost || 0) }))
   };
 }

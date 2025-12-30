@@ -27,6 +27,8 @@ import Compliance from "@/pages/Compliance";
 import SecurityAnalysisContent from "@/components/dashboard/SecurityAnalysisContent";
 import RISavingsPlans from "@/pages/RISavingsPlans";
 import MLWasteDetection from "@/pages/MLWasteDetection";
+import ExecutiveDashboardV2 from "@/components/dashboard/ExecutiveDashboard";
+import AuditLog from "@/components/admin/AuditLog";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { AwsAccountSelector } from "@/components/AwsAccountSelector";
@@ -300,7 +302,7 @@ const Index = () => {
               <CostAnalysisPage />
             </main>
             
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -317,7 +319,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <MonthlyInvoicesPage />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -333,7 +335,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <CopilotAI />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -349,7 +351,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <SecurityPosture />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -365,7 +367,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <IntelligentAlerts />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -381,7 +383,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <CostOptimization />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -397,7 +399,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <RISavingsPlans />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -413,7 +415,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <UserManagement />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -429,7 +431,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <SecurityScans />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -445,7 +447,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <CloudTrailAudit />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -461,7 +463,23 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <Compliance />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
+          </div>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  if (activeTab === "audit") {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full animated-gradient">
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <main className="flex-1 p-6 overflow-auto">
+              <AuditLog />
+            </main>
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -477,7 +495,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <EndpointMonitoring />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -493,7 +511,7 @@ const Index = () => {
             <main className="flex-1 p-6 overflow-auto">
               <EdgeMonitoring />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -546,7 +564,7 @@ const Index = () => {
             <main className="flex-1 w-full px-6 py-6 overflow-auto">
               <SecurityAnalysisContent />
             </main>
-            <Footer variant="minimal" />
+            <Footer />
           </div>
         </div>
       </SidebarProvider>
@@ -557,277 +575,107 @@ const Index = () => {
     return <MLWasteDetection />;
   }
 
+  // Executive Dashboard - New v2 design
+  if (activeTab === "executive" || activeTab === "overview") {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-gradient-subtle">
+          <AppSidebar activeTab="executive" onTabChange={setActiveTab} userRole={userRole} />
+          <div className="flex-1 flex flex-col">
+            {/* Header */}
+            <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
+              <div className="w-full px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <SidebarTrigger className="-ml-1" />
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow">
+                        <BarChart3 className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                          Dashboard Executivo
+                        </h1>
+                        <p className="text-sm text-muted-foreground">
+                          Visão consolidada de segurança, custos e compliance
+                        </p>
+                      </div>
+                    </div>
+                    {user?.organizationId && (
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
+                        <Building2 className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">
+                          {user.organizationName || user.organizationId}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <AwsAccountSelector />
+                    <LanguageToggle />
+                    <ThemeToggle />
+                    <UserMenu />
+                  </div>
+                </div>
+              </div>
+            </header>
+            <main className="flex-1 w-full px-6 py-6 overflow-auto">
+              <ExecutiveDashboardV2 />
+            </main>
+            <Footer />
+          </div>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  // Fallback - render Executive Dashboard for any unhandled tab
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full animated-gradient">
-        <AppSidebar activeTab={activeTab === "overview" ? "executive" : activeTab} onTabChange={setActiveTab} userRole={userRole} />
-        
-        <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="min-h-screen flex w-full bg-gradient-subtle">
+        <AppSidebar activeTab="executive" onTabChange={setActiveTab} userRole={userRole} />
+        <div className="flex-1 flex flex-col">
           {/* Header */}
-          <header className="glass sticky top-4 z-40 mx-4 rounded-2xl shadow-glass animate-slide-up">
-            <div className="px-6 py-6">
-              <div className="flex items-center justify-between gap-3">
+          <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
+            <div className="w-full px-6 py-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <SidebarTrigger />
+                  <SidebarTrigger className="-ml-1" />
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow">
-                      <Shield className="h-7 w-7 text-white" />
+                    <div className="h-10 w-10 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow">
+                      <Shield className="h-5 w-5 text-white" />
                     </div>
                     <div>
                       <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
                         EVO Platform
                       </h1>
-                      <p className="text-muted-foreground text-sm">
-                        AWS Cloud Intelligence Platform v3.2-test
+                      <p className="text-sm text-muted-foreground">
+                        AWS Cloud Intelligence Platform v3.2
                       </p>
                     </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  {/* AWS Account Selector */}
-                  <AwsAccountSelector compact />
-                  
                   {user?.organizationId && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
                       <Building2 className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium text-primary">
+                      <span className="text-sm font-medium">
                         {user.organizationName || user.organizationId}
                       </span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
-                    <Users className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">
-                      {user?.name || user?.email}
-                    </span>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleSignOut}
-                    className="glass hover:shadow-elegant"
-                  >
-                    Sair
-                  </Button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <AwsAccountSelector />
+                  <LanguageToggle />
+                  <ThemeToggle />
+                  <UserMenu />
                 </div>
               </div>
             </div>
           </header>
-
-          {/* Main Content */}
-          <main className="flex-1 p-6 overflow-auto">
-            {/* Welcome Section */}
-            <div className="mb-8">
-              <Card className="glass border-primary/20 shadow-elegant">
-                <CardContent className="p-8">
-                  <div className="flex items-center gap-6">
-                    <div className="h-20 w-20 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow">
-                      <CheckCircle className="h-10 w-10 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                        🚀 Sistema Totalmente Operacional!
-                      </h2>
-                      <p className="text-muted-foreground mb-4">
-                        Plataforma AWS Cloud Intelligence com todas as funcionalidades ativas
-                      </p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-success" />
-                          <span>Frontend: CloudFront + S3</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-success" />
-                          <span>Auth: AWS Cognito</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-success" />
-                          <span>API: Lambda + API Gateway</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-success" />
-                          <span>DB: RDS PostgreSQL</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Quick Access Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <Button 
-                variant="outline" 
-                className="h-32 flex flex-col items-center justify-center glass hover-glow p-6"
-                onClick={() => navigate('/aws-settings')}
-              >
-                <Cloud className="h-12 w-12 text-primary mb-3" />
-                <span className="text-lg font-semibold">Configurações AWS</span>
-                <span className="text-sm text-muted-foreground">Conectar contas e configurar</span>
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className="h-32 flex flex-col items-center justify-center glass hover-glow p-6"
-                onClick={() => navigate('/dashboard')}
-              >
-                <BarChart3 className="h-12 w-12 text-primary mb-3" />
-                <span className="text-lg font-semibold">Dashboard</span>
-                <span className="text-sm text-muted-foreground">Visão geral executiva</span>
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className="h-32 flex flex-col items-center justify-center glass hover-glow p-6"
-                onClick={() => navigate('/system-monitoring')}
-              >
-                <Activity className="h-12 w-12 text-primary mb-3" />
-                <span className="text-lg font-semibold">Monitoramento</span>
-                <span className="text-sm text-muted-foreground">Recursos e performance</span>
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className="h-32 flex flex-col items-center justify-center glass hover-glow p-6"
-                onClick={() => navigate('/threat-detection')}
-              >
-                <Shield className="h-12 w-12 text-primary mb-3" />
-                <span className="text-lg font-semibold">Segurança</span>
-                <span className="text-sm text-muted-foreground">Detecção de ameaças</span>
-              </Button>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <Card className="glass border-primary/20 hover-glow">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Custo Mensal</p>
-                      {metricsLoading ? (
-                        <Skeleton className="h-8 w-20 mb-1" />
-                      ) : (
-                        <p className="text-2xl font-bold">
-                          ${dashboardMetrics?.monthlyCost?.toFixed(2) || '0.00'}
-                        </p>
-                      )}
-                      <div className="flex items-center mt-1">
-                        <TrendingUp className="h-4 w-4 text-success mr-1" />
-                        <span className="text-sm text-success">
-                          {dashboardMetrics?.monthlyCredits ? 
-                            `${((dashboardMetrics.monthlyCredits / dashboardMetrics.monthlyCost) * 100).toFixed(1)}% créditos` : 
-                            'Sem créditos'
-                          }
-                        </span>
-                      </div>
-                    </div>
-                    <div className="h-12 w-12 rounded-lg bg-gradient-primary flex items-center justify-center">
-                      <DollarSign className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="glass border-primary/20 hover-glow">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Security Score</p>
-                      {metricsLoading ? (
-                        <Skeleton className="h-8 w-16 mb-2" />
-                      ) : (
-                        <p className="text-2xl font-bold">
-                          {dashboardMetrics?.securityScore || 0}/100
-                        </p>
-                      )}
-                      <Progress value={dashboardMetrics?.securityScore || 0} className="mt-2" />
-                    </div>
-                    <div className="h-12 w-12 rounded-lg bg-gradient-primary flex items-center justify-center">
-                      <Shield className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="glass border-primary/20 hover-glow">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Alertas Ativos</p>
-                      {metricsLoading ? (
-                        <Skeleton className="h-8 w-8 mb-1" />
-                      ) : (
-                        <p className="text-2xl font-bold">
-                          {dashboardMetrics?.activeAlerts || 0}
-                        </p>
-                      )}
-                      <p className="text-sm text-warning mt-1">
-                        {(dashboardMetrics?.activeAlerts || 0) > 0 ? 'Requer atenção' : 'Tudo OK'}
-                      </p>
-                    </div>
-                    <div className="h-12 w-12 rounded-lg bg-gradient-primary flex items-center justify-center">
-                      <AlertTriangle className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="glass border-primary/20 hover-glow">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Recursos AWS</p>
-                      {metricsLoading ? (
-                        <Skeleton className="h-8 w-12 mb-1" />
-                      ) : (
-                        <p className="text-2xl font-bold">
-                          {dashboardMetrics?.awsResources || 0}
-                        </p>
-                      )}
-                      <p className="text-sm text-success mt-1">Monitorados</p>
-                    </div>
-                    <div className="h-12 w-12 rounded-lg bg-gradient-primary flex items-center justify-center">
-                      <Server className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* System Status */}
-            <Card className="glass border-primary/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-success" />
-                  Status do Sistema AWS
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-success/10 border border-success/20">
-                    <span className="text-sm">CloudFront CDN</span>
-                    <Badge variant="secondary" className="bg-success/20 text-success">Online</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-success/10 border border-success/20">
-                    <span className="text-sm">API Gateway</span>
-                    <Badge variant="secondary" className="bg-success/20 text-success">Ativo</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-success/10 border border-success/20">
-                    <span className="text-sm">RDS Database</span>
-                    <Badge variant="secondary" className="bg-success/20 text-success">Conectado</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-success/10 border border-success/20">
-                    <span className="text-sm">Cognito Auth</span>
-                    <Badge variant="secondary" className="bg-success/20 text-success">Funcionando</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <main className="flex-1 w-full px-6 py-6 overflow-auto">
+            <ExecutiveDashboardV2 />
           </main>
-          
-          <Footer variant="minimal" />
+          <Footer />
         </div>
       </div>
     </SidebarProvider>

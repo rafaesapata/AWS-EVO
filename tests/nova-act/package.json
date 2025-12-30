@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "setup": "tsx scripts/setup.ts",
-    "test": "vitest run",
+    "test": "tsx run-strict-e2e.ts",
+    "test:quick": "tsx run-e2e.ts",
+    "test:full": "tsx run-full-e2e.ts",
+    "test:strict": "tsx run-strict-e2e.ts",
+    "test:vitest": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:report": "vitest run --reporter=html",

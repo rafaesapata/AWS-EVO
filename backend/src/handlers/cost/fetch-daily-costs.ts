@@ -147,35 +147,32 @@ export async function handler(
               }
             }
             
-            // Salvar custo diário agregado no banco
-            if (dailyTotal > 0) {
-              try {
-                await prisma.dailyCost.upsert({
-                  where: {
-                    aws_account_id_cost_date_organization_id: {
-                      aws_account_id: account.id,
-                      cost_date: new Date(date),
-                      organization_id: organizationId,
-                    },
-                  },
-                  update: {
-                    total_cost: dailyTotal,
-                    service_breakdown: serviceBreakdown,
-                    net_cost: dailyTotal, // Sem créditos por enquanto
-                    updated_at: new Date(),
-                  },
-                  create: {
-                    organization_id: organizationId,
-                    aws_account_id: account.id,
-                    cost_date: new Date(date),
-                    total_cost: dailyTotal,
-                    service_breakdown: serviceBreakdown,
-                    net_cost: dailyTotal,
-                    credits_used: 0,
-                  },
-                });
-              } catch (dbErr) {
-                logger.warn('Failed to save daily cost', { date, error: dbErr });
+            // Salvar custos por serviço no banco (um registro por serviço/dia)
+            for (const [service, cost] of Object.entries(serviceBreakdown)) {
+              if (cost > 0) {
+                try {
+                  // Use raw query for upsert since we don't have a unique constraint
+                  await prisma.$executeRaw`
+                    INSERT INTO daily_costs (id, organization_id, aws_account_id, date, service, cost, currency, created_at)
+                    VALUES (gen_random_uuid(), ${organizationId}::uuid, ${account.id}::uuid, ${new Date(date)}::date, ${service}, ${cost}, 'USD', NOW())
+                    ON CONFLICT (organization_id, aws_account_id, date, service) 
+                    DO UPDATE SET cost = ${cost}, created_at = NOW()
+                  `.catch(() => {
+                    // If conflict handling fails, just insert
+                    return prisma.dailyCost.create({
+                      data: {
+                        organization_id: organizationId,
+                        aws_account_id: account.id,
+                        date: new Date(date),
+                        service: service,
+                        cost: cost,
+                        currency: 'USD',
+                      }
+                    });
+                  });
+                } catch (dbErr) {
+                  logger.warn('Failed to save daily cost', { date, service, error: dbErr });
+                }
               }
             }
           }

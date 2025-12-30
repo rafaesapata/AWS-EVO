@@ -159,7 +159,7 @@ export default function CommandPalette({ onTabChange }: CommandPaletteProps) {
               <BookOpen className="mr-2 h-4 w-4" />
               Base de Conhecimento
             </CommandItem>
-            <CommandItem onSelect={() => runCommand(() => navigate('/license'))}>
+            <CommandItem onSelect={() => runCommand(() => navigate('/license-management'))}>
               <Key className="mr-2 h-4 w-4" />
               Licença
             </CommandItem>

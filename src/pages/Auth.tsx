@@ -550,7 +550,7 @@ export default function Auth() {
               </form>
             ) : (
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-                <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsList className="glass grid w-full grid-cols-2 mb-6">
                   <TabsTrigger value="login">Login</TabsTrigger>
                   <TabsTrigger value="signup">Cadastro</TabsTrigger>
                 </TabsList>

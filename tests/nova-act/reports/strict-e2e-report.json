@@ -1,0 +1,138 @@
+{
+  "timestamp": "2025-12-30T14:19:42.517Z",
+  "duration": 50937,
+  "summary": {
+    "total": 18,
+    "passed": 18,
+    "failed": 0,
+    "successRate": 100
+  },
+  "results": [
+    {
+      "name": "Login",
+      "category": "auth",
+      "success": true,
+      "duration": 5623,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Dashboard Executivo",
+      "category": "navigation",
+      "success": true,
+      "duration": 2674,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Análise de Custos",
+      "category": "navigation",
+      "success": true,
+      "duration": 2652,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Copilot AI",
+      "category": "navigation",
+      "success": true,
+      "duration": 2599,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Previsões ML",
+      "category": "navigation",
+      "success": true,
+      "duration": 2613,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Monitoramento",
+      "category": "navigation",
+      "success": true,
+      "duration": 2651,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Detecção de Ataques",
+      "category": "navigation",
+      "success": true,
+      "duration": 2647,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Análises & Scans",
+      "category": "navigation",
+      "success": true,
+      "duration": 2606,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Otimização",
+      "category": "navigation",
+      "success": true,
+      "duration": 2577,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Alertas Inteligentes",
+      "category": "navigation",
+      "success": true,
+      "duration": 2666,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Postura de Segurança",
+      "category": "navigation",
+      "success": true,
+      "duration": 2616,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Tickets de Remediação",
+      "category": "navigation",
+      "success": true,
+      "duration": 2592,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Base de Conhecimento",
+      "category": "navigation",
+      "success": true,
+      "duration": 2594,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "TV Dashboards",
+      "category": "navigation",
+      "success": true,
+      "duration": 2594,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Configurações AWS",
+      "category": "navigation",
+      "success": true,
+      "duration": 2619,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Gerenciar Usuários",
+      "category": "navigation",
+      "success": true,
+      "duration": 2618,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Licença",
+      "category": "navigation",
+      "success": true,
+      "duration": 2622,
+      "url": "https://evo.ai.udstec.io/app"
+    },
+    {
+      "name": "Logout",
+      "category": "auth",
+      "success": true,
+      "duration": 2288,
+      "url": "https://evo.ai.udstec.io/"
+    }
+  ]
+}

@@ -427,7 +427,7 @@ const WellArchitected = () => {
                     <Button 
                       onClick={() => setViewingHistoricalScan(null)}
                       variant="outline"
-                      className="gap-2"
+                      className="gap-2 glass"
                       size="sm"
                     >
                       <RefreshCw className="h-4 w-4" />
@@ -438,7 +438,7 @@ const WellArchitected = () => {
                     <Button 
                       onClick={runScan} 
                       disabled={isScanning || !selectedAccountId}
-                      className="gap-2"
+                      className="gap-2 hover-glow btn-press"
                     >
                       {isScanning ? (
                         <>
@@ -447,7 +447,7 @@ const WellArchitected = () => {
                         </>
                       ) : (
                         <>
-                          <Play className="h-5 w-5" />
+                          <Play className="h-5 w-5 icon-bounce" />
                           Executar Scan
                         </>
                       )}
@@ -464,7 +464,7 @@ const WellArchitected = () => {
           {/* Main Content */}
           <main className="flex-1 w-full px-6 py-8 space-y-8">
             <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-6">
-              <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsList className="grid w-full max-w-md grid-cols-2 glass">
                 <TabsTrigger value="analysis">Nova Análise</TabsTrigger>
                 <TabsTrigger value="history" className="gap-2">
                   <History className="h-4 w-4" />
@@ -478,9 +478,9 @@ const WellArchitected = () => {
                 <RefreshCw className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : !latestScan || latestScan.length === 0 ? (
-              <Card className="border-dashed">
+              <Card className="border-dashed glass border-primary/20">
                 <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-                  <AlertTriangle className="h-16 w-16 text-muted-foreground mb-4" />
+                  <AlertTriangle className="h-16 w-16 text-muted-foreground mb-4 icon-pulse" />
                   <h3 className="text-xl font-semibold mb-2">Nenhum scan realizado</h3>
                   <p className="text-muted-foreground mb-6 max-w-md">
                     {!selectedAccountId 
@@ -488,7 +488,7 @@ const WellArchitected = () => {
                       : 'Execute seu primeiro scan Well-Architected para avaliar sua infraestrutura AWS'
                     }
                   </p>
-                  <Button onClick={runScan} disabled={isScanning || !selectedAccountId}>
+                  <Button onClick={runScan} disabled={isScanning || !selectedAccountId} className="hover-glow">
                     <Play className="h-4 w-4 mr-2" />
                     {!selectedAccountId ? 'Selecione uma Conta AWS' : 'Executar Primeiro Scan'}
                   </Button>
@@ -496,25 +496,28 @@ const WellArchitected = () => {
               </Card>
             ) : (
               <>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-stagger">
                   <div className="lg:col-span-2">
                     <ScoreOverview score={overallScore} />
                   </div>
                   
                   {/* Histórico de Execuções */}
-                  <Card className="glass border-primary/20">
+                  <Card className="glass border-primary/20 card-hover-lift">
                     <CardHeader>
-                      <CardTitle className="text-sm font-medium">Histórico de Execuções</CardTitle>
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <History className="h-4 w-4 text-primary icon-pulse" />
+                        Histórico de Execuções
+                      </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {scanHistory && scanHistory.length > 0 ? (
                         scanHistory.slice(0, 5).map((scan) => (
-                          <div key={scan.id} className="flex items-center justify-between text-sm">
+                          <div key={scan.id} className="flex items-center justify-between text-sm transition-all hover:translate-x-1">
                             <div className="flex items-center gap-2">
                               <Badge variant={scan.status === 'completed' ? 'default' : scan.status === 'running' ? 'secondary' : 'destructive'} className="text-xs">
                                 {scan.status === 'completed' ? 'Completo' : scan.status === 'running' ? 'Em execução' : 'Erro'}
                               </Badge>
-                              <span className="text-muted-foreground">
+                              <span className="text-muted-foreground tabular-nums">
                                 {new Date(scan.created_at).toLocaleDateString('pt-BR', { 
                                   day: '2-digit', 
                                   month: '2-digit',
@@ -524,7 +527,7 @@ const WellArchitected = () => {
                               </span>
                             </div>
                             {scan.completed_at && (
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-muted-foreground tabular-nums">
                                 {Math.round((new Date(scan.completed_at).getTime() - new Date(scan.created_at).getTime()) / 1000)}s
                               </span>
                             )}
@@ -539,7 +542,7 @@ const WellArchitected = () => {
                   </Card>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-stagger">
                   {pillars.map((pillar) => {
                     const pillarData = getPillarData(pillar.id);
                     const recommendations = Array.isArray(pillarData?.recommendations) 
@@ -569,16 +572,19 @@ const WellArchitected = () => {
                   })}
                 </div>
 
-                <Card className="glass border-primary/20">
+                <Card className="glass border-primary/20 card-hover-lift card-shine">
                   <CardHeader>
-                    <CardTitle>Análise Detalhada por Pilar</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileCheck className="h-5 w-5 text-primary icon-pulse" />
+                      Análise Detalhada por Pilar
+                    </CardTitle>
                     <CardDescription>
                       Recomendações e insights detalhados
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Tabs defaultValue="operational_excellence">
-                      <TabsList className="grid grid-cols-3 lg:grid-cols-6 mb-6">
+                      <TabsList className="grid grid-cols-3 lg:grid-cols-6 mb-6 glass">
                         {pillars.map((pillar) => (
                           <TabsTrigger key={pillar.id} value={pillar.id} className="gap-2">
                             <pillar.icon className="h-4 w-4" />
@@ -596,31 +602,31 @@ const WellArchitected = () => {
                         
                         return (
                           <TabsContent key={pillar.id} value={pillar.id} className="space-y-4">
-                            <div className="flex items-start gap-4 p-6 rounded-lg bg-muted/50">
-                              <div className={`p-3 rounded-lg ${pillar.bgColor}`}>
-                                <pillar.icon className={`h-8 w-8 ${pillar.color}`} />
+                            <div className="flex items-start gap-4 p-6 rounded-lg bg-muted/50 transition-all hover:bg-muted/70">
+                              <div className={`p-3 rounded-lg ${pillar.bgColor} transition-transform hover:scale-110`}>
+                                <pillar.icon className={`h-8 w-8 ${pillar.color} icon-pulse`} />
                               </div>
                               <div className="flex-1">
                                 <h3 className="text-xl font-semibold mb-2">{pillar.name}</h3>
                                 <p className="text-muted-foreground mb-4">{pillar.description}</p>
                                 <div className="flex items-center gap-4">
                                   <div className="flex-1">
-                                    <Progress value={score} className="h-3" />
+                                    <Progress value={score} className="h-3 progress-shimmer" />
                                   </div>
-                                  <Badge className={getScoreColor(score)}>
-                                    {score}% - {getScoreLabel(score)}
+                                  <Badge className={`${getScoreColor(score)} transition-all hover:scale-105`}>
+                                    <span className="tabular-nums">{score}%</span> - {getScoreLabel(score)}
                                   </Badge>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 mt-4">
-                                  <div className="flex items-center gap-2">
-                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                    <span className="text-sm">
+                                  <div className="flex items-center gap-2 transition-all hover:translate-x-1">
+                                    <CheckCircle2 className="h-4 w-4 text-green-500 icon-bounce" />
+                                    <span className="text-sm tabular-nums">
                                       {pillarData?.checks_passed || 0} checks aprovados
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                                    <span className="text-sm">
+                                  <div className="flex items-center gap-2 transition-all hover:translate-x-1">
+                                    <AlertTriangle className={`h-4 w-4 text-red-500 ${(pillarData?.checks_failed || 0) > 0 ? 'icon-pulse' : ''}`} />
+                                    <span className="text-sm tabular-nums">
                                       {pillarData?.checks_failed || 0} checks falharam
                                     </span>
                                   </div>
@@ -629,21 +635,21 @@ const WellArchitected = () => {
                             </div>
 
                             {recommendations && recommendations.length > 0 ? (
-                              <div className="space-y-3">
+                              <div className="space-y-3 animate-stagger">
                                 <div className="flex items-center justify-between mb-4">
                                   <h4 className="font-semibold text-lg">Recomendações:</h4>
                                   <Button 
                                     size="sm" 
                                     variant="outline"
                                     onClick={() => createBulkTickets(recommendations, pillar.name)}
-                                    className="gap-2"
+                                    className="gap-2 glass hover-glow"
                                   >
                                     <Ticket className="h-4 w-4" />
                                     Criar {recommendations.length} Ticket{recommendations.length > 1 ? 's' : ''}
                                   </Button>
                                 </div>
                                 {recommendations.map((rec: any, idx: number) => (
-                                  <Card key={idx} className="border-l-4 border-l-primary">
+                                  <Card key={idx} className="border-l-4 border-l-primary glass card-hover-lift transition-all hover:translate-x-1">
                                     <CardContent className="pt-6">
                                       <div className="flex items-start gap-3">
                                         <Badge 
@@ -653,6 +659,7 @@ const WellArchitected = () => {
                                             rec.severity === 'medium' ? 'default' : 
                                             'secondary'
                                           }
+                                          className={rec.severity === 'critical' ? 'alert-pulse' : ''}
                                         >
                                           {rec.severity}
                                         </Badge>
@@ -687,7 +694,7 @@ const WellArchitected = () => {
                                             variant="outline"
                                             onClick={() => createTicket(rec, pillar.name)}
                                             disabled={creatingTicketId === `${pillar.name}-${rec.check_name}`}
-                                            className="gap-2"
+                                            className="gap-2 glass hover-glow btn-press"
                                           >
                                             <Ticket className="h-4 w-4" />
                                             {creatingTicketId === `${pillar.name}-${rec.check_name}` ? 'Criando...' : 'Criar Ticket'}

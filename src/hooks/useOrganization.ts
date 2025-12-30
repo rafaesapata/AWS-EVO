@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
+import { apiClient } from '@/integrations/aws/api-client';
 import { CACHE_CONFIGS } from './useQueryCache';
 import { useTVDashboard } from '@/contexts/TVDashboardContext';
 
@@ -19,6 +20,9 @@ interface UseOrganizationResult {
  * Hook para obter a organização do usuário atual
  * Inclui suporte a impersonation para super admins e modo TV Dashboard
  * Cache isolado por sessão de usuário com retry automático
+ * 
+ * IMPORTANTE: Este hook também garante que o profile do usuário seja criado
+ * no banco de dados (via chamada à API get-user-organization)
  */
 export const useOrganization = (): UseOrganizationResult => {
   const { organizationId: tvOrgId, isTVMode } = useTVDashboard();
@@ -39,6 +43,17 @@ export const useOrganization = (): UseOrganizationResult => {
           // Force logout to get new token
           await cognitoAuth.signOut();
           throw new Error('Session expired - invalid organization ID format');
+        }
+        
+        // Call API to ensure user profile exists in database
+        // This creates the profile if it doesn't exist (first login)
+        try {
+          await apiClient.invoke('get-user-organization', {
+            body: { userId: user.id }
+          });
+        } catch (err) {
+          console.warn('Failed to sync user profile:', err);
+          // Don't fail the whole flow if profile sync fails
         }
         
         return user.organizationId;

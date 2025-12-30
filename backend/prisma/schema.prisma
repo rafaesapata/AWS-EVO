@@ -54,7 +54,7 @@ model Profile {
 model AwsCredential {
   id                    String   @id @default(uuid()) @db.Uuid
   organization_id       String   @db.Uuid
-  account_id            String?
+  aws_account_number    String?  // 12-digit AWS account number (renamed from account_id)
   account_name          String?
   access_key_id         String?
   secret_access_key     String?
@@ -393,31 +393,27 @@ model CommunicationLog {
 // ==================== COST MANAGEMENT ====================
 
 model DailyCost {
-  id                    String   @id @default(uuid()) @db.Uuid
-  organization_id       String?  @db.Uuid
-  aws_account_id        String?  @db.Uuid
-  cost_date             DateTime @db.Date
-  total_cost            Decimal  @default(0) @db.Decimal(12, 2)
-  service_breakdown     Json?    @default("{}")
-  cost_by_region        Json?    @default("{}")
-  forecasted_month_end  Decimal? @db.Decimal(12, 2)
-  compared_to_yesterday Decimal? @db.Decimal(12, 2)
-  compared_to_last_week Decimal? @db.Decimal(12, 2)
-  credits_used          Decimal? @default(0) @db.Decimal(12, 2)
-  net_cost              Decimal? @db.Decimal(12, 2)
-  created_at            DateTime @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String?  @db.Uuid
+  aws_account_id  String?  @db.Uuid  // UUID reference to aws_accounts.id
+  date            DateTime @db.Date
+  service         String?
+  cost            Float    @default(0)
+  usage           Float?   @default(0)
+  currency        String?  @default("USD")
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
   
-  @@unique([aws_account_id, cost_date, organization_id])
   @@index([organization_id])
-  @@index([cost_date])
+  @@index([date])
+  @@index([organization_id, date])
+  @@index([aws_account_id])
   @@map("daily_costs")
 }
 
 model WasteDetection {
   id                      String   @id @default(uuid()) @db.Uuid
   organization_id         String   @db.Uuid
-  account_id              String
+  aws_account_id          String?  @db.Uuid  // UUID reference to aws_accounts.id
   resource_id             String
   resource_type           String
   resource_name           String?
@@ -433,6 +429,7 @@ model WasteDetection {
   @@index([organization_id])
   @@index([waste_type])
   @@index([detected_at])
+  @@index([aws_account_id])
   @@map("waste_detections")
 }
 
@@ -500,7 +497,7 @@ model ResourceInventory {
 model ComplianceViolation {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
-  account_id        String
+  aws_account_id    String?  @db.Uuid  // UUID reference to aws_accounts.id
   framework         String
   control_id        String
   resource_id       String?
@@ -515,6 +512,7 @@ model ComplianceViolation {
   @@index([framework])
   @@index([status])
   @@index([detected_at])
+  @@index([aws_account_id])
   @@map("compliance_violations")
 }
 
@@ -607,7 +605,7 @@ model EndpointCheckHistory {
 model IAMBehaviorAnomaly {
   id              String   @id @default(uuid()) @db.Uuid
   organization_id String   @db.Uuid
-  account_id      String
+  aws_account_id  String?  @db.Uuid  // UUID reference to aws_accounts.id
   user_name       String
   anomaly_type    String
   severity        String
@@ -618,6 +616,7 @@ model IAMBehaviorAnomaly {
   @@index([organization_id])
   @@index([severity])
   @@index([detected_at])
+  @@index([aws_account_id])
   @@map("iam_behavior_anomalies")
 }
 

@@ -15,7 +15,6 @@ import {
   Bell, 
   Ticket, 
   Users, 
-  Settings,
   ChevronDown,
   ChevronRight,
   Building2,
@@ -120,7 +119,6 @@ const menuItems: MenuItem[] = [
   { titleKey: "sidebar.organizations", value: "organizations", icon: Building2, superAdminOnly: true },
   { titleKey: "sidebar.scheduledJobs", value: "scheduled-jobs", icon: Calendar, superAdminOnly: true },
   { titleKey: "sidebar.devTools", value: "devtools", icon: Activity, superAdminOnly: true },
-  { titleKey: "sidebar.setup", value: "setup", icon: Settings },
 ];
 
 interface AppSidebarProps {
@@ -205,6 +203,7 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
     } else if (value === 'invoices') {
       navigate('/app?tab=invoices');
     } else if (value === 'executive') {
+      onTabChange('executive');
       navigate('/app');
     } else if (value === 'costs') {
       navigate('/app?tab=costs');
@@ -218,8 +217,6 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/organizations');
     } else if (value === 'audit') {
       navigate('/app?tab=audit');
-    } else if (value === 'setup') {
-      navigate('/aws-settings');
     } else if (value === 'security-analysis') {
       navigate('/app?tab=security-analysis');
     } else {

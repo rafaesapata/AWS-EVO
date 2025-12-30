@@ -551,7 +551,7 @@ export default function SecurityAnalysisContent() {
 
   return (
     <Tabs defaultValue="analysis" className="w-full space-y-8">
-      <TabsList className="grid w-full grid-cols-2">
+      <TabsList className="grid w-full grid-cols-2 glass">
         <TabsTrigger value="analysis">{t('securityAnalysis.currentAnalysis')}</TabsTrigger>
         <TabsTrigger value="history">{t('securityAnalysis.history')}</TabsTrigger>
       </TabsList>
@@ -560,15 +560,6 @@ export default function SecurityAnalysisContent() {
         {/* Header com botões de scan e exportar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-3xl font-bold gradient-text">{t('securityAnalysis.title')}</h2>
-                <InfoTooltip title="Como funciona a análise?">
-                  {tooltipContent.securityScore}
-                </InfoTooltip>
-              </div>
-              <p className="text-muted-foreground mt-1">{t('securityAnalysis.description')}</p>
-            </div>
             {viewingHistoricalScan && (
               <Badge variant="secondary" className="gap-2">
                 <Shield className="h-3 w-3" />
@@ -610,10 +601,10 @@ export default function SecurityAnalysisContent() {
 
         {/* Scan Level Selector */}
         {!viewingHistoricalScan && (
-          <Card className="glass border-primary/20 animate-fade-in">
+          <Card className="glass border-primary/20 animate-fade-in card-hover-lift">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-primary" />
+                <Shield className="h-5 w-5 text-primary icon-pulse" />
                 Nível de Análise
               </CardTitle>
               <CardDescription>
@@ -624,7 +615,7 @@ export default function SecurityAnalysisContent() {
               <RadioGroup 
                 value={selectedScanLevel} 
                 onValueChange={(value) => setSelectedScanLevel(value as ScanLevel)}
-                className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-stagger"
               >
                 {SCAN_LEVELS.map((level) => (
                   <div key={level.id} className="relative">
@@ -635,9 +626,9 @@ export default function SecurityAnalysisContent() {
                     />
                     <Label
                       htmlFor={level.id}
-                      className={`flex flex-col p-4 rounded-lg border-2 cursor-pointer transition-all
+                      className={`flex flex-col p-4 rounded-lg border-2 cursor-pointer transition-all hover:scale-[1.02]
                         ${selectedScanLevel === level.id 
-                          ? 'border-primary bg-primary/5' 
+                          ? 'border-primary bg-primary/5 glow-primary' 
                           : 'border-border hover:border-primary/50'
                         }
                       `}
@@ -672,7 +663,7 @@ export default function SecurityAnalysisContent() {
                   onClick={runSecurityScan} 
                   disabled={isScanning}
                   size="lg"
-                  className="gap-2 min-w-[200px]"
+                  className="gap-2 min-w-[200px] hover-glow btn-press"
                 >
                   {isScanning ? (
                     <>
@@ -681,9 +672,9 @@ export default function SecurityAnalysisContent() {
                     </>
                   ) : (
                     <>
-                      {selectedScanLevel === 'military' ? <Sword className="h-5 w-5" /> : 
-                       selectedScanLevel === 'advanced' ? <Lock className="h-5 w-5" /> : 
-                       <Zap className="h-5 w-5" />}
+                      {selectedScanLevel === 'military' ? <Sword className="h-5 w-5 icon-bounce" /> : 
+                       selectedScanLevel === 'advanced' ? <Lock className="h-5 w-5 icon-pulse" /> : 
+                       <Zap className="h-5 w-5 icon-bounce" />}
                       Iniciar Análise {SCAN_LEVELS.find(l => l.id === selectedScanLevel)?.name}
                     </>
                   )}
@@ -697,11 +688,11 @@ export default function SecurityAnalysisContent() {
       {isLoadingPosture || isLoadingScan ? (
         <SecurityPostureSkeleton />
       ) : (
-        <Card className="glass border-primary/20 animate-fade-in">
+        <Card className="glass border-primary/20 animate-fade-in card-hover-lift card-shine">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Shield className="h-6 w-6 text-primary" />
+                <Shield className="h-6 w-6 text-primary icon-pulse" />
                 Security Posture Score
               </div>
               <div className="flex items-center gap-2">
@@ -720,31 +711,31 @@ export default function SecurityAnalysisContent() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="text-center">
-                <div className={`text-6xl font-bold mb-2 ${getScoreColor(posture?.overall_score || 0)}`}>
+                <div className={`text-6xl font-bold mb-2 tabular-nums animate-in fade-in-0 zoom-in-95 duration-500 ${getScoreColor(posture?.overall_score || 0)}`}>
                   {posture?.overall_score?.toFixed(0) || 0}
                 </div>
                 <div className="text-lg text-muted-foreground mb-2">de 100</div>
-                <Badge className={getScoreColor(posture?.overall_score || 0)}>
+                <Badge className={`${getScoreColor(posture?.overall_score || 0)} transition-all hover:scale-105`}>
                   {getScoreLabel(posture?.overall_score || 0)}
                 </Badge>
-                <Progress value={posture?.overall_score || 0} className="mt-4" />
+                <Progress value={posture?.overall_score || 0} className="mt-4 progress-shimmer" />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-4 bg-red-500/10 rounded-lg border border-red-500/20">
-                  <div className="text-3xl font-bold text-red-500">{criticalCount}</div>
+              <div className="grid grid-cols-2 gap-4 animate-stagger">
+                <div className={`text-center p-4 bg-red-500/10 rounded-lg border border-red-500/20 transition-all hover:scale-105 ${criticalCount > 0 ? 'glow-danger alert-pulse' : ''}`}>
+                  <div className="text-3xl font-bold text-red-500 tabular-nums">{criticalCount}</div>
                   <div className="text-sm text-muted-foreground">Críticos</div>
                 </div>
-                <div className="text-center p-4 bg-orange-500/10 rounded-lg border border-orange-500/20">
-                  <div className="text-3xl font-bold text-orange-500">{highCount}</div>
+                <div className="text-center p-4 bg-orange-500/10 rounded-lg border border-orange-500/20 transition-all hover:scale-105">
+                  <div className="text-3xl font-bold text-orange-500 tabular-nums">{highCount}</div>
                   <div className="text-sm text-muted-foreground">Altos</div>
                 </div>
-                <div className="text-center p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
-                  <div className="text-3xl font-bold text-yellow-500">{mediumCount}</div>
+                <div className="text-center p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20 transition-all hover:scale-105">
+                  <div className="text-3xl font-bold text-yellow-500 tabular-nums">{mediumCount}</div>
                   <div className="text-sm text-muted-foreground">Médios</div>
                 </div>
-                <div className="text-center p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                  <div className="text-3xl font-bold text-blue-500">{lowCount}</div>
+                <div className="text-center p-4 bg-blue-500/10 rounded-lg border border-blue-500/20 transition-all hover:scale-105 glow-success">
+                  <div className="text-3xl font-bold text-blue-500 tabular-nums">{lowCount}</div>
                   <div className="text-sm text-muted-foreground">Baixos</div>
                 </div>
               </div>
@@ -757,17 +748,20 @@ export default function SecurityAnalysisContent() {
       {isLoadingFindings ? (
         <CategoryBreakdownSkeleton />
       ) : (
-        <Card className="glass animate-fade-in">
+        <Card className="glass border-primary/20 animate-fade-in card-hover-lift">
           <CardHeader>
-            <CardTitle>Breakdown por Categoria</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Breakdown por Categoria
+            </CardTitle>
             <CardDescription>Análise detalhada de cada área de segurança</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 animate-stagger">
             {categories.map((category) => (
-              <div key={category.name} className="space-y-2">
+              <div key={category.name} className="space-y-2 transition-all hover:translate-x-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <category.icon className="h-4 w-4 text-muted-foreground" />
+                    <category.icon className="h-4 w-4 text-muted-foreground icon-pulse" />
                     <span className="font-medium">{category.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -804,7 +798,7 @@ export default function SecurityAnalysisContent() {
                     )}
                   </div>
                 </div>
-                <Progress value={category.score} />
+                <Progress value={category.score} className="progress-shimmer" />
               </div>
             ))}
           </CardContent>
@@ -815,20 +809,21 @@ export default function SecurityAnalysisContent() {
       {isLoadingFindings ? (
         <FindingsTableSkeleton />
       ) : (
-        <Card className="animate-fade-in">
+        <Card className="glass border-primary/20 animate-fade-in">
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-4">
               <CardTitle className="flex items-center gap-2">
-                <Filter className="h-5 w-5" />
+                <Filter className="h-5 w-5 text-primary" />
                 Filtros e Ações
               </CardTitle>
             {selectedFindings.size > 0 && (
               <div className="flex items-center gap-2">
-                <Badge variant="secondary">{selectedFindings.size} selecionados</Badge>
+                <Badge variant="secondary" className="animate-in fade-in-0">{selectedFindings.size} selecionados</Badge>
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => handleBulkAction('resolve')}
+                  className="glass hover-glow"
                 >
                   <CheckSquare className="h-4 w-4 mr-2" />
                   Marcar Resolvido
@@ -837,6 +832,7 @@ export default function SecurityAnalysisContent() {
                   variant="outline" 
                   size="sm"
                   onClick={() => setSelectedFindings(new Set())}
+                  className="glass"
                 >
                   Limpar
                 </Button>
@@ -868,7 +864,7 @@ export default function SecurityAnalysisContent() {
                 setSelectedSeverity(val);
                 setCurrentPage(1);
               }}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] glass">
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
@@ -887,7 +883,7 @@ export default function SecurityAnalysisContent() {
                 setSelectedStatus(val);
                 setCurrentPage(1);
               }}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] glass">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -906,7 +902,7 @@ export default function SecurityAnalysisContent() {
                 setSelectedRegion(val);
                 setCurrentPage(1);
               }}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] glass">
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
@@ -972,11 +968,14 @@ export default function SecurityAnalysisContent() {
       {isLoadingFindings ? (
         <FindingsTableSkeleton />
       ) : (
-        <Card className="glass animate-fade-in">
+        <Card className="glass border-primary/20 animate-fade-in card-hover-lift">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Achados de Segurança</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-primary" />
+                  Achados de Segurança
+                </CardTitle>
               <CardDescription>
                 {filteredFindings?.length || 0} achados encontrados {searchQuery && '(filtrado por busca)'}
               </CardDescription>
@@ -988,10 +987,11 @@ export default function SecurityAnalysisContent() {
                   size="sm"
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
+                  className="glass"
                 >
                   Anterior
                 </Button>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-muted-foreground tabular-nums">
                   Página {currentPage} de {totalPages}
                 </span>
                 <Button
@@ -999,6 +999,7 @@ export default function SecurityAnalysisContent() {
                   size="sm"
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
+                  className="glass"
                 >
                   Próxima
                 </Button>
@@ -1011,7 +1012,7 @@ export default function SecurityAnalysisContent() {
             setActiveSeverityTab(value);
             setCurrentPage(1);
           }}>
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-5 glass">
               <TabsTrigger value="all">Todos ({filteredFindings?.length || 0})</TabsTrigger>
               <TabsTrigger value="critical">Críticos ({criticalFindings.length})</TabsTrigger>
               <TabsTrigger value="high">Altos ({highFindings.length})</TabsTrigger>
@@ -1031,6 +1032,7 @@ export default function SecurityAnalysisContent() {
                 size="sm"
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
+                className="glass"
               >
                 Primeira
               </Button>
@@ -1039,10 +1041,11 @@ export default function SecurityAnalysisContent() {
                 size="sm"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
+                className="glass"
               >
                 Anterior
               </Button>
-              <span className="text-sm text-muted-foreground px-4">
+              <span className="text-sm text-muted-foreground px-4 tabular-nums">
                 Página {currentPage} de {totalPages} • {itemsPerPage} por página
               </span>
               <Button
@@ -1050,6 +1053,7 @@ export default function SecurityAnalysisContent() {
                 size="sm"
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
+                className="glass"
               >
                 Próxima
               </Button>
@@ -1058,6 +1062,7 @@ export default function SecurityAnalysisContent() {
                 size="sm"
                 onClick={() => setCurrentPage(totalPages)}
                 disabled={currentPage === totalPages}
+                className="glass"
               >
                 Última
               </Button>

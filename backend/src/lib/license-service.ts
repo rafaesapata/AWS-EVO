@@ -347,11 +347,16 @@ function getProductFeatures(productType: string): string[] {
 
 export async function hasValidLicense(organizationId: string): Promise<boolean> {
   const prisma = getPrismaClient() as any;
+  // Only consider EVO licenses as valid
   const license = await prisma.license.findFirst({
     where: {
       organization_id: organizationId,
       is_active: true,
       is_expired: false,
+      product_type: {
+        contains: 'evo',
+        mode: 'insensitive'
+      }
     },
   });
   return !!license;
@@ -360,11 +365,33 @@ export async function hasValidLicense(organizationId: string): Promise<boolean> 
 export async function getLicenseSummary(organizationId: string) {
   const prisma = getPrismaClient() as any;
 
+  // First, get ALL licenses to log their types for debugging
+  const allLicenses = await prisma.license.findMany({
+    where: { 
+      organization_id: organizationId, 
+      is_active: true,
+    },
+    select: { id: true, product_type: true, license_key: true }
+  });
+  
+  logger.info(`All licenses for org ${organizationId}: ${JSON.stringify(allLicenses.map((l: any) => ({ key: l.license_key?.substring(0, 10), type: l.product_type })))}`);
+
+  // Filter only EVO licenses (product_type equals 'EVO' case insensitive)
   const licenses = await prisma.license.findMany({
-    where: { organization_id: organizationId, is_active: true },
+    where: { 
+      organization_id: organizationId, 
+      is_active: true,
+      OR: [
+        { product_type: { equals: 'EVO', mode: 'insensitive' } },
+        { product_type: { equals: 'evo', mode: 'insensitive' } },
+        { product_type: { startsWith: 'EVO', mode: 'insensitive' } },
+      ]
+    },
     include: { seat_assignments: true },
     orderBy: { valid_until: 'desc' },
   });
+
+  logger.info(`Filtered EVO licenses: ${licenses.length}`);
 
   const config = await prisma.organizationLicenseConfig.findUnique({
     where: { organization_id: organizationId },

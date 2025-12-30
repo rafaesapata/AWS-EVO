@@ -104,44 +104,31 @@ LICENSE_API_KEY=nck_59707b56bf8def71dfb657bb8f2f4b9c
 
 ## Deploy
 
-### 1. Aplicar Migração do Banco
-```bash
-# Conectar ao RDS e executar
-psql -h $RDS_HOST -U $RDS_USER -d $RDS_DB -f backend/prisma/migrations/20251230_license_system/migration.sql
-```
+### 1. Migração do Banco ✅ EXECUTADA
+A migração foi executada com sucesso em 30/12/2025:
+- Novas colunas adicionadas à tabela `licenses`
+- Tabela `license_seat_assignments` criada
+- Tabela `organization_license_configs` criada
+- Índices e foreign keys configurados
 
-### 2. Build e Deploy das Lambdas
-```bash
-# Build backend
-npm run build --prefix backend
+### 2. Lambdas Criadas ✅
+- `evo-uds-v3-production-configure-license` - Configurar customer_id
+- `evo-uds-v3-production-sync-license` - Sincronizar licenças manualmente
+- `evo-uds-v3-production-manage-seats` - Gerenciar seats de usuários
+- `evo-uds-v3-production-admin-sync-license` - Super admin sync
+- `evo-uds-v3-production-scheduled-license-sync` - Sync diário automático
+- `evo-uds-v3-production-validate-license` - Validar licença (atualizado)
 
-# Criar/Atualizar Lambdas (via CLI ou CDK)
-# configure-license
-# sync-license
-# manage-seats
-# admin-sync-license
-# scheduled-license-sync
-```
+### 3. Endpoints API Gateway ✅
+- `POST/GET /api/functions/configure-license`
+- `POST /api/functions/sync-license`
+- `POST/GET /api/functions/manage-seats`
+- `POST/GET /api/functions/admin-sync-license`
 
-### 3. Criar Endpoints no API Gateway
-```bash
-REST_API_ID=3l66kn0eaj
-PARENT_ID=n9gxy9  # /api/functions
-AUTHORIZER_ID=ez5xqt
-
-# Para cada endpoint: configure-license, sync-license, manage-seats, admin-sync-license
-# Criar resource, OPTIONS, POST/GET com Cognito auth
-```
-
-### 4. Configurar EventBridge
-```bash
-aws cloudformation deploy \
-  --template-file cloudformation/license-sync-scheduler.yaml \
-  --stack-name evo-uds-license-sync-scheduler \
-  --parameter-overrides \
-    Environment=production \
-    LambdaFunctionArn=arn:aws:lambda:us-east-1:383234048592:function:evo-uds-v3-production-scheduled-license-sync
-```
+### 4. EventBridge Rule ✅
+- Rule: `evo-uds-production-daily-license-sync`
+- Schedule: Daily at 2:00 AM UTC
+- Target: `evo-uds-v3-production-scheduled-license-sync`
 
 ## Fluxo de Uso
 

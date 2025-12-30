@@ -386,7 +386,11 @@ O que foi aprendido com este incidente.`
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deletingTemplate && deleteTemplateMutation.mutate(deletingTemplate)}>
+            <AlertDialogAction 
+              onClick={() => deletingTemplate && deleteTemplateMutation.mutate(deletingTemplate)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -180,7 +180,7 @@ export async function handler(
       await prisma.iAMBehaviorAnomaly.create({
         data: {
           organization_id: organizationId,
-          account_id: accountId,
+          aws_account_id: accountId,
           user_name: anomaly.userName,
           anomaly_type: anomaly.anomalyType,
           severity: anomaly.severity,

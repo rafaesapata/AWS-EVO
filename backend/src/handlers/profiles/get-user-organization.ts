@@ -47,11 +47,12 @@ export async function handler(
       return notFound('Organization not found');
     }
     
-    // Get user's profile in this organization
-    const profile = await prisma.profile.findFirst({
+    // Get user's profile in this organization, or create if not exists
+    const targetUserId = userId || user.sub;
+    let profile = await prisma.profile.findFirst({
       where: {
         organization_id: organizationId,
-        user_id: userId || user.sub
+        user_id: targetUserId
       },
       select: {
         id: true,
@@ -60,6 +61,30 @@ export async function handler(
         created_at: true
       }
     });
+    
+    // Auto-create profile if it doesn't exist (first login)
+    if (!profile && targetUserId) {
+      console.log('📝 Creating profile for user:', targetUserId);
+      const userName = user.name || user.email?.split('@')[0] || 'User';
+      const userRole = user['custom:roles'] ? 
+        (JSON.parse(user['custom:roles'])[0] || 'user') : 'user';
+      
+      profile = await prisma.profile.create({
+        data: {
+          user_id: targetUserId,
+          organization_id: organizationId,
+          full_name: userName,
+          role: userRole,
+        },
+        select: {
+          id: true,
+          role: true,
+          full_name: true,
+          created_at: true
+        }
+      });
+      console.log('✅ Profile created:', profile.id);
+    }
     
     // Get organization stats
     const [userCount, accountCount] = await Promise.all([

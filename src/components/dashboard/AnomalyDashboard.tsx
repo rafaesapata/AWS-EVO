@@ -310,7 +310,7 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
       />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'detection' | 'history')}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="glass grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="detection">{t('anomalyDetection.currentDetection')}</TabsTrigger>
           <TabsTrigger value="history">{t('anomalyDetection.history')}</TabsTrigger>
         </TabsList>
@@ -340,35 +340,35 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
           ) : (
             <>
           {/* Stats */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
+          <div className="grid gap-4 md:grid-cols-3 animate-stagger">
+            <Card className="glass border-primary/20 card-hover-lift">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">{t('anomalyDetection.totalAnomalies')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.total}</div>
+                <div className="text-2xl font-bold tabular-nums">{stats.total}</div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="glass border-primary/20 card-hover-lift">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">{t('anomalyDetection.active')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">{stats.active}</div>
+                <div className="text-2xl font-bold text-red-600 tabular-nums">{stats.active}</div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="glass border-primary/20 card-hover-lift">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">{t('anomalyDetection.critical')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">{stats.critical}</div>
+                <div className="text-2xl font-bold text-red-600 tabular-nums">{stats.critical}</div>
               </CardContent>
             </Card>
           </div>
 
           {/* Filters and Search */}
-          <Card>
+          <Card className="glass border-primary/20">
             <CardHeader>
               <CardTitle>{t('anomalyDetection.detectedAnomalies')}</CardTitle>
               <CardDescription>{t('anomalyDetection.analysisResults')}</CardDescription>

@@ -59,7 +59,7 @@ export async function handler(
       },
       select: {
         id: true,
-        account_id: true,
+        aws_account_number: true,
         account_name: true,
         access_key_id: true,
         external_id: true,

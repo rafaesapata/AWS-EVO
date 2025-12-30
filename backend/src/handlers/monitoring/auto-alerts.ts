@@ -126,12 +126,12 @@ async function detectCostAnomalies(
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
-  // PADRONIZADO: usar organization_id (snake_case) conforme schema Prisma
+  // PADRONIZADO: usar organization_id e aws_account_id (snake_case) conforme schema Prisma
   const recentCosts = await prisma.dailyCost.groupBy({
     by: ['date'],
     where: {
       organization_id: organizationId,
-      ...(accountId && { account_id: accountId }),
+      ...(accountId && { aws_account_id: accountId }),
       date: {
         gte: sevenDaysAgo,
       },
@@ -182,11 +182,11 @@ async function detectCriticalFindings(
   const oneDayAgo = new Date();
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
   
-  // PADRONIZADO: usar organization_id e account_id (snake_case) conforme schema Prisma
+  // PADRONIZADO: usar organization_id e aws_account_id (snake_case) conforme schema Prisma
   const criticalFindings = await prisma.finding.findMany({
     where: {
       organization_id: organizationId,
-      ...(accountId && { account_id: accountId }),
+      ...(accountId && { aws_account_id: accountId }),
       severity: 'CRITICAL',
       status: 'ACTIVE',
       created_at: {
@@ -261,11 +261,11 @@ async function detectComplianceViolations(
   const oneDayAgo = new Date();
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
   
-  // PADRONIZADO: usar organization_id e account_id (snake_case) conforme schema Prisma
+  // PADRONIZADO: usar organization_id e aws_account_id (snake_case) conforme schema Prisma
   const recentViolations = await prisma.complianceViolation.findMany({
     where: {
       organization_id: organizationId,
-      ...(accountId && { account_id: accountId }),
+      ...(accountId && { aws_account_id: accountId }),
       status: 'OPEN',
       detected_at: {
         gte: oneDayAgo,

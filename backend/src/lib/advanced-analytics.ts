@@ -355,14 +355,18 @@ export class AdvancedAnalytics {
     try {
       logger.info('Generating cost analytics', { organizationId, timeRange });
 
-      // Get cost data
-      const dailyCosts = await this.prisma.dailyCost.findMany({
+      // Get cost data aggregated by date
+      const dailyCosts = await this.prisma.dailyCost.groupBy({
+        by: ['date', 'service'],
         where: {
           organization_id: organizationId,
-          cost_date: {
+          date: {
             gte: timeRange.start,
             lte: timeRange.end,
           },
+        },
+        _sum: {
+          cost: true,
         },
       });
 
@@ -378,23 +382,19 @@ export class AdvancedAnalytics {
       });
 
       // Calculate summary metrics
-      const totalCost = dailyCosts.reduce((sum, cost) => sum + Number(cost.total_cost), 0);
+      const totalCost = dailyCosts.reduce((sum, cost) => sum + Number(cost._sum.cost || 0), 0);
       const potentialSavings = wasteDetections.reduce((sum, waste) => sum + waste.estimated_savings, 0);
       const wastePercentage = totalCost > 0 ? (potentialSavings / totalCost) * 100 : 0;
 
       // Project future costs (simple linear projection)
-      const projectedCost = this.projectFutureCosts(dailyCosts);
-      const costTrend = this.calculateCostTrend(dailyCosts);
+      const projectedCost = this.projectFutureCostsFromGrouped(dailyCosts);
+      const costTrend = this.calculateCostTrendFromGrouped(dailyCosts);
 
-      // Service breakdown from service_breakdown JSON field
+      // Service breakdown from grouped data
       const serviceCosts: Record<string, number> = {};
       dailyCosts.forEach(cost => {
-        const breakdown = cost.service_breakdown as Record<string, number> | null;
-        if (breakdown) {
-          Object.entries(breakdown).forEach(([service, value]) => {
-            serviceCosts[service] = (serviceCosts[service] || 0) + Number(value);
-          });
-        }
+        const service = cost.service || 'Unknown';
+        serviceCosts[service] = (serviceCosts[service] || 0) + Number(cost._sum.cost || 0);
       });
 
       const serviceBreakdown = Object.entries(serviceCosts)
@@ -901,6 +901,17 @@ export class AdvancedAnalytics {
     return avgDailyCost * 30;
   }
 
+  private projectFutureCostsFromGrouped(dailyCosts: any[]): number {
+    if (dailyCosts.length === 0) return 0;
+    
+    const totalCost = dailyCosts.reduce((sum, cost) => sum + Number(cost._sum?.cost || 0), 0);
+    const uniqueDates = new Set(dailyCosts.map(c => c.date?.toISOString?.() || c.date));
+    const avgDailyCost = totalCost / (uniqueDates.size || 1);
+    
+    // Project for next 30 days
+    return avgDailyCost * 30;
+  }
+
   private calculateCostTrend(dailyCosts: any[]): number {
     if (dailyCosts.length < 2) return 0;
     
@@ -910,6 +921,29 @@ export class AdvancedAnalytics {
     
     const firstAvg = firstHalf.reduce((sum, cost) => sum + Number(cost.total_cost), 0) / firstHalf.length;
     const secondAvg = secondHalf.reduce((sum, cost) => sum + Number(cost.total_cost), 0) / secondHalf.length;
+    
+    if (firstAvg === 0) return 0;
+    return ((secondAvg - firstAvg) / firstAvg) * 100;
+  }
+
+  private calculateCostTrendFromGrouped(dailyCosts: any[]): number {
+    if (dailyCosts.length < 2) return 0;
+    
+    // Aggregate by date first
+    const costsByDate = new Map<string, number>();
+    dailyCosts.forEach(cost => {
+      const dateKey = cost.date?.toISOString?.()?.split('T')[0] || String(cost.date);
+      costsByDate.set(dateKey, (costsByDate.get(dateKey) || 0) + Number(cost._sum?.cost || 0));
+    });
+    
+    const sortedDates = Array.from(costsByDate.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    if (sortedDates.length < 2) return 0;
+    
+    const firstHalf = sortedDates.slice(0, Math.floor(sortedDates.length / 2));
+    const secondHalf = sortedDates.slice(Math.floor(sortedDates.length / 2));
+    
+    const firstAvg = firstHalf.reduce((sum, [, cost]) => sum + cost, 0) / firstHalf.length;
+    const secondAvg = secondHalf.reduce((sum, [, cost]) => sum + cost, 0) / secondHalf.length;
     
     if (firstAvg === 0) return 0;
     return ((secondAvg - firstAvg) / firstAvg) * 100;

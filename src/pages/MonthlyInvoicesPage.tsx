@@ -22,13 +22,17 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { parseDateString, compareDates, getDayOfMonth } from "@/lib/utils";
+import { AwsAccountSelector } from "@/components/AwsAccountSelector";
+import ThemeToggle from "@/components/ThemeToggle";
+import LanguageToggle from "@/components/LanguageToggle";
+import UserMenu from "@/components/UserMenu";
 
 export const MonthlyInvoicesPage = () => {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId, accounts } = useAwsAccount();
+  const { selectedAccountId, selectedAccount, accounts } = useAwsAccount();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   
@@ -59,7 +63,7 @@ export const MonthlyInvoicesPage = () => {
   });
 
   // Process monthly data from daily costs
-  // Schema: id, organization_id, account_id, date, service, cost, usage, currency
+  // Schema: id, organization_id, aws_account_id, date, service, cost, usage, currency
   const monthlyData = allCosts?.reduce((acc, cost) => {
     // Skip records without valid date
     if (!cost.date) return acc;
@@ -213,17 +217,36 @@ export const MonthlyInvoicesPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Page Header with Account Selector */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <FileText className="h-6 w-6 text-primary" />
+            Faturas Mensais AWS
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Visualização e análise detalhada das faturas mensais da AWS
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <AwsAccountSelector />
+          <ThemeToggle />
+          <LanguageToggle />
+          <UserMenu />
+        </div>
+      </div>
+
+      {/* Main Content Card */}
       <Card className="glass border-primary/20">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <FileText className="h-6 w-6 text-primary" />
-                Faturas Mensais AWS
+                <Calendar className="h-5 w-5 text-primary" />
+                {selectedAccount ? selectedAccount.account_name || selectedAccount.account_id : 'Selecione uma conta'}
               </CardTitle>
               <CardDescription>
-                Visualização e análise detalhada das faturas mensais da AWS
+                {allCosts?.length || 0} registros de custos disponíveis
               </CardDescription>
             </div>
             <Button
@@ -241,7 +264,7 @@ export const MonthlyInvoicesPage = () => {
               ) : (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Carregar Histórico
+                  Atualizar Dados
                 </>
               )}
             </Button>

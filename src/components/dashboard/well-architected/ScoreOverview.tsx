@@ -14,15 +14,15 @@ export const ScoreOverview = ({ score }: ScoreOverviewProps) => {
   };
 
   const getRiskLevel = (score: number) => {
-    if (score >= 80) return { level: 'Baixo', color: 'bg-success/20 text-success' };
+    if (score >= 80) return { level: 'Baixo', color: 'bg-success/20 text-success glow-success' };
     if (score >= 60) return { level: 'Médio', color: 'bg-warning/20 text-warning' };
-    return { level: 'Alto', color: 'bg-destructive/20 text-destructive' };
+    return { level: 'Alto', color: 'bg-destructive/20 text-destructive glow-danger alert-pulse' };
   };
 
   const risk = getRiskLevel(score);
 
   return (
-    <div className="p-6 bg-muted/50 rounded-lg space-y-4">
+    <div className="p-6 glass border-primary/20 rounded-lg space-y-4 card-hover-lift card-shine">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-1">
@@ -31,15 +31,15 @@ export const ScoreOverview = ({ score }: ScoreOverviewProps) => {
               {tooltipContent.wellArchitected}
             </InfoTooltip>
           </div>
-          <p className={`text-4xl font-bold ${getScoreColor(score)}`}>
+          <p className={`text-4xl font-bold tabular-nums animate-in fade-in-0 zoom-in-95 duration-500 ${getScoreColor(score)}`}>
             {score.toFixed(0)}/100
           </p>
         </div>
-        <Badge className={risk.color}>
+        <Badge className={`${risk.color} transition-all hover:scale-105`}>
           Risco {risk.level}
         </Badge>
       </div>
-      <Progress value={score} className="h-3" />
+      <Progress value={score} className="h-3 progress-shimmer" />
     </div>
   );
 };

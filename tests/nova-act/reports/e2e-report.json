@@ -1,23 +1,95 @@
 {
-  "timestamp": "2025-12-30T13:56:09.632Z",
-  "duration": 1935,
+  "timestamp": "2025-12-30T14:00:30.912Z",
+  "duration": 20942,
   "summary": {
-    "total": 1,
-    "passed": 0,
-    "failed": 1
+    "total": 7,
+    "passed": 7,
+    "failed": 0
   },
   "results": [
     {
       "name": "Login com Credenciais Válidas",
       "category": "auth",
-      "success": false,
-      "duration": 75,
+      "success": true,
+      "duration": 17058,
       "steps": [
+        "Navegando para página de login...",
         "Aguardando página de login...",
+        "Timeout aguardando formulário - tentando continuar...",
         "Procurando campo de email...",
-        "❌ Erro: Campo de email não encontrado"
-      ],
-      "error": "Campo de email não encontrado"
+        "Campo de email encontrado: input[placeholder*=\"email\" i]",
+        "Preenchendo email...",
+        "Procurando campo de senha...",
+        "Preenchendo senha...",
+        "Procurando botão de login...",
+        "Clicando em login...",
+        "Aguardando redirecionamento...",
+        "✅ Login realizado com sucesso!"
+      ]
+    },
+    {
+      "name": "Carregamento do Dashboard",
+      "category": "dashboard",
+      "success": true,
+      "duration": 135,
+      "steps": [
+        "Verificando dashboard...",
+        "KPI Cards: encontrado",
+        "Sidebar: encontrado",
+        "Header: encontrado"
+      ]
+    },
+    {
+      "name": "Navegação para Scans de Segurança",
+      "category": "navigation",
+      "success": true,
+      "duration": 150,
+      "steps": [
+        "Navegando para: Análises",
+        "✅ Navegou para Análises"
+      ]
+    },
+    {
+      "name": "Navegação para Otimização de Custos",
+      "category": "navigation",
+      "success": true,
+      "duration": 124,
+      "steps": [
+        "Navegando para: Otimização",
+        "✅ Navegou para Otimização"
+      ]
+    },
+    {
+      "name": "Navegação para Configurações AWS",
+      "category": "navigation",
+      "success": true,
+      "duration": 178,
+      "steps": [
+        "Navegando para: Configurações AWS",
+        "✅ Navegou para Configurações AWS"
+      ]
+    },
+    {
+      "name": "Voltar para Dashboard",
+      "category": "navigation",
+      "success": true,
+      "duration": 133,
+      "steps": [
+        "Navegando para: Dashboard",
+        "✅ Navegou para Dashboard"
+      ]
+    },
+    {
+      "name": "Logout",
+      "category": "auth",
+      "success": true,
+      "duration": 2072,
+      "steps": [
+        "Procurando botão de Sair...",
+        "Botão encontrado: button:has-text(\"Sair\")",
+        "Clicando em Sair...",
+        "✅ Logout realizado"
+      ]
     }
   ]
 }

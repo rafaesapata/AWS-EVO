@@ -113,13 +113,13 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
   // Handle license-based navigation
   useEffect(() => {
-    // Skip if still loading, on license page, or no license status yet
-    if (isLoading || licenseLoading || location.pathname === '/license' || !licenseStatus) {
+    // Skip if still loading, on license management page, or no license status yet
+    if (isLoading || licenseLoading || location.pathname === '/license-management' || !licenseStatus) {
       return;
     }
 
     // Block access if license is invalid (regardless of whether customer_id exists)
-    // Users without customer_id must go to /license page to link their license
+    // Users without customer_id must go to /license-management page to link their license
     if (!licenseStatus.isValid) {
       // This will be handled by showing LicenseBlockedScreen below
       return;
@@ -167,7 +167,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   }
 
   // Allow access to license management page always (but still wrap with provider)
-  if (location.pathname === '/license') {
+  if (location.pathname === '/license-management') {
     return <AwsAccountProvider>{children}</AwsAccountProvider>;
   }
 

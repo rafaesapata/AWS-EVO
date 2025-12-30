@@ -180,51 +180,51 @@ export default function PredictiveIncidents() {
       </div>
       
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'predictions' | 'history')}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="glass grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="predictions">Predições Atuais</TabsTrigger>
           <TabsTrigger value="history">Histórico</TabsTrigger>
         </TabsList>
 
         <TabsContent value="predictions" className="space-y-6">
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 animate-stagger">
+        <Card className="glass border-primary/20 card-hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Incidentes Previstos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{incidents?.length || 0}</div>
+            <div className="text-2xl font-bold tabular-nums">{incidents?.length || 0}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass border-primary/20 card-hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Alto Risco (&gt;80%)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{highRiskCount}</div>
+            <div className="text-2xl font-bold text-destructive tabular-nums">{highRiskCount}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass border-primary/20 card-hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Próximas 48h</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold text-orange-600 tabular-nums">
               {incidents?.filter(i => i.time_to_incident_hours <= 48).length || 0}
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass border-primary/20 card-hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Críticos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">
+            <div className="text-2xl font-bold text-destructive tabular-nums">
               {incidents?.filter(i => i.severity === 'critical').length || 0}
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass border-primary/20 card-hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <History className="h-4 w-4" />
@@ -246,10 +246,10 @@ export default function PredictiveIncidents() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="glass border-primary/20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
+            <AlertTriangle className="h-5 w-5 icon-pulse" />
             Incidentes Previstos
           </CardTitle>
         </CardHeader>

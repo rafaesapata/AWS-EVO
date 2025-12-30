@@ -63,7 +63,7 @@ export default function AWSSettings() {
         )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-4 glass">
           <TabsTrigger value="credentials">
             <Cloud className="h-4 w-4 mr-2" />
             Credenciais
@@ -101,7 +101,7 @@ export default function AWSSettings() {
             return null;
           })}
           
-          <Card className="p-6">
+          <Card className="p-6 glass border-primary/20">
             <AwsCredentialsManager />
           </Card>
         </TabsContent>

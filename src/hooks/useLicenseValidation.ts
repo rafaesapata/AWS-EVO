@@ -27,7 +27,8 @@ export const useLicenseValidation = () => {
         };
       }
 
-      const result = await apiClient.invoke<LicenseStatus>('check-license', {
+      // Use validate-license endpoint (check-license doesn't exist)
+      const result = await apiClient.invoke<any>('validate-license', {
         headers: {
           Authorization: `Bearer ${session.accessToken}`
         },
@@ -44,7 +45,58 @@ export const useLicenseValidation = () => {
         };
       }
 
-      return result.data as LicenseStatus;
+      const data = result.data;
+      
+      // Transform validate-license response to LicenseStatus format
+      if (!data) {
+        return {
+          isValid: false,
+          reason: 'no_license' as const,
+          message: 'Resposta inválida do servidor',
+          hasCustomerId: false
+        };
+      }
+
+      // Check if license is configured
+      if (data.configured === false) {
+        return {
+          isValid: false,
+          reason: 'no_license' as const,
+          message: data.message || 'Licença não configurada',
+          hasCustomerId: false
+        };
+      }
+
+      // Check various invalid states
+      if (!data.valid) {
+        let reason: "expired" | "no_seats" | "no_license" | "seats_exceeded" = 'no_license';
+        let message = 'Licença inválida';
+
+        if (data.status === 'expired' || data.license?.is_expired) {
+          reason = 'expired';
+          message = 'Sua licença expirou';
+        } else if (data.status === 'no_seat' || !data.user_access?.has_seat) {
+          reason = 'no_seats';
+          message = 'Não há assentos disponíveis para seu usuário';
+        }
+
+        return {
+          isValid: false,
+          reason,
+          message,
+          hasCustomerId: !!data.customer_id,
+          totalSeats: data.seats?.total,
+          activeUsersCount: data.seats?.used
+        };
+      }
+
+      // License is valid
+      return {
+        isValid: true,
+        hasCustomerId: !!data.customer_id,
+        totalSeats: data.seats?.total,
+        activeUsersCount: data.seats?.used
+      };
     },
     staleTime: 3 * 60 * 1000, // 3 minutes cache
     gcTime: 10 * 60 * 1000, // 10 minutes garbage collection
