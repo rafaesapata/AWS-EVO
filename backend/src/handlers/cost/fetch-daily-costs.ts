@@ -3,6 +3,7 @@
  * AWS Lambda Handler for fetch-daily-costs
  * 
  * Busca custos diários da AWS usando Cost Explorer API
+ * Suporta busca incremental - busca apenas datas que ainda não estão no banco
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -44,10 +45,11 @@ export async function handler(
     
     const { 
       accountId, 
-      startDate = getDateDaysAgo(30), 
+      startDate: requestedStartDate, 
       endDate = getDateDaysAgo(0),
-      granularity = 'DAILY'
-    } = parseResult.data;
+      granularity = 'DAILY',
+      incremental = true // Nova opção: busca incremental por padrão
+    } = parseResult.data as any;
     
     const prisma = getPrismaClient();
     
@@ -65,10 +67,13 @@ export async function handler(
         success: true,
         message: 'No AWS credentials configured',
         costs: [],
+        summary: { totalRecords: 0, newRecords: 0, skippedDays: 0 }
       });
     }
     
     const allCosts: any[] = [];
+    let totalNewRecords = 0;
+    let totalSkippedDays = 0;
     
     // Processar cada conta AWS
     for (const account of awsAccounts) {
@@ -76,9 +81,53 @@ export async function handler(
         logger.info('Processing account', { 
           accountId: account.id, 
           accountName: account.account_name,
-          hasRoleArn: !!account.role_arn,
-          hasAccessKey: !!account.access_key_id
+          incremental
         });
+        
+        // Determinar data de início baseado nos dados existentes
+        let startDate = requestedStartDate || getDateDaysAgo(365); // Default: 1 ano
+        
+        if (incremental) {
+          // Buscar a data mais recente no banco para esta conta
+          const latestCost = await prisma.dailyCost.findFirst({
+            where: {
+              organization_id: organizationId,
+              aws_account_id: account.id,
+            },
+            orderBy: { date: 'desc' },
+            select: { date: true }
+          });
+          
+          if (latestCost?.date) {
+            // Começar do dia seguinte ao último registro
+            const lastDate = new Date(latestCost.date);
+            lastDate.setDate(lastDate.getDate() + 1);
+            const incrementalStart = lastDate.toISOString().split('T')[0];
+            
+            // Usar a data mais recente entre a solicitada e a incremental
+            if (incrementalStart > startDate) {
+              const skippedDays = Math.floor((new Date(incrementalStart).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
+              totalSkippedDays += skippedDays;
+              startDate = incrementalStart;
+              logger.info('Using incremental start date', { 
+                accountId: account.id,
+                lastDateInDb: latestCost.date,
+                incrementalStart,
+                skippedDays
+              });
+            }
+          }
+        }
+        
+        // Se a data de início é maior ou igual à data de fim, não há nada para buscar
+        if (startDate >= endDate) {
+          logger.info('No new dates to fetch for account', { 
+            accountId: account.id,
+            startDate,
+            endDate
+          });
+          continue;
+        }
         
         const resolvedCreds = await resolveAwsCredentials(account, 'us-east-1');
         
@@ -170,6 +219,7 @@ export async function handler(
                       }
                     });
                   });
+                  totalNewRecords++;
                 } catch (dbErr) {
                   logger.warn('Failed to save daily cost', { date, service, error: dbErr });
                 }
@@ -200,7 +250,9 @@ export async function handler(
     const uniqueServices = [...new Set(allCosts.map(c => c.service))].length;
     
     logger.info('Daily costs fetch completed', { 
-      recordsCount: allCosts.length, 
+      recordsCount: allCosts.length,
+      newRecords: totalNewRecords,
+      skippedDays: totalSkippedDays,
       totalCost: parseFloat(totalCost.toFixed(2)) 
     });
     
@@ -213,11 +265,14 @@ export async function handler(
       summary: {
         totalCost: parseFloat(totalCost.toFixed(2)),
         totalRecords: allCosts.length,
-        dateRange: { start: startDate, end: endDate },
+        newRecords: totalNewRecords,
+        skippedDays: totalSkippedDays,
+        dateRange: { start: requestedStartDate || getDateDaysAgo(365), end: endDate },
         uniqueDates,
         uniqueServices,
         accounts: awsAccounts.length,
         accountsProcessed: awsAccounts.map(a => ({ id: a.id, name: a.account_name })),
+        incremental,
       },
     });
     

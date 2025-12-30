@@ -68,9 +68,9 @@ async function securityScanHandler(
     const regions = credential.regions?.length ? credential.regions : ['us-east-1'];
     
     // Obter AWS Account ID de forma segura
-    let awsAccountId: string = credential.aws_account_number || '';
+    let awsAccountId: string = credential.account_id || '';
     if (!awsAccountId || awsAccountId === '000000000000') {
-      // Tentar obter via STS se não tiver aws_account_number válido
+      // Tentar obter via STS se não tiver account_id válido
       try {
         const { STSClient, GetCallerIdentityCommand } = await import('@aws-sdk/client-sts');
         const resolvedCredsForSts = await resolveAwsCredentials(credential, 'us-east-1');
@@ -88,7 +88,7 @@ async function securityScanHandler(
           // Atualizar no banco para próximas consultas
           await prisma.awsCredential.update({
             where: { id: credential.id },
-            data: { aws_account_number: identity.Account }
+            data: { account_id: identity.Account }
           });
           logger.info('AWS Account ID obtained via STS', { accountId: awsAccountId });
         }

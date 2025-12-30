@@ -10,6 +10,8 @@ export interface LicenseStatus {
   activeUsersCount?: number;
   totalSeats?: number;
   excessUsers?: number;
+  isAdmin?: boolean; // User is admin of the organization
+  canAccessLicensePage?: boolean; // Admin without license can access license page
 }
 
 export const useLicenseValidation = () => {
@@ -23,8 +25,22 @@ export const useLicenseValidation = () => {
           isValid: false,
           reason: 'no_license' as const,
           message: 'Não autenticado',
-          hasCustomerId: false
+          hasCustomerId: false,
+          isAdmin: false,
+          canAccessLicensePage: false
         };
+      }
+
+      // Check if user is admin from Cognito attributes
+      const rolesStr = session.user.attributes?.['custom:roles'] || '[]';
+      let isAdmin = false;
+      try {
+        const roles = JSON.parse(rolesStr);
+        isAdmin = Array.isArray(roles) 
+          ? roles.some((r: string) => r === 'admin' || r === 'super_admin')
+          : rolesStr.includes('admin') || rolesStr.includes('super_admin');
+      } catch {
+        isAdmin = rolesStr.includes('admin') || rolesStr.includes('super_admin');
       }
 
       // Use validate-license endpoint (check-license doesn't exist)
@@ -41,7 +57,9 @@ export const useLicenseValidation = () => {
           isValid: false,
           reason: 'no_license' as const,
           message: 'Erro ao validar licença',
-          hasCustomerId: false
+          hasCustomerId: false,
+          isAdmin,
+          canAccessLicensePage: isAdmin // Admin can access license page even without license
         };
       }
 
@@ -53,7 +71,9 @@ export const useLicenseValidation = () => {
           isValid: false,
           reason: 'no_license' as const,
           message: 'Resposta inválida do servidor',
-          hasCustomerId: false
+          hasCustomerId: false,
+          isAdmin,
+          canAccessLicensePage: isAdmin
         };
       }
 
@@ -62,8 +82,10 @@ export const useLicenseValidation = () => {
         return {
           isValid: false,
           reason: 'no_license' as const,
-          message: data.message || 'Licença não configurada',
-          hasCustomerId: false
+          message: data.message || 'Licença não configurada. Entre em contato com o administrador da organização.',
+          hasCustomerId: false,
+          isAdmin,
+          canAccessLicensePage: isAdmin // Only admin can configure license
         };
       }
 
@@ -74,10 +96,10 @@ export const useLicenseValidation = () => {
 
         if (data.status === 'expired' || data.license?.is_expired) {
           reason = 'expired';
-          message = 'Sua licença expirou';
+          message = 'Sua licença expirou. Entre em contato com o administrador.';
         } else if (data.status === 'no_seat' || !data.user_access?.has_seat) {
           reason = 'no_seats';
-          message = 'Não há assentos disponíveis para seu usuário';
+          message = 'Você não possui um assento de licença atribuído. Entre em contato com o administrador da organização.';
         }
 
         return {
@@ -86,7 +108,9 @@ export const useLicenseValidation = () => {
           message,
           hasCustomerId: !!data.customer_id,
           totalSeats: data.seats?.total,
-          activeUsersCount: data.seats?.used
+          activeUsersCount: data.seats?.used,
+          isAdmin,
+          canAccessLicensePage: isAdmin // Admin can manage licenses
         };
       }
 
@@ -95,7 +119,9 @@ export const useLicenseValidation = () => {
         isValid: true,
         hasCustomerId: !!data.customer_id,
         totalSeats: data.seats?.total,
-        activeUsersCount: data.seats?.used
+        activeUsersCount: data.seats?.used,
+        isAdmin,
+        canAccessLicensePage: true // Valid license = can access everything
       };
     },
     staleTime: 3 * 60 * 1000, // 3 minutes cache

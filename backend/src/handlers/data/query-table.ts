@@ -75,48 +75,57 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'performance_metrics': 'monitoredEndpoint',
   'waste_detection': 'wasteDetection',
   'waste_detection_history': 'mLAnalysisHistory',
-  'user_roles': 'userRole',
+  // user_roles não existe no banco - retornar vazio
+  // 'user_roles': 'userRole',  // REMOVIDO - tabela não existe
   'knowledge_base_favorites': 'knowledgeBaseArticle',
 };
 
 // Mapeamento de campos do frontend para campos do Prisma
 // Também lista campos a IGNORAR (mapear para null) quando não existem no modelo
 const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
-  'daily_costs': { 'cost_date': 'date' },  // aws_account_id now exists directly
-  'waste_detections': { },  // aws_account_id now exists directly
-  'waste_detection': { },   // aws_account_id now exists directly
-  'resource_utilization_ml': { },  // aws_account_id exists in schema
-  'compliance_violations': { },  // aws_account_id now exists directly
-  'iam_behavior_anomalies': { },  // aws_account_id now exists directly
-  'iam_behavior_analysis': { },   // aws_account_id now exists directly
-  'optimization_recommendations': { },  // aws_account_id exists
-  // findings - aws_account_id exists in schema
+  // Tabelas que tiveram account_id migrado para aws_account_id
+  'daily_costs': { 'cost_date': 'date', 'account_id': 'aws_account_id' },
+  'waste_detections': { 'account_id': 'aws_account_id' },
+  'waste_detection': { 'account_id': 'aws_account_id' },
+  'compliance_violations': { 'account_id': 'aws_account_id' },
+  'iam_behavior_anomalies': { 'account_id': 'aws_account_id' },
+  'iam_behavior_analysis': { 'account_id': 'aws_account_id' },
+  
+  // Tabelas com aws_account_id existente
+  'resource_utilization_ml': { },
+  'optimization_recommendations': { },
   'findings': { },
   'scan_findings': { },
-  // Tabelas que NÃO têm aws_account_id - ignorar esse campo
-  'alerts': { 'aws_account_id': null },
-  'security_alerts': { 'aws_account_id': null },
-  'alert_history': { 'aws_account_id': null },
+  'cloudtrail_events': { },
+  
+  // Alerts - is_resolved não existe, usar resolved_at IS NULL/NOT NULL
+  'alerts': { 'aws_account_id': null, 'is_resolved': null },
+  'security_alerts': { 'aws_account_id': null, 'is_resolved': null },
+  'alert_history': { 'aws_account_id': null, 'is_resolved': null },
   'alert_rules': { 'aws_account_id': null },
+  
+  // Tabelas que NÃO têm aws_account_id - ignorar esse campo
   'audit_logs': { 'aws_account_id': null },
   'audit_insights': { 'aws_account_id': null },
   'system_events': { 'aws_account_id': null },
   'application_logs': { 'aws_account_id': null },
   'jira_tickets': { 'aws_account_id': null },
   'remediation_tickets': { 'aws_account_id': null },
-  // cloudtrail_events - aws_account_id exists in schema
-  'cloudtrail_events': { },
-  'security_posture': { 'aws_account_id': null },
-  'well_architected_scores': { 'aws_account_id': null },
+  'security_posture': { 'aws_account_id': null, 'scan_id': null },
+  'well_architected_scores': { 'aws_account_id': null, 'scan_id': null },
   'knowledge_base_articles': { 'aws_account_id': null },
   'knowledge_base_favorites': { 'aws_account_id': null },
   'profiles': { 'aws_account_id': null },
   'user_roles': { 'aws_account_id': null },
+  
+  // Organizations - não tem organization_id, usa id
+  'organizations': { 'organization_id': null },
 };
 
 // Tabelas que têm organization_id para multi-tenancy
+// NOTA: 'organizations' NÃO tem organization_id (usa 'id')
 const TABLES_WITH_ORG_ID = new Set([
-  'organizations', 'profiles', 'aws_credentials', 'aws_accounts',
+  'profiles', 'aws_credentials', 'aws_accounts',
   'daily_costs', 'findings', 'security_scans', 'compliance_checks',
   'guardduty_findings', 'security_posture', 'knowledge_base_articles',
   'communication_logs', 'waste_detections', 'drift_detections',

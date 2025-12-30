@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Shield, FileCheck, Activity, AlertTriangle, CheckCircle2, RefreshCw, Play, Award, TrendingUp, Zap, DollarSign, Ticket, ExternalLink, Building2, History } from "lucide-react";
+import { Shield, FileCheck, Activity, AlertTriangle, CheckCircle2, RefreshCw, Play, Award, TrendingUp, Zap, DollarSign, Ticket, ExternalLink, History } from "lucide-react";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,18 +14,12 @@ import { toast } from "sonner";
 import { ScoreOverview } from "@/components/dashboard/well-architected/ScoreOverview";
 import { PillarCard } from "@/components/dashboard/well-architected/PillarCard";
 import { WellArchitectedHistory } from "@/components/dashboard/well-architected/WellArchitectedHistory";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/AppSidebar";
-import ThemeToggle from "@/components/ThemeToggle";
-import LanguageToggle from "@/components/LanguageToggle";
-import UserMenu from "@/components/UserMenu";
+import { Layout } from "@/components/Layout";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
-import { AwsAccountSelector } from "@/components/AwsAccountSelector";
 
 const WellArchitected = () => {
   const { t } = useTranslation();
   const [isScanning, setIsScanning] = useState(false);
-  const [activeTab, setActiveTab] = useState('well-architected');
   const [mainTab, setMainTab] = useState<string>("analysis");
   const [viewingHistoricalScan, setViewingHistoricalScan] = useState<string | null>(null);
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
@@ -377,102 +371,71 @@ const WellArchitected = () => {
     return 'Crítico';
   };
 
+  // Header actions for the Layout
+  const headerActions = (
+    <>
+      {viewingHistoricalScan && (
+        <Badge variant="secondary" className="gap-2">
+          <Shield className="h-3 w-3" />
+          Visualizando Scan Histórico
+        </Badge>
+      )}
+      {viewingHistoricalScan && (
+        <Button 
+          onClick={() => setViewingHistoricalScan(null)}
+          variant="outline"
+          className="gap-2 glass"
+          size="sm"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Voltar para Análise Atual
+        </Button>
+      )}
+      {mainTab === "analysis" && !viewingHistoricalScan && (
+        <Button 
+          onClick={runScan} 
+          disabled={isScanning || !selectedAccountId}
+          className="gap-2 hover-glow btn-press"
+        >
+          {isScanning ? (
+            <>
+              <RefreshCw className="h-5 w-5 animate-spin" />
+              Escaneando...
+            </>
+          ) : (
+            <>
+              <Play className="h-5 w-5 icon-bounce" />
+              Executar Scan
+            </>
+          )}
+        </Button>
+      )}
+    </>
+  );
+
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-subtle">
-        <AppSidebar activeTab="well-architected" onTabChange={setActiveTab} userRole={userRole} />
-        
-        <div className="flex-1 flex flex-col">
-          {/* Header - IGUAL À INDEX */}
-          <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
-            <div className="w-full px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <SidebarTrigger className="-ml-1" />
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow">
-                      <FileCheck className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                        Well-Architected Framework
-                      </h1>
-                      <p className="text-sm text-muted-foreground">
-                        Análise dos 6 pilares da arquitetura AWS
-                      </p>
-                    </div>
-                  </div>
-                  {userProfile?.organizations && (
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
-                      <Building2 className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">
-                        {(() => {
-                          if (!userProfile || !userProfile.organizations) return 'Organização';
-                          const orgs = userProfile.organizations as any;
-                          return orgs.name || 'Organização';
-                        })()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <AwsAccountSelector />
-                  {viewingHistoricalScan && (
-                    <Badge variant="secondary" className="gap-2">
-                      <Shield className="h-3 w-3" />
-                      Visualizando Scan Histórico
-                    </Badge>
-                  )}
-                  {viewingHistoricalScan && (
-                    <Button 
-                      onClick={() => setViewingHistoricalScan(null)}
-                      variant="outline"
-                      className="gap-2 glass"
-                      size="sm"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Voltar para Análise Atual
-                    </Button>
-                  )}
-                  {mainTab === "analysis" && !viewingHistoricalScan && (
-                    <Button 
-                      onClick={runScan} 
-                      disabled={isScanning || !selectedAccountId}
-                      className="gap-2 hover-glow btn-press"
-                    >
-                      {isScanning ? (
-                        <>
-                          <RefreshCw className="h-5 w-5 animate-spin" />
-                          Escaneando...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-5 w-5 icon-bounce" />
-                          Executar Scan
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  <LanguageToggle />
-                  <ThemeToggle />
-                  <UserMenu />
-                </div>
-              </div>
-            </div>
-          </header>
+    <Layout
+      title="Well-Architected Framework"
+      description="Análise dos 6 pilares da arquitetura AWS"
+      icon={<FileCheck className="h-6 w-6 text-white" />}
+      userRole={userRole}
+    >
+      <div className="space-y-8">
+        {/* Custom header actions */}
+        <div className="flex items-center justify-end gap-3">
+          {headerActions}
+        </div>
 
-          {/* Main Content */}
-          <main className="flex-1 w-full px-6 py-8 space-y-8">
-            <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-6">
-              <TabsList className="grid w-full max-w-md grid-cols-2 glass">
-                <TabsTrigger value="analysis">Nova Análise</TabsTrigger>
-                <TabsTrigger value="history" className="gap-2">
-                  <History className="h-4 w-4" />
-                  Histórico
-                </TabsTrigger>
-              </TabsList>
+        <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2 glass">
+            <TabsTrigger value="analysis">Nova Análise</TabsTrigger>
+            <TabsTrigger value="history" className="gap-2">
+              <History className="h-4 w-4" />
+              Histórico
+            </TabsTrigger>
+          </TabsList>
 
-              <TabsContent value="analysis" className="space-y-8">
+          <TabsContent value="analysis" className="space-y-8">
             {isLoading ? (
               <div className="flex items-center justify-center py-20">
                 <RefreshCw className="h-8 w-8 animate-spin text-primary" />
@@ -735,10 +698,8 @@ const WellArchitected = () => {
                 )}
               </TabsContent>
             </Tabs>
-          </main>
-        </div>
-      </div>
-    </SidebarProvider>
+          </div>
+    </Layout>
   );
 };
 

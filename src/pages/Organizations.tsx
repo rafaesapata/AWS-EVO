@@ -297,9 +297,21 @@ export default function Organizations() {
 
       {/* Organizations List */}
       <Card className="glass border-primary/20">
-        <CardHeader>
-          <CardTitle>Lista de Organizações</CardTitle>
-          <CardDescription>Gerencie todas as organizações do sistema</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Lista de Organizações</CardTitle>
+            <CardDescription>Gerencie todas as organizações do sistema</CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Atualizar
+            </Button>
+            <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Organização
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (

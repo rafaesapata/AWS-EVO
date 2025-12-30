@@ -118,6 +118,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       return;
     }
 
+    // If license is invalid and user is admin, redirect to license management
+    if (!licenseStatus.isValid && licenseStatus.canAccessLicensePage) {
+      navigate('/license-management', { replace: true });
+      return;
+    }
+
     // Block access if license is invalid (regardless of whether customer_id exists)
     // Users without customer_id must go to /license-management page to link their license
     if (!licenseStatus.isValid) {

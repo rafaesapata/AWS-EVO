@@ -43,7 +43,29 @@ export async function handler(
   try {
     const prisma = getPrismaClient();
     
-    // Add SSL columns to monitored_endpoints
+    // Parse body for custom SQL
+    let body: { rawSql?: string } = {};
+    if (event.body) {
+      try {
+        body = JSON.parse(event.body);
+      } catch {
+        // ignore parse errors
+      }
+    }
+    
+    // If rawSql is provided, execute it
+    if (body.rawSql) {
+      logger.info('Executing custom SQL', { userId: user.sub, sqlLength: body.rawSql.length });
+      await prisma.$executeRawUnsafe(body.rawSql);
+      logger.info('✅ Custom SQL executed successfully', { userId: user.sub });
+      
+      return success({
+        success: true,
+        message: 'Custom SQL executed successfully'
+      });
+    }
+    
+    // Default migration: Add SSL columns to monitored_endpoints
     await prisma.$executeRawUnsafe(`
       ALTER TABLE monitored_endpoints 
       ADD COLUMN IF NOT EXISTS monitor_ssl BOOLEAN DEFAULT true,

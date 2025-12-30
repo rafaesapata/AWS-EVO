@@ -10,7 +10,7 @@ import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
 import { apiClient } from '@/integrations/aws/api-client';
 import { useAwsAccount } from '@/contexts/AwsAccountContext';
 import { useOrganization } from '@/hooks/useOrganization';
-import { PageHeader } from '@/components/ui/page-header';
+import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,8 +19,6 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/AppSidebar';
 
 interface CommunicationLog {
   id: string;
@@ -132,25 +130,20 @@ export default function CommunicationCenter() {
   const stats = data?.stats || { total: 0, byChannel: {}, byStatus: {} };
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
-        <AppSidebar activeTab="communication-center" onTabChange={(tab) => navigate(`/?tab=${tab}`)} />
-        <main className="flex-1 overflow-auto">
-          <div className="p-6 space-y-6">
-            <div className="flex items-center gap-4">
-              <SidebarTrigger />
-              <PageHeader
-                title={t('communication.title')}
-                description={t('communication.description')}
-                icon={Mail}
-                actions={
-                  <Button onClick={handleRefresh} disabled={isFetching} variant="outline">
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
-                    {t('common.refresh')}
-                  </Button>
-                }
-              />
-            </div>
+    <Layout
+      title={t('communication.title')}
+      description={t('communication.description')}
+      icon={<Mail className="h-6 w-6 text-white" />}
+    >
+      <div className="space-y-6">
+
+      {/* Refresh Button */}
+      <div className="flex justify-end">
+        <Button onClick={handleRefresh} disabled={isFetching} variant="outline" className="glass">
+          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+          {t('common.refresh')}
+        </Button>
+      </div>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -420,8 +413,6 @@ export default function CommunicationCenter() {
               </Dialog>
             )}
           </div>
-        </main>
-      </div>
-    </SidebarProvider>
+    </Layout>
   );
 }

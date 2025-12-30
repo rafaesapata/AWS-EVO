@@ -26,12 +26,7 @@ import { ArticlePermissionsManager } from "@/components/knowledge-base/ArticlePe
 import { ArticleAttachments } from "@/components/knowledge-base/ArticleAttachments";
 import { ArticleAuditLog } from "@/components/knowledge-base/ArticleAuditLog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/AppSidebar";
-import evoLogo from "@/assets/evo-logo.png";
-import ThemeToggle from "@/components/ThemeToggle";
-import LanguageToggle from "@/components/LanguageToggle";
-import UserMenu from "@/components/UserMenu";
+import { Layout } from "@/components/Layout";
 
 function KnowledgeBaseContent() {
   const { toast } = useToast();
@@ -1050,65 +1045,13 @@ function KnowledgeBaseContent() {
 export { KnowledgeBaseContent };
 
 export default function KnowledgeBase() {
-  // Get user profile for sidebar
-  const { data: userProfile } = useQuery({
-    queryKey: ['user-profile'],
-    queryFn: async () => {
-      const user = await cognitoAuth.getCurrentUser();
-      if (!user) return null;
-
-      const roles = await apiClient.select('user_roles', {
-        select: 'role',
-        eq: { user_id: user.username }
-      });
-
-      return {
-        roles: roles.data?.map((r: any) => r.role) || []
-      };
-    },
-  });
-
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full animated-gradient">
-        <AppSidebar 
-          activeTab="knowledge-base" 
-          onTabChange={() => {}} 
-          userRole={userProfile?.roles} 
-        />
-        
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <header className="glass sticky top-4 z-40 mx-4 rounded-2xl shadow-glass animate-slide-up">
-            <div className="px-6 py-6">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-4">
-                  <SidebarTrigger />
-                  <div className="flex items-center gap-3">
-                    <img src={evoLogo} alt="EVO Cloud Intelligence" className="h-10" />
-                    <p className="text-muted-foreground text-sm hidden md:block">
-                      FinOps & Security Intelligence Platform
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <ThemeToggle />
-                  <LanguageToggle />
-                  <UserMenu />
-                </div>
-              </div>
-            </div>
-          </header>
-
-          {/* Main Content */}
-          <main className="flex-1 overflow-auto">
-            <div className="w-full px-6 py-8">
-              <KnowledgeBaseContent />
-            </div>
-          </main>
-        </div>
-      </div>
-    </SidebarProvider>
+    <Layout
+      title="Base de Conhecimento"
+      description="Wiki organizacional e documentação"
+      icon={<Book className="h-6 w-6 text-white" />}
+    >
+      <KnowledgeBaseContent />
+    </Layout>
   );
 }

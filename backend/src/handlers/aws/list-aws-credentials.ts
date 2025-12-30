@@ -59,7 +59,7 @@ export async function handler(
       },
       select: {
         id: true,
-        aws_account_number: true,
+        account_id: true,
         account_name: true,
         access_key_id: true,
         external_id: true,
@@ -71,12 +71,18 @@ export async function handler(
       },
     });
     
+    // Map account_id to aws_account_number for frontend compatibility
+    const mappedCredentials = credentials.map(cred => ({
+      ...cred,
+      aws_account_number: cred.account_id,
+    }));
+    
     logger.info('AWS credentials listed successfully', { 
       organizationId,
       count: credentials.length,
     });
     
-    return success(credentials, 200, origin);
+    return success(mappedCredentials, 200, origin);
     
   } catch (err: any) {
     logger.error('List AWS credentials error', err, { 

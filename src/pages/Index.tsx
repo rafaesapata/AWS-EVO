@@ -243,62 +243,49 @@ const Index = () => {
   if (activeTab === "cost-analysis") {
     return (
       <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
+        <div className="min-h-screen flex w-full bg-gradient-subtle">
           <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <header className="glass sticky top-4 z-40 mx-4 rounded-2xl shadow-glass animate-slide-up">
-              <div className="px-6 py-6">
-                <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 flex flex-col">
+            {/* Header - Padrão Visual Consistente */}
+            <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
+              <div className="w-full px-6 py-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <SidebarTrigger />
+                    <SidebarTrigger className="-ml-1" />
                     <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow">
-                        <DollarSign className="h-7 w-7 text-white" />
+                      <div className="h-10 w-10 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow">
+                        <DollarSign className="h-5 w-5 text-white" />
                       </div>
                       <div>
                         <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
                           Análise Detalhada de Custos
                         </h1>
-                        <p className="text-muted-foreground text-sm">
-                          AWS Cloud Intelligence Platform v3.2-test
+                        <p className="text-sm text-muted-foreground">
+                          Custos diários, tendências e previsões AWS
                         </p>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    {/* AWS Account Selector */}
-                    <AwsAccountSelector compact />
-                    
                     {user?.organizationId && (
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
                         <Building2 className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium text-primary">
+                        <span className="text-sm font-medium">
                           {user.organizationName || user.organizationId}
                         </span>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
-                      <Users className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">
-                        {user?.name || user?.email}
-                      </span>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleSignOut}
-                      className="glass hover:shadow-elegant"
-                    >
-                      Sair
-                    </Button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <AwsAccountSelector />
+                    <LanguageToggle />
+                    <ThemeToggle />
+                    <UserMenu />
                   </div>
                 </div>
               </div>
             </header>
 
-            <main className="flex-1 p-6 overflow-auto">
+            <main className="flex-1 w-full px-6 py-6 overflow-auto">
               <CostAnalysisPage />
             </main>
             
@@ -311,169 +298,49 @@ const Index = () => {
 
   // Handle other tabs
   if (activeTab === "invoices") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <MonthlyInvoicesPage />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <MonthlyInvoicesPage />;
   }
 
   if (activeTab === "copilot") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <CopilotAI />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <CopilotAI />;
   }
 
   if (activeTab === "security") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <SecurityPosture />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <SecurityPosture />;
   }
 
   if (activeTab === "alerts") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <IntelligentAlerts />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <IntelligentAlerts />;
   }
 
   if (activeTab === "advanced") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <CostOptimization />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <CostOptimization />;
   }
 
   if (activeTab === "risp") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <RISavingsPlans />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <RISavingsPlans />;
   }
 
   if (activeTab === "users") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <UserManagement />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <UserManagement />;
   }
 
   if (activeTab === "scans") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <SecurityScans />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <SecurityScans />;
   }
 
   if (activeTab === "cloudtrail-audit") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <CloudTrailAudit />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <CloudTrailAudit />;
   }
 
   if (activeTab === "compliance") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <Compliance />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <Compliance />;
   }
 
   if (activeTab === "audit") {
     return (
       <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
+        <div className="min-h-screen flex w-full bg-gradient-subtle">
           <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
           <div className="flex-1 flex flex-col overflow-hidden">
             <main className="flex-1 p-6 overflow-auto">
@@ -487,35 +354,11 @@ const Index = () => {
   }
 
   if (activeTab === "endpoint-monitoring") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <EndpointMonitoring />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <EndpointMonitoring />;
   }
 
   if (activeTab === "edge-monitoring") {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full animated-gradient">
-          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 p-6 overflow-auto">
-              <EdgeMonitoring />
-            </main>
-            <Footer />
-          </div>
-        </div>
-      </SidebarProvider>
-    );
+    return <EdgeMonitoring />;
   }
 
   if (activeTab === "security-analysis") {

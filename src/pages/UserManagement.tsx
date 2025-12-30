@@ -16,6 +16,7 @@ import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useAuthSafe } from "@/hooks/useAuthSafe";
 import { 
   Users, 
   Plus, 
@@ -31,7 +32,8 @@ import {
   Search,
   Filter,
   UserPlus,
-  Settings
+  Settings,
+  Building2
 } from "lucide-react";
 
 interface User {
@@ -47,11 +49,18 @@ interface User {
   aws_accounts: string[];
 }
 
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export default function UserManagement() {
   const { toast } = useToast();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: organizationId } = useOrganization();
+  const { user: authUser } = useAuthSafe();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -62,7 +71,29 @@ export default function UserManagement() {
     name: '',
     role: 'user' as const,
     permissions: [] as string[],
-    aws_accounts: [] as string[]
+    aws_accounts: [] as string[],
+    organizationId: '' // For super_admin to select target org
+  });
+
+  // Check if current user is super_admin
+  const userRoles = authUser?.attributes?.['custom:roles'] || '';
+  const isSuperAdmin = userRoles.includes('super_admin');
+  const isAdmin = isSuperAdmin || userRoles.includes('admin');
+
+  // Fetch all organizations (only for super_admin)
+  const { data: organizations } = useQuery({
+    queryKey: ['organizations-list'],
+    enabled: isSuperAdmin,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const response = await apiClient.invoke('manage-organizations', {
+        body: { action: 'list' }
+      });
+      if (response.error) {
+        throw new Error(getErrorMessage(response.error));
+      }
+      return response.data as Organization[];
+    },
   });
 
   // Get users
@@ -128,12 +159,19 @@ export default function UserManagement() {
   // Create user
   const createUserMutation = useMutation({
     mutationFn: async (userData: typeof newUser) => {
+      // Determine target organization
+      const targetOrgId = isSuperAdmin && userData.organizationId 
+        ? userData.organizationId 
+        : organizationId;
+
       // Create user in Cognito first
       const cognitoResponse = await apiClient.invoke('create-cognito-user', {
         body: {
           email: userData.email,
           name: userData.name,
-          temporaryPassword: generateTemporaryPassword()
+          temporaryPassword: generateTemporaryPassword(),
+          role: JSON.stringify([userData.role]),
+          organizationId: targetOrgId // Super admin can specify different org
         }
       });
 
@@ -144,7 +182,7 @@ export default function UserManagement() {
       // Create user record in database
       const response = await apiClient.insert('users', {
         ...userData,
-        organization_id: organizationId,
+        organization_id: targetOrgId,
         status: 'pending',
         cognito_user_id: cognitoResponse.data.userId
       });
@@ -166,7 +204,8 @@ export default function UserManagement() {
         name: '',
         role: 'user',
         permissions: [],
-        aws_accounts: []
+        aws_accounts: [],
+        organizationId: ''
       });
       refetch();
     },
@@ -640,10 +679,41 @@ export default function UserManagement() {
           <DialogHeader>
             <DialogTitle>Criar Novo Usuário</DialogTitle>
             <DialogDescription>
-              Adicione um novo usuário à organização
+              {isSuperAdmin 
+                ? "Como super admin, você pode criar usuários em qualquer organização"
+                : "Adicione um novo usuário à sua organização"
+              }
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Organization selector - only for super_admin */}
+            {isSuperAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="organization" className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Organização
+                </Label>
+                <Select 
+                  value={newUser.organizationId || organizationId || ''} 
+                  onValueChange={(value) => setNewUser(prev => ({ ...prev, organizationId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a organização" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations?.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name} ({org.slug})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Selecione a organização onde o usuário será criado
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -676,6 +746,7 @@ export default function UserManagement() {
                   <SelectItem value="viewer">Visualizador</SelectItem>
                   <SelectItem value="user">Usuário</SelectItem>
                   <SelectItem value="admin">Administrador</SelectItem>
+                  {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -734,7 +805,7 @@ export default function UserManagement() {
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCreateUser} disabled={createUserMutation.isPending}>
+            <Button onClick={handleCreateUser} disabled={createUserMutation.isPending || !isAdmin}>
               {createUserMutation.isPending ? 'Criando...' : 'Criar Usuário'}
             </Button>
           </DialogFooter>

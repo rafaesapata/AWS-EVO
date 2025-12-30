@@ -22,10 +22,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { parseDateString, compareDates, getDayOfMonth } from "@/lib/utils";
-import { AwsAccountSelector } from "@/components/AwsAccountSelector";
-import ThemeToggle from "@/components/ThemeToggle";
-import LanguageToggle from "@/components/LanguageToggle";
-import UserMenu from "@/components/UserMenu";
+import { Layout } from "@/components/Layout";
 
 export const MonthlyInvoicesPage = () => {
   const { t, i18n } = useTranslation();
@@ -38,6 +35,19 @@ export const MonthlyInvoicesPage = () => {
   
   const currentLocale = i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US';
 
+  // Define type for daily cost records
+  interface DailyCostRecord {
+    id: string;
+    organization_id: string;
+    aws_account_id: string;
+    date: string;
+    service: string;
+    cost: number;
+    usage?: number;
+    currency?: string;
+    created_at?: string;
+  }
+
   // Get all daily costs from organization
   const { data: allCosts, isLoading } = useQuery({
     queryKey: ['monthly-invoices-data', organizationId, selectedAccountId],
@@ -45,13 +55,13 @@ export const MonthlyInvoicesPage = () => {
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     queryFn: async () => {
-      const response = await apiClient.select('daily_costs', {
+      const response = await apiClient.select<DailyCostRecord>('daily_costs', {
         select: '*',
         eq: { 
           organization_id: organizationId,
           aws_account_id: selectedAccountId
         },
-        order: { date: 'desc' }
+        order: { column: 'date', ascending: false }
       });
 
       if (response.error) {
@@ -62,9 +72,26 @@ export const MonthlyInvoicesPage = () => {
     },
   });
 
+  // Define type for monthly aggregated data
+  interface MonthlyData {
+    monthKey: string;
+    totalCost: number;
+    totalCredits: number;
+    netCost: number;
+    days: number;
+    serviceBreakdown: Record<string, number>;
+    dailyCosts: Array<{
+      cost_date: string;
+      total_cost: number;
+      net_cost: number;
+      credits_used?: number;
+      service?: string;
+    }>;
+  }
+
   // Process monthly data from daily costs
   // Schema: id, organization_id, aws_account_id, date, service, cost, usage, currency
-  const monthlyData = allCosts?.reduce((acc, cost) => {
+  const monthlyData: Record<string, MonthlyData> = (allCosts || []).reduce((acc, cost) => {
     // Skip records without valid date
     if (!cost.date) return acc;
     
@@ -78,21 +105,22 @@ export const MonthlyInvoicesPage = () => {
         totalCost: 0,
         totalCredits: 0,
         netCost: 0,
-        days: new Set<string>(),
+        days: 0,
         serviceBreakdown: {} as Record<string, number>,
-        dailyCosts: [] as any[]
-      };
+        dailyCosts: [] as MonthlyData['dailyCosts'],
+        _daysSet: new Set<string>()
+      } as MonthlyData & { _daysSet: Set<string> };
     }
 
     const costValue = Number(cost.cost) || 0;
     acc[monthKey].totalCost += costValue;
     acc[monthKey].netCost += costValue; // No credits in current schema
-    acc[monthKey].days.add(dateStr.substring(0, 10)); // Count unique days
+    (acc[monthKey] as any)._daysSet.add(dateStr.substring(0, 10)); // Count unique days
     acc[monthKey].dailyCosts.push({
-      ...cost,
       cost_date: dateStr,
       total_cost: costValue,
-      net_cost: costValue
+      net_cost: costValue,
+      service: cost.service
     });
 
     // Aggregate by service
@@ -102,11 +130,12 @@ export const MonthlyInvoicesPage = () => {
     }
 
     return acc;
-  }, {} as Record<string, any>) || {};
+  }, {} as Record<string, MonthlyData & { _daysSet: Set<string> }>);
 
   // Convert days Set to count
-  Object.values(monthlyData).forEach((data: any) => {
-    data.days = data.days.size;
+  Object.values(monthlyData).forEach((data) => {
+    data.days = (data as any)._daysSet?.size || 0;
+    delete (data as any)._daysSet;
   });
 
   const sortedMonths = Object.keys(monthlyData).sort((a, b) => b.localeCompare(a));
@@ -116,11 +145,11 @@ export const MonthlyInvoicesPage = () => {
     setSelectedMonth(sortedMonths[0]);
   }
 
-  const selectedMonthData = selectedMonth ? monthlyData[selectedMonth] : null;
+  const selectedMonthData: MonthlyData | null = selectedMonth ? monthlyData[selectedMonth] : null;
 
   // Prepare chart data for month comparison
   const monthComparisonData = sortedMonths.slice(0, 12).reverse().map(month => {
-    const data = monthlyData[month as keyof typeof monthlyData];
+    const data = monthlyData[month];
     const [year, monthNum] = month.split('-');
     const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString(currentLocale, { month: 'short' });
     
@@ -135,11 +164,11 @@ export const MonthlyInvoicesPage = () => {
   // Prepare service breakdown for pie chart
   const servicePieData = selectedMonthData 
     ? Object.entries(selectedMonthData.serviceBreakdown)
-        .sort(([,a], [,b]) => b - a)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
         .slice(0, 10)
         .map(([service, value]) => ({
           name: service.replace('Amazon ', '').replace('AWS ', ''),
-          value: value,
+          value: value as number,
         }))
     : [];
 
@@ -216,26 +245,12 @@ export const MonthlyInvoicesPage = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header with Account Selector */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <FileText className="h-6 w-6 text-primary" />
-            Faturas Mensais AWS
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Visualização e análise detalhada das faturas mensais da AWS
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <AwsAccountSelector />
-          <ThemeToggle />
-          <LanguageToggle />
-          <UserMenu />
-        </div>
-      </div>
-
+    <Layout 
+      title="Faturas Mensais AWS" 
+      description="Visualização e análise detalhada das faturas mensais da AWS"
+      icon={<FileText className="h-5 w-5 text-white" />}
+    >
+      <div className="space-y-6">
       {/* Main Content Card */}
       <Card className="glass border-primary/20">
         <CardHeader>
@@ -611,6 +626,7 @@ export const MonthlyInvoicesPage = () => {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </Layout>
   );
 };

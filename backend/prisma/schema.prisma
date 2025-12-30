@@ -54,7 +54,7 @@ model Profile {
 model AwsCredential {
   id                    String   @id @default(uuid()) @db.Uuid
   organization_id       String   @db.Uuid
-  aws_account_number    String?  // 12-digit AWS account number (renamed from account_id)
+  account_id            String?  @map("account_id") // 12-digit AWS account number
   account_name          String?
   access_key_id         String?
   secret_access_key     String?

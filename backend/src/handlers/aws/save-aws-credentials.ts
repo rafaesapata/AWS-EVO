@@ -137,7 +137,7 @@ export async function handler(
     // Check if credentials already exist for this account
     const existingCred = await prisma.awsCredential.findFirst({
       where: {
-        aws_account_number: body.account_id,
+        account_id: body.account_id,
         organization_id: organizationId,
       },
     });
@@ -169,7 +169,7 @@ export async function handler(
 
       return success({
         id: updatedCred.id,
-        account_id: updatedCred.aws_account_number,
+        account_id: updatedCred.account_id,
         account_name: updatedCred.account_name,
         regions: updatedCred.regions,
         is_active: updatedCred.is_active,
@@ -182,7 +182,7 @@ export async function handler(
     const credential = await prisma.awsCredential.create({
       data: {
         organization_id: organizationId,
-        aws_account_number: body.account_id,
+        account_id: body.account_id,
         account_name: body.account_name,
         access_key_id: body.access_key_id,
         secret_access_key: body.secret_access_key,
@@ -200,7 +200,7 @@ export async function handler(
     
     return success({
       id: credential.id,
-      account_id: credential.aws_account_number,
+      account_id: credential.account_id,
       account_name: credential.account_name,
       regions: credential.regions,
       is_active: credential.is_active,

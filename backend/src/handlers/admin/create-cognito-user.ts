@@ -1,11 +1,14 @@
 /**
  * Lambda handler para criar usuário no Cognito
  * Endpoint: POST /api/functions/create-cognito-user
+ * 
+ * Super admins podem criar usuários em qualquer organização
+ * Admins regulares só podem criar usuários na própria organização
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { success, error, badRequest, forbidden, corsOptions } from '../../lib/response.js';
+import { getUserFromEvent, getOrganizationId, isSuperAdmin, isAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
@@ -24,6 +27,7 @@ interface CreateCognitoUserRequest {
   temporaryPassword?: string;
   sendInvite?: boolean;
   role?: string;
+  organizationId?: string; // Super admin can specify target organization
 }
 
 function isValidEmail(email: string): boolean {
@@ -77,17 +81,20 @@ export async function handler(
   }
   
   const user = getUserFromEvent(event);
-  const organizationId = getOrganizationId(user);
+  const userOrganizationId = getOrganizationId(user);
+  const userIsSuperAdmin = isSuperAdmin(user);
+  const userIsAdmin = isAdmin(user);
   
   logger.info('Create Cognito user started', { 
-    organizationId,
+    organizationId: userOrganizationId,
     userId: user.sub,
+    isSuperAdmin: userIsSuperAdmin,
     requestId: context.awsRequestId 
   });
   
   try {
     const body = parseEventBody<CreateCognitoUserRequest>(event, {} as CreateCognitoUserRequest, 'create-cognito-user');
-    const { email, name, temporaryPassword, sendInvite = true, role } = body;
+    const { email, name, temporaryPassword, sendInvite = true, role, organizationId: targetOrgId } = body;
     
     // Validações
     if (!email || !name) {
@@ -98,6 +105,31 @@ export async function handler(
       return badRequest('Invalid email format');
     }
     
+    // Verificar permissões de admin
+    if (!userIsAdmin) {
+      logger.warn('Non-admin attempted to create user', {
+        userId: user.sub,
+        email: user.email
+      });
+      return forbidden('Only admins can create users');
+    }
+    
+    // Determinar organização alvo
+    let organizationId = userOrganizationId;
+    
+    // Se foi especificada uma organização diferente, verificar se é super_admin
+    if (targetOrgId && targetOrgId !== userOrganizationId) {
+      if (!userIsSuperAdmin) {
+        logger.warn('Non-super-admin attempted to create user in different organization', {
+          userId: user.sub,
+          userOrg: userOrganizationId,
+          targetOrg: targetOrgId
+        });
+        return forbidden('Only super admins can create users in other organizations');
+      }
+      organizationId = targetOrgId;
+    }
+    
     const userPoolId = process.env.COGNITO_USER_POOL_ID;
     if (!userPoolId) {
       logger.error('COGNITO_USER_POOL_ID not configured');
@@ -105,6 +137,15 @@ export async function handler(
     }
     
     const prisma = getPrismaClient();
+    
+    // Verificar se a organização alvo existe
+    const targetOrg = await prisma.organization.findUnique({
+      where: { id: organizationId }
+    });
+    
+    if (!targetOrg) {
+      return badRequest('Target organization not found');
+    }
     
     // Verificar se usuário já existe no banco
     const existingUser = await prisma.user.findUnique({ 
@@ -118,12 +159,13 @@ export async function handler(
     // Gerar senha temporária se não fornecida
     const password = temporaryPassword || generateTemporaryPassword();
     
-    // Criar usuário no Cognito
+    // Criar usuário no Cognito com nome da organização sincronizado
     const userAttributes = [
       { Name: 'email', Value: email },
       { Name: 'email_verified', Value: 'true' },
       { Name: 'name', Value: name },
-      { Name: 'custom:organization_id', Value: organizationId }
+      { Name: 'custom:organization_id', Value: organizationId },
+      { Name: 'custom:organization_name', Value: targetOrg.name } // Sincroniza nome da org
     ];
     
     if (role) {
@@ -176,7 +218,7 @@ export async function handler(
     
   } catch (err: any) {
     logger.error('Create Cognito user error', err, { 
-      organizationId,
+      organizationId: userOrganizationId,
       userId: user.sub,
       requestId: context.awsRequestId 
     });

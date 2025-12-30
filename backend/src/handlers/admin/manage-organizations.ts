@@ -16,6 +16,13 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
 import { randomUUID } from 'crypto';
+import { 
+  CognitoIdentityProviderClient, 
+  ListUsersCommand,
+  AdminUpdateUserAttributesCommand
+} from '@aws-sdk/client-cognito-identity-provider';
+
+const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
 
 interface ManageOrganizationRequest {
   action: 'list' | 'create' | 'update' | 'delete' | 'toggle_status';
@@ -39,6 +46,69 @@ function generateSlug(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .substring(0, 50);
+}
+
+/**
+ * Sincroniza o nome da organização no Cognito para todos os usuários
+ */
+async function syncOrganizationNameInCognito(
+  organizationId: string, 
+  newName: string
+): Promise<{ updated: number; errors: number }> {
+  const userPoolId = process.env.COGNITO_USER_POOL_ID;
+  if (!userPoolId) {
+    logger.warn('COGNITO_USER_POOL_ID not configured, skipping Cognito sync');
+    return { updated: 0, errors: 0 };
+  }
+
+  let updated = 0;
+  let errors = 0;
+  let paginationToken: string | undefined;
+
+  try {
+    // Listar todos os usuários com este organization_id
+    do {
+      const listResponse = await cognitoClient.send(new ListUsersCommand({
+        UserPoolId: userPoolId,
+        Filter: `"custom:organization_id" = "${organizationId}"`,
+        PaginationToken: paginationToken,
+        Limit: 60
+      }));
+
+      const users = listResponse.Users || [];
+      
+      // Atualizar cada usuário
+      for (const user of users) {
+        try {
+          await cognitoClient.send(new AdminUpdateUserAttributesCommand({
+            UserPoolId: userPoolId,
+            Username: user.Username!,
+            UserAttributes: [
+              { Name: 'custom:organization_name', Value: newName }
+            ]
+          }));
+          updated++;
+          logger.info('Updated user organization name in Cognito', { 
+            username: user.Username, 
+            newOrgName: newName 
+          });
+        } catch (userErr) {
+          errors++;
+          logger.error('Failed to update user in Cognito', userErr, { 
+            username: user.Username 
+          });
+        }
+      }
+
+      paginationToken = listResponse.PaginationToken;
+    } while (paginationToken);
+
+  } catch (err) {
+    logger.error('Failed to list users from Cognito', err);
+    errors++;
+  }
+
+  return { updated, errors };
 }
 
 export async function handler(
@@ -178,6 +248,8 @@ export async function handler(
         }
 
         const updateData: any = {};
+        const nameChanged = body.name && body.name !== existing.name;
+        
         if (body.name) updateData.name = body.name;
         if (body.slug) {
           // Check if new slug is unique
@@ -198,9 +270,22 @@ export async function handler(
           data: updateData,
         });
 
+        // Se o nome mudou, sincronizar no Cognito
+        let cognitoSync = { updated: 0, errors: 0 };
+        if (nameChanged && body.name) {
+          logger.info('Organization name changed, syncing to Cognito', {
+            organizationId: body.id,
+            oldName: existing.name,
+            newName: body.name
+          });
+          cognitoSync = await syncOrganizationNameInCognito(body.id, body.name);
+        }
+
         logger.info('Organization updated', {
           organizationId: organization.id,
           updatedBy: user.sub || user.id,
+          cognitoUsersUpdated: cognitoSync.updated,
+          cognitoErrors: cognitoSync.errors
         });
 
         return success({
@@ -209,6 +294,7 @@ export async function handler(
           slug: organization.slug,
           created_at: organization.created_at,
           updated_at: organization.updated_at,
+          cognitoSync: nameChanged ? cognitoSync : undefined
         }, 200, origin);
       }
 
