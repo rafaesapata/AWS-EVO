@@ -146,6 +146,11 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html, body, #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: 'rlig' 1, 'calt' 1;
@@ -156,7 +161,7 @@ All colors MUST be HSL.
     transform: scale(0.75);
     transform-origin: top left;
     width: 133.33%;
-    height: 133.33%;
+    min-height: 133.33vh;
   }
   
   /* Smooth scrolling */
