@@ -31,7 +31,7 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
   try {
     const body = event.body ? JSON.parse(event.body) : {};
     const accountId = body.accountId;
-    const region = body.region || 'us-east-1';
+    const requestedRegion = body.region;
     
     if (!accountId) return error('Missing required parameter: accountId');
     
@@ -40,6 +40,11 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
     });
     
     if (!account) return error('AWS account not found');
+    
+    // Usar região solicitada, ou primeira região da conta, ou padrão
+    const accountRegions = account.regions as string[] | null;
+    const region = requestedRegion || 
+                   (accountRegions && accountRegions.length > 0 ? accountRegions[0] : 'us-east-1');
     
     const resolvedCreds = await resolveAwsCredentials(account, region);
     const credentials = toAwsCredentials(resolvedCreds);

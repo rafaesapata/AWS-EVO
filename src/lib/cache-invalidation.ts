@@ -212,11 +212,16 @@ export class CacheInvalidationManager {
   /**
    * Check if query key matches a pattern
    */
-  private matchesPattern(queryKey: string[], pattern: string | RegExp): boolean {
-    const keyString = queryKey.join('.');
+  private matchesPattern(queryKey: unknown[], pattern: string | RegExp): boolean {
+    // Filter out null/undefined values and convert to strings
+    const stringKeys = queryKey
+      .filter((key): key is string | number => key != null)
+      .map(key => String(key));
+    
+    const keyString = stringKeys.join('.');
     
     if (typeof pattern === 'string') {
-      return keyString.includes(pattern) || queryKey.some(key => key.includes(pattern));
+      return keyString.includes(pattern) || stringKeys.some(key => key.includes(pattern));
     } else {
       return pattern.test(keyString);
     }

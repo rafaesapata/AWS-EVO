@@ -200,15 +200,25 @@ export async function handler(
             for (const [service, cost] of Object.entries(serviceBreakdown)) {
               if (cost > 0) {
                 try {
-                  // Use raw query for upsert since we don't have a unique constraint
-                  await prisma.$executeRaw`
-                    INSERT INTO daily_costs (id, organization_id, aws_account_id, date, service, cost, currency, created_at)
-                    VALUES (gen_random_uuid(), ${organizationId}::uuid, ${account.id}::uuid, ${new Date(date)}::date, ${service}, ${cost}, 'USD', NOW())
-                    ON CONFLICT (organization_id, aws_account_id, date, service) 
-                    DO UPDATE SET cost = ${cost}, created_at = NOW()
-                  `.catch(() => {
-                    // If conflict handling fails, just insert
-                    return prisma.dailyCost.create({
+                  // Check if record exists first
+                  const existing = await prisma.dailyCost.findFirst({
+                    where: {
+                      organization_id: organizationId,
+                      aws_account_id: account.id,
+                      date: new Date(date),
+                      service: service,
+                    }
+                  });
+                  
+                  if (existing) {
+                    // Update existing record
+                    await prisma.dailyCost.update({
+                      where: { id: existing.id },
+                      data: { cost: cost, created_at: new Date() }
+                    });
+                  } else {
+                    // Create new record
+                    await prisma.dailyCost.create({
                       data: {
                         organization_id: organizationId,
                         aws_account_id: account.id,
@@ -218,7 +228,7 @@ export async function handler(
                         currency: 'USD',
                       }
                     });
-                  });
+                  }
                   totalNewRecords++;
                 } catch (dbErr) {
                   logger.warn('Failed to save daily cost', { date, service, error: dbErr });

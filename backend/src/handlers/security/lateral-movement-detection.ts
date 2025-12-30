@@ -37,7 +37,7 @@ export async function handler(
   
   try {
     const body: LateralMovementRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, region = 'us-east-1', lookbackHours = 24 } = body;
+    const { accountId, region: requestedRegion, lookbackHours = 24 } = body;
     
     if (!accountId) {
       return error('Missing required parameter: accountId');
@@ -52,6 +52,11 @@ export async function handler(
     if (!account) {
       return error('AWS account not found');
     }
+    
+    // Usar região solicitada, ou primeira região da conta, ou padrão
+    const accountRegions = account.regions as string[] | null;
+    const region = requestedRegion || 
+                   (accountRegions && accountRegions.length > 0 ? accountRegions[0] : 'us-east-1');
     
     const resolvedCreds = await resolveAwsCredentials(account, region);
     

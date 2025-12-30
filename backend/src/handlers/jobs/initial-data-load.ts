@@ -46,7 +46,7 @@ export async function handler(
   try {
     const prisma = getPrismaClient();
     const body = JSON.parse(event.body || '{}');
-    const { awsAccountId, regions = ['us-east-1'], resourceTypes } = body;
+    const { awsAccountId, regions: requestedRegions, resourceTypes } = body;
 
     if (!awsAccountId) {
       return badRequest('awsAccountId is required', undefined, origin);
@@ -64,6 +64,9 @@ export async function handler(
     if (!awsAccount) {
       return notFound('AWS Account not found', origin);
     }
+    
+    // Usar regiões solicitadas ou padrão
+    const regions = requestedRegions || ['us-east-1'];
 
     // Assume role
     const assumeRoleResponse = await stsClient.send(new AssumeRoleCommand({

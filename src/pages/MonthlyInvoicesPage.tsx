@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,46 +10,114 @@ import {
   Download, 
   TrendingUp, 
   TrendingDown, 
-  DollarSign,
   FileText,
   RefreshCw
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { parseDateString, compareDates, getDayOfMonth } from "@/lib/utils";
+import { compareDates, getDayOfMonth } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
 
+// Define type for daily cost records
+interface DailyCostRecord {
+  id: string;
+  organization_id: string;
+  aws_account_id: string;
+  date: string;
+  service: string;
+  cost: number;
+  usage?: number;
+  currency?: string;
+  created_at?: string;
+}
+
+// Define type for monthly aggregated data
+interface MonthlyData {
+  monthKey: string;
+  totalCost: number;
+  totalCredits: number;
+  netCost: number;
+  days: number;
+  serviceBreakdown: Record<string, number>;
+  dailyCosts: Array<{
+    cost_date: string;
+    total_cost: number;
+    net_cost: number;
+    credits_used?: number;
+    service?: string;
+  }>;
+}
+
 export const MonthlyInvoicesPage = () => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId, selectedAccount, accounts } = useAwsAccount();
+  const { selectedAccountId, selectedAccount } = useAwsAccount();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const hasSyncedRef = useRef<string | null>(null); // Track which account we've synced
   
   const currentLocale = i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US';
 
-  // Define type for daily cost records
-  interface DailyCostRecord {
-    id: string;
-    organization_id: string;
-    aws_account_id: string;
-    date: string;
-    service: string;
-    cost: number;
-    usage?: number;
-    currency?: string;
-    created_at?: string;
-  }
+  // Sync costs from AWS - always runs on page load to fetch missing days
+  const syncCostsFromAWS = useCallback(async (accountId: string) => {
+    if (isSyncing || !accountId) return;
+    
+    setIsSyncing(true);
+    
+    try {
+      // Call fetch-daily-costs Lambda with incremental=true
+      // The Lambda will automatically detect the last date in DB and fetch only missing days
+      const response = await apiClient.invoke<{
+        success: boolean;
+        summary: {
+          totalRecords: number;
+          newRecords: number;
+          skippedDays: number;
+          uniqueDates: number;
+          incremental: boolean;
+        };
+      }>('fetch-daily-costs', {
+        body: {
+          accountId: accountId,
+          incremental: true, // Lambda will fetch only missing days
+        }
+      });
+
+      if (response.error) {
+        console.error('Error syncing costs:', response.error);
+        return;
+      }
+
+      const summary = response.data?.summary;
+      
+      // Only show toast and refresh if new data was found
+      if (summary && summary.newRecords > 0) {
+        toast({
+          title: '✅ Novos dados sincronizados',
+          description: `${summary.newRecords} novos registros de custos carregados`,
+        });
+        
+        // Invalidate cache to reload data from database
+        await queryClient.invalidateQueries({ 
+          queryKey: ['monthly-invoices-data', organizationId, accountId] 
+        });
+      }
+    } catch (error) {
+      console.error('Error syncing costs from AWS:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isSyncing, organizationId, queryClient, toast]);
 
   // Get all daily costs from organization
-  const { data: allCosts, isLoading } = useQuery({
+  const { data: allCosts, isLoading: isLoadingCosts } = useQuery({
     queryKey: ['monthly-invoices-data', organizationId, selectedAccountId],
     enabled: !!organizationId && !!selectedAccountId,
     staleTime: 5 * 60 * 1000,
@@ -72,26 +140,17 @@ export const MonthlyInvoicesPage = () => {
     },
   });
 
-  // Define type for monthly aggregated data
-  interface MonthlyData {
-    monthKey: string;
-    totalCost: number;
-    totalCredits: number;
-    netCost: number;
-    days: number;
-    serviceBreakdown: Record<string, number>;
-    dailyCosts: Array<{
-      cost_date: string;
-      total_cost: number;
-      net_cost: number;
-      credits_used?: number;
-      service?: string;
-    }>;
-  }
+  // Auto-sync on page load when account is selected (only once per account)
+  useEffect(() => {
+    if (selectedAccountId && organizationId && hasSyncedRef.current !== selectedAccountId) {
+      hasSyncedRef.current = selectedAccountId;
+      syncCostsFromAWS(selectedAccountId);
+    }
+  }, [selectedAccountId, organizationId, syncCostsFromAWS]);
 
   // Process monthly data from daily costs
   // Schema: id, organization_id, aws_account_id, date, service, cost, usage, currency
-  const monthlyData: Record<string, MonthlyData> = (allCosts || []).reduce((acc, cost) => {
+  const monthlyData: Record<string, MonthlyData> = (allCosts || []).reduce((acc: Record<string, MonthlyData & { _daysSet?: Set<string> }>, cost: DailyCostRecord) => {
     // Skip records without valid date
     if (!cost.date) return acc;
     
@@ -106,16 +165,16 @@ export const MonthlyInvoicesPage = () => {
         totalCredits: 0,
         netCost: 0,
         days: 0,
-        serviceBreakdown: {} as Record<string, number>,
-        dailyCosts: [] as MonthlyData['dailyCosts'],
+        serviceBreakdown: {},
+        dailyCosts: [],
         _daysSet: new Set<string>()
-      } as MonthlyData & { _daysSet: Set<string> };
+      };
     }
 
     const costValue = Number(cost.cost) || 0;
     acc[monthKey].totalCost += costValue;
     acc[monthKey].netCost += costValue; // No credits in current schema
-    (acc[monthKey] as any)._daysSet.add(dateStr.substring(0, 10)); // Count unique days
+    acc[monthKey]._daysSet!.add(dateStr.substring(0, 10)); // Count unique days
     acc[monthKey].dailyCosts.push({
       cost_date: dateStr,
       total_cost: costValue,
@@ -130,12 +189,12 @@ export const MonthlyInvoicesPage = () => {
     }
 
     return acc;
-  }, {} as Record<string, MonthlyData & { _daysSet: Set<string> }>);
+  }, {} as Record<string, MonthlyData & { _daysSet?: Set<string> }>);
 
   // Convert days Set to count
-  Object.values(monthlyData).forEach((data) => {
-    data.days = (data as any)._daysSet?.size || 0;
-    delete (data as any)._daysSet;
+  Object.values(monthlyData).forEach((data: MonthlyData & { _daysSet?: Set<string> }) => {
+    data.days = data._daysSet?.size || 0;
+    delete data._daysSet;
   });
 
   const sortedMonths = Object.keys(monthlyData).sort((a, b) => b.localeCompare(a));
@@ -215,23 +274,57 @@ export const MonthlyInvoicesPage = () => {
     link.click();
   };
 
-  const loadHistoricalData = async () => {
+  const loadHistoricalData = async (forceFullRefresh = false) => {
     setIsLoadingHistory(true);
     try {
       toast({
-        title: 'Carregando dados históricos...',
-        description: 'Buscando faturas dos últimos 12 meses',
+        title: forceFullRefresh ? 'Recarregando todos os dados...' : 'Atualizando custos...',
+        description: forceFullRefresh 
+          ? 'Buscando histórico completo de custos' 
+          : 'Buscando apenas novos dados (incremental)',
       });
 
-      // Refetch data to get latest
+      // Chamar a Lambda fetch-daily-costs com busca incremental
+      const response = await apiClient.invoke<{
+        success: boolean;
+        summary: {
+          totalRecords: number;
+          newRecords: number;
+          skippedDays: number;
+          uniqueDates: number;
+          incremental: boolean;
+        };
+      }>('fetch-daily-costs', {
+        body: {
+          accountId: selectedAccountId,
+          incremental: !forceFullRefresh,
+        }
+      });
+
+      if (response.error) {
+        throw new Error(getErrorMessage(response.error));
+      }
+
+      const summary = response.data?.summary;
+      
+      // Invalidar cache para recarregar dados do banco
       await queryClient.invalidateQueries({ 
         queryKey: ['monthly-invoices-data', organizationId, selectedAccountId] 
       });
 
-      toast({
-        title: '✅ Dados históricos atualizados',
-        description: `${sortedMonths.length} faturas mensais carregadas com sucesso`,
-      });
+      if (summary?.newRecords === 0 && summary?.skippedDays > 0) {
+        toast({
+          title: '✅ Dados já atualizados',
+          description: `Nenhum novo dado encontrado. ${summary.skippedDays} dias já estavam no banco.`,
+        });
+      } else {
+        toast({
+          title: '✅ Custos atualizados',
+          description: summary 
+            ? `${summary.newRecords} novos registros. ${summary.uniqueDates} dias de dados.`
+            : 'Dados atualizados com sucesso',
+        });
+      }
     } catch (error) {
       console.error('Error loading historical data:', error);
       toast({
@@ -264,25 +357,38 @@ export const MonthlyInvoicesPage = () => {
                 {allCosts?.length || 0} registros de custos disponíveis
               </CardDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadHistoricalData}
-              disabled={isLoadingHistory}
-              className="glass"
-            >
-            {isLoadingHistory ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Carregando...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Atualizar Dados
-                </>
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadHistoricalData(false)}
+                disabled={isLoadingHistory}
+                className="glass"
+              >
+                {isLoadingHistory ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Carregando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Atualizar Novos
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => loadHistoricalData(true)}
+                disabled={isLoadingHistory}
+                className="text-muted-foreground hover:text-foreground"
+                title="Recarregar todos os dados históricos"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Histórico Completo
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

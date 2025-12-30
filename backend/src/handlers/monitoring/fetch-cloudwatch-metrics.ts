@@ -167,7 +167,7 @@ async function fetchCloudwatchMetricsHandler(
       return badRequest('Invalid JSON body', undefined, origin);
     }
     
-    const { accountId, regions = ['us-east-1'], period = '3h' } = body;
+    const { accountId, regions: requestedRegions, period = '3h' } = body;
     
     if (!accountId) {
       return badRequest('Missing required parameter: accountId', undefined, origin);
@@ -186,9 +186,15 @@ async function fetchCloudwatchMetricsHandler(
       return badRequest('AWS credentials not found', undefined, origin);
     }
     
+    // Usar regiões da credencial se disponíveis, senão usar as solicitadas ou padrão
+    const credentialRegions = credential.regions as string[] | null;
+    const regions = requestedRegions || 
+                    (credentialRegions && credentialRegions.length > 0 ? credentialRegions : ['us-east-1']);
+    
     logger.info('Starting full resource discovery', { 
       accountId: credential.account_name, 
       regions,
+      credentialRegions,
       period 
     });
     
@@ -205,24 +211,32 @@ async function fetchCloudwatchMetricsHandler(
         const credentials = toAwsCredentials(resolvedCreds);
         
         // Descobrir TODOS os tipos de recursos em paralelo
-        const discoveryResults = await Promise.allSettled([
-          discoverEC2(credentials, region),
-          discoverRDS(credentials, region),
-          discoverLambda(credentials, region),
-          discoverECS(credentials, region),
-          discoverElastiCache(credentials, region),
-          discoverLoadBalancers(credentials, region),
-          discoverAPIGateways(credentials, region),
-        ]);
+        const discoveryFunctions = [
+          { name: 'EC2', fn: () => discoverEC2(credentials, region) },
+          { name: 'RDS', fn: () => discoverRDS(credentials, region) },
+          { name: 'Lambda', fn: () => discoverLambda(credentials, region) },
+          { name: 'ECS', fn: () => discoverECS(credentials, region) },
+          { name: 'ElastiCache', fn: () => discoverElastiCache(credentials, region) },
+          { name: 'LoadBalancers', fn: () => discoverLoadBalancers(credentials, region) },
+          { name: 'APIGateway', fn: () => discoverAPIGateways(credentials, region) },
+        ];
+        
+        const discoveryResults = await Promise.allSettled(
+          discoveryFunctions.map(d => d.fn())
+        );
         
         const resources: ResourceInfo[] = [];
-        for (const result of discoveryResults) {
+        discoveryResults.forEach((result, index) => {
+          const serviceName = discoveryFunctions[index].name;
           if (result.status === 'fulfilled') {
+            logger.info(`${region}/${serviceName}: found ${result.value.length} resources`);
             resources.push(...result.value);
           } else {
-            permissionErrors.push(`${region}: ${result.reason?.message || 'Discovery failed'}`);
+            const errorMsg = result.reason?.message || 'Discovery failed';
+            logger.warn(`${region}/${serviceName}: FAILED - ${errorMsg}`);
+            permissionErrors.push(`${region}/${serviceName}: ${errorMsg}`);
           }
-        }
+        });
         
         logger.info(`Region ${region}: discovered ${resources.length} resources in ${Date.now() - regionStart}ms`);
         
