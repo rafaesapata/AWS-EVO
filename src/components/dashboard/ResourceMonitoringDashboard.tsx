@@ -83,6 +83,11 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
             <Badge variant={getStatusBadgeVariant(resource.status)}>
               {resource.status}
             </Badge>
+            {resourceSpecificMetrics.length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                📊 {resourceSpecificMetrics.length}
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground mb-2">
             ID: {resource.resource_id} | Região: {resource.region}
@@ -510,7 +515,7 @@ export const ResourceMonitoringDashboard = () => {
       );
     }
     
-    // Sort by status (active first), then by resource type, then by name
+    // Sort by status (active first), then by metrics availability, then by resource type, then by name
     const sorted = [...filtered].sort((a, b) => {
       // Primeiro critério: status (ativos primeiro)
       const aOrder = statusOrder[a.status?.toLowerCase()] ?? 4;
@@ -520,13 +525,28 @@ export const ResourceMonitoringDashboard = () => {
         return aOrder - bOrder;
       }
       
-      // Segundo critério: tipo de recurso (alfabético)
+      // Segundo critério: quantidade de métricas disponíveis (recursos com mais dados primeiro)
+      const aMetrics = metrics?.filter(m => 
+        m.resource_id === a.resource_id && m.resource_type === a.resource_type
+      ) || [];
+      const bMetrics = metrics?.filter(m => 
+        m.resource_id === b.resource_id && m.resource_type === b.resource_type
+      ) || [];
+      
+      const aMetricsCount = aMetrics.length;
+      const bMetricsCount = bMetrics.length;
+      
+      if (aMetricsCount !== bMetricsCount) {
+        return bMetricsCount - aMetricsCount; // Mais métricas primeiro
+      }
+      
+      // Terceiro critério: tipo de recurso (alfabético)
       const typeComparison = a.resource_type.localeCompare(b.resource_type);
       if (typeComparison !== 0) {
         return typeComparison;
       }
       
-      // Terceiro critério: nome do recurso (alfabético)
+      // Quarto critério: nome do recurso (alfabético)
       const aName = a.resource_name || a.resource_id || '';
       const bName = b.resource_name || b.resource_id || '';
       return aName.localeCompare(bName);
@@ -535,17 +555,23 @@ export const ResourceMonitoringDashboard = () => {
     // Debug: Log ordenação para verificar se está correta
     if (sorted.length > 0) {
       console.log('[ResourceMonitoring] Recursos ordenados:', 
-        sorted.slice(0, 10).map(r => ({
-          name: r.resource_name,
-          type: r.resource_type,
-          status: r.status,
-          statusOrder: statusOrder[r.status?.toLowerCase()] ?? 4
-        }))
+        sorted.slice(0, 10).map(r => {
+          const resourceMetrics = metrics?.filter(m => 
+            m.resource_id === r.resource_id && m.resource_type === r.resource_type
+          ) || [];
+          return {
+            name: r.resource_name,
+            type: r.resource_type,
+            status: r.status,
+            statusOrder: statusOrder[r.status?.toLowerCase()] ?? 4,
+            metricsCount: resourceMetrics.length
+          };
+        })
       );
     }
     
     return sorted;
-  }, [resources, selectedResourceType, selectedRegion, searchTerm]);
+  }, [resources, selectedResourceType, selectedRegion, searchTerm, metrics]);
 
   // PERFORMANCE: Memoize pagination calculations
   const { totalPages, startIndex, endIndex, filteredResources } = useMemo(() => {
@@ -874,7 +900,7 @@ export const ResourceMonitoringDashboard = () => {
                   <CardDescription>
                     {filteredResources?.length || 0} recursos encontrados
                     <span className="text-xs text-muted-foreground ml-2">
-                      (🟢 Ativos → 🟡 Parados → 🔴 Terminados)
+                      (🟢 Ativos → 📊 Com mais dados → 🔤 Por tipo)
                     </span>
                   </CardDescription>
                 </div>
@@ -979,6 +1005,11 @@ export const ResourceMonitoringDashboard = () => {
                               <Badge variant={getStatusBadgeVariant(resource.status)}>
                                 {resource.status}
                               </Badge>
+                              {resourceSpecificMetrics.length > 0 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  📊 {resourceSpecificMetrics.length}
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-sm text-muted-foreground mb-2">
                               ID: {resource.resource_id} | Região: {resource.region}
