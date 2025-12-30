@@ -112,7 +112,8 @@ export function useMetricsCache() {
     accountId: string,
     organizationId: string,
     period: MetricsPeriod,
-    forceRefresh: boolean = false
+    forceRefresh: boolean = false,
+    resourceType?: string // Novo parâmetro para filtrar por tipo de recurso
   ): Promise<Metric[]> => {
     // Se forceRefresh, limpar cache desta conta
     if (forceRefresh) {
@@ -129,26 +130,42 @@ export function useMetricsCache() {
       if (cacheEntry) {
         const periodHours = PERIOD_CONFIG[period].hours;
         const cutoffTime = Date.now() - (periodHours * 60 * 60 * 1000);
-        return cacheEntry.metrics.filter(m => 
+        let filteredMetrics = cacheEntry.metrics.filter(m => 
           new Date(m.timestamp).getTime() >= cutoffTime
         );
+        
+        // Filtrar por tipo de recurso se especificado
+        if (resourceType) {
+          filteredMetrics = filteredMetrics.filter(m => m.resource_type === resourceType);
+        }
+        
+        return filteredMetrics;
       }
     }
     
     setIsLoading(true);
     
     try {
+      // Construir query com filtro opcional por tipo de recurso
+      const queryFilters: any = {
+        organization_id: organizationId,
+        aws_account_id: accountId
+      };
+      
+      if (resourceType) {
+        queryFilters.resource_type = resourceType;
+      }
+      
       // Buscar métricas do backend
       const metricsResponse = await apiClient.select('resource_metrics', {
-        eq: { 
-          organization_id: organizationId,
-          aws_account_id: accountId 
-        },
+        eq: queryFilters,
         order: { column: 'timestamp', ascending: false },
-        limit: 2000 // Aumentar limite para cobrir 7 dias
+        limit: resourceType ? 1000 : 2000 // Limite menor se filtrando por tipo específico
       });
       
       const newMetrics = (metricsResponse.data || []) as Metric[];
+      
+      console.log(`[MetricsCache] Fetched ${newMetrics.length} metrics for account ${accountId}${resourceType ? ` (${resourceType})` : ''}`);
       
       // Atualizar cache
       const existingCache = cacheRef.current.byAccount.get(accountId);
@@ -201,9 +218,16 @@ export function useMetricsCache() {
       // Retornar dados filtrados pelo período solicitado
       const periodHours = PERIOD_CONFIG[period].hours;
       const cutoffTime = Date.now() - (periodHours * 60 * 60 * 1000);
-      return mergedMetrics.filter(m => 
+      let filteredMetrics = mergedMetrics.filter(m => 
         new Date(m.timestamp).getTime() >= cutoffTime
       );
+      
+      // Filtrar por tipo de recurso se especificado
+      if (resourceType) {
+        filteredMetrics = filteredMetrics.filter(m => m.resource_type === resourceType);
+      }
+      
+      return filteredMetrics;
       
     } finally {
       setIsLoading(false);

@@ -56,21 +56,7 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
   // Memoize primary metric calculation
   const primaryMetric = useMemo(() => {
     if (resourceSpecificMetrics.length === 0) return null;
-    
-    const type = resource.resource_type;
-    let metric = null;
-    
-    if (type === 'ec2' || type === 'rds' || type === 'elasticache') {
-      metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'CPUUtilization');
-    } else if (type === 'lambda') {
-      metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Duration');
-    } else if (type === 'apigateway') {
-      metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Latency');
-    } else if (type === 'alb' || type === 'nlb') {
-      metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'RequestCount');
-    }
-    
-    return metric || resourceSpecificMetrics[0];
+    return getPrimaryMetric(resourceSpecificMetrics, resource.resource_type);
   }, [resourceSpecificMetrics, resource.resource_type]);
 
   const hasMetrics = resourceSpecificMetrics.length > 0;
@@ -78,19 +64,7 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
   // Format value based on metric type
   const formatPrimaryValue = useCallback(() => {
     if (!primaryMetric) return '';
-    const value = Number(primaryMetric.metric_value);
-    const name = primaryMetric.metric_name;
-    
-    if (COUNT_METRICS.has(name)) {
-      return Math.round(value).toLocaleString();
-    }
-    if (name === 'CPUUtilization') {
-      return `${value.toFixed(1)}%`;
-    }
-    if (name === 'Duration' || name === 'Latency' || name === 'IntegrationLatency') {
-      return `${value.toFixed(2)} ms`;
-    }
-    return value.toFixed(2);
+    return formatMetricValue(primaryMetric.metric_name, Number(primaryMetric.metric_value));
   }, [primaryMetric]);
 
   const handleClick = useCallback(() => onSelect(resource), [onSelect, resource]);
@@ -106,11 +80,7 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
           <div className="flex items-center gap-2 mb-2">
             <Badge variant="outline">{resource.resource_type.toUpperCase()}</Badge>
             <h4 className="font-semibold">{resource.resource_name}</h4>
-            <Badge variant={
-              resource.status === 'running' || resource.status === 'active' 
-                ? 'default' 
-                : 'secondary'
-            }>
+            <Badge variant={getStatusBadgeVariant(resource.status)}>
               {resource.status}
             </Badge>
           </div>
@@ -143,7 +113,8 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
                   <div key={metric.id} className="text-sm">
                     <span className="text-muted-foreground">{metric.metric_name}:</span>{' '}
                     <span className="font-medium">
-                      {formatMetricValue(metric.metric_name, Number(metric.metric_value))} {metric.metric_unit}
+                      {formatMetricValue(metric.metric_name, Number(metric.metric_value))}
+                      {metric.metric_unit && metric.metric_unit !== 'None' && ` ${metric.metric_unit}`}
                     </span>
                   </div>
                 ))}
@@ -218,10 +189,54 @@ const COUNT_METRICS = new Set([
   'DatabaseConnections', 'ActiveFlowCount'
 ]);
 
+// Função para obter variante do badge baseada no status
+const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+  const statusLower = status?.toLowerCase();
+  if (['running', 'active', 'available'].includes(statusLower)) {
+    return 'default'; // Verde
+  }
+  if (['pending', 'stopping'].includes(statusLower)) {
+    return 'outline'; // Amarelo/neutro
+  }
+  if (['stopped', 'terminated', 'failed'].includes(statusLower)) {
+    return 'destructive'; // Vermelho
+  }
+  return 'secondary'; // Cinza para unknown
+};
+
+// Obter métrica primária por tipo de recurso com prioridades específicas
+const getPrimaryMetric = (resourceSpecificMetrics: any[], resourceType: string) => {
+  if (resourceSpecificMetrics.length === 0) return null;
+  
+  let metric = null;
+  
+  if (resourceType === 'ec2' || resourceType === 'rds' || resourceType === 'elasticache') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'CPUUtilization');
+  } else if (resourceType === 'lambda') {
+    // Para Lambda, priorizar Invocations primeiro, depois Duration
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Invocations') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'Duration');
+  } else if (resourceType === 'apigateway') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Count') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'Latency');
+  } else if (resourceType === 'alb' || resourceType === 'nlb') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'RequestCount');
+  }
+  
+  // Fallback: qualquer métrica disponível se não encontrar a primária esperada
+  return metric || resourceSpecificMetrics[0];
+};
+
 // Formatar valor da métrica baseado no tipo
 const formatMetricValue = (metricName: string, value: number): string => {
   if (COUNT_METRICS.has(metricName)) {
     return Math.round(value).toLocaleString();
+  }
+  if (metricName === 'Duration' || metricName === 'Latency' || metricName === 'IntegrationLatency') {
+    return `${value.toFixed(2)} ms`;
+  }
+  if (metricName === 'CPUUtilization' || metricName === 'MemoryUtilization') {
+    return `${value.toFixed(1)}%`;
   }
   return value.toFixed(2);
 };
@@ -464,9 +479,12 @@ export const ResourceMonitoringDashboard = () => {
       'running': 0,
       'active': 0,
       'available': 0,
-      'stopped': 1,
-      'terminated': 2,
-      'unknown': 3
+      'pending': 1,
+      'stopping': 1,
+      'stopped': 2,
+      'terminated': 3,
+      'failed': 3,
+      'unknown': 4
     };
     
     let filtered: MonitoredResource[] = (resources || []) as MonitoredResource[];
@@ -492,12 +510,41 @@ export const ResourceMonitoringDashboard = () => {
       );
     }
     
-    // Sort by status (active first)
-    return [...filtered].sort((a, b) => {
-      const aOrder = statusOrder[a.status?.toLowerCase()] ?? 3;
-      const bOrder = statusOrder[b.status?.toLowerCase()] ?? 3;
-      return aOrder - bOrder;
+    // Sort by status (active first), then by resource type, then by name
+    const sorted = [...filtered].sort((a, b) => {
+      // Primeiro critério: status (ativos primeiro)
+      const aOrder = statusOrder[a.status?.toLowerCase()] ?? 4;
+      const bOrder = statusOrder[b.status?.toLowerCase()] ?? 4;
+      
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+      
+      // Segundo critério: tipo de recurso (alfabético)
+      const typeComparison = a.resource_type.localeCompare(b.resource_type);
+      if (typeComparison !== 0) {
+        return typeComparison;
+      }
+      
+      // Terceiro critério: nome do recurso (alfabético)
+      const aName = a.resource_name || a.resource_id || '';
+      const bName = b.resource_name || b.resource_id || '';
+      return aName.localeCompare(bName);
     });
+    
+    // Debug: Log ordenação para verificar se está correta
+    if (sorted.length > 0) {
+      console.log('[ResourceMonitoring] Recursos ordenados:', 
+        sorted.slice(0, 10).map(r => ({
+          name: r.resource_name,
+          type: r.resource_type,
+          status: r.status,
+          statusOrder: statusOrder[r.status?.toLowerCase()] ?? 4
+        }))
+      );
+    }
+    
+    return sorted;
   }, [resources, selectedResourceType, selectedRegion, searchTerm]);
 
   // PERFORMANCE: Memoize pagination calculations
@@ -825,7 +872,10 @@ export const ResourceMonitoringDashboard = () => {
                 <div className="flex-1">
                   <CardTitle>Recursos Monitorados</CardTitle>
                   <CardDescription>
-                    {filteredResources?.length || 0} recursos encontrados (ativos primeiro)
+                    {filteredResources?.length || 0} recursos encontrados
+                    <span className="text-xs text-muted-foreground ml-2">
+                      (🟢 Ativos → 🟡 Parados → 🔴 Terminados)
+                    </span>
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -906,45 +956,13 @@ export const ResourceMonitoringDashboard = () => {
                     ) || [];
                     
                     // Definir métrica primária por tipo de recurso - com fallback para qualquer métrica
-                    const getPrimaryMetric = () => {
-                      if (resourceSpecificMetrics.length === 0) return null;
-                      
-                      const type = resource.resource_type;
-                      let metric = null;
-                      
-                      if (type === 'ec2' || type === 'rds' || type === 'elasticache') {
-                        metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'CPUUtilization');
-                      } else if (type === 'lambda') {
-                        metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Duration');
-                      } else if (type === 'apigateway') {
-                        metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Latency');
-                      } else if (type === 'alb' || type === 'nlb') {
-                        metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'RequestCount');
-                      }
-                      
-                      // Fallback: qualquer métrica disponível se não encontrar a primária esperada
-                      return metric || resourceSpecificMetrics[0];
-                    };
-                    
-                    const primaryMetric = getPrimaryMetric();
+                    const primaryMetric = getPrimaryMetric(resourceSpecificMetrics, resource.resource_type);
                     const hasMetrics = resourceSpecificMetrics.length > 0;
                     
                     // Formatar valor baseado no tipo de métrica
                     const formatPrimaryValue = () => {
                       if (!primaryMetric) return '';
-                      const value = Number(primaryMetric.metric_value);
-                      const name = primaryMetric.metric_name;
-                      
-                      if (COUNT_METRICS.has(name)) {
-                        return Math.round(value).toLocaleString();
-                      }
-                      if (name === 'CPUUtilization') {
-                        return `${value.toFixed(1)}%`;
-                      }
-                      if (name === 'Duration' || name === 'Latency' || name === 'IntegrationLatency') {
-                        return `${value.toFixed(2)} ms`;
-                      }
-                      return value.toFixed(2);
+                      return formatMetricValue(primaryMetric.metric_name, Number(primaryMetric.metric_value));
                     };
 
                     return (
@@ -958,11 +976,7 @@ export const ResourceMonitoringDashboard = () => {
                             <div className="flex items-center gap-2 mb-2">
                               <Badge variant="outline">{resource.resource_type.toUpperCase()}</Badge>
                               <h4 className="font-semibold">{resource.resource_name}</h4>
-                              <Badge variant={
-                                resource.status === 'running' || resource.status === 'active' 
-                                  ? 'default' 
-                                  : 'secondary'
-                              }>
+                              <Badge variant={getStatusBadgeVariant(resource.status)}>
                                 {resource.status}
                               </Badge>
                             </div>
@@ -995,7 +1009,8 @@ export const ResourceMonitoringDashboard = () => {
                                     <div key={metric.id} className="text-sm">
                                       <span className="text-muted-foreground">{metric.metric_name}:</span>{' '}
                                       <span className="font-medium">
-                                        {formatMetricValue(metric.metric_name, Number(metric.metric_value))} {metric.metric_unit}
+                                        {formatMetricValue(metric.metric_name, Number(metric.metric_value))}
+                                        {metric.metric_unit && metric.metric_unit !== 'None' && ` ${metric.metric_unit}`}
                                       </span>
                                     </div>
                                   ))}

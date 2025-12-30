@@ -13,7 +13,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { withAwsCircuitBreaker } from '../../lib/circuit-breaker.js';
 import { getOrigin } from '../../lib/middleware.js';
-import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
+import { CloudWatchClient, GetMetricStatisticsCommand, Statistic } from '@aws-sdk/client-cloudwatch';
 import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda';
@@ -271,7 +271,10 @@ async function fetchCloudwatchMetricsHandler(
           const batchResults = await Promise.allSettled(
             batch.map(async (resource) => {
               const config = METRICS_CONFIG[resource.resourceType];
-              if (!config) return [];
+              if (!config) {
+                logger.warn(`No metrics config for resource type: ${resource.resourceType}`);
+                return [];
+              }
               
               const resourceMetrics: MetricDataPoint[] = [];
               
@@ -282,9 +285,17 @@ async function fetchCloudwatchMetricsHandler(
                 )
               );
               
-              for (const result of metricResults) {
+              for (const [index, result] of metricResults.entries()) {
+                const metricName = config.metrics[index];
                 if (result.status === 'fulfilled') {
                   resourceMetrics.push(...result.value);
+                  if (result.value.length > 0) {
+                    logger.debug(`Collected ${result.value.length} datapoints for ${resource.resourceType}:${resource.resourceId}:${metricName}`);
+                  }
+                } else {
+                  logger.warn(`Failed to fetch metric ${metricName} for ${resource.resourceType}:${resource.resourceId}`, {
+                    error: result.reason?.message || 'Unknown error'
+                  });
                 }
               }
               
@@ -292,9 +303,19 @@ async function fetchCloudwatchMetricsHandler(
             })
           );
           
-          for (const result of batchResults) {
+          for (const [index, result] of batchResults.entries()) {
+            const resource = batch[index];
             if (result.status === 'fulfilled') {
               regionMetrics.push(...result.value);
+              if (result.value.length > 0) {
+                logger.debug(`Resource ${resource.resourceType}:${resource.resourceId} contributed ${result.value.length} metrics`);
+              } else {
+                logger.warn(`Resource ${resource.resourceType}:${resource.resourceId} contributed 0 metrics`);
+              }
+            } else {
+              logger.error(`Failed to process metrics for resource ${resource.resourceType}:${resource.resourceId}`, {
+                error: result.reason?.message || 'Unknown error'
+              });
             }
           }
         }
@@ -428,27 +449,48 @@ async function discoverLambda(credentials: any, region: string): Promise<Resourc
   const resources: ResourceInfo[] = [];
   let marker: string | undefined;
   
-  do {
-    const response = await client.send(new ListFunctionsCommand({ 
-      MaxItems: 50,
-      Marker: marker 
-    }));
+  try {
+    do {
+      const response = await client.send(new ListFunctionsCommand({ 
+        MaxItems: 50,
+        Marker: marker 
+      }));
+      
+      for (const fn of response.Functions || []) {
+        // Validar que temos dados essenciais
+        if (!fn.FunctionName) {
+          logger.warn(`Lambda function without name found in ${region}`, { functionArn: fn.FunctionArn });
+          continue;
+        }
+        
+        resources.push({
+          resourceId: fn.FunctionName,
+          resourceName: fn.FunctionName,
+          resourceType: 'lambda',
+          region,
+          status: fn.State === 'Active' ? 'active' : (fn.State || 'unknown').toLowerCase(),
+          metadata: { 
+            runtime: fn.Runtime, 
+            memorySize: fn.MemorySize,
+            timeout: fn.Timeout,
+            lastModified: fn.LastModified,
+            functionArn: fn.FunctionArn
+          },
+        });
+      }
+      
+      marker = response.NextMarker;
+    } while (marker);
     
-    for (const fn of response.Functions || []) {
-      resources.push({
-        resourceId: fn.FunctionName || '',
-        resourceName: fn.FunctionName || '',
-        resourceType: 'lambda',
-        region,
-        status: 'active',
-        metadata: { runtime: fn.Runtime, memorySize: fn.MemorySize },
-      });
-    }
-    
-    marker = response.NextMarker;
-  } while (marker);
-  
-  return resources;
+    logger.info(`Discovered ${resources.length} Lambda functions in ${region}`);
+    return resources;
+  } catch (error) {
+    logger.error(`Failed to discover Lambda functions in ${region}`, {
+      error: (error as Error).message,
+      stack: (error as Error).stack
+    });
+    throw error; // Re-throw para que o erro seja capturado no nível superior
+  }
 }
 
 // Descobrir ECS
@@ -548,6 +590,27 @@ async function fetchMetric(
     const startTime = new Date(endTime.getTime() - periodHours * 60 * 60 * 1000);
     const aggregationPeriod = periodHours > 24 ? 3600 : periodHours > 3 ? 900 : 300;
     
+    // Para Lambda, usar estatísticas específicas por métrica
+    let statistics: Statistic[] = ['Average'];
+    if (resource.resourceType === 'lambda') {
+      if (['Invocations', 'Errors', 'Throttles'].includes(metricName)) {
+        statistics = ['Sum']; // Métricas de contagem
+      } else if (metricName === 'Duration') {
+        statistics = ['Average', 'Maximum']; // Duração
+      } else if (metricName === 'ConcurrentExecutions') {
+        statistics = ['Maximum']; // Execuções concorrentes
+      }
+    } else {
+      statistics = ['Average', 'Sum', 'Maximum'];
+    }
+    
+    logger.debug(`Fetching ${metricName} for ${resource.resourceType}:${resource.resourceId}`, {
+      namespace,
+      dimensionKey,
+      statistics,
+      period: aggregationPeriod
+    });
+    
     const response = await client.send(new GetMetricStatisticsCommand({
       Namespace: namespace,
       MetricName: metricName,
@@ -555,21 +618,57 @@ async function fetchMetric(
       StartTime: startTime,
       EndTime: endTime,
       Period: aggregationPeriod,
-      Statistics: ['Average', 'Sum', 'Maximum'],
+      Statistics: statistics,
     }));
     
-    return (response.Datapoints || [])
-      .filter(dp => dp.Timestamp && (dp.Average !== undefined || dp.Sum !== undefined))
-      .map(dp => ({
-        resourceId: resource.resourceId,
-        resourceName: resource.resourceName,
-        resourceType: resource.resourceType,
-        metricName,
-        value: dp.Average ?? dp.Sum ?? 0,
-        timestamp: dp.Timestamp!,
-        unit: METRIC_UNITS[metricName] || 'None',
-      }));
-  } catch {
+    const datapoints = (response.Datapoints || [])
+      .filter(dp => dp.Timestamp && (dp.Average !== undefined || dp.Sum !== undefined || dp.Maximum !== undefined))
+      .map(dp => {
+        // Escolher o valor correto baseado na estatística
+        let value = 0;
+        if (resource.resourceType === 'lambda') {
+          if (['Invocations', 'Errors', 'Throttles'].includes(metricName)) {
+            value = dp.Sum ?? 0;
+          } else if (metricName === 'Duration') {
+            value = dp.Average ?? 0; // Usar média para duração
+          } else if (metricName === 'ConcurrentExecutions') {
+            value = dp.Maximum ?? 0;
+          } else {
+            value = dp.Average ?? dp.Sum ?? dp.Maximum ?? 0;
+          }
+        } else {
+          value = dp.Average ?? dp.Sum ?? dp.Maximum ?? 0;
+        }
+        
+        return {
+          resourceId: resource.resourceId,
+          resourceName: resource.resourceName,
+          resourceType: resource.resourceType,
+          metricName,
+          value,
+          timestamp: dp.Timestamp!,
+          unit: METRIC_UNITS[metricName] || 'None',
+        };
+      });
+    
+    if (datapoints.length > 0) {
+      logger.debug(`Found ${datapoints.length} datapoints for ${resource.resourceType}:${resource.resourceId}:${metricName}`);
+    } else {
+      logger.warn(`No datapoints found for ${resource.resourceType}:${resource.resourceId}:${metricName}`, {
+        namespace,
+        dimensionKey,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString()
+      });
+    }
+    
+    return datapoints;
+  } catch (error) {
+    logger.error(`Failed to fetch metric ${metricName} for ${resource.resourceType}:${resource.resourceId}`, {
+      error: (error as Error).message,
+      namespace,
+      dimensionKey
+    });
     return [];
   }
 }

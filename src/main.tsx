@@ -35,6 +35,7 @@ import RemediationTickets from "./pages/RemediationTickets";
 import CostOptimization from "./pages/CostOptimization";
 import RISavingsPlans from "./pages/RISavingsPlans";
 import SecurityScans from "./pages/SecurityScans";
+import SecurityScanDetails from "./pages/SecurityScanDetails";
 import CloudTrailAudit from "./pages/CloudTrailAudit";
 import Compliance from "./pages/Compliance";
 import EndpointMonitoring from "./pages/EndpointMonitoring";
@@ -262,6 +263,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <SecurityScans />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/security-scans/:scanId" 
+                element={
+                  <ProtectedRoute>
+                    <SecurityScanDetails />
                   </ProtectedRoute>
                 } 
               />

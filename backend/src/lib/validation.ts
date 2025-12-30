@@ -355,6 +355,15 @@ export const complianceScanSchema = z.object({
   ...commonSchemas.dateRange.shape,
 });
 
+// Remediation ticket creation validation
+export const createRemediationTicketSchema = z.object({
+  findingIds: z.array(z.string().uuid()).min(1, 'At least one finding must be selected'),
+  title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
+  description: z.string().max(2000, 'Description too long').optional(),
+  priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+  organizationId: commonSchemas.organizationId,
+});
+
 /**
  * Validation middleware for Lambda handlers with input sanitization
  */
@@ -685,11 +694,6 @@ export function checkRateLimitSlidingWindow(
   return { success: true };
 }
 
-/**
- * Limpa entradas expiradas do cache de rate limiting
- * NOTA: Em ambiente Lambda, este cache é local à instância.
- * Para rate limiting distribuído real, usar Redis via redis-cache.ts
- */
 export function cleanupRateLimitCache(): void {
   const now = Date.now();
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +62,7 @@ interface ScanFinding {
 
 export default function SecurityScans() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { selectedAccountId } = useAwsAccount();
   const { data: organizationId } = useOrganization();
@@ -552,6 +554,19 @@ export default function SecurityScans() {
                               <span className="text-muted-foreground">Baixos:</span>
                               <div className="font-medium text-green-500">{scan.low_count || 0}</div>
                             </div>
+                          </div>
+                        )}
+                        
+                        {scan.status === 'completed' && (
+                          <div className="flex justify-end mt-3">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/security-scans/${scan.id}`)}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Ver Detalhes
+                            </Button>
                           </div>
                         )}
                       </div>
