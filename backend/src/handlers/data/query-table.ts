@@ -250,7 +250,11 @@ export async function handler(
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
-        where[fieldName] = { ...where[fieldName], gte: value };
+        // Convert date strings to Date objects for Prisma
+        const filterValue = (fieldName === 'date' || fieldName.endsWith('_at') || fieldName.endsWith('_date')) 
+          ? new Date(value as string) 
+          : value;
+        where[fieldName] = { ...where[fieldName], gte: filterValue };
       }
     }
     
@@ -261,7 +265,11 @@ export async function handler(
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
-        where[fieldName] = { ...where[fieldName], lte: value };
+        // Convert date strings to Date objects for Prisma
+        const filterValue = (fieldName === 'date' || fieldName.endsWith('_at') || fieldName.endsWith('_date')) 
+          ? new Date(value as string) 
+          : value;
+        where[fieldName] = { ...where[fieldName], lte: filterValue };
       }
     }
     
@@ -272,7 +280,11 @@ export async function handler(
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
-        where[fieldName] = { ...where[fieldName], gt: value };
+        // Convert date strings to Date objects for Prisma
+        const filterValue = (fieldName === 'date' || fieldName.endsWith('_at') || fieldName.endsWith('_date')) 
+          ? new Date(value as string) 
+          : value;
+        where[fieldName] = { ...where[fieldName], gt: filterValue };
       }
     }
     
@@ -283,7 +295,11 @@ export async function handler(
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
-        where[fieldName] = { ...where[fieldName], lt: value };
+        // Convert date strings to Date objects for Prisma
+        const filterValue = (fieldName === 'date' || fieldName.endsWith('_at') || fieldName.endsWith('_date')) 
+          ? new Date(value as string) 
+          : value;
+        where[fieldName] = { ...where[fieldName], lt: filterValue };
       }
     }
     

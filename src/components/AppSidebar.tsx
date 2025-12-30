@@ -89,11 +89,10 @@ const menuItems: MenuItem[] = [
     value: "scans", 
     icon: Scan,
     subItems: [
-      { titleKey: "sidebar.securityScans", value: "scans" },
+      { titleKey: "sidebar.securityScan", value: "security-scan" },
       { titleKey: "sidebar.cloudtrailAudit", value: "cloudtrail-audit" },
       { titleKey: "sidebar.compliance", value: "compliance" },
       { titleKey: "sidebar.wellArchitected", value: "well-architected" },
-      { titleKey: "sidebar.awsSecurityAnalysis", value: "security-analysis" },
     ]
   },
   { 
@@ -176,7 +175,7 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/remediation-tickets');
     } else if (value === 'tv-dashboards') {
       navigate('/tv');
-    } else if (value === 'scans') {
+    } else if (value === 'security-scan') {
       navigate('/security-scans');
     } else if (value === 'cloudtrail-audit') {
       navigate('/cloudtrail-audit');
@@ -217,8 +216,6 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/organizations');
     } else if (value === 'audit') {
       navigate('/app?tab=audit');
-    } else if (value === 'security-analysis') {
-      navigate('/app?tab=security-analysis');
     } else {
       // Todas as outras ficam no /app
       onTabChange(value);

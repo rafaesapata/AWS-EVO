@@ -18,6 +18,12 @@ import {
   ListRolesCommand,
   GetAccountSummaryCommand,
 } from '@aws-sdk/client-iam';
+import {
+  AccessAnalyzerClient,
+  ListAnalyzersCommand,
+  ListFindingsCommand,
+  GetAnalyzerCommand,
+} from '@aws-sdk/client-accessanalyzer';
 
 export class IAMScanner extends BaseScanner {
   get serviceName(): string {
@@ -43,6 +49,7 @@ export class IAMScanner extends BaseScanner {
       this.checkAdminPolicies(iamClient),
       this.checkRoleTrustPolicies(iamClient),
       this.checkAccountSummary(iamClient),
+      this.checkAccessAnalyzer(), // New critical check
     ]);
 
     for (const result of checkResults) {
@@ -687,6 +694,188 @@ export class IAMScanner extends BaseScanner {
       }
     } catch (error) {
       this.warn('Failed to get account summary', { error: (error as Error).message });
+    }
+
+    return findings;
+  }
+
+  /**
+   * Check IAM Access Analyzer configuration and findings
+   * CRITICAL: Access Analyzer helps identify resources shared with external entities
+   */
+  private async checkAccessAnalyzer(): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    try {
+      const accessAnalyzerClient = await this.clientFactory.getAccessAnalyzerClient(this.region);
+
+      // Check if Access Analyzer is enabled
+      const analyzersResponse = await accessAnalyzerClient.send(new ListAnalyzersCommand({}));
+      const analyzers = analyzersResponse.analyzers || [];
+
+      if (analyzers.length === 0) {
+        findings.push(this.createFinding({
+          severity: 'high',
+          title: 'IAM Access Analyzer Not Enabled',
+          description: 'IAM Access Analyzer is not enabled in this region',
+          analysis: 'HIGH RISK: Access Analyzer helps identify resources shared with external entities and potential security risks.',
+          resource_id: 'access-analyzer',
+          resource_arn: this.arnBuilder.accessAnalyzer(this.region),
+          scan_type: 'iam_access_analyzer_disabled',
+          compliance: [
+            this.cisCompliance('1.20', 'Ensure IAM Access Analyzer is enabled'),
+            this.wellArchitectedCompliance('SEC', 'Implement access management'),
+            this.nistCompliance('AC-3', 'Access Enforcement'),
+          ],
+          remediation: {
+            description: 'Enable IAM Access Analyzer to monitor resource sharing',
+            steps: [
+              'Go to IAM Console > Access Analyzer',
+              'Click "Create analyzer"',
+              'Choose "Account" as the zone of trust',
+              'Name the analyzer and create it',
+              'Review findings regularly',
+            ],
+            cli_command: `aws accessanalyzer create-analyzer --analyzer-name account-analyzer --type ACCOUNT --region ${this.region}`,
+            estimated_effort: 'trivial',
+            automation_available: true,
+          },
+          evidence: { analyzersCount: 0, region: this.region },
+          risk_vector: 'insufficient_monitoring',
+          attack_vectors: ['Undetected resource sharing', 'External access'],
+          business_impact: 'Potential data exposure through unmonitored external access to resources.',
+        }));
+        return findings;
+      }
+
+      // Check each analyzer
+      for (const analyzer of analyzers) {
+        if (!analyzer.arn || !analyzer.name) continue;
+
+        // Check analyzer status
+        if (analyzer.status !== 'ACTIVE') {
+          findings.push(this.createFinding({
+            severity: 'medium',
+            title: `Access Analyzer Not Active: ${analyzer.name}`,
+            description: `Access Analyzer ${analyzer.name} is in ${analyzer.status} status`,
+            analysis: 'Inactive analyzers cannot detect external resource sharing.',
+            resource_id: analyzer.name,
+            resource_arn: analyzer.arn,
+            scan_type: 'iam_access_analyzer_inactive',
+            compliance: [this.wellArchitectedCompliance('SEC', 'Implement access management')],
+            evidence: { analyzerName: analyzer.name, status: analyzer.status },
+            risk_vector: 'insufficient_monitoring',
+          }));
+          continue;
+        }
+
+        // Check for active findings
+        try {
+          const findingsResponse = await accessAnalyzerClient.send(new ListFindingsCommand({
+            analyzerArn: analyzer.arn,
+            filter: {
+              status: {
+                eq: ['ACTIVE']
+              }
+            }
+          }));
+
+          const activeFindings = findingsResponse.findings || [];
+          
+          if (activeFindings.length > 0) {
+            // Group findings by severity
+            const criticalFindings = activeFindings.filter((f: any) => f.condition?.includes('*') || f.principal?.includes('*'));
+            const publicFindings = activeFindings.filter((f: any) => f.isPublic);
+            
+            if (criticalFindings.length > 0) {
+              findings.push(this.createFinding({
+                severity: 'critical',
+                title: `Critical Access Analyzer Findings: ${criticalFindings.length}`,
+                description: `Access Analyzer found ${criticalFindings.length} critical findings with wildcard or public access`,
+                analysis: 'CRITICAL RISK: Resources are accessible by anyone or have overly broad permissions.',
+                resource_id: analyzer.name,
+                resource_arn: analyzer.arn,
+                scan_type: 'iam_access_analyzer_critical_findings',
+                compliance: [
+                  this.cisCompliance('1.20', 'Review Access Analyzer findings'),
+                  this.nistCompliance('AC-3', 'Access Enforcement'),
+                ],
+                remediation: {
+                  description: 'Review and remediate critical Access Analyzer findings immediately',
+                  steps: [
+                    'Go to IAM Console > Access Analyzer',
+                    'Review each critical finding',
+                    'Determine if external access is intended',
+                    'Modify resource policies to restrict access',
+                    'Archive findings after remediation',
+                  ],
+                  estimated_effort: 'high',
+                  automation_available: false,
+                },
+                evidence: { 
+                  analyzerName: analyzer.name, 
+                  criticalFindings: criticalFindings.length,
+                  totalFindings: activeFindings.length,
+                  sampleFindings: criticalFindings.slice(0, 3).map((f: any) => ({
+                    resourceType: f.resourceType,
+                    resourceArn: f.resource,
+                    principal: f.principal,
+                    condition: f.condition
+                  }))
+                },
+                risk_vector: 'excessive_permissions',
+                attack_vectors: ['External access', 'Data exfiltration', 'Privilege escalation'],
+                business_impact: 'Potential unauthorized access to sensitive resources and data.',
+              }));
+            }
+
+            if (publicFindings.length > 0) {
+              findings.push(this.createFinding({
+                severity: 'high',
+                title: `Public Resources Detected: ${publicFindings.length}`,
+                description: `Access Analyzer found ${publicFindings.length} resources accessible from the internet`,
+                analysis: 'HIGH RISK: Resources are publicly accessible from the internet.',
+                resource_id: analyzer.name,
+                resource_arn: analyzer.arn,
+                scan_type: 'iam_access_analyzer_public_findings',
+                compliance: [
+                  this.cisCompliance('1.20', 'Review Access Analyzer findings'),
+                  this.pciCompliance('1.3.1', 'Implement a DMZ'),
+                ],
+                evidence: { 
+                  analyzerName: analyzer.name, 
+                  publicFindings: publicFindings.length,
+                  sampleResources: publicFindings.slice(0, 3).map((f: any) => ({
+                    resourceType: f.resourceType,
+                    resourceArn: f.resource
+                  }))
+                },
+                risk_vector: 'public_exposure',
+              }));
+            }
+
+            // General findings summary
+            if (activeFindings.length > 10) {
+              findings.push(this.createFinding({
+                severity: 'medium',
+                title: `High Number of Access Analyzer Findings: ${activeFindings.length}`,
+                description: `Access Analyzer has ${activeFindings.length} active findings requiring review`,
+                analysis: 'Large number of findings may indicate systematic access control issues.',
+                resource_id: analyzer.name,
+                resource_arn: analyzer.arn,
+                scan_type: 'iam_access_analyzer_many_findings',
+                compliance: [this.wellArchitectedCompliance('SEC', 'Implement access management')],
+                evidence: { analyzerName: analyzer.name, findingsCount: activeFindings.length },
+                risk_vector: 'excessive_permissions',
+              }));
+            }
+          }
+        } catch (findingsError) {
+          this.warn(`Failed to get Access Analyzer findings for ${analyzer.name}`, { error: (findingsError as Error).message });
+        }
+      }
+    } catch (error) {
+      this.warn('Failed to check Access Analyzer', { error: (error as Error).message });
     }
 
     return findings;

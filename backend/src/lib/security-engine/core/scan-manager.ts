@@ -55,6 +55,9 @@ import { scanMacie } from '../scanners/macie/index.js';
 import { scanNetworkFirewall } from '../scanners/networkfirewall/index.js';
 import { scanOrganizations } from '../scanners/organizations/index.js';
 
+// New scanners - Sprint 1 Evolution (Missing Services)
+import { scanGlue } from '../scanners/glue/index.js';
+
 type ScannerFunction = (
   region: string,
   accountId: string,
@@ -112,6 +115,8 @@ const SCANNERS: ScannerConfig[] = [
   { name: 'Macie', scanner: scanMacie, isGlobal: false },
   { name: 'NetworkFirewall', scanner: scanNetworkFirewall, isGlobal: false },
   { name: 'Organizations', scanner: scanOrganizations, isGlobal: true },
+  // New scanners - Sprint 1 Evolution (Missing Services)
+  { name: 'Glue', scanner: scanGlue, isGlobal: false },
 ];
 
 export class ScanManager {

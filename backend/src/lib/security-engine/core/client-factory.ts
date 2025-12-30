@@ -56,6 +56,8 @@ import { Inspector2Client } from '@aws-sdk/client-inspector2';
 import { Macie2Client } from '@aws-sdk/client-macie2';
 import { NetworkFirewallClient } from '@aws-sdk/client-network-firewall';
 import { OrganizationsClient } from '@aws-sdk/client-organizations';
+import { AccessAnalyzerClient } from '@aws-sdk/client-accessanalyzer';
+import { GlueClient } from '@aws-sdk/client-glue';
 import { STSClient, AssumeRoleCommand, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import type { AWSCredentials } from '../types.js';
 
@@ -101,6 +103,8 @@ type AWSClientType =
   | Macie2Client
   | NetworkFirewallClient
   | OrganizationsClient
+  | AccessAnalyzerClient
+  | GlueClient
   | STSClient;
 
 interface ClientConfig {
@@ -541,6 +545,24 @@ export class AWSClientFactory {
       this.clients.set(key, new OrganizationsClient(config));
     }
     return this.clients.get(key) as OrganizationsClient;
+  }
+
+  async getAccessAnalyzerClient(region: string): Promise<AccessAnalyzerClient> {
+    const key = this.getClientKey('accessanalyzer', region);
+    if (!this.clients.has(key)) {
+      const config = await this.getClientConfig(region);
+      this.clients.set(key, new AccessAnalyzerClient(config));
+    }
+    return this.clients.get(key) as AccessAnalyzerClient;
+  }
+
+  async getGlueClient(region: string): Promise<GlueClient> {
+    const key = this.getClientKey('glue', region);
+    if (!this.clients.has(key)) {
+      const config = await this.getClientConfig(region);
+      this.clients.set(key, new GlueClient(config));
+    }
+    return this.clients.get(key) as GlueClient;
   }
 
   async getSTSClient(region: string = 'us-east-1'): Promise<STSClient> {

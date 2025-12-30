@@ -38,6 +38,13 @@ export function CostForecast({ accountId }: Props) {
     queryFn: async () => {
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const startDateStr = ninetyDaysAgo.toISOString().split('T')[0];
+
+      console.log('CostForecast: Fetching with params:', {
+        organizationId,
+        accountId,
+        startDateStr
+      });
 
       const response = await apiClient.select('daily_costs', {
         select: '*',
@@ -45,8 +52,12 @@ export function CostForecast({ accountId }: Props) {
           organization_id: organizationId,
           aws_account_id: accountId 
         },
-        order: { column: 'date', ascending: true }
+        gte: { date: startDateStr },
+        order: { column: 'date', ascending: true },
+        limit: 10000 // Increase limit to fetch all historical data
       });
+      
+      console.log('CostForecast: API response:', response);
       
       if (response.error) {
         // Gracefully handle aborted/cancelled requests
@@ -55,11 +66,13 @@ export function CostForecast({ accountId }: Props) {
           console.log('CostForecast: Request was aborted/cancelled, returning empty array');
           return [];
         }
-        console.error('Error fetching historical costs:', response.error);
-        throw new Error(response.error);
+        console.error('CostForecast: Error fetching historical costs:', response.error);
+        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
       }
       
       const rawData = response.data || [];
+      
+      console.log('CostForecast: Raw data received:', rawData.length, 'records');
       
       // Transform raw data (per service) into aggregated format (per date)
       // Raw schema: { id, organization_id, account_id, date, service, cost, usage, currency }
@@ -84,9 +97,6 @@ export function CostForecast({ accountId }: Props) {
         } catch {
           continue;
         }
-        
-        // Filter by date range
-        if (dateStr < ninetyDaysAgo.toISOString().split('T')[0]) continue;
         
         if (!dateMap.has(dateStr)) {
           dateMap.set(dateStr, { cost_date: dateStr, total_cost: 0 });
@@ -114,9 +124,12 @@ export function CostForecast({ accountId }: Props) {
 
   // Gerar previsão local baseada em dados históricos
   const forecasts = historicalCosts && historicalCosts.length >= 7 ? (() => {
+    console.log('CostForecast: Generating forecasts with', historicalCosts.length, 'days of data');
     const costs = historicalCosts.map(c => c.total_cost);
     const n = costs.length;
     const avgCost = costs.reduce((a, b) => a + b, 0) / n;
+    
+    console.log('CostForecast: avgCost =', avgCost.toFixed(2));
     
     // Calcular tendência
     let sumXY = 0, sumX = 0, sumX2 = 0;
@@ -127,6 +140,8 @@ export function CostForecast({ accountId }: Props) {
     }
     const slope = (n * sumXY - sumX * costs.reduce((a, b) => a + b, 0)) / (n * sumX2 - sumX * sumX);
     
+    console.log('CostForecast: slope =', slope.toFixed(4));
+    
     // Calcular desvio padrão
     const variance = costs.reduce((sum, cost) => {
       const diff = cost - avgCost;
@@ -135,12 +150,16 @@ export function CostForecast({ accountId }: Props) {
     const stdDev = Math.sqrt(variance);
     const confidence = 1.96 * stdDev;
     
+    console.log('CostForecast: stdDev =', stdDev.toFixed(2), 'confidence =', confidence.toFixed(2));
+    
     // Gerar previsões
     const predictions = [];
     for (let i = 1; i <= 30; i++) {
       const forecastDate = new Date();
       forecastDate.setDate(forecastDate.getDate() + i);
-      const predictedCost = Math.max(0, avgCost + slope * (n + i));
+      // Usar apenas 'i' para dias futuros, não 'n + i'
+      // Isso projeta a partir do último ponto conhecido
+      const predictedCost = Math.max(0, avgCost + slope * i);
       
       predictions.push({
         forecast_date: forecastDate.toISOString().split('T')[0],
@@ -149,6 +168,11 @@ export function CostForecast({ accountId }: Props) {
         confidence_interval_high: predictedCost + confidence
       });
     }
+    
+    console.log('CostForecast: Generated', predictions.length, 'predictions');
+    console.log('CostForecast: First prediction:', predictions[0].predicted_cost.toFixed(2));
+    console.log('CostForecast: Last prediction:', predictions[29].predicted_cost.toFixed(2));
+    
     return predictions;
   })() : null;
 
@@ -178,7 +202,8 @@ export function CostForecast({ accountId }: Props) {
 
   // Combinar dados históricos e previsões
   const chartData = [
-    ...(historicalCosts?.map(c => ({
+    // Mostrar apenas últimos 30 dias de histórico para não poluir o gráfico
+    ...(historicalCosts?.slice(-30).map(c => ({
       date: formatDateBR(c.cost_date, { day: '2-digit', month: '2-digit' }),
       actual: c.total_cost,
       predicted: null,
@@ -187,12 +212,20 @@ export function CostForecast({ accountId }: Props) {
     })) || []),
     ...(forecasts?.map(f => ({
       date: new Date(f.forecast_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      actual: f.actual_cost || null,
+      actual: null, // Sem dados reais no futuro
       predicted: f.predicted_cost,
       low: f.confidence_interval_low,
       high: f.confidence_interval_high
     })) || [])
   ];
+
+  console.log('CostForecast: chartData length =', chartData.length);
+  console.log('CostForecast: Historical points =', historicalCosts?.slice(-30).length || 0);
+  console.log('CostForecast: Forecast points =', forecasts?.length || 0);
+  if (chartData.length > 0) {
+    console.log('CostForecast: First chart point:', chartData[0]);
+    console.log('CostForecast: Last chart point:', chartData[chartData.length - 1]);
+  }
 
   const avgDailyCost = historicalCosts && historicalCosts.length > 0 
     ? historicalCosts.reduce((sum, c) => sum + (c.total_cost || 0), 0) / historicalCosts.length
@@ -201,6 +234,11 @@ export function CostForecast({ accountId }: Props) {
   const growthRate = avgDailyCost > 0 
     ? ((predictedMonthlyCost - (avgDailyCost * 30)) / (avgDailyCost * 30)) * 100 
     : 0;
+
+  console.log('CostForecast: avgDailyCost =', avgDailyCost.toFixed(2));
+  console.log('CostForecast: predictedMonthlyCost =', predictedMonthlyCost.toFixed(2));
+  console.log('CostForecast: growthRate =', growthRate.toFixed(1), '%');
+  console.log('CostForecast: forecasts =', forecasts ? forecasts.length : 'null');
 
   return (
     <Card>

@@ -91,3 +91,6 @@ export { InspectorScanner, scanInspector } from './scanners/inspector/index.js';
 export { MacieScanner, scanMacie } from './scanners/macie/index.js';
 export { NetworkFirewallScanner, scanNetworkFirewall } from './scanners/networkfirewall/index.js';
 export { OrganizationsScanner, scanOrganizations } from './scanners/organizations/index.js';
+
+// New scanners - Sprint 1 Evolution (Missing Services)
+export { GlueScanner, scanGlue } from './scanners/glue/index.js';

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Calendar, Download, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ChevronDown, ChevronRight, Calendar, Download, TrendingUp, TrendingDown, RefreshCw, ChevronLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { CostForecast } from "@/components/dashboard/cost-analysis/CostForecast";
@@ -29,7 +30,21 @@ export const CostAnalysisPage = () => {
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedOther, setExpandedOther] = useState<Set<string>>(new Set());
-  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'custom'>('30d');
+  
+  // Custom date range
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Use global account context for multi-account isolation
   const { selectedAccountId, accounts: allAccounts } = useAwsAccount();
@@ -63,23 +78,50 @@ export const CostAnalysisPage = () => {
 
   // Get daily costs - FILTERED BY SELECTED ACCOUNT
   const { data: allCosts, isLoading } = useQuery({
-    queryKey: ['cost-analysis-raw', 'org', organizationId, 'account', selectedAccountId, dateRange],
+    queryKey: ['cost-analysis-raw', 'org', organizationId, 'account', selectedAccountId, dateRange, customStartDate, customEndDate],
     enabled: !!organizationId && !!selectedAccountId,
-    staleTime: Infinity,
+    staleTime: 5 * 60 * 1000, // 5 minutes - allow refetch on account change
     gcTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const daysAgo = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90;
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - daysAgo);
+      console.log('CostAnalysisPage: Fetching costs for account:', selectedAccountId, 'org:', organizationId);
+      
+      let startDate: Date;
+      let endDate = new Date();
+      
+      if (dateRange === 'custom') {
+        startDate = new Date(customStartDate);
+        endDate = new Date(customEndDate);
+      } else {
+        const daysAgo = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90;
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() - daysAgo);
+      }
+      
+      // Format dates for comparison
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
 
       // Always filter by selected account - no 'all' option
+      console.log('CostAnalysisPage: Query params:', { startDateStr, endDateStr, organizationId, selectedAccountId });
+      
       const response = await apiClient.select('daily_costs', { 
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+        eq: { organization_id: organizationId, aws_account_id: selectedAccountId },
+        gte: { date: startDateStr },
+        lte: { date: endDateStr },
+        order: { column: 'date', ascending: false }
       });
+      
+      console.log('CostAnalysisPage: API response:', response);
+      
       const data = response.data;
       
-      if (!data || data.length === 0) return [];
+      if (!data || data.length === 0) {
+        console.log('CostAnalysisPage: No data returned');
+        return [];
+      }
+      
+      console.log('CostAnalysisPage: Received', data.length, 'records');
       
       // Transform raw data (per service) into aggregated format (per date)
       // Raw schema: { id, organization_id, aws_account_id, date, service, cost, usage, currency }
@@ -459,6 +501,18 @@ export const CostAnalysisPage = () => {
     new Date(b).getTime() - new Date(a).getTime()
   );
 
+  // Pagination calculations
+  const totalPages = Math.ceil(sortedDates.length / itemsPerPage);
+  const paginatedDates = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedDates.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedDates, currentPage, itemsPerPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedRegion, selectedTag, selectedAccountId]);
+
   if (isLoading) {
     return (
       <Card>
@@ -545,7 +599,10 @@ export const CostAnalysisPage = () => {
             </div>
             <div className="flex-1 min-w-[200px]">
               <label className="text-sm font-medium mb-2 block">{t('costAnalysis.period')}</label>
-              <Select value={dateRange} onValueChange={(v) => setDateRange(v as '7d' | '30d' | '90d')}>
+              <Select value={dateRange} onValueChange={(v) => {
+                setDateRange(v as '7d' | '30d' | '90d' | 'custom');
+                setCurrentPage(1); // Reset pagination on filter change
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -553,10 +610,42 @@ export const CostAnalysisPage = () => {
                   <SelectItem value="7d">{t('costAnalysis.last7days')}</SelectItem>
                   <SelectItem value="30d">{t('costAnalysis.last30days')}</SelectItem>
                   <SelectItem value="90d">{t('costAnalysis.last90days')}</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
+          
+          {/* Custom Date Range */}
+          {dateRange === 'custom' && (
+            <div className="flex gap-4 flex-wrap items-end">
+              <div className="flex-1 min-w-[150px] max-w-[200px]">
+                <label className="text-sm font-medium mb-2 block">Data Início</label>
+                <Input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => {
+                    setCustomStartDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  max={customEndDate}
+                />
+              </div>
+              <div className="flex-1 min-w-[150px] max-w-[200px]">
+                <label className="text-sm font-medium mb-2 block">Data Fim</label>
+                <Input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => {
+                    setCustomEndDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  min={customStartDate}
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Empty State */}
           {(!costs || costs.length === 0) && (
@@ -706,7 +795,7 @@ export const CostAnalysisPage = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedDates.map((date, idx) => {
+                  paginatedDates.map((date, idx) => {
                     const dateCosts = costsByDate[date];
                     const totalCost = dateCosts.reduce((sum, c) => {
                       const val = Number(c.total_cost);
@@ -865,6 +954,54 @@ export const CostAnalysisPage = () => {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Pagination Controls */}
+          {sortedDates.length > 0 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, sortedDates.length)} de {sortedDates.length} dias
+                </span>
+                <Select value={String(itemsPerPage)} onValueChange={(v) => {
+                  setItemsPerPage(Number(v));
+                  setCurrentPage(1);
+                }}>
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / página</SelectItem>
+                    <SelectItem value="25">25 / página</SelectItem>
+                    <SelectItem value="50">50 / página</SelectItem>
+                    <SelectItem value="100">100 / página</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+                <span className="text-sm px-2">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Próxima
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

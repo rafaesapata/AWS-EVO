@@ -24,7 +24,9 @@ import {
   Download,
   Eye,
   Bug,
-  Lock
+  Lock,
+  Zap,
+  Activity
 } from "lucide-react";
 
 interface SecurityScan {
@@ -136,14 +138,13 @@ export default function SecurityScans() {
     },
   });
 
-  // Start new scan
+  // Start new scan using Security Engine V2
   const startScanMutation = useMutation({
-    mutationFn: async (scanType: string) => {
-      const response = await apiClient.invoke('start-security-scan', {
+    mutationFn: async ({ scanLevel }: { scanLevel: 'quick' | 'standard' | 'deep' }) => {
+      const response = await apiClient.invoke('security-scan', {
         body: {
-          scanType,
           accountId: selectedAccountId,
-          organizationId
+          scanLevel
         }
       });
 
@@ -155,8 +156,8 @@ export default function SecurityScans() {
     },
     onSuccess: () => {
       toast({
-        title: "Scan iniciado",
-        description: "O scan de segurança foi iniciado com sucesso.",
+        title: "Security Scan Iniciado",
+        description: "O scan de segurança AWS foi iniciado com sucesso usando o Security Engine V2.",
       });
       refetch();
     },
@@ -169,8 +170,8 @@ export default function SecurityScans() {
     }
   });
 
-  const handleStartScan = (scanType: string) => {
-    startScanMutation.mutate(scanType);
+  const handleStartScan = (scanLevel: 'quick' | 'standard' | 'deep') => {
+    startScanMutation.mutate({ scanLevel });
   };
 
   const handleRefresh = async () => {
@@ -259,13 +260,10 @@ export default function SecurityScans() {
   };
 
   const getScanTypeIcon = (scanType: string) => {
-    switch (scanType) {
-      case 'vulnerability': return <Bug className="h-5 w-5 text-red-500" />;
-      case 'compliance': return <Shield className="h-5 w-5 text-blue-500" />;
-      case 'configuration': return <Lock className="h-5 w-5 text-green-500" />;
-      case 'network': return <Eye className="h-5 w-5 text-purple-500" />;
-      default: return <Scan className="h-5 w-5 text-gray-500" />;
-    }
+    if (scanType.includes('quick')) return <Zap className="h-5 w-5 text-yellow-500" />;
+    if (scanType.includes('standard')) return <Shield className="h-5 w-5 text-blue-500" />;
+    if (scanType.includes('deep')) return <Activity className="h-5 w-5 text-purple-500" />;
+    return <Scan className="h-5 w-5 text-gray-500" />;
   };
 
   // Calculate summary metrics
@@ -274,18 +272,38 @@ export default function SecurityScans() {
   const totalFindings = scans?.reduce((sum, scan) => sum + (scan.findings_count || 0), 0) || 0;
   const criticalFindings = scans?.reduce((sum, scan) => sum + (scan.critical_count || 0), 0) || 0;
 
-  const scanTypes = [
-    { value: 'vulnerability', label: 'Vulnerabilidades', description: 'Scan de vulnerabilidades conhecidas' },
-    { value: 'compliance', label: 'Compliance', description: 'Verificação de conformidade' },
-    { value: 'configuration', label: 'Configuração', description: 'Análise de configurações de segurança' },
-    { value: 'network', label: 'Rede', description: 'Scan de segurança de rede' }
+  const scanLevels = [
+    { 
+      value: 'quick', 
+      label: 'Quick Scan', 
+      description: 'Verificações essenciais de segurança (5-10 min)',
+      icon: <Zap className="h-5 w-5 text-yellow-500" />,
+      checks: '50+ verificações',
+      time: '5-10 min'
+    },
+    { 
+      value: 'standard', 
+      label: 'Standard Scan', 
+      description: 'Análise completa de segurança AWS (15-30 min)',
+      icon: <Shield className="h-5 w-5 text-blue-500" />,
+      checks: '120+ verificações',
+      time: '15-30 min'
+    },
+    { 
+      value: 'deep', 
+      label: 'Deep Scan', 
+      description: 'Análise profunda com compliance frameworks (30-60 min)',
+      icon: <Activity className="h-5 w-5 text-purple-500" />,
+      checks: '170+ verificações',
+      time: '30-60 min'
+    }
   ];
 
   return (
     <Layout 
-      title="Scans de Segurança" 
-      description="Execute e monitore scans de segurança da sua infraestrutura AWS"
-      icon={<Scan className="h-7 w-7 text-white" />}
+      title="Security Scan" 
+      description="Execute scans de segurança AWS usando o Security Engine V2 com 170+ verificações"
+      icon={<Shield className="h-7 w-7 text-white" />}
     >
       <div className="space-y-6">
       {/* Header */}
@@ -294,11 +312,11 @@ export default function SecurityScans() {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Scan className="h-6 w-6 text-primary" />
-                Scans de Segurança
+                <Shield className="h-6 w-6 text-primary" />
+                Security Scan - Engine V2
               </CardTitle>
               <CardDescription>
-                Scans automatizados de vulnerabilidades, compliance e configurações de segurança
+                Análise completa de segurança AWS com 23 scanners de serviços, 170+ verificações e suporte a 6 frameworks de compliance
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -385,29 +403,53 @@ export default function SecurityScans() {
       {/* Quick Actions */}
       <Card className="glass border-primary/20">
         <CardHeader>
-          <CardTitle>Iniciar Novo Scan</CardTitle>
-          <CardDescription>Execute scans de segurança sob demanda</CardDescription>
+          <CardTitle>Iniciar Security Scan</CardTitle>
+          <CardDescription>
+            Escolha o nível de análise desejado. O Security Engine V2 suporta CIS, Well-Architected, PCI-DSS, NIST, LGPD e SOC2.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {scanTypes.map((scanType) => {
-              const Icon = getScanTypeIcon(scanType.value);
-              return (
-                <Button
-                  key={scanType.value}
-                  variant="outline"
-                  className="h-auto p-4 flex flex-col items-center gap-3 glass hover-glow"
-                  onClick={() => handleStartScan(scanType.value)}
-                  disabled={startScanMutation.isPending}
-                >
-                  {Icon}
-                  <div className="text-center">
-                    <div className="font-medium">{scanType.label}</div>
-                    <div className="text-xs text-muted-foreground">{scanType.description}</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {scanLevels.map((scanLevel) => (
+              <Button
+                key={scanLevel.value}
+                variant="outline"
+                className="h-auto p-6 flex flex-col items-center gap-4 glass hover-glow"
+                onClick={() => handleStartScan(scanLevel.value as 'quick' | 'standard' | 'deep')}
+                disabled={startScanMutation.isPending}
+              >
+                {scanLevel.icon}
+                <div className="text-center space-y-2">
+                  <div className="font-semibold text-lg">{scanLevel.label}</div>
+                  <div className="text-sm text-muted-foreground">{scanLevel.description}</div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{scanLevel.checks}</span>
+                    <span>{scanLevel.time}</span>
                   </div>
-                </Button>
-              );
-            })}
+                </div>
+              </Button>
+            ))}
+          </div>
+          
+          <div className="mt-6 p-4 bg-muted/30 rounded-lg">
+            <h4 className="font-semibold mb-2 flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Security Engine V2 Features
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <strong>23 AWS Services:</strong> EC2, S3, IAM, RDS, Lambda, CloudTrail, GuardDuty, Config, CloudFormation, e mais
+              </div>
+              <div>
+                <strong>6 Compliance Frameworks:</strong> CIS, Well-Architected, PCI-DSS, NIST, LGPD, SOC2
+              </div>
+              <div>
+                <strong>170+ Security Checks:</strong> Configurações, permissões, criptografia, rede, logging
+              </div>
+              <div>
+                <strong>Multi-Region:</strong> Análise automática em todas as regiões configuradas
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -431,11 +473,10 @@ export default function SecurityScans() {
                       <SelectValue placeholder="Filtrar por tipo de scan" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os Tipos</SelectItem>
-                      <SelectItem value="vulnerability">Vulnerabilidades</SelectItem>
-                      <SelectItem value="compliance">Compliance</SelectItem>
-                      <SelectItem value="configuration">Configuração</SelectItem>
-                      <SelectItem value="network">Rede</SelectItem>
+                      <SelectItem value="all">Todos os Níveis</SelectItem>
+                      <SelectItem value="quick">Quick Scan</SelectItem>
+                      <SelectItem value="standard">Standard Scan</SelectItem>
+                      <SelectItem value="deep">Deep Scan</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -468,7 +509,7 @@ export default function SecurityScans() {
                             <div className="space-y-1">
                               <h4 className="font-semibold">{scan.scan_type}</h4>
                               <p className="text-sm text-muted-foreground">
-                                {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
+                                Security Engine V2 - {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
                               </p>
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <span>Iniciado: {new Date(scan.started_at).toLocaleString('pt-BR')}</span>
@@ -524,7 +565,7 @@ export default function SecurityScans() {
                   <p className="text-muted-foreground mb-4">
                     Execute seu primeiro scan de segurança para começar.
                   </p>
-                  <Button onClick={() => handleStartScan('vulnerability')}>
+                  <Button onClick={() => handleStartScan('standard')}>
                     <Play className="h-4 w-4 mr-2" />
                     Executar Primeiro Scan
                   </Button>

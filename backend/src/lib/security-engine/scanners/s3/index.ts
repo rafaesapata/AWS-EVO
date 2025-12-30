@@ -20,6 +20,7 @@ import {
   GetBucketReplicationCommand,
   GetBucketCorsCommand,
   GetBucketWebsiteCommand,
+  GetObjectLockConfigurationCommand,
 } from '@aws-sdk/client-s3';
 
 export class S3Scanner extends BaseScanner {
@@ -348,6 +349,104 @@ export class S3Scanner extends BaseScanner {
             compliance: [this.wellArchitectedCompliance('COST', 'Implement cloud financial management')],
             evidence: { bucketName },
             risk_vector: 'data_loss',
+          }));
+        } else {
+          throw e;
+        }
+      }
+    }, null);
+
+    // Check 10: Object Lock Configuration (Critical for compliance)
+    await this.safeExecute('objectLock', async () => {
+      try {
+        const response = await client.send(new GetObjectLockConfigurationCommand({ Bucket: bucketName }));
+        
+        // If we get here, Object Lock is enabled - check configuration
+        const config = response.ObjectLockConfiguration;
+        
+        if (!config?.ObjectLockEnabled || config.ObjectLockEnabled !== 'Enabled') {
+          findings.push(this.createFinding({
+            severity: 'medium',
+            title: `S3 Object Lock Not Properly Configured: ${bucketName}`,
+            description: `Bucket has Object Lock configuration but it's not enabled`,
+            analysis: 'Object Lock provides additional protection against object deletion and modification.',
+            resource_id: bucketName,
+            resource_arn: bucketArn,
+            scan_type: 's3_object_lock_not_enabled',
+            compliance: [
+              this.cisCompliance('2.1.3', 'Ensure S3 bucket has Object Lock enabled'),
+              this.pciCompliance('3.4', 'Render PAN unreadable'),
+              this.nistCompliance('SC-28', 'Protection of Information at Rest'),
+            ],
+            evidence: { bucketName, objectLockConfig: config },
+            risk_vector: 'data_integrity',
+          }));
+        }
+
+        // Check if retention is configured
+        if (!config?.Rule?.DefaultRetention) {
+          findings.push(this.createFinding({
+            severity: 'low',
+            title: `S3 Object Lock Without Default Retention: ${bucketName}`,
+            description: `Object Lock is enabled but no default retention policy is configured`,
+            analysis: 'Default retention policies help ensure consistent data protection.',
+            resource_id: bucketName,
+            resource_arn: bucketArn,
+            scan_type: 's3_object_lock_no_default_retention',
+            compliance: [
+              this.wellArchitectedCompliance('REL', 'Protect data at rest'),
+              this.lgpdCompliance('Art. 46', 'Data retention policies'),
+            ],
+            remediation: {
+              description: 'Configure default retention policy for Object Lock',
+              steps: [
+                'Go to S3 Console',
+                `Select bucket ${bucketName}`,
+                'Go to Properties tab',
+                'Edit Object Lock configuration',
+                'Set default retention period',
+              ],
+              estimated_effort: 'low',
+              automation_available: true,
+            },
+            evidence: { bucketName, hasDefaultRetention: false },
+            risk_vector: 'data_integrity',
+          }));
+        }
+      } catch (e: any) {
+        if (e.name === 'ObjectLockConfigurationNotFoundError') {
+          // Object Lock is not enabled - this is a finding for critical buckets
+          findings.push(this.createFinding({
+            severity: 'medium',
+            title: `S3 Object Lock Not Enabled: ${bucketName}`,
+            description: `Bucket does not have Object Lock enabled for immutable storage`,
+            analysis: 'Object Lock provides WORM (Write Once Read Many) protection against accidental or malicious deletion/modification.',
+            resource_id: bucketName,
+            resource_arn: bucketArn,
+            scan_type: 's3_object_lock_disabled',
+            compliance: [
+              this.cisCompliance('2.1.3', 'Ensure S3 bucket has Object Lock enabled for critical data'),
+              this.pciCompliance('3.4', 'Render PAN unreadable'),
+              this.nistCompliance('SC-28', 'Protection of Information at Rest'),
+              this.soc2Compliance('CC6.1', 'Logical and physical access controls'),
+            ],
+            remediation: {
+              description: 'Enable Object Lock for critical data protection',
+              steps: [
+                'Note: Object Lock can only be enabled during bucket creation',
+                'For existing buckets, create a new bucket with Object Lock',
+                'Copy data to the new bucket',
+                'Update applications to use the new bucket',
+                'Delete the old bucket after verification',
+              ],
+              cli_command: `aws s3api create-bucket --bucket ${bucketName}-with-lock --object-lock-enabled-for-bucket --region ${this.region}`,
+              estimated_effort: 'high',
+              automation_available: false,
+            },
+            evidence: { bucketName, objectLockEnabled: false },
+            risk_vector: 'data_integrity',
+            attack_vectors: ['Accidental deletion', 'Malicious modification', 'Ransomware'],
+            business_impact: 'Critical data could be permanently lost or modified without proper immutable storage protection.',
           }));
         } else {
           throw e;

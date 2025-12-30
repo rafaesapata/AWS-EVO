@@ -477,6 +477,15 @@ export class ArnBuilder {
     return `arn:${this.partition}:organizations::${this.accountId}:policy/o-*/${policyId}`;
   }
 
+  // ==================== Access Analyzer ARNs (Regional) ====================
+
+  accessAnalyzer(region: string, analyzerName?: string): string {
+    if (analyzerName) {
+      return `arn:${this.partition}:access-analyzer:${region}:${this.accountId}:analyzer/${analyzerName}`;
+    }
+    return `arn:${this.partition}:access-analyzer:${region}:${this.accountId}:analyzer`;
+  }
+
   // ==================== Generic ARN Builder ====================
 
   generic(service: string, region: string, resourceType: string, resourceId: string): string {
