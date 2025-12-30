@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useAuthSafe } from "@/hooks/useAuthSafe";
-import evoLogo from "@/assets/evo-logo.png";
+import evoLogo from "@/assets/logo.png";
 
 export default function AuthSimple() {
   const navigate = useNavigate();
