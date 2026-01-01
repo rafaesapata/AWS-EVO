@@ -263,7 +263,56 @@ function processEvent(ctEvent: any, organizationId: string, accountId: string, d
   }
 }
 
-// Fetch events from a single region with pagination
+// Sleep utility for delays
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry with exponential backoff
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 5,
+  baseDelay: number = 1000,
+  maxDelay: number = 30000
+): Promise<T> {
+  let lastError: Error | undefined;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check if it's a rate limit error
+      const isRateLimit = error.name === 'ThrottlingException' || 
+                         error.message?.includes('Rate exceeded') ||
+                         error.message?.includes('Throttling') ||
+                         error.$metadata?.httpStatusCode === 429;
+      
+      if (!isRateLimit || attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Calculate delay with exponential backoff and jitter
+      const exponentialDelay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+      const jitter = Math.random() * 1000; // Add up to 1 second of jitter
+      const delay = exponentialDelay + jitter;
+      
+      logger.warn(`Rate limit hit, retrying in ${Math.round(delay)}ms (attempt ${attempt + 1}/${maxRetries})`, {
+        error: error.message,
+        attempt: attempt + 1,
+        maxRetries,
+        delay: Math.round(delay)
+      });
+      
+      await sleep(delay);
+    }
+  }
+  
+  throw lastError || new Error('Max retries exceeded');
+}
+
+// Fetch events from a single region with pagination and rate limit handling
 async function fetchEventsFromRegion(
   credentials: any,
   region: string,
@@ -279,7 +328,7 @@ async function fetchEventsFromRegion(
   const commandInput: LookupEventsCommandInput = {
     StartTime: startTime,
     EndTime: endTime,
-    MaxResults: 50,
+    MaxResults: 50, // CloudTrail max per request
   };
   
   const allEvents: any[] = [];
@@ -287,15 +336,35 @@ async function fetchEventsFromRegion(
   let paginationCount = 0;
   const maxPaginations = Math.ceil(maxResults / 50);
   
+  // Delay between requests to avoid rate limiting (CloudTrail has 2 TPS limit)
+  const REQUEST_DELAY = 600; // 600ms = ~1.6 requests per second (safe margin)
+  
   do {
     if (nextToken) {
       commandInput.NextToken = nextToken;
     }
     
-    const response = await ctClient.send(new LookupEventsCommand(commandInput));
+    // Add delay between requests (except first one)
+    if (paginationCount > 0) {
+      await sleep(REQUEST_DELAY);
+    }
+    
+    // Fetch with retry and backoff
+    const response = await retryWithBackoff(
+      async () => await ctClient.send(new LookupEventsCommand(commandInput)),
+      5, // max retries
+      2000, // base delay 2s
+      60000 // max delay 60s
+    );
     
     if (response.Events) {
       allEvents.push(...response.Events);
+      logger.info(`Fetched ${response.Events.length} events from ${region} (page ${paginationCount + 1})`, {
+        region,
+        pageEvents: response.Events.length,
+        totalEvents: allEvents.length,
+        hasMore: !!response.NextToken
+      });
     }
     
     nextToken = response.NextToken;
@@ -411,19 +480,57 @@ export async function handler(
       maxResultsPerRegion
     });
     
-    // PARALLEL: Fetch events from all regions simultaneously
-    const regionFetchPromises = regionsToScan.map(r => 
-      fetchEventsFromRegion(awsCreds, r, startTime, endTime, maxResultsPerRegion)
-        .catch(err => {
-          logger.warn(`Failed to fetch from region ${r}`, { error: err.message });
-          return [];
-        })
-    );
+    // SEQUENTIAL with delay: Fetch events from regions one by one to avoid rate limits
+    // CloudTrail has a 2 TPS (transactions per second) limit per account
+    const allEvents: any[] = [];
+    const REGION_DELAY = 2000; // 2 seconds delay between regions
     
-    const regionResults = await Promise.all(regionFetchPromises);
-    const allEvents = regionResults.flat();
+    for (let i = 0; i < regionsToScan.length; i++) {
+      const r = regionsToScan[i];
+      
+      // Add delay between regions (except first one)
+      if (i > 0) {
+        logger.info(`Waiting ${REGION_DELAY}ms before fetching next region`, { 
+          nextRegion: r,
+          regionIndex: i + 1,
+          totalRegions: regionsToScan.length
+        });
+        await sleep(REGION_DELAY);
+      }
+      
+      try {
+        logger.info(`Fetching events from region ${r}`, { 
+          region: r,
+          regionIndex: i + 1,
+          totalRegions: regionsToScan.length
+        });
+        
+        const regionEvents = await fetchEventsFromRegion(
+          awsCreds, 
+          r, 
+          startTime, 
+          endTime, 
+          maxResultsPerRegion
+        );
+        
+        allEvents.push(...regionEvents);
+        
+        logger.info(`Region ${r} fetch completed`, { 
+          region: r,
+          eventsFound: regionEvents.length,
+          totalEventsSoFar: allEvents.length
+        });
+      } catch (err: any) {
+        logger.warn(`Failed to fetch from region ${r}`, { 
+          region: r,
+          error: err.message,
+          errorType: err.name
+        });
+        // Continue with next region even if one fails
+      }
+    }
     
-    logger.info('CloudTrail events fetched', { 
+    logger.info('CloudTrail events fetched from all regions', { 
       totalCount: allEvents.length,
       regions: regionsToScan,
       hoursBack

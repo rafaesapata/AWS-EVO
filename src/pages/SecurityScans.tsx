@@ -73,6 +73,13 @@ export default function SecurityScans() {
   const [selectedScanType, setSelectedScanType] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+  
+  // Findings filters
+  const [selectedFindings, setSelectedFindings] = useState<Set<string>>(new Set());
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
+  const [serviceFilter, setServiceFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Get security scans
   const { data: scanData, isLoading, refetch } = useQuery({
@@ -832,9 +839,59 @@ export default function SecurityScans() {
                       )}
                       
                       {finding.remediation && (
-                        <div className="bg-muted/30 rounded p-3">
-                          <p className="text-sm font-medium mb-1">Remediação:</p>
-                          <p className="text-sm text-muted-foreground">{finding.remediation}</p>
+                        <div className="bg-muted/30 rounded p-3 space-y-2">
+                          <p className="text-sm font-medium mb-2">Remediação:</p>
+                          {(() => {
+                            try {
+                              const remediation = typeof finding.remediation === 'string' 
+                                ? JSON.parse(finding.remediation) 
+                                : finding.remediation;
+                              
+                              return (
+                                <div className="space-y-3">
+                                  {remediation.description && (
+                                    <p className="text-sm text-muted-foreground">{remediation.description}</p>
+                                  )}
+                                  
+                                  {remediation.steps && remediation.steps.length > 0 && (
+                                    <div>
+                                      <p className="text-sm font-medium mb-1">Passos:</p>
+                                      <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                                        {remediation.steps.map((step: string, idx: number) => (
+                                          <li key={idx}>{step}</li>
+                                        ))}
+                                      </ol>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="flex gap-4 text-xs">
+                                    {remediation.estimated_effort && (
+                                      <Badge variant="outline" className="capitalize">
+                                        Esforço: {remediation.estimated_effort}
+                                      </Badge>
+                                    )}
+                                    {remediation.automation_available && (
+                                      <Badge variant="secondary">
+                                        Automação Disponível
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  
+                                  {remediation.cli_command && (
+                                    <div className="mt-2">
+                                      <p className="text-xs font-medium mb-1">Comando CLI:</p>
+                                      <code className="block text-xs bg-muted p-2 rounded overflow-x-auto">
+                                        {remediation.cli_command}
+                                      </code>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            } catch (e) {
+                              // Fallback para texto simples se não for JSON válido
+                              return <p className="text-sm text-muted-foreground">{finding.remediation}</p>;
+                            }
+                          })()}
                         </div>
                       )}
                     </div>

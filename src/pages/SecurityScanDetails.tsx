@@ -4,37 +4,21 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { FindingCard } from "@/components/security/FindingCard";
+import { CreateTicketDialog } from "@/components/security/CreateTicketDialog";
+import { FindingsFilters } from "@/components/security/FindingsFilters";
+import { FindingsPagination } from "@/components/security/FindingsPagination";
 import { 
   ArrowLeft,
   Shield,
-  AlertTriangle,
   CheckCircle,
   XCircle,
   Clock,
-  Bug,
-  Ticket,
-  Copy,
-  Download,
-  ChevronDown,
-  ChevronRight,
-  Info,
-  ChevronLeft,
-  ChevronsLeft,
-  ChevronsRight,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown
+  Download
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface SecurityScan {
   id: string;

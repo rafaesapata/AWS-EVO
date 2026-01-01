@@ -212,9 +212,10 @@ export async function handler(
     const body: StartAnalysisRequest = event.body ? JSON.parse(event.body) : {};
     const { accountId, hoursBack = 24, maxResults = 5000, forceReprocess = false } = body;
     
-    // Validate hoursBack parameter (max 120 days = 2880 hours)
-    if (hoursBack > 2880) {
-      return badRequest('Maximum analysis period is 120 days (2880 hours)', undefined, origin);
+    // Validate hoursBack parameter (max 2160 hours = 90 days)
+    // Increased from 120 days to allow longer analysis periods
+    if (hoursBack > 2160) {
+      return badRequest('Maximum analysis period is 90 days (2160 hours)', undefined, origin);
     }
     
     if (!accountId) {

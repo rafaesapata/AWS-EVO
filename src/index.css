@@ -217,6 +217,15 @@ All colors MUST be HSL.
     font-size: inherit !important;
   }
   
+  /* Força fonte pequena no seletor AWS */
+  [data-radix-select-trigger] {
+    font-size: 0.625rem !important; /* 10px */
+  }
+  
+  [data-radix-select-trigger] * {
+    font-size: 0.625rem !important; /* 10px */
+  }
+  
   /* Selection */
   ::selection {
     background-color: hsl(var(--primary) / 0.2);

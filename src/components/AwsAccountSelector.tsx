@@ -196,11 +196,11 @@ export function AwsAccountSelector({
                 <SelectTrigger 
                   className={cn(
                     "h-auto py-1 px-2 rounded-lg border-primary/20 hover:border-primary/30",
-                    "bg-primary/10 hover:bg-primary/15 transition-all focus:ring-primary/30",
+                    "bg-primary/10 hover:bg-primary/15 transition-all focus:ring-primary/30 text-[10px]",
                     "min-w-[120px]"
                   )}
                 >
-                  <div className="flex items-center gap-1.5 w-full">
+                  <div className="flex items-center gap-1.5 w-full text-[10px]">
                     {/* Icon with status */}
                     <div className="relative flex-shrink-0">
                       <Cloud className="h-3 w-3 text-orange-500" />
@@ -208,7 +208,7 @@ export function AwsAccountSelector({
                     </div>
                     
                     {/* Account info */}
-                    <SelectValue placeholder="Selecionar">
+                    <SelectValue placeholder="Selecionar" className="text-[10px]">
                       {selectedAccount && (
                         <span className="text-[10px] font-medium truncate block max-w-[80px]">
                           {selectedAccount.account_name}
@@ -246,7 +246,7 @@ export function AwsAccountSelector({
             </div>
           </TooltipTrigger>
           {selectedAccount && selectedAccount.regions && selectedAccount.regions.length > 0 && (
-            <TooltipContent side="bottom" className="max-w-xs p-3">
+            <TooltipContent side="bottom" align="end" className="max-w-xs p-3">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
