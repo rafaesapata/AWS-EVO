@@ -570,6 +570,60 @@ Resources:
         - Key: Name
           Value: !Sub '${ProjectName}-${Environment}-automated-cleanup-stuck-scans'
 
+  # ============================================================================
+  # EVENTBRIDGE RULES FOR AUTOMATED CLEANUP
+  # ============================================================================
+  AutomatedCleanupEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-automated-cleanup-rule'
+      Description: 'Executa limpeza automática de scans travados a cada 2 horas'
+      ScheduleExpression: 'rate(2 hours)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AutomatedCleanupStuckScansFunction.Arn
+          Id: 'AutomatedCleanupTarget'
+          Input: !Sub |
+            {
+              "thresholdMinutes": 60,
+              "maxScansToCleanup": 50
+            }
+
+  # Permission for EventBridge to invoke the Lambda
+  AutomatedCleanupLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AutomatedCleanupStuckScansFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt AutomatedCleanupEventRule.Arn
+
+  # Daily cleanup rule (more aggressive)
+  DailyCleanupEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-daily-cleanup-rule'
+      Description: 'Limpeza diária mais agressiva de scans muito antigos'
+      ScheduleExpression: 'cron(0 2 * * ? *)'  # Todo dia às 2:00 AM UTC
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AutomatedCleanupStuckScansFunction.Arn
+          Id: 'DailyCleanupTarget'
+          Input: !Sub |
+            {
+              "thresholdMinutes": 30,
+              "maxScansToCleanup": 100
+            }
+
+  # Permission for daily cleanup EventBridge to invoke the Lambda
+  DailyCleanupLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AutomatedCleanupStuckScansFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailyCleanupEventRule.Arn
+
 Outputs:
   LambdaExecutionRoleArn:
     Description: Lambda Execution Role ARN
@@ -618,3 +672,19 @@ Outputs:
   CostAnalysisFunctionArn:
     Description: Cost Analysis Function ARN
     Value: !GetAtt CostAnalysisFunction.Arn
+
+  CleanupStuckScansFunctionArn:
+    Description: Cleanup Stuck Scans Function ARN
+    Value: !GetAtt CleanupStuckScansFunction.Arn
+
+  AutomatedCleanupStuckScansFunctionArn:
+    Description: Automated Cleanup Stuck Scans Function ARN
+    Value: !GetAtt AutomatedCleanupStuckScansFunction.Arn
+
+  AutomatedCleanupEventRuleArn:
+    Description: Automated Cleanup EventBridge Rule ARN
+    Value: !GetAtt AutomatedCleanupEventRule.Arn
+
+  DailyCleanupEventRuleArn:
+    Description: Daily Cleanup EventBridge Rule ARN
+    Value: !GetAtt DailyCleanupEventRule.Arn

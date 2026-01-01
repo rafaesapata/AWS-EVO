@@ -71,8 +71,8 @@ export class ApiStack extends cdk.Stack {
     // Security Scan Lambda
     const securityScanFunction = new lambda.Function(this, 'SecurityScanFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'security-scan.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      handler: 'handlers/security/security-scan.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -84,8 +84,8 @@ export class ApiStack extends cdk.Stack {
     // Cost Analysis Lambda
     const costAnalysisFunction = new lambda.Function(this, 'CostAnalysisFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'cost-optimization.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/cost')),
+      handler: 'handlers/cost/cost-optimization.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -97,8 +97,8 @@ export class ApiStack extends cdk.Stack {
     // Health Check Lambda - using run-migrations as placeholder
     const healthCheckFunction = new lambda.Function(this, 'HealthCheckFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'run-migrations.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/system')),
+      handler: 'handlers/system/run-migrations.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       timeout: cdk.Duration.seconds(30),
@@ -167,8 +167,8 @@ export class ApiStack extends cdk.Stack {
     // Profile Management Lambdas
     const checkOrganizationFunction = new lambda.Function(this, 'CheckOrganizationFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'check-organization.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/profiles')),
+      handler: 'handlers/profiles/check-organization.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -179,8 +179,8 @@ export class ApiStack extends cdk.Stack {
 
     const createWithOrgFunction = new lambda.Function(this, 'CreateWithOrgFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'create-with-organization.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/profiles')),
+      handler: 'handlers/profiles/create-with-organization.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,

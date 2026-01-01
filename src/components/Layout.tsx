@@ -196,18 +196,18 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
         <div className="flex-1 flex flex-col">
           {/* Header - Padrão Visual Consistente */}
           <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
-            <div className="w-full px-4 py-2.5">
+            <div className="w-full px-3 py-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <SidebarTrigger className="-ml-1" />
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {icon && (
-                      <div className="h-7 w-7 rounded-md bg-gradient-primary flex items-center justify-center shadow-glow">
+                      <div className="h-6 w-6 rounded-md bg-gradient-primary flex items-center justify-center shadow-glow">
                         {icon}
                       </div>
                     )}
                     <div>
-                      <h1 className="text-lg font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                      <h1 className="text-base font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
                         {title || "EVO Platform"}
                       </h1>
                       <p className="text-xs text-muted-foreground">
@@ -216,15 +216,15 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
                     </div>
                   </div>
                   {user?.organizationId && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md glass">
-                      <Building2 className="h-3 w-3 text-primary" />
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-md glass">
+                      <Building2 className="h-2.5 w-2.5 text-primary" />
                       <span className="text-xs font-medium">
                         {user.organizationName || user.organizationId}
                       </span>
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <AwsAccountSelector />
                   <LanguageToggle />
                   <ThemeToggle />
@@ -235,7 +235,7 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 w-full px-4 py-4 overflow-auto">
+          <main className="flex-1 w-full px-3 py-3 overflow-auto">
             {children}
           </main>
           

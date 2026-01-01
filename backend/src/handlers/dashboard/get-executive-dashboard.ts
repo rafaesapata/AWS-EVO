@@ -389,6 +389,40 @@ async function getSecurityData(
   organizationId: string
 ): Promise<SecurityPosture> {
   
+  // Check if any security scans have been performed
+  const lastScan = await prisma.securityScan.findFirst({
+    where: { organization_id: organizationId },
+    orderBy: { started_at: 'desc' },
+    select: { completed_at: true }
+  });
+
+  // If no scans have been performed, return "no data" state
+  if (!lastScan) {
+    return {
+      score: -1, // Special value to indicate no data
+      findings: {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        total: 0
+      },
+      trend: {
+        newLast7Days: 0,
+        resolvedLast7Days: 0,
+        netChange: 0
+      },
+      mttr: {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        average: 0
+      },
+      lastScanDate: null
+    };
+  }
+
   // Count by severity (optimized with groupBy)
   const findingsBySeverity = await prisma.finding.groupBy({
     by: ['severity'],
@@ -417,10 +451,14 @@ async function getSecurityData(
   const totalFindings = Object.values(counts).reduce((a, b) => a + b, 0);
 
   // Calculate security score (normalized)
-  const weightedScore = (counts.critical * 10) + (counts.high * 5) +
-                        (counts.medium * 2) + (counts.low * 0.5);
-  const maxPossibleScore = totalFindings > 0 ? totalFindings * 10 : 1;
-  const securityScore = Math.max(0, Math.round(100 - (weightedScore / maxPossibleScore * 100)));
+  // If no findings, score is 100 (perfect), otherwise calculate based on severity
+  let securityScore = 100;
+  if (totalFindings > 0) {
+    const weightedScore = (counts.critical * 10) + (counts.high * 5) +
+                          (counts.medium * 2) + (counts.low * 0.5);
+    const maxPossibleScore = totalFindings * 10;
+    securityScore = Math.max(0, Math.round(100 - (weightedScore / maxPossibleScore * 100)));
+  }
 
   // Findings resolved vs new (last 7 days)
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -441,13 +479,6 @@ async function getSecurityData(
     })
   ]);
 
-  // Last scan
-  const lastScan = await prisma.securityScan.findFirst({
-    where: { organization_id: organizationId },
-    orderBy: { started_at: 'desc' },
-    select: { completed_at: true }
-  });
-
   return {
     score: securityScore,
     findings: {
@@ -466,7 +497,7 @@ async function getSecurityData(
       low: 0,
       average: 0
     },
-    lastScanDate: lastScan?.completed_at?.toISOString() || null
+    lastScanDate: lastScan.completed_at?.toISOString() || null
   };
 }
 
