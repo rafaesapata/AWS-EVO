@@ -1,1 +1,0 @@
-{"version":3,"file":"create-remediation-ticket.d.ts","sourceRoot":"","sources":["../../../src/handlers/security/create-remediation-ticket.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AAQrG,wBAAsB,OAAO,CAC3B,KAAK,EAAE,eAAe,EACtB,QAAQ,EAAE,aAAa,GACtB,OAAO,CAAC,uBAAuB,CAAC,CAuJlC"}

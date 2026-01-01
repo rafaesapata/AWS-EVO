@@ -1,1 +1,0 @@
-{"version":3,"file":"well-architected-scan.d.ts","sourceRoot":"","sources":["../../../src/handlers/security/well-architected-scan.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AAqBrG,wBAAsB,OAAO,CAAC,KAAK,EAAE,eAAe,EAAE,OAAO,EAAE,aAAa,GAAG,OAAO,CAAC,uBAAuB,CAAC,CA8E9G"}

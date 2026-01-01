@@ -1,1 +1,0 @@
-{"version":3,"file":"log-audit.d.ts","sourceRoot":"","sources":["../../../src/handlers/admin/log-audit.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AAcrG,wBAAsB,OAAO,CAC3B,KAAK,EAAE,eAAe,EACtB,OAAO,EAAE,aAAa,GACrB,OAAO,CAAC,uBAAuB,CAAC,CAgDlC"}

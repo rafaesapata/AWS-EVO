@@ -506,6 +506,70 @@ Resources:
         - Key: Name
           Value: !Sub '${ProjectName}-${Environment}-send-email'
 
+  # ============================================================================
+  # ADMIN LAMBDAS
+  # ============================================================================
+  CleanupStuckScansFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans'
+      Runtime: nodejs18.x
+      Handler: cleanup-stuck-scans.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/admin/cleanup-stuck-scans.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          USER_POOL_ID: !Ref UserPoolId
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans'
+
+  AutomatedCleanupStuckScansFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-automated-cleanup-stuck-scans'
+      Runtime: nodejs18.x
+      Handler: automated-cleanup-stuck-scans.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
+        S3Key: handlers/admin/automated-cleanup-stuck-scans.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+      Layers:
+        - !Ref CommonLayer
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          DATABASE_URL: !Sub 'postgresql://${DatabaseEndpoint}:5432/evouds'
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          REGION: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-automated-cleanup-stuck-scans'
+
 Outputs:
   LambdaExecutionRoleArn:
     Description: Lambda Execution Role ARN

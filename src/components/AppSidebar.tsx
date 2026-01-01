@@ -233,13 +233,13 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
   return (
     <Sidebar collapsible="icon" className="select-none h-screen [&_[data-sidebar=sidebar]]:h-screen">
       <SidebarContent className="h-screen flex flex-col bg-sidebar overflow-hidden">
-        <SidebarGroup className="flex-shrink-0 p-3">
-          <SidebarGroupLabel className="text-xs font-semibold select-none px-2">{t('sidebar.navigation')}</SidebarGroupLabel>
+        <SidebarGroup className="flex-shrink-0 p-2">
+          <SidebarGroupLabel className="text-xs font-semibold select-none px-1">{t('sidebar.navigation')}</SidebarGroupLabel>
         </SidebarGroup>
         
         <SidebarGroup className="flex-1 overflow-hidden p-0">
-          <SidebarGroupContent className="h-full overflow-y-auto overflow-x-hidden px-3 pb-3 sidebar-scroll">
-            <SidebarMenu className="space-y-1">
+          <SidebarGroupContent className="h-full overflow-y-auto overflow-x-hidden px-2 pb-2 sidebar-scroll">
+            <SidebarMenu className="space-y-0.5">
               {menuItems.map((item) => {
                 // Skip super admin only items if user is not super admin
                 if (item.superAdminOnly && !isSuperAdmin) return null;
@@ -259,16 +259,16 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton
                             size="sm"
-                            className={`h-8 ${isActive ? "bg-primary/10 text-primary font-medium" : ""}`}
+                            className={`h-6 ${isActive ? "bg-primary/10 text-primary font-medium" : ""}`}
                           >
-                            <item.icon className="h-4 w-4 flex-shrink-0" />
+                            <item.icon className="h-3 w-3 flex-shrink-0" />
                             {!isCollapsed && (
                               <>
                                 <span className="truncate text-xs">{t(item.titleKey)}</span>
                                 {isOpen ? (
-                                  <ChevronDown className="ml-auto h-3 w-3 flex-shrink-0" />
+                                  <ChevronDown className="ml-auto h-2.5 w-2.5 flex-shrink-0" />
                                 ) : (
-                                  <ChevronRight className="ml-auto h-3 w-3 flex-shrink-0" />
+                                  <ChevronRight className="ml-auto h-2.5 w-2.5 flex-shrink-0" />
                                 )}
                               </>
                             )}
@@ -276,13 +276,13 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
                         </CollapsibleTrigger>
                         {!isCollapsed && (
                           <CollapsibleContent>
-                            <SidebarMenuSub className="mx-2 border-l border-sidebar-border/50">
+                            <SidebarMenuSub className="mx-1.5 border-l border-sidebar-border/50">
                               {item.subItems.map((subItem) => (
                                 <SidebarMenuSubItem key={subItem.value}>
                                   <SidebarMenuSubButton
                                     size="sm"
                                     onClick={() => handleItemClick(subItem.value)}
-                                    className={`cursor-pointer h-7 text-xs ${activeTab === subItem.value ? "bg-primary/10 text-primary" : ""}`}
+                                    className={`cursor-pointer h-5 text-xs ${activeTab === subItem.value ? "bg-primary/10 text-primary" : ""}`}
                                   >
                                     <span className="truncate">{t(subItem.titleKey)}</span>
                                   </SidebarMenuSubButton>
@@ -301,9 +301,9 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
                     <SidebarMenuButton
                       size="sm"
                       onClick={() => handleItemClick(item.value)}
-                      className={`h-8 ${isActive ? "bg-primary/10 text-primary font-medium" : ""}`}
+                      className={`h-6 ${isActive ? "bg-primary/10 text-primary font-medium" : ""}`}
                     >
-                      <item.icon className="h-4 w-4 flex-shrink-0" />
+                      <item.icon className="h-3 w-3 flex-shrink-0" />
                       {!isCollapsed && <span className="truncate text-xs">{t(item.titleKey)}</span>}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
