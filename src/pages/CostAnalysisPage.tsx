@@ -312,6 +312,77 @@ export const CostAnalysisPage = () => {
     },
   });
 
+  // Mutation for full cost data fetch (non-incremental)
+  const fullFetchCostsMutation = useMutation({
+    mutationFn: async () => {
+      const accountId = selectedAccountId === 'all' ? allAccounts?.[0]?.id : selectedAccountId;
+      
+      if (!accountId) {
+        throw new Error(t('costAnalysis.noAwsAccount'));
+      }
+
+      const result = await apiClient.invoke<any>('fetch-daily-costs', {
+        body: { 
+          accountId: accountId, 
+          incremental: false, // Force full fetch
+          granularity: 'DAILY',
+          startDate: '2024-01-01' // Fetch from beginning of 2024
+        }
+      });
+      
+      if (result.error) {
+        throw new Error(result.error.message || t('costAnalysis.updateError'));
+      }
+      
+      const data = result.data;
+      
+      if (!data?.success) {
+        const errorMsg = typeof data?.error === 'string' 
+          ? data.error 
+          : data?.error?.message || t('costAnalysis.updateError');
+        throw new Error(errorMsg);
+      }
+
+      return data;
+    },
+    onSuccess: (data) => {
+      const daysUpdated = data.data?.dailyCosts?.length || 0;
+      
+      toast({
+        title: 'Busca Completa Realizada',
+        description: daysUpdated > 0 
+          ? `Buscados ${daysUpdated} registros de custo desde 2024. Recarregando dados...`
+          : 'Busca completa realizada. Recarregando dados...',
+      });
+      
+      // Invalidate and refetch after a short delay to allow DB writes to complete
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
+        queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
+        queryClient.invalidateQueries({ queryKey: ['daily-costs-history'], exact: false });
+        
+        // Force refetch
+        queryClient.refetchQueries({ queryKey: ['cost-analysis-raw'], exact: false });
+      }, 2000);
+    },
+    onError: (error: any) => {
+      console.error('Error in full fetch costs:', error);
+      
+      const errorMsg = error?.message || t('common.unknownError');
+      const isPermissionError = errorMsg.includes('AccessDenied') || 
+                                errorMsg.includes('not authorized') ||
+                                errorMsg.includes('UnauthorizedOperation');
+      
+      toast({
+        title: 'Erro na Busca Completa',
+        description: isPermissionError 
+          ? t('costAnalysis.insufficientPermission')
+          : `${errorMsg}. ${t('costAnalysis.checkCredentials')}`,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Auto-refresh on component mount (background)
   useEffect(() => {
     const accountId = selectedAccountId === 'all' ? allAccounts?.[0]?.id : selectedAccountId;
@@ -554,6 +625,16 @@ export const CostAnalysisPage = () => {
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshCostsMutation.isPending ? 'animate-spin' : ''}`} />
                 {refreshCostsMutation.isPending ? t('costAnalysis.refreshing') : t('costAnalysis.refresh')}
               </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => fullFetchCostsMutation.mutate()}
+                disabled={fullFetchCostsMutation.isPending}
+                className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${fullFetchCostsMutation.isPending ? 'animate-spin' : ''}`} />
+                {fullFetchCostsMutation.isPending ? 'Buscando...' : 'Busca Completa'}
+              </Button>
               <ExportManager 
                 costs={costs || []} 
                 accounts={allAccounts || []} 
@@ -656,14 +737,25 @@ export const CostAnalysisPage = () => {
                 <p className="text-sm text-muted-foreground text-center mb-4 max-w-md">
                   {t('costAnalysis.noDataDescription')}
                 </p>
-                <Button 
-                  onClick={() => refreshCostsMutation.mutate()}
-                  disabled={refreshCostsMutation.isPending}
-                  className="gap-2"
-                >
-                  <RefreshCw className={`h-4 w-4 ${refreshCostsMutation.isPending ? 'animate-spin' : ''}`} />
-                  {refreshCostsMutation.isPending ? t('costAnalysis.fetchingData') : t('costAnalysis.fetchAwsData')}
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => refreshCostsMutation.mutate()}
+                    disabled={refreshCostsMutation.isPending}
+                    className="gap-2"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${refreshCostsMutation.isPending ? 'animate-spin' : ''}`} />
+                    {refreshCostsMutation.isPending ? t('costAnalysis.fetchingData') : t('costAnalysis.fetchAwsData')}
+                  </Button>
+                  <Button 
+                    onClick={() => fullFetchCostsMutation.mutate()}
+                    disabled={fullFetchCostsMutation.isPending}
+                    variant="outline"
+                    className="gap-2 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${fullFetchCostsMutation.isPending ? 'animate-spin' : ''}`} />
+                    {fullFetchCostsMutation.isPending ? 'Buscando...' : 'Busca Completa'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}

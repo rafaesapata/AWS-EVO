@@ -42,6 +42,34 @@ async function securityScanHandler(
   }
   
   const prisma = getPrismaClient();
+  
+  // Ensure database connection is established with retry logic
+  let connectionAttempts = 0;
+  const maxAttempts = 3;
+  
+  while (connectionAttempts < maxAttempts) {
+    try {
+      await prisma.$connect();
+      // Test the connection with a simple query
+      await prisma.$queryRaw`SELECT 1`;
+      break;
+    } catch (dbError) {
+      connectionAttempts++;
+      logger.warn(`Database connection attempt ${connectionAttempts} failed`, { 
+        error: (dbError as Error).message,
+        attempt: connectionAttempts,
+        maxAttempts 
+      });
+      
+      if (connectionAttempts >= maxAttempts) {
+        logger.error('Database connection failed after all attempts', dbError as Error);
+        return error('Database connection failed', 500, undefined, origin);
+      }
+      
+      // Wait before retry (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, connectionAttempts) * 1000));
+    }
+  }
   const startTime = Date.now();
   
   logger.info('Security scan started', { organizationId, userId: user.sub });

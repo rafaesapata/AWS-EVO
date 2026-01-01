@@ -76,10 +76,11 @@ export async function resolveAwsCredentials(
     const externalId = credential.external_id || 
                        credential.secret_access_key?.replace('EXTERNAL_ID:', '') || '';
     
+    // MILITARY GRADE: Log only non-sensitive information
     console.log('🔐 Assuming role (from ROLE: prefix):', roleArn);
-    console.log('🔐 External ID:', externalId ? `${externalId.substring(0, 8)}...` : 'EMPTY');
+    console.log('🔐 External ID:', externalId ? '[REDACTED]' : 'EMPTY');
     console.log('🔐 credential.external_id:', credential.external_id ? 'SET' : 'NULL');
-    console.log('🔐 credential.secret_access_key starts with EXTERNAL_ID:', credential.secret_access_key?.startsWith('EXTERNAL_ID:'));
+    console.log('🔐 credential.secret_access_key format:', credential.secret_access_key?.startsWith('EXTERNAL_ID:') ? 'EXTERNAL_ID_FORMAT' : 'STANDARD');
     return assumeRole(roleArn, externalId, region);
   }
   

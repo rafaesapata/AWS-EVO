@@ -58,7 +58,7 @@ export const MENU_ITEMS: MenuItem[] = [
     requiresSuperAdmin: false,
     subItems: [
       { name: 'Endpoints', value: 'endpoint-monitoring', route: '/endpoint-monitoring', hasSubItems: false, requiresSuperAdmin: false },
-      { name: 'AWS Resources', value: 'resource-monitoring', route: '/resource-monitoring', hasSubItems: false, requiresSuperAdmin: false },
+      { name: 'Resources', value: 'resource-monitoring', route: '/resource-monitoring', hasSubItems: false, requiresSuperAdmin: false },
       { name: 'Edge/LB/CF/WAF', value: 'edge-monitoring', route: '/edge-monitoring', hasSubItems: false, requiresSuperAdmin: false },
     ]
   },

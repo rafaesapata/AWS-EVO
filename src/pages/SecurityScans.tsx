@@ -27,7 +27,11 @@ import {
   Bug,
   Lock,
   Zap,
-  Activity
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
 
 interface SecurityScan {
@@ -67,20 +71,22 @@ export default function SecurityScans() {
   const { selectedAccountId } = useAwsAccount();
   const { data: organizationId } = useOrganization();
   const [selectedScanType, setSelectedScanType] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   // Get security scans
-  const { data: scans, isLoading, refetch } = useQuery({
-    queryKey: ['security-scans', organizationId, selectedAccountId, selectedScanType],
+  const { data: scanData, isLoading, refetch } = useQuery({
+    queryKey: ['security-scans', organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage],
     enabled: !!organizationId, // Only require organizationId, accountId is optional
     staleTime: 10 * 1000, // 10 seconds - faster updates for running scans
     refetchInterval: (query) => {
       // Auto-refresh every 5 seconds if there are running scans
-      const data = query.state.data as SecurityScan[] | undefined;
-      const hasRunningScans = data?.some(scan => scan.status === 'running');
+      const data = query.state.data as { scans: SecurityScan[], total: number } | undefined;
+      const hasRunningScans = data?.scans?.some(scan => scan.status === 'running');
       return hasRunningScans ? 5000 : false;
     },
     queryFn: async () => {
-      console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType });
+      console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage });
       
       let filters: any = { 
         organization_id: organizationId
@@ -95,10 +101,15 @@ export default function SecurityScans() {
         filters.scan_type = selectedScanType;
       }
 
+      // Calculate offset for pagination
+      const offset = (currentPage - 1) * itemsPerPage;
+
       const response = await apiClient.select('security_scans', {
         select: '*',
         eq: filters,
-        order: { column: 'created_at', ascending: false }
+        order: { column: 'created_at', ascending: false },
+        limit: itemsPerPage,
+        offset: offset
       });
 
       console.log('SecurityScans: API response', { error: response.error, dataLength: response.data?.length, data: response.data });
@@ -107,9 +118,38 @@ export default function SecurityScans() {
         throw new Error(response.error.message || 'Error fetching scans');
       }
 
-      return response.data || [];
+      // Get total count for pagination (separate query)
+      const countResponse = await apiClient.select('security_scans', {
+        select: 'id',
+        eq: filters
+      });
+      
+      const totalCount = countResponse.data?.length || 0;
+
+      // Ensure we always return an array
+      const scans = Array.isArray(response.data) ? response.data : [];
+      return { scans, total: totalCount };
     },
   });
+
+  const scans = scanData?.scans || [];
+  const totalScans = scanData?.total || 0;
+  const totalPages = Math.ceil(totalScans / itemsPerPage);
+
+  // Reset to first page when filters change
+  const handleScanTypeChange = (scanType: string) => {
+    setSelectedScanType(scanType);
+    setCurrentPage(1);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(parseInt(value));
+    setCurrentPage(1);
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
 
   // Get scan findings for the latest completed scan
   const { data: findings, isLoading: findingsLoading } = useQuery({
@@ -136,21 +176,27 @@ export default function SecurityScans() {
         return [];
       }
 
-      return response.data || [];
+      // Ensure we always return an array
+      return Array.isArray(response.data) ? response.data : [];
     },
   });
 
   // Start new scan using Security Engine V2
   const startScanMutation = useMutation({
     mutationFn: async ({ scanLevel }: { scanLevel: 'quick' | 'standard' | 'deep' }) => {
-      const response = await apiClient.invoke('security-scan', {
+      console.log('🔍 Starting security scan...', { scanLevel, selectedAccountId });
+      
+      const response = await apiClient.invoke('start-security-scan', {
         body: {
           accountId: selectedAccountId,
           scanLevel
         }
       });
 
+      console.log('📊 Security scan response:', response);
+
       if (response.error) {
+        console.error('❌ Security scan error:', response.error);
         throw new Error(getErrorMessage(response.error));
       }
 
@@ -164,9 +210,18 @@ export default function SecurityScans() {
       refetch();
     },
     onError: (error) => {
+      console.error('❌ Start scan mutation error:', error);
+      
+      let errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      
+      // Mensagens de erro mais amigáveis
+      if (errorMessage.includes('No AWS credentials')) {
+        errorMessage = "Nenhuma credencial AWS ativa encontrada. Por favor, adicione uma credencial AWS antes de iniciar o scan.";
+      }
+      
       toast({
         title: "Erro ao iniciar scan",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        description: errorMessage,
         variant: "destructive"
       });
     }
@@ -268,11 +323,12 @@ export default function SecurityScans() {
     return <Scan className="h-5 w-5 text-gray-500" />;
   };
 
-  // Calculate summary metrics
-  const runningScans = scans?.filter(scan => scan.status === 'running').length || 0;
-  const completedScans = scans?.filter(scan => scan.status === 'completed').length || 0;
-  const totalFindings = scans?.reduce((sum, scan) => sum + (scan.findings_count || 0), 0) || 0;
-  const criticalFindings = scans?.reduce((sum, scan) => sum + (scan.critical_count || 0), 0) || 0;
+  // Calculate summary metrics - ensure scans is always an array
+  const scansArray = scans || [];
+  const runningScans = scansArray.filter(scan => scan.status === 'running').length;
+  const completedScans = scansArray.filter(scan => scan.status === 'completed').length;
+  const totalFindings = scansArray.reduce((sum, scan) => sum + (scan.findings_count || 0), 0);
+  const criticalFindings = scansArray.reduce((sum, scan) => sum + (scan.critical_count || 0), 0);
 
   const scanLevels = [
     { 
@@ -327,7 +383,7 @@ export default function SecurityScans() {
                 size="sm" 
                 onClick={handleRefresh}
                 disabled={isLoading}
-                className="glass"
+                className="glass hover-glow transition-all duration-300 hover:scale-105"
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                 {isLoading ? 'Atualizando...' : 'Atualizar'}
@@ -336,7 +392,7 @@ export default function SecurityScans() {
                 variant="outline" 
                 size="sm" 
                 onClick={exportFindings}
-                className="glass"
+                className="glass hover-glow transition-all duration-300 hover:scale-105"
                 disabled={!findings || findings.length === 0}
               >
                 <Download className="h-4 w-4 mr-2" />
@@ -349,7 +405,7 @@ export default function SecurityScans() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass border-primary/20">
+        <Card className="glass border-primary/20 hover-glow transition-all duration-300">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Scans Executando</CardTitle>
           </CardHeader>
@@ -357,12 +413,12 @@ export default function SecurityScans() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-blue-500">{runningScans}</div>
+              <div className="text-2xl font-bold text-blue-500 animate-pulse">{runningScans}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card className="glass border-primary/20 hover-glow transition-all duration-300">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Scans Concluídos</CardTitle>
           </CardHeader>
@@ -375,7 +431,7 @@ export default function SecurityScans() {
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card className="glass border-primary/20 hover-glow transition-all duration-300">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Achados</CardTitle>
           </CardHeader>
@@ -388,7 +444,7 @@ export default function SecurityScans() {
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card className="glass border-primary/20 hover-glow transition-all duration-300">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Achados Críticos</CardTitle>
           </CardHeader>
@@ -403,7 +459,7 @@ export default function SecurityScans() {
       </div>
 
       {/* Quick Actions */}
-      <Card className="glass border-primary/20">
+      <Card className="glass border-primary/20 hover-glow transition-all duration-300">
         <CardHeader>
           <CardTitle>Iniciar Security Scan</CardTitle>
           <CardDescription>
@@ -416,11 +472,13 @@ export default function SecurityScans() {
               <Button
                 key={scanLevel.value}
                 variant="outline"
-                className="h-auto p-6 flex flex-col items-center gap-4 glass hover-glow"
+                className="h-auto p-6 flex flex-col items-center gap-4 glass hover-glow transition-all duration-300 hover:scale-105"
                 onClick={() => handleStartScan(scanLevel.value as 'quick' | 'standard' | 'deep')}
                 disabled={startScanMutation.isPending}
               >
-                {scanLevel.icon}
+                <div className="p-3 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors">
+                  {scanLevel.icon}
+                </div>
                 <div className="text-center space-y-2">
                   <div className="font-semibold text-lg">{scanLevel.label}</div>
                   <div className="text-sm text-muted-foreground">{scanLevel.description}</div>
@@ -433,7 +491,7 @@ export default function SecurityScans() {
             ))}
           </div>
           
-          <div className="mt-6 p-4 bg-muted/30 rounded-lg">
+          <div className="mt-6 p-4 bg-muted/30 rounded-lg glass-hover">
             <h4 className="font-semibold mb-2 flex items-center gap-2">
               <Shield className="h-4 w-4" />
               Security Engine V2 Features
@@ -470,7 +528,7 @@ export default function SecurityScans() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
                 <div className="flex-1">
-                  <Select value={selectedScanType} onValueChange={setSelectedScanType}>
+                  <Select value={selectedScanType} onValueChange={handleScanTypeChange}>
                     <SelectTrigger className="glass">
                       <SelectValue placeholder="Filtrar por tipo de scan" />
                     </SelectTrigger>
@@ -499,17 +557,19 @@ export default function SecurityScans() {
                     <Skeleton key={i} className="h-24 w-full" />
                   ))}
                 </div>
-              ) : scans && scans.length > 0 ? (
+              ) : scans.length > 0 ? (
                 <div className="space-y-4">
                   {scans.map((scan) => {
                     const TypeIcon = getScanTypeIcon(scan.scan_type);
                     return (
-                      <div key={scan.id} className="border rounded-lg p-4 space-y-3">
+                      <div key={scan.id} className="glass-hover border rounded-lg p-4 space-y-3 hover-glow transition-all duration-300">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-3">
-                            {TypeIcon}
+                            <div className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors">
+                              {TypeIcon}
+                            </div>
                             <div className="space-y-1">
-                              <h4 className="font-semibold">{scan.scan_type}</h4>
+                              <h4 className="font-semibold text-lg">{scan.scan_type}</h4>
                               <p className="text-sm text-muted-foreground">
                                 Security Engine V2 - {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
                               </p>
@@ -533,26 +593,26 @@ export default function SecurityScans() {
                         </div>
                         
                         {scan.status === 'completed' && (
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                            <div>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm animate-fade-in">
+                            <div className="text-center p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
                               <span className="text-muted-foreground">Total:</span>
-                              <div className="font-medium">{scan.findings_count || 0}</div>
+                              <div className="font-medium text-lg">{scan.findings_count || 0}</div>
                             </div>
-                            <div>
+                            <div className="text-center p-3 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">
                               <span className="text-muted-foreground">Críticos:</span>
-                              <div className="font-medium text-red-500">{scan.critical_count || 0}</div>
+                              <div className="font-medium text-lg text-red-600">{scan.critical_count || 0}</div>
                             </div>
-                            <div>
+                            <div className="text-center p-3 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors">
                               <span className="text-muted-foreground">Altos:</span>
-                              <div className="font-medium text-orange-500">{scan.high_count || 0}</div>
+                              <div className="font-medium text-lg text-orange-500">{scan.high_count || 0}</div>
                             </div>
-                            <div>
+                            <div className="text-center p-3 rounded-lg bg-yellow-50 hover:bg-yellow-100 transition-colors">
                               <span className="text-muted-foreground">Médios:</span>
-                              <div className="font-medium text-yellow-500">{scan.medium_count || 0}</div>
+                              <div className="font-medium text-lg text-yellow-500">{scan.medium_count || 0}</div>
                             </div>
-                            <div>
+                            <div className="text-center p-3 rounded-lg bg-green-50 hover:bg-green-100 transition-colors">
                               <span className="text-muted-foreground">Baixos:</span>
-                              <div className="font-medium text-green-500">{scan.low_count || 0}</div>
+                              <div className="font-medium text-lg text-green-500">{scan.low_count || 0}</div>
                             </div>
                           </div>
                         )}
@@ -563,6 +623,7 @@ export default function SecurityScans() {
                               variant="outline"
                               size="sm"
                               onClick={() => navigate(`/security-scans/${scan.id}`)}
+                              className="hover-glow transition-all duration-300 hover:scale-105"
                             >
                               <Eye className="h-4 w-4 mr-2" />
                               Ver Detalhes
@@ -584,6 +645,92 @@ export default function SecurityScans() {
                     <Play className="h-4 w-4 mr-2" />
                     Executar Primeiro Scan
                   </Button>
+                </div>
+              )}
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-6 border-t mt-6">
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalScans)} de {totalScans} scans
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Itens por página:</span>
+                      <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                        <SelectTrigger className="w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="20">20</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    {/* Page numbers */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => goToPage(pageNum)}
+                          className="w-8"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

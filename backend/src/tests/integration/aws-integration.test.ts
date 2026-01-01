@@ -24,7 +24,7 @@ const describeIntegration = INTEGRATION_MODE ? describe : describe.skip;
 // Test configuration
 const TEST_CONFIG = {
   region: process.env.AWS_REGION || 'us-east-1',
-  cognitoUserPoolId: process.env.USER_POOL_ID || 'us-east-1_qGmGkvmpL',
+  cognitoUserPoolId: process.env.USER_POOL_ID || 'us-east-1_cnesJ48lR',
   s3Bucket: process.env.S3_BUCKET || 'evo-uds-v3-production-frontend-383234048592',
 };
 

@@ -13,7 +13,7 @@ import { logger } from '../../lib/logging.js';
 import { CognitoIdentityProviderClient, AdminSetUserMFAPreferenceCommand, AdminGetUserCommand, AssociateSoftwareTokenCommand, VerifySoftwareTokenCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION || 'us-east-1' });
-const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'us-east-1_qGmGkvmpL';
+const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'us-east-1_cnesJ48lR';
 
 // MFA List Factors Handler
 export async function listFactorsHandler(

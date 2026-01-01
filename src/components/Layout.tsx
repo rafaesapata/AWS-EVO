@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Footer } from "@/components/ui/footer";
@@ -16,7 +17,6 @@ interface LayoutProps {
   title?: string;
   description?: string;
   icon?: ReactNode;
-  userRole?: string | string[];
 }
 
 interface User {
@@ -27,12 +27,35 @@ interface User {
   organizationName?: string;
 }
 
-export function Layout({ children, title, description, icon, userRole = "admin" }: LayoutProps) {
+export function Layout({ children, title, description, icon }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState("");
+
+  // Fetch user role from Cognito token (custom:roles attribute)
+  const { data: userRole } = useQuery({
+    queryKey: ['user-role'],
+    queryFn: async () => {
+      const currentUser = await cognitoAuth.getCurrentUser();
+      console.log('🔐 Layout: getCurrentUser for roles:', currentUser?.attributes);
+      if (!currentUser) return ['org_user'];
+
+      const rolesStr = currentUser.attributes?.['custom:roles'];
+      console.log('🔐 Layout: rolesStr from token:', rolesStr);
+      if (!rolesStr) return ['org_user'];
+
+      try {
+        const roles = JSON.parse(rolesStr);
+        console.log('🔐 Layout: parsed roles:', roles);
+        return Array.isArray(roles) ? roles : [roles];
+      } catch {
+        return ['org_user'];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Determine active tab based on current route
   useEffect(() => {
@@ -144,6 +167,17 @@ export function Layout({ children, title, description, icon, userRole = "admin" 
 
     loadUser();
   }, []);
+
+  // Set document title when title or description changes
+  useEffect(() => {
+    if (title && description) {
+      document.title = `${title} - ${description}`;
+    } else if (title) {
+      document.title = `${title} - EVO Platform`;
+    } else {
+      document.title = "EVO - Plataforma de Análise AWS com IA";
+    }
+  }, [title, description]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);

@@ -10,23 +10,76 @@ let prisma: PrismaClient | null = null;
 
 /**
  * Get Prisma client instance (singleton)
+ * MILITARY GRADE: Includes query logging for audit trail in production
  */
 export function getPrismaClient(): PrismaClient {
   if (!prisma) {
     const isProduction = process.env.NODE_ENV === 'production';
+    const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+    const enableQueryLogging = process.env.ENABLE_QUERY_LOGGING === 'true';
     
-    prisma = new PrismaClient({
-      log: isProduction 
+    try {
+      // MILITARY GRADE: Configure logging based on environment
+      // In production, log warnings and errors always
+      // Query logging can be enabled via ENABLE_QUERY_LOGGING for audit purposes
+      const logConfig: any[] = isProduction 
         ? ['warn', 'error'] 
-        : ['query', 'info', 'warn', 'error'],
-      datasources: {
-        db: {
-          url: process.env.DATABASE_URL,
+        : ['query', 'info', 'warn', 'error'];
+      
+      // Add query logging in production if explicitly enabled for audit
+      if (isProduction && enableQueryLogging) {
+        logConfig.unshift('query');
+      }
+      
+      prisma = new PrismaClient({
+        log: logConfig,
+        datasources: {
+          db: {
+            url: process.env.DATABASE_URL,
+          },
         },
-      },
-    });
+      });
 
-    logger.info('Prisma client initialized');
+      // MILITARY GRADE: Add middleware for query timing and audit logging
+      prisma.$use(async (params, next) => {
+        const startTime = Date.now();
+        const result = await next(params);
+        const duration = Date.now() - startTime;
+        
+        // Log slow queries (> 1000ms) in production
+        if (isProduction && duration > 1000) {
+          logger.warn('Slow database query detected', {
+            model: params.model,
+            action: params.action,
+            duration,
+            threshold: 1000
+          });
+        }
+        
+        // Log all write operations for audit trail in production
+        if (isProduction && ['create', 'update', 'delete', 'createMany', 'updateMany', 'deleteMany'].includes(params.action || '')) {
+          logger.info('Database write operation', {
+            model: params.model,
+            action: params.action,
+            duration
+          });
+        }
+        
+        return result;
+      });
+
+      // Only auto-connect in Lambda environment
+      if (isLambda) {
+        prisma.$connect().catch((error) => {
+          logger.error('Failed to connect Prisma client', error);
+        });
+      }
+
+      logger.info('Prisma client initialized', { isLambda, isProduction, queryLogging: enableQueryLogging });
+    } catch (error) {
+      logger.error('Failed to create Prisma client', error as Error);
+      throw new Error('Prisma client initialization failed');
+    }
   }
 
   return prisma;

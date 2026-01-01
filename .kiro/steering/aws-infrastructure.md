@@ -10,7 +10,7 @@ inclusion: always
 - **Stage**: `prod` (único stage em uso)
 - **Custom Domain**: `api-evo.ai.udstec.io`
 - **Regional Endpoint**: `d-lh5c9lpit7.execute-api.us-east-1.amazonaws.com`
-- **Authorizer ID**: `ez5xqt` (Cognito User Pools)
+- **Authorizer ID**: `joelbs` (Cognito User Pools - CognitoAuthorizerV2)
 - **Functions Resource ID**: `n9gxy9` (parent de `/api/functions/*`)
 
 ### Deploy Commands
@@ -72,8 +72,45 @@ done
 
 ## Cognito
 
-- **User Pool ID**: `us-east-1_qGmGkvmpL`
+### Development Environment
+- **User Pool ID**: `us-east-1_cnesJ48lR`
+- **User Pool Client ID**: `4p0okvsr983v2f8rrvgpls76d6`
 - **Region**: `us-east-1`
+- **Custom Attributes**: `organization_id`, `organization_name`, `roles`, `tenant_id`
+- **Admin User**: `admin@udstec.io` / `AdminPass123!`
+- **MFA**: Optional (usuários podem configurar se desejarem)
+
+### Production Environment
+- **Status**: ⏳ A ser configurado
+- **User Pool ID**: TBD
+- **User Pool Client ID**: TBD
+
+### Criar Usuário com Atributos Customizados
+```bash
+# 1. Criar usuário
+aws cognito-idp admin-create-user \
+  --user-pool-id us-east-1_cnesJ48lR \
+  --username user@example.com \
+  --user-attributes Name=email,Value=user@example.com Name=email_verified,Value=true \
+  --temporary-password TempPass123! \
+  --message-action SUPPRESS
+
+# 2. Definir senha permanente
+aws cognito-idp admin-set-user-password \
+  --user-pool-id us-east-1_cnesJ48lR \
+  --username user@example.com \
+  --password UserPass123! \
+  --permanent
+
+# 3. Definir atributos customizados
+aws cognito-idp admin-update-user-attributes \
+  --user-pool-id us-east-1_cnesJ48lR \
+  --username user@example.com \
+  --user-attributes \
+    'Name=custom:organization_id,Value=ORG-UUID-HERE' \
+    'Name=custom:organization_name,Value=Organization Name' \
+    'Name=custom:roles,Value="[\"org_admin\"]"'
+```
 
 ## CloudFront
 
@@ -140,7 +177,7 @@ aws apigateway put-method-response --rest-api-id 3l66kn0eaj --resource-id RESOUR
 aws apigateway put-integration-response --rest-api-id 3l66kn0eaj --resource-id RESOURCE_ID --http-method OPTIONS --status-code 200 --response-parameters '{"method.response.header.Access-Control-Allow-Headers":"'"'"'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token'"'"'","method.response.header.Access-Control-Allow-Methods":"'"'"'GET,POST,PUT,DELETE,OPTIONS'"'"'","method.response.header.Access-Control-Allow-Origin":"'"'"'*'"'"'"}' --region us-east-1
 
 # 3. Criar POST com Cognito
-aws apigateway put-method --rest-api-id 3l66kn0eaj --resource-id RESOURCE_ID --http-method POST --authorization-type COGNITO_USER_POOLS --authorizer-id ez5xqt --region us-east-1
+aws apigateway put-method --rest-api-id 3l66kn0eaj --resource-id RESOURCE_ID --http-method POST --authorization-type COGNITO_USER_POOLS --authorizer-id joelbs --region us-east-1
 
 aws apigateway put-integration --rest-api-id 3l66kn0eaj --resource-id RESOURCE_ID --http-method POST --type AWS_PROXY --integration-http-method POST --uri "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:383234048592:function:LAMBDA_NAME/invocations" --region us-east-1
 

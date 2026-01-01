@@ -173,6 +173,41 @@ export async function handler(
   
   const prisma = getPrismaClient();
   
+  // Validate that prisma client was created successfully
+  if (!prisma) {
+    logger.error('Prisma client is undefined');
+    return error('Database client initialization failed', 500, undefined, origin);
+  }
+  
+  // Ensure database connection is established with retry logic
+  let connectionAttempts = 0;
+  const maxAttempts = 3;
+  
+  while (connectionAttempts < maxAttempts) {
+    try {
+      await prisma.$connect();
+      // Test the connection with a simple query
+      await prisma.$queryRaw`SELECT 1`;
+      logger.info('Database connection established successfully');
+      break;
+    } catch (dbError) {
+      connectionAttempts++;
+      logger.warn(`Database connection attempt ${connectionAttempts} failed`, { 
+        error: (dbError as Error).message,
+        attempt: connectionAttempts,
+        maxAttempts 
+      });
+      
+      if (connectionAttempts >= maxAttempts) {
+        logger.error('Database connection failed after all attempts', dbError as Error);
+        return error('Database connection failed', 500, undefined, origin);
+      }
+      
+      // Wait before retry (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, connectionAttempts) * 1000));
+    }
+  }
+  
   try {
     const body: StartAnalysisRequest = event.body ? JSON.parse(event.body) : {};
     const { accountId, hoursBack = 24, maxResults = 5000, forceReprocess = false } = body;

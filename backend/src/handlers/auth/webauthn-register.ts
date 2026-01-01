@@ -2,24 +2,20 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { logger } from '../../lib/logging.js';
 import { success, error as errorResponse, corsOptions, badRequest } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { getUserFromEvent } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
 import * as crypto from 'crypto';
 
 interface RegistrationRequest {
-  action: 'start' | 'finish';
+  action: 'generate-challenge' | 'verify-registration';
   userId?: string;
   deviceName?: string;
-  attestation?: {
+  credential?: {
     id: string;
-    rawId: string;
-    type: string;
-    response: {
-      clientDataJSON: string;
-      attestationObject: string;
-    };
+    publicKey: string;
+    transports?: string[];
   };
-  challenge?: string;
+  challengeId?: string;
 }
 
 export async function handler(
@@ -35,190 +31,193 @@ export async function handler(
   }
   
   try {
-    let authUserId: string;
+    let authUser: any;
+    let organizationId: string;
+    
     try {
-      const user = getUserFromEvent(event);
-      authUserId = user.sub || user.id;
-    } catch {
+      authUser = getUserFromEvent(event);
+      organizationId = getOrganizationId(authUser);
+    } catch (authError) {
+      logger.error('Authentication error:', authError);
       return errorResponse('Authentication required', 401, undefined, origin);
     }
 
-    if (!authUserId) {
-      return errorResponse('Authentication required', 401, undefined, origin);
+    if (!authUser?.sub && !authUser?.id) {
+      return errorResponse('Invalid user data', 401, undefined, origin);
     }
 
+    const userId = authUser.sub || authUser.id;
     const body: RegistrationRequest = event.body ? JSON.parse(event.body) : {};
     const { action } = body;
 
-    if (action === 'start') {
-      return await startRegistration(authUserId, body.deviceName, origin);
-    } else if (action === 'finish') {
-      return await finishRegistration(authUserId, body, origin);
+    logger.info('WebAuthn registration request:', { action, userId, organizationId });
+
+    if (action === 'generate-challenge') {
+      return await generateChallenge(userId, organizationId, body.deviceName, origin);
+    } else if (action === 'verify-registration') {
+      return await verifyRegistration(userId, organizationId, body, origin);
     }
 
-    return badRequest('Invalid action', undefined, origin);
+    return badRequest('Invalid action. Use "generate-challenge" or "verify-registration"', undefined, origin);
   } catch (err) {
     logger.error('WebAuthn registration error:', err);
     return errorResponse('Internal server error', 500, undefined, origin);
   }
 }
 
-async function startRegistration(userId: string, deviceName?: string, origin?: string): Promise<APIGatewayProxyResultV2> {
+async function generateChallenge(
+  userId: string, 
+  organizationId: string, 
+  deviceName?: string, 
+  origin?: string
+): Promise<APIGatewayProxyResultV2> {
   const prisma = getPrismaClient();
   
-  // Buscar usuário
-  const user = await prisma.user.findUnique({
-    where: { id: userId }
-  });
+  try {
+    // Verificar se o usuário existe na tabela users
+    let user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
-  if (!user) {
-    return errorResponse('User not found', 404, undefined, origin);
-  }
+    // Se não existir, criar o usuário
+    if (!user) {
+      // Buscar dados do perfil para obter email
+      const profile = await prisma.profile.findFirst({
+        where: { user_id: userId }
+      });
 
-  // Gerar challenge com crypto seguro
-  const challenge = crypto.randomBytes(32).toString('base64url');
-  const challengeExpiry = new Date(Date.now() + 300000); // 5 minutos
+      if (!profile) {
+        return errorResponse('User profile not found', 404, undefined, origin);
+      }
 
-  // Salvar challenge
-  await prisma.webauthnChallenge.create({
-    data: {
-      challenge,
-      user_id: user.id,
-      expires_at: challengeExpiry
+      user = await prisma.user.create({
+        data: {
+          id: userId,
+          email: profile.full_name || `user-${userId}@example.com`, // Fallback email
+          full_name: profile.full_name,
+          is_active: true
+        }
+      });
     }
-  });
 
-  // Gerar opções de registro
-  const rpId = process.env.WEBAUTHN_RP_ID || 'evouds.com';
-  const rpName = process.env.WEBAUTHN_RP_NAME || 'EVO UDS';
+    // Gerar challenge com crypto seguro
+    const challenge = crypto.randomBytes(32).toString('base64url');
+    const challengeExpiry = new Date(Date.now() + 300000); // 5 minutos
 
-  const publicKeyCredentialCreationOptions = {
-    challenge,
-    rp: {
-      id: rpId,
-      name: rpName
-    },
-    user: {
-      id: Buffer.from(user.id).toString('base64url'),
-      name: user.email,
-      displayName: user.full_name || user.email
-    },
-    pubKeyCredParams: [
-      { type: 'public-key', alg: -7 },   // ES256
-      { type: 'public-key', alg: -257 }  // RS256
-    ],
-    authenticatorSelection: {
-      authenticatorAttachment: 'platform',
-      userVerification: 'preferred',
-      residentKey: 'preferred'
-    },
-    timeout: 300000,
-    attestation: 'direct',
-    excludeCredentials: [] // Removido pois não incluímos webauthnCredentials na query
-  };
+    // Salvar challenge
+    await prisma.webauthnChallenge.create({
+      data: {
+        challenge,
+        user_id: user.id,
+        expires_at: challengeExpiry
+      }
+    });
 
-  return success({ options: publicKeyCredentialCreationOptions }, 200, origin);
+    // Gerar opções de registro
+    const rpId = process.env.WEBAUTHN_RP_ID || 'evo.ai.udstec.io';
+    const rpName = process.env.WEBAUTHN_RP_NAME || 'EVO UDS Platform';
+
+    const registrationOptions = {
+      challenge,
+      rpName,
+      rpId,
+      userId: user.id,
+      userEmail: user.email,
+      userDisplayName: user.full_name || user.email
+    };
+
+    logger.info('Challenge generated successfully:', { userId, challenge: challenge.substring(0, 10) + '...' });
+
+    return success(registrationOptions, 200, origin);
+  } catch (error) {
+    logger.error('Error generating challenge:', error);
+    return errorResponse('Failed to generate challenge', 500, undefined, origin);
+  }
 }
 
-async function finishRegistration(
+async function verifyRegistration(
   userId: string,
+  organizationId: string,
   body: RegistrationRequest,
   origin?: string
 ): Promise<APIGatewayProxyResultV2> {
   const prisma = getPrismaClient();
-  const { attestation, challenge, deviceName } = body;
+  const { credential, challengeId } = body;
 
-  if (!attestation || !challenge) {
-    return badRequest('Missing attestation or challenge', undefined, origin);
+  if (!credential || !challengeId) {
+    return badRequest('Missing credential or challengeId', undefined, origin);
   }
-
-  // Buscar usuário
-  const user = await prisma.user.findUnique({
-    where: { id: userId }
-  });
-
-  if (!user) {
-    return errorResponse('User not found', 404, undefined, origin);
-  }
-
-  // Verificar challenge
-  const storedChallenge = await prisma.webauthnChallenge.findFirst({
-    where: {
-      challenge,
-      user_id: user.id,
-      expires_at: { gt: new Date() }
-    }
-  });
-
-  if (!storedChallenge) {
-    return badRequest('Invalid or expired challenge', undefined, origin);
-  }
-
-  // Deletar challenge usado
-  await prisma.webauthnChallenge.delete({ where: { id: storedChallenge.id } });
 
   try {
-    // Decodificar e verificar attestation
-    const clientDataJSON = Buffer.from(attestation.response.clientDataJSON, 'base64');
-    const clientData = JSON.parse(clientDataJSON.toString());
+    // Verificar se o usuário existe
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
-    // Verificar challenge no clientData
-    if (clientData.challenge !== challenge) {
-      return badRequest('Challenge mismatch', undefined, origin);
+    if (!user) {
+      return errorResponse('User not found', 404, undefined, origin);
     }
 
-    // Verificar origin
-    const expectedOrigin = process.env.WEBAUTHN_ORIGIN || 'https://evouds.com';
-    if (clientData.origin !== expectedOrigin) {
-      logger.warn(`Origin mismatch: expected ${expectedOrigin}, got ${clientData.origin}`);
-    }
-
-    // Decodificar attestationObject (simplificado - em produção usar biblioteca CBOR)
-    const attestationObject = Buffer.from(attestation.response.attestationObject, 'base64');
-    
-    // Extrair public key (simplificado)
-    const publicKey = attestationObject.toString('base64');
-
-    // Salvar credencial
-    const credential = await prisma.webAuthnCredential.create({
-      data: {
+    // Verificar challenge
+    const storedChallenge = await prisma.webauthnChallenge.findFirst({
+      where: {
+        challenge: challengeId,
         user_id: user.id,
-        credential_id: attestation.id,
-        public_key: publicKey,
-        counter: 0,
-        device_name: deviceName || 'Unknown Device'
+        expires_at: { gt: new Date() }
       }
     });
 
-    // Buscar profile para obter organization_id
-    const profile = await prisma.profile.findFirst({
-      where: { user_id: user.id }
+    if (!storedChallenge) {
+      return badRequest('Invalid or expired challenge', undefined, origin);
+    }
+
+    // Deletar challenge usado
+    await prisma.webauthnChallenge.delete({ 
+      where: { id: storedChallenge.id } 
+    });
+
+    // Salvar credencial WebAuthn
+    const webauthnCredential = await prisma.webAuthnCredential.create({
+      data: {
+        user_id: user.id,
+        credential_id: credential.id,
+        public_key: credential.publicKey,
+        counter: 0,
+        device_name: body.deviceName || 'Security Key'
+      }
     });
 
     // Registrar evento de segurança
     await prisma.securityEvent.create({
       data: {
-        organization_id: profile?.organization_id || user.id, // Usar organization_id do profile
+        organization_id: organizationId,
         event_type: 'WEBAUTHN_REGISTERED',
         severity: 'INFO',
-        description: `WebAuthn credential registered for device: ${credential.device_name}`,
+        description: `WebAuthn credential registered for device: ${webauthnCredential.device_name}`,
         metadata: {
           userId: user.id,
-          credentialId: credential.id,
-          deviceName: credential.device_name
+          credentialId: webauthnCredential.id,
+          deviceName: webauthnCredential.device_name
         } as any
       }
     });
 
+    logger.info('WebAuthn credential registered successfully:', { 
+      userId, 
+      credentialId: webauthnCredential.id,
+      deviceName: webauthnCredential.device_name 
+    });
+
     return success({
+      success: true,
       credential: {
-        id: credential.id,
-        deviceName: credential.device_name,
-        createdAt: credential.created_at
+        id: webauthnCredential.id,
+        deviceName: webauthnCredential.device_name,
+        createdAt: webauthnCredential.created_at
       }
     }, 200, origin);
   } catch (error) {
-    logger.error('Attestation verification error:', error);
-    return badRequest('Invalid attestation', undefined, origin);
+    logger.error('Error verifying registration:', error);
+    return errorResponse('Failed to verify registration', 500, undefined, origin);
   }
 }

@@ -42,15 +42,20 @@ export default function MFASettings() {
 
       const result = await apiClient.select('webauthn_credentials', {
         select: '*',
-        eq: { user_id: user.username },
+        eq: { user_id: user.id },
         order: { created_at: 'desc' }
       });
-      const { data, error } = { data: result.data, error: result.error };
-
       
-      setWebauthnCredentials(data || []);
+      if (result.error) {
+        console.warn('Error loading WebAuthn credentials:', result.error);
+        setWebauthnCredentials([]);
+        return;
+      }
+      
+      setWebauthnCredentials(result.data || []);
     } catch (error: any) {
       console.error('Error loading WebAuthn credentials:', error);
+      setWebauthnCredentials([]);
     }
   };
 
@@ -60,12 +65,17 @@ export default function MFASettings() {
       if (!user) return;
 
       const result = await apiClient.invoke('mfa-list-factors', { body: {} });
-      const { data, error } = { data: result.data, error: result.error };
       
-
-      setFactors(data.all as MFAFactor[]);
+      if (result.error) {
+        console.warn('Error loading MFA factors:', result.error);
+        setFactors([]);
+        return;
+      }
+      
+      setFactors((result.data?.all as MFAFactor[]) || []);
     } catch (error: any) {
       console.error('Error loading MFA factors:', error);
+      setFactors([]);
     }
   };
 
@@ -136,9 +146,12 @@ export default function MFASettings() {
       const challengeResult = await apiClient.invoke('webauthn-register', {
         body: { action: 'generate-challenge' }
       });
-      const { data: challengeData, error: challengeError } = { data: challengeResult.data, error: challengeResult.error };
 
-      if (challengeError) throw challengeError;
+      if (challengeResult.error) {
+        throw new Error(challengeResult.error.message || 'Failed to generate challenge');
+      }
+
+      const challengeData = challengeResult.data;
 
       // Step 2: Create credential using WebAuthn API
       const challengeStr = String(challengeData.challenge);
@@ -147,13 +160,13 @@ export default function MFASettings() {
       const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
         challenge: Uint8Array.from(challengeStr, c => c.charCodeAt(0)),
         rp: {
-          name: challengeData.rpName,
-          id: window.location.hostname,
+          name: challengeData.rpName || 'EVO UDS Platform',
+          id: challengeData.rpId || window.location.hostname,
         },
         user: {
           id: Uint8Array.from(userIdStr, c => c.charCodeAt(0)),
-          name: "user",
-          displayName: "User"
+          name: challengeData.userEmail || "user",
+          displayName: challengeData.userDisplayName || "User"
         },
         pubKeyCredParams: [
           { alg: -7, type: "public-key" as const }, // ES256
@@ -185,12 +198,14 @@ export default function MFASettings() {
             publicKey: btoa(String.fromCharCode(...new Uint8Array((credential.response as any).attestationObject))),
             transports: (credential.response as any).getTransports?.() || [],
           },
-          challengeId: challengeData.challenge
+          challengeId: challengeData.challenge,
+          deviceName: 'Security Key'
         }
       });
-      const { error: verifyError } = { error: verifyResult.error };
 
-      if (verifyError) throw new Error(verifyError);
+      if (verifyResult.error) {
+        throw new Error(verifyResult.error.message || 'Failed to verify registration');
+      }
 
       toast({
         title: "Chave de segurança registrada!",
@@ -218,30 +233,34 @@ export default function MFASettings() {
       if (!user) throw new Error('User not authenticated');
 
       if (isWebAuthn) {
-        const result = await apiClient.delete('webauthn_credentials', {
-          eq: { id: factorId, user_id: user.username }
+        // Use invoke to call a Lambda that handles the delete
+        const result = await apiClient.invoke('delete-webauthn-credential', {
+          body: { credentialId: factorId }
         });
-        const { error } = { error: result.error };
 
-        
+        if (result.error) {
+          throw new Error(result.error.message || 'Failed to delete credential');
+        }
 
         toast({
           title: "Chave removida",
           description: "A chave de segurança foi desativada."
         });
 
-        loadWebAuthnCredentials();
+        await loadWebAuthnCredentials();
       } else {
         const result = await apiClient.invoke('mfa-unenroll', { body: { factorId } });
-        const { error } = { error: result.error };
         
+        if (result.error) {
+          throw new Error(result.error.message || 'Failed to unenroll factor');
+        }
 
         toast({
           title: "Fator removido",
           description: "O método de autenticação foi desativado."
         });
 
-        loadMFAFactors();
+        await loadMFAFactors();
       }
     } catch (error: any) {
       toast({

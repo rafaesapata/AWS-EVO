@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO UDS v3 - Cognito User Pool with Custom Attributes'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    Description: Environment name
+
+Resources:
+  # User Pool with Custom Attributes
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'evo-uds-v3-${Environment}-users-fixed'
+      
+      # Password Policy
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          TemporaryPasswordValidityDays: 7
+      
+      # Schema with Custom Attributes
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: organization_id
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+          DeveloperOnlyAttribute: false
+        - Name: organization_name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+          DeveloperOnlyAttribute: false
+        - Name: roles
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+          DeveloperOnlyAttribute: false
+        - Name: tenant_id
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+          DeveloperOnlyAttribute: false
+      
+      # Auto-verified attributes
+      AutoVerifiedAttributes:
+        - email
+      
+      # Username configuration
+      UsernameAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: false
+      
+      # Email verification
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: 'Verificação de Email - EVO UDS'
+        EmailMessage: 'Seu código de verificação é {####}'
+      
+      # MFA Configuration
+      MfaConfiguration: 'OFF'
+      
+      # Device Configuration
+      DeviceConfiguration:
+        ChallengeRequiredOnNewDevice: false
+        DeviceOnlyRememberedOnUserPrompt: false
+      
+      # Email Configuration
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      
+      # Admin Create User Config
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+        InviteMessageTemplate:
+          EmailSubject: 'Bem-vindo ao EVO UDS'
+          EmailMessage: 'Seu usuário foi criado. Username: {username} Senha temporária: {####}'
+      
+      # Account Recovery
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      
+      # Tags
+      UserPoolTags:
+        Environment: !Ref Environment
+        Project: evo-uds-v3
+        Component: authentication
+        CreatedBy: CloudFormation
+
+  # User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub 'evo-uds-v3-${Environment}-client'
+      GenerateSecret: false
+      
+      # Auth Flows
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      
+      # Supported Identity Providers
+      SupportedIdentityProviders:
+        - COGNITO
+      
+      # Attribute Permissions
+      ReadAttributes:
+        - email
+        - name
+        - custom:organization_id
+        - custom:organization_name
+        - custom:roles
+        - custom:tenant_id
+      WriteAttributes:
+        - email
+        - name
+        - custom:organization_id
+        - custom:organization_name
+        - custom:roles
+        - custom:tenant_id
+      
+      # Token Validity
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      TokenValidityUnits:
+        RefreshToken: days
+        AccessToken: minutes
+        IdToken: minutes
+
+Outputs:
+  UserPoolId:
+    Description: 'User Pool ID'
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+  
+  UserPoolClientId:
+    Description: 'User Pool Client ID'
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+  
+  UserPoolArn:
+    Description: 'User Pool ARN'
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolArn'

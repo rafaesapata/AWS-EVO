@@ -124,6 +124,8 @@ export async function syncOrganizationLicenses(organizationId: string): Promise<
 
     for (const extLicense of externalData.licenses) {
       try {
+        // IMPORTANT: Update organization_id in the update clause to handle
+        // cases where the same license_key exists but belongs to a different org
         await prisma.license.upsert({
           where: { license_key: extLicense.license_key },
           create: {
@@ -146,10 +148,14 @@ export async function syncOrganizationLicenses(organizationId: string): Promise<
             last_sync_at: new Date(),
           },
           update: {
+            organization_id: organizationId, // CRITICAL: Update org_id to current org
+            customer_id: config.customer_id,
             product_type: extLicense.product_type,
+            plan_type: extLicense.product_type,
             max_users: extLicense.total_seats,
             used_seats: extLicense.used_seats,
             available_seats: extLicense.available_seats,
+            features: getProductFeatures(extLicense.product_type),
             valid_from: new Date(extLicense.valid_from),
             valid_until: new Date(extLicense.valid_until),
             is_active: extLicense.status === 'active' && !extLicense.is_expired,
@@ -161,6 +167,7 @@ export async function syncOrganizationLicenses(organizationId: string): Promise<
           },
         });
         licensesSynced++;
+        logger.info(`License ${extLicense.license_key} synced successfully for org ${organizationId}`);
       } catch (licenseError) {
         const errMsg = licenseError instanceof Error ? licenseError.message : String(licenseError);
         errors.push(`Failed to sync license ${extLicense.license_key}: ${errMsg}`);

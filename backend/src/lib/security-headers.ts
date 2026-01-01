@@ -337,8 +337,11 @@ export function generateCORSHeaders(
       headers['Access-Control-Allow-Credentials'] = 'true';
     }
   } else if (!isProduction && origin) {
-    // In development, allow localhost origins dynamically
-    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    // MILITARY GRADE: In development, validate localhost origins with strict regex
+    // Prevents bypass attacks like http://localhost.attacker.com
+    const LOCALHOST_REGEX = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
+    
+    if (LOCALHOST_REGEX.test(origin)) {
       headers['Access-Control-Allow-Origin'] = origin;
       if (config.credentials) {
         headers['Access-Control-Allow-Credentials'] = 'true';

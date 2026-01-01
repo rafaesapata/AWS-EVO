@@ -45,13 +45,13 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
   const resourceKey = `${resource.resource_type}-${resource.resource_id}`;
   
   // Memoize metrics filtering for this specific resource
-  const resourceSpecificMetrics = useMemo(() => 
-    metrics?.filter(m => 
+  const resourceSpecificMetrics = useMemo(() => {
+    if (!metrics || !Array.isArray(metrics)) return [];
+    return metrics.filter(m => 
       m.resource_id === resource.resource_id && 
       m.resource_type === resource.resource_type
-    ) || [],
-    [metrics, resource.resource_id, resource.resource_type]
-  );
+    );
+  }, [metrics, resource.resource_id, resource.resource_type]);
   
   // Memoize primary metric calculation
   const primaryMetric = useMemo(() => {
@@ -474,7 +474,10 @@ export const ResourceMonitoringDashboard = () => {
 
   // PERFORMANCE: Memoize available regions
   const availableRegions = useMemo(() => {
-    const resourceList = (resources || []) as MonitoredResource[];
+    if (!resources || !Array.isArray(resources)) {
+      return [];
+    }
+    const resourceList = resources as MonitoredResource[];
     return Array.from(new Set(resourceList.map(r => r.region))).sort();
   }, [resources]);
 
@@ -492,7 +495,12 @@ export const ResourceMonitoringDashboard = () => {
       'unknown': 4
     };
     
-    let filtered: MonitoredResource[] = (resources || []) as MonitoredResource[];
+    // Ensure resources is always an array
+    if (!resources || !Array.isArray(resources)) {
+      return [];
+    }
+    
+    let filtered: MonitoredResource[] = resources as MonitoredResource[];
     
     // Filter by type
     if (selectedResourceType !== 'all') {
@@ -526,12 +534,12 @@ export const ResourceMonitoringDashboard = () => {
       }
       
       // Segundo critério: quantidade de métricas disponíveis (recursos com mais dados primeiro)
-      const aMetrics = metrics?.filter(m => 
+      const aMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
         m.resource_id === a.resource_id && m.resource_type === a.resource_type
-      ) || [];
-      const bMetrics = metrics?.filter(m => 
+      ) : [];
+      const bMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
         m.resource_id === b.resource_id && m.resource_type === b.resource_type
-      ) || [];
+      ) : [];
       
       const aMetricsCount = aMetrics.length;
       const bMetricsCount = bMetrics.length;
@@ -556,9 +564,9 @@ export const ResourceMonitoringDashboard = () => {
     if (sorted.length > 0) {
       console.log('[ResourceMonitoring] Recursos ordenados:', 
         sorted.slice(0, 10).map(r => {
-          const resourceMetrics = metrics?.filter(m => 
+          const resourceMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
             m.resource_id === r.resource_id && m.resource_type === r.resource_type
-          ) || [];
+          ) : [];
           return {
             name: r.resource_name,
             type: r.resource_type,
@@ -606,7 +614,19 @@ export const ResourceMonitoringDashboard = () => {
 
   // Estatísticas por tipo de recurso
   const resourceStats = useMemo(() => {
-    const resourceList = (resources || []) as MonitoredResource[];
+    // Ensure resources is always an array
+    if (!resources || !Array.isArray(resources)) {
+      return RESOURCE_TYPES.map(type => ({
+        type: type.value,
+        label: type.label,
+        icon: type.icon,
+        count: 0,
+        runningCount: 0,
+        avgCpu: null
+      }));
+    }
+    
+    const resourceList = resources as MonitoredResource[];
     
     return RESOURCE_TYPES.map(type => {
       const count = resourceList.filter(r => r.resource_type === type.value).length;
@@ -624,12 +644,11 @@ export const ResourceMonitoringDashboard = () => {
       // Contar quantos estão ativos/ligados (especialmente importante para EC2)
       const runningCount = activeResourceIds.size;
       
-      const cpuMetrics = metrics
-        ?.filter(m => 
+      const cpuMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
           m.resource_type === type.value && 
           m.metric_name === 'CPUUtilization' &&
           activeResourceIds.has(m.resource_id)
-        ) || [];
+        ) : [];
       
       const avgCpu = cpuMetrics.length > 0
         ? cpuMetrics.reduce((sum, m) => sum + Number(m.metric_value), 0) / cpuMetrics.length
@@ -650,11 +669,11 @@ export const ResourceMonitoringDashboard = () => {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Monitoramento de Recursos AWS</CardTitle>
-          <CardDescription>Configure uma conta AWS para começar o monitoramento</CardDescription>
+          <CardTitle>Monitoramento de Recursos</CardTitle>
+          <CardDescription>Configure uma conta para começar o monitoramento</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Nenhuma conta AWS configurada.</p>
+          <p className="text-muted-foreground">Nenhuma conta configurada.</p>
         </CardContent>
       </Card>
     );
@@ -677,7 +696,7 @@ export const ResourceMonitoringDashboard = () => {
   // Se um recurso está selecionado, mostrar detalhamento
   if (selectedResource) {
     // CRITICAL: Filtrar métricas com múltiplas estratégias de matching
-    const resourceSpecificMetrics = metrics?.filter(m => {
+    const resourceSpecificMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => {
       if (m.resource_type !== selectedResource.resource_type) return false;
       
       // Prioridade 1: Match exato de resource_id
@@ -694,7 +713,7 @@ export const ResourceMonitoringDashboard = () => {
       if (!isGenericName && m.resource_name === selectedResource.resource_name) return true;
       
       return false;
-    }) || [];
+    }) : [];
 
     // Obter nomes únicos de métricas existentes
     const existingMetricNames = new Set(resourceSpecificMetrics.map(m => m.metric_name));
@@ -785,12 +804,12 @@ export const ResourceMonitoringDashboard = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-3xl font-bold">Monitoramento de Recursos</h2>
+          <h2 className="text-3xl font-bold flex items-center gap-2">
+            Monitoramento de Recursos
             <InfoTooltip title="O que é monitorado?">
               <>
                 <p className="text-muted-foreground">
-                  Monitora recursos AWS em tempo real com métricas de CloudWatch.
+                  Monitora recursos em tempo real com métricas de CloudWatch.
                 </p>
                 <ul className="text-xs text-muted-foreground space-y-1 mt-2">
                   <li>• EC2: CPU, memória, rede, disco</li>
@@ -801,8 +820,7 @@ export const ResourceMonitoringDashboard = () => {
                 </ul>
               </>
             </InfoTooltip>
-          </div>
-          <p className="text-muted-foreground">Métricas em tempo real dos seus recursos AWS</p>
+          </h2>
         </div>
         <div className="flex items-center gap-4">
           <Select value={autoRefreshInterval} onValueChange={setAutoRefreshInterval}>
@@ -976,10 +994,10 @@ export const ResourceMonitoringDashboard = () => {
                     const resourceKey = `${resource.resource_type}-${resource.resource_id}`;
                     
                     // Buscar métricas deste recurso diretamente
-                    const resourceSpecificMetrics = metrics?.filter(m => 
+                    const resourceSpecificMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
                       m.resource_id === resource.resource_id && 
                       m.resource_type === resource.resource_type
-                    ) || [];
+                    ) : [];
                     
                     // Definir métrica primária por tipo de recurso - com fallback para qualquer métrica
                     const primaryMetric = getPrimaryMetric(resourceSpecificMetrics, resource.resource_type);
@@ -1062,7 +1080,7 @@ export const ResourceMonitoringDashboard = () => {
                     }
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Clique em "Atualizar" para buscar recursos na AWS
+                    Clique em "Atualizar" para buscar recursos
                   </p>
                 </div>
               )}

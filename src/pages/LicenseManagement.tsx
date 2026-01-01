@@ -60,10 +60,17 @@ export default function LicenseManagement() {
       });
 
       if (!orgData.data) throw new Error("Organização não encontrada");
+      
+      // Extract organizationId from response
+      const organizationId = orgData.data.organizationId || orgData.data.organization?.id || orgData.data;
+      
+      if (!organizationId || typeof organizationId !== 'string') {
+        throw new Error("ID da organização não encontrado");
+      }
 
       const org = await apiClient.select('organizations', {
         select: '*',
-        eq: { id: orgData.data }
+        eq: { id: organizationId }
       });
 
       if (org.error) throw org.error;
@@ -171,18 +178,66 @@ export default function LicenseManagement() {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) return [];
       
-      const result = await apiClient.select('user_roles', {
-        select: 'role',
-        eq: { user_id: user.username }
-      });
+      // Get roles from Cognito user attributes
+      let roles: string[] = [];
+      const rolesStr = user.attributes?.['custom:roles'];
+      if (rolesStr) {
+        try {
+          roles = typeof rolesStr === 'string' ? JSON.parse(rolesStr) : rolesStr;
+        } catch {
+          roles = [];
+        }
+      }
       
-      return result.data?.map(r => r.role) || [];
+      console.log('[LicenseManagement] User roles from Cognito:', roles);
+      return roles;
     }
   });
 
   const isAdmin = userRoles?.includes('org_admin') || userRoles?.includes('super_admin');
   // Check if license is configured based on licenseData response, not organization
   const hasCustomerId = licenseData?.customer_id || licenseData?.configured;
+
+  // Fetch real seat assignments for accurate count
+  const { data: realSeatAssignments = [] } = useQuery({
+    queryKey: ['real-seat-assignments', organization?.id, licenseData?.licenses?.[0]?.license_key],
+    queryFn: async () => {
+      if (!licenseData?.licenses?.[0]?.license_key || !organization?.id) return [];
+      
+      // Get license first
+      const licenseResponse = await apiClient.select('licenses', { 
+        eq: { license_key: licenseData.licenses[0].license_key }
+      });
+      
+      if (licenseResponse.error || !licenseResponse.data?.[0]) return [];
+      
+      const license = licenseResponse.data[0];
+      
+      // Get seat assignments
+      const seatsResponse = await apiClient.select('license_seat_assignments', { 
+        eq: { license_id: license.id }
+      });
+      
+      if (seatsResponse.error) return [];
+      
+      // Get organization profiles to filter valid seats
+      const profilesResponse = await apiClient.select('profiles', { 
+        eq: { organization_id: organization.id }
+      });
+      
+      if (profilesResponse.error) return [];
+      
+      const validUserIds = new Set(profilesResponse.data?.map((p: any) => p.user_id) || []);
+      const validSeats = (seatsResponse.data || []).filter((seat: any) => validUserIds.has(seat.user_id));
+      
+      return validSeats;
+    },
+    enabled: !!licenseData?.licenses?.[0]?.license_key && !!organization?.id
+  });
+
+  // Calculate real seat counts
+  const realUsedSeats = realSeatAssignments.length;
+  const realAvailableSeats = (licenseData?.licenses?.[0]?.total_seats || 0) - realUsedSeats;
 
   if (orgLoading) {
     return (
@@ -211,17 +266,8 @@ export default function LicenseManagement() {
     >
       <div className="max-w-4xl mx-auto space-y-6">
 
-              {!hasCustomerId && !licenseData && !linkCustomerIdMutation.isPending || licenseLoading && (
-                <Alert className="border-primary/20 bg-primary/5">
-                  <Key className="h-4 w-4 text-primary" />
-                  <AlertDescription>
-                    Sua organização ainda não possui um Customer ID vinculado. Vincule seu Customer ID para ativar sua licença.
-                  </AlertDescription>
-                </Alert>
-              )}
-
               {/* Show loading while checking license status */}
-              {linkCustomerIdMutation.isPending || licenseLoading && !licenseData && (
+              {(licenseLoading || linkCustomerIdMutation.isPending) && (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-center py-8">
@@ -232,7 +278,8 @@ export default function LicenseManagement() {
                 </Card>
               )}
 
-              {!hasCustomerId && !licenseData && !linkCustomerIdMutation.isPending || licenseLoading ? (
+              {/* Show license input form only when NOT loading AND no license data exists */}
+              {!licenseLoading && !linkCustomerIdMutation.isPending && !licenseData?.valid && !hasCustomerId ? (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -276,7 +323,7 @@ export default function LicenseManagement() {
                     </Button>
                   </CardContent>
                 </Card>
-              ) : (
+              ) : !licenseLoading && !linkCustomerIdMutation.isPending && (licenseData?.valid || hasCustomerId) ? (
                 <div className="space-y-6">
                   {/* Customer ID Card */}
                   <Card>
@@ -310,17 +357,7 @@ export default function LicenseManagement() {
                     </CardContent>
                   </Card>
 
-                  {/* Loading state */}
-                  {linkCustomerIdMutation.isPending || licenseLoading && !licenseData && (
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-center py-8">
-                          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-                          <span className="ml-3 text-muted-foreground">Carregando dados da licença...</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+
 
                   {licenseData && (
                     <Tabs defaultValue="details" className="w-full">
@@ -355,11 +392,11 @@ export default function LicenseManagement() {
                                     <span>Assentos</span>
                                   </div>
                                   <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl font-bold">{license.used_seats}</span>
+                                    <span className="text-3xl font-bold">{realUsedSeats}</span>
                                     <span className="text-muted-foreground">/ {license.total_seats}</span>
                                   </div>
                                   <p className="text-xs text-muted-foreground">
-                                    {license.available_seats} disponíveis
+                                    {realAvailableSeats} disponíveis
                                   </p>
                                 </div>
 
@@ -444,7 +481,7 @@ export default function LicenseManagement() {
                     </Tabs>
                   )}
                 </div>
-              )}
+              ) : null}
             </div>
     </PageLayout>
   );

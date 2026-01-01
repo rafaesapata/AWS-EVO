@@ -147,11 +147,21 @@ class ApiClient {
       // Handle Lambda response format: { success: true, data: [...] }
       // Extract the inner data if present
       if (responseData && typeof responseData === 'object' && 'data' in responseData) {
-        return { data: responseData.data, error: null, requestId: responseRequestId };
+        const data = responseData.data;
+        // Normalize: ensure arrays are always arrays for select operations, never undefined
+        return { 
+          data: data === null || data === undefined ? [] : data, 
+          error: null, 
+          requestId: responseRequestId 
+        };
       }
       
-      // Return as-is for other formats
-      return { data: responseData, error: null, requestId: responseRequestId };
+      // Return as-is for other formats, but normalize null/undefined to empty array for select operations
+      return { 
+        data: responseData === null || responseData === undefined ? [] : responseData, 
+        error: null, 
+        requestId: responseRequestId 
+      };
     } catch (error) {
       clearTimeout(timeoutId);
       
@@ -205,32 +215,39 @@ class ApiClient {
   }
 
   async insert<T>(table: string, data: any): Promise<ApiResponse<T> | ApiError> {
-    return this.request<T>(`/${table}`, {
+    // Use Lambda mutate-table for all insert operations
+    return this.request<T>(`/api/functions/mutate-table`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        table,
+        operation: 'insert',
+        data,
+      }),
     });
   }
 
   async update<T>(table: string, data: any, eq: Record<string, any>): Promise<ApiResponse<T> | ApiError> {
-    const params = new URLSearchParams();
-    Object.entries(eq).forEach(([key, value]) => {
-      params.append(`${key}.eq`, String(value));
-    });
-
-    return this.request<T>(`/${table}?${params.toString()}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
+    // Use Lambda mutate-table for all update operations
+    return this.request<T>(`/api/functions/mutate-table`, {
+      method: 'POST',
+      body: JSON.stringify({
+        table,
+        operation: 'update',
+        data,
+        where: eq,
+      }),
     });
   }
 
   async delete(table: string, eq: Record<string, any>): Promise<ApiResponse<void> | ApiError> {
-    const params = new URLSearchParams();
-    Object.entries(eq).forEach(([key, value]) => {
-      params.append(`${key}.eq`, String(value));
-    });
-
-    return this.request<void>(`/${table}?${params.toString()}`, {
-      method: 'DELETE',
+    // Use Lambda mutate-table for all delete operations
+    return this.request<void>(`/api/functions/mutate-table`, {
+      method: 'POST',
+      body: JSON.stringify({
+        table,
+        operation: 'delete',
+        where: eq,
+      }),
     });
   }
 

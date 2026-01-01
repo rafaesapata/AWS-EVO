@@ -11,7 +11,9 @@ import {
   SignUpCommand,
   ConfirmSignUpCommand,
   ForgotPasswordCommand,
-  ConfirmForgotPasswordCommand
+  ConfirmForgotPasswordCommand,
+  AssociateSoftwareTokenCommand,
+  VerifySoftwareTokenCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 import { secureStorage } from '@/lib/secure-storage';
 
@@ -86,6 +88,7 @@ class CognitoAuthService {
   private clientId: string;
   private region: string;
   private apiBaseUrl: string;
+  private storedUsername: string | null = null;
 
   constructor() {
     this.userPoolId = import.meta.env.VITE_AWS_USER_POOL_ID || '';
@@ -100,6 +103,9 @@ class CognitoAuthService {
     if (!this.userPoolId || !this.clientId) {
       throw new Error('AWS Cognito não está configurado. Configure as variáveis de ambiente VITE_AWS_USER_POOL_ID e VITE_AWS_USER_POOL_CLIENT_ID.');
     }
+
+    // Store username for MFA verification
+    this.setStoredUsername(username);
 
     const cognitoClient = new CognitoIdentityProviderClient({ 
       region: this.region 
@@ -161,12 +167,28 @@ class CognitoAuthService {
     // SECURITY: Decode JWT payload using Base64URL decoder
     const payload = parseJwtPayload(idToken);
     
+    console.log('🔐 CognitoAuth: JWT payload attributes:', {
+      sub: payload.sub,
+      email: payload.email,
+      organization_id: payload['custom:organization_id'],
+      roles: payload['custom:roles'],
+      tenant_id: payload['custom:tenant_id']
+    });
+    
+    // Extract all custom attributes from the token
+    const attributes: Record<string, string> = {};
+    for (const key of Object.keys(payload)) {
+      if (typeof payload[key] === 'string' || typeof payload[key] === 'number') {
+        attributes[key] = String(payload[key]);
+      }
+    }
+    
     const user: AuthUser = {
       id: payload.sub,
       email: payload.email,
       name: payload.name || `${payload.given_name || ''} ${payload.family_name || ''}`.trim(),
       organizationId: payload['custom:organization_id'],
-      attributes: payload,
+      attributes,
     };
 
     const session: AuthSession = {
@@ -433,6 +455,7 @@ class CognitoAuthService {
         id: session.user?.id,
         email: session.user?.email,
         organizationId: session.user?.organizationId,
+        roles: session.user?.attributes?.['custom:roles'],
         hasAttributes: !!session.user?.attributes
       });
       
@@ -459,7 +482,7 @@ class CognitoAuthService {
         }
       }
 
-      console.log('🔐 CognitoAuth: Returning user with org:', session.user?.organizationId);
+      console.log('🔐 CognitoAuth: Returning user with org:', session.user?.organizationId, 'roles:', session.user?.attributes?.['custom:roles']);
       return session.user;
     } catch (error) {
       console.error('🔐 CognitoAuth: Error in getCurrentUser:', error);
@@ -526,7 +549,159 @@ class CognitoAuthService {
   }
 
   async confirmSignIn(session: string, mfaCode: string): Promise<AuthSession> {
-    throw new Error('MFA confirmation requires session state management');
+    if (!this.userPoolId || !this.clientId) {
+      throw new Error('AWS Cognito não está configurado');
+    }
+
+    const cognitoClient = new CognitoIdentityProviderClient({ 
+      region: this.region 
+    });
+
+    const respondCommand = new RespondToAuthChallengeCommand({
+      ClientId: this.clientId,
+      ChallengeName: 'SOFTWARE_TOKEN_MFA',
+      Session: session,
+      ChallengeResponses: {
+        USERNAME: await this.getStoredUsername() || '',
+        SOFTWARE_TOKEN_MFA_CODE: mfaCode,
+      },
+    });
+
+    try {
+      const response = await cognitoClient.send(respondCommand);
+      
+      if (!response.AuthenticationResult) {
+        throw new Error('Falha na verificação MFA');
+      }
+
+      return this.buildSessionFromResponse(response);
+    } catch (error: any) {
+      console.error('MFA verification error:', error);
+      
+      if (error.name === 'CodeMismatchException') {
+        throw new Error('Código MFA inválido. Verifique e tente novamente.');
+      } else if (error.name === 'ExpiredCodeException') {
+        throw new Error('Código MFA expirado. Faça login novamente.');
+      }
+      
+      throw error;
+    }
+  }
+
+  private async getStoredUsername(): Promise<string | null> {
+    return this.storedUsername;
+  }
+
+  private setStoredUsername(username: string): void {
+    this.storedUsername = username;
+  }
+
+  /**
+   * Associate software token for MFA setup
+   * Returns the secret code to be used with authenticator app
+   */
+  async associateSoftwareToken(session: string): Promise<{ secretCode: string; session: string }> {
+    const cognitoClient = new CognitoIdentityProviderClient({ 
+      region: this.region 
+    });
+
+    const command = new AssociateSoftwareTokenCommand({
+      Session: session,
+    });
+
+    try {
+      const response = await cognitoClient.send(command);
+      
+      if (!response.SecretCode) {
+        throw new Error('Falha ao obter código secreto para MFA');
+      }
+
+      return {
+        secretCode: response.SecretCode,
+        session: response.Session || session,
+      };
+    } catch (error: any) {
+      console.error('Associate software token error:', error);
+      throw new Error('Falha ao configurar MFA. Tente novamente.');
+    }
+  }
+
+  /**
+   * Verify software token and complete MFA setup
+   */
+  async verifySoftwareToken(session: string, totpCode: string, friendlyDeviceName?: string): Promise<AuthSession> {
+    const cognitoClient = new CognitoIdentityProviderClient({ 
+      region: this.region 
+    });
+
+    // First verify the token
+    const verifyCommand = new VerifySoftwareTokenCommand({
+      Session: session,
+      UserCode: totpCode,
+      FriendlyDeviceName: friendlyDeviceName || 'EVO Authenticator',
+    });
+
+    try {
+      const verifyResponse = await cognitoClient.send(verifyCommand);
+      
+      if (verifyResponse.Status !== 'SUCCESS') {
+        throw new Error('Código TOTP inválido');
+      }
+
+      // After VerifySoftwareToken succeeds, we need to respond to the MFA_SETUP challenge
+      // to complete the authentication flow and get tokens
+      const respondCommand = new RespondToAuthChallengeCommand({
+        ClientId: this.clientId,
+        ChallengeName: 'MFA_SETUP',
+        Session: verifyResponse.Session || session,
+        ChallengeResponses: {
+          USERNAME: await this.getStoredUsername() || '',
+        },
+      });
+
+      const response = await cognitoClient.send(respondCommand);
+      
+      // Check if we got tokens or another challenge
+      if (response.AuthenticationResult) {
+        return this.buildSessionFromResponse(response);
+      }
+      
+      // If we get SOFTWARE_TOKEN_MFA challenge, the MFA was set up but now we need to verify
+      if (response.ChallengeName === 'SOFTWARE_TOKEN_MFA') {
+        // Use the same TOTP code to complete authentication
+        const mfaCommand = new RespondToAuthChallengeCommand({
+          ClientId: this.clientId,
+          ChallengeName: 'SOFTWARE_TOKEN_MFA',
+          Session: response.Session,
+          ChallengeResponses: {
+            USERNAME: await this.getStoredUsername() || '',
+            SOFTWARE_TOKEN_MFA_CODE: totpCode,
+          },
+        });
+        
+        const mfaResponse = await cognitoClient.send(mfaCommand);
+        
+        if (!mfaResponse.AuthenticationResult) {
+          throw new Error('Falha ao completar autenticação MFA');
+        }
+        
+        return this.buildSessionFromResponse(mfaResponse);
+      }
+
+      throw new Error('Falha ao completar configuração MFA');
+    } catch (error: any) {
+      console.error('Verify software token error:', error);
+      
+      if (error.name === 'CodeMismatchException') {
+        throw new Error('Código TOTP inválido. Verifique e tente novamente.');
+      } else if (error.name === 'EnableSoftwareTokenMFAException') {
+        throw new Error('Falha ao habilitar MFA. Tente novamente.');
+      } else if (error.name === 'NotAuthorizedException') {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+      
+      throw error;
+    }
   }
 
   async refreshSession(): Promise<AuthSession | null> {

@@ -75,7 +75,7 @@
     "anomalyDetection": "Anomaly Detection",
     "monitoring": "Monitoring",
     "endpoints": "Endpoints",
-    "awsResources": "AWS Resources",
+    "awsResources": "Resources",
     "edgeLbCfWaf": "Edge (LB/CF/WAF)",
     "attackDetection": "Attack Detection",
     "analysisScans": "Analysis & Scans",

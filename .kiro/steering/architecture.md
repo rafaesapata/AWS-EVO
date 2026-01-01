@@ -117,7 +117,7 @@ aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"
 ## Autenticação
 
 - **Provider**: AWS Cognito
-- **User Pool**: us-east-1_qGmGkvmpL
+- **User Pool**: us-east-1_cnesJ48lR
 - **Tokens**: JWT via Authorization header
 
 ## Multi-tenancy

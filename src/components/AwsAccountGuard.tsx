@@ -1,0 +1,104 @@
+import { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAwsAccount } from '@/contexts/AwsAccountContext';
+import { useAuthSafe } from '@/hooks/useAuthSafe';
+import { useLicenseValidation } from '@/hooks/useLicenseValidation';
+import { Loader2 } from 'lucide-react';
+
+interface AwsAccountGuardProps {
+  children: React.ReactNode;
+}
+
+/**
+ * Componente que verifica se o usuário tem contas AWS conectadas
+ * APÓS verificar se tem licença válida
+ * 
+ * Lógica:
+ * 1. Se não tem licença válida -> AuthGuard já redireciona para /license-management
+ * 2. Se tem licença válida mas não tem conta AWS -> Redireciona para /aws-settings
+ * 3. Se tem licença válida e tem conta AWS -> Sistema normal
+ */
+export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuthSafe();
+  const { accounts, isLoading: accountsLoading, error } = useAwsAccount();
+  const { data: licenseStatus, isLoading: licenseLoading } = useLicenseValidation();
+
+  // Páginas que não precisam de verificação de conta AWS
+  const exemptPaths = [
+    '/aws-settings',
+    '/auth',
+    '/login',
+    '/change-password',
+    '/terms-of-service',
+    '/license-management' // Licenças sempre acessível
+  ];
+
+  const shouldCheck = user && 
+                     !exemptPaths.some(path => location.pathname.startsWith(path));
+
+  useEffect(() => {
+    // Aguardar verificação de licença e contas
+    if (!shouldCheck || licenseLoading || accountsLoading || error) return;
+
+    // Se não tem licença válida, o AuthGuard já cuida disso
+    if (!licenseStatus?.isValid) return;
+
+    // Se tem licença válida, verificar se tem contas AWS
+    const hasActiveAccounts = Array.isArray(accounts) && accounts.length > 0;
+
+    if (!hasActiveAccounts) {
+      console.log('✅ Licença válida, mas sem contas AWS. Redirecionando para configuração...');
+      navigate('/aws-settings', { 
+        replace: true,
+        state: { 
+          from: location.pathname,
+          reason: 'no_aws_accounts',
+          message: 'Licença válida! Agora você precisa conectar pelo menos uma conta AWS para usar o sistema.'
+        }
+      });
+      return; // Prevent further execution
+    }
+  }, [
+    shouldCheck, 
+    licenseLoading, 
+    accountsLoading, 
+    error, 
+    licenseStatus?.isValid, 
+    accounts, 
+    navigate, 
+    location.pathname
+  ]);
+
+  // Mostrar loading enquanto verifica licença e contas
+  if (shouldCheck && (licenseLoading || accountsLoading)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-slate-300">
+            {licenseLoading ? 'Verificando licença...' : 'Verificando contas AWS...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se não deve verificar, tem licença inválida (AuthGuard cuida), ou tem contas, renderizar children
+  if (!shouldCheck || 
+      !licenseStatus?.isValid || 
+      (Array.isArray(accounts) && accounts.length > 0)) {
+    return <>{children}</>;
+  }
+
+  // Se chegou aqui, está redirecionando
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="text-center space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+        <p className="text-slate-300">Redirecionando para configuração AWS...</p>
+      </div>
+    </div>
+  );
+}

@@ -224,7 +224,7 @@
     "anomalyDetection": "Detecção de Anomalias",
     "monitoring": "Monitoramento",
     "endpoints": "Endpoints",
-    "awsResources": "Recursos AWS",
+    "awsResources": "Recursos",
     "edgeLbCfWaf": "Borda (LB/CF/WAF)",
     "attackDetection": "Detecção de Ataques",
     "analysisScans": "Análises & Scans",

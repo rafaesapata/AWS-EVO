@@ -46,7 +46,7 @@ export const useLicenseValidation = () => {
       // Use validate-license endpoint (check-license doesn't exist)
       const result = await apiClient.invoke<any>('validate-license', {
         headers: {
-          Authorization: `Bearer ${session.accessToken}`
+          Authorization: `Bearer ${session.idToken}`
         },
         body: {}
       });

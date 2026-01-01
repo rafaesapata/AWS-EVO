@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/integrations/aws/api-client";
-import { History, TrendingDown, TrendingUp, Shield, Eye } from "lucide-react";
+import { History, TrendingDown, TrendingUp, Shield, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SecurityScan {
   id: string;
@@ -34,15 +35,17 @@ interface SecurityScanHistoryProps {
 
 export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: SecurityScanHistoryProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   const { data: scanHistory, isLoading } = useQuery({
-    queryKey: ['security-scan-history', organizationId, accountId, selectedPeriod],
+    queryKey: ['security-scan-history', organizationId, accountId, selectedPeriod, currentPage, itemsPerPage],
     enabled: !!organizationId,
     staleTime: 10 * 1000, // 10 seconds
     refetchInterval: (query) => {
       // Auto-refresh every 5 seconds if there are running scans
-      const data = query.state.data as SecurityScan[] | undefined;
-      const hasRunningScans = data?.some(scan => scan.status === 'running');
+      const data = query.state.data as { scans: SecurityScan[], total: number } | undefined;
+      const hasRunningScans = data?.scans?.some(scan => scan.status === 'running');
       return hasRunningScans ? 5000 : false;
     },
     queryFn: async () => {
@@ -57,16 +60,21 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
       const filters: Record<string, any> = { organization_id: organizationId };
       if (accountId) filters.aws_account_id = accountId;
 
+      // Calculate offset for pagination
+      const offset = (currentPage - 1) * itemsPerPage;
+
       const response = await apiClient.select<SecurityScan>('security_scans', {
         eq: filters,
         order: { column: 'created_at', ascending: false },
-        limit: 100
+        limit: itemsPerPage,
+        offset: offset
       });
       
       if (response.error) {
         console.error('SecurityScanHistory: API error', response.error);
-        return [];
+        return { scans: [], total: 0 };
       }
+      
       let data = response.data || [];
       
       console.log('SecurityScanHistory: Raw data from API', { count: data.length, data });
@@ -76,12 +84,42 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
         data = data.filter((s) => s.created_at >= cutoffDate!);
         console.log('SecurityScanHistory: After date filter', { beforeFilter, afterFilter: data.length, cutoffDate });
       }
+
+      // Get total count for pagination (separate query)
+      const countResponse = await apiClient.select<SecurityScan>('security_scans', {
+        eq: filters,
+        select: 'id'
+      });
       
-      return data;
+      let totalCount = countResponse.data?.length || 0;
+      if (cutoffDate && countResponse.data) {
+        totalCount = countResponse.data.filter((s) => s.created_at >= cutoffDate!).length;
+      }
+      
+      return { scans: data, total: totalCount };
     }
   });
 
-  const chartData = scanHistory?.slice().reverse().map((scan) => {
+  const scans = scanHistory?.scans || [];
+  const totalScans = scanHistory?.total || 0;
+  const totalPages = Math.ceil(totalScans / itemsPerPage);
+
+  // Reset to first page when filters change
+  const handlePeriodChange = (period: '7d' | '30d' | '90d' | 'all') => {
+    setSelectedPeriod(period);
+    setCurrentPage(1);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(parseInt(value));
+    setCurrentPage(1);
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const chartData = scans?.slice().reverse().map((scan) => {
     // Calculate security score based on findings
     // Formula: 100 - (critical*10 + high*5 + medium*2 + low*0.5), min 0
     const critical = scan.critical_count || 0;
@@ -103,8 +141,8 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
     };
   }) || [];
 
-  const latestScan = scanHistory?.[0] as SecurityScan | undefined;
-  const previousScan = scanHistory?.[1] as SecurityScan | undefined;
+  const latestScan = scans?.[0] as SecurityScan | undefined;
+  const previousScan = scans?.[1] as SecurityScan | undefined;
   const totalTrend = latestScan && previousScan ? (latestScan.findings_count || 0) - (previousScan.findings_count || 0) : 0;
   const criticalTrend = latestScan && previousScan ? (latestScan.critical_count || 0) - (previousScan.critical_count || 0) : 0;
 
@@ -122,7 +160,7 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
           </div>
           <div className="flex gap-2">
             {(['7d', '30d', '90d', 'all'] as const).map((period) => (
-              <Button key={period} variant={selectedPeriod === period ? 'default' : 'outline'} size="sm" onClick={() => setSelectedPeriod(period)}>
+              <Button key={period} variant={selectedPeriod === period ? 'default' : 'outline'} size="sm" onClick={() => handlePeriodChange(period)}>
                 {period === '7d' && '7 dias'}{period === '30d' && '30 dias'}{period === '90d' && '90 dias'}{period === 'all' && 'Todos'}
               </Button>
             ))}
@@ -212,10 +250,27 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
           </div>
         )}
 
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium">Scans Recentes</h4>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium">Scans Recentes</h4>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Itens por página:</span>
+              <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {scanHistory?.map((scan: any) => (
+            {scans?.map((scan: any) => (
               <Card key={scan.id} className="hover:bg-accent/50 transition-colors">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -244,6 +299,76 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
               </Card>
             ))}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalScans)} de {totalScans} scans
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                
+                {/* Page numbers */}
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => goToPage(pageNum)}
+                      className="w-8"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -465,15 +465,27 @@ export function parseAndValidateBody<T>(
 
 /**
  * Calculate object nesting depth for DoS protection
+ * Also validates array sizes to prevent memory exhaustion
  */
 function getObjectDepth(obj: any, depth = 0): number {
   if (depth > 10) return depth; // Early exit for performance
   
   if (obj && typeof obj === 'object') {
     if (Array.isArray(obj)) {
+      // MILITARY GRADE: Limit array size to prevent memory exhaustion
+      const MAX_ARRAY_SIZE = 1000;
+      if (obj.length > MAX_ARRAY_SIZE) {
+        throw new Error(`Array size ${obj.length} exceeds maximum ${MAX_ARRAY_SIZE}`);
+      }
       if (obj.length === 0) return depth;
       return Math.max(...obj.map(item => getObjectDepth(item, depth + 1)));
     } else {
+      // MILITARY GRADE: Limit object keys to prevent memory exhaustion
+      const MAX_OBJECT_KEYS = 100;
+      const keys = Object.keys(obj);
+      if (keys.length > MAX_OBJECT_KEYS) {
+        throw new Error(`Object has ${keys.length} keys, exceeds maximum ${MAX_OBJECT_KEYS}`);
+      }
       const values = Object.values(obj);
       if (values.length === 0) return depth;
       return Math.max(...values.map(value => getObjectDepth(value, depth + 1)));

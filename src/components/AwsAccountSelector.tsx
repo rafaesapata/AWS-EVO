@@ -1,4 +1,5 @@
 import { useAwsAccount } from '@/contexts/AwsAccountContext';
+import { useNavigate } from 'react-router-dom';
 import {
   Select,
   SelectContent,
@@ -6,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Cloud, Globe, ChevronDown, CheckCircle2, Server } from 'lucide-react';
+import { Cloud, Globe, ChevronDown, CheckCircle2, Server, AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -28,6 +29,7 @@ export function AwsAccountSelector({
   showLabel = true,
   compact = false 
 }: AwsAccountSelectorProps) {
+  const navigate = useNavigate();
   const { 
     accounts, 
     selectedAccountId, 
@@ -50,7 +52,55 @@ export function AwsAccountSelector({
   }
 
   if (accounts.length === 0) {
-    return null;
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div 
+              onClick={() => navigate('/aws-settings')}
+              className={cn(
+                "flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all",
+                "bg-gradient-to-r from-amber-500/5 to-orange-500/10 hover:from-amber-500/10 hover:to-orange-500/15",
+                "border border-amber-500/20 hover:border-amber-500/30",
+                className
+              )}
+            >
+              {/* Warning icon */}
+              <div className="relative">
+                <div className="p-2.5 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20">
+                  <Cloud className="h-5 w-5 text-amber-500" />
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-amber-500 border-2 border-background" />
+              </div>
+              
+              {/* Message */}
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium text-amber-600">
+                  Nenhuma conta AWS
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Clique para configurar
+                </span>
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs p-3">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <span className="font-medium text-sm">Configuração Necessária</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Você precisa conectar pelo menos uma conta AWS para usar o sistema.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Clique aqui para ir às configurações AWS.
+              </p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   }
 
   // If only one account, show elegant display

@@ -47,6 +47,8 @@ interface User {
   updated_at: string;
   permissions: string[];
   aws_accounts: string[];
+  user_id?: string;
+  organization_ids?: string[]; // Multiple organizations for super_admin
 }
 
 interface Organization {
@@ -130,7 +132,8 @@ export default function UserManagement() {
         updated_at: profile.updated_at,
         permissions: [],
         aws_accounts: [],
-        user_id: profile.user_id
+        user_id: profile.user_id,
+        organization_ids: [profile.organization_id] // Initialize with current org
       }));
 
       // Apply search filter
@@ -179,12 +182,12 @@ export default function UserManagement() {
         throw new Error(getErrorMessage(cognitoResponse.error));
       }
 
-      // Create user record in database
-      const response = await apiClient.insert('users', {
-        ...userData,
+      // Create user record in database (profiles table)
+      const response = await apiClient.insert('profiles', {
+        user_id: cognitoResponse.data.userId,
         organization_id: targetOrgId,
-        status: 'pending',
-        cognito_user_id: cognitoResponse.data.userId
+        full_name: userData.name,
+        role: userData.role,
       });
 
       if (response.error) {
@@ -221,7 +224,56 @@ export default function UserManagement() {
   // Update user
   const updateUserMutation = useMutation({
     mutationFn: async (userData: Partial<User> & { id: string }) => {
-      const response = await apiClient.update('users', userData);
+      // If super admin is updating organizations, handle profile creation/deletion
+      if (isSuperAdmin && userData.organization_ids && userData.user_id) {
+        // Get current profiles for this user
+        const currentProfiles = await apiClient.select('profiles', {
+          eq: { user_id: userData.user_id }
+        });
+        
+        const currentOrgIds = (currentProfiles.data || []).map((p: any) => p.organization_id);
+        const newOrgIds = userData.organization_ids;
+        
+        // Organizations to add (in newOrgIds but not in currentOrgIds)
+        const orgsToAdd = newOrgIds.filter(id => !currentOrgIds.includes(id));
+        
+        // Organizations to remove (in currentOrgIds but not in newOrgIds)
+        const orgsToRemove = currentOrgIds.filter((id: string) => !newOrgIds.includes(id));
+        
+        // Create profiles for new organizations
+        for (const orgId of orgsToAdd) {
+          await apiClient.insert('profiles', {
+            user_id: userData.user_id,
+            organization_id: orgId,
+            full_name: userData.name,
+            role: userData.role || 'user',
+          });
+        }
+        
+        // Delete profiles for removed organizations
+        for (const orgId of orgsToRemove) {
+          await apiClient.delete('profiles', {
+            user_id: userData.user_id,
+            organization_id: orgId
+          });
+        }
+        
+        // Update existing profiles with new role/name
+        for (const orgId of newOrgIds.filter((id: string) => currentOrgIds.includes(id))) {
+          await apiClient.update('profiles', 
+            { full_name: userData.name, role: userData.role },
+            { user_id: userData.user_id, organization_id: orgId }
+          );
+        }
+        
+        return { success: true };
+      }
+      
+      // Standard update for non-super-admin or single org
+      const response = await apiClient.update('profiles', 
+        { full_name: userData.name, role: userData.role },
+        { id: userData.id }
+      );
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
@@ -281,12 +333,27 @@ export default function UserManagement() {
   });
 
   const generateTemporaryPassword = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    // Cognito requires: uppercase, lowercase, number, special character, min 8 chars
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    const special = '!@#$%^&*';
+    
+    // Ensure at least one of each required type
     let password = '';
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
+    password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
+    password += numbers.charAt(Math.floor(Math.random() * numbers.length));
+    password += special.charAt(Math.floor(Math.random() * special.length));
+    
+    // Fill remaining with random chars from all types
+    const allChars = uppercase + lowercase + numbers + special;
+    for (let i = 0; i < 8; i++) {
+      password += allChars.charAt(Math.floor(Math.random() * allChars.length));
     }
-    return password;
+    
+    // Shuffle the password to randomize position of required chars
+    return password.split('').sort(() => Math.random() - 0.5).join('');
   };
 
   const handleCreateUser = () => {
@@ -306,6 +373,26 @@ export default function UserManagement() {
     if (!editingUser) return;
 
     updateUserMutation.mutate(editingUser);
+  };
+
+  // Load all organizations for a user when editing (super_admin only)
+  const loadUserOrganizations = async (user: User) => {
+    if (!isSuperAdmin || !user.user_id) {
+      setEditingUser(user);
+      return;
+    }
+    
+    try {
+      const profilesResponse = await apiClient.select('profiles', {
+        eq: { user_id: user.user_id }
+      });
+      
+      const orgIds = (profilesResponse.data || []).map((p: any) => p.organization_id);
+      setEditingUser({ ...user, organization_ids: orgIds });
+    } catch (error) {
+      // If error, just set the user with current org
+      setEditingUser(user);
+    }
   };
 
   const getRoleBadge = (role: string) => {
@@ -457,9 +544,17 @@ export default function UserManagement() {
 
       {/* Users Table */}
       <Card className="glass border-primary/20">
-        <CardHeader>
-          <CardTitle>Lista de Usuários</CardTitle>
-          <CardDescription>Gerencie todos os usuários da organização</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Lista de Usuários</CardTitle>
+            <CardDescription>Gerencie todos os usuários da organização</CardDescription>
+          </div>
+          {isAdmin && (
+            <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-gradient-primary">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Novo Usuário
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -523,7 +618,7 @@ export default function UserManagement() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setEditingUser(user)}
+                            onClick={() => loadUserOrganizations(user)}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -609,6 +704,7 @@ export default function UserManagement() {
                       <SelectItem value="viewer">Visualizador</SelectItem>
                       <SelectItem value="user">Usuário</SelectItem>
                       <SelectItem value="admin">Administrador</SelectItem>
+                      {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
@@ -629,6 +725,51 @@ export default function UserManagement() {
                   </Select>
                 </div>
               </div>
+
+              {/* Multiple Organizations - Only for Super Admin */}
+              {isSuperAdmin && organizations && organizations.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Organizações do Usuário
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Selecione as organizações às quais este usuário terá acesso
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
+                    {organizations.map((org) => (
+                      <div key={org.id} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`edit-org-${org.id}`}
+                          checked={editingUser.organization_ids?.includes(org.id) || false}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditingUser(prev => prev ? { 
+                                ...prev, 
+                                organization_ids: [...(prev.organization_ids || []), org.id] 
+                              } : null);
+                            } else {
+                              setEditingUser(prev => prev ? { 
+                                ...prev, 
+                                organization_ids: (prev.organization_ids || []).filter(id => id !== org.id) 
+                              } : null);
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <Label htmlFor={`edit-org-${org.id}`} className="text-sm cursor-pointer">
+                          {org.name}
+                          <span className="text-xs text-muted-foreground ml-1">({org.slug})</span>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {editingUser.organization_ids?.length || 0} organização(ões) selecionada(s)
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Permissões</Label>

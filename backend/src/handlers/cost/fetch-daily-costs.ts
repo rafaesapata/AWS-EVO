@@ -51,6 +51,9 @@ export async function handler(
       incremental = true // Nova opção: busca incremental por padrão
     } = parseResult.data as any;
     
+    // AWS Cost Explorer limita dados históricos a 14 meses
+    const maxHistoricalDate = getDateDaysAgo(420); // ~14 meses
+    
     const prisma = getPrismaClient();
     
     // Buscar credenciais AWS ativas
@@ -86,6 +89,17 @@ export async function handler(
         
         // Determinar data de início baseado nos dados existentes
         let startDate = requestedStartDate || getDateDaysAgo(365); // Default: 1 ano
+        
+        // Garantir que não ultrapasse o limite de 14 meses da AWS
+        if (startDate < maxHistoricalDate) {
+          startDate = maxHistoricalDate;
+          logger.info('Adjusted start date to AWS limit', { 
+            accountId: account.id,
+            requestedStart: requestedStartDate,
+            adjustedStart: startDate,
+            reason: '14-month historical data limit'
+          });
+        }
         
         if (incremental) {
           // Buscar a data mais recente no banco para esta conta

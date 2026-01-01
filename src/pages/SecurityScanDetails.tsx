@@ -22,7 +22,13 @@ import {
   Download,
   ChevronDown,
   ChevronRight,
-  Info
+  Info,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -72,12 +78,18 @@ export default function SecurityScanDetails() {
   const { toast } = useToast();
   const { data: organizationId } = useOrganization();
   
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
   const [selectedFindings, setSelectedFindings] = useState<Set<string>>(new Set());
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+  const [sortBy, setSortBy] = useState<'severity' | 'created_at' | 'service'>('severity');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Get scan details
   const { data: scan, isLoading: scanLoading } = useQuery({
@@ -217,8 +229,20 @@ export default function SecurityScanDetails() {
     });
   };
 
-  // Filter findings
-  const filteredFindings = findings?.filter(finding => {
+  // Severity priority for sorting
+  const getSeverityPriority = (severity: string): number => {
+    switch (severity) {
+      case 'critical': return 5;
+      case 'high': return 4;
+      case 'medium': return 3;
+      case 'low': return 2;
+      case 'info': return 1;
+      default: return 0;
+    }
+  };
+
+  // Filter and sort findings
+  const filteredAndSortedFindings = (findings || []).filter(finding => {
     const matchesSearch = !searchTerm || 
       finding.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       finding.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -229,10 +253,68 @@ export default function SecurityScanDetails() {
     const matchesStatus = statusFilter === 'all' || finding.status === statusFilter;
 
     return matchesSearch && matchesSeverity && matchesService && matchesStatus;
-  }) || [];
+  }).sort((a, b) => {
+    let comparison = 0;
+    
+    switch (sortBy) {
+      case 'severity':
+        comparison = getSeverityPriority(b.severity) - getSeverityPriority(a.severity);
+        break;
+      case 'created_at':
+        comparison = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        break;
+      case 'service':
+        comparison = (a.service || '').localeCompare(b.service || '');
+        break;
+      default:
+        comparison = 0;
+    }
+    
+    return sortOrder === 'desc' ? comparison : -comparison;
+  });
+
+  // Pagination calculations
+  const totalItems = filteredAndSortedFindings.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedFindings = filteredAndSortedFindings.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  const handleFilterChange = (filterType: string, value: string) => {
+    setCurrentPage(1);
+    switch (filterType) {
+      case 'search':
+        setSearchTerm(value);
+        break;
+      case 'severity':
+        setSeverityFilter(value);
+        break;
+      case 'service':
+        setServiceFilter(value);
+        break;
+      case 'status':
+        setStatusFilter(value);
+        break;
+    }
+  };
+
+  // Handle sort change
+  const handleSortChange = (newSortBy: 'severity' | 'created_at' | 'service') => {
+    if (sortBy === newSortBy) {
+      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('desc');
+    }
+    setCurrentPage(1);
+  };
+
+  // Filter findings
+  const filteredFindings = filteredAndSortedFindings;
 
   // Get unique services for filter
-  const uniqueServices = [...new Set(findings?.map(f => f.service).filter(Boolean) || [])];
+  const uniqueServices = [...new Set((findings || []).map(f => f.service).filter(Boolean))];
 
   if (scanLoading) {
     return (
@@ -253,7 +335,7 @@ export default function SecurityScanDetails() {
           <p className="text-muted-foreground mb-4">
             O scan solicitado não foi encontrado ou você não tem permissão para visualizá-lo.
           </p>
-          <Button onClick={() => navigate('/security-scans')}>
+          <Button onClick={() => navigate('/security-scans')} className="hover-glow transition-all duration-300 hover:scale-105">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar aos Scans
           </Button>
@@ -271,7 +353,7 @@ export default function SecurityScanDetails() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => navigate('/security-scans')}>
+          <Button variant="ghost" onClick={() => navigate('/security-scans')} className="hover-glow transition-all duration-300 hover:scale-105">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar aos Scans
           </Button>
@@ -285,7 +367,7 @@ export default function SecurityScanDetails() {
                 isLoading={createTicketMutation.isPending}
               />
             )}
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="hover-glow transition-all duration-300 hover:scale-105">
               <Download className="h-4 w-4 mr-2" />
               Exportar Relatório
             </Button>
@@ -293,12 +375,14 @@ export default function SecurityScanDetails() {
         </div>
 
         {/* Scan Overview */}
-        <Card className="glass border-primary/20">
+        <Card className="glass border-primary/20 hover-glow transition-all duration-300">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-6 w-6 text-primary" />
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Shield className="h-6 w-6 text-primary" />
+                  </div>
                   {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
                 </CardTitle>
                 <CardDescription>
@@ -308,35 +392,41 @@ export default function SecurityScanDetails() {
               </div>
               <div className="text-right">
                 {scan.status === 'completed' ? (
-                  <CheckCircle className="h-8 w-8 text-green-500" />
+                  <div className="p-3 rounded-full bg-green-100 hover:bg-green-200 transition-colors">
+                    <CheckCircle className="h-8 w-8 text-green-500" />
+                  </div>
                 ) : scan.status === 'running' ? (
-                  <Clock className="h-8 w-8 text-blue-500 animate-spin" />
+                  <div className="p-3 rounded-full bg-blue-100 hover:bg-blue-200 transition-colors">
+                    <Clock className="h-8 w-8 text-blue-500 animate-spin" />
+                  </div>
                 ) : (
-                  <XCircle className="h-8 w-8 text-red-500" />
+                  <div className="p-3 rounded-full bg-red-100 hover:bg-red-200 transition-colors">
+                    <XCircle className="h-8 w-8 text-red-500" />
+                  </div>
                 )}
               </div>
             </div>
           </CardHeader>
           <CardContent>
             {scan.status === 'completed' && (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="text-center">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 animate-fade-in">
+                <div className="text-center p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
                   <div className="text-2xl font-bold">{scan.findings_count || 0}</div>
                   <div className="text-sm text-muted-foreground">Total</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-4 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">
                   <div className="text-2xl font-bold text-red-600">{scan.critical_count || 0}</div>
                   <div className="text-sm text-muted-foreground">Críticos</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-4 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors">
                   <div className="text-2xl font-bold text-red-500">{scan.high_count || 0}</div>
                   <div className="text-sm text-muted-foreground">Altos</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-4 rounded-lg bg-yellow-50 hover:bg-yellow-100 transition-colors">
                   <div className="text-2xl font-bold text-yellow-500">{scan.medium_count || 0}</div>
                   <div className="text-sm text-muted-foreground">Médios</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-4 rounded-lg bg-green-50 hover:bg-green-100 transition-colors">
                   <div className="text-2xl font-bold text-green-500">{scan.low_count || 0}</div>
                   <div className="text-sm text-muted-foreground">Baixos</div>
                 </div>
@@ -344,7 +434,7 @@ export default function SecurityScanDetails() {
             )}
             
             {scan.results && (
-              <div className="mt-4 p-4 bg-muted/30 rounded-lg">
+              <div className="mt-4 p-4 bg-muted/30 rounded-lg glass-hover">
                 <h4 className="font-semibold mb-2">Métricas do Scan</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div>
@@ -363,64 +453,128 @@ export default function SecurityScanDetails() {
         </Card>
 
         {/* Findings Section */}
-        <Card className="glass border-primary/20">
+        <Card className="glass border-primary/20 hover-glow transition-all duration-300">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Achados de Segurança</CardTitle>
                 <CardDescription>
-                  {filteredFindings.length} de {findings?.length || 0} achados
+                  {totalItems} achados encontrados
                   {selectedFindings.size > 0 && ` • ${selectedFindings.size} selecionados`}
+                  {totalItems > 0 && ` • Página ${currentPage} de ${totalPages}`}
                 </CardDescription>
               </div>
             </div>
             
-            {/* Filters */}
-            <div className="flex flex-wrap gap-4 mt-4">
-              <div className="flex-1 min-w-[200px]">
-                <Input
-                  placeholder="Buscar achados..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="glass"
-                />
+            {/* Filters and Controls */}
+            <div className="space-y-4 mt-4">
+              {/* Search and Filters Row */}
+              <div className="flex flex-wrap gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <Input
+                    placeholder="Buscar achados..."
+                    value={searchTerm}
+                    onChange={(e) => handleFilterChange('search', e.target.value)}
+                    className="glass transition-all duration-300 focus:scale-105"
+                  />
+                </div>
+                <Select value={severityFilter || "all"} onValueChange={(value) => handleFilterChange('severity', value)}>
+                  <SelectTrigger className="w-[150px] glass transition-all duration-300 hover:scale-105">
+                    <SelectValue placeholder="Severidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="critical">Crítico</SelectItem>
+                    <SelectItem value="high">Alto</SelectItem>
+                    <SelectItem value="medium">Médio</SelectItem>
+                    <SelectItem value="low">Baixo</SelectItem>
+                    <SelectItem value="info">Info</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={serviceFilter || "all"} onValueChange={(value) => handleFilterChange('service', value)}>
+                  <SelectTrigger className="w-[150px] glass transition-all duration-300 hover:scale-105">
+                    <SelectValue placeholder="Serviço" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {uniqueServices.map(service => (
+                      <SelectItem key={service} value={service}>{service}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter || "all"} onValueChange={(value) => handleFilterChange('status', value)}>
+                  <SelectTrigger className="w-[150px] glass transition-all duration-300 hover:scale-105">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="in_progress">Em Progresso</SelectItem>
+                    <SelectItem value="resolved">Resolvido</SelectItem>
+                    <SelectItem value="dismissed">Descartado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                <SelectTrigger className="w-[150px] glass">
-                  <SelectValue placeholder="Severidade" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="critical">Crítico</SelectItem>
-                  <SelectItem value="high">Alto</SelectItem>
-                  <SelectItem value="medium">Médio</SelectItem>
-                  <SelectItem value="low">Baixo</SelectItem>
-                  <SelectItem value="info">Info</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={serviceFilter} onValueChange={setServiceFilter}>
-                <SelectTrigger className="w-[150px] glass">
-                  <SelectValue placeholder="Serviço" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {uniqueServices.map(service => (
-                    <SelectItem key={service} value={service}>{service}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px] glass">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="in_progress">Em Progresso</SelectItem>
-                  <SelectItem value="resolved">Resolvido</SelectItem>
-                  <SelectItem value="dismissed">Descartado</SelectItem>
-                </SelectContent>
-              </Select>
+
+              {/* Sort and Pagination Controls Row */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-muted-foreground">Ordenar por:</span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={sortBy === 'severity' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handleSortChange('severity')}
+                      className="glass hover-glow transition-all duration-300"
+                    >
+                      Criticidade
+                      {sortBy === 'severity' && (
+                        sortOrder === 'desc' ? <ArrowDown className="h-3 w-3 ml-1" /> : <ArrowUp className="h-3 w-3 ml-1" />
+                      )}
+                    </Button>
+                    <Button
+                      variant={sortBy === 'created_at' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handleSortChange('created_at')}
+                      className="glass hover-glow transition-all duration-300"
+                    >
+                      Data
+                      {sortBy === 'created_at' && (
+                        sortOrder === 'desc' ? <ArrowDown className="h-3 w-3 ml-1" /> : <ArrowUp className="h-3 w-3 ml-1" />
+                      )}
+                    </Button>
+                    <Button
+                      variant={sortBy === 'service' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handleSortChange('service')}
+                      className="glass hover-glow transition-all duration-300"
+                    >
+                      Serviço
+                      {sortBy === 'service' && (
+                        sortOrder === 'desc' ? <ArrowDown className="h-3 w-3 ml-1" /> : <ArrowUp className="h-3 w-3 ml-1" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Itens por página:</span>
+                  <Select value={itemsPerPage?.toString() || "10"} onValueChange={(value) => {
+                    setItemsPerPage(parseInt(value) || 10);
+                    setCurrentPage(1);
+                  }}>
+                    <SelectTrigger className="w-[80px] glass">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -430,23 +584,105 @@ export default function SecurityScanDetails() {
                   <div key={i} className="h-20 bg-muted/30 rounded animate-pulse" />
                 ))}
               </div>
-            ) : filteredFindings.length > 0 ? (
-              <div className="space-y-4">
-                {filteredFindings.map((finding) => (
-                  <FindingCard
-                    key={finding.id}
-                    finding={finding}
-                    isExpanded={expandedFindings.has(finding.id)}
-                    isSelected={selectedFindings.has(finding.id)}
-                    onToggleExpansion={() => toggleFindingExpansion(finding.id)}
-                    onToggleSelection={() => toggleFindingSelection(finding.id)}
-                    onCopyToClipboard={copyToClipboard}
-                  />
-                ))}
-              </div>
+            ) : paginatedFindings.length > 0 ? (
+              <>
+                <div className="space-y-4">
+                  {paginatedFindings.map((finding) => (
+                    <FindingCard
+                      key={finding.id}
+                      finding={finding}
+                      isExpanded={expandedFindings.has(finding.id)}
+                      isSelected={selectedFindings.has(finding.id)}
+                      onToggleExpansion={() => toggleFindingExpansion(finding.id)}
+                      onToggleSelection={() => toggleFindingSelection(finding.id)}
+                      onCopyToClipboard={copyToClipboard}
+                    />
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando {startIndex + 1} a {Math.min(endIndex, totalItems)} de {totalItems} achados
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                        className="glass hover-glow transition-all duration-300"
+                      >
+                        <ChevronsLeft className="h-4 w-4" />
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="glass hover-glow transition-all duration-300"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="w-8 h-8 p-0 glass hover-glow transition-all duration-300"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="glass hover-glow transition-all duration-300"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        className="glass hover-glow transition-all duration-300"
+                      >
+                        <ChevronsRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-12">
-                <CheckCircle className="h-16 w-16 mx-auto mb-4 text-success" />
+                <div className="p-4 rounded-full bg-green-100 w-fit mx-auto mb-4">
+                  <CheckCircle className="h-16 w-16 text-success" />
+                </div>
                 <h3 className="text-xl font-semibold mb-2">Nenhum achado encontrado</h3>
                 <p className="text-muted-foreground">
                   {searchTerm || severityFilter !== 'all' || serviceFilter !== 'all' || statusFilter !== 'all'
@@ -521,16 +757,18 @@ function FindingCard({
   }
 
   return (
-    <div className={`border rounded-lg p-4 transition-all ${isSelected ? 'ring-2 ring-primary' : ''}`}>
+    <div className={`glass-hover border rounded-lg p-4 transition-all duration-300 hover-glow ${isSelected ? 'ring-2 ring-primary shadow-lg' : ''}`}>
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-3 flex-1">
           <input
             type="checkbox"
             checked={isSelected}
             onChange={onToggleSelection}
-            className="mt-1"
+            className="mt-1 transition-transform hover:scale-110"
           />
-          {getSeverityIcon(finding.severity)}
+          <div className="p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+            {getSeverityIcon(finding.severity)}
+          </div>
           <div className="space-y-2 flex-1">
             <div className="flex items-start justify-between">
               <h4 className="font-semibold text-sm">{finding.title}</h4>
@@ -551,7 +789,7 @@ function FindingCard({
             {finding.compliance && finding.compliance.length > 0 && (
               <div className="flex gap-2 flex-wrap">
                 {finding.compliance.map((comp, index) => (
-                  <Badge key={index} variant="outline" className="text-xs">
+                  <Badge key={index} variant="outline" className="text-xs hover:bg-primary/10 transition-colors">
                     {comp}
                   </Badge>
                 ))}
@@ -564,6 +802,7 @@ function FindingCard({
           variant="ghost"
           size="sm"
           onClick={onToggleExpansion}
+          className="hover-glow transition-all duration-300 hover:scale-110"
         >
           {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </Button>
@@ -577,7 +816,7 @@ function FindingCard({
           {finding.details && (
             <div>
               <h5 className="font-semibold text-sm mb-2">Detalhes Técnicos</h5>
-              <div className="bg-muted/30 rounded p-3 text-sm">
+              <div className="bg-muted/30 rounded p-3 text-sm glass-hover">
                 {typeof finding.details === 'object' ? (
                   <pre className="whitespace-pre-wrap">{JSON.stringify(finding.details, null, 2)}</pre>
                 ) : (
@@ -594,11 +833,12 @@ function FindingCard({
               <div>
                 <strong>Resource ID:</strong>
                 <div className="flex items-center gap-2 mt-1">
-                  <code className="bg-muted px-2 py-1 rounded text-xs">{finding.resource_id}</code>
+                  <code className="bg-muted px-2 py-1 rounded text-xs glass-hover">{finding.resource_id}</code>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => onCopyToClipboard(finding.resource_id)}
+                    className="hover-glow transition-all duration-300 hover:scale-110"
                   >
                     <Copy className="h-3 w-3" />
                   </Button>
@@ -607,11 +847,12 @@ function FindingCard({
               <div>
                 <strong>Resource ARN:</strong>
                 <div className="flex items-center gap-2 mt-1">
-                  <code className="bg-muted px-2 py-1 rounded text-xs break-all">{finding.resource_arn}</code>
+                  <code className="bg-muted px-2 py-1 rounded text-xs break-all glass-hover">{finding.resource_arn}</code>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => onCopyToClipboard(finding.resource_arn)}
+                    className="hover-glow transition-all duration-300 hover:scale-110"
                   >
                     <Copy className="h-3 w-3" />
                   </Button>
@@ -624,7 +865,7 @@ function FindingCard({
           {remediation && (
             <div>
               <h5 className="font-semibold text-sm mb-2">Ações de Remediação</h5>
-              <div className="bg-blue-50 dark:bg-blue-950/30 rounded p-4 space-y-3">
+              <div className="bg-blue-50 dark:bg-blue-950/30 rounded p-4 space-y-3 glass-hover">
                 {remediation.description && (
                   <p className="text-sm">{remediation.description}</p>
                 )}
@@ -644,13 +885,14 @@ function FindingCard({
                   <div>
                     <strong className="text-sm">Comando CLI:</strong>
                     <div className="flex items-center gap-2 mt-2">
-                      <code className="bg-muted px-3 py-2 rounded text-xs flex-1 overflow-x-auto">
+                      <code className="bg-muted px-3 py-2 rounded text-xs flex-1 overflow-x-auto glass-hover">
                         {remediation.cli_command}
                       </code>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => onCopyToClipboard(remediation.cli_command)}
+                        className="hover-glow transition-all duration-300 hover:scale-110"
                       >
                         <Copy className="h-3 w-3" />
                       </Button>
@@ -671,7 +913,7 @@ function FindingCard({
           {finding.evidence && (
             <div>
               <h5 className="font-semibold text-sm mb-2">Evidências</h5>
-              <div className="bg-muted/30 rounded p-3 text-sm">
+              <div className="bg-muted/30 rounded p-3 text-sm glass-hover">
                 <pre className="whitespace-pre-wrap">{JSON.stringify(finding.evidence, null, 2)}</pre>
               </div>
             </div>
@@ -698,7 +940,7 @@ function CreateTicketDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
 
-  const selectedFindingObjects = findings.filter(f => selectedFindings.includes(f.id));
+  const selectedFindingObjects = (findings || []).filter(f => selectedFindings.includes(f.id));
   const criticalCount = selectedFindingObjects.filter(f => f.severity === 'critical').length;
   const highCount = selectedFindingObjects.filter(f => f.severity === 'high').length;
 
@@ -719,7 +961,7 @@ function CreateTicketDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button className="hover-glow transition-all duration-300 hover:scale-105">
           <Ticket className="h-4 w-4 mr-2" />
           Criar Ticket ({selectedFindings.length})
         </Button>
@@ -772,12 +1014,13 @@ function CreateTicketDialog({
         </div>
         
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => setOpen(false)} className="hover-glow transition-all duration-300">
             Cancelar
           </Button>
           <Button 
             onClick={handleSubmit} 
             disabled={!title.trim() || isLoading}
+            className="hover-glow transition-all duration-300 hover:scale-105"
           >
             {isLoading ? "Criando..." : "Criar Ticket"}
           </Button>

@@ -52,11 +52,11 @@ Parameters:
 
   CognitoUserPoolId:
     Type: String
-    Default: us-east-1_qGmGkvmpL
+    Default: us-east-1_cnesJ48lR
 
   CognitoClientId:
     Type: String
-    Default: 1pa9qjk1nqve664crea9bclpo4
+    Default: 4p0okvsr983v2f8rrvgpls76d6
 
 Resources:
   # ============================================================================

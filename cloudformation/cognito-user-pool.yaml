@@ -1,0 +1,217 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO UDS v3 - Cognito User Pool with Custom Attributes (Correct Implementation)'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+      - development
+    Description: Environment name
+
+Resources:
+  # User Pool - IMPORTANTE: Atributos customizados devem ser adicionados via CustomResource
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'evo-uds-v3-${Environment}-users'
+      
+      # Password Policy
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          TemporaryPasswordValidityDays: 7
+      
+      # Auto-verified attributes
+      AutoVerifiedAttributes:
+        - email
+      
+      # Username configuration - usar email como username
+      UsernameAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: false
+      
+      # MFA Configuration
+      MfaConfiguration: 'OFF'
+      
+      # Email Configuration
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      
+      # Admin Create User Config
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+        InviteMessageTemplate:
+          EmailSubject: 'Bem-vindo ao EVO UDS'
+          EmailMessage: 'Seu usuário foi criado. Username: {username} Senha temporária: {####}'
+      
+      # Account Recovery
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      
+      # Tags
+      UserPoolTags:
+        Environment: !Ref Environment
+        Project: evo-uds-v3
+        Component: authentication
+        ManagedBy: CloudFormation
+
+  # Custom Resource Lambda Role para adicionar atributos customizados
+  CustomAttributesLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CognitoCustomAttributes
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AddCustomAttributes
+                  - cognito-idp:DescribeUserPool
+                Resource: !GetAtt UserPool.Arn
+
+  # Lambda Function para adicionar atributos customizados
+  AddCustomAttributesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'evo-uds-${Environment}-add-cognito-custom-attrs'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt CustomAttributesLambdaRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          const { CognitoIdentityProviderClient, AddCustomAttributesCommand } = require('@aws-sdk/client-cognito-identity-provider');
+          const response = require('cfn-response');
+          
+          exports.handler = async (event, context) => {
+            console.log('Event:', JSON.stringify(event, null, 2));
+            
+            if (event.RequestType === 'Delete') {
+              await response.send(event, context, response.SUCCESS, {});
+              return;
+            }
+            
+            const userPoolId = event.ResourceProperties.UserPoolId;
+            const client = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION });
+            
+            try {
+              const customAttributes = [
+                { Name: 'organization_id', AttributeDataType: 'String', Mutable: true },
+                { Name: 'organization_name', AttributeDataType: 'String', Mutable: true },
+                { Name: 'roles', AttributeDataType: 'String', Mutable: true },
+                { Name: 'tenant_id', AttributeDataType: 'String', Mutable: true }
+              ];
+              
+              await client.send(new AddCustomAttributesCommand({
+                UserPoolId: userPoolId,
+                CustomAttributes: customAttributes
+              }));
+              
+              console.log('Custom attributes added successfully');
+              await response.send(event, context, response.SUCCESS, { Message: 'Custom attributes added' });
+            } catch (error) {
+              console.error('Error:', error);
+              // Se os atributos já existem, considerar sucesso
+              if (error.name === 'InvalidParameterException' && error.message.includes('already exists')) {
+                await response.send(event, context, response.SUCCESS, { Message: 'Attributes already exist' });
+              } else {
+                await response.send(event, context, response.FAILED, { Error: error.message });
+              }
+            }
+          };
+
+  # Custom Resource para adicionar atributos customizados após criar o User Pool
+  AddCustomAttributes:
+    Type: Custom::AddCustomAttributes
+    DependsOn: UserPool
+    Properties:
+      ServiceToken: !GetAtt AddCustomAttributesFunction.Arn
+      UserPoolId: !Ref UserPool
+
+  # User Pool Client - Criado APÓS os atributos customizados
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: AddCustomAttributes
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub 'evo-uds-v3-${Environment}-client'
+      GenerateSecret: false
+      
+      # Auth Flows - IMPORTANTE: USER_PASSWORD_AUTH é necessário para login direto
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      
+      # Supported Identity Providers
+      SupportedIdentityProviders:
+        - COGNITO
+      
+      # Attribute Permissions - incluindo atributos customizados
+      ReadAttributes:
+        - email
+        - name
+        - custom:organization_id
+        - custom:organization_name
+        - custom:roles
+        - custom:tenant_id
+      WriteAttributes:
+        - email
+        - name
+        - custom:organization_id
+        - custom:organization_name
+        - custom:roles
+        - custom:tenant_id
+      
+      # Token Validity
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+Outputs:
+  UserPoolId:
+    Description: 'Cognito User Pool ID'
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+  
+  UserPoolClientId:
+    Description: 'Cognito User Pool Client ID'
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+  
+  UserPoolArn:
+    Description: 'Cognito User Pool ARN'
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolArn'
+  
+  CustomAttributes:
+    Description: 'Custom attributes configured'
+    Value: 'organization_id, organization_name, roles, tenant_id'

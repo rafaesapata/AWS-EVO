@@ -148,6 +148,17 @@ export function getUserFromEvent(event: AuthorizedEvent): CognitoUser {
   return claims;
 }
 
+/**
+ * UUID v4 regex - Military Grade validation
+ * Matches: xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx
+ */
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * General UUID regex (v1-v5)
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export function getOrganizationId(user: CognitoUser): string {
   const orgId = user['custom:organization_id'];
 
@@ -155,9 +166,10 @@ export function getOrganizationId(user: CognitoUser): string {
     throw new Error('Organization not found. Please logout and login again to refresh your session.');
   }
 
-  // Validar formato do organizationId (UUID format)
-  // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(orgId)) {
+  // MILITARY GRADE: Validar formato do organizationId (APENAS UUID válido)
+  // Não aceita mais formato org-prefix para consistência
+  if (!UUID_REGEX.test(orgId)) {
+    console.error(`[SECURITY] Invalid organization ID format detected: ${orgId.substring(0, 8)}...`);
     throw new Error('Session expired or invalid. Please logout and login again to refresh your session.');
   }
 

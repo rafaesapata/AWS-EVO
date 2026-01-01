@@ -82,12 +82,19 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
           allAccounts = responseBody;
         } else if (responseBody?.success && Array.isArray(responseBody.data)) {
           allAccounts = responseBody.data;
+        } else if (responseBody?.data && Array.isArray(responseBody.data)) {
+          allAccounts = responseBody.data;
         } else {
-          allAccounts = responseBody?.data || [];
+          console.warn('AwsAccountContext: Unexpected response format:', responseBody);
+          allAccounts = [];
         }
         
-        // Filter only active accounts
-        return allAccounts.filter((acc: AwsAccount) => acc.is_active);
+        // Filter only active accounts and ensure they have required properties
+        return allAccounts.filter((acc: any) => {
+          if (!acc || typeof acc !== 'object') return false;
+          if (!acc.id || !acc.account_name) return false;
+          return acc.is_active !== false; // Include if is_active is true or undefined
+        });
       } catch (err) {
         // Check if this is an aborted request error
         if (err instanceof Error) {
@@ -98,6 +105,7 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
           }
         }
         
+        console.error('AwsAccountContext: Error fetching accounts:', err);
         const appError = ErrorHandler.handle(err, {
           component: 'AwsAccountContext',
           action: 'buscar contas AWS',
@@ -117,7 +125,7 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
           return false;
         }
       }
-      return failureCount < 3;
+      return failureCount < 2; // Reduced retry count
     },
   });
 

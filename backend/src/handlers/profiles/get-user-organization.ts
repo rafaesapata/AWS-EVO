@@ -31,8 +31,8 @@ export async function handler(
     
     const prisma = getPrismaClient();
     
-    // Get organization details
-    const organization = await prisma.organization.findUnique({
+    // Get organization details, create if not exists (for development)
+    let organization = await prisma.organization.findUnique({
       where: { id: organizationId },
       select: {
         id: true,
@@ -44,7 +44,23 @@ export async function handler(
     });
     
     if (!organization) {
-      return notFound('Organization not found');
+      console.log('📝 Creating organization for first time:', organizationId);
+      const orgName = user['custom:organization_name'] || 'Default Organization';
+      organization = await prisma.organization.create({
+        data: {
+          id: organizationId,
+          name: orgName,
+          slug: orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          created_at: true,
+          updated_at: true
+        }
+      });
+      console.log('✅ Organization created:', organization.name);
     }
     
     // Get user's profile in this organization, or create if not exists

@@ -1,14 +1,43 @@
 /**
  * Lambda handler for running SQL migrations
- * SECURITY: Requires super_admin authentication
+ * MILITARY GRADE: Requires super_admin authentication with strict validation
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, corsOptions, badRequest } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { getUserFromEvent, isSuperAdmin } from '../../lib/auth.js';
+
+// MILITARY GRADE: Only allow specific DDL operations
+const ALLOWED_DDL_PATTERNS = [
+  /^ALTER\s+TABLE\s+\w+\s+ADD\s+COLUMN/i,
+  /^ALTER\s+TABLE\s+\w+\s+DROP\s+COLUMN/i,
+  /^ALTER\s+TABLE\s+\w+\s+ALTER\s+COLUMN/i,
+  /^CREATE\s+INDEX/i,
+  /^CREATE\s+UNIQUE\s+INDEX/i,
+  /^DROP\s+INDEX/i,
+  /^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS/i,
+];
+
+// MILITARY GRADE: Dangerous patterns to block
+const DANGEROUS_PATTERNS = [
+  /DROP\s+TABLE(?!\s+IF\s+EXISTS)/i,  // Allow DROP TABLE IF EXISTS only
+  /TRUNCATE/i,
+  /DELETE\s+FROM/i,
+  /UPDATE\s+\w+\s+SET/i,
+  /INSERT\s+INTO/i,
+  /GRANT/i,
+  /REVOKE/i,
+  /CREATE\s+USER/i,
+  /DROP\s+USER/i,
+  /ALTER\s+USER/i,
+  /CREATE\s+ROLE/i,
+  /DROP\s+ROLE/i,
+  /xp_cmdshell/i,
+  /EXEC\s*\(/i,
+];
 
 export async function handler(
   event: AuthorizedEvent,
@@ -53,10 +82,45 @@ export async function handler(
       }
     }
     
-    // If rawSql is provided, execute it
+    // If rawSql is provided, validate and execute it
     if (body.rawSql) {
-      logger.info('Executing custom SQL', { userId: user.sub, sqlLength: body.rawSql.length });
-      await prisma.$executeRawUnsafe(body.rawSql);
+      const sql = body.rawSql.trim();
+      
+      // MILITARY GRADE: Limit SQL length
+      if (sql.length > 10000) {
+        return badRequest('SQL too long (max 10000 characters)');
+      }
+
+      // MILITARY GRADE: Check for dangerous patterns
+      for (const pattern of DANGEROUS_PATTERNS) {
+        if (pattern.test(sql)) {
+          logger.security('DANGEROUS_SQL_BLOCKED', {
+            userId: user.sub,
+            pattern: pattern.toString(),
+            sql: sql.substring(0, 100)
+          });
+          return badRequest('SQL contains forbidden patterns');
+        }
+      }
+
+      // MILITARY GRADE: Verify SQL matches allowed patterns
+      const isAllowed = ALLOWED_DDL_PATTERNS.some(pattern => pattern.test(sql));
+      if (!isAllowed) {
+        logger.security('UNALLOWED_SQL_BLOCKED', {
+          userId: user.sub,
+          sql: sql.substring(0, 100)
+        });
+        return badRequest('Only DDL operations (ALTER TABLE, CREATE INDEX) are allowed');
+      }
+
+      logger.info('Executing validated SQL migration', { 
+        userId: user.sub, 
+        sqlLength: sql.length,
+        sql: sql.substring(0, 200)
+      });
+      
+      await prisma.$executeRawUnsafe(sql);
+      
       logger.info('✅ Custom SQL executed successfully', { userId: user.sub });
       
       return success({

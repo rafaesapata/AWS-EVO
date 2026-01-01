@@ -1,1 +1,0 @@
-{"version":3,"file":"guardduty-scan.d.ts","sourceRoot":"","sources":["../../../src/handlers/security/guardduty-scan.ts"],"names":[],"mappings":"AACA;;;GAGG;AAEH,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AAgCrG,wBAAsB,OAAO,CAC3B,KAAK,EAAE,eAAe,EACtB,OAAO,EAAE,aAAa,GACrB,OAAO,CAAC,uBAAuB,CAAC,CAwLlC"}

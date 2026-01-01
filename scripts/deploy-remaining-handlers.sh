@@ -13,7 +13,7 @@ SECURITY_GROUP="sg-04eb71f681cc651ae"
 PREFIX="evo-uds-v3-production"
 
 DATABASE_URL="postgresql://evoadmin:%29V7%3F9ygLec%3FAMSqn%29.UIU4%24vOfRl%2C%24%5EL@evo-uds-v3-production-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
-COGNITO_USER_POOL_ID="us-east-1_qGmGkvmpL"
+COGNITO_USER_POOL_ID="us-east-1_cnesJ48lR"
 
 echo "🚀 Deployando handlers restantes..."
 echo ""

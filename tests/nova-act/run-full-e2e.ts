@@ -71,7 +71,7 @@ const SUBMENU_MAPPING: Record<string, { parent: string; click: string; category:
   'Detecção de Anomalias': { parent: 'Previsões ML', click: 'Detecção de Anomalias', category: 'ml' },
   // Monitoramento submenus
   'Endpoints': { parent: 'Monitoramento', click: 'Endpoints', category: 'monitoring' },
-  'Recursos AWS': { parent: 'Monitoramento', click: 'Recursos AWS', category: 'monitoring' },
+  'Recursos': { parent: 'Monitoramento', click: 'Recursos', category: 'monitoring' },
   'Borda (LB/CF/WAF)': { parent: 'Monitoramento', click: 'Borda (LB/CF/WAF)', category: 'monitoring' },
   // Análises submenus
   'Scans de Segurança': { parent: 'Análises', click: 'Scans de Segurança', category: 'scans' },

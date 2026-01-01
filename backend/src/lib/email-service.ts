@@ -766,7 +766,7 @@ Please investigate this alert and take appropriate action if necessary.
                 </div>
                 <h3 style="color: #333;">O que você pode fazer:</h3>
                 <ul style="color: #555; line-height: 1.6;">
-                  <li>Monitorar recursos AWS em tempo real</li>
+                  <li>Monitorar recursos em tempo real</li>
                   <li>Receber alertas de segurança e performance</li>
                   <li>Analisar custos e otimizações</li>
                   <li>Gerenciar compliance e governança</li>

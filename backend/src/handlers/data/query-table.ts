@@ -57,6 +57,11 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'edge_services': 'edgeService',
   'edge_metrics': 'edgeMetric',
   
+  // License management tables
+  'licenses': 'license',
+  'license_seat_assignments': 'licenseSeatAssignment',
+  'organization_license_configs': 'organizationLicenseConfig',
+  
   // Aliases do frontend para tabelas reais
   'security_alerts': 'alert',
   'alert_history': 'alert',
@@ -135,6 +140,8 @@ const TABLES_WITH_ORG_ID = new Set([
   'cost_optimizations', 'compliance_scans', 'jira_tickets',
   'monitored_resources', 'resource_metrics', 'resource_utilization_ml',
   'ml_analysis_history', 'waste_detection_history',
+  // License management
+  'licenses',
   // Aliases
   'security_alerts', 'alert_history', 'aws_resources', 'scan_findings',
   'optimization_recommendations', 'iam_behavior_analysis',
@@ -152,6 +159,7 @@ interface QueryRequest {
   eq?: Record<string, any>;
   order?: { column: string; ascending?: boolean };
   limit?: number;
+  offset?: number;  // For pagination
   ilike?: Record<string, string>;
   gte?: Record<string, any>;  // Greater than or equal
   lte?: Record<string, any>;  // Less than or equal
@@ -324,6 +332,7 @@ export async function handler(
       where,
       orderBy,
       take: body.limit || 1000,
+      skip: body.offset || 0,  // Add offset support for pagination
     });
     
     logger.info('Query table completed', { 

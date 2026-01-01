@@ -63,14 +63,13 @@ export class TenantIsolationManager {
       );
     }
 
-    // Validar formato do organizationId com regex UUID completo
+    // MILITARY GRADE: Validar formato do organizationId - APENAS UUID válido
+    // Regex para UUID v1-v5 com validação de versão e variante
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const ORG_PREFIX_REGEX = /^org-[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/;
     
-    if (!ORG_PREFIX_REGEX.test(context.organizationId) && 
-        !UUID_REGEX.test(context.organizationId)) {
+    if (!UUID_REGEX.test(context.organizationId)) {
       throw new TenantIsolationError(
-        'Invalid organization ID format',
+        'Invalid organization ID format - must be valid UUID',
         'INVALID_ORGANIZATION_ID',
         context
       );
