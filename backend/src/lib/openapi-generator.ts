@@ -253,6 +253,14 @@ const ENDPOINTS: EndpointDefinition[] = [
     requiresAuth: true,
   },
   {
+    path: '/api/functions/analyze-ri-sp',
+    method: 'post',
+    summary: 'Analyze Reserved Instances and Savings Plans',
+    tags: ['Cost'],
+    requestSchema: schemas.analyzeRiSpSchema,
+    requiresAuth: true,
+  },
+  {
     path: '/api/functions/finops-copilot',
     method: 'post',
     summary: 'FinOps AI Copilot',

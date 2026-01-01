@@ -12,6 +12,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
+import { analyzeRiSpSchema, type AnalyzeRiSpInput } from '../../lib/schemas.js';
 import { 
   EC2Client, 
   DescribeReservedInstancesCommand,
@@ -24,12 +25,6 @@ import {
   GetReservationPurchaseRecommendationCommand,
   GetSavingsPlansPurchaseRecommendationCommand
 } from '@aws-sdk/client-cost-explorer';
-
-interface AnalyzeRiSpInput {
-  accountId: string;
-  analysisType?: 'all' | 'ri' | 'sp' | 'recommendations';
-  lookbackDays?: number;
-}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -46,12 +41,22 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationId(user);
     
-    const input: AnalyzeRiSpInput = event.body ? JSON.parse(event.body) : {};
+    const parseResult = analyzeRiSpSchema.safeParse(
+      event.body ? JSON.parse(event.body) : {}
+    );
+    
+    if (!parseResult.success) {
+      const errorMessages = parseResult.error.errors
+        .map(err => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      return badRequest(`Validation error: ${errorMessages}`, origin);
+    }
+    
     const { 
       accountId, 
       analysisType = 'all',
       lookbackDays = 30 
-    } = input;
+    } = parseResult.data;
     
     if (!accountId) {
       return badRequest('accountId is required', origin);

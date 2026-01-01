@@ -636,32 +636,34 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen animated-gradient flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8 animate-fade-in">
-          <div className="inline-flex items-center justify-center mb-4">
-            <img src={evoLogo} alt="EVO Cloud Intelligence" className="h-16" />
+      <div className="w-full max-w-xs">
+        <div className="text-center mb-4 animate-fade-in">
+          <div className="inline-flex items-center justify-center mb-2">
+            <img src={evoLogo} alt="EVO Cloud Intelligence" className="h-10" />
           </div>
-          <p className="text-muted-foreground">FinOps & Security Intelligence Platform</p>
+          <p className="text-xs text-muted-foreground">FinOps & Security Intelligence Platform</p>
         </div>
 
-        <Card className="glass shadow-elegant animate-scale-in">
-          <CardHeader>
-            <CardTitle className="text-2xl">
+        <Card className="glass shadow-elegant animate-scale-in relative overflow-hidden border-2 border-primary/20 hover:border-primary/40 transition-all duration-500">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 pointer-events-none" />
+          <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-blue-500/20 to-primary/20 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-1000 animate-pulse" />
+          <CardHeader className="pb-3 space-y-0.5 relative z-10">
+            <CardTitle className="text-lg">
               {showMFASetup && "Configurar MFA"}
               {showMFAChallenge && "Verificação MFA"}
               {showWebAuthnChallenge && "Verificação WebAuthn"}
               {!showMFAChallenge && !showWebAuthnChallenge && !showMFASetup && "Bem-vindo"}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs">
               {showMFASetup && "Configure seu aplicativo autenticador"}
               {showMFAChallenge && "Digite o código de autenticação"}
               {showWebAuthnChallenge && "Aguardando autenticação com chave de segurança..."}
-              {!showMFAChallenge && !showWebAuthnChallenge && !showMFASetup && activeTab === "login" && "Faça login para continuar"}
+              {!showMFAChallenge && !showWebAuthnChallenge && !showMFASetup && activeTab === "login" && "Entre com suas credenciais"}
               {!showMFAChallenge && !showWebAuthnChallenge && activeTab === "signup" && "Crie sua conta corporativa"}
               {!showMFAChallenge && !showWebAuthnChallenge && activeTab === "reset" && "Recupere sua senha"}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0 relative z-10">
             {showWebAuthnChallenge ? (
               <div className="space-y-4 py-8 text-center">
                 <div className="flex justify-center">
@@ -804,24 +806,24 @@ export default function Auth() {
               </div>
             ) : (
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-                <TabsList className="glass grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="login">Login</TabsTrigger>
-                  <TabsTrigger value="signup">Cadastro</TabsTrigger>
+                <TabsList className="glass grid w-full grid-cols-2 mb-3">
+                  <TabsTrigger value="login" className="text-xs py-1.5">Login</TabsTrigger>
+                  <TabsTrigger value="signup" className="text-xs py-1.5">Cadastro</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="login" className="space-y-4">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email Corporativo</Label>
+                <TabsContent value="login" className="space-y-2.5">
+                <form onSubmit={handleLogin} className="space-y-2.5">
+                  <div className="space-y-1">
+                    <Label htmlFor="login-email" className="text-xs">Usuário</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Mail className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                       <Input
                         id="login-email"
                         type="email"
                         placeholder="seu.email@empresa.com"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
-                        className="pl-10"
+                        className="pl-9 h-8 text-xs"
                         required
                         disabled={isLoading}
                         autoComplete="email"
@@ -829,17 +831,17 @@ export default function Auth() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Senha</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="login-password" className="text-xs">Senha</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Lock className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                       <Input
                         id="login-password"
                         type={showLoginPassword ? "text" : "password"}
                         placeholder="••••••••"
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                        className="pl-10 pr-10"
+                        className="pl-9 pr-9 h-8 text-xs"
                         required
                         disabled={isLoading}
                         autoComplete="current-password"
@@ -848,13 +850,13 @@ export default function Auth() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-8 px-2 hover:bg-transparent"
                         onClick={() => setShowLoginPassword(!showLoginPassword)}
                       >
                         {showLoginPassword ? (
-                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
                         ) : (
-                          <Eye className="h-4 w-4 text-muted-foreground" />
+                          <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                         )}
                       </Button>
                     </div>
@@ -863,20 +865,20 @@ export default function Auth() {
                   <Button
                     type="button"
                     variant="link"
-                    className="p-0 h-auto text-sm"
+                    className="p-0 h-auto text-[10px]"
                     onClick={() => setActiveTab("reset")}
                   >
                     Esqueceu sua senha?
                   </Button>
 
-                  <Button type="submit" className="w-full bg-gradient-primary" disabled={isLoading}>
+                  <Button type="submit" className="w-full bg-gradient-primary h-8 text-xs" disabled={isLoading}>
                     {isLoading ? "Entrando..." : "Entrar"}
                   </Button>
                 </form>
               </TabsContent>
 
-              <TabsContent value="signup" className="space-y-4">
-                <form onSubmit={handleSignup} className="space-y-4">
+              <TabsContent value="signup" className="space-y-2.5">
+                <form onSubmit={handleSignup} className="space-y-2.5">
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Nome Completo *</Label>
                     <div className="relative">
@@ -1001,19 +1003,19 @@ export default function Auth() {
                 </form>
               </TabsContent>
 
-              <TabsContent value="reset" className="space-y-4">
+              <TabsContent value="reset" className="space-y-3">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setActiveTab("login")}
-                  className="mb-4"
+                  className="mb-2"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Voltar para login
                 </Button>
 
-                <form onSubmit={handleReset} className="space-y-4">
+                <form onSubmit={handleReset} className="space-y-3">
                   <div className="space-y-2">
                     <Label htmlFor="reset-email">Email Corporativo</Label>
                     <div className="relative">
@@ -1045,8 +1047,8 @@ export default function Auth() {
           </CardContent>
         </Card>
 
-        <div className="text-center mt-6 space-y-2">
-          <p className="text-sm text-muted-foreground">
+        <div className="text-center mt-3 space-y-0.5">
+          <p className="text-[10px] text-muted-foreground">
             Ao criar uma conta, você concorda com nossos{" "}
             <a 
               href="/terms" 
@@ -1057,7 +1059,7 @@ export default function Auth() {
               Termos de Serviço
             </a>
           </p>
-          <p className="text-xs text-muted-foreground/60 font-mono">
+          <p className="text-[10px] text-muted-foreground/60 font-mono">
             EVO {getVersionString()}
           </p>
         </div>

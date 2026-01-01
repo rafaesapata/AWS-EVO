@@ -155,6 +155,12 @@ export const fetchDailyCostsSchema = z.object({
   incremental: z.boolean().default(true), // Busca incremental por padrão
 });
 
+export const analyzeRiSpSchema = z.object({
+  accountId: uuidSchema,
+  analysisType: z.enum(['all', 'ri', 'sp', 'recommendations']).default('all'),
+  lookbackDays: z.number().int().min(7).max(90).default(30),
+});
+
 export const costForecastSchema = z.object({
   accountId: uuidSchema.optional(),
   forecastDays: z.number().int().min(1).max(365).default(30),
@@ -304,6 +310,7 @@ export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type ManageUserInput = z.infer<typeof manageUserSchema>;
 export type SecurityScanInput = z.infer<typeof securityScanRequestSchema>;
 export type FetchDailyCostsInput = z.infer<typeof fetchDailyCostsSchema>;
+export type AnalyzeRiSpInput = z.infer<typeof analyzeRiSpSchema>;
 export type DetectAnomaliesInput = z.infer<typeof detectAnomaliesSchema>;
 export type SendNotificationInput = z.infer<typeof sendNotificationSchema>;
 export type QueryTableInput = z.infer<typeof queryTableSchema>;

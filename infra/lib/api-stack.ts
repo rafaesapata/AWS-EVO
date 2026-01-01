@@ -94,6 +94,32 @@ export class ApiStack extends cdk.Stack {
       memorySize: 1024,
     });
 
+    // RI/SP Analysis Lambda
+    const riSpAnalysisFunction = new lambda.Function(this, 'RiSpAnalysisFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'handlers/cost/analyze-ri-sp.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 512,
+    });
+
+    // Grant Cost Explorer permissions to RI/SP Analysis Lambda
+    riSpAnalysisFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ec2:DescribeReservedInstances',
+        'ce:GetReservationUtilization',
+        'ce:GetSavingsPlansUtilization',
+        'ce:GetReservationPurchaseRecommendation',
+        'ce:GetSavingsPlansPurchaseRecommendation',
+      ],
+      resources: ['*'],
+    }));
+
     // Health Check Lambda - using run-migrations as placeholder
     const healthCheckFunction = new lambda.Function(this, 'HealthCheckFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -160,6 +186,13 @@ export class ApiStack extends cdk.Stack {
     const finopsResource = this.api.root.addResource('finops');
     const costResource = finopsResource.addResource('cost-analysis');
     costResource.addMethod('POST', new apigateway.LambdaIntegration(costAnalysisFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // RI/SP Analysis endpoint
+    const riSpResource = finopsResource.addResource('ri-sp-analysis');
+    riSpResource.addMethod('POST', new apigateway.LambdaIntegration(riSpAnalysisFunction), {
       authorizer: cognitoAuthorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });

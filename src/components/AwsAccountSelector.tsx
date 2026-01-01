@@ -137,7 +137,7 @@ export function AwsAccountSelector({
               </span>
             </div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" align="end" className="max-w-xs p-3">
+          <TooltipContent side="left" align="center" className="max-w-xs p-3">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 {isOrphaned ? (
@@ -248,7 +248,7 @@ export function AwsAccountSelector({
             </div>
           </TooltipTrigger>
           {selectedAccount && selectedAccount.regions && selectedAccount.regions.length > 0 && (
-            <TooltipContent side="bottom" align="end" className="max-w-xs p-3">
+            <TooltipContent side="left" align="center" className="max-w-xs p-3">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
