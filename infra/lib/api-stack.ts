@@ -206,8 +206,8 @@ export class ApiStack extends cdk.Stack {
     // AWS Credentials Lambda - CRITICAL for CloudFormation connection
     const saveAwsCredentialsFunction = new lambda.Function(this, 'SaveAwsCredentialsFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'save-aws-credentials.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/aws')),
+      handler: 'handlers/aws/save-aws-credentials.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -227,8 +227,8 @@ export class ApiStack extends cdk.Stack {
     // Well-Architected Scan Lambda
     const wellArchitectedScanFunction = new lambda.Function(this, 'WellArchitectedScanFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'well-architected-scan.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      handler: 'handlers/security/well-architected-scan.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -268,8 +268,8 @@ export class ApiStack extends cdk.Stack {
     // Security Posture Lambda
     const getSecurityPostureFunction = new lambda.Function(this, 'GetSecurityPostureFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'get-security-posture.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      handler: 'handlers/security/get-security-posture.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -281,8 +281,8 @@ export class ApiStack extends cdk.Stack {
     // Get Findings Lambda
     const getFindingsFunction = new lambda.Function(this, 'GetFindingsFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'get-findings.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      handler: 'handlers/security/get-findings.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -294,8 +294,8 @@ export class ApiStack extends cdk.Stack {
     // Query Table Lambda (generic data access)
     const queryTableFunction = new lambda.Function(this, 'QueryTableFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'query-table.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/data')),
+      handler: 'handlers/data/query-table.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -320,8 +320,8 @@ export class ApiStack extends cdk.Stack {
     // Security PDF Export Lambda
     const securityPdfExportFunction = new lambda.Function(this, 'SecurityPdfExportFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'security-scan-pdf-export.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/reports')),
+      handler: 'handlers/reports/security-scan-pdf-export.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -346,8 +346,8 @@ export class ApiStack extends cdk.Stack {
     // Fetch CloudWatch Metrics Lambda
     const fetchCloudwatchMetricsFunction = new lambda.Function(this, 'FetchCloudwatchMetricsFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'fetch-cloudwatch-metrics.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/monitoring')),
+      handler: 'handlers/monitoring/fetch-cloudwatch-metrics.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -371,8 +371,8 @@ export class ApiStack extends cdk.Stack {
     // ML Waste Detection Lambda
     const mlWasteDetectionFunction = new lambda.Function(this, 'MLWasteDetectionFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'ml-waste-detection.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/cost')),
+      handler: 'handlers/cost/ml-waste-detection.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -405,8 +405,8 @@ export class ApiStack extends cdk.Stack {
     // WebAuthn Register Lambda
     const webauthnRegisterFunction = new lambda.Function(this, 'WebauthnRegisterFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'webauthn-register.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/auth')),
+      handler: 'handlers/auth/webauthn-register.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -418,8 +418,8 @@ export class ApiStack extends cdk.Stack {
     // WebAuthn Authenticate Lambda
     const webauthnAuthenticateFunction = new lambda.Function(this, 'WebauthnAuthenticateFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'webauthn-authenticate.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/auth')),
+      handler: 'handlers/auth/webauthn-authenticate.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,
@@ -449,8 +449,8 @@ export class ApiStack extends cdk.Stack {
     // CloudTrail Analysis Lambdas
     const startCloudTrailAnalysisFunction = new lambda.Function(this, 'StartCloudTrailAnalysisFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'start-cloudtrail-analysis.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      handler: 'handlers/security/start-cloudtrail-analysis.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: {
         ...lambdaEnvironment,
         ANALYZE_CLOUDTRAIL_FUNCTION: 'evo-uds-v3-production-analyze-cloudtrail',
@@ -464,8 +464,8 @@ export class ApiStack extends cdk.Stack {
 
     const analyzeCloudTrailFunction = new lambda.Function(this, 'AnalyzeCloudTrailFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'analyze-cloudtrail.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      handler: 'handlers/security/analyze-cloudtrail.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: lambdaEnvironment,
       role: lambdaRole,
       vpc: props.vpc,

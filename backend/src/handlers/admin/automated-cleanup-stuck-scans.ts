@@ -145,21 +145,14 @@ export async function handler(
 
       for (const analysis of stuckCloudTrailAnalyses) {
         try {
-          const durationMinutes = Math.floor((Date.now() - new Date(analysis.started_at).getTime()) / (1000 * 60));
+          const durationMinutes = analysis.started_at ? Math.floor((Date.now() - new Date(analysis.started_at).getTime()) / (1000 * 60)) : 0;
           
           await prisma.cloudTrailAnalysis.update({
             where: { id: analysis.id },
             data: {
               status: 'failed',
               completed_at: new Date(),
-              results: {
-                error: 'Automated cleanup: CloudTrail analysis was stuck and automatically cleaned up',
-                duration_minutes: durationMinutes,
-                cleanup_timestamp: new Date().toISOString(),
-                cleanup_type: 'automated_scheduled_cleanup',
-                cleanup_threshold_minutes: thresholdMinutes,
-                original_started_at: analysis.started_at
-              }
+              error_message: 'Automated cleanup: CloudTrail analysis was stuck and automatically cleaned up'
             }
           });
 

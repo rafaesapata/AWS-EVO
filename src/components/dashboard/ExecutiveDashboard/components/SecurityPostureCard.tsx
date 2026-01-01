@@ -4,9 +4,11 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Shield, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Shield, TrendingUp, TrendingDown, Minus, AlertTriangle, Play } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { SecurityPosture } from '../types';
 
 interface Props {
@@ -15,6 +17,10 @@ interface Props {
 
 export default function SecurityPostureCard({ data }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  // Check if this is a "no data" state (score = -1 indicates no scans performed)
+  const hasNoData = data.score === -1 || data.lastScanDate === null;
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-500';
@@ -52,6 +58,75 @@ export default function SecurityPostureCard({ data }: Props) {
     return 'No change';
   };
 
+  const handleRunFirstScan = () => {
+    navigate('/security-posture');
+  };
+
+  // Render "no data" state
+  if (hasNoData) {
+    return (
+      <Card className="h-full card-hover-lift card-shine">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary icon-pulse" />
+            <CardTitle>{t('executiveDashboard.securityPosture', 'Security Posture')}</CardTitle>
+          </div>
+          <CardDescription>
+            {t('executiveDashboard.securityPostureDesc', 'Security score and vulnerability status')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* No Data State */}
+          <div className="text-center py-8 space-y-4">
+            <div className="relative p-6 rounded-xl bg-gradient-to-b from-muted/50 to-muted/20 border-2 border-dashed border-muted-foreground/20">
+              <Shield className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-muted-foreground mb-2">
+                {t('executiveDashboard.noSecurityData', 'No Security Analysis Yet')}
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                {t('executiveDashboard.noSecurityDataDesc', 'Run your first security scan to see your security posture and identify potential vulnerabilities.')}
+              </p>
+              <Button 
+                onClick={handleRunFirstScan}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {t('executiveDashboard.runFirstScan', 'Run First Security Scan')}
+              </Button>
+            </div>
+          </div>
+
+          {/* Placeholder for what will be shown */}
+          <div className="space-y-3">
+            <span className="text-sm font-medium text-muted-foreground">
+              {t('executiveDashboard.afterFirstScan', 'After your first scan, you\'ll see:')}
+            </span>
+            
+            <div className="grid grid-cols-4 gap-2 opacity-50">
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
+                <div className="text-2xl font-bold text-red-500 tabular-nums">-</div>
+                <span className="text-xs text-muted-foreground">Critical</span>
+              </div>
+              <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 text-center">
+                <div className="text-2xl font-bold text-orange-500 tabular-nums">-</div>
+                <span className="text-xs text-muted-foreground">High</span>
+              </div>
+              <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-center">
+                <div className="text-2xl font-bold text-yellow-500 tabular-nums">-</div>
+                <span className="text-xs text-muted-foreground">Medium</span>
+              </div>
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-center">
+                <div className="text-2xl font-bold text-blue-500 tabular-nums">-</div>
+                <span className="text-xs text-muted-foreground">Low</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Render normal state with data
   return (
     <Card className="h-full card-hover-lift card-shine">
       <CardHeader>

@@ -748,12 +748,20 @@ function calculateExecutiveSummary(
   // Operational score (0-100)
   const operationalScore = operations.uptime.current;
   
-  // Overall weighted score
-  const overallScore = Math.round(
-    (security.score * 0.4) + 
-    (Math.min(100, financialScore) * 0.3) +
-    (operationalScore * 0.3)
-  );
+  // Security score - handle "no data" case (score = -1)
+  const securityScore = security.score === -1 ? 0 : security.score;
+  
+  // Overall weighted score - if security has no data, weight differently
+  const overallScore = security.score === -1 
+    ? Math.round(
+        (Math.min(100, financialScore) * 0.5) +
+        (operationalScore * 0.5)
+      )
+    : Math.round(
+        (securityScore * 0.4) + 
+        (Math.min(100, financialScore) * 0.3) +
+        (operationalScore * 0.3)
+      );
 
   return {
     overallScore,
