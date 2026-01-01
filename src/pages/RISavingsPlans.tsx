@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { Layout } from "@/components/Layout";
-import { AdvancedRISPAnalyzer } from "@/components/cost-analysis/AdvancedRISPAnalyzer";
+import { AdvancedRISPAnalyzerV2 } from "@/components/cost-analysis/AdvancedRISPAnalyzerV2";
 import { 
   DollarSign, 
   AlertTriangle,
@@ -18,7 +18,7 @@ export default function RISavingsPlans() {
       icon={<DollarSign className="h-5 w-5 text-white" />}
     >
       {selectedAccountId ? (
-        <AdvancedRISPAnalyzer 
+        <AdvancedRISPAnalyzerV2 
           accountId={selectedAccountId} 
           region="us-east-1" 
         />

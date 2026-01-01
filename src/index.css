@@ -158,13 +158,9 @@ All colors MUST be HSL.
     min-height: 100dvh;
   }
   
-  /* Global zoom out - 75% do tamanho original */
   #root {
-    transform: scale(0.75);
-    transform-origin: top left;
-    width: 133.33%;
-    min-height: 133.33vh;
-    min-height: 133.33dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
   
   /* Selection */
