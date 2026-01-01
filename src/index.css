@@ -177,35 +177,44 @@ All colors MUST be HSL.
   
   /* Minimalista: Reduz fontes globalmente, exceto sidebar */
   body :not([data-sidebar], [data-sidebar] *) {
-    font-size: 0.875rem !important; /* 14px base */
+    font-size: 0.75rem !important; /* 12px base */
   }
   
   body :not([data-sidebar], [data-sidebar] *).text-xs {
-    font-size: 0.6875rem !important; /* 11px */
+    font-size: 0.5625rem !important; /* 9px */
   }
   
   body :not([data-sidebar], [data-sidebar] *).text-sm {
-    font-size: 0.8125rem !important; /* 13px */
+    font-size: 0.6875rem !important; /* 11px */
   }
   
   body :not([data-sidebar], [data-sidebar] *).text-lg {
-    font-size: 1rem !important; /* 16px */
+    font-size: 0.875rem !important; /* 14px */
   }
   
   body :not([data-sidebar], [data-sidebar] *).text-xl {
-    font-size: 1.125rem !important; /* 18px */
+    font-size: 1rem !important; /* 16px */
   }
   
   body :not([data-sidebar], [data-sidebar] *).text-2xl {
-    font-size: 1.25rem !important; /* 20px */
+    font-size: 1.125rem !important; /* 18px */
   }
   
   body :not([data-sidebar], [data-sidebar] *).text-3xl {
-    font-size: 1.5rem !important; /* 24px */
+    font-size: 1.3125rem !important; /* 21px */
   }
   
   body :not([data-sidebar], [data-sidebar] *).text-4xl {
-    font-size: 1.875rem !important; /* 30px */
+    font-size: 1.625rem !important; /* 26px */
+  }
+  
+  /* Reduz também o rodapé */
+  footer, [role="contentinfo"] {
+    font-size: 0.6875rem !important; /* 11px */
+  }
+  
+  footer *, [role="contentinfo"] * {
+    font-size: inherit !important;
   }
   
   /* Selection */

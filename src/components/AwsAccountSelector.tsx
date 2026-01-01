@@ -113,7 +113,7 @@ export function AwsAccountSelector({
         <Tooltip>
           <TooltipTrigger asChild>
             <div className={cn(
-              "flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-help transition-all text-xs",
+              "flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-help transition-all",
               isOrphaned 
                 ? "bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20"
                 : "bg-primary/10 hover:bg-primary/15 border border-primary/20",
@@ -122,7 +122,7 @@ export function AwsAccountSelector({
               {/* Icon with status */}
               <div className="relative">
                 <Cloud className={cn(
-                  "h-3.5 w-3.5",
+                  "h-3 w-3",
                   isOrphaned ? "text-amber-500" : "text-orange-500"
                 )} />
                 <div className={cn(
@@ -132,7 +132,7 @@ export function AwsAccountSelector({
               </div>
               
               {/* Account info */}
-              <span className="font-medium truncate max-w-[120px]">
+              <span className="text-[10px] font-medium truncate max-w-[100px]">
                 {account.account_name}
               </span>
             </div>
@@ -195,22 +195,22 @@ export function AwsAccountSelector({
               >
                 <SelectTrigger 
                   className={cn(
-                    "h-auto py-1.5 px-2.5 rounded-lg border-primary/20 hover:border-primary/30",
-                    "bg-primary/10 hover:bg-primary/15 transition-all focus:ring-primary/30 text-xs",
-                    "min-w-[140px]"
+                    "h-auto py-1 px-2 rounded-lg border-primary/20 hover:border-primary/30",
+                    "bg-primary/10 hover:bg-primary/15 transition-all focus:ring-primary/30",
+                    "min-w-[120px]"
                   )}
                 >
-                  <div className="flex items-center gap-2 w-full">
+                  <div className="flex items-center gap-1.5 w-full">
                     {/* Icon with status */}
                     <div className="relative flex-shrink-0">
-                      <Cloud className="h-3.5 w-3.5 text-orange-500" />
+                      <Cloud className="h-3 w-3 text-orange-500" />
                       <div className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-green-500 border border-background" />
                     </div>
                     
                     {/* Account info */}
                     <SelectValue placeholder="Selecionar">
                       {selectedAccount && (
-                        <span className="font-medium truncate block max-w-[100px]">
+                        <span className="text-[10px] font-medium truncate block max-w-[80px]">
                           {selectedAccount.account_name}
                         </span>
                       )}
@@ -223,14 +223,14 @@ export function AwsAccountSelector({
                     <SelectItem 
                       key={account.id} 
                       value={account.id}
-                      className="rounded-md cursor-pointer focus:bg-primary/10 text-xs"
+                      className="rounded-md cursor-pointer focus:bg-primary/10"
                     >
                       <div className="flex items-center gap-2 py-0.5">
                         <Server className="h-3 w-3 text-orange-500/80" />
                         <div className="flex flex-col">
-                          <span className="font-medium">{account.account_name}</span>
+                          <span className="text-[10px] font-medium">{account.account_name}</span>
                           {account.account_id && (
-                            <span className="text-[10px] text-muted-foreground font-mono">
+                            <span className="text-[9px] text-muted-foreground font-mono">
                               {account.account_id}
                             </span>
                           )}

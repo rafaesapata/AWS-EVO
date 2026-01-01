@@ -36,20 +36,18 @@ export default function AuthSimple() {
     try {
       console.log('🔐 Checking WebAuthn for user:', userEmail);
       
-      // First, let's try a simple approach - check if we can find the user and their WebAuthn credentials
-      // We'll use the existing query-table endpoint but with a special query
-      const result = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/functions/query-table`, {
+      // Use the new dedicated WebAuthn check endpoint
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/functions/webauthn-check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action: 'check-webauthn',
           email: userEmail
         })
       });
 
-      const data = await result.json();
+      const data = await response.json();
       
       console.log('🔐 WebAuthn check result:', {
         hasWebAuthn: data.hasWebAuthn,
