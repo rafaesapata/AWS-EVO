@@ -63,77 +63,77 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
 
   return (
     <Card className="h-full card-hover-lift card-shine">
-      <CardHeader>
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary icon-pulse" />
-            <CardTitle>{t('executiveDashboard.aiCommandCenter', 'AI Command Center')}</CardTitle>
+            <Sparkles className="h-4 w-4 text-primary icon-pulse" />
+            <CardTitle className="text-base">{t('executiveDashboard.aiCommandCenter', 'AI Command Center')}</CardTitle>
           </div>
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={onRefresh}
             disabled={isLoading}
-            className="transition-all hover:scale-105 active:scale-95"
+            className="h-7 w-7 p-0 transition-all hover:scale-105 active:scale-95"
           >
-            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+            <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
           </Button>
         </div>
-        <CardDescription>
+        <CardDescription className="text-xs">
           {t('executiveDashboard.aiCommandCenterDesc', 'AI-generated insights and recommendations')}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {insights.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center animate-in fade-in-0 zoom-in-95 duration-500">
-            <Sparkles className="h-12 w-12 text-muted-foreground/50 mb-4 icon-pulse" />
-            <p className="text-sm text-muted-foreground">
+          <div className="flex flex-col items-center justify-center py-6 text-center animate-in fade-in-0 zoom-in-95 duration-500">
+            <Sparkles className="h-10 w-10 text-muted-foreground/50 mb-3 icon-pulse" />
+            <p className="text-xs text-muted-foreground">
               {t('executiveDashboard.noInsights', 'No insights available yet')}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[10px] text-muted-foreground mt-0.5">
               {t('executiveDashboard.insightsWillAppear', 'AI insights will appear as data is analyzed')}
             </p>
           </div>
         ) : (
-          <div className="space-y-3 animate-stagger">
+          <div className="space-y-2 animate-stagger">
             {insights.map((insight, index) => (
               <div 
                 key={insight.id}
                 className={cn(
-                  'p-4 rounded-lg border transition-all duration-300 hover:bg-muted/50 hover:translate-x-1 cursor-pointer',
+                  'p-3 rounded-lg border transition-all duration-300 hover:bg-muted/50 hover:translate-x-1 cursor-pointer',
                   getSeverityColor(insight.severity),
                   insight.severity === 'critical' && 'alert-pulse glow-danger'
                 )}
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2">
                   <div className={cn(
-                    'p-2 rounded-lg',
+                    'p-1.5 rounded-lg',
                     getSeverityColor(insight.severity)
                   )}>
                     {getInsightIcon(insight.type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">{insight.title}</span>
-                      <Badge variant={getSeverityBadge(insight.severity) as any}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="font-medium text-xs">{insight.title}</span>
+                      <Badge variant={getSeverityBadge(insight.severity) as any} className="text-[10px] px-1 py-0">
                         {insight.severity}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
+                    <p className="text-xs text-muted-foreground line-clamp-2">
                       {insight.description}
                     </p>
                     {insight.recommendation && (
-                      <div className="mt-2 flex items-center gap-1 text-xs text-primary">
-                        <Lightbulb className="h-3 w-3" />
+                      <div className="mt-1.5 flex items-center gap-1 text-[10px] text-primary">
+                        <Lightbulb className="h-2.5 w-2.5" />
                         <span className="truncate">{insight.recommendation}</span>
                       </div>
                     )}
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground tabular-nums">
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground tabular-nums">
                         Confidence: {(insight.confidence * 100).toFixed(0)}%
                       </span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-1" />
                     </div>
                   </div>
                 </div>
@@ -143,17 +143,17 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
         )}
 
         {/* Quick Actions */}
-        <div className="border-t pt-4">
-          <span className="text-sm font-medium mb-3 block">
+        <div className="border-t pt-3">
+          <span className="text-xs font-medium mb-2 block">
             {t('executiveDashboard.quickActions', 'Quick Actions')}
           </span>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" size="sm" className="justify-start transition-all hover:scale-[1.02] active:scale-95 btn-press">
-              <AlertTriangle className="h-4 w-4 mr-2" />
+          <div className="grid grid-cols-2 gap-1.5">
+            <Button variant="outline" size="sm" className="h-7 text-xs justify-start transition-all hover:scale-[1.02] active:scale-95 btn-press">
+              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
               {t('executiveDashboard.runSecurityScan', 'Security Scan')}
             </Button>
-            <Button variant="outline" size="sm" className="justify-start transition-all hover:scale-[1.02] active:scale-95 btn-press">
-              <TrendingUp className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" className="h-7 text-xs justify-start transition-all hover:scale-[1.02] active:scale-95 btn-press">
+              <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
               {t('executiveDashboard.costReport', 'Cost Report')}
             </Button>
           </div>

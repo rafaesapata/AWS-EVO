@@ -311,6 +311,26 @@ async function securityScanHandler(
     
   } catch (err) {
     logger.error('Security scan failed', { error: (err as Error).message, stack: (err as Error).stack });
+    
+    // Update scan status to failed if we have a scan record
+    try {
+      const prisma = getPrismaClient();
+      const bodyValidation = parseAndValidateBody(securityScanSchema, event.body || null);
+      if (bodyValidation.success && bodyValidation.data.scanId) {
+        await prisma.securityScan.update({
+          where: { id: bodyValidation.data.scanId },
+          data: {
+            status: 'failed',
+            completed_at: new Date(),
+            results: { error: (err as Error).message }
+          }
+        });
+        logger.info('Updated scan status to failed', { scanId: bodyValidation.data.scanId });
+      }
+    } catch (updateErr) {
+      logger.warn('Could not update scan status to failed', { error: (updateErr as Error).message });
+    }
+    
     return error('Security scan failed: ' + (err as Error).message, 500, undefined, origin);
   }
 }

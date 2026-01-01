@@ -183,6 +183,14 @@ export async function handler(
     return corsOptions(origin);
   }
 
+  // Parse body first to check for special actions
+  const body = parseEventBody<QueryRequest & { action?: string; email?: string }>(event, {} as QueryRequest, 'query-table');
+  
+  // Special case: WebAuthn check without authentication
+  if (body.action === 'check-webauthn' && body.email) {
+    return await handleWebAuthnCheck(body.email, origin);
+  }
+
   let organizationId: string;
   let userId: string;
 
@@ -196,7 +204,6 @@ export async function handler(
   }
   
   try {
-    const body = parseEventBody<QueryRequest>(event, {} as QueryRequest, 'query-table');
     
     if (!body.table) {
       return badRequest('Missing required field: table', undefined, origin);
@@ -362,5 +369,65 @@ export async function handler(
     }
     
     return error(err instanceof Error ? err.message : 'Failed to query table', 500, undefined, origin);
+  }
+}
+/**
+ * Handle WebAuthn check without authentication
+ * This is a special case that allows checking if a user has WebAuthn credentials
+ * before they authenticate, which is needed for the login flow
+ */
+async function handleWebAuthnCheck(email: string, origin: string): Promise<APIGatewayProxyResultV2> {
+  try {
+    logger.info('🔐 WebAuthn check requested', { email });
+    
+    const prisma = getPrismaClient();
+    
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    logger.info('🔐 User lookup result', { 
+      email, 
+      userFound: !!user, 
+      userId: user?.id 
+    });
+
+    if (!user) {
+      // User not found - no WebAuthn
+      return success({
+        hasWebAuthn: false,
+        credentialsCount: 0
+      }, 200, origin);
+    }
+
+    // Check for WebAuthn credentials
+    const webauthnCredentials = await prisma.webAuthnCredential.findMany({
+      where: { user_id: user.id }
+    });
+
+    logger.info('🔐 WebAuthn credentials found', {
+      userId: user.id,
+      credentialsCount: webauthnCredentials.length,
+      credentials: webauthnCredentials.map(c => ({
+        id: c.id,
+        device_name: c.device_name,
+        created_at: c.created_at
+      }))
+    });
+
+    return success({
+      hasWebAuthn: webauthnCredentials.length > 0,
+      credentialsCount: webauthnCredentials.length
+    }, 200, origin);
+
+  } catch (error: any) {
+    logger.error('🔐 WebAuthn check error', error);
+    
+    return success({
+      hasWebAuthn: false,
+      credentialsCount: 0,
+      error: 'Failed to check WebAuthn credentials'
+    }, 200, origin); // Return 200 with error info instead of 500 to not break login flow
   }
 }

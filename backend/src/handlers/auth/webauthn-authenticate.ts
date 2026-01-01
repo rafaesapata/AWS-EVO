@@ -128,9 +128,13 @@ export async function handler(
     const body: AuthenticationRequest = event.body ? JSON.parse(event.body) : {};
     const { action } = body;
 
+    logger.info('🔐 WebAuthn handler called', { action, hasEmail: !!body.email });
+
     if (action === 'start') {
+      // Start action doesn't require authentication - just checking if user has WebAuthn
       return await startAuthentication(body.email, origin);
     } else if (action === 'finish') {
+      // Finish action processes the WebAuthn response and creates session
       return await finishAuthentication(body, event, origin);
     }
 

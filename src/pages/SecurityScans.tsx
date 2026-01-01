@@ -224,6 +224,8 @@ export default function SecurityScans() {
       // Mensagens de erro mais amigáveis
       if (errorMessage.includes('No AWS credentials')) {
         errorMessage = "Nenhuma credencial AWS ativa encontrada. Por favor, adicione uma credencial AWS antes de iniciar o scan.";
+      } else if (errorMessage.includes('Já existe um scan') || errorMessage.includes('already running')) {
+        errorMessage = "Já existe um scan de segurança em execução. Aguarde a conclusão antes de iniciar um novo.";
       }
       
       toast({
@@ -333,6 +335,7 @@ export default function SecurityScans() {
   // Calculate summary metrics - ensure scans is always an array
   const scansArray = scans || [];
   const runningScans = scansArray.filter(scan => scan.status === 'running').length;
+  const hasRunningScan = runningScans > 0;
   const completedScans = scansArray.filter(scan => scan.status === 'completed').length;
   const totalFindings = scansArray.reduce((sum, scan) => sum + (scan.findings_count || 0), 0);
   const criticalFindings = scansArray.reduce((sum, scan) => sum + (scan.critical_count || 0), 0);
@@ -481,11 +484,13 @@ export default function SecurityScans() {
                 variant="outline"
                 className="h-auto p-6 flex flex-col items-center gap-4 glass hover-glow transition-all duration-300 hover:scale-105"
                 onClick={() => handleStartScan(scanLevel.value as 'quick' | 'standard' | 'deep')}
-                disabled={startScanMutation.isPending}
+                disabled={startScanMutation.isPending || hasRunningScan}
               >
                 <div className="p-3 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors">
                   {startScanMutation.isPending && scanLevel.value === 'standard' ? (
                     <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
+                  ) : hasRunningScan ? (
+                    <Clock className="h-5 w-5 text-yellow-500" />
                   ) : (
                     scanLevel.icon
                   )}
@@ -494,14 +499,23 @@ export default function SecurityScans() {
                   <div className="font-semibold text-lg">
                     {startScanMutation.isPending && scanLevel.value === 'standard' 
                       ? 'Iniciando...' 
+                      : hasRunningScan
+                      ? 'Scan em Execução'
                       : scanLevel.label
                     }
                   </div>
-                  <div className="text-sm text-muted-foreground">{scanLevel.description}</div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{scanLevel.checks}</span>
-                    <span>{scanLevel.time}</span>
+                  <div className="text-sm text-muted-foreground">
+                    {hasRunningScan 
+                      ? 'Aguarde a conclusão do scan atual'
+                      : scanLevel.description
+                    }
                   </div>
+                  {!hasRunningScan && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{scanLevel.checks}</span>
+                      <span>{scanLevel.time}</span>
+                    </div>
+                  )}
                 </div>
               </Button>
             ))}
@@ -585,7 +599,12 @@ export default function SecurityScans() {
                               {TypeIcon}
                             </div>
                             <div className="space-y-1">
-                              <h4 className="font-semibold text-sm">{scan.scan_type}</h4>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-semibold text-sm">{scan.scan_type}</h4>
+                                <Badge variant="outline" className="text-xs font-mono">
+                                  {scan.id.substring(0, 8)}
+                                </Badge>
+                              </div>
                               <p className="text-sm text-muted-foreground">
                                 Security Engine V3 - {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
                               </p>

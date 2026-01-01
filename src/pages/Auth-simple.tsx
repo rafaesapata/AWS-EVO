@@ -36,27 +36,28 @@ export default function AuthSimple() {
     try {
       console.log('🔐 Checking WebAuthn for user:', userEmail);
       
-      // Check if user has WebAuthn credentials
-      const result = await apiClient.invoke('webauthn-authenticate', {
-        body: { action: 'start', email: userEmail }
+      // First, let's try a simple approach - check if we can find the user and their WebAuthn credentials
+      // We'll use the existing query-table endpoint but with a special query
+      const result = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/functions/query-table`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'check-webauthn',
+          email: userEmail
+        })
       });
 
-      console.log('🔐 WebAuthn check result:', {
-        hasData: !!result.data,
-        hasOptions: !!result.data?.options,
-        allowCredentials: result.data?.options?.allowCredentials,
-        credentialsLength: result.data?.options?.allowCredentials?.length || 0,
-        error: result.error
-      });
-
-      if (result.data?.options?.allowCredentials?.length > 0) {
-        console.log('🔐 WebAuthn credentials found - requiring WebAuthn');
-        // User has WebAuthn credentials, require WebAuthn authentication
-        return true;
-      }
+      const data = await result.json();
       
-      console.log('🔐 No WebAuthn credentials found - allowing normal login');
-      return false;
+      console.log('🔐 WebAuthn check result:', {
+        hasWebAuthn: data.hasWebAuthn,
+        credentialsCount: data.credentialsCount,
+        error: data.error
+      });
+
+      return data.hasWebAuthn === true;
     } catch (error) {
       console.log('🔐 WebAuthn check error:', error);
       return false;

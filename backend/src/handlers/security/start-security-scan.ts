@@ -38,6 +38,27 @@ export async function handler(
     
     const prisma = getPrismaClient();
     
+    // Check if there's already a running scan for this organization
+    const runningScan = await prisma.securityScan.findFirst({
+      where: {
+        organization_id: organizationId,
+        status: { in: ['running', 'pending', 'starting'] }
+      },
+      orderBy: { started_at: 'desc' }
+    });
+    
+    if (runningScan) {
+      return badRequest(
+        `Já existe um scan de segurança em execução (ID: ${runningScan.id}). ` +
+        `Aguarde a conclusão antes de iniciar um novo scan.`,
+        {
+          runningScanId: runningScan.id,
+          runningScanStatus: runningScan.status,
+          runningScanStarted: runningScan.started_at
+        }
+      );
+    }
+    
     // Get AWS credentials from database
     const credentialRecord = await prisma.awsCredential.findFirst({
       where: {

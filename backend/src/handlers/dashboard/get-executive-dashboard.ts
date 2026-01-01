@@ -288,6 +288,13 @@ async function getFinancialData(
   // Base filter - only by organization_id (account_id filter not supported in daily_costs)
   const baseFilter: any = { organization_id: organizationId };
 
+  // Get the most recent cost date first
+  const latestCost = await prisma.dailyCost.findFirst({
+    where: baseFilter,
+    orderBy: { date: 'desc' },
+    select: { date: true }
+  });
+
   // MTD costs aggregation - using correct column names (date, cost)
   const mtdCosts = await prisma.dailyCost.aggregate({
     where: {
@@ -296,9 +303,6 @@ async function getFinancialData(
     },
     _sum: {
       cost: true
-    },
-    _max: {
-      date: true
     }
   });
 
@@ -365,6 +369,9 @@ async function getFinancialData(
     rank: index + 1
   }));
 
+  // Use the latest cost date for lastCostUpdate
+  const lastCostDate = latestCost?.date;
+
   return {
     mtdCost: mtdTotal,
     ytdCost: Number(ytdCosts._sum.cost || 0),
@@ -380,7 +387,7 @@ async function getFinancialData(
       riSpRecommendations: Number(riSpRecommendations._sum?.monthly_savings || 0),
       recommendationsCount: (recommendations._count || 0) + (riSpRecommendations._count || 0)
     },
-    lastCostUpdate: mtdCosts._max.date?.toISOString() || null
+    lastCostUpdate: lastCostDate ? lastCostDate.toISOString() : null
   };
 }
 

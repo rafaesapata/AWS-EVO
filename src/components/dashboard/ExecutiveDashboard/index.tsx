@@ -138,7 +138,7 @@ export default function ExecutiveDashboardV2() {
       )}
 
       {/* Metadata Footer */}
-      <div className="text-xs text-muted-foreground text-center pt-4 border-t">
+      <div className="text-[10px] text-muted-foreground text-center pt-3 border-t">
         <p>
           {t('executiveDashboard.dataFreshness', 'Data freshness')}: 
           {' '}Costs: {data.metadata.dataFreshness.costs ? new Date(data.metadata.dataFreshness.costs).toLocaleDateString() : 'N/A'} | 
