@@ -219,11 +219,15 @@ All colors MUST be HSL.
   
   /* Força fonte pequena no seletor AWS */
   [data-radix-select-trigger] {
-    font-size: 0.625rem !important; /* 10px */
+    font-size: 9px !important;
   }
   
   [data-radix-select-trigger] * {
-    font-size: 0.625rem !important; /* 10px */
+    font-size: 9px !important;
+  }
+  
+  [data-radix-select-trigger] span {
+    font-size: 9px !important;
   }
   
   /* Selection */

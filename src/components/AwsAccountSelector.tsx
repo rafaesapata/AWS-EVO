@@ -113,31 +113,33 @@ export function AwsAccountSelector({
         <Tooltip>
           <TooltipTrigger asChild>
             <div className={cn(
-              "flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-help transition-all",
+              "flex items-center gap-1 px-1.5 py-0.5 rounded-lg cursor-help transition-all",
               isOrphaned 
                 ? "bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20"
                 : "bg-primary/10 hover:bg-primary/15 border border-primary/20",
               className
-            )}>
+            )}
+            style={{ fontSize: '9px' }}
+            >
               {/* Icon with status */}
               <div className="relative">
                 <Cloud className={cn(
-                  "h-3 w-3",
+                  "h-2.5 w-2.5",
                   isOrphaned ? "text-amber-500" : "text-orange-500"
                 )} />
                 <div className={cn(
-                  "absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full border border-background",
+                  "absolute -bottom-0.5 -right-0.5 h-1 w-1 rounded-full border border-background",
                   isOrphaned ? "bg-amber-500" : "bg-green-500"
                 )} />
               </div>
               
               {/* Account info */}
-              <span className="text-[10px] font-medium truncate max-w-[100px]">
+              <span className="text-[9px] font-medium truncate max-w-[80px]" style={{ fontSize: '9px' }}>
                 {account.account_name}
               </span>
             </div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-xs p-3">
+          <TooltipContent side="left" align="center" className="max-w-xs p-3">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 {isOrphaned ? (
@@ -195,22 +197,23 @@ export function AwsAccountSelector({
               >
                 <SelectTrigger 
                   className={cn(
-                    "h-auto py-1 px-2 rounded-lg border-primary/20 hover:border-primary/30",
-                    "bg-primary/10 hover:bg-primary/15 transition-all focus:ring-primary/30 text-[10px]",
-                    "min-w-[120px]"
+                    "h-auto py-0.5 px-1.5 rounded-lg border-primary/20 hover:border-primary/30",
+                    "bg-primary/10 hover:bg-primary/15 transition-all focus:ring-primary/30",
+                    "min-w-[100px] text-[9px]"
                   )}
+                  style={{ fontSize: '9px' }}
                 >
-                  <div className="flex items-center gap-1.5 w-full text-[10px]">
+                  <div className="flex items-center gap-1 w-full" style={{ fontSize: '9px' }}>
                     {/* Icon with status */}
                     <div className="relative flex-shrink-0">
-                      <Cloud className="h-3 w-3 text-orange-500" />
-                      <div className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-green-500 border border-background" />
+                      <Cloud className="h-2.5 w-2.5 text-orange-500" />
+                      <div className="absolute -bottom-0.5 -right-0.5 h-1 w-1 rounded-full bg-green-500 border border-background" />
                     </div>
                     
                     {/* Account info */}
-                    <SelectValue placeholder="Selecionar" className="text-[10px]">
+                    <SelectValue placeholder="Conta" className="text-[9px]" style={{ fontSize: '9px' }}>
                       {selectedAccount && (
-                        <span className="text-[10px] font-medium truncate block max-w-[80px]">
+                        <span className="text-[9px] font-medium truncate block max-w-[70px]" style={{ fontSize: '9px' }}>
                           {selectedAccount.account_name}
                         </span>
                       )}
@@ -246,7 +249,7 @@ export function AwsAccountSelector({
             </div>
           </TooltipTrigger>
           {selectedAccount && selectedAccount.regions && selectedAccount.regions.length > 0 && (
-            <TooltipContent side="bottom" align="end" className="max-w-xs p-3">
+            <TooltipContent side="left" align="center" className="max-w-xs p-3">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
