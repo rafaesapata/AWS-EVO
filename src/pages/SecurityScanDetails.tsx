@@ -4,6 +4,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -451,114 +453,26 @@ export default function SecurityScanDetails() {
             </div>
             
             {/* Filters and Controls */}
-            <div className="space-y-4 mt-4">
-              {/* Search and Filters Row */}
-              <div className="flex flex-wrap gap-4">
-                <div className="flex-1 min-w-[200px]">
-                  <Input
-                    placeholder="Buscar achados..."
-                    value={searchTerm}
-                    onChange={(e) => handleFilterChange('search', e.target.value)}
-                    className="glass transition-all duration-300 focus:scale-105"
-                  />
-                </div>
-                <Select value={severityFilter || "all"} onValueChange={(value) => handleFilterChange('severity', value)}>
-                  <SelectTrigger className="w-[150px] glass transition-all duration-300 hover:scale-105">
-                    <SelectValue placeholder="Severidade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas</SelectItem>
-                    <SelectItem value="critical">Crítico</SelectItem>
-                    <SelectItem value="high">Alto</SelectItem>
-                    <SelectItem value="medium">Médio</SelectItem>
-                    <SelectItem value="low">Baixo</SelectItem>
-                    <SelectItem value="info">Info</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={serviceFilter || "all"} onValueChange={(value) => handleFilterChange('service', value)}>
-                  <SelectTrigger className="w-[150px] glass transition-all duration-300 hover:scale-105">
-                    <SelectValue placeholder="Serviço" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {uniqueServices.map(service => (
-                      <SelectItem key={service} value={service}>{service}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={statusFilter || "all"} onValueChange={(value) => handleFilterChange('status', value)}>
-                  <SelectTrigger className="w-[150px] glass transition-all duration-300 hover:scale-105">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="pending">Pendente</SelectItem>
-                    <SelectItem value="in_progress">Em Progresso</SelectItem>
-                    <SelectItem value="resolved">Resolvido</SelectItem>
-                    <SelectItem value="dismissed">Descartado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Sort and Pagination Controls Row */}
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-muted-foreground">Ordenar por:</span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={sortBy === 'severity' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => handleSortChange('severity')}
-                      className="glass hover-glow transition-all duration-300"
-                    >
-                      Criticidade
-                      {sortBy === 'severity' && (
-                        sortOrder === 'desc' ? <ArrowDown className="h-3 w-3 ml-1" /> : <ArrowUp className="h-3 w-3 ml-1" />
-                      )}
-                    </Button>
-                    <Button
-                      variant={sortBy === 'created_at' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => handleSortChange('created_at')}
-                      className="glass hover-glow transition-all duration-300"
-                    >
-                      Data
-                      {sortBy === 'created_at' && (
-                        sortOrder === 'desc' ? <ArrowDown className="h-3 w-3 ml-1" /> : <ArrowUp className="h-3 w-3 ml-1" />
-                      )}
-                    </Button>
-                    <Button
-                      variant={sortBy === 'service' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => handleSortChange('service')}
-                      className="glass hover-glow transition-all duration-300"
-                    >
-                      Serviço
-                      {sortBy === 'service' && (
-                        sortOrder === 'desc' ? <ArrowDown className="h-3 w-3 ml-1" /> : <ArrowUp className="h-3 w-3 ml-1" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Itens por página:</span>
-                  <Select value={itemsPerPage?.toString() || "10"} onValueChange={(value) => {
-                    setItemsPerPage(parseInt(value) || 10);
-                    setCurrentPage(1);
-                  }}>
-                    <SelectTrigger className="w-[80px] glass">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+            <div className="mt-4">
+              <FindingsFilters
+                searchTerm={searchTerm}
+                severityFilter={severityFilter}
+                serviceFilter={serviceFilter}
+                statusFilter={statusFilter}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                itemsPerPage={itemsPerPage}
+                uniqueServices={uniqueServices}
+                onSearchChange={(value) => handleFilterChange('search', value)}
+                onSeverityChange={(value) => handleFilterChange('severity', value)}
+                onServiceChange={(value) => handleFilterChange('service', value)}
+                onStatusChange={(value) => handleFilterChange('status', value)}
+                onSortChange={handleSortChange}
+                onItemsPerPageChange={(value) => {
+                  setItemsPerPage(parseInt(value) || 10);
+                  setCurrentPage(1);
+                }}
+              />
             </div>
           </CardHeader>
           <CardContent>
@@ -585,82 +499,14 @@ export default function SecurityScanDetails() {
                 </div>
 
                 {/* Pagination Controls */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
-                    <div className="text-sm text-muted-foreground">
-                      Mostrando {startIndex + 1} a {Math.min(endIndex, totalItems)} de {totalItems} achados
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(1)}
-                        disabled={currentPage === 1}
-                        className="glass hover-glow transition-all duration-300"
-                      >
-                        <ChevronsLeft className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(currentPage - 1)}
-                        disabled={currentPage === 1}
-                        className="glass hover-glow transition-all duration-300"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                          let pageNum;
-                          if (totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (currentPage >= totalPages - 2) {
-                            pageNum = totalPages - 4 + i;
-                          } else {
-                            pageNum = currentPage - 2 + i;
-                          }
-
-                          return (
-                            <Button
-                              key={pageNum}
-                              variant={currentPage === pageNum ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setCurrentPage(pageNum)}
-                              className="w-8 h-8 p-0 glass hover-glow transition-all duration-300"
-                            >
-                              {pageNum}
-                            </Button>
-                          );
-                        })}
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                        className="glass hover-glow transition-all duration-300"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(totalPages)}
-                        disabled={currentPage === totalPages}
-                        className="glass hover-glow transition-all duration-300"
-                      >
-                        <ChevronsRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <FindingsPagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  startIndex={startIndex}
+                  endIndex={endIndex}
+                  onPageChange={setCurrentPage}
+                />
               </>
             ) : (
               <div className="text-center py-12">

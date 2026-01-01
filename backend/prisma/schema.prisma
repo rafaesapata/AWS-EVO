@@ -26,6 +26,7 @@ model Organization {
   aws_accounts      AwsAccount[]
   findings          Finding[]
   security_scans    SecurityScan[]
+  scan_schedules    ScanSchedule[]
   background_jobs   BackgroundJob[]
   licenses          License[]
   kb_articles       KnowledgeBaseArticle[]
@@ -69,6 +70,7 @@ model AwsCredential {
   
   organization          Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   security_scans        SecurityScan[]
+  scan_schedules        ScanSchedule[]
   guardduty_findings    GuardDutyFinding[]
   
   @@map("aws_credentials")
@@ -154,6 +156,28 @@ model SecurityScan {
   @@index([organization_id])
   @@index([status])
   @@map("security_scans")
+}
+
+model ScanSchedule {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  aws_account_id    String   @db.Uuid
+  scan_type         String
+  schedule_type     String   // daily, weekly, monthly
+  schedule_config   Json?
+  is_active         Boolean  @default(true)
+  last_run_at       DateTime? @db.Timestamptz(6)
+  next_run_at       DateTime? @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  aws_credential    AwsCredential @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)
+  
+  @@index([organization_id])
+  @@index([is_active])
+  @@index([next_run_at])
+  @@map("scan_schedules")
 }
 
 model WellArchitectedScore {

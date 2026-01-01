@@ -197,49 +197,50 @@ export function AwsAccountSelector({
               >
                 <SelectTrigger 
                   className={cn(
-                    "h-auto py-0.5 px-1.5 rounded-lg border-primary/20 hover:border-primary/30",
+                    "h-[32px] w-[140px] px-2 py-1 rounded-md border-primary/20 hover:border-primary/30",
                     "bg-primary/10 hover:bg-primary/15 transition-all focus:ring-primary/30",
-                    "min-w-[100px] text-[9px]"
+                    "flex items-center"
                   )}
-                  style={{ fontSize: '9px' }}
                 >
-                  <div className="flex items-center gap-1 w-full" style={{ fontSize: '9px' }}>
+                  <div className="flex items-center gap-1.5 w-full overflow-hidden">
                     {/* Icon with status */}
                     <div className="relative flex-shrink-0">
-                      <Cloud className="h-2.5 w-2.5 text-orange-500" />
-                      <div className="absolute -bottom-0.5 -right-0.5 h-1 w-1 rounded-full bg-green-500 border border-background" />
+                      <Cloud className="h-3 w-3 text-orange-500" />
+                      <div className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-green-500 border border-background" />
                     </div>
                     
                     {/* Account info */}
-                    <SelectValue placeholder="Conta" className="text-[9px]" style={{ fontSize: '9px' }}>
-                      {selectedAccount && (
-                        <span className="text-[9px] font-medium truncate block max-w-[70px]" style={{ fontSize: '9px' }}>
-                          {selectedAccount.account_name}
-                        </span>
-                      )}
-                    </SelectValue>
+                    <div className="flex-1 min-w-0">
+                      <SelectValue placeholder="Conta AWS">
+                        {selectedAccount && (
+                          <span className="text-[9px] leading-tight font-medium block truncate">
+                            {selectedAccount.account_name}
+                          </span>
+                        )}
+                      </SelectValue>
+                    </div>
                   </div>
                 </SelectTrigger>
                 
-                <SelectContent className="z-50 bg-popover/95 backdrop-blur-sm border-border/50 rounded-lg p-1">
+                <SelectContent className="z-50 bg-popover/95 backdrop-blur-sm border-border/50 rounded-lg p-1 w-[200px]">
                   {accounts.map((account) => (
                     <SelectItem 
                       key={account.id} 
                       value={account.id}
-                      className="rounded-md cursor-pointer focus:bg-primary/10"
+                      className="rounded-md cursor-pointer focus:bg-primary/10 text-xs"
                     >
-                      <div className="flex items-center gap-2 py-0.5">
-                        <Server className="h-3 w-3 text-orange-500/80" />
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-medium">{account.account_name}</span>
+                      <div className="flex items-center gap-2 py-1">
+                        <Server className="h-3 w-3 text-orange-500/80 flex-shrink-0" />
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-xs font-medium truncate">{account.account_name}</span>
                           {account.account_id && (
-                            <span className="text-[9px] text-muted-foreground font-mono">
+                            <span className="text-[10px] text-muted-foreground font-mono truncate">
                               {account.account_id}
                             </span>
                           )}
                         </div>
                         {account.id === selectedAccountId && (
-                          <CheckCircle2 className="h-3 w-3 text-green-500 ml-auto" />
+                          <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
                         )}
                       </div>
                     </SelectItem>
@@ -249,7 +250,7 @@ export function AwsAccountSelector({
             </div>
           </TooltipTrigger>
           {selectedAccount && selectedAccount.regions && selectedAccount.regions.length > 0 && (
-            <TooltipContent side="left" align="center" className="max-w-xs p-3">
+            <TooltipContent side="bottom" align="end" className="max-w-xs p-3">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />

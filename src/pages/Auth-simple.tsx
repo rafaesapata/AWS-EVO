@@ -18,7 +18,7 @@ export default function AuthSimple() {
   const [showWebAuthn, setShowWebAuthn] = useState(false);
   const [webAuthnLoading, setWebAuthnLoading] = useState(false);
   const [webAuthnError, setWebAuthnError] = useState("");
-  const { user, isLoading, error, signIn, clearError } = useAuthSafe();
+  const { user, isLoading, error, signIn, signOut, clearError } = useAuthSafe();
 
   // Animation on mount
   useEffect(() => {
@@ -32,53 +32,33 @@ export default function AuthSimple() {
     }
   }, [user, navigate]);
 
-  const checkWebAuthnRequired = async (userEmail: string) => {
-    try {
-      console.log('🔐 Checking WebAuthn for user:', userEmail);
-      
-      // Use the new dedicated WebAuthn check endpoint
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/functions/webauthn-check`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: userEmail
-        })
-      });
-
-      const data = await response.json();
-      
-      console.log('🔐 WebAuthn check result:', {
-        hasWebAuthn: data.hasWebAuthn,
-        credentialsCount: data.credentialsCount,
-        error: data.error
-      });
-
-      return data.hasWebAuthn === true;
-    } catch (error) {
-      console.log('🔐 WebAuthn check error:', error);
-      return false;
-    }
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
     setWebAuthnError("");
     
-    // First check if user has WebAuthn credentials
-    const hasWebAuthn = await checkWebAuthnRequired(email);
-    
-    if (hasWebAuthn) {
-      // User has WebAuthn, require it
-      setShowWebAuthn(true);
-      return;
-    }
-    
-    // No WebAuthn, proceed with normal login
+    // Try normal login first
     const success = await signIn(email, password);
+    
     if (success) {
+      // After successful Cognito login, check if user has WebAuthn
+      try {
+        const result = await apiClient.invoke('webauthn-authenticate', {
+          body: { action: 'start', email }
+        });
+
+        if (result.data?.options?.allowCredentials?.length > 0) {
+          // User has WebAuthn, require it
+          console.log('🔐 WebAuthn credentials found after login - requiring WebAuthn');
+          setShowWebAuthn(true);
+          // Sign out from Cognito since we need WebAuthn
+          await signOut();
+          return;
+        }
+      } catch (error) {
+        console.log('🔐 No WebAuthn check needed or error:', error);
+      }
+      
       console.log("✅ Login successful");
       navigate("/app");
     }
