@@ -1,0 +1,1 @@
+{"version":3,"file":"manage-organizations.d.ts","sourceRoot":"","sources":["../../../src/handlers/admin/manage-organizations.ts"],"names":[],"mappings":"AAAA;;;;;;;;;GASG;AAEH,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AAsGrG,wBAAsB,OAAO,CAC3B,KAAK,EAAE,eAAe,EACtB,OAAO,EAAE,aAAa,GACrB,OAAO,CAAC,uBAAuB,CAAC,CAiQlC"}

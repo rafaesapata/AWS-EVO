@@ -1,0 +1,280 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.handler = handler;
+const logging_js_1 = require("../../lib/logging.js");
+const database_js_1 = require("../../lib/database.js");
+const auth_js_1 = require("../../lib/auth.js");
+const client_sts_1 = require("@aws-sdk/client-sts");
+const client_cloudwatch_1 = require("@aws-sdk/client-cloudwatch");
+const client_cost_explorer_1 = require("@aws-sdk/client-cost-explorer");
+const response_js_1 = require("../../lib/response.js");
+const middleware_js_1 = require("../../lib/middleware.js");
+const schemas_js_1 = require("../../lib/schemas.js");
+async function handler(event, context) {
+    const origin = (0, middleware_js_1.getOrigin)(event);
+    const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+    // Handle CORS preflight
+    if (httpMethod === 'OPTIONS') {
+        return (0, response_js_1.corsOptions)(origin);
+    }
+    let organizationId;
+    let userId;
+    try {
+        const user = (0, auth_js_1.getUserFromEvent)(event);
+        userId = user.sub || user.id || 'unknown';
+        organizationId = (0, auth_js_1.getOrganizationId)(user);
+    }
+    catch (authError) {
+        logging_js_1.logger.error('Authentication error', authError);
+        return (0, response_js_1.error)('Unauthorized', 401, undefined, origin);
+    }
+    try {
+        // Validar input com Zod
+        const parseResult = schemas_js_1.detectAnomaliesSchema.safeParse(event.body ? JSON.parse(event.body) : {});
+        if (!parseResult.success) {
+            const errorMessages = parseResult.error.errors
+                .map(err => `${err.path.join('.')}: ${err.message}`)
+                .join(', ');
+            return (0, response_js_1.badRequest)(`Validation error: ${errorMessages}`, undefined, origin);
+        }
+        const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = parseResult.data;
+        const prisma = (0, database_js_1.getPrismaClient)();
+        const stsClient = new client_sts_1.STSClient({});
+        // Buscar conta AWS - FILTRAR POR ORGANIZATION_ID
+        const awsAccount = await prisma.awsAccount.findFirst({
+            where: {
+                id: awsAccountId,
+                organization_id: organizationId // CRITICAL: Multi-tenancy filter
+            },
+            include: { organization: true }
+        });
+        if (!awsAccount) {
+            return (0, response_js_1.notFound)('AWS Account not found', origin);
+        }
+        // Assume role (usando campos corretos do schema)
+        const assumeRoleResponse = await stsClient.send(new client_sts_1.AssumeRoleCommand({
+            RoleArn: `arn:aws:iam::${awsAccount.account_id}:role/EvoUdsRole`,
+            RoleSessionName: 'DetectAnomaliesSession',
+            DurationSeconds: 3600
+        }));
+        const credentials = {
+            accessKeyId: assumeRoleResponse.Credentials.AccessKeyId,
+            secretAccessKey: assumeRoleResponse.Credentials.SecretAccessKey,
+            sessionToken: assumeRoleResponse.Credentials.SessionToken
+        };
+        const anomalies = [];
+        const thresholds = getThresholds(sensitivity);
+        // Detectar anomalias de custo
+        if (analysisType === 'cost' || analysisType === 'all') {
+            const costAnomalies = await detectCostAnomalies(credentials, lookbackDays, thresholds);
+            anomalies.push(...costAnomalies);
+        }
+        // Detectar anomalias de performance
+        if (analysisType === 'performance' || analysisType === 'all') {
+            const perfAnomalies = await detectPerformanceAnomalies(credentials, lookbackDays, thresholds);
+            anomalies.push(...perfAnomalies);
+        }
+        // Detectar anomalias de segurança
+        if (analysisType === 'security' || analysisType === 'all') {
+            const secAnomalies = await detectSecurityAnomalies(awsAccountId, lookbackDays, thresholds);
+            anomalies.push(...secAnomalies);
+        }
+        // Salvar anomalias detectadas
+        for (const anomaly of anomalies) {
+            await prisma.finding.create({
+                data: {
+                    organization_id: awsAccount.organization_id,
+                    severity: anomaly.severity,
+                    description: anomaly.description,
+                    details: {
+                        type: anomaly.type,
+                        category: anomaly.category,
+                        title: anomaly.title,
+                        metric: anomaly.metric,
+                        expectedValue: anomaly.expectedValue,
+                        actualValue: anomaly.actualValue,
+                    },
+                    scan_type: 'anomaly_detection',
+                    service: 'ML',
+                    category: anomaly.category,
+                    resource_id: anomaly.resourceId,
+                    remediation: anomaly.recommendation,
+                    status: 'OPEN'
+                }
+            });
+        }
+        // Agrupar por categoria
+        const byCategory = anomalies.reduce((acc, a) => {
+            acc[a.category] = (acc[a.category] || 0) + 1;
+            return acc;
+        }, {});
+        // Agrupar por severidade
+        const bySeverity = anomalies.reduce((acc, a) => {
+            acc[a.severity] = (acc[a.severity] || 0) + 1;
+            return acc;
+        }, {});
+        return (0, response_js_1.success)({
+            summary: {
+                totalAnomalies: anomalies.length,
+                byCategory,
+                bySeverity,
+                analysisType,
+                sensitivity,
+                lookbackDays
+            },
+            anomalies: anomalies.sort((a, b) => {
+                const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+                return severityOrder[a.severity] - severityOrder[b.severity];
+            })
+        }, 200, origin);
+    }
+    catch (err) {
+        logging_js_1.logger.error('Detect anomalies error:', err);
+        return (0, response_js_1.error)('Internal server error', 500, undefined, origin);
+    }
+}
+;
+function getThresholds(sensitivity) {
+    switch (sensitivity) {
+        case 'low': return { costDeviation: 0.5, perfDeviation: 0.4, securityThreshold: 10 };
+        case 'high': return { costDeviation: 0.15, perfDeviation: 0.15, securityThreshold: 3 };
+        default: return { costDeviation: 0.25, perfDeviation: 0.25, securityThreshold: 5 };
+    }
+}
+async function detectCostAnomalies(credentials, lookbackDays, thresholds) {
+    const anomalies = [];
+    const ceClient = new client_cost_explorer_1.CostExplorerClient({ region: 'us-east-1', credentials });
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - lookbackDays);
+    const response = await ceClient.send(new client_cost_explorer_1.GetCostAndUsageCommand({
+        TimePeriod: { Start: startDate.toISOString().split('T')[0], End: endDate.toISOString().split('T')[0] },
+        Granularity: 'DAILY',
+        Metrics: ['UnblendedCost'],
+        GroupBy: [{ Type: 'DIMENSION', Key: 'SERVICE' }]
+    }));
+    // Calcular média e desvio padrão por serviço
+    const serviceData = {};
+    for (const result of response.ResultsByTime || []) {
+        for (const group of result.Groups || []) {
+            const service = group.Keys?.[0] || 'Unknown';
+            const cost = parseFloat(group.Metrics?.UnblendedCost?.Amount || '0');
+            if (!serviceData[service])
+                serviceData[service] = [];
+            serviceData[service].push(cost);
+        }
+    }
+    for (const [service, costs] of Object.entries(serviceData)) {
+        if (costs.length < 7)
+            continue;
+        const mean = costs.reduce((a, b) => a + b, 0) / costs.length;
+        const stdDev = Math.sqrt(costs.reduce((sum, c) => sum + Math.pow(c - mean, 2), 0) / costs.length);
+        const lastCost = costs[costs.length - 1];
+        const deviation = Math.abs(lastCost - mean) / (stdDev || 1);
+        if (deviation > 2 && Math.abs(lastCost - mean) / mean > thresholds.costDeviation) {
+            anomalies.push({
+                id: `cost-${service}-${Date.now()}`,
+                type: 'COST_SPIKE',
+                category: 'cost',
+                severity: deviation > 3 ? 'HIGH' : 'MEDIUM',
+                title: `Cost anomaly detected for ${service}`,
+                description: `${service} cost deviated ${(deviation * 100).toFixed(1)}% from normal`,
+                metric: 'UnblendedCost',
+                expectedValue: mean,
+                actualValue: lastCost,
+                deviation,
+                timestamp: new Date(),
+                resourceId: service,
+                recommendation: `Review ${service} usage and check for unexpected resources or configuration changes`
+            });
+        }
+    }
+    return anomalies;
+}
+async function detectPerformanceAnomalies(credentials, lookbackDays, thresholds) {
+    const anomalies = [];
+    const cwClient = new client_cloudwatch_1.CloudWatchClient({ region: 'us-east-1', credentials });
+    const endTime = new Date();
+    const startTime = new Date();
+    startTime.setDate(startTime.getDate() - lookbackDays);
+    // Verificar métricas de Lambda
+    const lambdaMetrics = await cwClient.send(new client_cloudwatch_1.GetMetricStatisticsCommand({
+        Namespace: 'AWS/Lambda',
+        MetricName: 'Errors',
+        StartTime: startTime,
+        EndTime: endTime,
+        Period: 86400,
+        Statistics: ['Sum']
+    }));
+    const errorCounts = (lambdaMetrics.Datapoints || []).map(d => d.Sum || 0);
+    if (errorCounts.length > 7) {
+        const mean = errorCounts.reduce((a, b) => a + b, 0) / errorCounts.length;
+        const lastValue = errorCounts[errorCounts.length - 1];
+        if (lastValue > mean * (1 + thresholds.perfDeviation) && lastValue > 10) {
+            anomalies.push({
+                id: `perf-lambda-errors-${Date.now()}`,
+                type: 'ERROR_SPIKE',
+                category: 'performance',
+                severity: lastValue > mean * 2 ? 'HIGH' : 'MEDIUM',
+                title: 'Lambda error rate anomaly',
+                description: `Lambda errors increased to ${lastValue} (avg: ${mean.toFixed(1)})`,
+                metric: 'Lambda/Errors',
+                expectedValue: mean,
+                actualValue: lastValue,
+                deviation: (lastValue - mean) / mean,
+                timestamp: new Date(),
+                recommendation: 'Review Lambda function logs and recent deployments'
+            });
+        }
+    }
+    return anomalies;
+}
+async function detectSecurityAnomalies(awsAccountId, lookbackDays, thresholds) {
+    const prisma = (0, database_js_1.getPrismaClient)();
+    const anomalies = [];
+    // Buscar eventos de segurança recentes
+    const recentEvents = await prisma.securityEvent.groupBy({
+        by: ['event_type'],
+        where: {
+            created_at: { gte: new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000) }
+        },
+        _count: true
+    });
+    // Buscar baseline histórico
+    const historicalEvents = await prisma.securityEvent.groupBy({
+        by: ['event_type'],
+        where: {
+            created_at: {
+                gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
+                lt: new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000)
+            }
+        },
+        _count: true
+    });
+    const historicalBaseline = {};
+    for (const h of historicalEvents) {
+        historicalBaseline[h.event_type] = (h._count || 0) / (90 - lookbackDays);
+    }
+    for (const event of recentEvents) {
+        const baseline = historicalBaseline[event.event_type] || 0;
+        const current = (event._count || 0) / lookbackDays;
+        if (current > baseline + thresholds.securityThreshold && current > 5) {
+            anomalies.push({
+                id: `sec-${event.event_type}-${Date.now()}`,
+                type: 'SECURITY_EVENT_SPIKE',
+                category: 'security',
+                severity: current > baseline * 3 ? 'CRITICAL' : 'HIGH',
+                title: `Unusual ${event.event_type} activity`,
+                description: `${event.event_type} events increased from ${baseline.toFixed(1)}/day to ${current.toFixed(1)}/day`,
+                metric: event.event_type,
+                expectedValue: baseline,
+                actualValue: current,
+                deviation: (current - baseline) / (baseline || 1),
+                timestamp: new Date(),
+                recommendation: `Investigate ${event.event_type} events for potential security issues`
+            });
+        }
+    }
+    return anomalies;
+}
+//# sourceMappingURL=detect-anomalies.js.map

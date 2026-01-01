@@ -1,0 +1,1 @@
+{"version":3,"file":"webauthn-register.d.ts","sourceRoot":"","sources":["../../../src/handlers/auth/webauthn-register.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AAoBrG,wBAAsB,OAAO,CAC3B,KAAK,EAAE,eAAe,EACtB,OAAO,EAAE,aAAa,GACrB,OAAO,CAAC,uBAAuB,CAAC,CA0ClC"}

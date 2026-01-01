@@ -1,0 +1,1 @@
+{"version":3,"file":"increment-article-views.d.ts","sourceRoot":"","sources":["../../../src/handlers/kb/increment-article-views.ts"],"names":[],"mappings":"AAAA;;GAEG;AAGH,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AASrG,wBAAsB,OAAO,CAC3B,KAAK,EAAE,eAAe,EACtB,OAAO,EAAE,aAAa,GACrB,OAAO,CAAC,uBAAuB,CAAC,CAqDlC"}

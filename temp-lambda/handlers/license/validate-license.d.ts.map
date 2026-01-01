@@ -1,0 +1,1 @@
+{"version":3,"file":"validate-license.d.ts","sourceRoot":"","sources":["../../../src/handlers/license/validate-license.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAEH,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AAYrG,wBAAsB,OAAO,CAC3B,KAAK,EAAE,eAAe,EACtB,QAAQ,EAAE,aAAa,GACtB,OAAO,CAAC,uBAAuB,CAAC,CAuTlC"}

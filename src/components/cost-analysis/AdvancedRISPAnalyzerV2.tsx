@@ -34,70 +34,17 @@ export function AdvancedRISPAnalyzerV2({ accountId, region = 'us-east-1' }: Adva
       
     } catch (error) {
       console.error('Error running analysis:', error);
-      
-      // Fallback para dados simulados em caso de erro (para demonstração)
-      const mockAnalysis = {
-        success: true,
-        executiveSummary: {
-          status: 'needs_attention',
-          totalCommitments: 0,
-          coverageScore: 15.2,
-          potentialAnnualSavings: 24500,
-          recommendationsSummary: {
-            total: 5,
-            critical: 0,
-            high: 2,
-            quickWins: 3
-          },
-          keyInsights: [
-            'No Reserved Instances found - significant savings opportunity',
-            'No Savings Plans found - consider flexible commitment options',
-            'Coverage score: 15.2% - needs improvement',
-            '5 optimization opportunities identified'
-          ]
-        },
+      // Não usar fallback - mostrar erro real para o usuário
+      setAnalysis({
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido na análise',
+        recommendations: [],
+        executiveSummary: null,
         reservedInstances: { ec2: [], rds: [], total: 0 },
         savingsPlans: { plans: [], total: 0 },
-        currentResources: {
-          ec2Instances: 12,
-          rdsInstances: 3,
-          totalMonthlyCost: 2850
-        },
-        recommendations: [
-          {
-            type: 'ri_purchase',
-            priority: 'high',
-            service: 'EC2',
-            title: 'Purchase Reserved Instances for Steady Workloads',
-            description: '8 instance types show consistent usage patterns suitable for Reserved Instances.',
-            potentialSavings: { monthly: 980, annual: 11760, percentage: 40 },
-            implementation: { difficulty: 'easy', timeToImplement: '1-2 hours' }
-          },
-          {
-            type: 'sp_purchase',
-            priority: 'high',
-            service: 'General',
-            title: 'Implement Compute Savings Plans',
-            description: 'Flexible savings across EC2, Lambda, and Fargate with up to 66% savings.',
-            potentialSavings: { monthly: 855, annual: 10260, percentage: 30 },
-            implementation: { difficulty: 'easy', timeToImplement: '30 minutes' }
-          },
-          {
-            type: 'right_sizing',
-            priority: 'medium',
-            service: 'EC2',
-            title: 'Right-size Underutilized Instances',
-            description: '4 instance types show low utilization patterns.',
-            potentialSavings: { monthly: 420, annual: 5040, percentage: 25 },
-            implementation: { difficulty: 'medium', timeToImplement: '2-4 hours' }
-          }
-        ],
         coverage: { reservedInstances: 0, savingsPlans: 0, overall: 0 },
-        potentialSavings: { monthly: 2255, annual: 27060, maxPercentage: 40 }
-      };
-      
-      console.warn('Using fallback mock data due to API error:', error);
-      setAnalysis(mockAnalysis);
+        potentialSavings: { monthly: 0, annual: 0, maxPercentage: 0 }
+      });
     } finally {
       setLoading(false);
     }
@@ -147,7 +94,17 @@ export function AdvancedRISPAnalyzerV2({ accountId, region = 'us-east-1' }: Adva
         </Button>
       </div>
 
-      {analysis && (
+      {analysis && analysis.success === false && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Erro na Análise</AlertTitle>
+          <AlertDescription>
+            {analysis.error || 'Não foi possível executar a análise. Verifique suas credenciais AWS e tente novamente.'}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {analysis && analysis.success !== false && (
         <Tabs defaultValue="summary" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="summary">Resumo Executivo</TabsTrigger>
