@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - ARN Builder
+ * Security Engine V3 - ARN Builder
  * Centralized utility for building AWS ARNs - ensures 100% ARN coverage
  */
 

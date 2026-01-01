@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - AWS Config Scanner
+ * Security Engine V3 - AWS Config Scanner
  * Checks: recording enabled, S3 bucket security, conformance packs, aggregators
  */
 

@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - AWS Backup Scanner
+ * Security Engine V3 - AWS Backup Scanner
  * Checks: vault lock, encryption, cross-region/account backup, compliance
  */
 

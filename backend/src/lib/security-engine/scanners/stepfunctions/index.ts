@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Step Functions Scanner
+ * Security Engine V3 - Step Functions Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

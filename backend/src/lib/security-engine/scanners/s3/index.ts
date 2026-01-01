@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - S3 Scanner
+ * Security Engine V3 - S3 Scanner
  * Comprehensive S3 security checks (20+ checks)
  */
 

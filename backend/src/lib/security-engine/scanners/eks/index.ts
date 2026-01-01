@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - EKS Scanner
+ * Security Engine V3 - EKS Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

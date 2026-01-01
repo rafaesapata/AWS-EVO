@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - SNS Scanner
+ * Security Engine V3 - SNS Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

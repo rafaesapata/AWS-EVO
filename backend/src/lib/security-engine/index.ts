@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Main Export
+ * Security Engine V3 - Main Export
  * Military-grade AWS security scanning engine
  */
 

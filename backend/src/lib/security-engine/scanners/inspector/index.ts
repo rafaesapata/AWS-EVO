@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Inspector Scanner
+ * Security Engine V3 - Inspector Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

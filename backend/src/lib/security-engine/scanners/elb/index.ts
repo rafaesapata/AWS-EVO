@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - ELB Scanner
+ * Security Engine V3 - ELB Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - CloudTrail Scanner
+ * Security Engine V3 - CloudTrail Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

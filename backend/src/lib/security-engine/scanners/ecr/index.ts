@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - ECR Scanner
+ * Security Engine V3 - ECR Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

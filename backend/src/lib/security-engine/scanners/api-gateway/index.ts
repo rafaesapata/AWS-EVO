@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - API Gateway Scanner
+ * Security Engine V3 - API Gateway Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

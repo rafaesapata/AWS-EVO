@@ -1,5 +1,5 @@
 /**
- * Lambda handler para security scan - Security Engine V2
+ * Lambda handler para security scan - Security Engine V3
  * 23 scanners de serviços AWS com 170+ verificações de segurança
  * Suporte a 6 frameworks de compliance: CIS, Well-Architected, PCI-DSS, NIST, LGPD, SOC2
  */
@@ -78,7 +78,7 @@ async function securityScanHandler(
     const bodyValidation = parseAndValidateBody(securityScanSchema, event.body || null);
     if (!bodyValidation.success) return bodyValidation.error;
     
-    const { accountId, scanLevel } = bodyValidation.data;
+    const { accountId, scanLevel, scanId } = bodyValidation.data;
     
     const credential = await prisma.awsCredential.findFirst({
       where: { 
@@ -126,16 +126,31 @@ async function securityScanHandler(
       }
     }
     
-    // Create scan record
-    const scan = await prisma.securityScan.create({
-      data: {
-        organization_id: organizationId,
-        aws_account_id: credential.id,
-        scan_type: `${scanLevel}-security-scan`,
-        status: 'running',
-        scan_config: { regions, level: scanLevel, engine: 'v2' },
-      },
-    });
+    // Create or update scan record
+    let scan;
+    if (scanId) {
+      // Update existing scan record
+      scan = await prisma.securityScan.update({
+        where: { id: scanId },
+        data: {
+          status: 'running',
+          started_at: new Date(),
+        },
+      });
+      logger.info('Updated existing scan record', { scanId });
+    } else {
+      // Create new scan record (fallback for backward compatibility)
+      scan = await prisma.securityScan.create({
+        data: {
+          organization_id: organizationId,
+          aws_account_id: credential.id,
+          scan_type: `${scanLevel}-security-scan`,
+          status: 'running',
+          scan_config: { regions, level: scanLevel, engine: 'v3' },
+        },
+      });
+      logger.info('Created new scan record', { scanId: scan.id });
+    }
     
     // Resolve AWS credentials
     const resolvedCreds = await resolveAwsCredentials(credential, 'us-east-1');
@@ -159,7 +174,7 @@ async function securityScanHandler(
       scanLevel: scanLevel as ScanLevel,
     };
     
-    // Run the security scan using Security Engine V2
+    // Run the security scan using Security Engine V3
     logger.info('Running Security Engine', { regions, scanLevel, scanId: scan.id });
     const scanResult = await runSecurityScan(scanContext);
     

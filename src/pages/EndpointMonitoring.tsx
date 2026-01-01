@@ -96,7 +96,7 @@ export default function EndpointMonitoring() {
     enabled: !!organizationId,
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
-      const response = await apiClient.get<Alert[]>('/alerts');
+      const response = await apiClient.get<Alert[]>('/api/functions/alerts');
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
@@ -109,7 +109,7 @@ export default function EndpointMonitoring() {
   // Mutation for acknowledging/resolving alerts
   const alertMutation = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: 'acknowledge' | 'resolve' }) => {
-      const response = await apiClient.put('/alerts', { id, action });
+      const response = await apiClient.put('/api/functions/alerts', { id, action });
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
       }

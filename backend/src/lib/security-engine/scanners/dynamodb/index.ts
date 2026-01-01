@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - DynamoDB Scanner
+ * Security Engine V3 - DynamoDB Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

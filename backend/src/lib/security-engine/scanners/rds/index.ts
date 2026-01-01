@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - RDS Scanner
+ * Security Engine V3 - RDS Scanner
  * Comprehensive RDS security checks (15+ checks)
  */
 

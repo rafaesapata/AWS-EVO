@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Parallel Executor
+ * Security Engine V3 - Parallel Executor
  * Multi-level parallelization for scanning AWS resources
  */
 

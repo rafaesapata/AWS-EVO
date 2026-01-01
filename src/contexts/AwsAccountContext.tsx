@@ -12,6 +12,7 @@ interface AwsAccount {
   account_id: string | null;
   regions: string[];
   is_active: boolean;
+  _isOrphaned?: boolean; // Flag for orphaned cost data
 }
 
 interface AwsAccountContextType {
@@ -90,11 +91,44 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
         }
         
         // Filter only active accounts and ensure they have required properties
-        return allAccounts.filter((acc: any) => {
+        const credentialAccounts = allAccounts.filter((acc: any) => {
           if (!acc || typeof acc !== 'object') return false;
           if (!acc.id || !acc.account_name) return false;
           return acc.is_active !== false; // Include if is_active is true or undefined
         });
+        
+        // If no credential accounts found, check for orphaned cost data
+        if (credentialAccounts.length === 0) {
+          console.log('🔍 AwsAccountContext: No credential accounts found, checking for orphaned cost data...');
+          
+          try {
+            // Query for accounts that have cost data but no credentials
+            const costDataResult = await apiClient.select('daily_costs', {
+              eq: { organization_id: organizationId },
+              order: { column: 'created_at', ascending: false },
+              limit: 1
+            });
+            
+            if (costDataResult.data && costDataResult.data.length > 0) {
+              const costRecord = costDataResult.data[0];
+              console.log('🔍 AwsAccountContext: Found orphaned cost data for account:', costRecord.aws_account_id);
+              
+              // Create a virtual account for the orphaned cost data
+              return [{
+                id: costRecord.aws_account_id,
+                account_name: 'Conta AWS (Dados de Custo)',
+                account_id: null,
+                regions: ['us-east-1'],
+                is_active: true,
+                _isOrphaned: true // Flag to indicate this is orphaned data
+              }];
+            }
+          } catch (costErr) {
+            console.warn('AwsAccountContext: Error checking for orphaned cost data:', costErr);
+          }
+        }
+        
+        return credentialAccounts;
       } catch (err) {
         // Check if this is an aborted request error
         if (err instanceof Error) {

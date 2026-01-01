@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Resource Cache
+ * Security Engine V3 - Resource Cache
  * Caches AWS resources to avoid redundant API calls
  */
 

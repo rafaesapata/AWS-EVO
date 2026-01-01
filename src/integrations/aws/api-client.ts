@@ -305,6 +305,16 @@ class ApiClient {
       body: data ? JSON.stringify(data) : undefined,
     });
   }
+
+  /**
+   * PUT request genérico
+   */
+  async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T> | ApiError> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
 }
 
 export const apiClient = new ApiClient();

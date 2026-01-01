@@ -199,6 +199,12 @@ export async function handler(
             if (TABLES_WITH_ORG_ID.has(body.table)) {
               record.organization_id = organizationId;
             }
+            
+            // Special handling for knowledge_base_articles - add author_id
+            if (body.table === 'knowledge_base_articles' && (!record.author_id || record.author_id === 'undefined')) {
+              record.author_id = userId;
+            }
+            
             return record;
           });
           
@@ -214,6 +220,11 @@ export async function handler(
           const dataWithOrg: Record<string, any> = { ...body.data };
           if (TABLES_WITH_ORG_ID.has(body.table)) {
             dataWithOrg.organization_id = organizationId;
+          }
+          
+          // Special handling for knowledge_base_articles - add author_id
+          if (body.table === 'knowledge_base_articles' && (!dataWithOrg.author_id || dataWithOrg.author_id === 'undefined')) {
+            dataWithOrg.author_id = userId;
           }
           
           result = await model.create({

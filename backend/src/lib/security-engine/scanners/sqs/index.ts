@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - SQS Scanner
+ * Security Engine V3 - SQS Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

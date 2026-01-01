@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - IAM Scanner
+ * Security Engine V3 - IAM Scanner
  * Comprehensive IAM security checks (25+ checks)
  */
 

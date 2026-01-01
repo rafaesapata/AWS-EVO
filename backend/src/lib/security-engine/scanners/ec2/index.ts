@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - EC2 Scanner
+ * Security Engine V3 - EC2 Scanner
  * Comprehensive EC2 security checks (20+ checks)
  */
 

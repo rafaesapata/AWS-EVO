@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - ACM Scanner
+ * Security Engine V3 - ACM Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

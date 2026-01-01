@@ -169,6 +169,31 @@ export async function handler(
     // Sort by savings
     optimizations.sort((a, b) => b.savings - a.savings);
     
+    // Save optimizations to database
+    const prismaOptimizations = optimizations.map(opt => ({
+      organization_id: organizationId,
+      aws_account_id: credential.account_id || 'unknown',
+      resource_type: opt.resource_type,
+      resource_id: opt.resource_id,
+      optimization_type: opt.type,
+      potential_savings: opt.savings,
+      status: 'pending'
+    }));
+
+    // Clear existing optimizations for this account and insert new ones
+    await prisma.costOptimization.deleteMany({
+      where: {
+        organization_id: organizationId,
+        aws_account_id: credential.account_id || 'unknown'
+      }
+    });
+
+    if (prismaOptimizations.length > 0) {
+      await prisma.costOptimization.createMany({
+        data: prismaOptimizations
+      });
+    }
+    
     const totalSavings = optimizations.reduce((sum, opt) => sum + opt.savings, 0);
     const duration = Date.now() - startTime;
     

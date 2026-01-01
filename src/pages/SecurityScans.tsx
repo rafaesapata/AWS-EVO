@@ -181,7 +181,7 @@ export default function SecurityScans() {
     },
   });
 
-  // Start new scan using Security Engine V2
+  // Start new scan using Security Engine V3
   const startScanMutation = useMutation({
     mutationFn: async ({ scanLevel }: { scanLevel: 'quick' | 'standard' | 'deep' }) => {
       console.log('🔍 Starting security scan...', { scanLevel, selectedAccountId });
@@ -205,9 +205,16 @@ export default function SecurityScans() {
     onSuccess: () => {
       toast({
         title: "Security Scan Iniciado",
-        description: "O scan de segurança AWS foi iniciado com sucesso usando o Security Engine V2.",
+        description: "O scan de segurança AWS foi iniciado com sucesso usando o Security Engine V3.",
       });
-      refetch();
+      
+      // Invalidate and refetch immediately
+      queryClient.invalidateQueries({ queryKey: ['security-scans'] });
+      
+      // Force refetch after a short delay to ensure the scan is persisted
+      setTimeout(() => {
+        refetch();
+      }, 2000);
     },
     onError: (error) => {
       console.error('❌ Start scan mutation error:', error);
@@ -360,7 +367,7 @@ export default function SecurityScans() {
   return (
     <Layout 
       title="Security Scan" 
-      description="Execute scans de segurança AWS usando o Security Engine V2 com 170+ verificações"
+      description="Execute scans de segurança AWS usando o Security Engine V3 com 170+ verificações"
       icon={<Shield className="h-7 w-7 text-white" />}
     >
       <div className="space-y-6">
@@ -371,7 +378,7 @@ export default function SecurityScans() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-6 w-6 text-primary" />
-                Security Scan - Engine V2
+                Security Scan - Engine V3
               </CardTitle>
               <CardDescription>
                 Análise completa de segurança AWS com 23 scanners de serviços, 170+ verificações e suporte a 6 frameworks de compliance
@@ -463,7 +470,7 @@ export default function SecurityScans() {
         <CardHeader>
           <CardTitle>Iniciar Security Scan</CardTitle>
           <CardDescription>
-            Escolha o nível de análise desejado. O Security Engine V2 suporta CIS, Well-Architected, PCI-DSS, NIST, LGPD e SOC2.
+            Escolha o nível de análise desejado. O Security Engine V3 suporta CIS, Well-Architected, PCI-DSS, NIST, LGPD e SOC2.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -477,10 +484,19 @@ export default function SecurityScans() {
                 disabled={startScanMutation.isPending}
               >
                 <div className="p-3 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors">
-                  {scanLevel.icon}
+                  {startScanMutation.isPending && scanLevel.value === 'standard' ? (
+                    <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
+                  ) : (
+                    scanLevel.icon
+                  )}
                 </div>
                 <div className="text-center space-y-2">
-                  <div className="font-semibold text-lg">{scanLevel.label}</div>
+                  <div className="font-semibold text-lg">
+                    {startScanMutation.isPending && scanLevel.value === 'standard' 
+                      ? 'Iniciando...' 
+                      : scanLevel.label
+                    }
+                  </div>
                   <div className="text-sm text-muted-foreground">{scanLevel.description}</div>
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>{scanLevel.checks}</span>
@@ -494,7 +510,7 @@ export default function SecurityScans() {
           <div className="mt-6 p-4 bg-muted/30 rounded-lg glass-hover">
             <h4 className="font-semibold mb-2 flex items-center gap-2">
               <Shield className="h-4 w-4" />
-              Security Engine V2 Features
+              Security Engine V3 Features
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
@@ -571,7 +587,7 @@ export default function SecurityScans() {
                             <div className="space-y-1">
                               <h4 className="font-semibold text-lg">{scan.scan_type}</h4>
                               <p className="text-sm text-muted-foreground">
-                                Security Engine V2 - {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
+                                Security Engine V3 - {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
                               </p>
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <span>Iniciado: {new Date(scan.started_at).toLocaleString('pt-BR')}</span>

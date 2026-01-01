@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Configuration
+ * Security Engine V3 - Configuration
  */
 
 import type { ParallelizationConfig } from './types.js';

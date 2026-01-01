@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { AwsAccountProvider } from "@/contexts/AwsAccountContext";
 import { TVDashboardProvider } from "@/contexts/TVDashboardContext";
-import { GlobalErrorBoundary } from "@/components/error-fallbacks";
+import { ErrorBoundary as GlobalErrorBoundary } from "@/components/ErrorBoundary";
 import AuthSimple from "./pages/Auth-simple";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";

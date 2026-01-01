@@ -325,6 +325,7 @@ export const commonSchemas = {
 export const securityScanSchema = z.object({
   accountId: z.string().nullish(), // Accept string, null, or undefined
   scanLevel: commonSchemas.scanLevel,
+  scanId: z.string().optional(), // Optional scan ID for updating existing scans
   regions: z.array(commonSchemas.awsRegion).optional(),
   scanTypes: z.array(z.string()).optional(),
 });

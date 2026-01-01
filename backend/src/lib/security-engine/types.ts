@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Types and Interfaces
+ * Security Engine V3 - Types and Interfaces
  * Military-grade security scanning types
  */
 

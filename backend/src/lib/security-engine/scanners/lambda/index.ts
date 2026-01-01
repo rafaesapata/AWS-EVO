@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Lambda Scanner
+ * Security Engine V3 - Lambda Scanner
  * Comprehensive Lambda security checks (12+ checks)
  */
 

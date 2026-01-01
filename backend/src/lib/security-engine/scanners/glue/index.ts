@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - AWS Glue Scanner
+ * Security Engine V3 - AWS Glue Scanner
  * Comprehensive Glue security checks for data processing workloads
  * NEW SCANNER - Sprint 1 Priority Implementation
  */

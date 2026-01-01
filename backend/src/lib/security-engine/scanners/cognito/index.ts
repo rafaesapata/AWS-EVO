@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Cognito Scanner
+ * Security Engine V3 - Cognito Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

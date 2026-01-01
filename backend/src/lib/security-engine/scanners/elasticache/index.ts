@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - ElastiCache Scanner
+ * Security Engine V3 - ElastiCache Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - CloudWatch Scanner
+ * Security Engine V3 - CloudWatch Scanner
  * Checks: log group encryption, retention policies, cross-account access, metric filters
  */
 

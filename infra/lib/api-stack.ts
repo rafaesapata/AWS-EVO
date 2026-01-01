@@ -434,51 +434,9 @@ export class ApiStack extends cdk.Stack {
       authorizer: cognitoAuthorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
-    webauthnRegisterResource.addMethod('OPTIONS', new apigateway.MockIntegration({
-      integrationResponses: [{
-        statusCode: '200',
-        responseParameters: {
-          'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-          'method.response.header.Access-Control-Allow-Methods': "'POST,OPTIONS'",
-          'method.response.header.Access-Control-Allow-Origin': "'*'",
-        },
-      }],
-      passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
-      requestTemplates: { 'application/json': '{"statusCode": 200}' },
-    }), {
-      methodResponses: [{
-        statusCode: '200',
-        responseParameters: {
-          'method.response.header.Access-Control-Allow-Headers': true,
-          'method.response.header.Access-Control-Allow-Methods': true,
-          'method.response.header.Access-Control-Allow-Origin': true,
-        },
-      }],
-    });
 
     const webauthnAuthenticateResource = functionsResource.addResource('webauthn-authenticate');
     webauthnAuthenticateResource.addMethod('POST', new apigateway.LambdaIntegration(webauthnAuthenticateFunction));
-    webauthnAuthenticateResource.addMethod('OPTIONS', new apigateway.MockIntegration({
-      integrationResponses: [{
-        statusCode: '200',
-        responseParameters: {
-          'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-          'method.response.header.Access-Control-Allow-Methods': "'POST,OPTIONS'",
-          'method.response.header.Access-Control-Allow-Origin': "'*'",
-        },
-      }],
-      passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
-      requestTemplates: { 'application/json': '{"statusCode": 200}' },
-    }), {
-      methodResponses: [{
-        statusCode: '200',
-        responseParameters: {
-          'method.response.header.Access-Control-Allow-Headers': true,
-          'method.response.header.Access-Control-Allow-Methods': true,
-          'method.response.header.Access-Control-Allow-Origin': true,
-        },
-      }],
-    });
 
     // Fetch CloudWatch Metrics route under /api/lambda (for apiClient.lambda compatibility)
     const lambdaResource = this.api.root.addResource('api').addResource('lambda');
@@ -487,6 +445,59 @@ export class ApiStack extends cdk.Stack {
       authorizer: cognitoAuthorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
+
+    // CloudTrail Analysis Lambdas
+    const startCloudTrailAnalysisFunction = new lambda.Function(this, 'StartCloudTrailAnalysisFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'start-cloudtrail-analysis.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      environment: {
+        ...lambdaEnvironment,
+        ANALYZE_CLOUDTRAIL_FUNCTION: 'evo-uds-v3-production-analyze-cloudtrail',
+      },
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.seconds(30), // Quick start, delegates to async function
+      memorySize: 256,
+    });
+
+    const analyzeCloudTrailFunction = new lambda.Function(this, 'AnalyzeCloudTrailFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'analyze-cloudtrail.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist/handlers/security')),
+      environment: lambdaEnvironment,
+      role: lambdaRole,
+      vpc: props.vpc,
+      layers: [commonLayer],
+      timeout: cdk.Duration.minutes(15), // Extended timeout for long periods (up to 120 days)
+      memorySize: 1024, // More memory for processing large datasets
+    });
+
+    // Add CloudTrail permissions
+    const cloudTrailPermissions = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'cloudtrail:LookupEvents',
+        'cloudtrail:DescribeTrails',
+        'cloudtrail:GetTrailStatus',
+        'lambda:InvokeFunction',
+        'sts:AssumeRole',
+      ],
+      resources: ['*'],
+    });
+
+    startCloudTrailAnalysisFunction.addToRolePolicy(cloudTrailPermissions);
+    analyzeCloudTrailFunction.addToRolePolicy(cloudTrailPermissions);
+
+    // CloudTrail routes under /functions
+    const startCloudTrailResource = functionsResource.addResource('start-cloudtrail-analysis');
+    startCloudTrailResource.addMethod('POST', new apigateway.LambdaIntegration(startCloudTrailAnalysisFunction), {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // Note: analyze-cloudtrail is invoked asynchronously, not exposed via API Gateway
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {

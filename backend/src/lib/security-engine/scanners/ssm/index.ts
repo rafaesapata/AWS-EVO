@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Systems Manager (SSM) Scanner
+ * Security Engine V3 - Systems Manager (SSM) Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

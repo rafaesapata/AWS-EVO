@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - GuardDuty Scanner
+ * Security Engine V3 - GuardDuty Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

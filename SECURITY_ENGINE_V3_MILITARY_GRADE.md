@@ -1,4 +1,4 @@
-# Security Engine V2 - Military-Grade Implementation
+# Security Engine V3 - Military-Grade Implementation
 
 ## Status: ✅ DEPLOYED & OPERATIONAL
 
@@ -10,13 +10,13 @@
 
 ## Overview
 
-Security Engine V2 is a comprehensive AWS security scanning solution with 147 unique security checks across 23 AWS services, mapped to 6 compliance frameworks.
+Security Engine V3 is a comprehensive AWS security scanning solution with 147 unique security checks across 23 AWS services, mapped to 6 compliance frameworks.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Security Engine V2                        │
+│                    Security Engine V3                        │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │ Scan Manager│──│ Client      │──│ Resource Cache      │  │

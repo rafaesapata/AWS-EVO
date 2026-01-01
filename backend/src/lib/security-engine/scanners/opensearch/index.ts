@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - OpenSearch Scanner
+ * Security Engine V3 - OpenSearch Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

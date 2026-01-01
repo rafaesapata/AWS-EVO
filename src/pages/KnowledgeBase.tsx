@@ -162,7 +162,7 @@ function KnowledgeBaseContent() {
 
       const result = await apiClient.insert('knowledge_base_articles', {
         organization_id: organizationId,
-        author_id: user.username,
+        author_id: user.id,
         title: newArticle.title.trim(),
         content: newArticle.content.trim(),
         category: newArticle.category,

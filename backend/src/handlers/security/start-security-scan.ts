@@ -51,6 +51,23 @@ export async function handler(
       return badRequest('No AWS credentials found for this account');
     }
     
+    // Create scan record immediately to provide instant feedback
+    const scan = await prisma.securityScan.create({
+      data: {
+        organization_id: organizationId,
+        aws_account_id: credentialRecord.id,
+        scan_type: `${scanLevel}-security-scan`,
+        status: 'running',
+        scan_config: { 
+          regions: credentialRecord.regions?.length ? credentialRecord.regions : ['us-east-1'], 
+          level: scanLevel, 
+          engine: 'v3' 
+        },
+      },
+    });
+    
+    console.log('✅ Scan record created:', scan.id);
+    
     // Invoke security-scan Lambda asynchronously
     // This ensures the scan runs in its own Lambda execution context
     const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -59,7 +76,8 @@ export async function handler(
     const scanPayload = {
       body: JSON.stringify({
         accountId: credentialRecord.id,
-        scanLevel
+        scanLevel,
+        scanId: scan.id // Pass the scan ID to the main handler
       }),
       requestContext: event.requestContext,
       headers: event.headers
@@ -76,6 +94,17 @@ export async function handler(
       console.log('✅ Security Scan Lambda invoked asynchronously');
     } catch (invokeError) {
       console.error('Failed to invoke security-scan Lambda:', invokeError);
+      
+      // Update scan status to failed if Lambda invocation fails
+      await prisma.securityScan.update({
+        where: { id: scan.id },
+        data: { 
+          status: 'failed',
+          completed_at: new Date(),
+          results: { error: (invokeError as Error).message }
+        }
+      });
+      
       return error('Failed to start security scan: ' + (invokeError as Error).message);
     }
     
@@ -83,7 +112,8 @@ export async function handler(
       status: 'started',
       message: `Scan de segurança iniciado. Acompanhe o progresso na lista de scans.`,
       scanType,
-      scanLevel
+      scanLevel,
+      scanId: scan.id
     });
     
   } catch (err) {

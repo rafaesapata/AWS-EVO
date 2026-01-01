@@ -108,7 +108,19 @@ export default function CloudTrailAudit() {
     enabled: !!organizationId && !!selectedAccountId,
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
-      const hoursBack = selectedTimeRange === '24h' ? 24 : selectedTimeRange === '7d' ? 168 : 720;
+      const getHoursBack = (range: string) => {
+        switch (range) {
+          case '24h': return 24;
+          case '7d': return 168;
+          case '30d': return 720;
+          case '60d': return 1440;
+          case '90d': return 2160;
+          case '120d': return 2880;
+          default: return 24;
+        }
+      };
+      
+      const hoursBack = getHoursBack(selectedTimeRange);
       const startTime = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
 
       const filters: any = { 
@@ -184,7 +196,19 @@ export default function CloudTrailAudit() {
   // Start CloudTrail analysis (async)
   const startAnalysisMutation = useMutation({
     mutationFn: async (forceReprocess: boolean = false) => {
-      const hoursBack = selectedTimeRange === '24h' ? 24 : selectedTimeRange === '7d' ? 168 : 720;
+      const getHoursBack = (range: string) => {
+        switch (range) {
+          case '24h': return 24;
+          case '7d': return 168;
+          case '30d': return 720;
+          case '60d': return 1440;
+          case '90d': return 2160;
+          case '120d': return 2880;
+          default: return 24;
+        }
+      };
+      
+      const hoursBack = getHoursBack(selectedTimeRange);
       const response = await apiClient.invoke<StartAnalysisResponse>('start-cloudtrail-analysis', {
         body: {
           accountId: selectedAccountId,
@@ -244,6 +268,19 @@ export default function CloudTrailAudit() {
     setShowReprocessDialog(false);
     setPeriodOverlapInfo(null);
     startAnalysisMutation.mutate(true);
+  };
+
+  // Helper function to get period description
+  const getPeriodDescription = (range: string) => {
+    const descriptions = {
+      '24h': 'últimas 24 horas',
+      '7d': 'últimos 7 dias',
+      '30d': 'últimos 30 dias',
+      '60d': 'últimos 60 dias',
+      '90d': 'últimos 90 dias',
+      '120d': 'últimos 120 dias'
+    };
+    return descriptions[range as keyof typeof descriptions] || 'período selecionado';
   };
 
   // Calculate chart data - events by date and risk level
@@ -417,7 +454,7 @@ export default function CloudTrailAudit() {
                   Auditoria CloudTrail
                 </CardTitle>
                 <CardDescription>
-                  Análise de eventos AWS com identificação de usuários responsáveis por problemas de segurança
+                  Análise de eventos AWS com identificação de usuários responsáveis por problemas de segurança ({getPeriodDescription(selectedTimeRange)})
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -433,6 +470,12 @@ export default function CloudTrailAudit() {
                   )}
                   {startAnalysisMutation.isPending ? 'Iniciando...' : isAnalyzing ? 'Analisando...' : 'Buscar Eventos'}
                 </Button>
+                {(['60d', '90d', '120d'].includes(selectedTimeRange)) && (
+                  <div className="flex items-center gap-1 text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                    <Clock className="h-3 w-3" />
+                    Período extenso - pode levar vários minutos
+                  </div>
+                )}
                 <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
                   <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                   Atualizar
@@ -502,9 +545,12 @@ export default function CloudTrailAudit() {
               <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="24h">Últimas 24h</SelectItem>
+                  <SelectItem value="24h">Últimas 24 horas</SelectItem>
                   <SelectItem value="7d">Últimos 7 dias</SelectItem>
                   <SelectItem value="30d">Últimos 30 dias</SelectItem>
+                  <SelectItem value="60d">Últimos 60 dias</SelectItem>
+                  <SelectItem value="90d">Últimos 90 dias</SelectItem>
+                  <SelectItem value="120d">Últimos 120 dias</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={selectedRiskLevel} onValueChange={setSelectedRiskLevel}>

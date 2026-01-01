@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - KMS Scanner
+ * Security Engine V3 - KMS Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

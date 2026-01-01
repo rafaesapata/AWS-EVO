@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Kinesis Scanner
+ * Security Engine V3 - Kinesis Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

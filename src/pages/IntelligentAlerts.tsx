@@ -689,7 +689,7 @@ export default function IntelligentAlerts() {
                           </div>
                         </div>
                         <div className="flex gap-1">
-                          {alert.channels_sent.map((channel) => {
+                          {(alert.channels_sent || []).map((channel) => {
                             const channelInfo = availableChannels.find(c => c.value === channel);
                             return channelInfo ? (
                               <Badge key={channel} variant="outline" className="gap-1">

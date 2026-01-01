@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Scan Manager
+ * Security Engine V3 - Scan Manager
  * Orchestrates all security scanners with parallel execution
  */
 

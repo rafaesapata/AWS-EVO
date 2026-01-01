@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Macie Scanner
+ * Security Engine V3 - Macie Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

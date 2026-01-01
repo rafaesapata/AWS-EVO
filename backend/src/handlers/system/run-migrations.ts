@@ -240,8 +240,8 @@ const MIGRATION_COMMANDS = [
   // Fix stuck security scans - mark as failed if running for more than 30 minutes
   `UPDATE "security_scans" SET status = 'failed', completed_at = NOW() WHERE status = 'running' AND started_at < NOW() - INTERVAL '30 minutes'`,
   
-  // Fix stuck cloudtrail analyses - mark as failed if running for more than 10 minutes
-  `UPDATE "cloudtrail_analyses" SET status = 'failed', completed_at = NOW(), error_message = 'Timeout' WHERE status = 'running' AND started_at < NOW() - INTERVAL '10 minutes'`,
+  // Fix stuck cloudtrail analyses - mark as failed if running for more than 30 minutes (increased for longer periods)
+  `UPDATE "cloudtrail_analyses" SET status = 'failed', completed_at = NOW(), error_message = 'Timeout' WHERE status = 'running' AND started_at < NOW() - INTERVAL '30 minutes'`,
   
   // Add missing columns to cloudtrail_analyses
   `ALTER TABLE "cloudtrail_analyses" ADD COLUMN IF NOT EXISTS "period_start" TIMESTAMPTZ(6)`,

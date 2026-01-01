@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Secrets Manager Scanner
+ * Security Engine V3 - Secrets Manager Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

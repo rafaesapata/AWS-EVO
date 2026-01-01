@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -23,7 +25,12 @@ import {
   Cloud,
   Lock,
   Activity,
-  Search
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  X
 } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 
@@ -57,6 +64,10 @@ export default function EdgeMonitoring() {
   const { selectedAccountId } = useAwsAccount();
   const { data: organizationId } = useOrganization();
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [serviceTypeFilter, setServiceTypeFilter] = useState<string>('all');
   const queryClient = useQueryClient();
 
   // Mutation to discover edge services
@@ -89,27 +100,113 @@ export default function EdgeMonitoring() {
   });
 
   // Get edge services data
-  const { data: edgeServices, isLoading, refetch } = useQuery({
-    queryKey: ['edge-services', organizationId, selectedAccountId],
+  const { data: edgeServicesData, isLoading, refetch } = useQuery({
+    queryKey: ['edge-services', organizationId, selectedAccountId, currentPage, itemsPerPage, searchTerm, serviceTypeFilter],
     enabled: !!organizationId && !!selectedAccountId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
+      // Calculate offset for pagination
+      const offset = (currentPage - 1) * itemsPerPage;
+
+      // Build base filters
+      const baseFilters = {
+        organization_id: organizationId,
+        aws_account_id: selectedAccountId
+      };
+
+      // Add service type filter if not 'all'
+      const filters = serviceTypeFilter !== 'all' 
+        ? { ...baseFilters, service_type: serviceTypeFilter }
+        : baseFilters;
+
       const response = await apiClient.select('edge_services', {
         select: '*',
-        eq: { 
-          organization_id: organizationId,
-          aws_account_id: selectedAccountId
-        },
-        order: { column: 'last_updated', ascending: false }
+        eq: filters,
+        order: { column: 'last_updated', ascending: false },
+        limit: itemsPerPage,
+        offset: offset
       });
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
       }
 
-      return response.data || [];
+      let services = response.data || [];
+
+      // Apply search filter on client side (since we need to search across multiple fields)
+      if (searchTerm.trim()) {
+        const searchLower = searchTerm.toLowerCase().trim();
+        services = services.filter(service => 
+          service.service_name?.toLowerCase().includes(searchLower) ||
+          service.service_id?.toLowerCase().includes(searchLower) ||
+          service.service_type?.toLowerCase().includes(searchLower) ||
+          service.region?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      // Get total count for pagination (separate query with same filters)
+      const countResponse = await apiClient.select('edge_services', {
+        select: 'id',
+        eq: filters
+      });
+
+      let totalCount = countResponse.data?.length || 0;
+
+      // Apply search filter to total count as well
+      if (searchTerm.trim()) {
+        const searchLower = searchTerm.toLowerCase().trim();
+        const allServices = await apiClient.select('edge_services', {
+          select: '*',
+          eq: filters
+        });
+        
+        if (allServices.data) {
+          const filteredServices = allServices.data.filter(service => 
+            service.service_name?.toLowerCase().includes(searchLower) ||
+            service.service_id?.toLowerCase().includes(searchLower) ||
+            service.service_type?.toLowerCase().includes(searchLower) ||
+            service.region?.toLowerCase().includes(searchLower)
+          );
+          totalCount = filteredServices.length;
+        }
+      }
+
+      return {
+        services,
+        total: totalCount
+      };
     },
   });
+
+  const edgeServices = edgeServicesData?.services || [];
+  const totalServices = edgeServicesData?.total || 0;
+  const totalPages = Math.ceil(totalServices / itemsPerPage);
+
+  // Reset to first page when filters change
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(parseInt(value));
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  const handleServiceTypeFilterChange = (value: string) => {
+    setServiceTypeFilter(value);
+    setCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setServiceTypeFilter('all');
+    setCurrentPage(1);
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
 
   // Get edge metrics for charts
   const { data: metrics, isLoading: metricsLoading } = useQuery({
@@ -395,6 +492,87 @@ export default function EdgeMonitoring() {
             <CardHeader>
               <CardTitle>Serviços de Borda</CardTitle>
               <CardDescription>Status e métricas dos serviços configurados</CardDescription>
+              
+              {/* Search and Filter Controls */}
+              <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nome, ID, tipo ou região..."
+                    value={searchTerm}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-10 pr-10"
+                  />
+                  {searchTerm && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleSearchChange('')}
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                
+                <div className="flex gap-2">
+                  <Select value={serviceTypeFilter} onValueChange={handleServiceTypeFilterChange}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Tipo de serviço" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os tipos</SelectItem>
+                      <SelectItem value="cloudfront">CloudFront</SelectItem>
+                      <SelectItem value="waf">WAF</SelectItem>
+                      <SelectItem value="load_balancer">Load Balancer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {(searchTerm || serviceTypeFilter !== 'all') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="px-3"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Limpar
+                    </Button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Active Filters Display */}
+              {(searchTerm || serviceTypeFilter !== 'all') && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {searchTerm && (
+                    <Badge variant="secondary" className="text-xs">
+                      Busca: "{searchTerm}"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSearchChange('')}
+                        className="ml-1 h-4 w-4 p-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  )}
+                  {serviceTypeFilter !== 'all' && (
+                    <Badge variant="secondary" className="text-xs">
+                      Tipo: {serviceTypeFilter.replace('_', ' ').toUpperCase()}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleServiceTypeFilterChange('all')}
+                        className="ml-1 h-4 w-4 p-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  )}
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -447,14 +625,115 @@ export default function EdgeMonitoring() {
                       </div>
                     </div>
                   ))}
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-6 border-t mt-6">
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm text-muted-foreground">
+                          Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalServices)} de {totalServices} serviços
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">Itens por página:</span>
+                          <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                            <SelectTrigger className="w-20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="5">5</SelectItem>
+                              <SelectItem value="10">10</SelectItem>
+                              <SelectItem value="20">20</SelectItem>
+                              <SelectItem value="50">50</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => goToPage(1)}
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => goToPage(currentPage - 1)}
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        
+                        {/* Page numbers */}
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => goToPage(pageNum)}
+                              className="w-8"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => goToPage(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => goToPage(totalPages)}
+                          disabled={currentPage === totalPages}
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12">
                   <Globe className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-xl font-semibold mb-2">Nenhum serviço de borda configurado</h3>
-                  <p className="text-muted-foreground">
-                    Configure CloudFront, WAF ou Load Balancers para começar o monitoramento.
-                  </p>
+                  {searchTerm || serviceTypeFilter !== 'all' ? (
+                    <>
+                      <h3 className="text-xl font-semibold mb-2">Nenhum serviço encontrado</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Nenhum serviço corresponde aos filtros aplicados.
+                      </p>
+                      <Button variant="outline" onClick={clearFilters}>
+                        <X className="h-4 w-4 mr-2" />
+                        Limpar filtros
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-xl font-semibold mb-2">Nenhum serviço de borda configurado</h3>
+                      <p className="text-muted-foreground">
+                        Configure CloudFront, WAF ou Load Balancers para começar o monitoramento.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </CardContent>

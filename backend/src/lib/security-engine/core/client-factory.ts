@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - AWS Client Factory
+ * Security Engine V3 - AWS Client Factory
  * Lazy loading and connection pooling for AWS SDK clients
  */
 

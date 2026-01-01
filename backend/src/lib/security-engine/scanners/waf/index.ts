@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - WAF Scanner
+ * Security Engine V3 - WAF Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

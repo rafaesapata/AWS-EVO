@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Route 53 Scanner
+ * Security Engine V3 - Route 53 Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

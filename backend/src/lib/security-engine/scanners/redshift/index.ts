@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Redshift Scanner
+ * Security Engine V3 - Redshift Scanner
  * Checks: encryption, VPC, enhanced VPC routing, audit logging, snapshot permissions
  */
 

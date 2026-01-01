@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Network Firewall Scanner
+ * Security Engine V3 - Network Firewall Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

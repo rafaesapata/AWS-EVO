@@ -1,0 +1,21 @@
+{
+  "requestContext": {
+    "http": {
+      "method": "POST"
+    },
+    "authorizer": {
+      "jwt": {
+        "claims": {
+          "sub": "test-user-id",
+          "custom:organization_id": "test-org-id",
+          "custom:organization_name": "Test Organization",
+          "custom:roles": "[\"admin\"]"
+        }
+      }
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer test-token"
+  },
+  "body": "{}"
+}

@@ -223,6 +223,22 @@ export class AWSService {
   static async getUserProfile(userId: string) {
     return await this.queryOne('profiles', { id: userId });
   }
+
+  // Advanced RI/SP Analysis
+  static async analyzeRISP(accountId: string, region: string = 'us-east-1', analysisDepth: string = 'comprehensive') {
+    try {
+      const response = await apiClient.post('/functions/ri-sp-analyzer', {
+        accountId,
+        region,
+        analysisDepth
+      });
+      return response;
+    } catch (error) {
+      console.error('RI/SP Analysis Error:', error);
+      throw error;
+    }
+  }
 }
 
+export const awsService = AWSService;
 export default AWSService;

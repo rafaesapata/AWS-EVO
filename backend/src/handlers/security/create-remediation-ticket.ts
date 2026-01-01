@@ -13,7 +13,7 @@ import { getOrigin } from '../../lib/middleware.js';
 
 export async function handler(
   event: AuthorizedEvent,
-  context: LambdaContext
+  _context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const origin = getOrigin(event);
   

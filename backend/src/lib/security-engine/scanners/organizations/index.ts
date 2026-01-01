@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - Organizations Scanner
+ * Security Engine V3 - Organizations Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

@@ -2,7 +2,7 @@
 
 ## 📋 Resumo da Implementação
 
-Adicionei paginação completa ao histórico de scans de segurança do Security Engine V2, melhorando significativamente a performance e usabilidade da interface.
+Adicionei paginação completa ao histórico de scans de segurança do Security Engine V3, melhorando significativamente a performance e usabilidade da interface.
 
 ## 🔧 Alterações Realizadas
 

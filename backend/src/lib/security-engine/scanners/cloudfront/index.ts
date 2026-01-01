@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - CloudFront Scanner
+ * Security Engine V3 - CloudFront Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';

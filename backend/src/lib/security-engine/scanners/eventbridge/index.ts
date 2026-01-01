@@ -1,5 +1,5 @@
 /**
- * Security Engine V2 - EventBridge Scanner
+ * Security Engine V3 - EventBridge Scanner
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';
