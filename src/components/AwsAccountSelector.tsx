@@ -113,33 +113,31 @@ export function AwsAccountSelector({
         <Tooltip>
           <TooltipTrigger asChild>
             <div className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 rounded-lg cursor-help transition-all",
+              "flex items-center gap-1.5 h-[32px] w-[140px] px-2 py-1 rounded-md cursor-help transition-all overflow-hidden",
               isOrphaned 
                 ? "bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20"
                 : "bg-primary/10 hover:bg-primary/15 border border-primary/20",
               className
-            )}
-            style={{ fontSize: '9px' }}
-            >
+            )}>
               {/* Icon with status */}
-              <div className="relative">
+              <div className="relative flex-shrink-0">
                 <Cloud className={cn(
-                  "h-2.5 w-2.5",
+                  "h-3 w-3",
                   isOrphaned ? "text-amber-500" : "text-orange-500"
                 )} />
                 <div className={cn(
-                  "absolute -bottom-0.5 -right-0.5 h-1 w-1 rounded-full border border-background",
+                  "absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full border border-background",
                   isOrphaned ? "bg-amber-500" : "bg-green-500"
                 )} />
               </div>
               
               {/* Account info */}
-              <span className="text-[9px] font-medium truncate max-w-[80px]" style={{ fontSize: '9px' }}>
+              <span className="text-[9px] leading-tight font-medium truncate flex-1">
                 {account.account_name}
               </span>
             </div>
           </TooltipTrigger>
-          <TooltipContent side="left" align="center" className="max-w-xs p-3">
+          <TooltipContent side="bottom" align="end" className="max-w-xs p-3">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 {isOrphaned ? (

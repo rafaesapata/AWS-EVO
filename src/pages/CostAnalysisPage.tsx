@@ -16,6 +16,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { CostForecast } from "@/components/dashboard/cost-analysis/CostForecast";
 import { CostTrends } from "@/components/dashboard/cost-analysis/CostTrends";
 import { ExportManager } from "@/components/dashboard/cost-analysis/ExportManager";
+import { RiSpAnalysis } from "@/components/cost/RiSpAnalysis";
 import { formatDateBR, compareDates } from "@/lib/utils";
 
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
@@ -600,6 +601,9 @@ export const CostAnalysisPage = () => {
 
   return (
     <div className="space-y-4">
+      {/* Reserved Instances & Savings Plans */}
+      <RiSpAnalysis />
+      
       {/* Previsão e Tendências */}
       <div className="grid gap-4 md:grid-cols-2">
         <CostForecast accountId={selectedAccountId === 'all' ? (allAccounts?.[0]?.id || 'all') : selectedAccountId} />

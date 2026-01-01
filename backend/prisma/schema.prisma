@@ -1374,3 +1374,211 @@ model UserRole {
   @@index([role])
   @@map("user_roles")
 }
+
+// ==================== RESERVED INSTANCES & SAVINGS PLANS ====================
+
+model ReservedInstance {
+  id                          String   @id @default(uuid()) @db.Uuid
+  organization_id             String   @db.Uuid
+  aws_account_id              String   @db.Uuid
+  aws_account_number          String?  // 12-digit AWS account ID
+  
+  // RI Identification
+  reserved_instance_id        String   @unique
+  instance_type               String   // e.g., t3.medium, m5.large
+  product_description         String   // Linux/UNIX, Windows, etc.
+  availability_zone           String?
+  region                      String
+  
+  // RI Details
+  instance_count              Int
+  state                       String   // active, retired, payment-pending
+  offering_class              String   // standard, convertible
+  offering_type               String   // All Upfront, Partial Upfront, No Upfront
+  
+  // Pricing
+  fixed_price                 Float?
+  usage_price                 Float?
+  recurring_charges           Json?    // Array of recurring charge details
+  
+  // Time
+  start_date                  DateTime @db.Timestamptz(6)
+  end_date                    DateTime @db.Timestamptz(6)
+  duration_seconds            Int
+  
+  // Utilization & Coverage
+  utilization_percentage      Float?   // 0-100
+  hours_used                  Float?
+  hours_unused                Float?
+  net_savings                 Float?
+  on_demand_cost_equivalent   Float?
+  
+  // Metadata
+  scope                       String?  // Availability Zone, Region
+  tags                        Json?
+  
+  // Analysis timestamps
+  last_analyzed_at            DateTime? @db.Timestamptz(6)
+  created_at                  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([state])
+  @@index([end_date])
+  @@index([utilization_percentage])
+  @@map("reserved_instances")
+}
+
+model SavingsPlan {
+  id                          String   @id @default(uuid()) @db.Uuid
+  organization_id             String   @db.Uuid
+  aws_account_id              String   @db.Uuid
+  aws_account_number          String?
+  
+  // Savings Plan Identification
+  savings_plan_id             String   @unique
+  savings_plan_arn            String?
+  savings_plan_type           String   // Compute, EC2 Instance, SageMaker
+  payment_option              String   // All Upfront, Partial Upfront, No Upfront
+  
+  // Commitment
+  commitment                  Float    // Hourly commitment in USD
+  currency                    String   @default("USD")
+  
+  // Coverage
+  region                      String?
+  instance_family             String?  // For EC2 Instance Savings Plans
+  
+  // Status
+  state                       String   // active, retired, queued, pending-return
+  
+  // Time
+  start_date                  DateTime @db.Timestamptz(6)
+  end_date                    DateTime @db.Timestamptz(6)
+  
+  // Utilization & Savings
+  utilization_percentage      Float?   // 0-100
+  coverage_percentage         Float?   // 0-100
+  total_commitment_to_date    Float?
+  used_commitment             Float?
+  unused_commitment           Float?
+  net_savings                 Float?
+  on_demand_cost_equivalent   Float?
+  
+  // Metadata
+  tags                        Json?
+  offering_id                 String?
+  
+  // Analysis timestamps
+  last_analyzed_at            DateTime? @db.Timestamptz(6)
+  created_at                  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([state])
+  @@index([end_date])
+  @@index([utilization_percentage])
+  @@index([savings_plan_type])
+  @@map("savings_plans")
+}
+
+model RiSpRecommendation {
+  id                          String   @id @default(uuid()) @db.Uuid
+  organization_id             String   @db.Uuid
+  aws_account_id              String   @db.Uuid
+  
+  // Recommendation Type
+  recommendation_type         String   // 'reserved_instance', 'savings_plan'
+  service                     String   // EC2, RDS, ElastiCache, etc.
+  
+  // For RIs
+  instance_type               String?
+  region                      String?
+  platform                    String?  // Linux/UNIX, Windows
+  tenancy                     String?  // default, dedicated
+  offering_class              String?  // standard, convertible
+  
+  // For Savings Plans
+  savings_plan_type           String?  // Compute, EC2 Instance
+  payment_option              String?
+  term_years                  Int?     // 1 or 3
+  
+  // Financial Analysis
+  estimated_monthly_savings   Float
+  estimated_annual_savings    Float
+  upfront_cost                Float?
+  estimated_monthly_cost      Float?
+  estimated_roi_months        Int?     // Months to break even
+  
+  // Usage Analysis
+  lookback_period_days        Int      @default(30)
+  average_usage_hours         Float?
+  normalized_units_per_hour   Float?
+  recommended_units           Int?
+  
+  // Confidence & Priority
+  confidence_level            String   // high, medium, low
+  priority                    Int      // 1-5
+  
+  // Implementation
+  implementation_effort       String   // low, medium, high
+  implementation_steps        Json?
+  potential_risks             String[]
+  
+  // Metadata
+  recommendation_details      Json?
+  generated_at                DateTime @default(now()) @db.Timestamptz(6)
+  expires_at                  DateTime? @db.Timestamptz(6)
+  status                      String   @default("active") // active, implemented, dismissed, expired
+  
+  created_at                  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([recommendation_type])
+  @@index([status])
+  @@index([estimated_annual_savings])
+  @@index([priority])
+  @@map("ri_sp_recommendations")
+}
+
+model RiSpUtilizationHistory {
+  id                          String   @id @default(uuid()) @db.Uuid
+  organization_id             String   @db.Uuid
+  aws_account_id              String   @db.Uuid
+  
+  // Reference
+  resource_type               String   // 'reserved_instance', 'savings_plan'
+  resource_id                 String   // RI ID or Savings Plan ID
+  
+  // Time period
+  period_start                DateTime @db.Timestamptz(6)
+  period_end                  DateTime @db.Timestamptz(6)
+  
+  // Utilization metrics
+  utilization_percentage      Float
+  coverage_percentage         Float?
+  hours_used                  Float?
+  hours_unused                Float?
+  
+  // Cost metrics
+  net_savings                 Float?
+  on_demand_cost_equivalent   Float?
+  amortized_upfront_fee       Float?
+  amortized_recurring_fee     Float?
+  total_actual_cost           Float?
+  
+  // Metadata
+  instance_count              Int?
+  created_at                  DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@unique([organization_id, resource_type, resource_id, period_start])
+  @@index([organization_id])
+  @@index([aws_account_id])
+  @@index([resource_type, resource_id])
+  @@index([period_start])
+  @@map("ri_sp_utilization_history")
+}

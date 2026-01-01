@@ -43,20 +43,29 @@ export default function AuthSimple() {
     if (success) {
       // After successful Cognito login, check if user has WebAuthn
       try {
+        console.log('🔐 Checking for WebAuthn credentials after login...');
         const result = await apiClient.invoke('webauthn-authenticate', {
           body: { action: 'start', email }
         });
 
-        if (result.data?.options?.allowCredentials?.length > 0) {
-          // User has WebAuthn, require it
-          console.log('🔐 WebAuthn credentials found after login - requiring WebAuthn');
+        console.log('🔐 WebAuthn check result:', result);
+
+        // If we got a successful response with credentials, require WebAuthn
+        if (result.data?.options?.allowCredentials && result.data.options.allowCredentials.length > 0) {
+          console.log('🔐 WebAuthn credentials found - requiring WebAuthn authentication');
           setShowWebAuthn(true);
           // Sign out from Cognito since we need WebAuthn
           await signOut();
           return;
         }
+
+        // If there was an error but it's not a "not found" error, log it but continue
+        if (result.error && !result.error.message?.includes('not found')) {
+          console.warn('🔐 WebAuthn check had an error, but continuing with normal login:', result.error);
+        }
       } catch (error) {
-        console.log('🔐 No WebAuthn check needed or error:', error);
+        console.warn('🔐 WebAuthn check failed, continuing with normal login:', error);
+        // Continue with normal login if WebAuthn check fails
       }
       
       console.log("✅ Login successful");
