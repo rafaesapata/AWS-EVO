@@ -508,7 +508,7 @@ export default function SecurityScans() {
           </div>
           
           <div className="mt-6 p-4 bg-muted/30 rounded-lg glass-hover">
-            <h4 className="font-semibold mb-2 flex items-center gap-2">
+            <h4 className="font-semibold mb-2 flex items-center gap-2 text-sm">
               <Shield className="h-4 w-4" />
               Security Engine V3 Features
             </h4>
@@ -585,7 +585,7 @@ export default function SecurityScans() {
                               {TypeIcon}
                             </div>
                             <div className="space-y-1">
-                              <h4 className="font-semibold text-lg">{scan.scan_type}</h4>
+                              <h4 className="font-semibold text-sm">{scan.scan_type}</h4>
                               <p className="text-sm text-muted-foreground">
                                 Security Engine V3 - {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
                               </p>
@@ -774,7 +774,7 @@ export default function SecurityScans() {
                         <div className="flex items-start gap-3">
                           {getSeverityIcon(finding.severity)}
                           <div className="space-y-1">
-                            <h4 className="font-semibold">{finding.title}</h4>
+                            <h4 className="font-semibold text-sm">{finding.title}</h4>
                             <p className="text-sm text-muted-foreground">{finding.description}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <span>{finding.resource_type}</span>

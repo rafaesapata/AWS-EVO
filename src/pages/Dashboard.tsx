@@ -297,19 +297,19 @@ export default function Dashboard() {
                   <CardContent>
                     <div className="space-y-4">
                       <div className="border-l-4 border-green-500 pl-4">
-                        <h4 className="font-medium text-green-800">Economia Potencial: $340/mês</h4>
+                        <h4 className="font-medium text-green-800 text-sm">Economia Potencial: $340/mês</h4>
                         <p className="text-sm text-gray-600 mt-1">
                           Redimensionar 3 instâncias EC2 over-provisionadas
                         </p>
                       </div>
                       <div className="border-l-4 border-blue-500 pl-4">
-                        <h4 className="font-medium text-blue-800">Reserved Instances</h4>
+                        <h4 className="font-medium text-blue-800 text-sm">Reserved Instances</h4>
                         <p className="text-sm text-gray-600 mt-1">
                           Economize até $800/mês com RIs de 1 ano
                         </p>
                       </div>
                       <div className="border-l-4 border-orange-500 pl-4">
-                        <h4 className="font-medium text-orange-800">Recursos Órfãos</h4>
+                        <h4 className="font-medium text-orange-800 text-sm">Recursos Órfãos</h4>
                         <p className="text-sm text-gray-600 mt-1">
                           5 volumes EBS não anexados detectados
                         </p>

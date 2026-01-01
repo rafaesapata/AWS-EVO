@@ -34,18 +34,31 @@ export default function AuthSimple() {
 
   const checkWebAuthnRequired = async (userEmail: string) => {
     try {
+      console.log('🔐 Checking WebAuthn for user:', userEmail);
+      
       // Check if user has WebAuthn credentials
       const result = await apiClient.invoke('webauthn-authenticate', {
         body: { action: 'start', email: userEmail }
       });
 
+      console.log('🔐 WebAuthn check result:', {
+        hasData: !!result.data,
+        hasOptions: !!result.data?.options,
+        allowCredentials: result.data?.options?.allowCredentials,
+        credentialsLength: result.data?.options?.allowCredentials?.length || 0,
+        error: result.error
+      });
+
       if (result.data?.options?.allowCredentials?.length > 0) {
+        console.log('🔐 WebAuthn credentials found - requiring WebAuthn');
         // User has WebAuthn credentials, require WebAuthn authentication
         return true;
       }
+      
+      console.log('🔐 No WebAuthn credentials found - allowing normal login');
       return false;
     } catch (error) {
-      console.log('No WebAuthn credentials found for user');
+      console.log('🔐 WebAuthn check error:', error);
       return false;
     }
   };

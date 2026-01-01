@@ -392,7 +392,7 @@ const CostOverview = () => {
                 </PopoverTrigger>
                 <PopoverContent className="w-80 text-sm" side="top">
                   <div className="space-y-2">
-                    <h4 className="font-semibold">{t('costs.howCalculated')}</h4>
+                    <h4 className="font-semibold text-sm">{t('costs.howCalculated')}</h4>
                     <p className="text-muted-foreground">
                       <strong>{t('costs.linearProjection')}:</strong> {t('costs.projectsCurrentSpend')}
                     </p>

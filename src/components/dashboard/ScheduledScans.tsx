@@ -287,7 +287,7 @@ export const ScheduledScans = () => {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-semibold">{cronPresets.find(p => p.value === schedule.schedule_cron)?.label || 'Customizado'}</h4>
+                      <h4 className="font-semibold text-sm">{cronPresets.find(p => p.value === schedule.schedule_cron)?.label || 'Customizado'}</h4>
                       <Badge variant={schedule.is_active ? 'default' : 'secondary'}>{schedule.is_active ? 'Ativo' : 'Pausado'}</Badge>
                     </div>
                   </div>

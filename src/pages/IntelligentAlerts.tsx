@@ -581,7 +581,7 @@ export default function IntelligentAlerts() {
                             <TypeIcon className={`h-5 w-5 mt-0.5 ${getTypeColor(rule.type)}`} />
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
-                                <h4 className="font-semibold">{rule.name}</h4>
+                                <h4 className="font-semibold text-sm">{rule.name}</h4>
                                 <Badge variant={rule.is_active ? "default" : "secondary"}>
                                   {rule.is_active ? 'Ativa' : 'Inativa'}
                                 </Badge>
@@ -672,7 +672,7 @@ export default function IntelligentAlerts() {
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <h4 className="font-semibold">{alert.rule_name}</h4>
+                            <h4 className="font-semibold text-sm">{alert.rule_name}</h4>
                             <Badge variant={getSeverityColor(alert.severity)}>
                               {alert.severity.toUpperCase()}
                             </Badge>
@@ -729,7 +729,7 @@ export default function IntelligentAlerts() {
                       <div className="flex items-center gap-3">
                         <channel.icon className="h-5 w-5 text-primary" />
                         <div>
-                          <h4 className="font-semibold">{channel.label}</h4>
+                          <h4 className="font-semibold text-sm">{channel.label}</h4>
                           <p className="text-sm text-muted-foreground">
                             {channel.value === 'email' && 'Notificações por email'}
                             {channel.value === 'slack' && 'Integração com Slack'}

@@ -435,7 +435,7 @@ export default function SecurityScanDetails() {
             
             {scan.results && (
               <div className="mt-4 p-4 bg-muted/30 rounded-lg glass-hover">
-                <h4 className="font-semibold mb-2">Métricas do Scan</h4>
+                <h4 className="font-semibold mb-2 text-sm">Métricas do Scan</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div>
                     <strong>Duração:</strong> {Math.round((scan.results.duration_ms || 0) / 1000)}s

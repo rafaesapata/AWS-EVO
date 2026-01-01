@@ -457,7 +457,7 @@ export default function DevTools() {
                       <div className="flex items-start justify-between">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <h4 className="font-semibold">{metric.service_name}</h4>
+                            <h4 className="font-semibold text-sm">{metric.service_name}</h4>
                             <Badge variant="outline">{metric.method}</Badge>
                             <Badge className={getStatusColor(metric.status_code)}>
                               {metric.status_code}

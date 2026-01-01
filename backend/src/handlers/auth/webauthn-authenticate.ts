@@ -145,13 +145,18 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
   const prisma = getPrismaClient();
   let allowCredentials: { type: string; id: string }[] = [];
 
+  logger.info('🔐 WebAuthn startAuthentication called', { email });
+
   if (email) {
     // Buscar credenciais do usuário específico
     const user = await prisma.user.findUnique({
       where: { email }
     });
 
+    logger.info('🔐 User lookup result', { email, userFound: !!user, userId: user?.id });
+
     if (!user) {
+      logger.warn('🔐 User not found for WebAuthn check', { email });
       return errorResponse('User not found', 404, undefined, origin);
     }
 
@@ -160,14 +165,50 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
       where: { user_id: user.id }
     });
 
+    logger.info('🔐 WebAuthn credentials lookup', { 
+      userId: user.id, 
+      credentialsCount: webauthnCredentials.length,
+      credentials: webauthnCredentials.map(c => ({ id: c.id, device_name: c.device_name, created_at: c.created_at }))
+    });
+
     if (webauthnCredentials.length === 0) {
-      return errorResponse('No WebAuthn credentials found', 404, undefined, origin);
+      logger.info('🔐 No WebAuthn credentials found - returning empty options', { email, userId: user.id });
+      // Instead of returning error, return empty allowCredentials
+      // This allows the frontend to handle "no WebAuthn" vs "has WebAuthn" properly
+      const challenge = crypto.randomBytes(32).toString('base64url');
+      const challengeExpiry = new Date(Date.now() + 300000);
+
+      await prisma.webauthnChallenge.create({
+        data: {
+          user_id: email || 'anonymous',
+          challenge,
+          expires_at: challengeExpiry
+        }
+      });
+
+      const rpId = process.env.WEBAUTHN_RP_ID || 'evo.ai.udstec.io';
+
+      return success({ 
+        options: {
+          challenge,
+          rpId,
+          timeout: 300000,
+          userVerification: 'preferred',
+          allowCredentials: [] // Empty array indicates no WebAuthn credentials
+        }
+      }, 200, origin);
     }
 
     allowCredentials = webauthnCredentials.map(cred => ({
       type: 'public-key' as const,
       id: cred.credential_id
     }));
+
+    logger.info('🔐 WebAuthn credentials found', { 
+      email, 
+      userId: user.id, 
+      credentialsCount: allowCredentials.length 
+    });
   }
 
   // Gerar challenge

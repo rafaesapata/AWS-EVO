@@ -166,7 +166,7 @@ export function GamificationDashboard() {
                       <div className="flex items-start gap-3">
                         <div className="text-4xl">{ua.achievement?.icon || '🏆'}</div>
                         <div className="flex-1">
-                          <h4 className="font-semibold">{ua.achievement?.name}</h4>
+                          <h4 className="font-semibold text-sm">{ua.achievement?.name}</h4>
                           <p className="text-sm text-muted-foreground mb-2">{ua.achievement?.description}</p>
                           <div className="flex items-center gap-2">
                             <Badge variant="secondary">+{ua.achievement?.points} pontos</Badge>
@@ -199,7 +199,7 @@ export function GamificationDashboard() {
                       <div className="text-4xl">{achievement.icon || '🏆'}</div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                          <h4 className="font-semibold">{achievement.name}</h4>
+                          <h4 className="font-semibold text-sm">{achievement.name}</h4>
                           {isEarned && (
                             <Badge variant="default" className="bg-green-600">
                               Conquistado ✓

@@ -79,7 +79,7 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <Badge variant="outline">{resource.resource_type.toUpperCase()}</Badge>
-            <h4 className="font-semibold">{resource.resource_name}</h4>
+            <h4 className="font-semibold text-sm">{resource.resource_name}</h4>
             <Badge variant={getStatusBadgeVariant(resource.status)}>
               {resource.status}
             </Badge>
@@ -1019,7 +1019,7 @@ export const ResourceMonitoringDashboard = () => {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <Badge variant="outline">{resource.resource_type.toUpperCase()}</Badge>
-                              <h4 className="font-semibold">{resource.resource_name}</h4>
+                              <h4 className="font-semibold text-sm">{resource.resource_name}</h4>
                               <Badge variant={getStatusBadgeVariant(resource.status)}>
                                 {resource.status}
                               </Badge>

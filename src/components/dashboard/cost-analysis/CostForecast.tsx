@@ -256,7 +256,7 @@ export function CostForecast({ accountId }: Props) {
                 </PopoverTrigger>
                 <PopoverContent className="w-80 text-sm" side="top">
                   <div className="space-y-2">
-                    <h4 className="font-semibold">Como é calculado?</h4>
+                    <h4 className="font-semibold text-sm">Como é calculado?</h4>
                     <p className="text-muted-foreground">
                       <strong>Previsão ML com Regressão Linear:</strong> Analisa 90 dias de histórico para prever os próximos 30 dias.
                     </p>

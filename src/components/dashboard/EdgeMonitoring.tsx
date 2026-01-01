@@ -64,7 +64,7 @@ const ApiGatewayMetricsHelpDialog = () => {
                 {idx + 1}
               </div>
               <div>
-                <h4 className="font-medium">{step.title}</h4>
+                <h4 className="font-medium text-sm">{step.title}</h4>
                 <p className="text-sm text-muted-foreground mt-1">{step.description}</p>
               </div>
             </div>
@@ -844,7 +844,7 @@ export const EdgeMonitoring = () => {
                       {elbMetrics.map((elb, idx) => (
                         <div key={idx} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                           <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold">{elb.name}</h4>
+                            <h4 className="font-semibold text-sm">{elb.name}</h4>
                             <Button 
                               variant="outline" 
                               size="sm"
@@ -901,7 +901,7 @@ export const EdgeMonitoring = () => {
                         {nlbMetrics.map((nlb, idx) => (
                           <div key={idx} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                             <div className="flex items-center justify-between mb-2">
-                              <h4 className="font-semibold">{nlb.name}</h4>
+                              <h4 className="font-semibold text-sm">{nlb.name}</h4>
                               <Button 
                                 variant="outline" 
                                 size="sm"
@@ -1068,7 +1068,7 @@ export const EdgeMonitoring = () => {
                           <div key={idx} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <h4 className="font-medium">{api.name}</h4>
+                                <h4 className="font-medium text-sm">{api.name}</h4>
                                 {api.regions && api.regions.length > 0 && (
                                   <Badge variant="outline" className="text-xs">
                                     {api.regions.join(', ')}

@@ -318,7 +318,7 @@ export const commonSchemas = {
   severity: z.enum(['critical', 'high', 'medium', 'low']),
   
   // Scan levels
-  scanLevel: z.enum(['basic', 'advanced', 'military']).default('military'),
+  scanLevel: z.enum(['basic', 'advanced', 'military', 'quick', 'standard', 'deep']).default('military'),
 };
 
 // Security scan request validation

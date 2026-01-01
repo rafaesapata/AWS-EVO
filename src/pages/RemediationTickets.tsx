@@ -408,7 +408,7 @@ export default function RemediationTickets() {
                       {getStatusIcon(ticket.status)}
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-semibold">{ticket.title}</h4>
+                          <h4 className="font-semibold text-sm">{ticket.title}</h4>
                           {getSeverityBadge(ticket.severity)}
                           {getPriorityBadge(ticket.priority)}
                         </div>

@@ -685,7 +685,7 @@ export default function CloudTrailAudit() {
                         <div className="flex items-start justify-between">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <h4 className="font-semibold">{event.event_name}</h4>
+                              <h4 className="font-semibold text-sm">{event.event_name}</h4>
                               {getRiskBadge(event.risk_level)}
                               {event.is_security_event && <Badge variant="outline">Segurança</Badge>}
                               {event.error_code && <Badge variant="destructive">Erro</Badge>}
@@ -754,7 +754,7 @@ export default function CloudTrailAudit() {
                         <div className="flex items-start justify-between">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <h4 className="font-semibold">{event.event_name}</h4>
+                              <h4 className="font-semibold text-sm">{event.event_name}</h4>
                               {getRiskBadge(event.risk_level)}
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">

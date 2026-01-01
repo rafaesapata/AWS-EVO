@@ -243,7 +243,7 @@ function RecommendationCard({ recommendation }: { recommendation: any }) {
   return (
     <div className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
       <div className="flex items-start justify-between mb-2">
-        <h4 className="font-semibold">{recommendation.title}</h4>
+        <h4 className="font-semibold text-sm">{recommendation.title}</h4>
         <Badge variant={recommendation.priority === 'high' ? 'destructive' : 'default'}>
           {recommendation.priority}
         </Badge>

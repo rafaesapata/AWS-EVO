@@ -24,7 +24,7 @@ export function InfoTooltip({ title, children, side = "top", className }: InfoTo
       </PopoverTrigger>
       <PopoverContent className="w-80 text-sm" side={side}>
         <div className="space-y-2">
-          <h4 className="font-semibold">{title}</h4>
+          <h4 className="font-semibold text-sm">{title}</h4>
           {children}
         </div>
       </PopoverContent>

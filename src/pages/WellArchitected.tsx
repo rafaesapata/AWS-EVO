@@ -600,7 +600,7 @@ const WellArchitected = () => {
                             {recommendations && recommendations.length > 0 ? (
                               <div className="space-y-3 animate-stagger">
                                 <div className="flex items-center justify-between mb-4">
-                                  <h4 className="font-semibold text-lg">Recomendações:</h4>
+                                  <h4 className="font-semibold text-sm">Recomendações:</h4>
                                   <Button 
                                     size="sm" 
                                     variant="outline"

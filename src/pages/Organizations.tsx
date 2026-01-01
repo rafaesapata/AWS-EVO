@@ -327,7 +327,7 @@ export default function Organizations() {
                   <div className="flex items-start justify-between">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-lg">{org.name}</h4>
+                        <h4 className="font-semibold text-sm">{org.name}</h4>
                         {getStatusBadge(org.status)}
                         <Badge variant="outline">{org.domain}</Badge>
                       </div>

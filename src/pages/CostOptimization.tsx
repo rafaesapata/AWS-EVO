@@ -515,7 +515,7 @@ export default function CostOptimization() {
                             <TypeIcon className={`h-6 w-6 mt-1 ${getTypeColor(rec.type)}`} />
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
-                                <h4 className="font-semibold text-lg">{rec.resource_name}</h4>
+                                <h4 className="font-semibold text-sm">{rec.resource_name}</h4>
                                 <Badge variant="outline">{rec.resource_type}</Badge>
                               </div>
                               <p className="text-muted-foreground">{rec.description}</p>

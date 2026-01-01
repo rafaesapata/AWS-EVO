@@ -118,7 +118,7 @@ export function MultiAccountComparison() {
                           <div className={`text-2xl font-bold ${badge.color}`}>{badge.icon}</div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
-                              <h4 className="font-semibold">{account.account_name}</h4>
+                              <h4 className="font-semibold text-sm">{account.account_name}</h4>
                               <div className="text-right">
                                 <div className="font-bold text-green-600">${account.total_savings.toLocaleString()}</div>
                                 <div className="text-xs text-muted-foreground">economia total</div>
@@ -149,7 +149,7 @@ export function MultiAccountComparison() {
                           <div className={`text-2xl font-bold ${badge.color}`}>{badge.icon}</div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
-                              <h4 className="font-semibold">{account.account_name}</h4>
+                              <h4 className="font-semibold text-sm">{account.account_name}</h4>
                               <div className={`font-bold ${account.critical_findings === 0 ? 'text-green-600' : account.critical_findings < 5 ? 'text-yellow-600' : 'text-red-600'}`}>
                                 {account.critical_findings} críticos
                               </div>
@@ -178,7 +178,7 @@ export function MultiAccountComparison() {
                           <div className={`text-2xl font-bold ${badge.color}`}>{badge.icon}</div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
-                              <h4 className="font-semibold">{account.account_name}</h4>
+                              <h4 className="font-semibold text-sm">{account.account_name}</h4>
                               <div className={`text-2xl font-bold ${account.wa_score >= 80 ? 'text-green-600' : account.wa_score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
                                 {account.wa_score.toFixed(0)}%
                               </div>

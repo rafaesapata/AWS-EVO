@@ -1447,19 +1447,19 @@ const Index = () => {
                     <CardContent>
                       <div className="space-y-4">
                         <div className="border-l-4 border-success pl-4 p-3 rounded-r-lg bg-success/10">
-                          <h4 className="font-medium text-success">Economia Potencial: $340/mês</h4>
+                          <h4 className="font-medium text-sm text-success">Economia Potencial: $340/mês</h4>
                           <p className="text-sm text-muted-foreground mt-1">
                             Redimensionar 3 instâncias EC2 over-provisionadas
                           </p>
                         </div>
                         <div className="border-l-4 border-primary pl-4 p-3 rounded-r-lg bg-primary/10">
-                          <h4 className="font-medium text-primary">Reserved Instances</h4>
+                          <h4 className="font-medium text-sm text-primary">Reserved Instances</h4>
                           <p className="text-sm text-muted-foreground mt-1">
                             Economize até $800/mês com RIs de 1 ano
                           </p>
                         </div>
                         <div className="border-l-4 border-warning pl-4 p-3 rounded-r-lg bg-warning/10">
-                          <h4 className="font-medium text-warning">Recursos Órfãos</h4>
+                          <h4 className="font-medium text-sm text-warning">Recursos Órfãos</h4>
                           <p className="text-sm text-muted-foreground mt-1">
                             5 volumes EBS não anexados detectados
                           </p>

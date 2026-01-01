@@ -589,7 +589,7 @@ export default function EdgeMonitoring() {
                         <div className="flex items-start gap-3">
                           {getServiceIcon(service.service_type)}
                           <div className="space-y-1">
-                            <h4 className="font-semibold">{service.service_name}</h4>
+                            <h4 className="font-semibold text-sm">{service.service_name}</h4>
                             <p className="text-sm text-muted-foreground">{service.service_id}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <span>{service.service_type.replace('_', ' ').toUpperCase()}</span>

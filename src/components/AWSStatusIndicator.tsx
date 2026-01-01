@@ -128,7 +128,7 @@ export default function AWSStatusIndicator() {
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Cloud className="h-5 w-5" />
-            <h4 className="font-semibold">{t('aws.accountStatus')}</h4>
+            <h4 className="font-semibold text-sm">{t('aws.accountStatus')}</h4>
           </div>
           
           <div className="space-y-3">

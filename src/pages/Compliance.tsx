@@ -348,7 +348,7 @@ export default function Compliance() {
                           {getStatusIcon(framework.status)}
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <h4 className="font-semibold">{framework.framework_name}</h4>
+                              <h4 className="font-semibold text-sm">{framework.framework_name}</h4>
                               <Badge variant="outline">{framework.framework_code}</Badge>
                             </div>
                             <p className="text-sm text-muted-foreground">{framework.description}</p>
@@ -446,7 +446,7 @@ export default function Compliance() {
                           {getStatusIcon(control.status)}
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <h4 className="font-semibold">{control.control_id}</h4>
+                              <h4 className="font-semibold text-sm">{control.control_id}</h4>
                               {getSeverityBadge(control.severity)}
                             </div>
                             <h5 className="font-medium">{control.control_title}</h5>

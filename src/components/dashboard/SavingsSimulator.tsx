@@ -175,7 +175,7 @@ export function SavingsSimulator() {
                   />
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-semibold">{rec.title}</h4>
+                      <h4 className="font-semibold text-sm">{rec.title}</h4>
                       <div className="text-right">
                         <div className="text-sm font-semibold text-green-600">
                           ${(rec.projected_savings_monthly || 0).toLocaleString()}/mês

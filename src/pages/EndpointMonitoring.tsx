@@ -470,7 +470,7 @@ export default function EndpointMonitoring() {
                         <div className="flex items-start gap-3">
                           {getStatusIcon(endpoint.last_status || 'unknown')}
                           <div className="space-y-1">
-                            <h4 className="font-semibold">{endpoint.name}</h4>
+                            <h4 className="font-semibold text-sm">{endpoint.name}</h4>
                             <p className="text-sm text-muted-foreground">{endpoint.url}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <span>Timeout: {endpoint.timeout}ms</span>
@@ -704,7 +704,7 @@ export default function EndpointMonitoring() {
                             <Bell className="h-5 w-5 text-yellow-500 mt-0.5" />
                           )}
                           <div className="space-y-1">
-                            <h4 className="font-semibold">{alert.title}</h4>
+                            <h4 className="font-semibold text-sm">{alert.title}</h4>
                             <p className="text-sm text-muted-foreground">{alert.message}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <span>Disparado: {new Date(alert.triggered_at).toLocaleString('pt-BR')}</span>

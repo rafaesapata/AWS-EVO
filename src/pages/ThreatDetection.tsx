@@ -260,7 +260,7 @@ export default function ThreatDetection() {
                   {guarddutyFindings?.map((finding) => (
                     <div key={finding.id} className="border rounded-lg p-4 space-y-2 transition-all hover:translate-x-1 hover:bg-muted/30">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-semibold">{finding.title}</h4>
+                        <h4 className="font-semibold text-sm">{finding.title}</h4>
                         <Badge 
                           variant={finding.severity_label === 'Critical' ? 'destructive' : finding.severity_label === 'High' ? 'default' : 'secondary'}
                           className={finding.severity_label === 'Critical' ? 'alert-pulse' : ''}
@@ -314,7 +314,7 @@ export default function ThreatDetection() {
                   {iamBehavior?.map((user) => (
                     <div key={user.id} className="border rounded-lg p-4 space-y-2 transition-all hover:translate-x-1 hover:bg-muted/30">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-semibold">{user.user_identity}</h4>
+                        <h4 className="font-semibold text-sm">{user.user_identity}</h4>
                         <div className="flex items-center gap-2">
                           <Badge 
                             variant={user.risk_score >= 70 ? 'destructive' : user.risk_score >= 40 ? 'default' : 'secondary'}
@@ -374,7 +374,7 @@ export default function ThreatDetection() {
                   {lateralMovement?.map((detection) => (
                     <div key={detection.id} className="border rounded-lg p-4 space-y-2 border-l-4 border-l-destructive transition-all hover:translate-x-1 hover:bg-muted/30">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-semibold">{detection.source_identity}</h4>
+                        <h4 className="font-semibold text-sm">{detection.source_identity}</h4>
                         <Badge variant="destructive" className="alert-pulse">{detection.severity.toUpperCase()}</Badge>
                       </div>
                       <div className="space-y-1">

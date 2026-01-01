@@ -465,7 +465,7 @@ export default function SecurityPosture() {
                               style={{ color: getSeverityColor(finding.severity) }}
                             />
                             <div className="space-y-1">
-                              <h4 className="font-semibold">{finding.title}</h4>
+                              <h4 className="font-semibold text-sm">{finding.title}</h4>
                               <p className="text-sm text-muted-foreground">{finding.description}</p>
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <span>{finding.service}</span>
@@ -538,7 +538,7 @@ export default function SecurityPosture() {
                   {Object.entries(securityData.compliance_scores).map(([standard, score]) => (
                     <div key={standard} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold">{standard.toUpperCase()}</h4>
+                        <h4 className="font-semibold text-sm">{standard.toUpperCase()}</h4>
                         <Badge 
                           variant={score >= 80 ? "default" : score >= 60 ? "secondary" : "destructive"}
                         >

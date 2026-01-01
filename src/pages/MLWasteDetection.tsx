@@ -389,7 +389,7 @@ export default function MLWasteDetection() {
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-semibold truncate">{rec.resource_name || rec.resource_id}</h4>
+                          <h4 className="font-semibold text-sm truncate">{rec.resource_name || rec.resource_id}</h4>
                           {getPriorityBadge(rec.recommendation_priority)}
                           {getRiskBadge(rec.risk_assessment)}
                         </div>

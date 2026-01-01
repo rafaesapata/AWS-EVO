@@ -385,7 +385,7 @@ const RecommendationCard = ({ rec, onView, onCreateTicket, onIgnore, getPriority
       <div className="flex-1">
         <div className="flex items-center gap-2 mb-2">
           {getTypeIcon(rec.recommendation_type)}
-          <h4 className="font-semibold">{rec.title}</h4>
+          <h4 className="font-semibold text-sm">{rec.title}</h4>
           {getPriorityBadge(rec.priority)}
         </div>
         <p className="text-sm text-muted-foreground mb-2">{rec.description}</p>
