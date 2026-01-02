@@ -148,6 +148,7 @@ export async function handler(
 async function startAuthentication(email?: string, origin?: string): Promise<APIGatewayProxyResultV2> {
   const prisma = getPrismaClient();
   let allowCredentials: { type: string; id: string }[] = [];
+  let userId: string | undefined;
 
   logger.info('🔐 WebAuthn startAuthentication called', { email });
 
@@ -163,6 +164,8 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
       logger.warn('🔐 User not found for WebAuthn check', { email });
       return errorResponse('User not found', 404, undefined, origin);
     }
+
+    userId = user.id;
 
     // Buscar credenciais WebAuthn separadamente
     const webauthnCredentials = await prisma.webAuthnCredential.findMany({
@@ -184,7 +187,7 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
 
       await prisma.webauthnChallenge.create({
         data: {
-          user_id: email || 'anonymous',
+          user_id: user.id,
           challenge,
           expires_at: challengeExpiry
         }
@@ -215,6 +218,10 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
     });
   }
 
+  if (!userId) {
+    return errorResponse('User ID required for WebAuthn', 400, undefined, origin);
+  }
+
   // Gerar challenge
   const challenge = crypto.randomBytes(32).toString('base64url');
   const challengeExpiry = new Date(Date.now() + 300000); // 5 minutos
@@ -222,7 +229,7 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
   // Salvar challenge
   await prisma.webauthnChallenge.create({
     data: {
-      user_id: email || 'anonymous',
+      user_id: userId,
       challenge,
       expires_at: challengeExpiry
     }

@@ -209,10 +209,10 @@ export function AwsAccountSelector({
                     
                     {/* Account info */}
                     <div className="flex-1 min-w-0">
-                      <SelectValue placeholder="Conta AWS">
+                      <SelectValue placeholder="Selecionar">
                         {selectedAccount && (
                           <span className="text-[9px] leading-tight font-medium block truncate">
-                            {selectedAccount.account_name}
+                            {selectedAccount.account_id || selectedAccount.account_name}
                           </span>
                         )}
                       </SelectValue>
