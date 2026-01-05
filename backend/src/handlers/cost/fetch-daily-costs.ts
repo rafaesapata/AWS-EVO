@@ -170,6 +170,17 @@ export async function handler(
               Key: 'SERVICE',
             },
           ],
+          // CRITICAL FIX: Filter by linked account to avoid duplicate costs
+          // When using a payer account, Cost Explorer returns costs for ALL linked accounts
+          // We need to filter to get only the costs for this specific account
+          ...(account.account_id && {
+            Filter: {
+              Dimensions: {
+                Key: 'LINKED_ACCOUNT',
+                Values: [account.account_id],
+              },
+            },
+          }),
         });
         
         const response = await ceClient.send(command);
