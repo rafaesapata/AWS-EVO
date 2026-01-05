@@ -129,7 +129,8 @@ export const MonthlyInvoicesPage = () => {
           organization_id: organizationId,
           aws_account_id: selectedAccountId
         },
-        order: { column: 'date', ascending: false }
+        order: { column: 'date', ascending: false },
+        limit: 50000 // Ensure we get all cost records (default is 1000)
       });
 
       if (response.error) {

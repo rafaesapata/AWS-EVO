@@ -50,35 +50,51 @@ export const MonthlyInvoices = () => {
 
       const response = await apiClient.select('daily_costs', {
         eq: filters,
-        order: { column: 'cost_date', ascending: false }
+        order: { column: 'date', ascending: false }
       });
       
       if (response.error) throw response.error;
-      const data = response.data;
+      const data = response.data || [];
 
-      // Deduplicate by keeping latest entry per date+account
-      const uniqueCosts = data?.reduce((acc, current) => {
-        const key = `${current.aws_account_id}_${current.cost_date}`;
-        const existing = acc.find(item => `${item.aws_account_id}_${item.cost_date}` === key);
+      // Data is per service per day - aggregate by date
+      // Group by date and account, summing costs and building service breakdown
+      const aggregatedByDate = data.reduce((acc: Record<string, any>, current: any) => {
+        const dateStr = current.date?.split('T')[0] || current.date;
+        const key = `${current.aws_account_id}_${dateStr}`;
         
-        if (!existing) {
-          acc.push(current);
-        } else {
-          const existingIndex = acc.indexOf(existing);
-          if (new Date(current.created_at) > new Date(existing.created_at)) {
-            acc[existingIndex] = current;
-          }
+        if (!acc[key]) {
+          acc[key] = {
+            aws_account_id: current.aws_account_id,
+            date: dateStr,
+            total_cost: 0,
+            credits_used: 0,
+            net_cost: 0,
+            service_breakdown: {} as Record<string, number>,
+            created_at: current.created_at,
+          };
         }
+        
+        const cost = Number(current.cost) || 0;
+        acc[key].total_cost += cost;
+        acc[key].net_cost += cost; // No credits in this schema
+        
+        // Build service breakdown
+        if (current.service) {
+          acc[key].service_breakdown[current.service] = 
+            (acc[key].service_breakdown[current.service] || 0) + cost;
+        }
+        
         return acc;
-      }, [] as typeof data) || [];
+      }, {});
 
-      return uniqueCosts;
+      return Object.values(aggregatedByDate);
     },
   });
 
   // Aggregate costs by month
-  const monthlyData = allCosts?.reduce((acc, cost) => {
-    const date = parseDateString(cost.cost_date);
+  const monthlyData = allCosts?.reduce((acc, cost: any) => {
+    const dateStr = cost.date?.split('T')[0] || cost.date;
+    const date = parseDateString(dateStr);
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     
     if (!acc[monthKey]) {
@@ -89,13 +105,13 @@ export const MonthlyInvoices = () => {
         netCost: 0,
         days: 0,
         serviceBreakdown: {} as Record<string, number>,
-        dailyCosts: [] as typeof allCosts,
+        dailyCosts: [] as any[],
       };
     }
     
-    acc[monthKey].totalCost += Number(cost.total_cost);
+    acc[monthKey].totalCost += Number(cost.total_cost) || 0;
     acc[monthKey].totalCredits += Number(cost.credits_used || 0);
-    acc[monthKey].netCost += Number(cost.net_cost || cost.total_cost);
+    acc[monthKey].netCost += Number(cost.net_cost || cost.total_cost) || 0;
     acc[monthKey].days += 1;
     acc[monthKey].dailyCosts.push(cost);
     
@@ -115,7 +131,7 @@ export const MonthlyInvoices = () => {
     netCost: number;
     days: number;
     serviceBreakdown: Record<string, number>;
-    dailyCosts: typeof allCosts;
+    dailyCosts: any[];
   }>) || {};
 
   const sortedMonths = Object.keys(monthlyData).sort((a, b) => b.localeCompare(a));
@@ -184,8 +200,8 @@ export const MonthlyInvoices = () => {
       'Custos Diários',
       'Data,Custo Total,Créditos,Custo Líquido',
       ...data.dailyCosts
-        .sort((a, b) => compareDates(a.cost_date, b.cost_date))
-        .map(cost => `${cost.cost_date},${cost.total_cost},${cost.credits_used || 0},${cost.net_cost || cost.total_cost}`)
+        .sort((a: any, b: any) => compareDates(a.date, b.date))
+        .map((cost: any) => `${cost.date},${cost.total_cost},${cost.credits_used || 0},${cost.net_cost || cost.total_cost}`)
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -505,11 +521,11 @@ export const MonthlyInvoices = () => {
                 <ResponsiveContainer width="100%" height={400}>
                   <LineChart 
                     data={selectedMonthData.dailyCosts
-                      .sort((a, b) => compareDates(a.cost_date, b.cost_date))
-                      .map(cost => ({
-                        date: getDayOfMonth(cost.cost_date),
-                        total: Number(cost.total_cost),
-                        net: Number(cost.net_cost || cost.total_cost),
+                      .sort((a: any, b: any) => compareDates(a.date, b.date))
+                      .map((cost: any) => ({
+                        date: getDayOfMonth(cost.date),
+                        total: Number(cost.total_cost) || 0,
+                        net: Number(cost.net_cost || cost.total_cost) || 0,
                         credits: Number(cost.credits_used || 0),
                       }))
                     }
