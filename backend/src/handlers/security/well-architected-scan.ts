@@ -90,7 +90,26 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
       await prisma.$executeRaw`INSERT INTO well_architected_scores (id, organization_id, scan_id, pillar, score, checks_passed, checks_failed, critical_issues, recommendations, created_at) VALUES (gen_random_uuid(), ${organizationId}::uuid, ${scan.id}::uuid, ${p.pillar}, ${p.score}, ${p.checks_passed}, ${p.checks_failed}, ${p.critical_issues}, ${JSON.stringify(p.recommendations)}::jsonb, NOW())`;
     }
     
-    await prisma.securityScan.update({ where: { id: scan.id }, data: { status: 'completed', completed_at: new Date() } });
+    // Calculate findings counts from all pillar recommendations
+    const allRecommendations = pillarScores.flatMap(p => p.recommendations);
+    const findingsCount = allRecommendations.length;
+    const criticalCount = allRecommendations.filter(r => r.severity === 'critical').length;
+    const highCount = allRecommendations.filter(r => r.severity === 'high').length;
+    const mediumCount = allRecommendations.filter(r => r.severity === 'medium').length;
+    const lowCount = allRecommendations.filter(r => r.severity === 'low').length;
+    
+    await prisma.securityScan.update({ 
+      where: { id: scan.id }, 
+      data: { 
+        status: 'completed', 
+        completed_at: new Date(),
+        findings_count: findingsCount,
+        critical_count: criticalCount,
+        high_count: highCount,
+        medium_count: mediumCount,
+        low_count: lowCount
+      } 
+    });
     
     logger.info('Well-Architected scan completed', { organizationId, accountId, overallScore });
     return success({ success: true, scan_id: scan.id, overall_score: overallScore, pillars: pillarScores });
