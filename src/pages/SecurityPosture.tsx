@@ -64,27 +64,21 @@ export default function SecurityPosture() {
 
   // Get security posture data
   const { data: securityData, isLoading, refetch } = useQuery({
-    queryKey: ['security-posture', organizationId, selectedAccountId, selectedStandard],
-    enabled: !!organizationId && !!selectedAccountId,
+    queryKey: ['security-posture-page', organizationId, selectedStandard],
+    enabled: !!organizationId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
-      // Get security findings
+      // Get security findings (table doesn't have aws_account_id)
       const findingsResponse = await apiClient.select('security_findings', {
         select: '*',
-        eq: { 
-          organization_id: organizationId,
-          aws_account_id: selectedAccountId
-        },
+        eq: { organization_id: organizationId },
         order: { severity: 'desc', created_at: 'desc' }
       });
 
       // Get compliance data
       const complianceResponse = await apiClient.select('compliance_checks', {
         select: '*',
-        eq: { 
-          organization_id: organizationId,
-          aws_account_id: selectedAccountId
-        }
+        eq: { organization_id: organizationId }
       });
 
       // Calculate metrics

@@ -20,29 +20,19 @@ export default function SecurityPosture() {
   const { data: organizationId } = useOrganization();
 
   const { data: posture, isLoading } = useQuery({
-    queryKey: ['security-posture', 'org', organizationId, 'account', selectedAccountId],
-    // In TV mode, only require organizationId. In normal mode, require both.
-    enabled: !!organizationId && (isTVMode || !!selectedAccountId),
+    queryKey: ['security-posture', 'org', organizationId],
+    enabled: !!organizationId,
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
     queryFn: async () => {
-      // Only filter by account if not in TV mode and account is selected
-      const filters: any = { organization_id: organizationId };
-      if (!isTVMode && selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
-      
+      // security_posture table doesn't have aws_account_id - filter only by organization
       const response = await apiClient.select('security_posture', {
         select: '*',
-        eq: filters,
+        eq: { organization_id: organizationId },
         order: { column: 'calculated_at', ascending: false },
         limit: 1
       });
-      const data = response.data?.[0];
-      const error = response.error;
-      
-      
-      return data;
+      return response.data?.[0];
     },
   });
 
