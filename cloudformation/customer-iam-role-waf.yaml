@@ -1,0 +1,254 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO Platform - Customer IAM Role with WAF Monitoring Permissions'
+
+Parameters:
+  ExternalId:
+    Type: String
+    Description: External ID for secure cross-account access (provided by EVO Platform)
+    MinLength: 16
+    MaxLength: 64
+
+  EVOAccountId:
+    Type: String
+    Default: '383234048592'
+    Description: EVO Platform AWS Account ID
+
+  EVOWafLogProcessorArn:
+    Type: String
+    Default: 'arn:aws:lambda:us-east-1:383234048592:function:evo-uds-v3-production-waf-log-processor'
+    Description: ARN of the EVO WAF Log Processor Lambda
+
+Resources:
+  EVOPlatformRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EVO-Platform-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${EVOAccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      MaxSessionDuration: 3600
+      Tags:
+        - Key: Purpose
+          Value: EVO-Platform-Integration
+        - Key: ManagedBy
+          Value: EVO-Platform
+
+  # Read-only permissions for security scans
+  EVOSecurityScanPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: EVO-Security-Scan-Policy
+      Roles:
+        - !Ref EVOPlatformRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # EC2 Read
+          - Effect: Allow
+            Action:
+              - ec2:Describe*
+              - ec2:GetEbsEncryptionByDefault
+            Resource: '*'
+          # S3 Read
+          - Effect: Allow
+            Action:
+              - s3:GetBucketAcl
+              - s3:GetBucketPolicy
+              - s3:GetBucketPolicyStatus
+              - s3:GetBucketPublicAccessBlock
+              - s3:GetBucketVersioning
+              - s3:GetBucketLogging
+              - s3:GetEncryptionConfiguration
+              - s3:ListAllMyBuckets
+              - s3:ListBucket
+            Resource: '*'
+          # IAM Read
+          - Effect: Allow
+            Action:
+              - iam:GetAccountPasswordPolicy
+              - iam:GetAccountSummary
+              - iam:GetCredentialReport
+              - iam:GetLoginProfile
+              - iam:GetPolicy
+              - iam:GetPolicyVersion
+              - iam:GetRole
+              - iam:GetRolePolicy
+              - iam:GetUser
+              - iam:GetUserPolicy
+              - iam:ListAccessKeys
+              - iam:ListAttachedGroupPolicies
+              - iam:ListAttachedRolePolicies
+              - iam:ListAttachedUserPolicies
+              - iam:ListGroupPolicies
+              - iam:ListGroups
+              - iam:ListGroupsForUser
+              - iam:ListMFADevices
+              - iam:ListPolicies
+              - iam:ListRolePolicies
+              - iam:ListRoles
+              - iam:ListUserPolicies
+              - iam:ListUsers
+              - iam:ListVirtualMFADevices
+              - iam:GenerateCredentialReport
+            Resource: '*'
+          # RDS Read
+          - Effect: Allow
+            Action:
+              - rds:Describe*
+              - rds:ListTagsForResource
+            Resource: '*'
+          # Lambda Read
+          - Effect: Allow
+            Action:
+              - lambda:GetFunction
+              - lambda:GetFunctionConfiguration
+              - lambda:GetPolicy
+              - lambda:ListFunctions
+              - lambda:ListTags
+            Resource: '*'
+          # CloudTrail Read
+          - Effect: Allow
+            Action:
+              - cloudtrail:DescribeTrails
+              - cloudtrail:GetEventSelectors
+              - cloudtrail:GetTrailStatus
+              - cloudtrail:ListTags
+              - cloudtrail:LookupEvents
+            Resource: '*'
+          # CloudWatch Read
+          - Effect: Allow
+            Action:
+              - cloudwatch:DescribeAlarms
+              - cloudwatch:GetMetricData
+              - cloudwatch:GetMetricStatistics
+              - cloudwatch:ListMetrics
+            Resource: '*'
+          # Config Read
+          - Effect: Allow
+            Action:
+              - config:DescribeConfigRules
+              - config:DescribeConfigurationRecorders
+              - config:DescribeConfigurationRecorderStatus
+              - config:GetComplianceDetailsByConfigRule
+            Resource: '*'
+          # GuardDuty Read
+          - Effect: Allow
+            Action:
+              - guardduty:GetDetector
+              - guardduty:GetFindings
+              - guardduty:ListDetectors
+              - guardduty:ListFindings
+            Resource: '*'
+          # KMS Read
+          - Effect: Allow
+            Action:
+              - kms:DescribeKey
+              - kms:GetKeyPolicy
+              - kms:GetKeyRotationStatus
+              - kms:ListAliases
+              - kms:ListKeys
+            Resource: '*'
+          # SNS Read
+          - Effect: Allow
+            Action:
+              - sns:GetTopicAttributes
+              - sns:ListSubscriptions
+              - sns:ListTopics
+            Resource: '*'
+          # SQS Read
+          - Effect: Allow
+            Action:
+              - sqs:GetQueueAttributes
+              - sqs:ListQueues
+            Resource: '*'
+          # ELB Read
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:Describe*
+            Resource: '*'
+          # CloudFront Read
+          - Effect: Allow
+            Action:
+              - cloudfront:GetDistribution
+              - cloudfront:ListDistributions
+            Resource: '*'
+          # Cost Explorer
+          - Effect: Allow
+            Action:
+              - ce:GetCostAndUsage
+              - ce:GetCostForecast
+              - ce:GetReservationUtilization
+              - ce:GetReservationCoverage
+              - ce:GetReservationPurchaseRecommendation
+              - ce:GetSavingsPlansUtilization
+              - ce:GetSavingsPlansCoverage
+              - ce:GetSavingsPlansPurchaseRecommendation
+              - ce:GetRightsizingRecommendation
+            Resource: '*'
+          # Pricing
+          - Effect: Allow
+            Action:
+              - pricing:GetProducts
+            Resource: '*'
+
+  # WAF Monitoring Permissions
+  EVOWafMonitoringPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: EVO-WAF-Monitoring-Policy
+      Roles:
+        - !Ref EVOPlatformRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # WAF Read and Logging Configuration
+          - Effect: Allow
+            Action:
+              - wafv2:GetWebACL
+              - wafv2:GetLoggingConfiguration
+              - wafv2:PutLoggingConfiguration
+              - wafv2:DeleteLoggingConfiguration
+              - wafv2:ListWebACLs
+              - wafv2:ListLoggingConfigurations
+              - wafv2:GetIPSet
+              - wafv2:UpdateIPSet
+              - wafv2:ListIPSets
+              - wafv2:CreateIPSet
+            Resource: '*'
+          # CloudWatch Logs for WAF
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:DescribeLogGroups
+              - logs:PutSubscriptionFilter
+              - logs:DeleteSubscriptionFilter
+              - logs:DescribeSubscriptionFilters
+              - logs:PutRetentionPolicy
+            Resource:
+              - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*'
+              - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*:*'
+          # Allow invoking EVO WAF Log Processor (cross-account)
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource: !Ref EVOWafLogProcessorArn
+
+Outputs:
+  RoleArn:
+    Description: ARN of the IAM Role for EVO Platform
+    Value: !GetAtt EVOPlatformRole.Arn
+
+  ExternalIdUsed:
+    Description: External ID used for this role
+    Value: !Ref ExternalId
+
+  Instructions:
+    Description: Next steps
+    Value: 'Copy the Role ARN and paste it in the EVO Platform AWS Settings page to complete the connection.'

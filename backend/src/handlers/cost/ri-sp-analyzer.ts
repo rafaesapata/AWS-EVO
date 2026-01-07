@@ -469,94 +469,153 @@ async function generateAdvancedRecommendations(
 ): Promise<CostOptimizationRecommendation[]> {
   const recommendations: CostOptimizationRecommendation[] = [];
   
-  // 1. Reserved Instance Recommendations
+  logger.info('Generating recommendations', {
+    ec2Count: ec2Instances.length,
+    rdsCount: rdsInstances.length,
+    riCount: reservedInstances.length,
+    spCount: savingsPlans.length,
+    patternsCount: usagePatterns.length
+  });
+  
+  // Calculate estimated monthly cost based on instances
+  const estimatedEC2MonthlyCost = ec2Instances.reduce((sum, instance) => {
+    return sum + estimateMonthlyCost(instance.instanceType, 1);
+  }, 0);
+  
+  const estimatedRDSMonthlyCost = rdsInstances.reduce((sum, instance) => {
+    return sum + estimateRDSMonthlyCost(instance.dbInstanceClass);
+  }, 0);
+  
+  const totalEstimatedMonthlyCost = estimatedEC2MonthlyCost + estimatedRDSMonthlyCost;
+  
+  // 1. Reserved Instance Recommendations - ALWAYS suggest if no RIs and has EC2 instances
   if (reservedInstances.length === 0 && ec2Instances.length > 0) {
-    const highUtilizationPatterns = usagePatterns.filter(p => p.recommendedCommitment !== 'none');
+    const riSavingsPercent = 0.40; // Up to 40% savings with RIs
+    const monthlySavings = estimatedEC2MonthlyCost * riSavingsPercent;
     
-    if (highUtilizationPatterns.length > 0) {
-      const totalMonthlySavings = highUtilizationPatterns.reduce((sum, pattern) => {
-        return sum + (pattern.monthlyCost * 0.4); // Up to 40% savings with RIs
-      }, 0);
-      
-      recommendations.push({
-        type: 'ri_purchase',
-        priority: 'high',
-        service: 'EC2',
-        title: 'Purchase Reserved Instances for Steady Workloads',
-        description: `${highUtilizationPatterns.length} instance types show consistent usage patterns suitable for Reserved Instances. Consider 1-year or 3-year commitments for maximum savings.`,
-        potentialSavings: {
-          monthly: totalMonthlySavings,
-          annual: totalMonthlySavings * 12,
-          percentage: 40
-        },
-        implementation: {
-          difficulty: 'easy',
-          timeToImplement: '1-2 hours',
-          steps: [
-            'Review usage patterns in AWS Cost Explorer',
-            'Purchase Reserved Instances for identified instance types',
-            'Monitor utilization and adjust as needed',
-            'Set up billing alerts for RI utilization'
-          ]
-        },
-        details: {
-          recommendedInstances: highUtilizationPatterns.map(p => ({
-            instanceType: p.instanceType,
-            quantity: p.instances,
-            commitment: p.recommendedCommitment,
-            monthlySavings: p.monthlyCost * 0.4
-          }))
-        }
-      });
-    }
+    recommendations.push({
+      type: 'ri_purchase',
+      priority: 'high',
+      service: 'EC2',
+      title: 'Adquirir Reserved Instances para Workloads Estáveis',
+      description: `Você tem ${ec2Instances.length} instâncias EC2 em execução sem Reserved Instances. RIs podem economizar até 40% em comparação com On-Demand para workloads consistentes.`,
+      potentialSavings: {
+        monthly: monthlySavings,
+        annual: monthlySavings * 12,
+        percentage: 40
+      },
+      implementation: {
+        difficulty: 'easy',
+        timeToImplement: '1-2 horas',
+        steps: [
+          'Acesse AWS Cost Explorer > Reservations > Recommendations',
+          'Analise os padrões de uso dos últimos 30-60 dias',
+          'Escolha entre Standard (maior desconto) ou Convertible (mais flexível)',
+          'Comece com compromisso de 1 ano para testar',
+          'Configure alertas de utilização de RI'
+        ]
+      },
+      details: {
+        currentInstances: ec2Instances.map(i => ({
+          instanceId: i.instanceId,
+          instanceType: i.instanceType,
+          availabilityZone: i.availabilityZone,
+          estimatedMonthlyCost: estimateMonthlyCost(i.instanceType, 1)
+        })),
+        recommendedAction: 'Comprar RIs para instâncias que rodam 24/7',
+        estimatedCurrentCost: estimatedEC2MonthlyCost
+      }
+    });
   }
   
-  // 2. Savings Plans Recommendations
-  if (savingsPlans.length === 0) {
-    const totalComputeCost = usagePatterns.reduce((sum, p) => sum + p.monthlyCost, 0);
+  // 2. RDS Reserved Instance Recommendations
+  if (reservedRDSInstances.length === 0 && rdsInstances.length > 0) {
+    const rdsRiSavings = estimatedRDSMonthlyCost * 0.35;
     
-    if (totalComputeCost > 100) {
-      recommendations.push({
-        type: 'sp_purchase',
-        priority: 'high',
-        service: 'General',
-        title: 'Implement Compute Savings Plans',
-        description: 'Compute Savings Plans provide flexible savings across EC2, Lambda, and Fargate with up to 66% savings. More flexible than Reserved Instances.',
-        potentialSavings: {
-          monthly: totalComputeCost * 0.3,
-          annual: totalComputeCost * 0.3 * 12,
-          percentage: 30
-        },
-        implementation: {
-          difficulty: 'easy',
-          timeToImplement: '30 minutes',
-          steps: [
-            'Access AWS Cost Management console',
-            'Navigate to Savings Plans',
-            'Review recommendations and purchase appropriate plan',
-            'Monitor utilization monthly'
-          ]
-        },
-        details: {
-          recommendedCommitment: Math.floor(totalComputeCost * 0.7), // 70% of current usage
-          planType: 'Compute Savings Plan',
-          term: '1 year'
-        }
-      });
-    }
+    recommendations.push({
+      type: 'ri_purchase',
+      priority: 'high',
+      service: 'RDS',
+      title: 'Adquirir Reserved Instances para RDS',
+      description: `Você tem ${rdsInstances.length} instâncias RDS sem reservas. RIs de RDS podem economizar até 35% em bancos de dados de produção.`,
+      potentialSavings: {
+        monthly: rdsRiSavings,
+        annual: rdsRiSavings * 12,
+        percentage: 35
+      },
+      implementation: {
+        difficulty: 'easy',
+        timeToImplement: '30 minutos',
+        steps: [
+          'Acesse RDS Console > Reserved Instances',
+          'Revise as recomendações baseadas no uso atual',
+          'Escolha Multi-AZ se aplicável',
+          'Considere compromisso de 1 ano inicialmente'
+        ]
+      },
+      details: {
+        currentDatabases: rdsInstances.map(db => ({
+          identifier: db.dbInstanceIdentifier,
+          instanceClass: db.dbInstanceClass,
+          engine: db.engine,
+          multiAZ: db.multiAZ,
+          estimatedMonthlyCost: estimateRDSMonthlyCost(db.dbInstanceClass)
+        })),
+        estimatedCurrentCost: estimatedRDSMonthlyCost
+      }
+    });
   }
   
-  // 3. Right-sizing Recommendations
-  const underutilizedPatterns = usagePatterns.filter(p => p.averageHoursPerDay < 12);
-  if (underutilizedPatterns.length > 0) {
-    const potentialSavings = underutilizedPatterns.reduce((sum, p) => sum + (p.monthlyCost * 0.3), 0);
+  // 3. Savings Plans Recommendations - ALWAYS suggest if no SPs and has compute resources
+  if (savingsPlans.length === 0 && (ec2Instances.length > 0 || rdsInstances.length > 0)) {
+    const spSavingsPercent = 0.30;
+    const monthlySavings = totalEstimatedMonthlyCost * spSavingsPercent;
+    
+    recommendations.push({
+      type: 'sp_purchase',
+      priority: 'high',
+      service: 'General',
+      title: 'Implementar Compute Savings Plans',
+      description: `Savings Plans oferecem economia flexível de até 66% em EC2, Lambda e Fargate. Mais flexível que Reserved Instances pois se aplica automaticamente a qualquer uso de compute.`,
+      potentialSavings: {
+        monthly: monthlySavings,
+        annual: monthlySavings * 12,
+        percentage: 30
+      },
+      implementation: {
+        difficulty: 'easy',
+        timeToImplement: '30 minutos',
+        steps: [
+          'Acesse AWS Cost Management > Savings Plans',
+          'Revise as recomendações automáticas da AWS',
+          'Escolha Compute SP (flexível) ou EC2 Instance SP (maior desconto)',
+          'Defina um commitment baseado em 70-80% do uso atual',
+          'Monitore a utilização mensalmente'
+        ]
+      },
+      details: {
+        recommendedCommitment: Math.floor(totalEstimatedMonthlyCost * 0.7 / 730), // Hourly commitment
+        planType: 'Compute Savings Plan',
+        term: '1 ano',
+        flexibility: 'Aplica-se automaticamente a EC2, Lambda e Fargate em qualquer região'
+      }
+    });
+  }
+  
+  // 4. Right-sizing Recommendations based on instance types
+  const largeInstances = ec2Instances.filter(i => 
+    i.instanceType.includes('xlarge') || i.instanceType.includes('2xlarge') || i.instanceType.includes('4xlarge')
+  );
+  
+  if (largeInstances.length > 0) {
+    const potentialSavings = largeInstances.length * 100; // Estimated $100/month per downsized instance
     
     recommendations.push({
       type: 'right_sizing',
       priority: 'medium',
       service: 'EC2',
-      title: 'Right-size Underutilized Instances',
-      description: `${underutilizedPatterns.length} instance types show low utilization. Consider downsizing or using Spot instances.`,
+      title: 'Avaliar Right-Sizing de Instâncias Grandes',
+      description: `${largeInstances.length} instâncias de tamanho grande/xlarge detectadas. Analise a utilização para possível downsizing.`,
       potentialSavings: {
         monthly: potentialSavings,
         annual: potentialSavings * 12,
@@ -564,34 +623,35 @@ async function generateAdvancedRecommendations(
       },
       implementation: {
         difficulty: 'medium',
-        timeToImplement: '2-4 hours',
+        timeToImplement: '2-4 horas',
         steps: [
-          'Analyze CloudWatch metrics for CPU and memory utilization',
-          'Identify instances with consistently low utilization',
-          'Test smaller instance types in non-production',
-          'Gradually migrate to appropriately sized instances'
+          'Acesse AWS Compute Optimizer para recomendações',
+          'Analise métricas de CPU e memória no CloudWatch',
+          'Identifique instâncias com utilização < 40%',
+          'Teste tipos menores em ambiente de staging',
+          'Migre gradualmente para instâncias otimizadas'
         ]
       },
       details: {
-        underutilizedInstances: underutilizedPatterns
+        largeInstances: largeInstances.map(i => ({
+          instanceId: i.instanceId,
+          instanceType: i.instanceType,
+          recommendation: 'Avaliar utilização para possível downsizing'
+        }))
       }
     });
   }
   
-  // 4. Spot Instance Recommendations
-  const developmentWorkloads = ec2Instances.filter(i => 
-    i.instanceId.includes('dev') || i.instanceId.includes('test') || i.instanceId.includes('staging')
-  );
-  
-  if (developmentWorkloads.length > 0) {
-    const spotSavings = developmentWorkloads.length * 50; // Estimated $50/month per instance
+  // 5. Spot Instance Recommendations for any EC2 workloads
+  if (ec2Instances.length > 0) {
+    const spotSavings = ec2Instances.length * 60; // Estimated $60/month savings per instance
     
     recommendations.push({
       type: 'spot_instances',
       priority: 'medium',
       service: 'EC2',
-      title: 'Use Spot Instances for Development Workloads',
-      description: `${developmentWorkloads.length} instances appear to be development/testing workloads. Spot instances can provide up to 90% savings.`,
+      title: 'Considerar Spot Instances para Workloads Tolerantes a Falhas',
+      description: `Spot Instances podem economizar até 90% em comparação com On-Demand. Ideal para workloads de desenvolvimento, CI/CD, processamento batch e aplicações stateless.`,
       potentialSavings: {
         monthly: spotSavings,
         annual: spotSavings * 12,
@@ -599,52 +659,105 @@ async function generateAdvancedRecommendations(
       },
       implementation: {
         difficulty: 'medium',
-        timeToImplement: '4-6 hours',
+        timeToImplement: '4-6 horas',
         steps: [
-          'Identify fault-tolerant workloads suitable for Spot',
-          'Implement Spot Fleet or Auto Scaling with mixed instance types',
-          'Set up proper handling for Spot interruptions',
-          'Monitor Spot pricing and availability'
+          'Identifique workloads tolerantes a interrupções',
+          'Configure Spot Fleet com múltiplos tipos de instância',
+          'Implemente tratamento de interrupções (2 min warning)',
+          'Use Auto Scaling Groups com mixed instances',
+          'Monitore Spot pricing e disponibilidade'
         ]
       },
       details: {
-        candidateInstances: developmentWorkloads.length,
-        recommendedStrategy: 'Mixed instance types with Spot Fleet'
+        candidateWorkloads: ['Desenvolvimento/Teste', 'CI/CD Pipelines', 'Processamento Batch', 'Workers Stateless'],
+        recommendedStrategy: 'Spot Fleet com diversificação de tipos de instância'
       }
     });
   }
   
-  // 5. Schedule-based Optimization
-  if (ec2Instances.length > 2) {
+  // 6. Schedule-based Optimization
+  if (ec2Instances.length >= 1) {
+    const scheduleSavings = estimatedEC2MonthlyCost * 0.4; // 40% savings by stopping 12h/day
+    
     recommendations.push({
       type: 'schedule_optimization',
-      priority: 'low',
+      priority: 'medium',
       service: 'EC2',
-      title: 'Implement Automated Scheduling',
-      description: 'Automatically stop non-production instances during off-hours to reduce costs by 50-70%.',
+      title: 'Implementar Agendamento Automático',
+      description: 'Pare automaticamente instâncias de desenvolvimento/teste fora do horário comercial para economizar 40-60% dos custos.',
       potentialSavings: {
-        monthly: usagePatterns.reduce((sum, p) => sum + p.monthlyCost, 0) * 0.3,
-        annual: usagePatterns.reduce((sum, p) => sum + p.monthlyCost, 0) * 0.3 * 12,
-        percentage: 30
+        monthly: scheduleSavings,
+        annual: scheduleSavings * 12,
+        percentage: 40
       },
       implementation: {
         difficulty: 'easy',
-        timeToImplement: '2-3 hours',
+        timeToImplement: '2-3 horas',
         steps: [
-          'Use AWS Instance Scheduler or Lambda functions',
-          'Tag instances with schedule requirements',
-          'Set up CloudWatch Events for automation',
-          'Monitor and adjust schedules based on usage'
+          'Use AWS Instance Scheduler (solução oficial)',
+          'Ou crie Lambda functions com EventBridge',
+          'Adicione tags de schedule nas instâncias',
+          'Configure horários: parar 20h, iniciar 8h (dias úteis)',
+          'Exclua instâncias de produção críticas'
         ]
       },
       details: {
-        recommendedSchedule: 'Stop at 8 PM, start at 8 AM on weekdays',
-        applicableInstances: ec2Instances.length
+        recommendedSchedule: 'Parar às 20:00, iniciar às 08:00 (dias úteis)',
+        applicableInstances: ec2Instances.length,
+        estimatedHoursOff: 12 * 5 + 48, // 12h weekdays + 48h weekend = 108h/week
+        savingsCalculation: '~60% do tempo desligado = ~40% economia'
       }
     });
   }
   
+  // 7. General Cost Optimization Tips (always show)
+  recommendations.push({
+    type: 'increase_coverage',
+    priority: 'low',
+    service: 'General',
+    title: 'Habilitar AWS Cost Anomaly Detection',
+    description: 'Configure alertas automáticos para detectar gastos anormais e evitar surpresas na fatura.',
+    potentialSavings: {
+      monthly: 0,
+      annual: 0,
+      percentage: 0
+    },
+    implementation: {
+      difficulty: 'easy',
+      timeToImplement: '15 minutos',
+      steps: [
+        'Acesse AWS Cost Management > Cost Anomaly Detection',
+        'Crie um monitor para toda a conta',
+        'Configure alertas por email/SNS',
+        'Defina threshold de anomalia (ex: 10% acima do esperado)'
+      ]
+    },
+    details: {
+      benefit: 'Detecção proativa de gastos inesperados',
+      cost: 'Gratuito'
+    }
+  });
+  
+  logger.info(`Generated ${recommendations.length} recommendations`);
+  
   return recommendations;
+}
+
+function estimateRDSMonthlyCost(instanceClass: string): number {
+  const baseCosts: Record<string, number> = {
+    'db.t3.micro': 15,
+    'db.t3.small': 30,
+    'db.t3.medium': 60,
+    'db.t3.large': 120,
+    'db.t3.xlarge': 240,
+    'db.m5.large': 150,
+    'db.m5.xlarge': 300,
+    'db.m5.2xlarge': 600,
+    'db.r5.large': 200,
+    'db.r5.xlarge': 400,
+  };
+  
+  return baseCosts[instanceClass] || 150; // Default estimate
 }
 
 async function calculateCoverage(costExplorerClient: CostExplorerClient) {
