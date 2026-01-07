@@ -1,0 +1,640 @@
+/**
+ * WAF Setup Monitoring Lambda Handler
+ * 
+ * Configures WAF log monitoring in customer's AWS account using their existing IAM Role.
+ * Creates CloudWatch Logs subscription filter to send WAF logs cross-account to EVO.
+ * 
+ * Supports three filter modes:
+ * - block_only: Only BLOCK/COUNT events (recommended for MVP)
+ * - all_requests: All events including ALLOW (higher volume/cost)
+ * - hybrid: BLOCK/COUNT detailed + ALLOW metrics via CloudWatch Metrics
+ */
+
+import { getHttpMethod } from '../../lib/middleware.js';
+import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
+import { success, error, corsOptions } from '../../lib/response.js';
+import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getPrismaClient } from '../../lib/database.js';
+import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
+import { logger } from '../../lib/logging.js';
+import { 
+  WAFV2Client, 
+  GetLoggingConfigurationCommand,
+  PutLoggingConfigurationCommand,
+  DeleteLoggingConfigurationCommand,
+  ListWebACLsCommand,
+} from '@aws-sdk/client-wafv2';
+import {
+  CloudWatchLogsClient,
+  CreateLogGroupCommand,
+  PutSubscriptionFilterCommand,
+  DeleteSubscriptionFilterCommand,
+  DescribeSubscriptionFiltersCommand,
+} from '@aws-sdk/client-cloudwatch-logs';
+
+// Filter modes for WAF log collection
+type LogFilterMode = 'block_only' | 'all_requests' | 'hybrid';
+
+interface SetupWafMonitoringRequest {
+  accountId: string;      // ID da credencial AWS no banco
+  webAclArn: string;      // ARN do WAF Web ACL a monitorar
+  enabled: boolean;       // Habilitar ou desabilitar
+  filterMode?: LogFilterMode; // Modo de filtragem de logs (default: block_only)
+}
+
+interface SetupResult {
+  success: boolean;
+  logGroupName: string;
+  subscriptionFilterName: string;
+  filterMode: LogFilterMode;
+  message: string;
+}
+
+// EVO CloudWatch Logs Destination base name for cross-account subscription filters
+// Using Destination instead of direct Lambda ARN is required for cross-account
+const EVO_WAF_DESTINATION_NAME = 'evo-waf-log-destination';
+const EVO_ACCOUNT_ID = '383234048592';
+
+/**
+ * Get the destination ARN for a specific region
+ * The destination must be in the same region as the log group
+ */
+function getDestinationArn(region: string): string {
+  return `arn:aws:logs:${region}:${EVO_ACCOUNT_ID}:destination:${EVO_WAF_DESTINATION_NAME}`;
+}
+
+// Subscription filter name
+const SUBSCRIPTION_FILTER_NAME = 'evo-waf-monitoring';
+
+/**
+ * Get the CloudWatch Logs filter pattern based on filter mode
+ */
+function getFilterPattern(filterMode: LogFilterMode): string {
+  switch (filterMode) {
+    case 'block_only':
+      // Only BLOCK and COUNT actions
+      return '{ $.action = "BLOCK" || $.action = "COUNT" }';
+    case 'all_requests':
+      // All requests (empty pattern = everything)
+      return '';
+    case 'hybrid':
+      // Same as block_only for subscription filter
+      // ALLOW metrics will be collected via CloudWatch Metrics separately
+      return '{ $.action = "BLOCK" || $.action = "COUNT" }';
+    default:
+      return '{ $.action = "BLOCK" || $.action = "COUNT" }';
+  }
+}
+
+/**
+ * Extract Web ACL name from ARN
+ */
+function extractWebAclName(webAclArn: string): string {
+  // ARN format: arn:aws:wafv2:region:account:regional/webacl/name/id
+  const parts = webAclArn.split('/');
+  return parts[2] || 'unknown';
+}
+
+/**
+ * Get the log group name for WAF logs
+ */
+function getLogGroupName(webAclName: string): string {
+  // AWS WAF requires log group name to start with aws-waf-logs-
+  return `aws-waf-logs-${webAclName}`;
+}
+
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const user = getUserFromEvent(event);
+  const organizationId = getOrganizationId(user);
+  
+  logger.info('WAF Setup Monitoring started', { 
+    organizationId,
+    userId: user.sub,
+    requestId: context.awsRequestId 
+  });
+  
+  if (getHttpMethod(event) === 'OPTIONS') {
+    return corsOptions();
+  }
+  
+  try {
+    const body = event.body ? JSON.parse(event.body) : {};
+    const { action, accountId, webAclArn, enabled, filterMode = 'block_only' } = body;
+    
+    const prisma = getPrismaClient();
+    
+    // Handle different actions
+    if (action === 'list-wafs') {
+      return await handleListWafs(prisma, organizationId, accountId);
+    }
+    
+    if (action === 'get-configs') {
+      return await handleGetConfigs(prisma, organizationId, accountId);
+    }
+    
+    if (action === 'disable') {
+      return await handleDisableConfig(prisma, organizationId, body.configId);
+    }
+    
+    // Default: setup action
+    // Validate required parameters
+    if (!accountId) {
+      return error('Missing required parameter: accountId');
+    }
+    if (!webAclArn) {
+      return error('Missing required parameter: webAclArn');
+    }
+    
+    // For setup action, enabled defaults to true if not specified
+    const isEnabled = typeof enabled === 'boolean' ? enabled : true;
+    
+    // Validate filter mode
+    if (!['block_only', 'all_requests', 'hybrid'].includes(filterMode)) {
+      return error('Invalid filterMode. Must be: block_only, all_requests, or hybrid');
+    }
+    
+    // Get AWS credentials for the customer account
+    const account = await prisma.awsCredential.findFirst({
+      where: { id: accountId, organization_id: organizationId, is_active: true },
+    });
+    
+    if (!account) {
+      return error('AWS account not found');
+    }
+    
+    // Determine region from Web ACL ARN
+    const arnParts = webAclArn.split(':');
+    const region = arnParts[3] || 'us-east-1';
+    const scope = webAclArn.includes('/global/') ? 'CLOUDFRONT' : 'REGIONAL';
+    const wafRegion = scope === 'CLOUDFRONT' ? 'us-east-1' : region;
+    
+    // Resolve credentials (assume role in customer account)
+    const resolvedCreds = await resolveAwsCredentials(account, wafRegion);
+    const credentials = toAwsCredentials(resolvedCreds);
+    
+    // Extract customer AWS account ID from role ARN or Web ACL ARN
+    // Format: arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME
+    // Or from Web ACL ARN: arn:aws:wafv2:region:ACCOUNT_ID:...
+    let customerAwsAccountId = account.role_arn?.split(':')[4];
+    if (!customerAwsAccountId) {
+      // Try to get from Web ACL ARN
+      customerAwsAccountId = webAclArn.split(':')[4];
+    }
+    if (!customerAwsAccountId) {
+      return error('Could not determine AWS account ID');
+    }
+    
+    // Create AWS clients for customer account
+    const wafClient = new WAFV2Client({ region: wafRegion, credentials });
+    const logsClient = new CloudWatchLogsClient({ region: wafRegion, credentials });
+    
+    const webAclName = extractWebAclName(webAclArn);
+    const logGroupName = getLogGroupName(webAclName);
+    
+    if (isEnabled) {
+      // ENABLE MONITORING
+      const result = await enableWafMonitoring(
+        wafClient,
+        logsClient,
+        webAclArn,
+        webAclName,
+        logGroupName,
+        filterMode,
+        wafRegion,
+        customerAwsAccountId,
+        account,
+        organizationId,
+        accountId,
+        prisma
+      );
+      
+      logger.info('WAF monitoring enabled', { 
+        organizationId, 
+        accountId, 
+        webAclArn,
+        filterMode,
+        logGroupName 
+      });
+      
+      return success(result);
+    } else {
+      // DISABLE MONITORING
+      const result = await disableWafMonitoring(
+        wafClient,
+        logsClient,
+        webAclArn,
+        logGroupName,
+        organizationId,
+        prisma
+      );
+      
+      logger.info('WAF monitoring disabled', { 
+        organizationId, 
+        accountId, 
+        webAclArn 
+      });
+      
+      return success(result);
+    }
+    
+  } catch (err) {
+    logger.error('WAF Setup Monitoring error', err as Error, { 
+      organizationId,
+      userId: user.sub,
+      requestId: context.awsRequestId 
+    });
+    return error(err instanceof Error ? err.message : 'Internal server error');
+  }
+}
+
+/**
+ * Enable WAF monitoring for a Web ACL
+ */
+async function enableWafMonitoring(
+  wafClient: WAFV2Client,
+  logsClient: CloudWatchLogsClient,
+  webAclArn: string,
+  webAclName: string,
+  logGroupName: string,
+  filterMode: LogFilterMode,
+  region: string,
+  customerAwsAccountId: string,
+  account: { role_arn?: string | null },
+  organizationId: string,
+  accountId: string,
+  prisma: ReturnType<typeof getPrismaClient>
+): Promise<SetupResult> {
+  
+  // Step 1: Check if WAF logging is already configured
+  let loggingConfigured = false;
+  try {
+    const loggingConfig = await wafClient.send(new GetLoggingConfigurationCommand({
+      ResourceArn: webAclArn,
+    }));
+    loggingConfigured = !!loggingConfig.LoggingConfiguration;
+    logger.info('Existing WAF logging configuration found', { webAclArn, loggingConfigured });
+  } catch (err: unknown) {
+    const error = err as { name?: string };
+    if (error.name !== 'WAFNonexistentItemException') {
+      throw err;
+    }
+    // No logging configured yet - that's fine
+  }
+  
+  // Step 2: Create CloudWatch Log Group if needed
+  try {
+    await logsClient.send(new CreateLogGroupCommand({
+      logGroupName,
+    }));
+    logger.info('Created CloudWatch Log Group', { logGroupName });
+  } catch (err: unknown) {
+    const error = err as { name?: string };
+    if (error.name !== 'ResourceAlreadyExistsException') {
+      throw err;
+    }
+    // Log group already exists - that's fine
+  }
+  
+  // Step 3: Enable WAF logging to CloudWatch Logs
+  if (!loggingConfigured) {
+    const logDestination = `arn:aws:logs:${webAclArn.split(':')[3]}:${webAclArn.split(':')[4]}:log-group:${logGroupName}`;
+    
+    await wafClient.send(new PutLoggingConfigurationCommand({
+      LoggingConfiguration: {
+        ResourceArn: webAclArn,
+        LogDestinationConfigs: [logDestination],
+        // Optional: Add log filter for specific fields
+        LoggingFilter: filterMode === 'block_only' ? {
+          DefaultBehavior: 'DROP',
+          Filters: [
+            {
+              Behavior: 'KEEP',
+              Requirement: 'MEETS_ANY',
+              Conditions: [
+                { ActionCondition: { Action: 'BLOCK' } },
+                { ActionCondition: { Action: 'COUNT' } },
+              ],
+            },
+          ],
+        } : undefined,
+      },
+    }));
+    logger.info('Enabled WAF logging', { webAclArn, logDestination });
+  }
+  
+  // Step 4: Create or update subscription filter to send logs to EVO Lambda
+  const filterPattern = getFilterPattern(filterMode);
+  
+  // First, check if subscription filter already exists
+  try {
+    const existingFilters = await logsClient.send(new DescribeSubscriptionFiltersCommand({
+      logGroupName,
+      filterNamePrefix: SUBSCRIPTION_FILTER_NAME,
+    }));
+    
+    if (existingFilters.subscriptionFilters && existingFilters.subscriptionFilters.length > 0) {
+      // Delete existing filter to update it
+      await logsClient.send(new DeleteSubscriptionFilterCommand({
+        logGroupName,
+        filterName: SUBSCRIPTION_FILTER_NAME,
+      }));
+      logger.info('Deleted existing subscription filter', { logGroupName });
+    }
+  } catch (err: unknown) {
+    const error = err as { name?: string };
+    if (error.name !== 'ResourceNotFoundException') {
+      throw err;
+    }
+  }
+  
+  // Create new subscription filter using CloudWatch Logs Destination (required for cross-account)
+  const destinationArn = getDestinationArn(region);
+  
+  // Build the CloudWatch Logs role ARN in the customer account
+  // The role name follows the pattern: EVO-CloudWatch-Logs-Role-{StackName}
+  // We extract the stack name from the EVO Platform Role ARN
+  // Format: arn:aws:iam::ACCOUNT:role/EVO-Platform-Role-{StackName}
+  const evoPlatformRoleName = account.role_arn?.split('/').pop() || '';
+  const stackNameMatch = evoPlatformRoleName.match(/EVO-Platform-Role-(.+)/);
+  const stackName = stackNameMatch ? stackNameMatch[1] : 'evo-platform';
+  const cloudWatchLogsRoleArn = `arn:aws:iam::${customerAwsAccountId}:role/EVO-CloudWatch-Logs-Role-${stackName}`;
+  
+  await logsClient.send(new PutSubscriptionFilterCommand({
+    logGroupName,
+    filterName: SUBSCRIPTION_FILTER_NAME,
+    filterPattern,
+    destinationArn,
+    roleArn: cloudWatchLogsRoleArn,
+  }));
+  logger.info('Created subscription filter', { logGroupName, filterPattern, destinationArn, region, roleArn: cloudWatchLogsRoleArn });
+  
+  // Step 5: Save configuration to database
+  await prisma.wafMonitoringConfig.upsert({
+    where: {
+      organization_id_web_acl_arn: {
+        organization_id: organizationId,
+        web_acl_arn: webAclArn,
+      },
+    },
+    create: {
+      organization_id: organizationId,
+      aws_account_id: accountId,
+      web_acl_arn: webAclArn,
+      web_acl_name: webAclName,
+      log_group_name: logGroupName,
+      subscription_filter: SUBSCRIPTION_FILTER_NAME,
+      filter_mode: filterMode,
+      is_active: true,
+    },
+    update: {
+      aws_account_id: accountId,
+      web_acl_name: webAclName,
+      log_group_name: logGroupName,
+      subscription_filter: SUBSCRIPTION_FILTER_NAME,
+      filter_mode: filterMode,
+      is_active: true,
+      updated_at: new Date(),
+    },
+  });
+  
+  return {
+    success: true,
+    logGroupName,
+    subscriptionFilterName: SUBSCRIPTION_FILTER_NAME,
+    filterMode,
+    message: `WAF monitoring enabled for ${webAclName} with filter mode: ${filterMode}`,
+  };
+}
+
+/**
+ * Disable WAF monitoring for a Web ACL
+ */
+async function disableWafMonitoring(
+  wafClient: WAFV2Client,
+  logsClient: CloudWatchLogsClient,
+  webAclArn: string,
+  logGroupName: string,
+  organizationId: string,
+  prisma: ReturnType<typeof getPrismaClient>
+): Promise<SetupResult> {
+  
+  // Step 1: Delete subscription filter
+  try {
+    await logsClient.send(new DeleteSubscriptionFilterCommand({
+      logGroupName,
+      filterName: SUBSCRIPTION_FILTER_NAME,
+    }));
+    logger.info('Deleted subscription filter', { logGroupName });
+  } catch (err: unknown) {
+    const error = err as { name?: string };
+    if (error.name !== 'ResourceNotFoundException') {
+      throw err;
+    }
+    // Filter doesn't exist - that's fine
+  }
+  
+  // Step 2: Optionally disable WAF logging (keep it for customer's own use)
+  // We don't delete the WAF logging configuration as the customer might want to keep it
+  
+  // Step 3: Update database
+  await prisma.wafMonitoringConfig.updateMany({
+    where: {
+      organization_id: organizationId,
+      web_acl_arn: webAclArn,
+    },
+    data: {
+      is_active: false,
+      subscription_filter: null,
+      updated_at: new Date(),
+    },
+  });
+  
+  return {
+    success: true,
+    logGroupName,
+    subscriptionFilterName: SUBSCRIPTION_FILTER_NAME,
+    filterMode: 'block_only',
+    message: `WAF monitoring disabled for ${extractWebAclName(webAclArn)}`,
+  };
+}
+
+
+/**
+ * List available WAFs in customer account
+ */
+async function handleListWafs(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string,
+  accountId: string
+): Promise<APIGatewayProxyResultV2> {
+  if (!accountId) {
+    return error('Missing required parameter: accountId');
+  }
+  
+  // Get AWS credentials for the customer account
+  const account = await prisma.awsCredential.findFirst({
+    where: { id: accountId, organization_id: organizationId, is_active: true },
+  });
+  
+  if (!account) {
+    return error('AWS account not found');
+  }
+  
+  // Get all regions to scan
+  const regions = account.regions || ['us-east-1'];
+  const allWebAcls: any[] = [];
+  
+  for (const region of regions) {
+    try {
+      const resolvedCreds = await resolveAwsCredentials(account, region);
+      const credentials = toAwsCredentials(resolvedCreds);
+      const wafClient = new WAFV2Client({ region, credentials });
+      
+      // List REGIONAL WAFs
+      try {
+        const regionalWafs = await wafClient.send(new ListWebACLsCommand({
+          Scope: 'REGIONAL',
+        }));
+        
+        if (regionalWafs.WebACLs) {
+          allWebAcls.push(...regionalWafs.WebACLs.map(waf => ({
+            ...waf,
+            Scope: 'REGIONAL',
+            Region: region,
+          })));
+        }
+      } catch (err) {
+        logger.warn('Failed to list REGIONAL WAFs', { region, error: err });
+      }
+      
+      // List CLOUDFRONT WAFs (only in us-east-1)
+      if (region === 'us-east-1') {
+        try {
+          const cloudfrontWafs = await wafClient.send(new ListWebACLsCommand({
+            Scope: 'CLOUDFRONT',
+          }));
+          
+          if (cloudfrontWafs.WebACLs) {
+            allWebAcls.push(...cloudfrontWafs.WebACLs.map(waf => ({
+              ...waf,
+              Scope: 'CLOUDFRONT',
+              Region: 'global',
+            })));
+          }
+        } catch (err) {
+          logger.warn('Failed to list CLOUDFRONT WAFs', { error: err });
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to scan region for WAFs', { region, error: err });
+    }
+  }
+  
+  // Get existing configs to mark which WAFs are already monitored
+  const existingConfigs = await prisma.wafMonitoringConfig.findMany({
+    where: { organization_id: organizationId, is_active: true },
+    select: { web_acl_arn: true },
+  });
+  
+  const monitoredArns = new Set(existingConfigs.map(c => c.web_acl_arn));
+  
+  const wafsWithStatus = allWebAcls.map(waf => ({
+    ...waf,
+    isMonitored: monitoredArns.has(waf.ARN),
+  }));
+  
+  logger.info('Listed WAFs', { organizationId, count: wafsWithStatus.length });
+  
+  return success({ webAcls: wafsWithStatus });
+}
+
+/**
+ * Get existing WAF monitoring configurations
+ */
+async function handleGetConfigs(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string,
+  accountId?: string
+): Promise<APIGatewayProxyResultV2> {
+  const where: any = { organization_id: organizationId };
+  
+  if (accountId) {
+    where.aws_account_id = accountId;
+  }
+  
+  const configs = await prisma.wafMonitoringConfig.findMany({
+    where,
+    orderBy: { created_at: 'desc' },
+  });
+  
+  return success({ configs });
+}
+
+/**
+ * Disable a specific WAF monitoring configuration
+ */
+async function handleDisableConfig(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string,
+  configId: string
+): Promise<APIGatewayProxyResultV2> {
+  if (!configId) {
+    return error('Missing required parameter: configId');
+  }
+  
+  const config = await prisma.wafMonitoringConfig.findFirst({
+    where: { id: configId, organization_id: organizationId },
+  });
+  
+  if (!config) {
+    return error('Configuration not found');
+  }
+  
+  // Get AWS credentials
+  const account = await prisma.awsCredential.findFirst({
+    where: { id: config.aws_account_id, organization_id: organizationId, is_active: true },
+  });
+  
+  if (account) {
+    try {
+      // Determine region from Web ACL ARN
+      const arnParts = config.web_acl_arn.split(':');
+      const region = arnParts[3] || 'us-east-1';
+      
+      const resolvedCreds = await resolveAwsCredentials(account, region);
+      const credentials = toAwsCredentials(resolvedCreds);
+      const logsClient = new CloudWatchLogsClient({ region, credentials });
+      
+      // Delete subscription filter
+      try {
+        await logsClient.send(new DeleteSubscriptionFilterCommand({
+          logGroupName: config.log_group_name,
+          filterName: SUBSCRIPTION_FILTER_NAME,
+        }));
+        logger.info('Deleted subscription filter', { logGroupName: config.log_group_name });
+      } catch (err: unknown) {
+        const e = err as { name?: string };
+        if (e.name !== 'ResourceNotFoundException') {
+          logger.warn('Failed to delete subscription filter', { error: err });
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to cleanup AWS resources', { error: err });
+    }
+  }
+  
+  // Update database
+  await prisma.wafMonitoringConfig.update({
+    where: { id: configId },
+    data: {
+      is_active: false,
+      subscription_filter: null,
+      updated_at: new Date(),
+    },
+  });
+  
+  return success({ message: 'WAF monitoring disabled' });
+}

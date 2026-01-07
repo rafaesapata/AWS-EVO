@@ -64,84 +64,117 @@ export default function SecurityPosture() {
 
   // Get security posture data
   const { data: securityData, isLoading, refetch } = useQuery({
-    queryKey: ['security-posture-page', organizationId, selectedStandard],
+    queryKey: ['security-posture-page', organizationId],
     enabled: !!organizationId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
-      // Get security findings (table doesn't have aws_account_id)
-      const findingsResponse = await apiClient.select('security_findings', {
+      // Chamar o endpoint que calcula a postura de segurança
+      const postureResponse = await apiClient.invoke<{
+        success: boolean;
+        posture: {
+          overallScore: number;
+          riskLevel: string;
+          findings: {
+            critical: number;
+            high: number;
+            medium: number;
+            low: number;
+            total: number;
+          };
+          calculatedAt: string;
+        };
+      }>('get-security-posture', {});
+
+      if ('error' in postureResponse && postureResponse.error) {
+        throw new Error(postureResponse.error.message);
+      }
+
+      const posture = postureResponse.data?.posture;
+      
+      // Se não há findings, retornar null para indicar estado vazio
+      if (!posture || posture.findings.total === 0) {
+        // Buscar findings da tabela Finding para exibir detalhes
+        const findingsResponse = await apiClient.select('findings', {
+          select: '*',
+          eq: { organization_id: organizationId },
+          order: { column: 'created_at', ascending: false },
+          limit: 50
+        });
+
+        const findings = findingsResponse.data || [];
+        
+        if (findings.length === 0) {
+          return null;
+        }
+
+        // Calcular métricas dos findings
+        const findingsBySeverity = findings.reduce((acc: Record<string, number>, finding: any) => {
+          const severity = (finding.severity || 'low').toLowerCase();
+          acc[severity] = (acc[severity] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        return {
+          overall_score: posture?.overallScore || 100,
+          risk_level: posture?.riskLevel || 'low',
+          findings_by_severity: findingsBySeverity,
+          compliance_scores: {},
+          findings: findings,
+          hasData: true
+        };
+      }
+
+      // Buscar findings da tabela Finding para exibir detalhes
+      const findingsResponse = await apiClient.select('findings', {
         select: '*',
         eq: { organization_id: organizationId },
-        order: { severity: 'desc', created_at: 'desc' }
+        order: { column: 'created_at', ascending: false },
+        limit: 50
       });
-
-      // Get compliance data
-      const complianceResponse = await apiClient.select('compliance_checks', {
-        select: '*',
-        eq: { organization_id: organizationId }
-      });
-
-      // Calculate metrics
-      const findings = findingsResponse.data || [];
-      const compliance = complianceResponse.data || [];
-
-      const findingsBySeverity = findings.reduce((acc, finding) => {
-        acc[finding.severity] = (acc[finding.severity] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
-      const complianceScores = compliance.reduce((acc, check) => {
-        if (!acc[check.standard]) {
-          acc[check.standard] = { passed: 0, total: 0 };
-        }
-        acc[check.standard].total++;
-        if (check.status === 'passed') {
-          acc[check.standard].passed++;
-        }
-        return acc;
-      }, {} as Record<string, { passed: number; total: number }>);
-
-      // Calculate overall score
-      const criticalWeight = 10;
-      const highWeight = 5;
-      const mediumWeight = 2;
-      const lowWeight = 1;
-
-      const totalWeight = 
-        (findingsBySeverity.critical || 0) * criticalWeight +
-        (findingsBySeverity.high || 0) * highWeight +
-        (findingsBySeverity.medium || 0) * mediumWeight +
-        (findingsBySeverity.low || 0) * lowWeight;
-
-      const maxScore = 100;
-      const overallScore = Math.max(0, maxScore - totalWeight);
 
       return {
-        overall_score: overallScore,
-        findings_by_severity: findingsBySeverity,
-        compliance_scores: Object.entries(complianceScores).reduce((acc, [standard, data]) => {
-          acc[standard] = data.total > 0 ? (data.passed / data.total) * 100 : 0;
-          return acc;
-        }, {} as Record<string, number>),
-        findings: findings.slice(0, 50),
-        compliance_checks: compliance
+        overall_score: posture.overallScore,
+        risk_level: posture.riskLevel,
+        findings_by_severity: {
+          critical: posture.findings.critical,
+          high: posture.findings.high,
+          medium: posture.findings.medium,
+          low: posture.findings.low
+        },
+        compliance_scores: {},
+        findings: findingsResponse.data || [],
+        hasData: true
       };
     },
   });
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const handleRefresh = async () => {
+    setIsRefreshing(true);
     try {
+      // Chamar o endpoint que recalcula a postura de segurança
+      const response = await apiClient.invoke('get-security-posture', {});
+      
+      if ('error' in response && response.error) {
+        throw new Error(response.error.message);
+      }
+      
+      // Após recalcular, buscar os dados atualizados
       await refetch();
+      
       toast({
         title: "Dados atualizados",
-        description: "A postura de segurança foi atualizada com sucesso.",
+        description: "A postura de segurança foi recalculada com sucesso.",
       });
     } catch (error) {
       toast({
         title: "Erro ao atualizar",
-        description: "Não foi possível atualizar os dados de segurança.",
+        description: error instanceof Error ? error.message : "Não foi possível atualizar os dados de segurança.",
         variant: "destructive"
       });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -236,11 +269,11 @@ export default function SecurityPosture() {
                 variant="outline" 
                 size="sm" 
                 onClick={handleRefresh}
-                disabled={isLoading}
+                disabled={isLoading || isRefreshing}
                 className="glass"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                {isLoading ? 'Atualizando...' : 'Atualizar'}
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Analisando...' : 'Atualizar'}
               </Button>
               <Button 
                 variant="outline" 
@@ -266,19 +299,30 @@ export default function SecurityPosture() {
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-12 w-20" />
+            ) : !securityData ? (
+              <div className="space-y-2">
+                <div className="text-3xl font-bold text-muted-foreground">
+                  --/100
+                </div>
+                <Progress value={0} className="h-2" />
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Eye className="h-4 w-4" />
+                  <span>Sem dados</span>
+                </div>
+              </div>
             ) : (
               <div className="space-y-2">
                 <div className="text-3xl font-bold">
-                  {securityData?.overall_score || 0}/100
+                  {securityData.overall_score}/100
                 </div>
-                <Progress value={securityData?.overall_score || 0} className="h-2" />
+                <Progress value={securityData.overall_score} className="h-2" />
                 <div className="flex items-center gap-1 text-sm">
-                  {(securityData?.overall_score || 0) >= 80 ? (
+                  {securityData.overall_score >= 80 ? (
                     <>
                       <TrendingUp className="h-4 w-4 text-success" />
                       <span className="text-success">Excelente</span>
                     </>
-                  ) : (securityData?.overall_score || 0) >= 60 ? (
+                  ) : securityData.overall_score >= 60 ? (
                     <>
                       <Eye className="h-4 w-4 text-warning" />
                       <span className="text-warning">Atenção</span>
@@ -302,9 +346,11 @@ export default function SecurityPosture() {
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
+            ) : !securityData ? (
+              <div className="text-3xl font-bold text-muted-foreground">--</div>
             ) : (
               <div className="text-3xl font-bold text-destructive">
-                {securityData?.findings_by_severity?.critical || 0}
+                {securityData.findings_by_severity?.critical || 0}
               </div>
             )}
           </CardContent>
@@ -317,9 +363,11 @@ export default function SecurityPosture() {
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
+            ) : !securityData ? (
+              <div className="text-3xl font-bold text-muted-foreground">--</div>
             ) : (
               <div className="text-3xl font-bold text-warning">
-                {securityData?.findings_by_severity?.high || 0}
+                {securityData.findings_by_severity?.high || 0}
               </div>
             )}
           </CardContent>
@@ -332,9 +380,11 @@ export default function SecurityPosture() {
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
+            ) : !securityData ? (
+              <div className="text-3xl font-bold text-muted-foreground">--</div>
             ) : (
               <div className="text-3xl font-bold">
-                {Object.values(securityData?.findings_by_severity || {}).reduce((sum, count) => sum + count, 0)}
+                {Object.values(securityData.findings_by_severity || {}).reduce((sum, count) => sum + count, 0)}
               </div>
             )}
           </CardContent>

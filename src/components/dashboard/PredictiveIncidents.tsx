@@ -33,7 +33,8 @@ export default function PredictiveIncidents() {
     queryKey: ['predictive-incidents', organizationId, selectedAccountId],
     queryFn: async () => {
       const response = await apiClient.select('predictive_incidents', { 
-        eq: { organization_id: organizationId } 
+        eq: { organization_id: organizationId, status: 'active' },
+        order: { column: 'probability', ascending: false }
       });
       const data = response.data;
       const error = response.error;
@@ -53,7 +54,9 @@ export default function PredictiveIncidents() {
     queryKey: ['predictive-incidents-history', organizationId, selectedAccountId],
     queryFn: async () => {
       const response = await apiClient.select('predictive_incidents_history', { 
-        eq: { organization_id: organizationId } 
+        eq: { organization_id: organizationId },
+        order: { column: 'scan_date', ascending: false },
+        limit: 50
       });
       const data = response.data;
       const error = response.error;

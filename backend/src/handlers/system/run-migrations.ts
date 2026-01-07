@@ -49,6 +49,25 @@ const MIGRATION_COMMANDS = [
   `CREATE INDEX IF NOT EXISTS "resource_utilization_ml_account_idx" ON "resource_utilization_ml"("aws_account_id")`,
   `CREATE INDEX IF NOT EXISTS "resource_utilization_ml_type_idx" ON "resource_utilization_ml"("recommendation_type")`,
   
+  // ML Waste Detection v3.0 - Add missing columns
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "resource_arn" VARCHAR(512)`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "resource_subtype" VARCHAR(100)`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "current_hourly_cost" DOUBLE PRECISION`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "recommendation_priority" INTEGER`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "potential_annual_savings" DOUBLE PRECISION`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "resource_metadata" JSONB`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "dependencies" JSONB`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "implementation_steps" JSONB`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "risk_assessment" VARCHAR(20)`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "last_activity_at" TIMESTAMPTZ`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "days_since_activity" INTEGER`,
+  `ALTER TABLE "resource_utilization_ml" ADD COLUMN IF NOT EXISTS "aws_account_number" VARCHAR(20)`,
+  
+  // Fix unique constraint to use resource_arn instead of resource_id
+  `ALTER TABLE "resource_utilization_ml" DROP CONSTRAINT IF EXISTS "resource_utilization_ml_unique"`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "resource_utilization_ml_org_account_arn_key" ON "resource_utilization_ml"("organization_id", "aws_account_id", "resource_arn")`,
+  `CREATE INDEX IF NOT EXISTS "resource_utilization_ml_arn_idx" ON "resource_utilization_ml"("resource_arn")`,
+  
   // Resource Monitoring tables
   `CREATE TABLE IF NOT EXISTS "monitored_resources" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -255,6 +274,11 @@ const MIGRATION_COMMANDS = [
   `ALTER TABLE "cloudtrail_analyses" ADD COLUMN IF NOT EXISTS "period_end" TIMESTAMPTZ(6)`,
   `CREATE INDEX IF NOT EXISTS "cloudtrail_analyses_period_idx" ON "cloudtrail_analyses"("period_start", "period_end")`,
   
+  // Add security explanation and remediation columns to cloudtrail_events
+  `ALTER TABLE "cloudtrail_events" ADD COLUMN IF NOT EXISTS "security_explanation" TEXT`,
+  `ALTER TABLE "cloudtrail_events" ADD COLUMN IF NOT EXISTS "remediation_suggestion" TEXT`,
+  `ALTER TABLE "cloudtrail_events" ADD COLUMN IF NOT EXISTS "event_category" TEXT`,
+  
   // Edge Services tables (CloudFront, WAF, Load Balancers)
   `CREATE TABLE IF NOT EXISTS "edge_services" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -309,6 +333,178 @@ const MIGRATION_COMMANDS = [
         FOREIGN KEY ("service_id") REFERENCES "edge_services"("id") ON DELETE CASCADE ON UPDATE CASCADE;
     END IF;
   END $$`,
+  
+  // Predictive Incidents (ML) tables
+  `CREATE TABLE IF NOT EXISTS "predictive_incidents" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID,
+    "resource_id" TEXT,
+    "resource_name" TEXT,
+    "resource_type" TEXT,
+    "region" TEXT,
+    "incident_type" TEXT NOT NULL,
+    "severity" TEXT NOT NULL,
+    "probability" INTEGER NOT NULL,
+    "confidence_score" INTEGER NOT NULL,
+    "timeframe" TEXT,
+    "time_to_incident_hours" INTEGER,
+    "description" TEXT NOT NULL,
+    "recommendation" TEXT,
+    "recommended_actions" TEXT,
+    "contributing_factors" JSONB,
+    "indicators" JSONB,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "mitigated_at" TIMESTAMPTZ(6),
+    "resolved_at" TIMESTAMPTZ(6),
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "predictive_incidents_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_organization_id_idx" ON "predictive_incidents"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_aws_account_id_idx" ON "predictive_incidents"("aws_account_id")`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_severity_idx" ON "predictive_incidents"("severity")`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_incident_type_idx" ON "predictive_incidents"("incident_type")`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_status_idx" ON "predictive_incidents"("status")`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_probability_idx" ON "predictive_incidents"("probability")`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_created_at_idx" ON "predictive_incidents"("created_at")`,
+  
+  `CREATE TABLE IF NOT EXISTS "predictive_incidents_history" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID,
+    "total_predictions" INTEGER NOT NULL DEFAULT 0,
+    "critical_count" INTEGER NOT NULL DEFAULT 0,
+    "high_risk_count" INTEGER NOT NULL DEFAULT 0,
+    "medium_count" INTEGER NOT NULL DEFAULT 0,
+    "low_count" INTEGER NOT NULL DEFAULT 0,
+    "execution_time_seconds" DOUBLE PRECISION,
+    "message" TEXT,
+    "alerts_analyzed" INTEGER,
+    "findings_analyzed" INTEGER,
+    "drifts_analyzed" INTEGER,
+    "cost_points_analyzed" INTEGER,
+    "scan_date" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "predictive_incidents_history_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_history_organization_id_idx" ON "predictive_incidents_history"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_history_aws_account_id_idx" ON "predictive_incidents_history"("aws_account_id")`,
+  `CREATE INDEX IF NOT EXISTS "predictive_incidents_history_scan_date_idx" ON "predictive_incidents_history"("scan_date")`,
+  
+  // WAF Monitoring tables
+  `CREATE TABLE IF NOT EXISTS "waf_monitoring_configs" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID NOT NULL,
+    "web_acl_arn" TEXT NOT NULL,
+    "web_acl_name" TEXT NOT NULL,
+    "log_group_name" TEXT NOT NULL,
+    "subscription_filter" TEXT,
+    "filter_mode" TEXT NOT NULL DEFAULT 'block_only',
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "last_event_at" TIMESTAMPTZ(6),
+    "events_today" INTEGER NOT NULL DEFAULT 0,
+    "blocked_today" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "waf_monitoring_configs_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "waf_monitoring_configs_organization_id_web_acl_arn_key" ON "waf_monitoring_configs"("organization_id", "web_acl_arn")`,
+  `CREATE INDEX IF NOT EXISTS "waf_monitoring_configs_organization_id_idx" ON "waf_monitoring_configs"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "waf_monitoring_configs_aws_account_id_idx" ON "waf_monitoring_configs"("aws_account_id")`,
+  
+  `CREATE TABLE IF NOT EXISTS "waf_events" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID NOT NULL,
+    "timestamp" TIMESTAMPTZ(6) NOT NULL,
+    "action" TEXT NOT NULL,
+    "source_ip" TEXT NOT NULL,
+    "country" TEXT,
+    "region" TEXT,
+    "user_agent" TEXT,
+    "uri" TEXT NOT NULL,
+    "http_method" TEXT NOT NULL,
+    "rule_matched" TEXT,
+    "threat_type" TEXT,
+    "severity" TEXT NOT NULL DEFAULT 'low',
+    "is_campaign" BOOLEAN NOT NULL DEFAULT false,
+    "campaign_id" UUID,
+    "raw_log" JSONB NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "waf_events_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "waf_events_organization_id_idx" ON "waf_events"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "waf_events_timestamp_idx" ON "waf_events"("timestamp")`,
+  `CREATE INDEX IF NOT EXISTS "waf_events_source_ip_idx" ON "waf_events"("source_ip")`,
+  `CREATE INDEX IF NOT EXISTS "waf_events_threat_type_idx" ON "waf_events"("threat_type")`,
+  `CREATE INDEX IF NOT EXISTS "waf_events_severity_idx" ON "waf_events"("severity")`,
+  `CREATE INDEX IF NOT EXISTS "waf_events_organization_id_timestamp_idx" ON "waf_events"("organization_id", "timestamp")`,
+  
+  `CREATE TABLE IF NOT EXISTS "waf_attack_campaigns" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "source_ip" TEXT NOT NULL,
+    "start_time" TIMESTAMPTZ(6) NOT NULL,
+    "end_time" TIMESTAMPTZ(6),
+    "event_count" INTEGER NOT NULL DEFAULT 1,
+    "attack_types" TEXT[],
+    "severity" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "auto_blocked" BOOLEAN NOT NULL DEFAULT false,
+    "blocked_at" TIMESTAMPTZ(6),
+    "unblocked_at" TIMESTAMPTZ(6),
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "waf_attack_campaigns_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "waf_attack_campaigns_organization_id_idx" ON "waf_attack_campaigns"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "waf_attack_campaigns_source_ip_idx" ON "waf_attack_campaigns"("source_ip")`,
+  `CREATE INDEX IF NOT EXISTS "waf_attack_campaigns_status_idx" ON "waf_attack_campaigns"("status")`,
+  
+  `CREATE TABLE IF NOT EXISTS "waf_blocked_ips" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "ip_address" TEXT NOT NULL,
+    "reason" TEXT NOT NULL,
+    "blocked_by" TEXT NOT NULL,
+    "blocked_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(6) NOT NULL,
+    "waf_ip_set_id" TEXT,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    CONSTRAINT "waf_blocked_ips_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "waf_blocked_ips_organization_id_ip_address_key" ON "waf_blocked_ips"("organization_id", "ip_address")`,
+  `CREATE INDEX IF NOT EXISTS "waf_blocked_ips_organization_id_idx" ON "waf_blocked_ips"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "waf_blocked_ips_expires_at_idx" ON "waf_blocked_ips"("expires_at")`,
+  
+  `CREATE TABLE IF NOT EXISTS "waf_alert_configs" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "sns_enabled" BOOLEAN NOT NULL DEFAULT true,
+    "sns_topic_arn" TEXT,
+    "slack_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "slack_webhook_url" TEXT,
+    "in_app_enabled" BOOLEAN NOT NULL DEFAULT true,
+    "campaign_threshold" INTEGER NOT NULL DEFAULT 10,
+    "campaign_window_mins" INTEGER NOT NULL DEFAULT 5,
+    "auto_block_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "auto_block_threshold" INTEGER NOT NULL DEFAULT 50,
+    "block_duration_hours" INTEGER NOT NULL DEFAULT 24,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "waf_alert_configs_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "waf_alert_configs_organization_id_key" ON "waf_alert_configs"("organization_id")`,
+  
+  // Knowledge Base Articles - Add missing columns for approval workflow
+  `ALTER TABLE "knowledge_base_articles" ADD COLUMN IF NOT EXISTS "approval_status" TEXT NOT NULL DEFAULT 'draft'`,
+  `ALTER TABLE "knowledge_base_articles" ADD COLUMN IF NOT EXISTS "approved_by" UUID`,
+  `ALTER TABLE "knowledge_base_articles" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ(6)`,
+  `ALTER TABLE "knowledge_base_articles" ADD COLUMN IF NOT EXISTS "rejection_reason" TEXT`,
+  `ALTER TABLE "knowledge_base_articles" ADD COLUMN IF NOT EXISTS "is_public" BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE "knowledge_base_articles" ADD COLUMN IF NOT EXISTS "is_restricted" BOOLEAN NOT NULL DEFAULT false`,
+  `CREATE INDEX IF NOT EXISTS "knowledge_base_articles_approval_status_idx" ON "knowledge_base_articles"("approval_status")`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

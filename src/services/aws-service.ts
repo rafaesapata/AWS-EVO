@@ -227,7 +227,7 @@ export class AWSService {
   // Advanced RI/SP Analysis
   static async analyzeRISP(accountId: string, region: string = 'us-east-1', analysisDepth: string = 'comprehensive') {
     try {
-      const response = await apiClient.post('/functions/ri-sp-analyzer', {
+      const response = await apiClient.post('/api/functions/ri-sp-analyzer', {
         accountId,
         region,
         analysisDepth

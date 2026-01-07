@@ -16,6 +16,7 @@ import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
+import { getContextualExplanation, getSecurityExplanation } from '../../lib/security-explanations.js';
 import { CloudTrailClient, LookupEventsCommand, LookupEventsCommandInput } from '@aws-sdk/client-cloudtrail';
 
 interface AnalyzeCloudTrailRequest {
@@ -38,6 +39,9 @@ interface ProcessedEvent {
   error_code: string | null;
   source_ip_address: string | null;
   aws_region: string;
+  security_explanation?: string;
+  remediation_suggestion?: string;
+  event_category?: string;
 }
 
 interface EventData {
@@ -61,6 +65,9 @@ interface EventData {
   resources: any;
   risk_level: string;
   risk_reasons: string[];
+  security_explanation: string | null;
+  remediation_suggestion: string | null;
+  event_category: string | null;
   is_security_event: boolean;
 }
 
@@ -222,9 +229,14 @@ function processEvent(ctEvent: any, organizationId: string, accountId: string, d
     const userIdentity = eventData.userIdentity || {};
     const errorCode = eventData.errorCode || null;
     const errorMessage = eventData.errorMessage || null;
+    const sourceIp = eventData.sourceIPAddress || null;
     
     const { userName, userType, userArn } = extractUserInfo(userIdentity);
     const { level: riskLevel, reasons: riskReasons } = analyzeEventRisk(eventName, errorCode, userIdentity);
+    
+    // Get security explanation and remediation
+    const baseExplanation = getSecurityExplanation(eventName);
+    const { explanation, remediation } = getContextualExplanation(eventName, errorCode, userType, sourceIp);
     
     const isSecurityEvent = HIGH_RISK_EVENTS.has(eventName) || 
                            MEDIUM_RISK_EVENTS.has(eventName) ||
@@ -243,7 +255,7 @@ function processEvent(ctEvent: any, organizationId: string, accountId: string, d
       event_source: eventSource,
       event_time: eventTime,
       aws_region: eventData.awsRegion || defaultRegion,
-      source_ip_address: eventData.sourceIPAddress || null,
+      source_ip_address: sourceIp,
       user_agent: eventData.userAgent || null,
       user_identity: userIdentity,
       user_name: userName,
@@ -256,6 +268,9 @@ function processEvent(ctEvent: any, organizationId: string, accountId: string, d
       resources: resources,
       risk_level: riskLevel,
       risk_reasons: riskReasons,
+      security_explanation: isSecurityEvent ? explanation : null,
+      remediation_suggestion: isSecurityEvent ? remediation : null,
+      event_category: baseExplanation.category,
       is_security_event: isSecurityEvent,
     };
   } catch {
@@ -401,6 +416,9 @@ async function batchUpsertEvents(prisma: any, events: EventData[]): Promise<numb
           update: {
             risk_level: event.risk_level,
             risk_reasons: event.risk_reasons,
+            security_explanation: event.security_explanation,
+            remediation_suggestion: event.remediation_suggestion,
+            event_category: event.event_category,
             is_security_event: event.is_security_event,
           },
           create: event,

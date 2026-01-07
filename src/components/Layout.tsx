@@ -34,28 +34,7 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState("");
 
-  // Fetch user role from Cognito token (custom:roles attribute)
-  const { data: userRole } = useQuery({
-    queryKey: ['user-role'],
-    queryFn: async () => {
-      const currentUser = await cognitoAuth.getCurrentUser();
-      console.log('🔐 Layout: getCurrentUser for roles:', currentUser?.attributes);
-      if (!currentUser) return ['org_user'];
-
-      const rolesStr = currentUser.attributes?.['custom:roles'];
-      console.log('🔐 Layout: rolesStr from token:', rolesStr);
-      if (!rolesStr) return ['org_user'];
-
-      try {
-        const roles = JSON.parse(rolesStr);
-        console.log('🔐 Layout: parsed roles:', roles);
-        return Array.isArray(roles) ? roles : [roles];
-      } catch {
-        return ['org_user'];
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  const [userRole, setUserRole] = useState<string[]>(['org_user']);
 
   // Determine active tab based on current route
   useEffect(() => {
@@ -118,9 +97,9 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
     }
   }, [location]);
 
-  // Load user data
+  // Load user data and roles synchronously
   useEffect(() => {
-    const loadUser = async () => {
+    const loadUserAndRoles = async () => {
       console.log('🔄 Layout: Loading user data...');
       try {
         // Try AWS Cognito first (source of truth)
@@ -145,6 +124,22 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
           };
           console.log('📝 Layout: Setting user state:', userData);
           setUser(userData);
+
+          // Load user roles synchronously
+          const rolesStr = currentUser.attributes?.['custom:roles'];
+          console.log('🔐 Layout: rolesStr from token:', rolesStr);
+          if (rolesStr) {
+            try {
+              const roles = JSON.parse(rolesStr);
+              console.log('🔐 Layout: parsed roles:', roles);
+              const roleArray = Array.isArray(roles) ? roles : [roles];
+              setUserRole(roleArray);
+            } catch {
+              setUserRole(['org_user']);
+            }
+          } else {
+            setUserRole(['org_user']);
+          }
           return;
         }
 
@@ -156,6 +151,15 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
           console.log('📦 Layout: localStorage auth data:', authData);
           if (authData.user) {
             setUser(authData.user);
+            // Try to extract roles from stored session
+            if (authData.user.attributes?.['custom:roles']) {
+              try {
+                const roles = JSON.parse(authData.user.attributes['custom:roles']);
+                setUserRole(Array.isArray(roles) ? roles : [roles]);
+              } catch {
+                setUserRole(['org_user']);
+              }
+            }
           }
         } else {
           console.log('❌ Layout: No auth data found');
@@ -165,7 +169,7 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
       }
     };
 
-    loadUser();
+    loadUserAndRoles();
   }, []);
 
   // Set document title when title or description changes

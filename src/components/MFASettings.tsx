@@ -157,11 +157,12 @@ export default function MFASettings() {
       const challengeStr = String(challengeData.challenge);
       const userIdStr = String(challengeData.userId);
       
+      // Use exact domain evo.ai.udstec.io for rpId (must match origin)
       const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
         challenge: Uint8Array.from(challengeStr, c => c.charCodeAt(0)),
         rp: {
           name: challengeData.rpName || 'EVO UDS Platform',
-          id: challengeData.rpId || window.location.hostname,
+          id: 'evo.ai.udstec.io',
         },
         user: {
           id: Uint8Array.from(userIdStr, c => c.charCodeAt(0)),

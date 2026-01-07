@@ -1,0 +1,264 @@
+# Implementation Plan: WAF Real-Time Monitoring
+
+## Overview
+
+Implementação do sistema de monitoramento WAF em tempo real usando arquitetura híbrida multi-tenant. Os logs do WAF permanecem na conta do cliente e são enviados para a EVO via CloudWatch Subscription Filter cross-account, usando a IAM Role que clientes já configuraram para security scans.
+
+## Tasks
+
+- [x] 1. Database Schema and Models
+  - [x] 1.1 Add WAF tables to Prisma schema
+    - Add WafMonitoringConfig, WafEvent, WafAttackCampaign, WafBlockedIp, WafAlertConfig models
+    - Create indexes for performance (organization_id, timestamp, source_ip)
+    - _Requirements: 4.1, 4.2_
+  - [x] 1.2 Run Prisma migration
+    - Generate and apply migration for new tables
+    - _Requirements: 4.1_
+
+- [x] 2. Core WAF Log Processing
+  - [x] 2.1 Create WAF log parser module
+    - Create `backend/src/lib/waf/parser.ts`
+    - Implement parseWafLog() function to extract fields from WAF JSON
+    - Handle different WAF log format versions
+    - _Requirements: 1.2, 1.3_
+  - [ ]* 2.2 Write property test for WAF log parsing
+    - **Property 1: WAF Log Parsing Round-Trip**
+    - **Validates: Requirements 1.2, 1.3**
+  - [x] 2.3 Create threat detection module
+    - Create `backend/src/lib/waf/threat-detector.ts`
+    - Implement attack signature matching (SQLi, XSS, path traversal)
+    - Implement suspicious user-agent detection
+    - Implement sensitive path detection
+    - _Requirements: 2.1, 2.2, 2.3_
+  - [ ]* 2.4 Write property test for threat classification
+    - **Property 3: Threat Classification Consistency**
+    - **Property 4: Suspicious Pattern Detection**
+    - **Validates: Requirements 2.1, 2.2, 2.3, 2.6**
+  - [x] 2.5 Create severity calculator
+    - Implement severity assignment based on attack type and frequency
+    - _Requirements: 2.6_
+
+- [x] 3. Checkpoint - Core modules complete
+  - All core WAF library modules implemented
+
+- [x] 4. WAF Setup Monitoring Lambda (Cross-Account)
+  - [x] 4.1 Create waf-setup-monitoring handler
+    - Create `backend/src/handlers/security/waf-setup-monitoring.ts`
+    - Assume IAM Role na conta do cliente
+    - Habilitar WAF logging para CloudWatch Logs
+    - Criar Subscription Filter cross-account
+    - Salvar configuração no banco (WafMonitoringConfig)
+    - _Requirements: 1.1, 7.4_
+  - [x] 4.2 Update IAM policy template for customers
+    - Created `cloudformation/customer-iam-role-waf.yaml`
+    - Add wafv2:*LoggingConfiguration and logs:*SubscriptionFilter permissions
+    - _Requirements: 1.1_
+
+- [x] 5. WAF Log Processor Lambda
+  - [x] 5.1 Create waf-log-processor handler
+    - Create `backend/src/handlers/security/waf-log-processor.ts`
+    - Implement CloudWatch Logs Subscription Filter event handler
+    - Decode base64 + gunzip log data
+    - Map AWS Account ID to organization_id via WafMonitoringConfig
+    - Parse batch of WAF logs
+    - Persist events to PostgreSQL with organization_id
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 4.1, 4.2_
+  - [ ]* 5.2 Write property test for multi-tenant isolation
+    - **Property 2: Multi-Tenant Isolation**
+    - **Validates: Requirements 1.5, 4.2**
+  - [x] 5.3 Implement geolocation enrichment
+    - Use IP country from WAF log or fallback to IP lookup
+    - _Requirements: 4.3_
+  - [ ]* 5.4 Write property test for geolocation
+    - **Property 7: Event Persistence with Geolocation**
+    - **Validates: Requirements 4.1, 4.3**
+  - [x] 5.5 Add Lambda resource policy for cross-account
+    - Included in `cloudformation/waf-monitoring-stack.yaml`
+    - Allow logs.amazonaws.com to invoke Lambda
+    - _Requirements: 1.1_
+
+- [x] 6. Campaign Detection and Alerting
+  - [x] 6.1 Create campaign detector module
+    - Create `backend/src/lib/waf/campaign-detector.ts`
+    - Implement IP-based event grouping within time window
+    - Use Redis for rate tracking
+    - _Requirements: 2.4, 2.5_
+  - [ ]* 6.2 Write property test for campaign detection
+    - **Property 5: Campaign Detection Threshold**
+    - **Validates: Requirements 2.4, 3.4, 3.5**
+  - [x] 6.3 Create alert engine module
+    - Create `backend/src/lib/waf/alert-engine.ts`
+    - Implement SNS notification
+    - Implement Slack webhook notification
+    - Implement in-app alert creation
+    - _Requirements: 3.1, 3.2, 3.3, 3.6_
+  - [ ]* 6.4 Write property test for alert structure
+    - **Property 6: Alert Structure Completeness**
+    - **Validates: Requirements 3.3**
+
+- [x] 7. WAF Threat Analyzer Lambda
+  - [x] 7.1 Create waf-threat-analyzer handler
+    - Create `backend/src/handlers/security/waf-threat-analyzer.ts`
+    - Integrate threat detector, campaign detector, and alert engine
+    - Process events from waf-log-processor
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 8. Checkpoint - Processing pipeline complete
+  - All backend processing modules implemented
+
+- [x] 9. Auto-Block Functionality
+  - [x] 9.1 Create auto-block module
+    - Create `backend/src/lib/waf/auto-blocker.ts`
+    - Implement threshold-based IP blocking logic
+    - Implement AWS WAF IP Set integration
+    - _Requirements: 6.1, 6.2_
+  - [ ]* 9.2 Write property test for auto-block threshold
+    - **Property 9: Auto-Block Threshold Enforcement**
+    - **Validates: Requirements 6.1, 6.4**
+  - [x] 9.3 Implement block expiration handler
+    - Create `backend/src/handlers/security/waf-unblock-expired.ts`
+    - Scheduled Lambda to remove expired blocks
+    - _Requirements: 6.4_
+
+- [x] 10. Dashboard API Lambda
+  - [x] 10.1 Create waf-dashboard-api handler
+    - Create `backend/src/handlers/security/waf-dashboard-api.ts`
+    - Implement GET /waf-events endpoint with filters
+    - Implement GET /waf-metrics endpoint
+    - Implement GET /waf-top-attackers endpoint
+    - Implement GET /waf-attack-types endpoint
+    - Implement GET /waf-geo-distribution endpoint
+    - _Requirements: 4.5, 5.1, 5.4, 5.5_
+  - [ ]* 10.2 Write property test for query filters
+    - **Property 8: Query Filter Correctness**
+    - **Validates: Requirements 4.5**
+  - [x] 10.3 Implement manual block/unblock endpoints
+    - Implement POST /waf-block-ip endpoint
+    - Implement DELETE /waf-unblock-ip endpoint
+    - _Requirements: 6.5_
+  - [ ] 10.4 Implement Redis caching for metrics
+    - Cache aggregations with 5-minute TTL (optional optimization)
+    - _Requirements: 8.3, 8.5_
+
+- [x] 11. Checkpoint - Backend complete
+  - All backend handlers and modules implemented
+
+- [x] 12. Frontend Dashboard
+  - [x] 12.1 Create WAF monitoring page
+    - Create `src/pages/WafMonitoring.tsx`
+    - Implement page layout with tabs
+    - _Requirements: 5.1_
+  - [x] 12.2 Create metrics cards component
+    - Create `src/components/waf/WafMetricsCards.tsx`
+    - Display total requests, blocked, attack types count
+    - _Requirements: 5.1_
+  - [x] 12.3 Create events feed component
+    - Create `src/components/waf/WafEventsFeed.tsx`
+    - Display live feed of blocked requests
+    - Implement auto-refresh (polling)
+    - _Requirements: 5.2, 5.5_
+  - [x] 12.4 Create attack types chart
+    - Create `src/components/waf/WafAttackTypesChart.tsx`
+    - Pie chart showing distribution by attack type
+    - _Requirements: 5.1_
+  - [x] 12.5 Create time series chart
+    - Create `src/components/waf/WafTimeSeriesChart.tsx`
+    - Line chart for 24h/7d/30d trends
+    - _Requirements: 5.4_
+  - [x] 12.6 Create geographic map component
+    - Create `src/components/waf/WafGeoDistribution.tsx`
+    - Bar chart showing attack origins by country
+    - _Requirements: 5.3_
+  - [x] 12.7 Create top attackers table
+    - Create `src/components/waf/WafTopAttackers.tsx`
+    - Table with IP, count, country, actions
+    - _Requirements: 5.1_
+  - [x] 12.8 Create blocked IPs management
+    - Create `src/components/waf/WafBlockedIpsList.tsx`
+    - List blocked IPs with unblock action
+    - _Requirements: 6.5_
+  - [x] 12.9 Create event detail modal
+    - Create `src/components/waf/WafEventDetail.tsx`
+    - Show full event details including raw log
+    - _Requirements: 5.6_
+
+- [x] 13. Frontend Integration
+  - [x] 13.1 Add WAF monitoring to sidebar
+    - Update `src/components/AppSidebar.tsx`
+    - Add route in `src/main.tsx`
+    - _Requirements: 7.4_
+  - [x] 13.2 Add translations
+    - Update `src/i18n/locales/pt.json`
+    - Update `src/i18n/locales/en.json`
+    - Update `src/i18n/locales/es.json`
+    - _Requirements: 7.4_
+  - [x] 13.3 Create API client functions
+    - WAF API calls integrated in WafMonitoring.tsx using apiClient.invoke
+    - _Requirements: 5.1_
+
+- [x] 14. Checkpoint - Frontend complete
+  - All frontend components created and building successfully
+
+- [x] 15. AWS Infrastructure Setup
+  - [x] 15.1 Create CloudFormation stack for WAF monitoring
+    - Create `cloudformation/waf-monitoring-stack.yaml`
+    - Add Lambda resource policy for cross-account invocation
+    - Create SNS topic for alerts
+    - EventBridge rule for scheduled unblock
+    - _Requirements: 1.1, 3.2_
+  - [x] 15.2 Update customer IAM role template
+    - Create `cloudformation/customer-iam-role-waf.yaml`
+    - Add wafv2 and logs permissions to CloudFormation template
+    - _Requirements: 1.1_
+  - [x] 15.3 Configure API Gateway endpoints
+    - waf-dashboard-api handler supports action-based routing
+    - Configure Cognito authorization (uses existing pattern)
+    - _Requirements: 7.3_
+  - [x] 15.4 Deploy Lambda functions
+    - Build and deploy waf-setup-monitoring ✓
+    - Build and deploy waf-log-processor ✓
+    - Build and deploy waf-threat-analyzer ✓
+    - Build and deploy waf-dashboard-api ✓
+    - Build and deploy waf-unblock-expired ✓
+    - API Gateway endpoints configured ✓
+    - EventBridge scheduled rule created ✓
+    - Database migration applied ✓
+    - Frontend deployed ✓
+    - _Requirements: 8.1_
+
+- [x] 16. Final Checkpoint - Full system integration ✅
+  - All Lambda functions deployed and configured:
+    - evo-uds-v3-production-waf-dashboard-api (Active)
+    - evo-uds-v3-production-waf-log-processor (Active)
+    - evo-uds-v3-production-waf-setup-monitoring (Active)
+    - evo-uds-v3-production-waf-threat-analyzer (Active)
+    - evo-uds-v3-production-waf-unblock-expired (Active)
+  - API Gateway endpoints configured:
+    - POST /api/functions/waf-dashboard-api
+    - POST /api/functions/waf-setup-monitoring
+    - POST /api/functions/waf-dashboard (legacy)
+  - Database tables created:
+    - waf_monitoring_configs
+    - waf_events
+    - waf_attack_campaigns
+    - waf_blocked_ips
+    - waf_alert_configs
+  - Prisma Layer updated to v33 with WAF models
+  - Frontend deployed at /waf-monitoring with auto-setup wizard
+  - EventBridge rule for scheduled unblock (every 5 minutes)
+  - CloudWatch Logs cross-account permission configured
+  - WafSetupPanel auto-fetches WAFs from customer account
+  - One-click WAF monitoring setup implemented
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation
+- Property tests validate universal correctness properties
+- Unit tests validate specific examples and edge cases
+- All Lambda handlers follow the existing project patterns (Node.js 18.x, TypeScript)
+- Database uses PostgreSQL via Prisma (no DynamoDB)
+- **Arquitetura Híbrida**: Logs permanecem na conta do cliente, enviados via CloudWatch Subscription Filter cross-account
+- **Sem Kinesis**: Usa CloudWatch Subscription Filter (mais barato e simples)
+- **IAM Role existente**: Reutiliza a role que clientes já configuraram para security scans

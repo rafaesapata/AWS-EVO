@@ -9,6 +9,9 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Shield, Key, AlertCircle } from "lucide-react";
 import evoLogo from "@/assets/logo.png";
+import ForgotPassword from "@/components/auth/ForgotPassword";
+import NewPasswordRequired from "@/components/auth/NewPasswordRequired";
+import MFAVerify from "@/components/auth/MFAVerify";
 
 export default function AuthSimple() {
   const navigate = useNavigate();
@@ -16,59 +19,90 @@ export default function AuthSimple() {
   const [password, setPassword] = useState("");
   const [mounted, setMounted] = useState(false);
   const [showWebAuthn, setShowWebAuthn] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showNewPasswordRequired, setShowNewPasswordRequired] = useState(false);
+  const [showMFAVerify, setShowMFAVerify] = useState(false);
+  const [newPasswordSession, setNewPasswordSession] = useState("");
   const [webAuthnLoading, setWebAuthnLoading] = useState(false);
   const [webAuthnError, setWebAuthnError] = useState("");
-  const { user, isLoading, error, signIn, signOut, clearError } = useAuthSafe();
+  const [mfaFactors, setMfaFactors] = useState<any[]>([]);
+  const [mfaError, setMfaError] = useState("");
+  const { user, isLoading, error, challengeSession, challengeName, signIn, signOut, confirmNewPassword, clearError } = useAuthSafe();
 
   // Animation on mount
   useEffect(() => {
     setMounted(true);
+    
+    // Check if WebAuthn is required from previous login attempt
+    const webauthnRequired = sessionStorage.getItem('webauthn-required');
+    const webauthnEmail = sessionStorage.getItem('webauthn-email');
+    
+    if (webauthnRequired === 'true' && webauthnEmail) {
+      console.log('🔐 WebAuthn required from sessionStorage, showing WebAuthn screen');
+      setEmail(webauthnEmail);
+      setShowWebAuthn(true);
+      // Clear the flag
+      sessionStorage.removeItem('webauthn-required');
+    }
   }, []);
 
-  // Check if user is already logged in
+  // Check if user is already logged in (but not if we're showing WebAuthn or MFA screen)
   useEffect(() => {
-    if (user) {
+    if (user && !showWebAuthn && !showMFAVerify) {
       navigate("/app");
     }
-  }, [user, navigate]);
+  }, [user, navigate, showWebAuthn, showMFAVerify]);
+
+  // Watch for NEW_PASSWORD_REQUIRED challenge
+  useEffect(() => {
+    if (challengeName === 'NEW_PASSWORD_REQUIRED' && challengeSession) {
+      console.log('🔐 NEW_PASSWORD_REQUIRED challenge detected, showing new password screen');
+      setNewPasswordSession(challengeSession);
+      setShowNewPasswordRequired(true);
+    }
+  }, [challengeName, challengeSession]);
+
+  // Clear any WebAuthn cache on component mount
+  useEffect(() => {
+    // Clear sessionStorage items related to WebAuthn
+    sessionStorage.removeItem('webauthn-required');
+    sessionStorage.removeItem('webauthn-email');
+    sessionStorage.removeItem('webauthn-challenge');
+    sessionStorage.removeItem('webauthn-options');
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
     setWebAuthnError("");
+    setMfaError("");
+    
+    console.log('🔐 [AUTH] Starting login process for:', email);
     
     // Try normal login first
     const success = await signIn(email, password);
     
+    console.log('🔐 [AUTH] Cognito login result:', success);
+    
     if (success) {
-      // After successful Cognito login, check if user has WebAuthn
+      // After successful Cognito login, check for local MFA settings
       try {
-        console.log('🔐 Checking for WebAuthn credentials after login...');
-        const result = await apiClient.invoke('webauthn-authenticate', {
-          body: { action: 'start', email }
+        console.log('🔐 Checking for local MFA settings after login...');
+        const mfaResult = await apiClient.invoke('mfa-check', {
+          body: {}
         });
 
-        console.log('🔐 WebAuthn check result:', result);
+        console.log('🔐 MFA check result:', mfaResult);
 
-        // If we got a successful response with credentials, require WebAuthn
-        if (result.data?.options?.allowCredentials && result.data.options.allowCredentials.length > 0) {
-          console.log('🔐 WebAuthn credentials found - requiring WebAuthn authentication');
-          setShowWebAuthn(true);
-          // Sign out from Cognito since we need WebAuthn
-          await signOut();
-          return;
-        }
-
-        // If there was an error but it's not a "not found" error, log it but continue
-        if (result.error && !result.error.message?.includes('not found')) {
-          console.warn('🔐 WebAuthn check had an error, but continuing with normal login:', result.error);
-        }
+        // TEMPORARILY DISABLED - allow user to enter and delete old credentials
+        console.log('🔐 MFA/WebAuthn check temporarily disabled');
+        
       } catch (error) {
-        console.warn('🔐 WebAuthn check failed, continuing with normal login:', error);
-        // Continue with normal login if WebAuthn check fails
+        console.warn('🔐 MFA/WebAuthn check failed, continuing with normal login:', error);
+        // Continue with normal login if checks fail
       }
       
-      console.log("✅ Login successful");
+      console.log("✅ Login successful - redirecting to app");
       navigate("/app");
     }
   };
@@ -98,7 +132,7 @@ export default function AuthSimple() {
         })) || [],
         timeout: options.timeout || 60000,
         userVerification: options.userVerification || 'preferred',
-        rpId: options.rpId
+        rpId: 'evo.ai.udstec.io'
       };
 
       const credential = await navigator.credentials.get({
@@ -166,12 +200,91 @@ export default function AuthSimple() {
     }
   };
 
+  const handleMFAVerify = async (factorId: string, code: string): Promise<boolean> => {
+    try {
+      console.log('🔐 Verifying MFA code...', { factorId });
+      
+      const result = await apiClient.invoke('mfa-verify-login', {
+        body: { factorId, code }
+      });
+
+      if (result.data?.verified) {
+        console.log('🔐 MFA verification successful');
+        return true;
+      } else {
+        console.log('🔐 MFA verification failed:', result.error);
+        setMfaError(result.error?.message || 'Invalid MFA code');
+        return false;
+      }
+    } catch (error) {
+      console.error('🔐 MFA verification error:', error);
+      setMfaError('Error verifying MFA code');
+      return false;
+    }
+  };
+
+  const handleMFAVerified = () => {
+    console.log('🔐 MFA verified successfully - redirecting to app');
+    navigate("/app");
+  };
+
+  const handleNewPasswordSet = async (session: string, newPassword: string): Promise<boolean> => {
+    const success = await confirmNewPassword(session, newPassword);
+    if (success) {
+      console.log("✅ New password set successfully - redirecting to app");
+      navigate("/app");
+    }
+    return success;
+  };
+
   const handleBackToLogin = () => {
     setShowWebAuthn(false);
+    setShowForgotPassword(false);
+    setShowNewPasswordRequired(false);
+    setShowMFAVerify(false);
     setWebAuthnError("");
+    setMfaError("");
+    setNewPasswordSession("");
+    setMfaFactors([]);
     setEmail("");
     setPassword("");
+    sessionStorage.removeItem('webauthn-required');
+    sessionStorage.removeItem('webauthn-email');
   };
+
+  // Se está mostrando a tela de recuperação de senha
+  if (showForgotPassword) {
+    return <ForgotPassword onBackToLogin={handleBackToLogin} />;
+  }
+
+  // Se está mostrando a tela de nova senha obrigatória
+  if (showNewPasswordRequired) {
+    return (
+      <NewPasswordRequired
+        email={email}
+        session={challengeSession || newPasswordSession}
+        onPasswordSet={handleNewPasswordSet}
+        onBackToLogin={handleBackToLogin}
+        isLoading={isLoading}
+        error={error}
+      />
+    );
+  }
+
+  // Se está mostrando a tela de verificação MFA
+  if (showMFAVerify) {
+    return (
+      <MFAVerify
+        email={email}
+        mfaFactors={mfaFactors}
+        onMFAVerified={handleMFAVerified}
+        onBackToLogin={handleBackToLogin}
+        onVerifyMFA={handleMFAVerify}
+        isLoading={isLoading}
+        error={mfaError}
+      />
+    );
+  }
 
   if (showWebAuthn) {
     return (
@@ -351,6 +464,17 @@ export default function AuthSimple() {
                   </span>
                 ) : "Entrar"}
               </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  disabled={isLoading}
+                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors duration-200 disabled:opacity-50"
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
             </form>
           </CardContent>
         </Card>

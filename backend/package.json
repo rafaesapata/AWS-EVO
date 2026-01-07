@@ -22,6 +22,7 @@
     "@aws-sdk/client-apigatewaymanagementapi": "^3.948.0",
     "@aws-sdk/client-apigatewayv2": "^3.958.0",
     "@aws-sdk/client-backup": "^3.958.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.958.0",
     "@aws-sdk/client-cloudformation": "^3.948.0",
     "@aws-sdk/client-cloudfront": "^3.958.0",
     "@aws-sdk/client-cloudtrail": "^3.948.0",

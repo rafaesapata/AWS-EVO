@@ -179,18 +179,23 @@ export default function MLWasteDetection() {
   };
 
   // Query for ML recommendations
-  const { data: mlRecommendations, refetch } = useQuery<MLRecommendation[]>({
+  const { data: mlRecommendations, refetch, isLoading: recommendationsLoading } = useQuery<MLRecommendation[]>({
     queryKey: ['ml-waste-detection', 'org', organizationId, 'account', selectedAccountId],
     enabled: !!organizationId && !!selectedAccountId,
+    staleTime: 0, // Always fetch fresh data
     queryFn: async () => {
       if (!organizationId || !selectedAccountId) throw new Error('No organization or account');
 
+      console.log('🔍 ML Query - Fetching recommendations for:', { organizationId, selectedAccountId });
+      
       const result = await apiClient.select('resource_utilization_ml', {
         select: '*',
         eq: { organization_id: organizationId, aws_account_id: selectedAccountId },
         order: { column: 'potential_monthly_savings', ascending: false },
         limit: 100
       });
+      
+      console.log('🔍 ML Query - Result:', result);
       
       if (result.error) throw result.error;
       return (result.data || []) as MLRecommendation[];
@@ -244,9 +249,11 @@ export default function MLWasteDetection() {
         description: `Analyzed ${data.analyzed_resources || 0} resources. Potential savings: $${data.total_monthly_savings?.toFixed(2) || '0.00'}/month`,
       });
 
-      // Refresh both queries
-      refetch();
-      refetchHistory();
+      // Refresh both queries and wait for completion
+      await Promise.all([refetch(), refetchHistory()]);
+      
+      // Switch to recommendations tab to show results
+      setActiveTab('recommendations');
     } catch (error: any) {
       const errorMessage = typeof error?.message === 'string' 
         ? error.message 
@@ -256,7 +263,7 @@ export default function MLWasteDetection() {
         description: errorMessage,
         variant: "destructive",
       });
-      refetchHistory();
+      await refetchHistory();
     } finally {
       setAnalyzing(false);
     }
@@ -561,7 +568,13 @@ export default function MLWasteDetection() {
                     </div>
                   </div>
                 ))}
-                {(!mlRecommendations || mlRecommendations.length === 0) && (
+                {recommendationsLoading && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Loader2 className="h-12 w-12 mx-auto mb-2 animate-spin opacity-50" />
+                    <p>Loading recommendations...</p>
+                  </div>
+                )}
+                {!recommendationsLoading && (!mlRecommendations || mlRecommendations.length === 0) && (
                   <div className="text-center py-8 text-muted-foreground">
                     <Brain className="h-12 w-12 mx-auto mb-2 opacity-50" />
                     <p>No ML analysis data yet.</p>

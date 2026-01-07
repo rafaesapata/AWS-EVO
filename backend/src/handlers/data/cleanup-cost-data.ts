@@ -1,11 +1,12 @@
 /**
- * Lambda handler para limpar dados de custo antigos/incorretos
- * Remove todos os registros da tabela daily_costs para permitir re-fetch
+ * Cleanup Cost Data Handler
+ * Removes all daily_costs for an organization/account to allow fresh re-sync
+ * Admin-only operation
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { success, error, badRequest, corsOptions, unauthorized } from '../../lib/response.js';
+import { getUserFromEvent, getOrganizationId, isSuperAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
@@ -14,7 +15,7 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  const origin = getOrigin(event);
+  const origin = getOrigin(event) || '*';
   logger.info('Cleanup Cost Data started', { requestId: context.awsRequestId });
   
   if (getHttpMethod(event) === 'OPTIONS') {
@@ -25,45 +26,86 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationId(user);
     
+    // Parse body
+    let body: { 
+      accountId?: string;
+      startDate?: string;
+      endDate?: string;
+      confirmDelete?: boolean;
+    } = {};
+    
+    if (event.body) {
+      try {
+        body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+      } catch {
+        return badRequest('Invalid JSON body', undefined, origin);
+      }
+    }
+    
+    const { accountId, startDate, endDate, confirmDelete } = body;
+    
+    if (!confirmDelete) {
+      return badRequest('Must set confirmDelete: true to proceed', undefined, origin);
+    }
+    
     const prisma = getPrismaClient();
     
-    // Contar registros antes da limpeza
+    // Build where clause
+    const whereClause: any = {
+      organization_id: organizationId,
+    };
+    
+    if (accountId) {
+      whereClause.aws_account_id = accountId;
+    }
+    
+    if (startDate) {
+      whereClause.date = { ...whereClause.date, gte: new Date(startDate) };
+    }
+    
+    if (endDate) {
+      whereClause.date = { ...whereClause.date, lte: new Date(endDate) };
+    }
+    
+    // Count records to be deleted
     const countBefore = await prisma.dailyCost.count({
-      where: {
-        organization_id: organizationId,
-      },
+      where: whereClause,
     });
     
-    logger.info('Cleaning up cost data', { 
+    logger.info('Deleting cost records', {
       organizationId,
-      recordsToDelete: countBefore
+      accountId,
+      startDate,
+      endDate,
+      recordsToDelete: countBefore,
     });
     
-    // Deletar todos os registros de custo da organização
+    // Delete records
     const deleteResult = await prisma.dailyCost.deleteMany({
-      where: {
-        organization_id: organizationId,
-      },
+      where: whereClause,
     });
     
-    logger.info('Cost data cleanup completed', { 
+    logger.info('Cost data cleanup completed', {
       organizationId,
-      deletedRecords: deleteResult.count
+      accountId,
+      deletedCount: deleteResult.count,
+      requestId: context.awsRequestId,
     });
     
     return success({
       success: true,
       message: `Deleted ${deleteResult.count} cost records`,
-      deletedRecords: deleteResult.count,
-      organizationId
+      deletedCount: deleteResult.count,
+      filters: {
+        organizationId,
+        accountId: accountId || 'all',
+        startDate: startDate || 'all',
+        endDate: endDate || 'all',
+      },
     }, 200, origin);
     
-  } catch (err: any) {
-    logger.error('Cleanup cost data error', err, { 
-      organizationId: 'unknown',
-      requestId: context.awsRequestId,
-    });
-    
-    return error(err instanceof Error ? err.message : 'Failed to cleanup cost data', 500, undefined, origin);
+  } catch (err) {
+    logger.error('Cleanup Cost Data error', err as Error, { requestId: context.awsRequestId });
+    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
 }

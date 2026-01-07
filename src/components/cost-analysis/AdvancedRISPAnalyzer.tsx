@@ -114,10 +114,17 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
   const runAnalysis = async () => {
     setLoading(true);
     try {
-      const result = await awsService.analyzeRISP(accountId, region, analysisDepth);
+      const response = await awsService.analyzeRISP(accountId, region, analysisDepth);
+      
+      // Extract data from API response { data, error }
+      if (response.error) {
+        throw new Error(response.error.message || 'Erro na análise');
+      }
+      
+      const result = response.data as RISPAnalysisResult;
       setAnalysis(result);
       
-      if (result.recommendations.length === 0) {
+      if (!result.recommendations || result.recommendations.length === 0) {
         toast({
           title: "Análise Concluída",
           description: "Nenhuma recomendação de otimização encontrada. Sua infraestrutura está bem otimizada!",
@@ -132,7 +139,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
       console.error('Error running RI/SP analysis:', error);
       toast({
         title: "Erro na Análise",
-        description: "Não foi possível executar a análise. Tente novamente.",
+        description: error instanceof Error ? error.message : "Não foi possível executar a análise. Tente novamente.",
         variant: "destructive",
       });
     } finally {

@@ -7,17 +7,26 @@ import { AuthStack } from '../lib/auth-stack';
 import { ApiStack } from '../lib/api-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 import { MonitoringStack } from '../lib/monitoring-stack';
+import { getEnvironmentConfig, validateAwsProfile, EnvironmentConfig } from '../lib/config/environments';
 
 const app = new cdk.App();
 
-// Environment configuration
+// Obtém ambiente do contexto CDK ou variável de ambiente
+// Uso: cdk deploy --context env=production
+//  ou: DEPLOY_ENV=production cdk deploy
+const envName = app.node.tryGetContext('env') || process.env.DEPLOY_ENV || 'development';
+const config: EnvironmentConfig = getEnvironmentConfig(envName);
+
+// Valida e exibe informações do ambiente
+validateAwsProfile(config);
+
+// Environment configuration para CDK
 const env = {
-  account: process.env.CDK_DEFAULT_ACCOUNT,
-  region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
+  account: config.account,
+  region: config.region,
 };
 
-const environment = process.env.NODE_ENV || 'development';
-const stackPrefix = `EvoUds${environment.charAt(0).toUpperCase() + environment.slice(1)}`;
+const stackPrefix = config.stackPrefix;
 
 // Network Stack (VPC, Subnets, etc.)
 const networkStack = new NetworkStack(app, `${stackPrefix}NetworkStack`, {
@@ -73,11 +82,15 @@ monitoringStack.addDependency(databaseStack);
 // Tags
 const tags = {
   Project: 'EVO-UDS',
-  Environment: environment,
+  Environment: config.envName,
   ManagedBy: 'CDK',
+  AwsProfile: config.profile,
   DeployedAt: new Date().toISOString(),
 };
 
 Object.entries(tags).forEach(([key, value]) => {
   cdk.Tags.of(app).add(key, value);
 });
+
+// Export config para uso em outros módulos
+export { config };

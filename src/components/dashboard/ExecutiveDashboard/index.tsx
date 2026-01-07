@@ -5,10 +5,11 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw, BarChart3, Download } from 'lucide-react';
+import { RefreshCw, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ErrorState } from '@/components/ui/error-state';
 import { useExecutiveDashboard } from '@/hooks/useExecutiveDashboard';
 import { useTVDashboard } from '@/contexts/TVDashboardContext';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -50,13 +51,15 @@ export default function ExecutiveDashboardV2() {
   // Error state
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 space-y-4">
-        <p className="text-destructive">{error?.message || t('common.error')}</p>
-        <Button onClick={refresh} variant="outline">
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {t('common.retry', 'Retry')}
-        </Button>
-      </div>
+      <ErrorState 
+        error={error}
+        type="server"
+        title="Dashboard Indisponível"
+        message="Não foi possível carregar os dados do dashboard executivo. Nossos servidores podem estar temporariamente indisponíveis."
+        onRetry={refresh}
+        showReload={true}
+        showDetails={true}
+      />
     );
   }
 

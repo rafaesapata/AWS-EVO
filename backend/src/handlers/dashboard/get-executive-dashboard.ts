@@ -648,9 +648,166 @@ async function getInsightsData(
   prisma: any,
   organizationId: string
 ): Promise<AIInsight[]> {
-  // AI Insights table doesn't exist yet - return empty array
-  // Future: implement AI insights generation
-  return [];
+  const insights: AIInsight[] = [];
+  const now = new Date();
+
+  try {
+    // 1. Check for critical security findings
+    const criticalFindings = await prisma.finding.count({
+      where: {
+        organization_id: organizationId,
+        severity: { in: ['critical', 'CRITICAL'] },
+        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+      }
+    });
+
+    if (criticalFindings > 0) {
+      insights.push({
+        id: `insight-security-critical-${now.getTime()}`,
+        type: 'security_risk',
+        severity: 'critical',
+        title: `${criticalFindings} vulnerabilidade(s) crítica(s) detectada(s)`,
+        description: `Existem ${criticalFindings} findings de segurança com severidade crítica que requerem atenção imediata.`,
+        recommendation: 'Execute um scan de segurança e priorize a remediação dos findings críticos.',
+        confidence: 0.95,
+        generatedAt: now
+      });
+    }
+
+    // 2. Check for high findings
+    const highFindings = await prisma.finding.count({
+      where: {
+        organization_id: organizationId,
+        severity: { in: ['high', 'HIGH'] },
+        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+      }
+    });
+
+    if (highFindings > 5) {
+      insights.push({
+        id: `insight-security-high-${now.getTime()}`,
+        type: 'security_risk',
+        severity: 'warning',
+        title: `${highFindings} findings de alta severidade pendentes`,
+        description: `Há um acúmulo de ${highFindings} findings de alta severidade que podem representar riscos significativos.`,
+        recommendation: 'Revise e priorize a remediação dos findings de alta severidade.',
+        confidence: 0.88,
+        generatedAt: now
+      });
+    }
+
+    // 3. Check cost trends (compare last 7 days vs previous 7 days)
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const [recentCosts, previousCosts] = await Promise.all([
+      prisma.dailyCost.aggregate({
+        where: {
+          organization_id: organizationId,
+          date: { gte: sevenDaysAgo }
+        },
+        _sum: { cost: true }
+      }),
+      prisma.dailyCost.aggregate({
+        where: {
+          organization_id: organizationId,
+          date: { gte: fourteenDaysAgo, lt: sevenDaysAgo }
+        },
+        _sum: { cost: true }
+      })
+    ]);
+
+    const recentTotal = Number(recentCosts._sum?.cost || 0);
+    const previousTotal = Number(previousCosts._sum?.cost || 0);
+
+    if (previousTotal > 0 && recentTotal > previousTotal * 1.2) {
+      const increase = ((recentTotal - previousTotal) / previousTotal * 100).toFixed(1);
+      insights.push({
+        id: `insight-cost-increase-${now.getTime()}`,
+        type: 'cost_anomaly',
+        severity: 'warning',
+        title: `Aumento de ${increase}% nos custos`,
+        description: `Os custos dos últimos 7 dias aumentaram ${increase}% em comparação com a semana anterior.`,
+        recommendation: 'Analise os serviços com maior crescimento de custo e verifique se há recursos ociosos.',
+        confidence: 0.85,
+        generatedAt: now
+      });
+    }
+
+    // 4. Check for cost optimization opportunities
+    let savingsCount = 0;
+    let totalSavings = 0;
+    
+    try {
+      const recommendations = await prisma.costRecommendation.aggregate({
+        where: { organization_id: organizationId },
+        _sum: { projected_savings_monthly: true },
+        _count: true
+      });
+      savingsCount += recommendations._count || 0;
+      totalSavings += Number(recommendations._sum?.projected_savings_monthly || 0);
+    } catch { /* table might not exist */ }
+
+    try {
+      const riSpRecs = await prisma.riSpRecommendation.aggregate({
+        where: { organization_id: organizationId },
+        _sum: { monthly_savings: true },
+        _count: true
+      });
+      savingsCount += riSpRecs._count || 0;
+      totalSavings += Number(riSpRecs._sum?.monthly_savings || 0);
+    } catch { /* table might not exist */ }
+
+    if (totalSavings > 100) {
+      insights.push({
+        id: `insight-savings-${now.getTime()}`,
+        type: 'optimization',
+        severity: 'info',
+        title: `$${totalSavings.toFixed(2)}/mês em economia potencial`,
+        description: `Identificamos ${savingsCount} recomendações de otimização que podem economizar até $${totalSavings.toFixed(2)} por mês.`,
+        recommendation: 'Revise as recomendações de Reserved Instances e Savings Plans.',
+        confidence: 0.92,
+        generatedAt: now
+      });
+    }
+
+    // 5. Check endpoint health
+    try {
+      const downEndpoints = await prisma.monitoredEndpoint.count({
+        where: {
+          organization_id: organizationId,
+          is_active: true,
+          last_status: 'down'
+        }
+      });
+
+      if (downEndpoints > 0) {
+        insights.push({
+          id: `insight-endpoints-down-${now.getTime()}`,
+          type: 'security_risk',
+          severity: downEndpoints > 2 ? 'critical' : 'warning',
+          title: `${downEndpoints} endpoint(s) fora do ar`,
+          description: `Detectamos ${downEndpoints} endpoint(s) monitorado(s) que estão indisponíveis.`,
+          recommendation: 'Verifique a saúde dos serviços e infraestrutura afetados.',
+          confidence: 0.98,
+          generatedAt: now
+        });
+      }
+    } catch { /* table might not exist */ }
+
+    // Sort by severity (critical first, then warning, then info)
+    const severityOrder = { critical: 0, warning: 1, info: 2 };
+    insights.sort((a, b) => 
+      (severityOrder[a.severity as keyof typeof severityOrder] || 3) - 
+      (severityOrder[b.severity as keyof typeof severityOrder] || 3)
+    );
+
+    return insights.slice(0, 5); // Return top 5 insights
+
+  } catch (err) {
+    logger.error('Error generating insights', err as Error);
+    return [];
+  }
 }
 
 async function getTrendsData(
@@ -678,32 +835,36 @@ async function getTrendsData(
     `;
   } catch (err) {
     // Fallback: try with findMany and aggregate in memory
-    const rawCosts = await prisma.dailyCost.findMany({
-      where: {
-        organization_id: organizationId,
-        date: { gte: startDate }
-      },
-      select: {
-        date: true,
-        cost: true
-      },
-      orderBy: { date: 'asc' }
-    });
-    
-    // Aggregate by date in memory
-    const costByDate = new Map<string, number>();
-    rawCosts.forEach((c: any) => {
-      const dateKey = c.date.toISOString().split('T')[0];
-      costByDate.set(dateKey, (costByDate.get(dateKey) || 0) + Number(c.cost || 0));
-    });
-    
-    costTrend = Array.from(costByDate.entries()).map(([date, total_cost]) => ({
-      date: new Date(date),
-      total_cost
-    }));
+    try {
+      const rawCosts = await prisma.dailyCost.findMany({
+        where: {
+          organization_id: organizationId,
+          date: { gte: startDate }
+        },
+        select: {
+          date: true,
+          cost: true
+        },
+        orderBy: { date: 'asc' }
+      });
+      
+      // Aggregate by date in memory
+      const costByDate = new Map<string, number>();
+      rawCosts.forEach((c: any) => {
+        const dateKey = c.date.toISOString().split('T')[0];
+        costByDate.set(dateKey, (costByDate.get(dateKey) || 0) + Number(c.cost || 0));
+      });
+      
+      costTrend = Array.from(costByDate.entries()).map(([date, total_cost]) => ({
+        date: new Date(date),
+        total_cost
+      }));
+    } catch {
+      costTrend = [];
+    }
   }
 
-  // Security posture history
+  // Security posture history - try from security_posture table first
   let securityTrend: any[] = [];
   try {
     securityTrend = await prisma.securityPosture.findMany({
@@ -721,6 +882,67 @@ async function getTrendsData(
     });
   } catch {
     securityTrend = [];
+  }
+
+  // If no security posture history, generate from findings data
+  if (securityTrend.length === 0) {
+    try {
+      // Get findings grouped by date to calculate daily scores
+      const findingsByDate = await prisma.$queryRaw`
+        SELECT 
+          DATE(created_at) as date,
+          severity,
+          COUNT(*) as count
+        FROM findings
+        WHERE organization_id = ${organizationId}::uuid
+          AND created_at >= ${startDate}
+        GROUP BY DATE(created_at), severity
+        ORDER BY date ASC
+      `;
+
+      // Aggregate findings by date and calculate score
+      const dateMap = new Map<string, { critical: number; high: number; medium: number; low: number }>();
+      
+      (findingsByDate as any[]).forEach((f: any) => {
+        const dateKey = f.date instanceof Date 
+          ? f.date.toISOString().split('T')[0]
+          : String(f.date).split('T')[0];
+        
+        if (!dateMap.has(dateKey)) {
+          dateMap.set(dateKey, { critical: 0, high: 0, medium: 0, low: 0 });
+        }
+        
+        const severity = String(f.severity).toLowerCase();
+        const counts = dateMap.get(dateKey)!;
+        const count = Number(f.count || 0);
+        
+        if (severity === 'critical') counts.critical += count;
+        else if (severity === 'high') counts.high += count;
+        else if (severity === 'medium') counts.medium += count;
+        else if (severity === 'low') counts.low += count;
+      });
+
+      // Convert to security trend format
+      securityTrend = Array.from(dateMap.entries()).map(([date, counts]) => {
+        const totalFindings = counts.critical + counts.high + counts.medium + counts.low;
+        const weightedScore = (counts.critical * 10) + (counts.high * 5) + 
+                              (counts.medium * 2) + (counts.low * 0.5);
+        const maxPossibleScore = totalFindings * 10;
+        const score = totalFindings > 0 
+          ? Math.max(0, Math.round(100 - (weightedScore / maxPossibleScore * 100)))
+          : 100;
+
+        return {
+          calculated_at: new Date(date),
+          overall_score: score,
+          critical_findings: counts.critical,
+          high_findings: counts.high
+        };
+      });
+    } catch {
+      // If raw query fails, try simpler approach
+      securityTrend = [];
+    }
   }
 
   return {

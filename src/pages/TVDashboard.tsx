@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
 import { Shield, AlertCircle, RefreshCw } from "lucide-react";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import { ExecutiveDashboard } from "@/components/dashboard/ExecutiveDashboard";
 import SecurityPosture from "@/components/dashboard/SecurityPosture";
@@ -48,16 +48,26 @@ export default function TVDashboard() {
   const verifyToken = async () => {
     setLoading(true);
     try {
-      const result = await apiClient.invoke('verify-tv-token', {
-        body: { token }
+      // Direct fetch without authentication for public TV endpoint
+      const response = await fetch(`${API_BASE_URL}/api/functions/verify-tv-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
       });
 
-      if (result.error || !result.data?.success) {
-        throw new Error(result.data?.error || 'Invalid token');
+      const result = await response.json();
+      console.log('TV Token verification result:', result);
+
+      // Handle nested response structure: { success, data: { success, dashboard } }
+      const data = result.data || result;
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.message || 'Invalid token');
       }
 
-      setDashboard(result.data.dashboard);
+      setDashboard(data.dashboard);
     } catch (err: any) {
+      console.error('TV Token verification error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -65,16 +75,9 @@ export default function TVDashboard() {
   };
 
   const renderWidget = (widgetId: string, index: number) => {
+    // In TV mode, only render ExecutiveDashboard which has public endpoint support
     const widgetMap: Record<string, JSX.Element> = {
       'executive': <ExecutiveDashboard key={`${widgetId}-${index}`} />,
-      'security-posture': <SecurityPosture key={`${widgetId}-${index}`} />,
-      'cost-optimization': <CostOptimization key={`${widgetId}-${index}`} onAnalysisComplete={() => {}} />,
-      'well-architected': <WellArchitectedScorecard key={`${widgetId}-${index}`} onScanComplete={() => {}} />,
-      'anomalies': <AnomalyDetection key={`${widgetId}-${index}`} />,
-      'waste': <WasteDetection key={`${widgetId}-${index}`} />,
-      'predictive': <PredictiveIncidents key={`${widgetId}-${index}`} />,
-      'compliance': <ComplianceFrameworks key={`${widgetId}-${index}`} />,
-      'budget': <BudgetForecasting key={`${widgetId}-${index}`} />,
     };
 
     return widgetMap[widgetId] || null;
@@ -137,13 +140,7 @@ export default function TVDashboard() {
 
       {/* Dashboard Content - Fullscreen optimized */}
       <main className="w-full px-6 py-6">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {dashboard.layout.map((item, index) => (
-            <div key={`widget-${index}`} className="tv-widget">
-              {renderWidget(item.widgetId, index)}
-            </div>
-          ))}
-        </div>
+        <ExecutiveDashboard />
       </main>
 
       {/* TV-specific styles */}

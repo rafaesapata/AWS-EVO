@@ -4,21 +4,43 @@ import { useTranslation } from 'react-i18next';
 import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
 import { apiClient, getErrorMessage } from '@/integrations/aws/api-client';
 import { useOrganization } from '@/hooks/useOrganization';
+import { useAwsAccount } from '@/contexts/AwsAccountContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, TrendingUp, Activity, Shield, CheckCircle, X, Search, ChevronLeft, ChevronRight, Loader2, FileText } from 'lucide-react';
+import { AlertTriangle, TrendingUp, Activity, Shield, CheckCircle, X, Search, ChevronLeft, ChevronRight, Loader2, FileText, Cloud } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { AnomalyHistoryView } from './AnomalyHistoryView';
 import { PageHeader } from '@/components/ui/page-header';
 
+interface AnomalyFinding {
+  id: string;
+  severity: string;
+  description: string;
+  details: {
+    type?: string;
+    category?: string;
+    title?: string;
+    metric?: string;
+    expectedValue?: number;
+    actualValue?: number;
+  };
+  status: string;
+  service?: string;
+  category?: string;
+  resource_id?: string;
+  remediation?: string;
+  created_at: string;
+}
+
 export function AnomalyDashboard() {
   const { t } = useTranslation();
   const { data: organizationId } = useOrganization();
+  const { selectedAccountId } = useAwsAccount();
   const { toast } = useToast();
   const [selectedAnomaly, setSelectedAnomaly] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'detection' | 'history'>('detection');
@@ -30,28 +52,45 @@ export function AnomalyDashboard() {
   const itemsPerPage = 10;
   const [isExecuting, setIsExecuting] = useState(false);
 
-  // Fetch anomalies
-  const { data: anomalies, isLoading, refetch } = useQuery({
-    queryKey: ['anomaly-detections', organizationId],
+  // Fetch anomalies from findings table with scan_type = 'anomaly_detection'
+  const { data: anomalies = [], isLoading, refetch } = useQuery({
+    queryKey: ['anomaly-findings', organizationId, selectedAccountId],
     queryFn: async () => {
       if (!organizationId) return [];
 
-      const result = await apiClient.select('anomaly_detections', {
+      const filters: Record<string, any> = { 
+        organization_id: organizationId, 
+        scan_type: 'anomaly_detection' 
+      };
+      
+      // Filter by selected account if one is selected
+      if (selectedAccountId) {
+        filters.aws_account_id = selectedAccountId;
+      }
+
+      const result = await apiClient.select('findings', {
         select: '*',
-        eq: { organization_id: organizationId },
-        order: { detected_at: 'desc' },
+        eq: filters,
+        order: { column: 'created_at', ascending: false },
         limit: 100
       });
-      const { data, error } = { data: result.data, error: result.error };
-
       
-      return data || [];
+      return (result.data || []) as AnomalyFinding[];
     },
     enabled: !!organizationId,
   });
 
   const runDetection = async () => {
     if (isExecuting) return;
+    
+    if (!selectedAccountId) {
+      toast({
+        title: t('common.error'),
+        description: t('anomalyDetection.selectAccountFirst'),
+        variant: 'destructive',
+      });
+      return;
+    }
     
     setIsExecuting(true);
     try {
@@ -61,55 +100,62 @@ export function AnomalyDashboard() {
       });
 
       const result = await apiClient.invoke('detect-anomalies', {
-        body: { organization_id: organizationId }
+        body: { 
+          awsAccountId: selectedAccountId,
+          analysisType: 'all',
+          sensitivity: 'medium',
+          lookbackDays: 30
+        }
       });
-      const { error } = { error: result.error };
 
-      if (error) {
+      if (result.error) {
         toast({
           title: t('common.error'),
-          description: t('anomalyDetection.detectionInProgress'),
+          description: getErrorMessage(result.error),
           variant: 'destructive',
         });
       } else {
+        const data = result.data as { summary?: { totalAnomalies?: number } };
         toast({
           title: t('common.success'),
-          description: t('anomalyDetection.detectionCompleted'),
+          description: `${t('anomalyDetection.detectionCompleted')} - ${data?.summary?.totalAnomalies || 0} ${t('anomalyDetection.anomaliesDetectedCount')}`,
         });
         refetch();
       }
+    } catch (err: any) {
+      toast({
+        title: t('common.error'),
+        description: err.message || t('anomalyDetection.detectionFailed'),
+        variant: 'destructive',
+      });
     } finally {
       setIsExecuting(false);
     }
   };
 
-  const createTicket = async (anomaly: any) => {
+  const createTicket = async (anomaly: AnomalyFinding) => {
     try {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('User not authenticated');
 
       const result = await apiClient.insert('remediation_tickets', {
-        title: `Anomalia: ${anomaly.detection_type} - ${anomaly.resource_type || 'Sistema'}`,
-        description: `${t('anomalyDetection.title')}: ${anomaly.detection_type} - ${anomaly.resource_type || t('common.system')}
+        title: `Anomalia: ${anomaly.details?.type || anomaly.category} - ${anomaly.service || 'Sistema'}`,
+        description: `${t('anomalyDetection.title')}: ${anomaly.details?.title || anomaly.description}
         
-${t('anomalyDetection.detected')}: ${new Date(anomaly.detected_at).toLocaleString()}
-${t('common.type')}: ${anomaly.detection_type}
+${t('anomalyDetection.detected')}: ${new Date(anomaly.created_at).toLocaleString()}
+${t('common.type')}: ${anomaly.details?.type || anomaly.category}
 ${t('common.severity')}: ${anomaly.severity}
-${t('anomalyDetection.score')}: ${(anomaly.anomaly_score * 100).toFixed(0)}%
-${t('common.deviation')}: ${anomaly.deviation_percentage?.toFixed(2)}%
-
-${t('anomalyDetection.method')}: ${anomaly.detection_method}
-
-${t('anomalyDetection.dimensions')}:
-${JSON.stringify(anomaly.dimensions, null, 2)}
+${t('common.metric')}: ${anomaly.details?.metric || 'N/A'}
+${t('anomalyDetection.expectedValue')}: ${anomaly.details?.expectedValue?.toFixed(2) || 'N/A'}
+${t('anomalyDetection.actualValue')}: ${anomaly.details?.actualValue?.toFixed(2) || 'N/A'}
 
 ${t('anomalyDetection.recommendations')}:
-${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')}`,
+${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
         severity: anomaly.severity,
         status: 'pending',
         source: 'anomaly_detection',
         source_id: anomaly.id,
-        assigned_to: user.username,
+        assigned_to: user.email,
         organization_id: organizationId
       });
 
@@ -129,17 +175,14 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
     }
   };
 
-  const acknowledgeAnomaly = async (anomalyId: string) => {
+  const updateAnomalyStatus = async (anomalyId: string, newStatus: string) => {
     try {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('User not authenticated');
 
-      // SECURITY: Filter by organization_id
-      const result = await apiClient.update('anomaly_detections', {
-        status: 'investigating',
-        acknowledged_at: new Date().toISOString(),
+      const result = await apiClient.update('findings', {
+        status: newStatus,
         updated_at: new Date().toISOString(),
-        acknowledged_by: user.username,
       }, { 
         eq: { id: anomalyId, organization_id: organizationId }
       });
@@ -150,7 +193,7 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
 
       toast({
         title: t('common.success'),
-        description: t('anomalyDetection.anomalyAcknowledged'),
+        description: t('anomalyDetection.statusUpdated'),
       });
       refetch();
     } catch (error: any) {
@@ -162,81 +205,16 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
     }
   };
 
-  const resolveAnomaly = async (anomalyId: string) => {
-    try {
-      const user = await cognitoAuth.getCurrentUser();
-      if (!user) throw new Error('User not authenticated');
-
-      // SECURITY: Filter by organization_id
-      const result = await apiClient.update('anomaly_detections', {
-        status: 'resolved',
-        resolved_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        resolved_by: user.username,
-      }, { 
-        eq: { id: anomalyId, organization_id: organizationId }
-      });
-
-      if (result.error) {
-        throw new Error(getErrorMessage(result.error));
-      }
-
-      toast({
-        title: t('common.success'),
-        description: t('anomalyDetection.anomalyResolved'),
-      });
-      refetch();
-    } catch (error: any) {
-      toast({
-        title: t('common.error'),
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const markFalsePositive = async (anomalyId: string) => {
-    try {
-      const user = await cognitoAuth.getCurrentUser();
-      if (!user) throw new Error('User not authenticated');
-
-      // SECURITY: Filter by organization_id
-      const result = await apiClient.update('anomaly_detections', {
-        status: 'false_positive',
-        resolved_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        resolved_by: user.username,
-      }, { 
-        eq: { id: anomalyId, organization_id: organizationId }
-      });
-
-      if (result.error) {
-        throw new Error(getErrorMessage(result.error));
-      }
-
-      toast({
-        title: t('common.success'),
-        description: t('anomalyDetection.markedFalsePositive'),
-      });
-      refetch();
-    } catch (error: any) {
-      toast({
-        title: t('common.error'),
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
+  const getTypeIcon = (type: string | undefined) => {
+    switch (type?.toLowerCase()) {
       case 'cost':
+      case 'cost_spike':
         return <TrendingUp className="h-4 w-4" />;
-      case 'usage':
-        return <Activity className="h-4 w-4" />;
       case 'performance':
+      case 'error_spike':
         return <Activity className="h-4 w-4" />;
       case 'security':
+      case 'security_event_spike':
         return <Shield className="h-4 w-4" />;
       default:
         return <AlertTriangle className="h-4 w-4" />;
@@ -244,31 +222,46 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
   };
 
   const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return 'text-red-600 dark:text-red-400';
-      case 'high':
-        return 'text-orange-600 dark:text-orange-400';
-      case 'medium':
-        return 'text-yellow-600 dark:text-yellow-400';
+    switch (severity?.toUpperCase()) {
+      case 'CRITICAL':
+        return 'bg-red-600 text-white';
+      case 'HIGH':
+        return 'bg-orange-600 text-white';
+      case 'MEDIUM':
+        return 'bg-yellow-600 text-white';
       default:
-        return 'text-blue-600 dark:text-blue-400';
+        return 'bg-blue-600 text-white';
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'open':
+        return <Badge variant="destructive">Aberto</Badge>;
+      case 'investigating':
+        return <Badge variant="secondary">Investigando</Badge>;
+      case 'resolved':
+        return <Badge variant="outline" className="bg-green-100 text-green-800">Resolvido</Badge>;
+      case 'false_positive':
+        return <Badge variant="outline">Falso Positivo</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
   // Filter anomalies based on search and filters
-  const filteredAnomalies = anomalies?.filter((a: any) => {
+  const filteredAnomalies = anomalies.filter((a) => {
     const matchesSearch = searchTerm === '' || 
       a.resource_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.resource_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.detection_method?.toLowerCase().includes(searchTerm.toLowerCase());
+      a.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.service?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesSeverity = severityFilter === 'all' || a.severity === severityFilter;
-    const matchesStatus = statusFilter === 'all' || a.status === statusFilter;
-    const matchesType = typeFilter === 'all' || a.detection_type === typeFilter;
+    const matchesSeverity = severityFilter === 'all' || a.severity?.toUpperCase() === severityFilter.toUpperCase();
+    const matchesStatus = statusFilter === 'all' || a.status?.toLowerCase() === statusFilter.toLowerCase();
+    const matchesType = typeFilter === 'all' || a.category?.toLowerCase() === typeFilter.toLowerCase();
     
     return matchesSearch && matchesSeverity && matchesStatus && matchesType;
-  }) || [];
+  });
 
   // Pagination
   const totalPages = Math.ceil(filteredAnomalies.length / itemsPerPage);
@@ -277,11 +270,12 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
   const paginatedAnomalies = filteredAnomalies.slice(startIndex, endIndex);
 
   const stats = {
-    total: anomalies?.length || 0,
-    active: anomalies?.filter((a: any) => a.status === 'active').length || 0,
-    investigating: anomalies?.filter((a: any) => a.status === 'investigating').length || 0,
-    resolved: anomalies?.filter((a: any) => a.status === 'resolved').length || 0,
-    critical: anomalies?.filter((a: any) => a.severity === 'critical').length || 0,
+    total: anomalies.length,
+    open: anomalies.filter((a) => a.status === 'OPEN').length,
+    investigating: anomalies.filter((a) => a.status === 'investigating').length,
+    resolved: anomalies.filter((a) => a.status === 'resolved').length,
+    critical: anomalies.filter((a) => a.severity === 'CRITICAL').length,
+    high: anomalies.filter((a) => a.severity === 'HIGH').length,
   };
 
   return (
@@ -292,7 +286,7 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
         icon={Activity}
         actions={
           activeTab === 'detection' ? (
-            <Button onClick={runDetection} disabled={isExecuting || isLoading}>
+            <Button onClick={runDetection} disabled={isExecuting || isLoading || !selectedAccountId}>
               {isExecuting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -321,7 +315,19 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
               <Activity className="h-12 w-12 mx-auto mb-4 animate-spin opacity-50" />
               <p className="text-muted-foreground">{t('anomalyDetection.loadingAnomalies')}</p>
             </div>
-          ) : !anomalies || anomalies.length === 0 ? (
+          ) : !selectedAccountId ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <Cloud className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">{t('anomalyDetection.noAccountSelected')}</h3>
+                  <p className="text-muted-foreground mb-6">
+                    {t('anomalyDetection.selectAccountInHeader')}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : anomalies.length === 0 ? (
             <Card>
               <CardContent className="py-12">
                 <div className="text-center">
@@ -330,7 +336,7 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
                   <p className="text-muted-foreground mb-6">
                     {t('anomalyDetection.runDetectionToAnalyze')}
                   </p>
-                  <Button onClick={runDetection} size="lg">
+                  <Button onClick={runDetection} size="lg" disabled={isExecuting}>
                     <Activity className="h-5 w-5 mr-2" />
                     {t('anomalyDetection.runFirstDetection')}
                   </Button>
@@ -339,106 +345,112 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
             </Card>
           ) : (
             <>
-          {/* Stats */}
-          <div className="grid gap-4 md:grid-cols-3 animate-stagger">
-            <Card className="glass border-primary/20 card-hover-lift">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">{t('anomalyDetection.totalAnomalies')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold tabular-nums">{stats.total}</div>
-              </CardContent>
-            </Card>
-            <Card className="glass border-primary/20 card-hover-lift">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">{t('anomalyDetection.active')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600 tabular-nums">{stats.active}</div>
-              </CardContent>
-            </Card>
-            <Card className="glass border-primary/20 card-hover-lift">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">{t('anomalyDetection.critical')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600 tabular-nums">{stats.critical}</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Filters and Search */}
-          <Card className="glass border-primary/20">
-            <CardHeader>
-              <CardTitle>{t('anomalyDetection.detectedAnomalies')}</CardTitle>
-              <CardDescription>{t('anomalyDetection.analysisResults')}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Search and Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder={t('anomalyDetection.searchPlaceholder')}
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="pl-10"
-                  />
-                </div>
-                
-                <Select value={severityFilter} onValueChange={(v) => { setSeverityFilter(v); setCurrentPage(1); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('common.severity')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t('anomalyDetection.allSeverities')}</SelectItem>
-                    <SelectItem value="critical">{t('anomalyDetection.severityCritical')}</SelectItem>
-                    <SelectItem value="high">{t('anomalyDetection.severityHigh')}</SelectItem>
-                    <SelectItem value="medium">{t('anomalyDetection.severityMedium')}</SelectItem>
-                    <SelectItem value="low">{t('anomalyDetection.severityLow')}</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os Status</SelectItem>
-                    <SelectItem value="active">Ativo</SelectItem>
-                    <SelectItem value="investigating">Investigando</SelectItem>
-                    <SelectItem value="resolved">Resolvido</SelectItem>
-                    <SelectItem value="false_positive">Falso Positivo</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setCurrentPage(1); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os Tipos</SelectItem>
-                    <SelectItem value="cost">Custo</SelectItem>
-                    <SelectItem value="usage">Uso</SelectItem>
-                    <SelectItem value="performance">Performance</SelectItem>
-                    <SelectItem value="multi_dimensional">Multi-Dimensional</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Stats */}
+              <div className="grid gap-4 md:grid-cols-4 animate-stagger">
+                <Card className="glass border-primary/20 card-hover-lift">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">{t('anomalyDetection.totalAnomalies')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold tabular-nums">{stats.total}</div>
+                  </CardContent>
+                </Card>
+                <Card className="glass border-primary/20 card-hover-lift">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">{t('anomalyDetection.open')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600 tabular-nums">{stats.open}</div>
+                  </CardContent>
+                </Card>
+                <Card className="glass border-primary/20 card-hover-lift">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">{t('anomalyDetection.critical')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600 tabular-nums">{stats.critical}</div>
+                  </CardContent>
+                </Card>
+                <Card className="glass border-primary/20 card-hover-lift">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">{t('anomalyDetection.highSeverity')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-orange-600 tabular-nums">{stats.high}</div>
+                  </CardContent>
+                </Card>
               </div>
 
-              {/* Results count */}
-              <div className="text-sm text-muted-foreground">
-                {t('anomalyDetection.showing')} {startIndex + 1}-{Math.min(endIndex, filteredAnomalies.length)} {t('anomalyDetection.of')} {filteredAnomalies.length} {t('anomalyDetection.anomalies')}
-              </div>
+              {/* Filters and Search */}
+              <Card className="glass border-primary/20">
+                <CardHeader>
+                  <CardTitle>{t('anomalyDetection.detectedAnomalies')}</CardTitle>
+                  <CardDescription>{t('anomalyDetection.analysisResults')}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Search and Filters */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder={t('anomalyDetection.searchPlaceholder')}
+                        value={searchTerm}
+                        onChange={(e) => {
+                          setSearchTerm(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="pl-10"
+                      />
+                    </div>
+                    
+                    <Select value={severityFilter} onValueChange={(v) => { setSeverityFilter(v); setCurrentPage(1); }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('common.severity')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t('anomalyDetection.allSeverities')}</SelectItem>
+                        <SelectItem value="CRITICAL">{t('anomalyDetection.severityCritical')}</SelectItem>
+                        <SelectItem value="HIGH">{t('anomalyDetection.severityHigh')}</SelectItem>
+                        <SelectItem value="MEDIUM">{t('anomalyDetection.severityMedium')}</SelectItem>
+                        <SelectItem value="LOW">{t('anomalyDetection.severityLow')}</SelectItem>
+                      </SelectContent>
+                    </Select>
 
-              {/* Anomalies List */}
-              <div className="space-y-3">
-                  {paginatedAnomalies.length > 0 ? (
-                    <>
-                      {paginatedAnomalies.map((anomaly: any) => (
+                    <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os Status</SelectItem>
+                        <SelectItem value="OPEN">Aberto</SelectItem>
+                        <SelectItem value="investigating">Investigando</SelectItem>
+                        <SelectItem value="resolved">Resolvido</SelectItem>
+                        <SelectItem value="false_positive">Falso Positivo</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setCurrentPage(1); }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as Categorias</SelectItem>
+                        <SelectItem value="cost">Custo</SelectItem>
+                        <SelectItem value="performance">Performance</SelectItem>
+                        <SelectItem value="security">Segurança</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Results count */}
+                  <div className="text-sm text-muted-foreground">
+                    {t('anomalyDetection.showing')} {startIndex + 1}-{Math.min(endIndex, filteredAnomalies.length)} {t('anomalyDetection.of')} {filteredAnomalies.length} {t('anomalyDetection.anomalies')}
+                  </div>
+
+                  {/* Anomalies List */}
+                  <div className="space-y-3">
+                    {paginatedAnomalies.length > 0 ? (
+                      paginatedAnomalies.map((anomaly) => (
                         <Card
                           key={anomaly.id}
                           className={`cursor-pointer transition-colors overflow-hidden ${
@@ -448,12 +460,12 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
                         >
                           <CardContent className="p-4">
                             <div className="space-y-3">
-                                <div className="flex items-start justify-between gap-4 flex-wrap">
+                              <div className="flex items-start justify-between gap-4 flex-wrap">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  {getTypeIcon(anomaly.detection_type)}
-                                  <Badge variant="outline">{anomaly.detection_type}</Badge>
+                                  {getTypeIcon(anomaly.details?.type || anomaly.category)}
+                                  <Badge variant="outline">{anomaly.category || anomaly.details?.category || 'N/A'}</Badge>
                                   <Badge className={getSeverityColor(anomaly.severity)}>{anomaly.severity}</Badge>
-                                  <Badge variant="secondary">Score: {(anomaly.anomaly_score * 100).toFixed(0)}%</Badge>
+                                  {getStatusBadge(anomaly.status)}
                                 </div>
                                 <div className="flex gap-2 flex-shrink-0">
                                   <Button 
@@ -468,11 +480,11 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
                                     <FileText className="h-4 w-4" />
                                     {t('anomalyDetection.createTicket')}
                                   </Button>
-                                  {anomaly.status === 'active' && (
+                                  {anomaly.status === 'OPEN' && (
                                     <Button variant="ghost" size="sm" onClick={(e) => {
                                       e.stopPropagation();
-                                      acknowledgeAnomaly(anomaly.id);
-                                    }}>
+                                      updateAnomalyStatus(anomaly.id, 'investigating');
+                                    }} title="Marcar como investigando">
                                       <CheckCircle className="h-4 w-4" />
                                     </Button>
                                   )}
@@ -480,17 +492,18 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
                                     <>
                                       <Button variant="ghost" size="sm" onClick={(e) => {
                                         e.stopPropagation();
-                                        resolveAnomaly(anomaly.id);
-                                      }}>
-                                        <CheckCircle className="h-4 w-4" />
+                                        updateAnomalyStatus(anomaly.id, 'resolved');
+                                      }} title="Marcar como resolvido">
+                                        <CheckCircle className="h-4 w-4 text-green-600" />
                                       </Button>
                                       <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          markFalsePositive(anomaly.id);
+                                          updateAnomalyStatus(anomaly.id, 'false_positive');
                                         }}
+                                        title="Marcar como falso positivo"
                                       >
                                         <X className="h-4 w-4" />
                                       </Button>
@@ -500,147 +513,91 @@ ${anomaly.recommendations?.join('\n') || t('anomalyDetection.noRecommendations')
                               </div>
 
                               <div className="space-y-1">
-                                <p className="text-sm truncate">
-                                  <span className="font-medium">Resource:</span> {anomaly.resource_type}
-                                  {anomaly.resource_id && ` (${anomaly.resource_id})`}
+                                <p className="text-sm font-medium">
+                                  {anomaly.details?.title || anomaly.description}
                                 </p>
-                                {anomaly.metadata?.arn && (
-                                  <div className="overflow-x-auto">
-                                    <p className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-                                      <span className="font-medium">ARN:</span> {anomaly.metadata.arn}
-                                    </p>
-                                  </div>
+                                {anomaly.resource_id && (
+                                  <p className="text-sm text-muted-foreground">
+                                    <span className="font-medium">Resource:</span> {anomaly.resource_id}
+                                  </p>
                                 )}
-                                <p className="text-sm">
-                                  <span className="font-medium">Method:</span> {anomaly.detection_method}
-                                </p>
+                                {anomaly.service && (
+                                  <p className="text-sm text-muted-foreground">
+                                    <span className="font-medium">Service:</span> {anomaly.service}
+                                  </p>
+                                )}
                                 <p className="text-xs text-muted-foreground">
-                                  Detected {formatDistanceToNow(new Date(anomaly.detected_at))} ago • Confidence:{' '}
-                                  {(anomaly.confidence_level * 100).toFixed(0)}%
+                                  Detectado {formatDistanceToNow(new Date(anomaly.created_at))} atrás
                                 </p>
                               </div>
 
-                              {anomaly.dimensions && (
-                                <div className="p-2 bg-muted rounded-md overflow-x-auto">
-                                  <p className="text-xs font-medium mb-1">Dimensions:</p>
-                                  <pre className="text-xs whitespace-pre-wrap break-words">
-                                    {JSON.stringify(anomaly.dimensions, null, 2)}
-                                  </pre>
+                              {(anomaly.details?.expectedValue !== undefined || anomaly.details?.actualValue !== undefined) && (
+                                <div className="p-2 bg-muted rounded-md">
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <span className="text-muted-foreground">Valor Esperado:</span>
+                                      <span className="ml-2 font-medium">{anomaly.details?.expectedValue?.toFixed(2) || 'N/A'}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">Valor Atual:</span>
+                                      <span className="ml-2 font-medium">{anomaly.details?.actualValue?.toFixed(2) || 'N/A'}</span>
+                                    </div>
+                                  </div>
                                 </div>
                               )}
 
-                              {anomaly.recommendations && anomaly.recommendations.length > 0 && (
+                              {anomaly.remediation && (
                                 <div className="space-y-1">
-                                  <p className="text-xs font-medium">Recommendations:</p>
-                                  <ul className="text-xs space-y-1">
-                                    {anomaly.recommendations.map((rec: string, idx: number) => (
-                                      <li key={idx} className="flex items-start gap-1">
-                                        <span className="text-primary flex-shrink-0">•</span>
-                                        <span className="break-words">{rec}</span>
-                                      </li>
-                                     ))}
-                                  </ul>
+                                  <p className="text-xs font-medium">Recomendação:</p>
+                                  <p className="text-xs text-muted-foreground">{anomaly.remediation}</p>
                                 </div>
                               )}
                             </div>
                           </CardContent>
                         </Card>
-                      ))}
-                    </>
-                  ) : (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="font-semibold text-lg">
-                        {(anomalies?.length || 0) === 0 
-                          ? 'Nenhuma anomalia detectada ainda' 
-                          : 'Nenhuma anomalia encontrada com os filtros aplicados'}
-                      </p>
-                      {(anomalies?.length || 0) === 0 && (
-                        <>
-                          <p className="text-sm mt-2">
-                            Execute uma detecção para identificar anomalias no seu ambiente AWS
-                          </p>
-                          <Button 
-                            onClick={runDetection}
-                            disabled={isExecuting}
-                            className="mt-4"
-                            size="lg"
-                          >
-                            {isExecuting ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Analisando...
-                              </>
-                            ) : (
-                              'Executar Detecção Agora'
-                            )}
-                          </Button>
-                        </>
-                      )}
+                      ))
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p className="font-semibold text-lg">
+                          Nenhuma anomalia encontrada com os filtros aplicados
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pagination Controls */}
+                  {filteredAnomalies.length > 0 && totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm text-muted-foreground">
+                          Página {currentPage} de {totalPages}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4 mr-1" />
+                          Anterior
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                        >
+                          Próxima
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
                     </div>
                   )}
-                </div>
-
-              {/* Pagination Controls */}
-              {filteredAnomalies.length > 0 && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t">
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm text-muted-foreground">
-                      Página {currentPage} de {totalPages}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {itemsPerPage} itens por página
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Anterior
-                    </Button>
-                    <div className="flex items-center gap-1 px-2">
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={currentPage === pageNum ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setCurrentPage(pageNum)}
-                            className="w-8 h-8 p-0"
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      Próxima
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
             </>
           )}
         </TabsContent>

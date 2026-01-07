@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
@@ -65,8 +66,10 @@ interface CostMetrics {
 export default function CostOptimization() {
   const { toast } = useToast();
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const { selectedAccountId } = useAwsAccount();
   const { data: organizationId } = useOrganization();
+  const [selectedRecommendation, setSelectedRecommendation] = useState<OptimizationRecommendation | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedConfidence, setSelectedConfidence] = useState<string>('all');
 
@@ -122,11 +125,22 @@ export default function CostOptimization() {
   });
 
   // Get cost metrics
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
+  const { data: metrics, isLoading: metricsLoading, refetch: refetchMetrics } = useQuery({
     queryKey: ['cost-metrics', organizationId, selectedAccountId],
     enabled: !!organizationId && !!selectedAccountId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000, // 30 seconds - refresh more often
     queryFn: async () => {
+      // Fetch recommendations directly for metrics calculation
+      const recsResponse = await apiClient.select('cost_optimizations', {
+        select: '*',
+        eq: { 
+          organization_id: organizationId,
+          aws_account_id: selectedAccountId
+        }
+      });
+      
+      const recs = recsResponse.data || [];
+      
       // Get current month costs
       const currentDate = new Date();
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -137,25 +151,52 @@ export default function CostOptimization() {
           organization_id: organizationId,
           aws_account_id: selectedAccountId
         },
-        gte: { cost_date: startOfMonth.toISOString().split('T')[0] }
+        gte: { date: startOfMonth.toISOString().split('T')[0] }
       });
 
       const costs = costsResponse.data || [];
-      const totalMonthlyCost = costs.reduce((sum, cost) => sum + Number(cost.total_cost), 0);
+      const totalMonthlyCost = costs.reduce((sum, cost) => {
+        const costValue = Number(cost.cost) || Number(cost.total_cost) || Number(cost.amount) || 0;
+        return sum + (isNaN(costValue) ? 0 : costValue);
+      }, 0);
       
       // Calculate metrics from recommendations
-      const totalPotentialSavings = (recommendations || []).reduce((sum, rec) => sum + rec.potential_savings, 0);
-      const implementedSavings = (recommendations || []).filter(rec => rec.status === 'implemented').reduce((sum, rec) => sum + rec.potential_savings, 0);
+      const totalPotentialSavings = recs.reduce((sum: number, rec: any) => sum + (Number(rec.potential_savings) || 0), 0);
+      const implementedSavings = recs.filter((rec: any) => rec.status === 'implemented').reduce((sum: number, rec: any) => sum + (Number(rec.potential_savings) || 0), 0);
       
-      // Calculate optimization score (0-100)
-      const optimizationScore = totalMonthlyCost > 0 ? Math.min(100, Math.max(0, 100 - (totalPotentialSavings / totalMonthlyCost) * 100)) : 100;
+      // Calculate optimization score based on recommendations
+      let optimizationScore = 100;
+      
+      if (recs.length > 0) {
+        // Deduct points based on type: delete/terminate=-10, upgrade=-5, others=-3
+        const highImpact = recs.filter((r: any) => 
+          r.optimization_type?.includes('delete') || 
+          r.optimization_type?.includes('terminate') ||
+          r.optimization_type?.includes('release')
+        ).length;
+        const mediumImpact = recs.filter((r: any) => 
+          r.optimization_type?.includes('upgrade') || 
+          r.optimization_type?.includes('migrate') ||
+          r.optimization_type?.includes('rightsize')
+        ).length;
+        const lowImpact = recs.length - highImpact - mediumImpact;
+        
+        const deduction = (highImpact * 10) + (mediumImpact * 5) + (lowImpact * 2);
+        optimizationScore = Math.max(0, Math.min(100, 100 - deduction));
+        
+        // Also factor in savings percentage if we have cost data
+        if (totalMonthlyCost > 0 && totalPotentialSavings > 0) {
+          const savingsPercentage = (totalPotentialSavings / totalMonthlyCost) * 100;
+          optimizationScore = Math.max(0, Math.min(100, optimizationScore - Math.min(savingsPercentage, 30)));
+        }
+      }
 
       return {
-        total_monthly_cost: totalMonthlyCost,
-        total_potential_savings: totalPotentialSavings,
-        optimization_score: optimizationScore,
-        recommendations_count: (recommendations || []).length,
-        implemented_savings: implementedSavings
+        total_monthly_cost: isNaN(totalMonthlyCost) ? 0 : totalMonthlyCost,
+        total_potential_savings: isNaN(totalPotentialSavings) ? 0 : totalPotentialSavings,
+        optimization_score: isNaN(optimizationScore) ? 0 : Math.round(optimizationScore),
+        recommendations_count: recs.length,
+        implemented_savings: isNaN(implementedSavings) ? 0 : implementedSavings
       };
     },
   });
@@ -175,12 +216,14 @@ export default function CostOptimization() {
 
       return response.data;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast({
         title: "Análise concluída",
         description: `Encontradas ${data.optimizations?.length || 0} oportunidades de otimização com economia potencial de $${data.summary?.monthly_savings || 0}/mês.`,
       });
-      refetch();
+      // Invalidate all related queries to force refetch from database
+      await queryClient.invalidateQueries({ queryKey: ['cost-optimization'] });
+      await queryClient.invalidateQueries({ queryKey: ['cost-metrics'] });
     },
     onError: (error) => {
       toast({
@@ -193,17 +236,12 @@ export default function CostOptimization() {
 
   const handleRefresh = async () => {
     try {
-      await refetch();
-      toast({
-        title: "Dados atualizados",
-        description: "As recomendações de otimização foram atualizadas.",
-      });
+      // Execute the cost optimization analysis
+      await runOptimizationMutation.mutateAsync();
+      // Refetch metrics after analysis
+      await refetchMetrics();
     } catch (error) {
-      toast({
-        title: "Erro ao atualizar",
-        description: "Não foi possível atualizar as recomendações.",
-        variant: "destructive"
-      });
+      // Error is already handled by mutation onError
     }
   };
 
@@ -367,7 +405,7 @@ export default function CostOptimization() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-2xl font-bold">
-                ${metrics?.total_monthly_cost?.toFixed(2) || '0.00'}
+                ${(metrics?.total_monthly_cost ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             )}
           </CardContent>
@@ -383,10 +421,10 @@ export default function CostOptimization() {
             ) : (
               <div className="space-y-1">
                 <div className="text-2xl font-bold text-green-500">
-                  ${metrics?.total_potential_savings?.toFixed(2) || '0.00'}
+                  ${(metrics?.total_potential_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {metrics?.total_monthly_cost && metrics?.total_potential_savings 
+                  {metrics?.total_monthly_cost && metrics.total_monthly_cost > 0 && metrics?.total_potential_savings 
                     ? `${((metrics.total_potential_savings / metrics.total_monthly_cost) * 100).toFixed(1)}% do total`
                     : '0% do total'
                   }
@@ -405,10 +443,23 @@ export default function CostOptimization() {
               <Skeleton className="h-8 w-16" />
             ) : (
               <div className="space-y-2">
-                <div className="text-2xl font-bold">
-                  {Math.round(metrics?.optimization_score || 0)}/100
-                </div>
-                <Progress value={metrics?.optimization_score || 0} className="h-2" />
+                {recommendations && recommendations.length > 0 ? (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {Math.round(metrics?.optimization_score || 0)}/100
+                    </div>
+                    <Progress value={metrics?.optimization_score || 0} className="h-2" />
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold text-muted-foreground">
+                      N/A
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Execute uma análise primeiro
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </CardContent>
@@ -438,7 +489,7 @@ export default function CostOptimization() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-2xl font-bold text-blue-500">
-                ${metrics?.implemented_savings?.toFixed(2) || '0.00'}
+                ${(metrics?.implemented_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             )}
           </CardContent>
@@ -567,7 +618,7 @@ export default function CostOptimization() {
                             <span>Risco: {rec.risk_level}</span>
                           </div>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" onClick={() => setSelectedRecommendation(rec)}>
                               Mais Detalhes
                             </Button>
                             <Button size="sm">
@@ -695,6 +746,138 @@ export default function CostOptimization() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Detail Modal */}
+      <Dialog open={!!selectedRecommendation} onOpenChange={(open) => !open && setSelectedRecommendation(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              Detalhes da Recomendação
+            </DialogTitle>
+            <DialogDescription>
+              Informações completas sobre a oportunidade de otimização
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedRecommendation && (
+            <div className="space-y-6">
+              {/* Resource Info */}
+              <div className="space-y-2">
+                <h4 className="font-semibold">Recurso</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">ID:</span>
+                    <p className="font-mono">{selectedRecommendation.resource_id}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Tipo:</span>
+                    <p>{selectedRecommendation.resource_type}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Tipo de Otimização:</span>
+                    <p className="capitalize">{selectedRecommendation.type.replace('_', ' ')}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge variant={selectedRecommendation.status === 'implemented' ? 'default' : 'secondary'}>
+                      {selectedRecommendation.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cost Analysis */}
+              <div className="space-y-2">
+                <h4 className="font-semibold">Análise de Custos</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <Card className="p-4">
+                    <p className="text-sm text-muted-foreground">Custo Atual</p>
+                    <p className="text-xl font-bold">${selectedRecommendation.current_cost.toFixed(2)}</p>
+                  </Card>
+                  <Card className="p-4">
+                    <p className="text-sm text-muted-foreground">Custo Otimizado</p>
+                    <p className="text-xl font-bold text-green-500">${selectedRecommendation.optimized_cost.toFixed(2)}</p>
+                  </Card>
+                  <Card className="p-4">
+                    <p className="text-sm text-muted-foreground">Economia</p>
+                    <p className="text-xl font-bold text-primary">${selectedRecommendation.potential_savings.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">{selectedRecommendation.savings_percentage.toFixed(1)}%</p>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Assessment */}
+              <div className="space-y-2">
+                <h4 className="font-semibold">Avaliação</h4>
+                <div className="flex gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Confiança:</span>
+                    {getConfidenceBadge(selectedRecommendation.confidence)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Esforço:</span>
+                    {getEffortBadge(selectedRecommendation.effort)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Impacto:</span>
+                    {getImpactBadge(selectedRecommendation.impact)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Risco:</span>
+                    <Badge variant={selectedRecommendation.risk_level === 'low' ? 'outline' : selectedRecommendation.risk_level === 'medium' ? 'secondary' : 'destructive'}>
+                      {selectedRecommendation.risk_level}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <h4 className="font-semibold">Descrição</h4>
+                <p className="text-sm text-muted-foreground">{selectedRecommendation.description}</p>
+              </div>
+
+              {/* Recommendation */}
+              <div className="space-y-2 bg-muted/30 rounded-lg p-4">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4" />
+                  Recomendação
+                </h4>
+                <p className="text-sm">{selectedRecommendation.recommendation}</p>
+              </div>
+
+              {/* Implementation Steps */}
+              {selectedRecommendation.implementation_steps && selectedRecommendation.implementation_steps.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold">Passos para Implementação</h4>
+                  <ol className="space-y-2">
+                    {selectedRecommendation.implementation_steps.map((step, idx) => (
+                      <li key={idx} className="flex gap-3 text-sm">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">
+                          {idx + 1}
+                        </span>
+                        <span className="text-muted-foreground">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => setSelectedRecommendation(null)}>
+                  Fechar
+                </Button>
+                <Button>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Marcar como Implementado
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       </div>
     </Layout>
   );

@@ -1,11 +1,12 @@
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { AwsAccountProvider } from "@/contexts/AwsAccountContext";
 import { TVDashboardProvider } from "@/contexts/TVDashboardContext";
 import { ErrorBoundary as GlobalErrorBoundary } from "@/components/ErrorBoundary";
+import { FloatingCopilot } from "@/components/copilot/FloatingCopilot";
 import AuthSimple from "./pages/Auth-simple";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
@@ -18,6 +19,7 @@ import SystemMonitoring from "./pages/SystemMonitoring";
 import ResourceMonitoring from "./pages/ResourceMonitoring";
 import ThreatDetection from "./pages/ThreatDetection";
 import AttackDetection from "./pages/AttackDetection";
+import WafMonitoring from "./pages/WafMonitoring";
 import AnomalyDetection from "./pages/AnomalyDetection";
 import MLWasteDetection from "./pages/MLWasteDetection";
 import WellArchitected from "./pages/WellArchitected";
@@ -44,6 +46,16 @@ import Organizations from "./pages/Organizations";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./i18n/config";
 import "./index.css";
+
+// Floating Copilot wrapper - only shows on protected routes
+function FloatingCopilotWrapper() {
+  const location = useLocation();
+  const publicPaths = ['/', '/auth', '/tv', '/features', '/terms', '/404'];
+  const isPublicPage = publicPaths.some(path => location.pathname === path || location.pathname.startsWith('/tv'));
+  
+  if (isPublicPage) return null;
+  return <FloatingCopilot />;
+}
 
 // Wrapper for non-TV mode (default context)
 function DefaultTVProvider({ children }: { children: React.ReactNode }) {
@@ -127,6 +139,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <AttackDetection />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/waf-monitoring" 
+                element={
+                  <ProtectedRoute>
+                    <WafMonitoring />
                   </ProtectedRoute>
                 } 
               />
@@ -314,7 +334,23 @@ createRoot(document.getElementById("root")!).render(
                   </ProtectedRoute>
                 } 
               />
-              <Route path="/tv" element={<TVDashboard />} />
+              <Route 
+                path="/tv-management" 
+                element={
+                  <ProtectedRoute>
+                    <Index />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/tv" 
+                element={
+                  <ProtectedRoute>
+                    <Index />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="/tv/:token" element={<TVDashboard />} />
               <Route path="/features" element={<Features />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/404" element={<NotFound />} />
@@ -322,6 +358,7 @@ createRoot(document.getElementById("root")!).render(
             </Routes>
             <Toaster />
             <SonnerToaster />
+            <FloatingCopilotWrapper />
           </BrowserRouter>
         </AwsAccountProvider>
       </DefaultTVProvider>

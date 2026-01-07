@@ -65,8 +65,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/" replace />;
   }
 
-  // Loading state - license validation
-  if (isLicenseLoading) {
+  // Loading state - license validation (includes retry state)
+  if (isLicenseLoading || licenseError) {
+    // If there's an error, it might be because session wasn't ready yet
+    // The hook will retry automatically, so show loading state
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -77,16 +79,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // License validation error - allow access for admins to configure license
-  if (licenseError) {
-    console.error("License validation error:", licenseError);
-    // Allow access anyway - the system will show appropriate messages
-  }
-
   // Check license status
   if (licenseStatus && !licenseStatus.isValid) {
     // Allow admins to access license management page
-    const isLicensePage = location.pathname === '/app/license-management' || 
+    const isLicensePage = location.pathname === '/license-management' || 
                           location.pathname === '/app/settings/license';
     
     if (licenseStatus.canAccessLicensePage && isLicensePage) {
@@ -140,7 +136,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
           <div className="flex flex-col gap-3">
             {errorContent.showLicenseButton && (
               <Button 
-                onClick={() => window.location.href = '/app/license-management'}
+                onClick={() => window.location.href = '/license-management'}
                 className="w-full"
               >
                 Gerenciar Licenças

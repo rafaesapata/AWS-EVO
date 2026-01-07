@@ -1,0 +1,325 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO Platform - WAF Real-Time Monitoring Infrastructure'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - development
+      - staging
+      - production
+    Description: Environment name
+
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+    Description: Project name prefix for resources
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for Lambda functions
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet 1 for Lambda functions
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet 2 for Lambda functions
+
+  LambdaSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group for Lambda functions
+
+  PrismaLayerArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:2
+    Description: ARN of the Prisma dependencies layer
+
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: PostgreSQL connection string
+
+  AlertEmail:
+    Type: String
+    Default: security@example.com
+    Description: Email for security alerts
+
+Resources:
+  # SNS Topic for WAF Alerts
+  WafAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-${Environment}-waf-alerts'
+      DisplayName: 'WAF Security Alerts'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  WafAlertsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref WafAlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # IAM Role for WAF Lambda Functions
+  WafLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-waf-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: WafLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # CloudWatch Logs
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*'
+              # SNS for alerts
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref WafAlertsTopic
+              # STS for cross-account access
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: '*'
+              # WAF for IP blocking
+              - Effect: Allow
+                Action:
+                  - wafv2:GetIPSet
+                  - wafv2:UpdateIPSet
+                  - wafv2:ListIPSets
+                Resource: '*'
+
+  # WAF Log Processor Lambda
+  WafLogProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-processor'
+      Runtime: nodejs18.x
+      Handler: waf-log-processor.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-${Environment}-lambda-code'
+        S3Key: handlers/security/waf-log-processor.zip
+      Role: !GetAtt WafLambdaRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+      Layers:
+        - !Ref PrismaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_ENV: !Ref Environment
+          SNS_TOPIC_ARN: !Ref WafAlertsTopic
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda Resource Policy for Cross-Account Invocation
+  WafLogProcessorResourcePolicy:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WafLogProcessorFunction
+      Action: lambda:InvokeFunction
+      Principal: logs.amazonaws.com
+      # Allow any account to invoke via CloudWatch Logs Subscription Filter
+      # Validation is done in code via organization_id mapping
+
+  # WAF Threat Analyzer Lambda
+  WafThreatAnalyzerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-threat-analyzer'
+      Runtime: nodejs18.x
+      Handler: waf-threat-analyzer.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-${Environment}-lambda-code'
+        S3Key: handlers/security/waf-threat-analyzer.zip
+      Role: !GetAtt WafLambdaRole.Arn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+      Layers:
+        - !Ref PrismaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_ENV: !Ref Environment
+          SNS_TOPIC_ARN: !Ref WafAlertsTopic
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # WAF Dashboard API Lambda
+  WafDashboardApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-dashboard-api'
+      Runtime: nodejs18.x
+      Handler: waf-dashboard-api.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-${Environment}-lambda-code'
+        S3Key: handlers/security/waf-dashboard-api.zip
+      Role: !GetAtt WafLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+      Layers:
+        - !Ref PrismaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_ENV: !Ref Environment
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # WAF Setup Monitoring Lambda
+  WafSetupMonitoringFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-setup-monitoring'
+      Runtime: nodejs18.x
+      Handler: waf-setup-monitoring.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-${Environment}-lambda-code'
+        S3Key: handlers/security/waf-setup-monitoring.zip
+      Role: !GetAtt WafLambdaRole.Arn
+      Timeout: 120
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+      Layers:
+        - !Ref PrismaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_ENV: !Ref Environment
+          WAF_LOG_PROCESSOR_ARN: !GetAtt WafLogProcessorFunction.Arn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # WAF Unblock Expired Lambda
+  WafUnblockExpiredFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-unblock-expired'
+      Runtime: nodejs18.x
+      Handler: waf-unblock-expired.handler
+      Code:
+        S3Bucket: !Sub '${ProjectName}-${Environment}-lambda-code'
+        S3Key: handlers/security/waf-unblock-expired.zip
+      Role: !GetAtt WafLambdaRole.Arn
+      Timeout: 120
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+      Layers:
+        - !Ref PrismaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_ENV: !Ref Environment
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # EventBridge Rule for Scheduled Unblock
+  WafUnblockScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-waf-unblock-schedule'
+      Description: 'Trigger WAF unblock expired IPs every 5 minutes'
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Id: WafUnblockExpiredTarget
+          Arn: !GetAtt WafUnblockExpiredFunction.Arn
+
+  WafUnblockSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WafUnblockExpiredFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WafUnblockScheduleRule.Arn
+
+Outputs:
+  WafLogProcessorArn:
+    Description: ARN of the WAF Log Processor Lambda
+    Value: !GetAtt WafLogProcessorFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-log-processor-arn'
+
+  WafDashboardApiArn:
+    Description: ARN of the WAF Dashboard API Lambda
+    Value: !GetAtt WafDashboardApiFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-dashboard-api-arn'
+
+  WafSetupMonitoringArn:
+    Description: ARN of the WAF Setup Monitoring Lambda
+    Value: !GetAtt WafSetupMonitoringFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-setup-monitoring-arn'
+
+  WafAlertsTopicArn:
+    Description: ARN of the WAF Alerts SNS Topic
+    Value: !Ref WafAlertsTopic
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-alerts-topic-arn'

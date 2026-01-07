@@ -190,6 +190,7 @@ class ApiClient {
     eq?: Record<string, any>;
     order?: { column: string; ascending?: boolean };
     limit?: number;
+    offset?: number;
     ilike?: Record<string, string>;
     gte?: Record<string, any>;
     lte?: Record<string, any>;
@@ -205,6 +206,7 @@ class ApiClient {
         eq: options.eq,
         order: options.order,
         limit: options.limit,
+        offset: options.offset,
         ilike: options.ilike,
         gte: options.gte,
         lte: options.lte,

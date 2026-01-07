@@ -51,17 +51,23 @@ interface SecurityScan {
 
 interface ScanFinding {
   id: string;
-  scan_id: string;
+  organization_id: string;
+  aws_account_id: string | null;
   severity: 'critical' | 'high' | 'medium' | 'low';
-  title: string;
   description: string;
-  resource_type: string;
-  resource_id: string;
-  region: string;
-  remediation: string;
-  compliance_standards: string[];
-  cve_id: string | null;
-  cvss_score: number | null;
+  details: any;
+  status: string;
+  source: string | null;
+  resource_id: string | null;
+  resource_arn: string | null;
+  scan_type: string | null;
+  service: string | null;
+  category: string | null;
+  compliance: string[];
+  remediation: string | null;
+  risk_vector: string | null;
+  evidence: any;
+  created_at: string;
 }
 
 export default function SecurityScans() {
@@ -171,11 +177,11 @@ export default function SecurityScans() {
         organization_id: organizationId
       };
 
+      // Buscar todos os findings sem limite para exportação completa
       const response = await apiClient.select('findings', {
         select: '*',
         eq: filters,
-        order: { column: 'created_at', ascending: false },
-        limit: 100
+        order: { column: 'created_at', ascending: false }
       });
 
       if (response.error) {
@@ -264,31 +270,106 @@ export default function SecurityScans() {
   };
 
   const exportFindings = () => {
-    if (!findings) return;
+    if (!findings || findings.length === 0) return;
+
+    // Helper function to escape CSV values
+    const escapeCSV = (value: any): string => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      // Escape quotes and wrap in quotes if contains comma, quote, or newline
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Helper to extract title from details or use description
+    const getTitle = (finding: any): string => {
+      if (finding.details?.title) return finding.details.title;
+      if (finding.details?.check_name) return finding.details.check_name;
+      if (finding.description && finding.description.length <= 100) return finding.description;
+      return finding.description?.substring(0, 100) + '...' || 'N/A';
+    };
+
+    // Helper to extract resource type from details or resource_arn
+    const getResourceType = (finding: any): string => {
+      if (finding.details?.resource_type) return finding.details.resource_type;
+      if (finding.service) return finding.service;
+      if (finding.resource_arn) {
+        const arnParts = finding.resource_arn.split(':');
+        return arnParts[2] || 'Unknown';
+      }
+      return 'N/A';
+    };
+
+    // Helper to extract region from details or resource_arn
+    const getRegion = (finding: any): string => {
+      if (finding.details?.region) return finding.details.region;
+      if (finding.resource_arn) {
+        const arnParts = finding.resource_arn.split(':');
+        return arnParts[3] || 'global';
+      }
+      return 'N/A';
+    };
+
+    // Helper to format compliance standards
+    const getCompliance = (finding: any): string => {
+      if (finding.compliance && Array.isArray(finding.compliance)) {
+        return finding.compliance.join('; ');
+      }
+      if (finding.details?.compliance_standards && Array.isArray(finding.details.compliance_standards)) {
+        return finding.details.compliance_standards.join('; ');
+      }
+      return '';
+    };
+
+    // Helper to get remediation text
+    const getRemediation = (finding: any): string => {
+      if (!finding.remediation) return '';
+      try {
+        const rem = typeof finding.remediation === 'string' 
+          ? JSON.parse(finding.remediation) 
+          : finding.remediation;
+        if (rem.description) return rem.description;
+        if (rem.steps && Array.isArray(rem.steps)) return rem.steps.join(' -> ');
+        return String(finding.remediation);
+      } catch {
+        return String(finding.remediation);
+      }
+    };
 
     const csvContent = [
-      'Severidade,Título,Descrição,Tipo de Recurso,ID do Recurso,Região,CVE,CVSS Score',
+      'Severidade,Título,Descrição,Serviço,Categoria,Tipo de Recurso,ID do Recurso,ARN do Recurso,Região,Compliance,Status,Remediação,Risk Vector,Data',
       ...findings.map(finding => [
-        finding.severity,
-        `"${finding.title}"`,
-        `"${finding.description}"`,
-        finding.resource_type,
-        finding.resource_id,
-        finding.region,
-        finding.cve_id || '',
-        finding.cvss_score || ''
+        escapeCSV(finding.severity),
+        escapeCSV(getTitle(finding)),
+        escapeCSV(finding.description),
+        escapeCSV(finding.service || 'N/A'),
+        escapeCSV(finding.category || 'N/A'),
+        escapeCSV(getResourceType(finding)),
+        escapeCSV(finding.resource_id || 'N/A'),
+        escapeCSV(finding.resource_arn || 'N/A'),
+        escapeCSV(getRegion(finding)),
+        escapeCSV(getCompliance(finding)),
+        escapeCSV(finding.status || 'pending'),
+        escapeCSV(getRemediation(finding)),
+        escapeCSV(finding.risk_vector || 'N/A'),
+        escapeCSV(finding.created_at ? new Date(finding.created_at).toLocaleString('pt-BR') : 'N/A')
       ].join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Add BOM for Excel UTF-8 compatibility
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `security_findings_${selectedAccountId}_${new Date().toISOString().split('T')[0]}.csv`;
+    const accountSuffix = selectedAccountId ? `_${selectedAccountId}` : '';
+    link.download = `security_findings${accountSuffix}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
 
     toast({
       title: "Relatório exportado",
-      description: "Os achados de segurança foram exportados com sucesso.",
+      description: `${findings.length} achados de segurança foram exportados com sucesso.`,
     });
   };
 
@@ -664,7 +745,13 @@ export default function SecurityScans() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => navigate(`/security-scans/${scan.id}`)}
+                              onClick={() => {
+                                if (scan.scan_type === 'well_architected') {
+                                  navigate('/well-architected');
+                                } else {
+                                  navigate(`/security-scans/${scan.id}`);
+                                }
+                              }}
                               className="hover-glow transition-all duration-300 hover:scale-105"
                             >
                               <Eye className="h-4 w-4 mr-2" />
@@ -794,30 +881,90 @@ export default function SecurityScans() {
                 </div>
               ) : findings && findings.length > 0 ? (
                 <div className="space-y-4">
-                  {findings.map((finding) => (
+                  {findings.map((finding) => {
+                    // Helper functions para extrair dados dos campos corretos
+                    const getTitle = () => {
+                      if (finding.details?.title) return finding.details.title;
+                      if (finding.details?.check_name) return finding.details.check_name;
+                      if (finding.description && finding.description.length <= 100) return finding.description;
+                      return finding.description?.substring(0, 100) + '...' || 'N/A';
+                    };
+                    
+                    const getResourceType = () => {
+                      if (finding.details?.resource_type) return finding.details.resource_type;
+                      if (finding.service) return finding.service;
+                      if (finding.resource_arn) {
+                        const arnParts = finding.resource_arn.split(':');
+                        return arnParts[2] || 'Unknown';
+                      }
+                      return null;
+                    };
+                    
+                    const getRegion = () => {
+                      if (finding.details?.region) return finding.details.region;
+                      if (finding.resource_arn) {
+                        const arnParts = finding.resource_arn.split(':');
+                        return arnParts[3] || 'global';
+                      }
+                      return null;
+                    };
+                    
+                    const getComplianceStandards = () => {
+                      if (finding.compliance && Array.isArray(finding.compliance)) {
+                        return finding.compliance;
+                      }
+                      if (finding.details?.compliance_standards && Array.isArray(finding.details.compliance_standards)) {
+                        return finding.details.compliance_standards;
+                      }
+                      return [];
+                    };
+                    
+                    const resourceType = getResourceType();
+                    const region = getRegion();
+                    const complianceStandards = getComplianceStandards();
+                    
+                    return (
                     <div key={finding.id} className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
                           {getSeverityIcon(finding.severity)}
                           <div className="space-y-1">
-                            <h4 className="font-semibold text-sm">{finding.title}</h4>
+                            <h4 className="font-semibold text-sm">{getTitle()}</h4>
                             <p className="text-sm text-muted-foreground">{finding.description}</p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>{finding.resource_type}</span>
-                              <span>•</span>
-                              <span>{finding.resource_id}</span>
-                              <span>•</span>
-                              <span>{finding.region}</span>
-                              {finding.cve_id && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                              {finding.service && (
                                 <>
+                                  <span className="font-medium">{finding.service}</span>
                                   <span>•</span>
-                                  <span>CVE: {finding.cve_id}</span>
                                 </>
                               )}
-                              {finding.cvss_score && (
+                              {resourceType && (
+                                <>
+                                  <span>{resourceType}</span>
+                                  <span>•</span>
+                                </>
+                              )}
+                              {finding.resource_id && (
+                                <>
+                                  <span className="font-mono text-xs">{finding.resource_id}</span>
+                                  <span>•</span>
+                                </>
+                              )}
+                              {region && (
+                                <span>{region}</span>
+                              )}
+                              {finding.category && (
                                 <>
                                   <span>•</span>
-                                  <span>CVSS: {finding.cvss_score}</span>
+                                  <Badge variant="outline" className="text-xs">{finding.category}</Badge>
+                                </>
+                              )}
+                              {finding.status && finding.status !== 'pending' && (
+                                <>
+                                  <span>•</span>
+                                  <Badge variant={finding.status === 'resolved' ? 'default' : 'secondary'} className="text-xs">
+                                    {finding.status}
+                                  </Badge>
                                 </>
                               )}
                             </div>
@@ -828,9 +975,9 @@ export default function SecurityScans() {
                         </div>
                       </div>
                       
-                      {finding.compliance_standards && finding.compliance_standards.length > 0 && (
+                      {complianceStandards.length > 0 && (
                         <div className="flex gap-2 flex-wrap">
-                          {finding.compliance_standards.map((standard) => (
+                          {complianceStandards.map((standard: string) => (
                             <Badge key={standard} variant="outline" className="text-xs">
                               {standard}
                             </Badge>
@@ -895,7 +1042,8 @@ export default function SecurityScans() {
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-12">

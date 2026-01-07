@@ -50,7 +50,7 @@ interface MetricDataPoint {
 }
 
 // Métricas por tipo de recurso
-const METRICS_CONFIG: Record<string, { namespace: string; metrics: string[]; dimensionKey: string }> = {
+const METRICS_CONFIG: Record<string, { namespace: string; metrics: string[]; dimensionKey: string; requiresStage?: boolean }> = {
   ec2: {
     namespace: 'AWS/EC2',
     metrics: ['CPUUtilization', 'NetworkIn', 'NetworkOut', 'DiskReadOps', 'DiskWriteOps'],
@@ -88,8 +88,9 @@ const METRICS_CONFIG: Record<string, { namespace: string; metrics: string[]; dim
   },
   apigateway: {
     namespace: 'AWS/ApiGateway',
-    metrics: ['Count', 'Latency', '4XXError', '5XXError'],
+    metrics: ['Count', 'Latency', 'IntegrationLatency', '4XXError', '5XXError'],
     dimensionKey: 'ApiName',
+    requiresStage: true, // API Gateway metrics require Stage dimension
   },
 };
 
@@ -121,6 +122,7 @@ const METRIC_UNITS: Record<string, string> = {
   NewFlowCount: 'Count',
   Count: 'Count',
   Latency: 'Milliseconds',
+  IntegrationLatency: 'Milliseconds',
   '4XXError': 'Count',
   '5XXError': 'Count',
 };
@@ -281,7 +283,7 @@ async function fetchCloudwatchMetricsHandler(
               // Buscar todas as métricas do recurso em paralelo
               const metricResults = await Promise.allSettled(
                 config.metrics.map(metricName => 
-                  fetchMetric(cwClient, config.namespace, metricName, config.dimensionKey, resource, periodHours)
+                  fetchMetric(cwClient, config.namespace, metricName, config.dimensionKey, resource, periodHours, config.requiresStage)
                 )
               );
               
@@ -583,25 +585,84 @@ async function fetchMetric(
   metricName: string,
   dimensionKey: string,
   resource: ResourceInfo,
-  periodHours: number
+  periodHours: number,
+  requiresStage?: boolean
 ): Promise<MetricDataPoint[]> {
   try {
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - periodHours * 60 * 60 * 1000);
     const aggregationPeriod = periodHours > 24 ? 3600 : periodHours > 3 ? 900 : 300;
     
-    // Para Lambda, usar estatísticas específicas por métrica
-    let statistics: Statistic[] = ['Average'];
+    // Métricas de contagem que devem usar Sum
+    const countMetrics = new Set([
+      'Count', '4XXError', '5XXError', 'Invocations', 'Errors', 'Throttles',
+      'RequestCount', 'HTTPCode_Target_2XX_Count', 'HTTPCode_Target_4XX_Count', 'HTTPCode_Target_5XX_Count'
+    ]);
+    
+    // Determinar estatísticas baseado no tipo de métrica
+    let statistics: Statistic[] = ['Average', 'Sum', 'Maximum'];
+    const isCountMetric = countMetrics.has(metricName);
+    
     if (resource.resourceType === 'lambda') {
       if (['Invocations', 'Errors', 'Throttles'].includes(metricName)) {
-        statistics = ['Sum']; // Métricas de contagem
+        statistics = ['Sum'];
       } else if (metricName === 'Duration') {
-        statistics = ['Average', 'Maximum']; // Duração
+        statistics = ['Average', 'Maximum'];
       } else if (metricName === 'ConcurrentExecutions') {
-        statistics = ['Maximum']; // Execuções concorrentes
+        statistics = ['Maximum'];
       }
-    } else {
-      statistics = ['Average', 'Sum', 'Maximum'];
+    } else if (resource.resourceType === 'apigateway') {
+      // Para API Gateway, usar Sum para contagens e Average para latências
+      if (isCountMetric) {
+        statistics = ['Sum'];
+      } else {
+        statistics = ['Average'];
+      }
+    }
+    
+    // Construir dimensões
+    const dimensions: Array<{ Name: string; Value: string }> = [
+      { Name: dimensionKey, Value: resource.resourceId }
+    ];
+    
+    // API Gateway requer dimensão Stage para métricas funcionarem
+    if (requiresStage && resource.resourceType === 'apigateway') {
+      // Tentar buscar com stage 'prod' primeiro (mais comum)
+      const stages = ['prod', 'production', 'dev', 'staging'];
+      
+      for (const stage of stages) {
+        const stageResponse = await client.send(new GetMetricStatisticsCommand({
+          Namespace: namespace,
+          MetricName: metricName,
+          Dimensions: [
+            { Name: dimensionKey, Value: resource.resourceId },
+            { Name: 'Stage', Value: stage }
+          ],
+          StartTime: startTime,
+          EndTime: endTime,
+          Period: aggregationPeriod,
+          Statistics: statistics,
+        }));
+        
+        if (stageResponse.Datapoints && stageResponse.Datapoints.length > 0) {
+          logger.debug(`Found ${stageResponse.Datapoints.length} datapoints for ${resource.resourceId} with stage ${stage}`);
+          
+          return (stageResponse.Datapoints || [])
+            .filter(dp => dp.Timestamp && (dp.Average !== undefined || dp.Sum !== undefined || dp.Maximum !== undefined))
+            .map(dp => ({
+              resourceId: resource.resourceId,
+              resourceName: resource.resourceName,
+              resourceType: resource.resourceType,
+              metricName,
+              value: isCountMetric ? (dp.Sum ?? 0) : (dp.Average ?? dp.Sum ?? dp.Maximum ?? 0),
+              timestamp: dp.Timestamp!,
+              unit: METRIC_UNITS[metricName] || 'None',
+            }));
+        }
+      }
+      
+      // Se nenhum stage funcionou, tentar sem stage (fallback)
+      logger.debug(`No data found with Stage dimension for ${resource.resourceId}, trying without Stage`);
     }
     
     logger.debug(`Fetching ${metricName} for ${resource.resourceType}:${resource.resourceId}`, {
@@ -614,7 +675,7 @@ async function fetchMetric(
     const response = await client.send(new GetMetricStatisticsCommand({
       Namespace: namespace,
       MetricName: metricName,
-      Dimensions: [{ Name: dimensionKey, Value: resource.resourceId }],
+      Dimensions: dimensions,
       StartTime: startTime,
       EndTime: endTime,
       Period: aggregationPeriod,
@@ -624,19 +685,22 @@ async function fetchMetric(
     const datapoints = (response.Datapoints || [])
       .filter(dp => dp.Timestamp && (dp.Average !== undefined || dp.Sum !== undefined || dp.Maximum !== undefined))
       .map(dp => {
-        // Escolher o valor correto baseado na estatística
+        // Escolher o valor correto baseado no tipo de métrica
         let value = 0;
-        if (resource.resourceType === 'lambda') {
-          if (['Invocations', 'Errors', 'Throttles'].includes(metricName)) {
-            value = dp.Sum ?? 0;
-          } else if (metricName === 'Duration') {
-            value = dp.Average ?? 0; // Usar média para duração
+        
+        if (isCountMetric) {
+          // Métricas de contagem sempre usam Sum
+          value = dp.Sum ?? 0;
+        } else if (resource.resourceType === 'lambda') {
+          if (metricName === 'Duration') {
+            value = dp.Average ?? 0;
           } else if (metricName === 'ConcurrentExecutions') {
             value = dp.Maximum ?? 0;
           } else {
             value = dp.Average ?? dp.Sum ?? dp.Maximum ?? 0;
           }
         } else {
+          // Para latências e outras métricas, usar Average
           value = dp.Average ?? dp.Sum ?? dp.Maximum ?? 0;
         }
         

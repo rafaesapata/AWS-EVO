@@ -126,6 +126,7 @@ class CognitoAuthService {
       console.log('🔐 Cognito response received:', { hasChallenge: !!response.ChallengeName, hasResult: !!response.AuthenticationResult });
       
       if (response.ChallengeName) {
+        console.log('🔐 Challenge detected:', response.ChallengeName, response.ChallengeParameters);
         return {
           challengeName: response.ChallengeName,
           session: response.Session,
@@ -137,6 +138,7 @@ class CognitoAuthService {
       
       // Validar se usuário tem organização no token
       if (!session.user.organizationId) {
+        console.error('🔐 User without organization ID:', session.user);
         throw new Error('Usuário sem organização vinculada. Entre em contato com o administrador.');
       }
       
@@ -582,6 +584,55 @@ class CognitoAuthService {
         throw new Error('Código MFA inválido. Verifique e tente novamente.');
       } else if (error.name === 'ExpiredCodeException') {
         throw new Error('Código MFA expirado. Faça login novamente.');
+      }
+      
+      throw error;
+    }
+  }
+
+  async confirmNewPassword(session: string, newPassword: string, requiredAttributes?: Record<string, string>): Promise<AuthSession> {
+    if (!this.userPoolId || !this.clientId) {
+      throw new Error('AWS Cognito não está configurado');
+    }
+
+    const cognitoClient = new CognitoIdentityProviderClient({ 
+      region: this.region 
+    });
+
+    const challengeResponses: Record<string, string> = {
+      USERNAME: await this.getStoredUsername() || '',
+      NEW_PASSWORD: newPassword,
+    };
+
+    // Add any required attributes
+    if (requiredAttributes) {
+      Object.assign(challengeResponses, requiredAttributes);
+    }
+
+    const respondCommand = new RespondToAuthChallengeCommand({
+      ClientId: this.clientId,
+      ChallengeName: 'NEW_PASSWORD_REQUIRED',
+      Session: session,
+      ChallengeResponses: challengeResponses,
+    });
+
+    try {
+      console.log('🔐 Responding to NEW_PASSWORD_REQUIRED challenge');
+      const response = await cognitoClient.send(respondCommand);
+      
+      if (!response.AuthenticationResult) {
+        throw new Error('Falha ao definir nova senha');
+      }
+
+      console.log('🔐 New password set successfully');
+      return this.buildSessionFromResponse(response);
+    } catch (error: any) {
+      console.error('New password error:', error);
+      
+      if (error.name === 'InvalidPasswordException') {
+        throw new Error('Senha não atende aos requisitos de segurança');
+      } else if (error.name === 'InvalidParameterException') {
+        throw new Error('Parâmetros inválidos. Verifique os dados informados.');
       }
       
       throw error;

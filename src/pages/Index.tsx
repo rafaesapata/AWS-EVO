@@ -27,6 +27,7 @@ import Compliance from "@/pages/Compliance";
 import SecurityAnalysisContent from "@/components/dashboard/SecurityAnalysisContent";
 import RISavingsPlans from "@/pages/RISavingsPlans";
 import MLWasteDetection from "@/pages/MLWasteDetection";
+import TVDashboardManagement from "@/pages/TVDashboardManagement";
 import ExecutiveDashboardV2 from "@/components/dashboard/ExecutiveDashboard";
 import AuditLog from "@/components/admin/AuditLog";
 import { useAwsAccount } from "@/contexts/AwsAccountContext";
@@ -59,7 +60,8 @@ import {
   Bell,
   Activity,
   Globe,
-  Cloud
+  Cloud,
+  Tv
 } from "lucide-react";
 
 interface User {
@@ -400,6 +402,58 @@ const Index = () => {
 
   if (activeTab === "edge-monitoring") {
     return <EdgeMonitoring />;
+  }
+
+  if (activeTab === "tv-dashboards") {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-gradient-subtle">
+          <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} userRole={userRole} />
+          <div className="flex-1 flex flex-col">
+            <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
+              <div className="w-full px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <SidebarTrigger className="-ml-1" />
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow">
+                        <Tv className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                          TV Dashboards
+                        </h1>
+                        <p className="text-sm text-muted-foreground">
+                          Gerencie links de acesso para exibição em TVs
+                        </p>
+                      </div>
+                    </div>
+                    {user?.organizationId && (
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
+                        <Building2 className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">
+                          {user.organizationName || user.organizationId}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <AwsAccountSelector />
+                    <LanguageToggle />
+                    <ThemeToggle />
+                    <UserMenu />
+                  </div>
+                </div>
+              </div>
+            </header>
+            <main className="flex-1 w-full px-6 py-6 overflow-auto">
+              <TVDashboardManagement />
+            </main>
+            <Footer />
+          </div>
+        </div>
+      </SidebarProvider>
+    );
   }
 
   if (activeTab === "security-analysis") {

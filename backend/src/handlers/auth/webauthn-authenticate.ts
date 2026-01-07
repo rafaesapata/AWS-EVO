@@ -154,15 +154,24 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
 
   if (email) {
     // Buscar credenciais do usuário específico
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email }
     });
 
     logger.info('🔐 User lookup result', { email, userFound: !!user, userId: user?.id });
 
     if (!user) {
-      logger.warn('🔐 User not found for WebAuthn check', { email });
-      return errorResponse('User not found', 404, undefined, origin);
+      logger.info('🔐 User not found in database, checking if exists in Cognito', { email });
+      
+      // User doesn't exist in database but might exist in Cognito
+      // This can happen if user was created in Cognito but not synced to database
+      // For WebAuthn check, we just need to know if they have WebAuthn credentials
+      // Since they don't exist in database, they definitely don't have WebAuthn credentials
+      logger.info('🔐 User not in database - no WebAuthn credentials possible', { email });
+      return success({ 
+        hasWebAuthn: false,
+        message: 'User not found in database - no WebAuthn credentials'
+      }, 200, origin);
     }
 
     userId = user.id;
@@ -179,30 +188,11 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
     });
 
     if (webauthnCredentials.length === 0) {
-      logger.info('🔐 No WebAuthn credentials found - returning empty options', { email, userId: user.id });
-      // Instead of returning error, return empty allowCredentials
-      // This allows the frontend to handle "no WebAuthn" vs "has WebAuthn" properly
-      const challenge = crypto.randomBytes(32).toString('base64url');
-      const challengeExpiry = new Date(Date.now() + 300000);
-
-      await prisma.webauthnChallenge.create({
-        data: {
-          user_id: user.id,
-          challenge,
-          expires_at: challengeExpiry
-        }
-      });
-
-      const rpId = process.env.WEBAUTHN_RP_ID || 'evo.ai.udstec.io';
-
+      logger.info('🔐 No WebAuthn credentials found - user can proceed with normal login', { email, userId: user.id });
+      // Return a clear response indicating no WebAuthn is required
       return success({ 
-        options: {
-          challenge,
-          rpId,
-          timeout: 300000,
-          userVerification: 'preferred',
-          allowCredentials: [] // Empty array indicates no WebAuthn credentials
-        }
+        hasWebAuthn: false,
+        message: 'No WebAuthn credentials found for this user'
       }, 200, origin);
     }
 
@@ -235,7 +225,7 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
     }
   });
 
-  const rpId = process.env.WEBAUTHN_RP_ID || 'evouds.com';
+  const rpId = process.env.WEBAUTHN_RP_ID || 'evo.ai.udstec.io';
 
   const publicKeyCredentialRequestOptions = {
     challenge,

@@ -168,6 +168,7 @@ function KnowledgeBaseContent() {
         category: newArticle.category,
         tags,
         is_public: newArticle.is_public,
+        is_restricted: newArticle.is_restricted,
         approval_status: 'draft',
       });
 

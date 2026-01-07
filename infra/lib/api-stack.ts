@@ -66,6 +66,8 @@ export class ApiStack extends cdk.Stack {
       DATABASE_SECRET_ARN: props.database.secret?.secretArn || '',
       USER_POOL_ID: props.userPool.userPoolId,
       REGION: cdk.Aws.REGION,
+      WEBAUTHN_RP_ID: 'evo.ai.udstec.io',
+      WEBAUTHN_RP_NAME: 'EVO Cloud Intelligence',
     };
 
     // Security Scan Lambda

@@ -380,19 +380,31 @@ Como posso ajudar você hoje?`,
               ) : (
                 <div className="space-y-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Custos (7 dias)</span>
-                    <span className="font-medium">
-                      ${contextData?.costs?.reduce((sum, c) => sum + Number(c.total_cost), 0).toFixed(2) || '0.00'}
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" />
+                      Custos (7 dias)
+                    </span>
+                    <span className="font-medium text-primary">
+                      ${contextData?.costs?.reduce((sum, c) => {
+                        const cost = Number(c.total_cost || c.cost || c.amount || 0);
+                        return sum + (isNaN(cost) ? 0 : cost);
+                      }, 0).toFixed(2) || '0.00'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Alertas Ativos</span>
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Shield className="h-3 w-3" />
+                      Alertas Ativos
+                    </span>
                     <Badge variant={contextData?.alerts?.length > 0 ? "destructive" : "secondary"}>
                       {contextData?.alerts?.length || 0}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Recursos</span>
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <BarChart3 className="h-3 w-3" />
+                      Recursos
+                    </span>
                     <span className="font-medium">{contextData?.resources?.length || 0}</span>
                   </div>
                 </div>

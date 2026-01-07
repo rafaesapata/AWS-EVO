@@ -274,6 +274,19 @@ Resources:
               - 'logs:DescribeMetricFilters'
             Resource: '*'
           
+          # CloudWatch Logs WAF Monitoring (for WAF log groups only)
+          - Sid: CloudWatchLogsWAFMonitoring
+            Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:PutSubscriptionFilter'
+              - 'logs:DeleteSubscriptionFilter'
+              - 'logs:DescribeSubscriptionFilters'
+              - 'logs:PutRetentionPolicy'
+            Resource:
+              - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*'
+              - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*:*'
+          
           # KMS Read Access (Encryption Analysis)
           - Sid: KMSReadAccess
             Effect: Allow
@@ -413,6 +426,13 @@ Resources:
               - 'wafv2:GetWebACL'
               - 'wafv2:ListResourcesForWebACL'
               - 'wafv2:GetLoggingConfiguration'
+              - 'wafv2:PutLoggingConfiguration'
+              - 'wafv2:DeleteLoggingConfiguration'
+              - 'wafv2:ListLoggingConfigurations'
+              - 'wafv2:GetIPSet'
+              - 'wafv2:UpdateIPSet'
+              - 'wafv2:ListIPSets'
+              - 'wafv2:CreateIPSet'
             Resource: '*'
           
           # Route53 Read Access (DNS)
@@ -497,6 +517,46 @@ Resources:
               - 'pricing:GetAttributeValues'
             Resource: '*'
 
+  # ----------------------------------------------------------------------------
+  # IAM Role for CloudWatch Logs Cross-Account Subscription (WAF Monitoring)
+  # ----------------------------------------------------------------------------
+  EVOCloudWatchLogsRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'EVO-CloudWatch-Logs-Role-${AWS::StackName}'
+      Description: 'IAM Role for CloudWatch Logs to send WAF logs cross-account to EVO Platform'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudWatchLogsAssumeRole
+            Effect: Allow
+            Principal:
+              Service: !Sub 'logs.${AWS::Region}.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Tags:
+        - Key: Name
+          Value: !Sub 'EVO-CloudWatch-Logs-Role-${AWS::StackName}'
+        - Key: Purpose
+          Value: 'EVO Platform WAF Log Streaming'
+        - Key: ManagedBy
+          Value: 'CloudFormation'
+
+  EVOCloudWatchLogsPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: 'EVO-CloudWatch-Logs-CrossAccount'
+      Roles:
+        - !Ref EVOCloudWatchLogsRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowPutSubscriptionFilter
+            Effect: Allow
+            Action:
+              - 'logs:PutSubscriptionFilter'
+            Resource:
+              - !Sub 'arn:aws:logs:*:${EVOPlatformAccountId}:destination:evo-waf-log-destination'
+
 # ==============================================================================
 # OUTPUTS
 # ==============================================================================
@@ -510,6 +570,12 @@ Outputs:
   RoleName:
     Description: 'Name of the IAM Role created'
     Value: !Ref EVOPlatformRole
+  
+  CloudWatchLogsRoleArn:
+    Description: 'ARN of the CloudWatch Logs Role for WAF monitoring cross-account subscription'
+    Value: !GetAtt EVOCloudWatchLogsRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudWatchLogsRoleArn'
   
   ExternalId:
     Description: 'External ID configured for this role (for reference)'

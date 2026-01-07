@@ -31,7 +31,7 @@ export const RiSpAnalysis = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'ri' | 'sp' | 'recommendations'>('overview');
 
   // Fetch RI/SP analysis data
-  const { data: analysisData, isLoading } = useQuery({
+  const { data: analysisData, isLoading, error: queryError } = useQuery({
     queryKey: ['ri-sp-analysis', organizationId, selectedAccountId],
     enabled: !!organizationId && !!selectedAccountId,
     staleTime: 10 * 60 * 1000, // 10 minutes
@@ -48,7 +48,7 @@ export const RiSpAnalysis = () => {
         throw new Error(response.error.message);
       }
       
-      return response.data?.data;
+      return response.data;
     },
   });
 
@@ -102,6 +102,76 @@ export const RiSpAnalysis = () => {
   const ri = analysisData?.reservedInstances;
   const sp = analysisData?.savingsPlans;
   const recommendations = analysisData?.recommendations;
+
+  // Verificar se os dados foram realmente analisados
+  const hasRealData = analysisData && (
+    (ri && ri.count > 0) || 
+    (sp && sp.count > 0) || 
+    (recommendations && recommendations.count > 0) ||
+    analysisData.analyzedAt
+  );
+
+  // Se não há dados reais, mostrar instruções para primeira execução
+  if (!isLoading && !hasRealData) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Reserved Instances & Savings Plans
+                </CardTitle>
+                <CardDescription>
+                  Análise de utilização, cobertura e recomendações de otimização
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <CardTitle className="text-amber-900">Primeira Execução Necessária</CardTitle>
+            </div>
+            <CardDescription className="text-amber-700">
+              As rotinas de análise de Reserved Instances e Savings Plans ainda não foram executadas para esta conta AWS.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <h4 className="font-semibold text-amber-900">Para executar a análise pela primeira vez:</h4>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-amber-800">
+                <li>Clique no botão "Executar Análise" abaixo</li>
+                <li>Aguarde o processamento (pode levar alguns minutos)</li>
+                <li>Os dados de utilização e recomendações serão coletados da AWS</li>
+                <li>A análise será atualizada automaticamente a cada execução</li>
+              </ol>
+            </div>
+            
+            <div className="pt-4 border-t border-amber-200">
+              <Button 
+                onClick={() => refreshMutation.mutate()}
+                disabled={refreshMutation.isPending}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+                {refreshMutation.isPending ? 'Executando Análise...' : 'Executar Análise'}
+              </Button>
+            </div>
+
+            <div className="text-xs text-amber-600 bg-amber-100 p-3 rounded-lg">
+              <strong>Nota:</strong> A primeira execução pode demorar mais tempo pois precisa coletar dados históricos 
+              de utilização dos últimos 30 dias da AWS Cost Explorer.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -351,10 +421,17 @@ export const RiSpAnalysis = () => {
                     ))}
                   </TableBody>
                 </Table>
-              ) : (
+              ) : ri && ri.count > 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle2 className="h-12 w-12 mx-auto mb-2 text-green-500" />
                   <p>Todas as Reserved Instances estão bem utilizadas!</p>
+                  <p className="text-sm mt-1">Utilização média: {ri.averageUtilization}%</p>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Target className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                  <p>Nenhuma Reserved Instance encontrada</p>
+                  <p className="text-sm mt-1">Esta conta não possui Reserved Instances ativas</p>
                 </div>
               )}
             </CardContent>
@@ -406,10 +483,17 @@ export const RiSpAnalysis = () => {
                     ))}
                   </TableBody>
                 </Table>
-              ) : (
+              ) : sp && sp.count > 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle2 className="h-12 w-12 mx-auto mb-2 text-green-500" />
                   <p>Todos os Savings Plans estão bem utilizados!</p>
+                  <p className="text-sm mt-1">Utilização média: {sp.averageUtilization}% | Cobertura: {sp.averageCoverage}%</p>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Zap className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                  <p>Nenhum Savings Plan encontrado</p>
+                  <p className="text-sm mt-1">Esta conta não possui Savings Plans ativos</p>
                 </div>
               )}
             </CardContent>

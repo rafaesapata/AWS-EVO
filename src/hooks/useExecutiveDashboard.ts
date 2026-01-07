@@ -9,6 +9,8 @@ import { useAwsAccount } from '@/contexts/AwsAccountContext';
 import { useTVDashboard } from '@/contexts/TVDashboardContext';
 import type { ExecutiveDashboardData } from '@/components/dashboard/ExecutiveDashboard/types';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 interface UseExecutiveDashboardOptions {
   includeForecasts?: boolean;
   includeTrends?: boolean;
@@ -20,8 +22,11 @@ interface UseExecutiveDashboardOptions {
 export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}) {
   const { data: organizationId } = useOrganization();
   const { selectedAccountId, isLoading: accountLoading } = useAwsAccount();
-  const { isTVMode } = useTVDashboard();
+  const { isTVMode, organizationId: tvOrgId } = useTVDashboard();
   const queryClient = useQueryClient();
+
+  // Use TV org ID in TV mode, otherwise use authenticated org ID
+  const effectiveOrgId = isTVMode ? tvOrgId : organizationId;
 
   const {
     includeForecasts = true,
@@ -34,14 +39,40 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
   const query = useQuery<ExecutiveDashboardData, Error>({
     queryKey: [
       'executive-dashboard-v2',
-      organizationId,
+      effectiveOrgId,
       selectedAccountId,
-      trendPeriod
+      trendPeriod,
+      isTVMode
     ],
-    enabled: !!organizationId && (isTVMode || (!accountLoading && !!selectedAccountId)),
+    enabled: !!effectiveOrgId && (isTVMode || (!accountLoading && !!selectedAccountId)),
     queryFn: async () => {
+      // In TV mode, use direct fetch without authentication
+      if (isTVMode) {
+        const response = await fetch(`${API_BASE_URL}/api/functions/get-executive-dashboard-public`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            organizationId: tvOrgId,
+            includeForecasts,
+            includeTrends,
+            includeInsights,
+            trendPeriod
+          })
+        });
+
+        const result = await response.json();
+        const data = result.data || result;
+        
+        if (!response.ok || data.error) {
+          throw new Error(data.error || data.message || 'Failed to load dashboard');
+        }
+
+        return data as ExecutiveDashboardData;
+      }
+
+      // Normal authenticated mode
       const response = await apiClient.lambda<ExecutiveDashboardData>('get-executive-dashboard', {
-        accountId: isTVMode ? null : selectedAccountId,
+        accountId: selectedAccountId,
         includeForecasts,
         includeTrends,
         includeInsights,
@@ -62,13 +93,13 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
 
   const refresh = () => {
     queryClient.invalidateQueries({ 
-      queryKey: ['executive-dashboard-v2', organizationId] 
+      queryKey: ['executive-dashboard-v2', effectiveOrgId] 
     });
   };
 
   return {
     ...query,
     refresh,
-    isReady: !!organizationId && (isTVMode || !accountLoading)
+    isReady: !!effectiveOrgId && (isTVMode || !accountLoading)
   };
 }

@@ -2,12 +2,12 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { logger } from '../../lib/logging.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
-import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 import { success, error, badRequest, notFound, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { detectAnomaliesSchema } from '../../lib/schemas.js';
+import { resolveAwsCredentials } from '../../lib/aws-helpers.js';
 
 interface Anomaly {
   id: string;
@@ -65,32 +65,41 @@ export async function handler(
     const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = parseResult.data;
 
     const prisma = getPrismaClient();
-    const stsClient = new STSClient({});
+    const startTime = Date.now();
 
-    // Buscar conta AWS - FILTRAR POR ORGANIZATION_ID
-    const awsAccount = await prisma.awsAccount.findFirst({
+    // Buscar credencial AWS - FILTRAR POR ORGANIZATION_ID
+    const awsCredential = await prisma.awsCredential.findFirst({
       where: { 
         id: awsAccountId,
-        organization_id: organizationId  // CRITICAL: Multi-tenancy filter
+        organization_id: organizationId,  // CRITICAL: Multi-tenancy filter
+        is_active: true
       },
       include: { organization: true }
     });
 
-    if (!awsAccount) {
+    if (!awsCredential) {
       return notFound('AWS Account not found', origin);
     }
 
-    // Assume role (usando campos corretos do schema)
-    const assumeRoleResponse = await stsClient.send(new AssumeRoleCommand({
-      RoleArn: `arn:aws:iam::${awsAccount.account_id}:role/EvoUdsRole`,
-      RoleSessionName: 'DetectAnomaliesSession',
-      DurationSeconds: 3600
-    }));
+    // Criar registro de scan com status 'running'
+    const scan = await prisma.securityScan.create({
+      data: {
+        organization_id: organizationId,
+        aws_account_id: awsAccountId,
+        scan_type: 'anomaly_detection',
+        status: 'running',
+        scan_config: { analysisType, sensitivity, lookbackDays },
+        started_at: new Date()
+      }
+    });
 
+    // Resolver credenciais AWS usando helper padrão
+    const resolvedCreds = await resolveAwsCredentials(awsCredential, 'us-east-1');
+    
     const credentials = {
-      accessKeyId: assumeRoleResponse.Credentials!.AccessKeyId!,
-      secretAccessKey: assumeRoleResponse.Credentials!.SecretAccessKey!,
-      sessionToken: assumeRoleResponse.Credentials!.SessionToken!
+      accessKeyId: resolvedCreds.accessKeyId,
+      secretAccessKey: resolvedCreds.secretAccessKey,
+      sessionToken: resolvedCreds.sessionToken
     };
 
     const anomalies: Anomaly[] = [];
@@ -118,7 +127,8 @@ export async function handler(
     for (const anomaly of anomalies) {
       await prisma.finding.create({
         data: {
-          organization_id: awsAccount.organization_id,
+          organization_id: organizationId,
+          aws_account_id: awsAccountId,
           severity: anomaly.severity,
           description: anomaly.description,
           details: {
@@ -151,22 +161,72 @@ export async function handler(
       return acc;
     }, {} as Record<string, number>);
 
+    // Atualizar registro de scan com resultados
+    const endTime = Date.now();
+    await prisma.securityScan.update({
+      where: { id: scan.id },
+      data: {
+        status: 'completed',
+        completed_at: new Date(),
+        findings_count: anomalies.length,
+        critical_count: bySeverity['CRITICAL'] || 0,
+        high_count: bySeverity['HIGH'] || 0,
+        medium_count: bySeverity['MEDIUM'] || 0,
+        low_count: bySeverity['LOW'] || 0,
+        results: {
+          byCategory,
+          bySeverity,
+          executionTimeMs: endTime - startTime
+        }
+      }
+    });
+
     return success({
+      scanId: scan.id,
       summary: {
         totalAnomalies: anomalies.length,
         byCategory,
         bySeverity,
         analysisType,
         sensitivity,
-        lookbackDays
+        lookbackDays,
+        executionTimeMs: endTime - startTime
       },
       anomalies: anomalies.sort((a, b) => {
         const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
         return severityOrder[a.severity] - severityOrder[b.severity];
       })
     }, 200, origin);
-  } catch (err) {
+  } catch (err: any) {
     logger.error('Detect anomalies error:', err);
+    
+    // Try to update scan status to failed if scan was created
+    try {
+      const prisma = getPrismaClient();
+      // Find the most recent running scan for this organization
+      const runningScan = await prisma.securityScan.findFirst({
+        where: {
+          organization_id: organizationId,
+          scan_type: 'anomaly_detection',
+          status: 'running'
+        },
+        orderBy: { created_at: 'desc' }
+      });
+      
+      if (runningScan) {
+        await prisma.securityScan.update({
+          where: { id: runningScan.id },
+          data: {
+            status: 'failed',
+            completed_at: new Date(),
+            results: { error: err.message || 'Unknown error' }
+          }
+        });
+      }
+    } catch (updateErr) {
+      logger.error('Failed to update scan status:', updateErr);
+    }
+    
     return error('Internal server error', 500, undefined, origin);
   }
 };
@@ -180,7 +240,7 @@ function getThresholds(sensitivity: string): { costDeviation: number; perfDeviat
 }
 
 async function detectCostAnomalies(
-  credentials: { accessKeyId: string; secretAccessKey: string; sessionToken: string },
+  credentials: { accessKeyId: string; secretAccessKey: string; sessionToken?: string },
   lookbackDays: number,
   thresholds: { costDeviation: number }
 ): Promise<Anomaly[]> {
@@ -214,8 +274,16 @@ async function detectCostAnomalies(
     if (costs.length < 7) continue;
 
     const mean = costs.reduce((a, b) => a + b, 0) / costs.length;
+    
+    // Skip services with no meaningful cost data
+    if (mean < 0.01) continue;
+    
     const stdDev = Math.sqrt(costs.reduce((sum, c) => sum + Math.pow(c - mean, 2), 0) / costs.length);
     const lastCost = costs[costs.length - 1];
+    
+    // Skip if both values are essentially zero
+    if (mean < 0.01 && lastCost < 0.01) continue;
+    
     const deviation = Math.abs(lastCost - mean) / (stdDev || 1);
 
     if (deviation > 2 && Math.abs(lastCost - mean) / mean > thresholds.costDeviation) {
@@ -241,7 +309,7 @@ async function detectCostAnomalies(
 }
 
 async function detectPerformanceAnomalies(
-  credentials: { accessKeyId: string; secretAccessKey: string; sessionToken: string },
+  credentials: { accessKeyId: string; secretAccessKey: string; sessionToken?: string },
   lookbackDays: number,
   thresholds: { perfDeviation: number }
 ): Promise<Anomaly[]> {

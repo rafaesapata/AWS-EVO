@@ -150,9 +150,10 @@ export default function Auth() {
       }
 
       // Step 2: Get credential using WebAuthn API
+      // Use base domain udstec.io for rpId
       const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
         challenge: base64ToArrayBuffer(challengeData.challenge),
-        rpId: window.location.hostname,
+        rpId: 'evo.ai.udstec.io',
         allowCredentials: challengeData.credentials?.map((cred: any) => ({
           id: base64ToArrayBuffer(cred.id),
           type: 'public-key' as const,
@@ -428,9 +429,10 @@ export default function Auth() {
     setIsLoading(true);
     try {
       // Create credential request options
+      // Use base domain udstec.io for rpId
       const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
         challenge: base64ToArrayBuffer(webAuthnOptions.challenge),
-        rpId: webAuthnOptions.rpId || window.location.hostname,
+        rpId: 'evo.ai.udstec.io',
         allowCredentials: webAuthnOptions.allowCredentials?.map((cred: any) => ({
           id: base64ToArrayBuffer(cred.id),
           type: 'public-key' as const,

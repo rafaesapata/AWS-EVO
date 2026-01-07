@@ -14,21 +14,31 @@ export interface LicenseStatus {
   canAccessLicensePage?: boolean; // Admin without license can access license page
 }
 
+// Helper to wait for session with retries
+async function waitForSession(maxRetries = 3, delayMs = 500): Promise<any> {
+  for (let i = 0; i < maxRetries; i++) {
+    const session = await cognitoAuth.getCurrentSession();
+    if (session) return session;
+    
+    // Wait before retry
+    if (i < maxRetries - 1) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  return null;
+}
+
 export const useLicenseValidation = () => {
   return useQuery<LicenseStatus>({
     queryKey: ['license-status'],
     queryFn: async () => {
-      const session = await cognitoAuth.getCurrentSession();
+      // Wait for session with retries to handle race condition
+      const session = await waitForSession(3, 300);
       
       if (!session) {
-        return {
-          isValid: false,
-          reason: 'no_license' as const,
-          message: 'Não autenticado',
-          hasCustomerId: false,
-          isAdmin: false,
-          canAccessLicensePage: false
-        };
+        // Return a "pending" state that won't show error UI
+        // This allows the auth flow to complete
+        throw new Error('Session not ready');
       }
 
       // Check if user is admin from Cognito attributes

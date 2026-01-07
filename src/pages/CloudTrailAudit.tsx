@@ -51,6 +51,9 @@ interface CloudTrailEvent {
   resources: any[];
   risk_level: 'low' | 'medium' | 'high' | 'critical';
   risk_reasons: string[];
+  security_explanation: string | null;
+  remediation_suggestion: string | null;
+  event_category: string | null;
   is_security_event: boolean;
 }
 
@@ -496,8 +499,17 @@ export default function CloudTrailAudit() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Total de Eventos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{summary.total.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">{summary.securityEvents} eventos de segurança</p>
+              {isLoading ? (
+                <>
+                  <Skeleton className="h-8 w-24 mb-1" />
+                  <Skeleton className="h-4 w-32" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{summary.total.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">{summary.securityEvents} eventos de segurança</p>
+                </>
+              )}
             </CardContent>
           </Card>
           <Card className="glass border-primary/20">
@@ -505,8 +517,17 @@ export default function CloudTrailAudit() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Eventos Críticos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-500">{summary.critical}</div>
-              <p className="text-xs text-muted-foreground">{summary.high} de alto risco</p>
+              {isLoading ? (
+                <>
+                  <Skeleton className="h-8 w-16 mb-1" />
+                  <Skeleton className="h-4 w-24" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-red-500">{summary.critical}</div>
+                  <p className="text-xs text-muted-foreground">{summary.high} de alto risco</p>
+                </>
+              )}
             </CardContent>
           </Card>
           <Card className="glass border-primary/20">
@@ -514,8 +535,17 @@ export default function CloudTrailAudit() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Erros/Falhas</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-500">{summary.errors}</div>
-              <p className="text-xs text-muted-foreground">Tentativas negadas</p>
+              {isLoading ? (
+                <>
+                  <Skeleton className="h-8 w-16 mb-1" />
+                  <Skeleton className="h-4 w-28" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-orange-500">{summary.errors}</div>
+                  <p className="text-xs text-muted-foreground">Tentativas negadas</p>
+                </>
+              )}
             </CardContent>
           </Card>
           <Card className="glass border-primary/20">
@@ -523,8 +553,17 @@ export default function CloudTrailAudit() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Usuários Únicos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{summary.users}</div>
-              <p className="text-xs text-muted-foreground">Identidades ativas</p>
+              {isLoading ? (
+                <>
+                  <Skeleton className="h-8 w-16 mb-1" />
+                  <Skeleton className="h-4 w-24" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{summary.users}</div>
+                  <p className="text-xs text-muted-foreground">Identidades ativas</p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -568,7 +607,28 @@ export default function CloudTrailAudit() {
         </Card>
 
         {/* Charts Section */}
-        {events && events.length > 0 && (
+        {isLoading ? (
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card className="glass border-primary/20">
+              <CardHeader>
+                <Skeleton className="h-6 w-48 mb-2" />
+                <Skeleton className="h-4 w-64" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-[300px] w-full" />
+              </CardContent>
+            </Card>
+            <Card className="glass border-primary/20">
+              <CardHeader>
+                <Skeleton className="h-6 w-40 mb-2" />
+                <Skeleton className="h-4 w-56" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-[300px] w-full" />
+              </CardContent>
+            </Card>
+          </div>
+        ) : events && events.length > 0 ? (
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Timeline Chart - Security Events by Date */}
             <Card className="glass border-primary/20">
@@ -653,7 +713,7 @@ export default function CloudTrailAudit() {
               </CardContent>
             </Card>
           </div>
-        )}
+        ) : null}
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="events" className="w-full">
@@ -687,7 +747,8 @@ export default function CloudTrailAudit() {
                             <div className="flex items-center gap-2">
                               <h4 className="font-semibold text-sm">{event.event_name}</h4>
                               {getRiskBadge(event.risk_level)}
-                              {event.is_security_event && <Badge variant="outline">Segurança</Badge>}
+                              {event.event_category && <Badge variant="outline" className="text-xs">{event.event_category}</Badge>}
+                              {event.is_security_event && <Badge variant="outline" className="border-orange-500/50 text-orange-600">Segurança</Badge>}
                               {event.error_code && <Badge variant="destructive">Erro</Badge>}
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -704,6 +765,23 @@ export default function CloudTrailAudit() {
                             {event.risk_reasons.map((reason, idx) => (
                               <Badge key={idx} variant="outline" className="text-xs">{reason}</Badge>
                             ))}
+                          </div>
+                        )}
+                        {/* Show explanation for security events */}
+                        {event.is_security_event && event.security_explanation && (
+                          <div className="bg-amber-500/10 border border-amber-500/20 rounded p-2 text-sm">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                              <p className="text-muted-foreground">{event.security_explanation}</p>
+                            </div>
+                          </div>
+                        )}
+                        {event.is_security_event && event.remediation_suggestion && (
+                          <div className="bg-green-500/10 border border-green-500/20 rounded p-2 text-sm">
+                            <div className="flex items-start gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                              <p className="text-muted-foreground">{event.remediation_suggestion}</p>
+                            </div>
                           </div>
                         )}
                         {event.error_code && (
@@ -747,7 +825,7 @@ export default function CloudTrailAudit() {
                 ) : events?.filter(e => e.is_security_event || e.risk_level !== 'low').length ? (
                   <div className="space-y-3 max-h-[600px] overflow-y-auto">
                     {events.filter(e => e.is_security_event || e.risk_level !== 'low').map((event) => (
-                      <div key={event.id} className={`border rounded-lg p-4 space-y-2 ${
+                      <div key={event.id} className={`border rounded-lg p-4 space-y-3 ${
                         event.risk_level === 'critical' ? 'border-red-500/50 bg-red-500/5' :
                         event.risk_level === 'high' ? 'border-orange-500/50 bg-orange-500/5' : ''
                       }`}>
@@ -756,6 +834,9 @@ export default function CloudTrailAudit() {
                             <div className="flex items-center gap-2">
                               <h4 className="font-semibold text-sm">{event.event_name}</h4>
                               {getRiskBadge(event.risk_level)}
+                              {event.event_category && (
+                                <Badge variant="outline" className="text-xs">{event.event_category}</Badge>
+                              )}
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                               <span className="flex items-center gap-1 font-medium"><User className="h-3 w-3" />{event.user_name}</span>
@@ -765,6 +846,33 @@ export default function CloudTrailAudit() {
                             {event.user_arn && <p className="text-xs text-muted-foreground font-mono">{event.user_arn}</p>}
                           </div>
                         </div>
+                        
+                        {/* Security Explanation */}
+                        {event.security_explanation && (
+                          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">Por que isso é um problema?</p>
+                                <p className="text-sm text-muted-foreground">{event.security_explanation}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Remediation Suggestion */}
+                        {event.remediation_suggestion && (
+                          <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">Recomendação</p>
+                                <p className="text-sm text-muted-foreground">{event.remediation_suggestion}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
                         {event.risk_reasons && event.risk_reasons.length > 0 && (
                           <div className="bg-muted/50 rounded p-2">
                             <p className="text-sm font-medium mb-1">Motivos do Risco:</p>

@@ -25,7 +25,8 @@ import {
   ShieldAlert,
   BookOpen,
   Key,
-  Mail
+  Mail,
+  Radar
 } from "lucide-react";
 import {
   Sidebar,
@@ -84,6 +85,7 @@ const menuItems: MenuItem[] = [
     ]
   },
   { titleKey: "sidebar.attackDetection", value: "attack-detection", icon: ShieldAlert },
+  { titleKey: "sidebar.wafMonitoring", value: "waf-monitoring", icon: Radar },
   { 
     titleKey: "sidebar.analysisScans", 
     value: "scans", 
@@ -175,6 +177,8 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/copilot-ai');
     } else if (value === 'attack-detection') {
       navigate('/attack-detection');
+    } else if (value === 'waf-monitoring') {
+      navigate('/waf-monitoring');
     } else if (value === 'alerts') {
       navigate('/intelligent-alerts');
     } else if (value === 'security') {
@@ -182,7 +186,7 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
     } else if (value === 'tickets') {
       navigate('/remediation-tickets');
     } else if (value === 'tv-dashboards') {
-      navigate('/tv');
+      navigate('/app?tab=tv-dashboards');
     } else if (value === 'security-scan') {
       navigate('/security-scans');
     } else if (value === 'cloudtrail-audit') {

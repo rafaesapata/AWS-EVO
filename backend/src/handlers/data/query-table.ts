@@ -57,6 +57,10 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'edge_services': 'edgeService',
   'edge_metrics': 'edgeMetric',
   
+  // Predictive Incidents (ML)
+  'predictive_incidents': 'predictiveIncident',
+  'predictive_incidents_history': 'predictiveIncidentsHistory',
+  
   // License management tables
   'licenses': 'license',
   'license_seat_assignments': 'licenseSeatAssignment',
@@ -71,8 +75,8 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'iam_behavior_analysis': 'iAMBehaviorAnomaly',
   'lateral_movement_detections': 'securityEvent',
   'audit_insights': 'auditLog',
-  'remediation_tickets': 'jiraTicket',
-  'well_architected_scores': 'securityPosture',
+  'remediation_tickets': 'remediationTicket',
+  'well_architected_scores': 'wellArchitectedScore',
   'well_architected_scans_history': 'securityScan',
   'security_scans_history': 'securityScan',
   'security_scan_history': 'securityScan',
@@ -115,9 +119,9 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   'system_events': { 'aws_account_id': null },
   'application_logs': { 'aws_account_id': null },
   'jira_tickets': { 'aws_account_id': null },
-  'remediation_tickets': { 'aws_account_id': null },
-  'security_posture': { 'aws_account_id': null, 'scan_id': null },
-  'well_architected_scores': { 'aws_account_id': null, 'scan_id': null },
+  'remediation_tickets': { },
+  'security_posture': { 'aws_account_id': null },
+  'well_architected_scores': { 'aws_account_id': null },
   'knowledge_base_articles': { 'aws_account_id': null },
   'knowledge_base_favorites': { 'aws_account_id': null },
   'profiles': { 'aws_account_id': null },
@@ -151,6 +155,8 @@ const TABLES_WITH_ORG_ID = new Set([
   'security_scans_history', 'security_scan_history', 'well_architected_scans_history',
   // Edge services
   'edge_services', 'edge_metrics',
+  // Predictive Incidents (ML)
+  'predictive_incidents', 'predictive_incidents_history',
 ]);
 
 interface QueryRequest {
@@ -338,7 +344,7 @@ export async function handler(
     const results = await model.findMany({
       where,
       orderBy,
-      take: body.limit || 1000,
+      take: body.limit || 10000, // Increased default limit for export functionality
       skip: body.offset || 0,  // Add offset support for pagination
     });
     

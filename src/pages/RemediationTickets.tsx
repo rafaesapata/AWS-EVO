@@ -163,10 +163,9 @@ export default function RemediationTickets() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const response = await apiClient.update('remediation_tickets', {
-        id,
         status,
         updated_at: new Date().toISOString()
-      });
+      }, { id });
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));

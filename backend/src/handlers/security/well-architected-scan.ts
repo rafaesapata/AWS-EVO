@@ -86,8 +86,25 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
     
     const overallScore = Math.round(pillarScores.reduce((s, p) => s + p.score, 0) / pillarScores.length);
     
+    // Save pillar scores using Prisma ORM
     for (const p of pillarScores) {
-      await prisma.$executeRaw`INSERT INTO well_architected_scores (id, organization_id, scan_id, pillar, score, checks_passed, checks_failed, critical_issues, recommendations, created_at) VALUES (gen_random_uuid(), ${organizationId}::uuid, ${scan.id}::uuid, ${p.pillar}, ${p.score}, ${p.checks_passed}, ${p.checks_failed}, ${p.critical_issues}, ${JSON.stringify(p.recommendations)}::jsonb, NOW())`;
+      try {
+        await prisma.wellArchitectedScore.create({
+          data: {
+            organization_id: organizationId,
+            scan_id: scan.id,
+            pillar: p.pillar,
+            score: p.score,
+            checks_passed: p.checks_passed,
+            checks_failed: p.checks_failed,
+            critical_issues: p.critical_issues,
+            recommendations: p.recommendations as any
+          }
+        });
+        logger.info(`Saved pillar score: ${p.pillar}`, { organizationId, scanId: scan.id, pillar: p.pillar });
+      } catch (insertError) {
+        logger.error(`Failed to save pillar score: ${p.pillar}`, insertError as Error, { organizationId, scanId: scan.id });
+      }
     }
     
     // Calculate findings counts from all pillar recommendations

@@ -157,6 +157,19 @@ async function analyzeReservedInstances(
   const reservedInstances = riResponse.ReservedInstances || [];
   logger.info('Found Reserved Instances', { count: reservedInstances.length });
   
+  // Se não há RIs, retornar dados vazios mas válidos
+  if (reservedInstances.length === 0) {
+    return {
+      count: 0,
+      active: 0,
+      averageUtilization: 0,
+      totalMonthlySavings: 0,
+      underutilizedCount: 0,
+      underutilized: [],
+      hasData: false,
+    };
+  }
+  
   // Fetch utilization data
   const endDate = new Date();
   const startDate = new Date();
