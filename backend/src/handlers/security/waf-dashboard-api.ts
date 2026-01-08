@@ -109,6 +109,8 @@ export async function handler(
         case 'get-monitoring-configs':
         case 'get-configs': // Alias for backwards compatibility
           return await handleGetMonitoringConfigs(prisma, organizationId);
+        case 'diagnose':
+          return await handleDiagnose(event, prisma, organizationId);
         default:
           return error(`Unknown action: ${body.action}`, 400);
       }
@@ -695,7 +697,7 @@ async function handleGetMonitoringConfigs(
   });
   
   return success({
-    configs: configs.map(c => ({
+    configs: configs.map((c: any) => ({
       id: c.id,
       webAclArn: c.web_acl_arn,
       webAclName: c.web_acl_name,
@@ -706,6 +708,311 @@ async function handleGetMonitoringConfigs(
       blockedToday: c.blocked_today,
       createdAt: c.created_at,
     })),
-    hasActiveConfig: configs.some(c => c.is_active),
+    hasActiveConfig: configs.some((c: any) => c.is_active),
   });
+}
+
+/**
+ * POST /waf-diagnose - Diagnose WAF monitoring setup
+ */
+async function handleDiagnose(
+  event: AuthorizedEvent,
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  const body = JSON.parse(event.body || '{}');
+  const { configId } = body;
+  
+  if (!configId) {
+    return error('configId is required', 400);
+  }
+  
+  logger.info('Starting WAF monitoring diagnosis', { organizationId, configId });
+  
+  // Get the configuration
+  const config = await prisma.wafMonitoringConfig.findFirst({
+    where: {
+      id: configId,
+      organization_id: organizationId,
+    },
+  });
+  
+  if (!config) {
+    return error('Configuration not found', 404);
+  }
+  
+  const diagnosticResults: any = {
+    configId: config.id,
+    webAclName: config.web_acl_name,
+    webAclArn: config.web_acl_arn,
+    awsAccountId: config.aws_account_id,
+    checks: [] as any[],
+    overallStatus: 'unknown' as 'success' | 'warning' | 'error' | 'unknown',
+  };
+  
+  // Extract region from Web ACL ARN (arn:aws:wafv2:REGION:ACCOUNT:regional/webacl/NAME/ID)
+  const arnParts = config.web_acl_arn.split(':');
+  const region = arnParts[3] || 'us-east-1';
+  diagnosticResults.region = region;
+  
+  try {
+    // Get AWS credentials for customer account
+    const awsCredential = await prisma.awsCredential.findFirst({
+      where: {
+        id: config.aws_account_id,
+        organization_id: organizationId,
+      },
+    });
+    
+    if (!awsCredential) {
+      diagnosticResults.checks.push({
+        name: 'AWS Credentials',
+        status: 'error',
+        message: 'AWS credentials not found for this account',
+      });
+      diagnosticResults.overallStatus = 'error';
+      return success(diagnosticResults);
+    }
+    
+    const credentials = await resolveAwsCredentials(awsCredential, region);
+    const awsCredentials = toAwsCredentials(credentials);
+    
+    // Import AWS SDK clients
+    const { CloudWatchLogsClient, DescribeLogGroupsCommand, DescribeSubscriptionFiltersCommand, DescribeLogStreamsCommand } = await import('@aws-sdk/client-cloudwatch-logs');
+    const { WAFV2Client, GetLoggingConfigurationCommand } = await import('@aws-sdk/client-wafv2');
+    
+    // Check 1: WAF Logging Configuration
+    logger.info('Checking WAF logging configuration', { webAclArn: config.web_acl_arn });
+    try {
+      const wafClient = new WAFV2Client({
+        region: region,
+        credentials: awsCredentials,
+      });
+      
+      const loggingConfig = await wafClient.send(
+        new GetLoggingConfigurationCommand({
+          ResourceArn: config.web_acl_arn,
+        })
+      );
+      
+      if (loggingConfig.LoggingConfiguration) {
+        diagnosticResults.checks.push({
+          name: 'WAF Logging',
+          status: 'success',
+          message: 'WAF logging is enabled',
+          details: {
+            destinations: loggingConfig.LoggingConfiguration.LogDestinationConfigs || [],
+          },
+        });
+      } else {
+        diagnosticResults.checks.push({
+          name: 'WAF Logging',
+          status: 'error',
+          message: 'WAF logging is not configured',
+          recommendation: 'Enable logging in AWS WAF Console → Web ACL → Logging and metrics',
+        });
+      }
+    } catch (err: any) {
+      if (err.name === 'WAFNonexistentItemException') {
+        diagnosticResults.checks.push({
+          name: 'WAF Logging',
+          status: 'error',
+          message: 'WAF logging is not enabled',
+          recommendation: 'Enable logging in AWS WAF Console → Web ACL → Logging and metrics',
+        });
+      } else {
+        throw err;
+      }
+    }
+    
+    // Check 2: CloudWatch Log Group
+    logger.info('Checking CloudWatch Log Group');
+    const cwlClient = new CloudWatchLogsClient({
+      region: region,
+      credentials: awsCredentials,
+    });
+    
+    const wafId = config.web_acl_arn.split('/').pop();
+    const logGroupName = `aws-waf-logs-${wafId}`;
+    
+    const logGroupsResponse = await cwlClient.send(
+      new DescribeLogGroupsCommand({
+        logGroupNamePrefix: logGroupName,
+      })
+    );
+    
+    const logGroup = logGroupsResponse.logGroups?.find(lg => lg.logGroupName === logGroupName);
+    
+    if (logGroup) {
+      diagnosticResults.checks.push({
+        name: 'CloudWatch Log Group',
+        status: 'success',
+        message: `Log group exists: ${logGroupName}`,
+        details: {
+          storedBytes: logGroup.storedBytes || 0,
+          creationTime: logGroup.creationTime,
+        },
+      });
+      
+      // Check 3: Recent Log Streams
+      logger.info('Checking for recent log streams');
+      try {
+        const logStreamsResponse = await cwlClient.send(
+          new DescribeLogStreamsCommand({
+            logGroupName: logGroupName,
+            orderBy: 'LastEventTime',
+            descending: true,
+            limit: 5,
+          })
+        );
+        
+        if (logStreamsResponse.logStreams && logStreamsResponse.logStreams.length > 0) {
+          diagnosticResults.checks.push({
+            name: 'WAF Traffic',
+            status: 'success',
+            message: `Found ${logStreamsResponse.logStreams.length} recent log stream(s)`,
+            details: {
+              streams: logStreamsResponse.logStreams.map(s => ({
+                name: s.logStreamName,
+                lastEventTime: s.lastEventTimestamp,
+              })),
+            },
+          });
+        } else {
+          diagnosticResults.checks.push({
+            name: 'WAF Traffic',
+            status: 'warning',
+            message: 'No log streams found - WAF has not received traffic yet',
+            recommendation: 'Generate traffic to your WAF-protected resources',
+          });
+        }
+      } catch (err) {
+        logger.warn('Could not check log streams', err as Error);
+      }
+      
+      // Check 4: Subscription Filters
+      logger.info('Checking subscription filters');
+      const filtersResponse = await cwlClient.send(
+        new DescribeSubscriptionFiltersCommand({
+          logGroupName: logGroupName,
+        })
+      );
+      
+      const evoDestinationArn = `arn:aws:logs:${region}:${process.env.AWS_ACCOUNT_ID || '383234048592'}:destination:evo-waf-logs-destination`;
+      
+      if (filtersResponse.subscriptionFilters && filtersResponse.subscriptionFilters.length > 0) {
+        const evoFilter = filtersResponse.subscriptionFilters.find(
+          f => f.destinationArn === evoDestinationArn
+        );
+        
+        if (evoFilter) {
+          diagnosticResults.checks.push({
+            name: 'Subscription Filter',
+            status: 'success',
+            message: 'Subscription filter correctly configured',
+            details: {
+              filterName: evoFilter.filterName,
+              destinationArn: evoFilter.destinationArn,
+            },
+          });
+        } else {
+          diagnosticResults.checks.push({
+            name: 'Subscription Filter',
+            status: 'warning',
+            message: 'Subscription filter exists but does not point to EVO',
+            details: {
+              filters: filtersResponse.subscriptionFilters.map(f => ({
+                name: f.filterName,
+                destination: f.destinationArn,
+              })),
+            },
+            recommendation: 'Update subscription filter to point to EVO destination',
+          });
+        }
+      } else {
+        diagnosticResults.checks.push({
+          name: 'Subscription Filter',
+          status: 'error',
+          message: 'No subscription filter found',
+          recommendation: 'The subscription filter should be created automatically. Try re-configuring the WAF monitoring.',
+        });
+      }
+    } else {
+      diagnosticResults.checks.push({
+        name: 'CloudWatch Log Group',
+        status: 'error',
+        message: `Log group not found: ${logGroupName}`,
+        recommendation: 'Enable WAF logging to create the log group',
+      });
+    }
+    
+    // Check 5: Database Events
+    logger.info('Checking database events');
+    const eventCount = await prisma.wafEvent.count({
+      where: {
+        organization_id: organizationId,
+        aws_account_id: config.aws_account_id,
+      },
+    });
+    
+    if (eventCount > 0) {
+      const recentEvent = await prisma.wafEvent.findFirst({
+        where: {
+          organization_id: organizationId,
+          aws_account_id: config.aws_account_id,
+        },
+        orderBy: { timestamp: 'desc' },
+      });
+      
+      diagnosticResults.checks.push({
+        name: 'Events in Database',
+        status: 'success',
+        message: `${eventCount} event(s) received`,
+        details: {
+          totalEvents: eventCount,
+          lastEventAt: recentEvent?.timestamp,
+        },
+      });
+    } else {
+      diagnosticResults.checks.push({
+        name: 'Events in Database',
+        status: 'warning',
+        message: 'No events received yet',
+        recommendation: 'Wait for traffic to flow through the WAF, or check previous steps for issues',
+      });
+    }
+    
+    // Determine overall status
+    const hasError = diagnosticResults.checks.some((c: any) => c.status === 'error');
+    const hasWarning = diagnosticResults.checks.some((c: any) => c.status === 'warning');
+    
+    if (hasError) {
+      diagnosticResults.overallStatus = 'error';
+    } else if (hasWarning) {
+      diagnosticResults.overallStatus = 'warning';
+    } else {
+      diagnosticResults.overallStatus = 'success';
+    }
+    
+    logger.info('WAF monitoring diagnosis complete', { 
+      organizationId, 
+      configId,
+      overallStatus: diagnosticResults.overallStatus 
+    });
+    
+    return success(diagnosticResults);
+    
+  } catch (err) {
+    logger.error('WAF monitoring diagnosis failed', err as Error, { organizationId, configId });
+    
+    diagnosticResults.checks.push({
+      name: 'Diagnosis',
+      status: 'error',
+      message: `Failed to complete diagnosis: ${(err as Error).message}`,
+    });
+    
+    diagnosticResults.overallStatus = 'error';
+    
+    return success(diagnosticResults);
+  }
 }

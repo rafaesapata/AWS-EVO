@@ -52,14 +52,30 @@ interface SetupResult {
 
 // EVO CloudWatch Logs Destination base name for cross-account subscription filters
 // Using Destination instead of direct Lambda ARN is required for cross-account
-const EVO_WAF_DESTINATION_NAME = 'evo-waf-log-destination';
+// MUST match CloudFormation stack: ${ProjectName}-${Environment}-waf-logs-destination
+const EVO_WAF_DESTINATION_NAME = 'evo-uds-v3-production-waf-logs-destination';
 const EVO_ACCOUNT_ID = '383234048592';
+
+// Supported regions for WAF monitoring
+const SUPPORTED_REGIONS = [
+  'us-east-1',      // N. Virginia
+  'us-west-2',      // Oregon
+  'eu-west-1',      // Ireland
+  'ap-southeast-1', // Singapore
+  'sa-east-1',      // São Paulo
+];
 
 /**
  * Get the destination ARN for a specific region
  * The destination must be in the same region as the log group
+ * @throws Error if region is not supported
  */
 function getDestinationArn(region: string): string {
+  if (!SUPPORTED_REGIONS.includes(region)) {
+    throw new Error(
+      `Region ${region} not supported for WAF monitoring. Supported regions: ${SUPPORTED_REGIONS.join(', ')}`
+    );
+  }
   return `arn:aws:logs:${region}:${EVO_ACCOUNT_ID}:destination:${EVO_WAF_DESTINATION_NAME}`;
 }
 
@@ -103,10 +119,117 @@ function getLogGroupName(webAclName: string): string {
   return `aws-waf-logs-${webAclName}`;
 }
 
+/**
+ * Get or create CloudWatch Logs role in customer account for cross-account subscription
+ * This role allows CloudWatch Logs to send logs to EVO's destination
+ * 
+ * @param customerAwsAccountId - Customer's AWS account ID
+ * @param region - AWS region
+ * @param credentials - AWS credentials for customer account
+ * @param account - AWS credential record with role_arn
+ * @returns ARN of the CloudWatch Logs role
+ */
+async function getOrCreateCloudWatchLogsRole(
+  customerAwsAccountId: string,
+  region: string,
+  credentials: any,
+  account: { role_arn?: string | null }
+): Promise<string> {
+  const { IAMClient, GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand } = await import('@aws-sdk/client-iam');
+  
+  const iamClient = new IAMClient({ region: 'us-east-1', credentials }); // IAM is global
+  
+  // FIXED role name - must match CloudFormation template exactly
+  // CloudFormation creates: 'EVO-CloudWatch-Logs-Role' (fixed name, no suffix)
+  const roleName = 'EVO-CloudWatch-Logs-Role';
+  
+  try {
+    // Check if role exists
+    await iamClient.send(new GetRoleCommand({ RoleName: roleName }));
+    logger.info('CloudWatch Logs role found', { roleName, customerAwsAccountId });
+    return `arn:aws:iam::${customerAwsAccountId}:role/${roleName}`;
+  } catch (err: any) {
+    if (err.name !== 'NoSuchEntity') {
+      throw err;
+    }
+  }
+  
+  // Role doesn't exist - try to create it automatically
+  logger.info('CloudWatch Logs role not found, attempting to create', { 
+    roleName, 
+    customerAwsAccountId,
+    destinationArn: getDestinationArn(region)
+  });
+  
+  try {
+    const assumeRolePolicy = JSON.stringify({
+      Version: '2012-10-17',
+      Statement: [{
+        Effect: 'Allow',
+        Principal: { Service: 'logs.amazonaws.com' },
+        Action: 'sts:AssumeRole'
+      }]
+    });
+    
+    await iamClient.send(new CreateRoleCommand({
+      RoleName: roleName,
+      AssumeRolePolicyDocument: assumeRolePolicy,
+      Description: 'Role for EVO WAF Monitoring cross-account log subscription',
+      Tags: [
+        { Key: 'ManagedBy', Value: 'EVO-Platform' },
+        { Key: 'Purpose', Value: 'WAF-Monitoring' }
+      ]
+    }));
+    
+    // Add policy to send logs to EVO destination
+    const policyDocument = JSON.stringify({
+      Version: '2012-10-17',
+      Statement: [{
+        Effect: 'Allow',
+        Action: ['logs:PutLogEvents'],
+        Resource: `arn:aws:logs:*:${EVO_ACCOUNT_ID}:destination:${EVO_WAF_DESTINATION_NAME}`
+      }]
+    });
+    
+    await iamClient.send(new PutRolePolicyCommand({
+      RoleName: roleName,
+      PolicyName: 'EVOWafLogDestinationAccess',
+      PolicyDocument: policyDocument
+    }));
+    
+    // CRITICAL: Wait for IAM propagation (10 seconds minimum)
+    logger.info('Waiting for IAM role propagation...', { roleName });
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    
+    logger.info('CloudWatch Logs role created successfully', { roleName, customerAwsAccountId });
+    return `arn:aws:iam::${customerAwsAccountId}:role/${roleName}`;
+    
+  } catch (createErr: any) {
+    // If we can't create the role, provide helpful error message
+    logger.error('Failed to create CloudWatch Logs role', { 
+      error: createErr.message,
+      roleName,
+      customerAwsAccountId 
+    });
+    
+    throw new Error(
+      `CloudWatch Logs role "${roleName}" not found and could not be created automatically. ` +
+      `Please update your CloudFormation stack to the latest version. ` +
+      `Go to AWS Console → CloudFormation → Select your EVO stack → Update → Use current template → Submit. ` +
+      `The updated template will create this role automatically. ` +
+      `Error: ${createErr.message}`
+    );
+  }
+}
+
 export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  if (getHttpMethod(event) === 'OPTIONS') {
+    return corsOptions();
+  }
+  
   const user = getUserFromEvent(event);
   const organizationId = getOrganizationId(user);
   
@@ -115,10 +238,6 @@ export async function handler(
     userId: user.sub,
     requestId: context.awsRequestId 
   });
-  
-  if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
-  }
   
   try {
     const body = event.body ? JSON.parse(event.body) : {};
@@ -208,7 +327,8 @@ export async function handler(
         account,
         organizationId,
         accountId,
-        prisma
+        prisma,
+        credentials
       );
       
       logger.info('WAF monitoring enabled', { 
@@ -265,7 +385,8 @@ async function enableWafMonitoring(
   account: { role_arn?: string | null },
   organizationId: string,
   accountId: string,
-  prisma: ReturnType<typeof getPrismaClient>
+  prisma: ReturnType<typeof getPrismaClient>,
+  credentials: any
 ): Promise<SetupResult> {
   
   // Step 1: Check if WAF logging is already configured
@@ -298,31 +419,96 @@ async function enableWafMonitoring(
     // Log group already exists - that's fine
   }
   
+  // Step 2.5: Add resource policy to allow WAF to write to the log group
+  // This is REQUIRED for WAF logging to work
+  try {
+    const { PutResourcePolicyCommand } = await import('@aws-sdk/client-cloudwatch-logs');
+    
+    const policyName = `AWSWAFLogsPolicy-${logGroupName}`;
+    const policyDocument = JSON.stringify({
+      Version: '2012-10-17',
+      Statement: [{
+        Effect: 'Allow',
+        Principal: {
+          Service: 'wafv2.amazonaws.com'
+        },
+        Action: [
+          'logs:CreateLogStream',
+          'logs:PutLogEvents'
+        ],
+        Resource: `arn:aws:logs:${region}:${customerAwsAccountId}:log-group:${logGroupName}:*`,
+        Condition: {
+          StringEquals: {
+            'aws:SourceAccount': customerAwsAccountId
+          },
+          ArnLike: {
+            'aws:SourceArn': `arn:aws:wafv2:${region}:${customerAwsAccountId}:*`
+          }
+        }
+      }]
+    });
+    
+    await logsClient.send(new PutResourcePolicyCommand({
+      policyName,
+      policyDocument
+    }));
+    
+    logger.info('Added CloudWatch Logs resource policy for WAF', { 
+      logGroupName, 
+      policyName 
+    });
+  } catch (err: any) {
+    logger.warn('Failed to add CloudWatch Logs resource policy', { 
+      error: err.message,
+      logGroupName 
+    });
+    // Continue anyway - the policy might already exist
+  }
+  
   // Step 3: Enable WAF logging to CloudWatch Logs
   if (!loggingConfigured) {
     const logDestination = `arn:aws:logs:${webAclArn.split(':')[3]}:${webAclArn.split(':')[4]}:log-group:${logGroupName}`;
     
-    await wafClient.send(new PutLoggingConfigurationCommand({
-      LoggingConfiguration: {
-        ResourceArn: webAclArn,
-        LogDestinationConfigs: [logDestination],
-        // Optional: Add log filter for specific fields
-        LoggingFilter: filterMode === 'block_only' ? {
-          DefaultBehavior: 'DROP',
-          Filters: [
-            {
-              Behavior: 'KEEP',
-              Requirement: 'MEETS_ANY',
-              Conditions: [
-                { ActionCondition: { Action: 'BLOCK' } },
-                { ActionCondition: { Action: 'COUNT' } },
-              ],
-            },
-          ],
-        } : undefined,
-      },
-    }));
-    logger.info('Enabled WAF logging', { webAclArn, logDestination });
+    try {
+      await wafClient.send(new PutLoggingConfigurationCommand({
+        LoggingConfiguration: {
+          ResourceArn: webAclArn,
+          LogDestinationConfigs: [logDestination],
+          // Optional: Add log filter for specific fields
+          LoggingFilter: filterMode === 'block_only' ? {
+            DefaultBehavior: 'DROP',
+            Filters: [
+              {
+                Behavior: 'KEEP',
+                Requirement: 'MEETS_ANY',
+                Conditions: [
+                  { ActionCondition: { Action: 'BLOCK' } },
+                  { ActionCondition: { Action: 'COUNT' } },
+                ],
+              },
+            ],
+          } : undefined,
+        },
+      }));
+      logger.info('Enabled WAF logging', { webAclArn, logDestination });
+    } catch (err: any) {
+      logger.error('Failed to enable WAF logging', err, { 
+        webAclArn, 
+        logDestination,
+        errorName: err.name,
+        errorMessage: err.message 
+      });
+      
+      if (err.name === 'AccessDeniedException') {
+        throw new Error(
+          `Failed to enable WAF logging: Access denied. ` +
+          `Please ensure the IAM role has 'wafv2:PutLoggingConfiguration' permission ` +
+          `and that the log group '${logGroupName}' has a resource policy allowing WAF to write logs. ` +
+          `Error: ${err.message}`
+        );
+      }
+      throw err;
+    }
   }
   
   // Step 4: Create or update subscription filter to send logs to EVO Lambda
@@ -353,14 +539,13 @@ async function enableWafMonitoring(
   // Create new subscription filter using CloudWatch Logs Destination (required for cross-account)
   const destinationArn = getDestinationArn(region);
   
-  // Build the CloudWatch Logs role ARN in the customer account
-  // The role name follows the pattern: EVO-CloudWatch-Logs-Role-{StackName}
-  // We extract the stack name from the EVO Platform Role ARN
-  // Format: arn:aws:iam::ACCOUNT:role/EVO-Platform-Role-{StackName}
-  const evoPlatformRoleName = account.role_arn?.split('/').pop() || '';
-  const stackNameMatch = evoPlatformRoleName.match(/EVO-Platform-Role-(.+)/);
-  const stackName = stackNameMatch ? stackNameMatch[1] : 'evo-platform';
-  const cloudWatchLogsRoleArn = `arn:aws:iam::${customerAwsAccountId}:role/EVO-CloudWatch-Logs-Role-${stackName}`;
+  // Get or create the CloudWatch Logs role in customer account
+  const cloudWatchLogsRoleArn = await getOrCreateCloudWatchLogsRole(
+    customerAwsAccountId,
+    region,
+    credentials,
+    account
+  );
   
   await logsClient.send(new PutSubscriptionFilterCommand({
     logGroupName,

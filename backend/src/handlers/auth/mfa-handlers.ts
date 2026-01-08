@@ -72,22 +72,22 @@ export async function listFactorsHandler(
     }
     
     return success({
-      factors: [
+      all: [
         ...factors.map((f: any) => ({
           id: f.id,
-          type: f.factor_type,
-          name: f.friendly_name,
+          factor_type: f.factor_type,
+          friendly_name: f.friendly_name,
           status: f.status,
-          createdAt: f.created_at,
-          lastUsedAt: f.last_used_at
+          created_at: f.created_at,
+          last_used_at: f.last_used_at
         })),
         ...webauthnCreds.map((w: any) => ({
           id: w.id,
-          type: 'webauthn',
-          name: w.device_name,
+          factor_type: 'webauthn',
+          friendly_name: w.device_name,
           status: 'verified',
-          createdAt: w.created_at,
-          lastUsedAt: w.last_used_at
+          created_at: w.created_at,
+          last_used_at: w.last_used_at
         }))
       ]
     }, 200, origin);
@@ -133,10 +133,15 @@ export async function enrollHandler(
     const prisma = getPrismaClient();
     
     if (factorType === 'totp') {
-      // Generate TOTP secret using Cognito
-      const associateResponse = await cognitoClient.send(new AssociateSoftwareTokenCommand({
-        AccessToken: event.headers?.authorization?.replace('Bearer ', '')
-      }));
+      // Generate TOTP secret LOCALLY (NOT using Cognito)
+      // This ensures the secret matches what our verifyTOTP() function expects
+      const secretBytes = crypto.randomBytes(20);
+      const secretBase32 = base32Encode(secretBytes);
+      
+      logger.info('🔐 MFA Enroll: Generating local TOTP secret', { 
+        userId: user.sub, 
+        email: user.email 
+      });
       
       // Create factor record using Prisma
       const factorId = crypto.randomUUID();
@@ -148,20 +153,30 @@ export async function enrollHandler(
             factor_type: 'totp',
             friendly_name: friendlyName || 'Authenticator App',
             status: 'pending',
-            secret: associateResponse.SecretCode, // TODO: Encrypt with KMS
+            secret: secretBase32, // Store Base32 encoded secret
             created_at: new Date()
           }
         });
-      } catch (e) {
-        // Fallback to raw query if model doesn't exist
-        logger.warn('MFA factor model not available, using raw query');
+        
+        logger.info('🔐 MFA Enroll: Factor created successfully', { 
+          factorId, 
+          userId: user.sub 
+        });
+      } catch (e: any) {
+        logger.error('MFA Enroll: Failed to create factor', { error: e.message });
+        return error('Failed to create MFA factor', 500, undefined, origin);
       }
+      
+      // Generate otpauth URL for QR code
+      const issuer = 'EVO';
+      const accountName = user.email || user.sub;
+      const otpauthUrl = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(accountName)}?secret=${secretBase32}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
       
       return success({
         factorId,
         type: 'totp',
-        secret: associateResponse.SecretCode,
-        qrCode: `otpauth://totp/EVO:${user.email}?secret=${associateResponse.SecretCode}&issuer=EVO`,
+        secret: secretBase32,
+        qrCode: otpauthUrl,
         status: 'pending_verification'
       }, 200, origin);
     }
@@ -172,6 +187,30 @@ export async function enrollHandler(
     logger.error('MFA Enroll error', err as Error);
     return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
+}
+
+// Base32 encoding function for TOTP secrets
+function base32Encode(buffer: Buffer): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let result = '';
+  let bits = 0;
+  let value = 0;
+  
+  for (let i = 0; i < buffer.length; i++) {
+    value = (value << 8) | buffer[i];
+    bits += 8;
+    
+    while (bits >= 5) {
+      result += alphabet[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  
+  if (bits > 0) {
+    result += alphabet[(value << (5 - bits)) & 31];
+  }
+  
+  return result;
 }
 
 // MFA Challenge Verify Handler
@@ -187,6 +226,8 @@ export async function verifyHandler(
   
   try {
     const user = getUserFromEvent(event);
+    
+    logger.info('🔐 MFA Verify: Starting verification', { userId: user.sub });
     
     // SECURITY: Rate limiting for MFA verification (prevent brute force)
     try {
@@ -219,17 +260,26 @@ export async function verifyHandler(
       return badRequest('Invalid JSON in request body', undefined, origin);
     }
     
+    logger.info('🔐 MFA Verify: Received body', { 
+      hasFactorId: !!body.factorId, 
+      hasCode: !!body.code,
+      codeLength: body.code?.length 
+    });
+    
     const parseResult = mfaVerifySchema.safeParse(body);
     
     if (!parseResult.success) {
       const errorMessages = parseResult.error.errors
         .map(err => `${err.path.join('.')}: ${err.message}`)
         .join(', ');
+      logger.warn('🔐 MFA Verify: Validation failed', { errors: errorMessages });
       return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
     }
     
     const { factorId, code } = parseResult.data;
     const prisma = getPrismaClient();
+    
+    logger.info('🔐 MFA Verify: Looking up factor', { factorId, userId: user.sub });
     
     // Get factor using Prisma query builder
     let factor;
@@ -247,24 +297,47 @@ export async function verifyHandler(
           status: true
         }
       });
-    } catch (e) {
-      logger.warn('MFA factor model not available');
-      return badRequest('Factor not found', undefined, origin);
+    } catch (e: any) {
+      logger.error('🔐 MFA Verify: Database error', { error: e.message });
+      return error('Database error while looking up factor', 500, undefined, origin);
     }
     
     if (!factor) {
+      logger.warn('🔐 MFA Verify: Factor not found', { factorId, userId: user.sub });
       return badRequest('Factor not found', undefined, origin);
     }
     
-    // Verify with Cognito
-    try {
-      await cognitoClient.send(new VerifySoftwareTokenCommand({
-        AccessToken: event.headers?.authorization?.replace('Bearer ', ''),
-        UserCode: code,
-        FriendlyDeviceName: factor.friendly_name || 'Authenticator'
-      }));
+    logger.info('🔐 MFA Verify: Factor found', { 
+      factorId, 
+      factorType: factor.factor_type,
+      hasSecret: !!factor.secret,
+      status: factor.status
+    });
+    
+    // Verify TOTP code locally using the secret stored in database
+    if (factor.factor_type === 'totp') {
+      if (!factor.secret) {
+        logger.error('🔐 MFA Verify: Factor has no secret', { factorId });
+        return error('MFA factor configuration error - no secret', 500, undefined, origin);
+      }
       
-      // Update factor status
+      const isValid = verifyTOTP(factor.secret, code);
+      
+      logger.info('🔐 MFA Verify: TOTP verification result', { 
+        factorId, 
+        isValid,
+        codeProvided: code
+      });
+      
+      if (!isValid) {
+        logger.warn('🔐 MFA Verify: Invalid TOTP code', { 
+          factorId, 
+          userId: user.sub 
+        });
+        return badRequest('Invalid verification code', undefined, origin);
+      }
+      
+      // Update factor status to verified
       await prisma.mfaFactor.update({
         where: { id: factorId },
         data: {
@@ -273,16 +346,16 @@ export async function verifyHandler(
         }
       });
       
+      logger.info('🔐 MFA Verify: Factor verified successfully', { factorId, userId: user.sub });
+      
       return success({
         verified: true,
         factorId,
         message: 'MFA factor verified successfully'
       }, 200, origin);
-      
-    } catch (verifyError) {
-      logger.warn('MFA verification failed', { factorId, userId: user.sub });
-      return badRequest('Invalid verification code', undefined, origin);
     }
+    
+    return badRequest('Unsupported factor type', undefined, origin);
     
   } catch (err) {
     logger.error('MFA Verify error', err as Error);

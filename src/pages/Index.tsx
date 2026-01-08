@@ -90,20 +90,16 @@ const Index = () => {
     queryKey: ['user-role'],
     queryFn: async () => {
       const currentUser = await cognitoAuth.getCurrentUser();
-      console.log('🔐 Index: getCurrentUser for roles:', currentUser);
       if (!currentUser) return ['org_user'];
 
       // Get roles from Cognito token attributes
       const rolesStr = currentUser.attributes?.['custom:roles'];
-      console.log('🔐 Index: rolesStr from token:', rolesStr);
       if (!rolesStr) return ['org_user'];
 
       try {
         const roles = JSON.parse(rolesStr);
-        console.log('🔐 Index: parsed roles:', roles);
         return Array.isArray(roles) ? roles : [roles];
       } catch (e) {
-        console.error('🔐 Index: Failed to parse roles:', e);
         return ['org_user'];
       }
     },
@@ -134,14 +130,7 @@ const Index = () => {
 
         // Try AWS Cognito
         const currentUser = await cognitoAuth.getCurrentUser();
-        console.log('🔍 Index: getCurrentUser result:', currentUser);
         if (currentUser) {
-          console.log('✅ Index: User loaded:', {
-            id: currentUser.id,
-            email: currentUser.email,
-            organizationId: currentUser.organizationId,
-            organizationName: currentUser.attributes?.['custom:organization_name']
-          });
           setUser({
             id: currentUser.id,
             email: currentUser.email,

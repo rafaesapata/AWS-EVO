@@ -99,23 +99,27 @@ export async function handler(
     // Construir prompt compacto COM histórico
     const compactPrompt = buildCompactPrompt(platformContext, user, message, history);
 
-    // Call Bedrock with Amazon Titan Text Express (via VPC Endpoint)
+    // Call Bedrock with Claude 3.5 Sonnet v2 (latest version)
     const bedrockResponse = await bedrockClient.send(new InvokeModelCommand({
-      modelId: 'amazon.titan-text-express-v1',
+      modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
       contentType: 'application/json',
       accept: 'application/json',
       body: JSON.stringify({
-        inputText: compactPrompt,
-        textGenerationConfig: {
-          maxTokenCount: 512,
-          temperature: 0.4,
-          topP: 0.9
-        }
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: 512,
+        temperature: 0.4,
+        top_p: 0.9,
+        messages: [
+          {
+            role: 'user',
+            content: compactPrompt
+          }
+        ]
       })
     }));
 
     const responseBody = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
-    let aiResponse = responseBody.results?.[0]?.outputText || 'Desculpe, não consegui processar sua solicitação.';
+    let aiResponse = responseBody.content?.[0]?.text || 'Desculpe, não consegui processar sua solicitação.';
     
     // Limpeza agressiva: cortar qualquer conversa inventada
     // Corta no primeiro sinal de pergunta/resposta inventada

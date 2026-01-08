@@ -94,6 +94,8 @@ Resources:
           Value: !Sub '${AWS::StackName}'
         - Key: EVOPlatformAccountId
           Value: !Ref EVOPlatformAccountId
+        - Key: TemplateVersion
+          Value: '2.1.0-waf-monitoring'
 
   # ----------------------------------------------------------------------------
   # Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
@@ -283,6 +285,8 @@ Resources:
               - 'logs:DeleteSubscriptionFilter'
               - 'logs:DescribeSubscriptionFilters'
               - 'logs:PutRetentionPolicy'
+              - 'logs:PutResourcePolicy'
+              - 'logs:DescribeResourcePolicies'
             Resource:
               - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*'
               - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*:*'
@@ -527,11 +531,12 @@ Resources:
 
   # ----------------------------------------------------------------------------
   # IAM Role for CloudWatch Logs Cross-Account Subscription (WAF Monitoring)
+  # IMPORTANT: Using fixed name 'EVO-CloudWatch-Logs-Role' for predictable lookup
   # ----------------------------------------------------------------------------
   EVOCloudWatchLogsRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub 'EVO-CloudWatch-Logs-Role-${AWS::StackName}'
+      RoleName: 'EVO-CloudWatch-Logs-Role'
       Description: 'IAM Role for CloudWatch Logs to send WAF logs cross-account to EVO Platform'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -548,7 +553,7 @@ Resources:
             Action: 'sts:AssumeRole'
       Tags:
         - Key: Name
-          Value: !Sub 'EVO-CloudWatch-Logs-Role-${AWS::StackName}'
+          Value: 'EVO-CloudWatch-Logs-Role'
         - Key: Purpose
           Value: 'EVO Platform WAF Log Streaming'
         - Key: ManagedBy

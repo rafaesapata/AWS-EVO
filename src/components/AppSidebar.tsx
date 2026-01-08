@@ -144,8 +144,6 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
   const isSuperAdmin = Array.isArray(userRole) 
     ? userRole.includes('super_admin')
     : userRole === 'super_admin';
-  
-  console.log('🔐 AppSidebar: userRole received:', userRole, 'isSuperAdmin:', isSuperAdmin);
 
   const toggleGroup = (value: string) => {
     const newGroups = new Set(openGroups);

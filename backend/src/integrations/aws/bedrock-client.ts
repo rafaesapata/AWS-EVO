@@ -110,7 +110,7 @@ class BedrockAI {
     ];
 
     const response = await this.invokeModel(
-      'anthropic.claude-3-5-sonnet-20240620-v1:0',
+      'anthropic.claude-3-5-sonnet-20241022-v2:0',
       messages,
       4000,
       0.3

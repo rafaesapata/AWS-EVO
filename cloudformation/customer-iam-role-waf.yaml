@@ -198,7 +198,7 @@ Resources:
               - pricing:GetProducts
             Resource: '*'
 
-  # WAF Monitoring Permissions
+  # WAF Monitoring Permissions - EXPANDIDO
   EVOWafMonitoringPolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -222,18 +222,40 @@ Resources:
               - wafv2:ListIPSets
               - wafv2:CreateIPSet
             Resource: '*'
-          # CloudWatch Logs for WAF
+          # CloudWatch Logs para WAF - CORRIGIDO (sem restrição de nome)
           - Effect: Allow
             Action:
               - logs:CreateLogGroup
               - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+              - logs:GetLogEvents
               - logs:PutSubscriptionFilter
               - logs:DeleteSubscriptionFilter
               - logs:DescribeSubscriptionFilters
               - logs:PutRetentionPolicy
+              - logs:PutResourcePolicy
+              - logs:DescribeResourcePolicies
             Resource:
-              - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*'
-              - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*:*'
+              - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:*'
+              - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:*:*'
+          # IAM para criar role de CloudWatch Logs (NOVO)
+          - Effect: Allow
+            Action:
+              - iam:CreateRole
+              - iam:GetRole
+              - iam:PutRolePolicy
+              - iam:TagRole
+            Resource:
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:role/EVO-CloudWatch-Logs-Role*'
+          # Permitir passar role para CloudWatch Logs (NOVO)
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource:
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:role/EVO-CloudWatch-Logs-Role*'
+            Condition:
+              StringEquals:
+                iam:PassedToService: logs.amazonaws.com
           # Allow invoking EVO WAF Log Processor (cross-account)
           - Effect: Allow
             Action:

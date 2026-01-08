@@ -125,3 +125,66 @@ aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"
 - Todas as queries DEVEM filtrar por `organization_id`
 - Usar `getOrganizationId(user)` para obter o ID da organização
 - NUNCA expor dados de outras organizações
+
+## 🚨 Deploy de Lambda Handlers - PROCESSO OBRIGATÓRIO
+
+### ⚠️ PROBLEMA COMUM: Erro 502 "Cannot find module '../../lib/xxx.js'"
+
+O código TypeScript compilado usa imports relativos como `../../lib/middleware.js` porque os handlers estão em `backend/dist/handlers/{categoria}/`. 
+
+**NUNCA** faça deploy apenas copiando o arquivo .js do handler. Isso causa erro 502!
+
+### ✅ PROCESSO CORRETO DE DEPLOY:
+
+```bash
+# 1. Compilar o backend
+npm run build --prefix backend
+
+# 2. Criar diretório temporário
+rm -rf /tmp/lambda-deploy && mkdir -p /tmp/lambda-deploy
+
+# 3. Copiar handler E AJUSTAR IMPORTS (de ../../lib/ para ./lib/)
+sed 's|require("../../lib/|require("./lib/|g' backend/dist/handlers/{categoria}/{handler}.js | \
+sed 's|require("../../types/|require("./types/|g' > /tmp/lambda-deploy/{handler}.js
+
+# 4. Copiar lib/ e types/
+cp -r backend/dist/lib /tmp/lambda-deploy/
+cp -r backend/dist/types /tmp/lambda-deploy/
+
+# 5. Criar ZIP
+pushd /tmp/lambda-deploy && zip -r ../lambda.zip . && popd
+
+# 6. Deploy
+aws lambda update-function-code \
+  --function-name {nome-da-lambda} \
+  --zip-file fileb:///tmp/lambda.zip \
+  --region us-east-1
+```
+
+### 📋 Estrutura Correta do ZIP:
+
+```
+lambda.zip
+├── {handler}.js          # Handler com imports ajustados (./lib/)
+├── lib/                  # Todas as bibliotecas compartilhadas
+│   ├── middleware.js
+│   ├── response.js
+│   ├── auth.js
+│   ├── database.js
+│   ├── aws-helpers.js
+│   ├── logging.js
+│   └── ...
+└── types/                # Tipos TypeScript compilados
+    └── lambda.js
+```
+
+### ❌ ERROS COMUNS A EVITAR:
+
+1. **Copiar apenas o .js do handler** → Erro: Cannot find module '../../lib/xxx.js'
+2. **Não ajustar os imports** → Erro: Cannot find module '../../lib/xxx.js'
+3. **Estrutura de diretórios errada no ZIP** → Erro: Cannot find module
+
+### 🔧 Script Disponível:
+
+Use o script `scripts/fix-lambda-imports-v2.sh` para deploy correto de múltiplas Lambdas.
+

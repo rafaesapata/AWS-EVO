@@ -7,6 +7,36 @@
 
 import { logger } from '../logging.js';
 
+/**
+ * Normaliza timestamp do WAF log
+ * AWS WAF envia timestamp em milissegundos (13 dígitos)
+ * Mas alguns logs antigos podem estar em segundos (10 dígitos)
+ * 
+ * @param timestamp - Timestamp em segundos ou milissegundos
+ * @returns Date object normalizado
+ */
+function normalizeTimestamp(timestamp: number): Date {
+  // Se timestamp tem menos de 13 dígitos, provavelmente está em segundos
+  if (timestamp < 10000000000000) {
+    // Verificar se é um timestamp válido em segundos (após 2000-01-01)
+    // 946684800 = 2000-01-01 00:00:00 UTC em segundos
+    if (timestamp > 946684800) {
+      logger.debug('Converting timestamp from seconds to milliseconds', { 
+        original: timestamp,
+        converted: timestamp * 1000 
+      });
+      return new Date(timestamp * 1000);
+    }
+    
+    // Se for menor que 2000, provavelmente é inválido
+    logger.warn('Invalid timestamp detected (before year 2000)', { timestamp });
+    return new Date(); // Fallback para agora
+  }
+  
+  // Timestamp já está em milissegundos
+  return new Date(timestamp);
+}
+
 // WAF Log Types
 export interface WafLogHeader {
   name: string;
@@ -171,7 +201,7 @@ export function parseWafLog(rawLog: unknown): ParsedWafEvent | null {
     const country = httpRequest.country || null;
     
     return {
-      timestamp: new Date(log.timestamp),
+      timestamp: normalizeTimestamp(log.timestamp),
       action: log.action,
       sourceIp: httpRequest.clientIp,
       country,

@@ -10,6 +10,7 @@
  */
 
 import { gunzipSync } from 'zlib';
+import { createHash } from 'crypto';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseWafLogBatch, analyzeWafEvent, type ParsedWafEvent } from '../../lib/waf/index.js';
@@ -50,6 +51,30 @@ function decodeCloudWatchLogs(data: string): CloudWatchLogsData {
   const buffer = Buffer.from(data, 'base64');
   const decompressed = gunzipSync(buffer);
   return JSON.parse(decompressed.toString('utf-8'));
+}
+
+/**
+ * Gera hash determinístico para deduplicação de eventos
+ * Hash baseado em: timestamp + sourceIp + uri + httpMethod + action
+ * 
+ * @param event - Evento WAF parseado
+ * @param organizationId - ID da organização
+ * @returns Hash SHA-256 (32 caracteres)
+ */
+function generateEventHash(event: ParsedWafEvent, organizationId: string): string {
+  const hashInput = [
+    organizationId,
+    event.timestamp.getTime().toString(),
+    event.sourceIp,
+    event.uri,
+    event.httpMethod,
+    event.action,
+  ].join('|');
+  
+  return createHash('sha256')
+    .update(hashInput)
+    .digest('hex')
+    .substring(0, 32); // Usar apenas 32 caracteres
 }
 
 /**
@@ -145,48 +170,98 @@ export async function handler(
       };
     }
     
-    // Step 3: Look up organization from WAF monitoring config
+    // Step 3: Look up organization from WAF monitoring config - ROBUSTO
     const prisma = getPrismaClient();
     const webAclName = extractWebAclNameFromLogGroup(logsData.logGroup);
     
-    // Find the monitoring config for this WAF
-    const monitoringConfig = await prisma.wafMonitoringConfig.findFirst({
+    // ESTRATÉGIA 1: Buscar por log group name (mais específico)
+    let monitoringConfig = await prisma.wafMonitoringConfig.findFirst({
       where: {
         log_group_name: logsData.logGroup,
         is_active: true,
       },
     });
     
+    // ESTRATÉGIA 2: Buscar por Web ACL name
     if (!monitoringConfig) {
-      // Try to find by web ACL name pattern
-      const configByName = await prisma.wafMonitoringConfig.findFirst({
+      logger.info('Config not found by log group, trying by Web ACL name', { webAclName });
+      monitoringConfig = await prisma.wafMonitoringConfig.findFirst({
         where: {
           web_acl_name: webAclName,
           is_active: true,
         },
       });
+    }
+    
+    // ESTRATÉGIA 3: Buscar por AWS Account ID do owner
+    if (!monitoringConfig) {
+      logger.info('Config not found by Web ACL name, trying by AWS Account ID', { 
+        ownerAccountId: logsData.owner 
+      });
       
-      if (!configByName) {
-        logger.warn('No active monitoring config found for log group', { 
-          logGroup: logsData.logGroup,
-          webAclName,
-          ownerAccountId: logsData.owner
+      // Buscar todas as configs ativas
+      const allConfigs = await prisma.wafMonitoringConfig.findMany({
+        where: {
+          is_active: true,
+        },
+      });
+      
+      // Para cada config, buscar o credential e verificar account ID
+      for (const config of allConfigs) {
+        const credential = await prisma.awsCredential.findUnique({
+          where: { id: config.aws_account_id },
+          select: { role_arn: true },
         });
-        // Still process but without organization context
-        // This could happen during initial setup
+        
+        if (credential?.role_arn) {
+          const accountIdFromRole = credential.role_arn.split(':')[4];
+          if (accountIdFromRole === logsData.owner) {
+            monitoringConfig = config;
+            break;
+          }
+        }
       }
     }
     
-    const organizationId = monitoringConfig?.organization_id;
-    const awsAccountId = monitoringConfig?.aws_account_id;
+    // CRÍTICO: Se não encontrou config, não processar (enviar para DLQ no futuro)
+    if (!monitoringConfig) {
+      logger.error('No active monitoring config found - logs orphaned', {
+        logGroup: logsData.logGroup,
+        webAclName,
+        ownerAccountId: logsData.owner,
+        eventsCount: parsedEvents.length,
+      });
+      
+      // TODO: Implementar Dead Letter Queue para logs órfãos
+      // Por enquanto, retornar erro para que o CloudWatch Logs retenha
+      return {
+        success: false,
+        eventsReceived,
+        eventsParsed,
+        eventsSaved: 0,
+        errors: ['No active monitoring configuration found for this WAF - logs cannot be mapped to organization'],
+      };
+    }
     
-    // Step 4: Analyze threats and prepare database records
+    const organizationId = monitoringConfig.organization_id;
+    const awsAccountId = monitoringConfig.aws_account_id;
+    
+    logger.info('Monitoring config found', {
+      organizationId,
+      awsAccountId,
+      configId: monitoringConfig.id,
+      webAclName: monitoringConfig.web_acl_name,
+    });
+    
+    // Step 4: Analyze threats and prepare database records com hash para deduplicação
     const wafEventsToCreate = parsedEvents.map(event => {
       const analysis = analyzeWafEvent(event);
+      const eventHash = generateEventHash(event, organizationId);
       
       return {
-        organization_id: organizationId || '00000000-0000-0000-0000-000000000000',
-        aws_account_id: awsAccountId || '00000000-0000-0000-0000-000000000000',
+        id: eventHash, // ID determinístico para deduplicação
+        organization_id: organizationId, // Sempre definido agora (validado acima)
+        aws_account_id: awsAccountId,   // Sempre definido agora (validado acima)
         timestamp: event.timestamp,
         action: event.action,
         source_ip: event.sourceIp,
@@ -204,16 +279,40 @@ export async function handler(
       };
     });
     
-    // Step 5: Batch insert to database
+    // Step 5: Upsert individual para garantir deduplicação
     let eventsSaved = 0;
+    let duplicatesSkipped = 0;
+    
     try {
-      const result = await prisma.wafEvent.createMany({
-        data: wafEventsToCreate,
-        skipDuplicates: true,
-      });
-      eventsSaved = result.count;
+      for (const eventData of wafEventsToCreate) {
+        try {
+          await prisma.wafEvent.upsert({
+            where: { id: eventData.id },
+            create: eventData,
+            update: {}, // Não atualiza se já existe (mantém o original)
+          });
+          eventsSaved++;
+        } catch (err: any) {
+          // Se for erro de constraint único, é duplicata (ignorar silenciosamente)
+          if (err.code === 'P2002' || err.message?.includes('Unique constraint')) {
+            duplicatesSkipped++;
+            logger.debug('Duplicate event skipped', { eventId: eventData.id });
+          } else {
+            // Outro erro - logar e continuar
+            logger.warn('Failed to save individual event', { 
+              error: err.message,
+              eventId: eventData.id 
+            });
+            errors.push(`Failed to save event ${eventData.id}: ${err.message}`);
+          }
+        }
+      }
       
-      logger.info('Saved WAF events to database', { eventsSaved });
+      logger.info('Saved WAF events to database', { 
+        eventsSaved, 
+        duplicatesSkipped,
+        totalProcessed: wafEventsToCreate.length 
+      });
     } catch (dbError) {
       logger.error('Failed to save WAF events', dbError as Error);
       errors.push(`Database error: ${dbError}`);

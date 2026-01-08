@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Smartphone, Key, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import QRCode from "qrcode";
 
 interface MFAFactor {
   id: string;
@@ -82,19 +83,43 @@ export default function MFASettings() {
   const enrollTOTP = async () => {
     setLoading(true);
     try {
+      // No longer need accessToken - secret is generated locally on backend
       const result = await apiClient.invoke('mfa-enroll', {
         body: {
           factorType: 'totp',
           friendlyName: 'Autenticador TOTP'
         }
       });
-      const { data, error } = { data: result.data, error: result.error };
 
+      if (result.error) {
+        throw new Error(result.error.message || 'Failed to enroll TOTP');
+      }
+
+      const data = result.data;
       
+      if (!data || !data.qrCode || !data.secret || !data.factorId) {
+        throw new Error('Invalid response from server');
+      }
 
-      setQrCode(data.totp.qr_code);
-      setTotpSecret(data.totp.secret);
-      setFactorId(data.id);
+      // Generate QR Code image from otpauth:// URL
+      try {
+        const qrCodeDataUrl = await QRCode.toDataURL(data.qrCode, {
+          width: 256,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        setQrCode(qrCodeDataUrl);
+      } catch (qrError) {
+        console.error('QR Code generation error:', qrError);
+        // If QR generation fails, still show the secret for manual entry
+        setQrCode('');
+      }
+
+      setTotpSecret(data.secret);
+      setFactorId(data.factorId);
       setShowTOTPDialog(true);
     } catch (error: any) {
       toast({
@@ -110,15 +135,17 @@ export default function MFASettings() {
   const verifyTOTP = async () => {
     setLoading(true);
     try {
+      // No longer need accessToken - verification is done locally on backend
       const result = await apiClient.invoke('mfa-challenge-verify', {
         body: {
           factorId: factorId,
           code: verifyCode
         }
       });
-      const { data, error } = { data: result.data, error: result.error };
 
-      
+      if (result.error) {
+        throw new Error(result.error.message || 'Failed to verify code');
+      }
 
       toast({
         title: "TOTP ativado com sucesso!",
@@ -129,10 +156,11 @@ export default function MFASettings() {
       setVerifyCode("");
       loadMFAFactors();
     } catch (error: any) {
+      console.error('MFA Verify Error:', error);
       toast({
         variant: "destructive",
         title: "Código inválido",
-        description: "Verifique o código e tente novamente."
+        description: error?.message || "Verifique o código e tente novamente."
       });
     } finally {
       setLoading(false);
@@ -316,20 +344,22 @@ export default function MFASettings() {
               Use aplicativos como Google Authenticator, Authy ou Microsoft Authenticator
             </p>
             <Button onClick={enrollTOTP} disabled={loading} variant="outline">
-              Configurar Autenticador
+              <Smartphone className="h-4 w-4 mr-2" />
+              Configurar Autenticador TOTP
             </Button>
           </div>
 
-          <div>
+          <div className="opacity-50">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <Key className="h-4 w-4" />
               Chave de Segurança (WebAuthn)
             </h3>
             <p className="text-sm text-muted-foreground mb-3">
-              Use dispositivos físicos como Yubikey, Touch ID, Windows Hello ou Face ID
+              Esta funcionalidade requer uma licença Enterprise
             </p>
-            <Button onClick={enrollWebAuthn} disabled={loading} variant="outline">
-              Registrar Chave de Segurança
+            <Button disabled variant="outline" className="cursor-not-allowed">
+              <Key className="h-4 w-4 mr-2" />
+              Indisponível nesta licença
             </Button>
           </div>
         </div>
@@ -403,10 +433,20 @@ export default function MFASettings() {
             </DialogHeader>
 
             <div className="space-y-4">
-              {qrCode && (
-                <div className="flex justify-center">
+              {qrCode ? (
+                <div className="flex flex-col items-center gap-2">
                   <img src={qrCode} alt="QR Code" className="border rounded-lg p-2" />
+                  <p className="text-xs text-muted-foreground text-center">
+                    Escaneie com Google Authenticator, Authy ou similar
+                  </p>
                 </div>
+              ) : (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Use o código manual abaixo para configurar seu autenticador
+                  </AlertDescription>
+                </Alert>
               )}
 
               <div className="space-y-2">

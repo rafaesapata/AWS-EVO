@@ -57,7 +57,7 @@ export const BedrockTestPage: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">Sonnet Model:</span>
-                    <span className="text-muted-foreground text-sm">claude-3-5-sonnet-20240620-v1:0</span>
+                    <span className="text-muted-foreground text-sm">claude-3-5-sonnet-20241022-v2:0</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">Credential Source:</span>

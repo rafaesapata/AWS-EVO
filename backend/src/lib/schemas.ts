@@ -36,11 +36,13 @@ export const mfaSetupSchema = z.object({
 export const mfaEnrollSchema = z.object({
   factorType: z.enum(['totp', 'sms']),
   friendlyName: z.string().max(100).optional(),
+  accessToken: z.string().min(1).optional(), // Required for Cognito MFA enrollment
 });
 
 export const mfaVerifySchema = z.object({
   factorId: uuidSchema,
   code: z.string().min(6).max(8),
+  accessToken: z.string().min(1).optional(), // Required for Cognito MFA verification
 });
 
 export const mfaUnenrollSchema = z.object({

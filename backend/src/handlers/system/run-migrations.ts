@@ -505,6 +505,24 @@ const MIGRATION_COMMANDS = [
   `ALTER TABLE "knowledge_base_articles" ADD COLUMN IF NOT EXISTS "is_public" BOOLEAN NOT NULL DEFAULT false`,
   `ALTER TABLE "knowledge_base_articles" ADD COLUMN IF NOT EXISTS "is_restricted" BOOLEAN NOT NULL DEFAULT false`,
   `CREATE INDEX IF NOT EXISTS "knowledge_base_articles_approval_status_idx" ON "knowledge_base_articles"("approval_status")`,
+  
+  // MFA Factors table
+  `CREATE TABLE IF NOT EXISTS "mfa_factors" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "user_id" UUID NOT NULL,
+    "factor_type" VARCHAR(50) NOT NULL,
+    "friendly_name" VARCHAR(255),
+    "secret" TEXT,
+    "status" VARCHAR(50) NOT NULL DEFAULT 'pending',
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "verified_at" TIMESTAMPTZ(6),
+    "deactivated_at" TIMESTAMPTZ(6),
+    "last_used_at" TIMESTAMPTZ(6),
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "mfa_factors_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "mfa_factors_user_id_idx" ON "mfa_factors"("user_id")`,
+  `CREATE INDEX IF NOT EXISTS "mfa_factors_is_active_idx" ON "mfa_factors"("is_active")`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

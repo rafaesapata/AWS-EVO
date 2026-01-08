@@ -38,7 +38,6 @@ export default function AuthSimple() {
     const webauthnEmail = sessionStorage.getItem('webauthn-email');
     
     if (webauthnRequired === 'true' && webauthnEmail) {
-      console.log('🔐 WebAuthn required from sessionStorage, showing WebAuthn screen');
       setEmail(webauthnEmail);
       setShowWebAuthn(true);
       // Clear the flag
@@ -56,7 +55,6 @@ export default function AuthSimple() {
   // Watch for NEW_PASSWORD_REQUIRED challenge
   useEffect(() => {
     if (challengeName === 'NEW_PASSWORD_REQUIRED' && challengeSession) {
-      console.log('🔐 NEW_PASSWORD_REQUIRED challenge detected, showing new password screen');
       setNewPasswordSession(challengeSession);
       setShowNewPasswordRequired(true);
     }
@@ -77,32 +75,20 @@ export default function AuthSimple() {
     setWebAuthnError("");
     setMfaError("");
     
-    console.log('🔐 [AUTH] Starting login process for:', email);
-    
     // Try normal login first
     const success = await signIn(email, password);
-    
-    console.log('🔐 [AUTH] Cognito login result:', success);
     
     if (success) {
       // After successful Cognito login, check for local MFA settings
       try {
-        console.log('🔐 Checking for local MFA settings after login...');
-        const mfaResult = await apiClient.invoke('mfa-check', {
+        await apiClient.invoke('mfa-check', {
           body: {}
         });
-
-        console.log('🔐 MFA check result:', mfaResult);
-
         // TEMPORARILY DISABLED - allow user to enter and delete old credentials
-        console.log('🔐 MFA/WebAuthn check temporarily disabled');
-        
       } catch (error) {
-        console.warn('🔐 MFA/WebAuthn check failed, continuing with normal login:', error);
         // Continue with normal login if checks fail
       }
       
-      console.log("✅ Login successful - redirecting to app");
       navigate("/app");
     }
   };
@@ -202,36 +188,29 @@ export default function AuthSimple() {
 
   const handleMFAVerify = async (factorId: string, code: string): Promise<boolean> => {
     try {
-      console.log('🔐 Verifying MFA code...', { factorId });
-      
       const result = await apiClient.invoke('mfa-verify-login', {
         body: { factorId, code }
       });
 
       if (result.data?.verified) {
-        console.log('🔐 MFA verification successful');
         return true;
       } else {
-        console.log('🔐 MFA verification failed:', result.error);
         setMfaError(result.error?.message || 'Invalid MFA code');
         return false;
       }
     } catch (error) {
-      console.error('🔐 MFA verification error:', error);
       setMfaError('Error verifying MFA code');
       return false;
     }
   };
 
   const handleMFAVerified = () => {
-    console.log('🔐 MFA verified successfully - redirecting to app');
     navigate("/app");
   };
 
   const handleNewPasswordSet = async (session: string, newPassword: string): Promise<boolean> => {
     const success = await confirmNewPassword(session, newPassword);
     if (success) {
-      console.log("✅ New password set successfully - redirecting to app");
       navigate("/app");
     }
     return success;

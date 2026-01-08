@@ -153,6 +153,58 @@ Resources:
       # Allow any account to invoke via CloudWatch Logs Subscription Filter
       # Validation is done in code via organization_id mapping
 
+  # CloudWatch Logs Destination Role for Cross-Account WAF Logs
+  WafLogsDestinationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-waf-logs-destination-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: logs.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt WafLogProcessorFunction.Arn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Logs Destination for Cross-Account WAF Logs
+  WafLogsDestination:
+    Type: AWS::Logs::Destination
+    Properties:
+      DestinationName: !Sub '${ProjectName}-${Environment}-waf-logs-destination'
+      RoleArn: !GetAtt WafLogsDestinationRole.Arn
+      TargetArn: !GetAtt WafLogProcessorFunction.Arn
+      DestinationPolicy: !Sub |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowOrganization",
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "logs:PutSubscriptionFilter",
+              "Resource": "${WafLogsDestination.Arn}",
+              "Condition": {
+                "StringEquals": {
+                  "aws:PrincipalOrgID": ["o-4xqcq88tcl"]
+                }
+              }
+            }
+          ]
+        }
+
   # WAF Threat Analyzer Lambda
   WafThreatAnalyzerFunction:
     Type: AWS::Lambda::Function
@@ -323,3 +375,15 @@ Outputs:
     Value: !Ref WafAlertsTopic
     Export:
       Name: !Sub '${ProjectName}-${Environment}-waf-alerts-topic-arn'
+
+  WafLogsDestinationArn:
+    Description: ARN of the CloudWatch Logs Destination for cross-account WAF logs
+    Value: !GetAtt WafLogsDestination.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-logs-destination-arn'
+
+  WafLogsDestinationName:
+    Description: Name of the CloudWatch Logs Destination
+    Value: !Sub '${ProjectName}-${Environment}-waf-logs-destination'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-logs-destination-name'
