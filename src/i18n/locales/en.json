@@ -1281,7 +1281,8 @@
     "setupSuccess": "Monitoring Configured",
     "setupSuccessDesc": "WAF monitoring has been successfully configured",
     "eventsToday": "Events Today",
-    "blockedToday": "Blocked Today"
+    "blockedToday": "Blocked Today",
+    "addAnotherWaf": "Add Another WAF"
   },
   "common": {
     "all": "All",
