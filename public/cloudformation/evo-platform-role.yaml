@@ -287,6 +287,14 @@ Resources:
               - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*'
               - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*:*'
           
+          # CloudWatch Logs Cross-Account Subscription (for EVO WAF monitoring)
+          - Sid: CloudWatchLogsCrossAccountSubscription
+            Effect: Allow
+            Action:
+              - 'logs:PutSubscriptionFilter'
+            Resource:
+              - !Sub 'arn:aws:logs:*:${EVOPlatformAccountId}:destination:evo-waf-log-destination'
+          
           # KMS Read Access (Encryption Analysis)
           - Sid: KMSReadAccess
             Effect: Allow
@@ -531,7 +539,12 @@ Resources:
           - Sid: AllowCloudWatchLogsAssumeRole
             Effect: Allow
             Principal:
-              Service: !Sub 'logs.${AWS::Region}.amazonaws.com'
+              Service:
+                - 'logs.us-east-1.amazonaws.com'
+                - 'logs.us-east-2.amazonaws.com'
+                - 'logs.us-west-1.amazonaws.com'
+                - 'logs.us-west-2.amazonaws.com'
+                - 'logs.sa-east-1.amazonaws.com'
             Action: 'sts:AssumeRole'
       Tags:
         - Key: Name

@@ -116,14 +116,20 @@ export default function RemediationTickets() {
   // Create ticket
   const createTicketMutation = useMutation({
     mutationFn: async (ticketData: typeof newTicket) => {
-      const response = await apiClient.insert('remediation_tickets', {
+      // Clean up data before sending
+      const cleanData = {
         ...ticketData,
         organization_id: organizationId,
         aws_account_id: selectedAccountId,
         status: 'open',
-        created_by: 'current_user', // Replace with actual user ID
-        automation_available: false
-      });
+        created_by: 'current_user',
+        automation_available: false,
+        // Convert empty string to null for optional fields
+        due_date: ticketData.due_date || null,
+        business_impact: ticketData.business_impact || null,
+      };
+
+      const response = await apiClient.insert('remediation_tickets', cleanData);
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
