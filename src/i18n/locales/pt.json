@@ -1439,7 +1439,11 @@
     "req3": "IAM Role da EVO deve ter permissão para acessar os logs",
     "learnMore": "Saiba mais",
     "loading": "Carregando...",
-    "active": "Ativo"
+    "active": "Ativo",
+    "setupSuccess": "Monitoramento Configurado",
+    "setupSuccessDesc": "O monitoramento WAF foi configurado com sucesso",
+    "eventsToday": "Eventos Hoje",
+    "blockedToday": "Bloqueados Hoje"
   },
   "common": {
     "all": "Todos",
@@ -1448,6 +1452,7 @@
     "refresh": "Atualizar",
     "refreshed": "Atualizado",
     "save": "Salvar",
+    "inactive": "Inativo",
     "saving": "Salvando...",
     "cancel": "Cancelar",
     "error": "Erro",

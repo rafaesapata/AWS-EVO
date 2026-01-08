@@ -1277,7 +1277,11 @@
     "req3": "EVO IAM Role must have permission to access the logs",
     "learnMore": "Learn more",
     "loading": "Loading...",
-    "active": "Active"
+    "active": "Active",
+    "setupSuccess": "Monitoring Configured",
+    "setupSuccessDesc": "WAF monitoring has been successfully configured",
+    "eventsToday": "Events Today",
+    "blockedToday": "Blocked Today"
   },
   "common": {
     "all": "All",
@@ -1288,6 +1292,7 @@
     "save": "Save",
     "saving": "Saving...",
     "cancel": "Cancel",
+    "inactive": "Inactive",
     "error": "Error",
     "minute": "minute",
     "minutes": "minutes",
