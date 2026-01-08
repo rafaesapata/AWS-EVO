@@ -681,9 +681,17 @@ async function handleGetMonitoringConfigs(
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  logger.info('Fetching WAF monitoring configs', { organizationId });
+  
   const configs = await prisma.wafMonitoringConfig.findMany({
     where: { organization_id: organizationId },
     orderBy: { created_at: 'desc' },
+  });
+  
+  logger.info('WAF monitoring configs fetched', { 
+    organizationId, 
+    count: configs.length,
+    activeCount: configs.filter(c => c.is_active).length 
   });
   
   return success({
