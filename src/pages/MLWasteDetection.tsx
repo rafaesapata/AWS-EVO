@@ -7,7 +7,7 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { Brain, TrendingDown, Zap, BarChart3, Clock, AlertCircle, Trash2, Copy, ExternalLink, ChevronDown, ChevronUp, Terminal, AlertTriangle, Shield, History, Play, CheckCircle2, XCircle, Loader2, Eye } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Layout } from "@/components/Layout";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -79,7 +79,7 @@ export default function MLWasteDetection() {
   const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'recommendations' | 'history'>('recommendations');
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
 
   const toggleSteps = (id: string) => {
     setExpandedSteps(prev => ({ ...prev, [id]: !prev[id] }));

@@ -832,8 +832,8 @@ async function handleDiagnose(
       credentials: awsCredentials,
     });
     
-    const wafId = config.web_acl_arn.split('/').pop();
-    const logGroupName = `aws-waf-logs-${wafId}`;
+    // Use the log group name from config, or construct from web ACL name
+    const logGroupName = config.log_group_name || `aws-waf-logs-${config.web_acl_name}`;
     
     const logGroupsResponse = await cwlClient.send(
       new DescribeLogGroupsCommand({
@@ -898,7 +898,7 @@ async function handleDiagnose(
         })
       );
       
-      const evoDestinationArn = `arn:aws:logs:${region}:${process.env.AWS_ACCOUNT_ID || '383234048592'}:destination:evo-waf-logs-destination`;
+      const evoDestinationArn = `arn:aws:logs:${region}:${process.env.AWS_ACCOUNT_ID || '383234048592'}:destination:evo-uds-v3-production-waf-logs-destination`;
       
       if (filtersResponse.subscriptionFilters && filtersResponse.subscriptionFilters.length > 0) {
         const evoFilter = filtersResponse.subscriptionFilters.find(

@@ -30,9 +30,9 @@ import MLWasteDetection from "@/pages/MLWasteDetection";
 import TVDashboardManagement from "@/pages/TVDashboardManagement";
 import ExecutiveDashboardV2 from "@/components/dashboard/ExecutiveDashboard";
 import AuditLog from "@/components/admin/AuditLog";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
-import { AwsAccountSelector } from "@/components/AwsAccountSelector";
+import { CloudAccountSelectorCompact } from "@/components/cloud/CloudAccountSelector";
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
 import UserMenu from "@/components/UserMenu";
@@ -82,7 +82,7 @@ const Index = () => {
   });
   
   // Use global account context for multi-account isolation
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
 
   // Fetch user role from Cognito token (custom:roles attribute)
@@ -271,7 +271,7 @@ const Index = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <AwsAccountSelector />
+                    <CloudAccountSelectorCompact />
                     <LanguageToggle />
                     <ThemeToggle />
                     <UserMenu />
@@ -367,7 +367,7 @@ const Index = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <AwsAccountSelector />
+                    <CloudAccountSelectorCompact />
                     <LanguageToggle />
                     <ThemeToggle />
                     <UserMenu />
@@ -427,7 +427,7 @@ const Index = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <AwsAccountSelector />
+                    <CloudAccountSelectorCompact />
                     <LanguageToggle />
                     <ThemeToggle />
                     <UserMenu />
@@ -480,7 +480,7 @@ const Index = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <AwsAccountSelector />
+                    <CloudAccountSelectorCompact />
                     <LanguageToggle />
                     <ThemeToggle />
                     <UserMenu />
@@ -538,7 +538,7 @@ const Index = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <AwsAccountSelector />
+                    <CloudAccountSelectorCompact />
                     <LanguageToggle />
                     <ThemeToggle />
                     <UserMenu />
@@ -591,7 +591,7 @@ const Index = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  <AwsAccountSelector />
+                  <CloudAccountSelectorCompact />
                   <LanguageToggle />
                   <ThemeToggle />
                   <UserMenu />

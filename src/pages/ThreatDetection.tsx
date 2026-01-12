@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 
 interface GuardDutyFinding {
   id: string;
@@ -49,7 +49,7 @@ export default function ThreatDetection() {
   const [scanning, setScanning] = useState(false);
   const { data: organizationId } = useOrganization();
   // Use centralized AWS account context instead of direct API call
-  const { accounts: awsAccounts } = useAwsAccount();
+  const { awsAccounts } = useCloudAccount();
 
   const { data: guarddutyFindings, refetch: refetchGuardDuty } = useQuery<GuardDutyFinding[]>({
     queryKey: ['guardduty-findings', organizationId],

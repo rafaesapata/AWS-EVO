@@ -95,7 +95,7 @@ Resources:
         - Key: EVOPlatformAccountId
           Value: !Ref EVOPlatformAccountId
         - Key: TemplateVersion
-          Value: '2.1.0-waf-monitoring'
+          Value: '2.2.0-waf-destination-fix'
 
   # ----------------------------------------------------------------------------
   # Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
@@ -297,6 +297,7 @@ Resources:
             Action:
               - 'logs:PutSubscriptionFilter'
             Resource:
+              - !Sub 'arn:aws:logs:*:${EVOPlatformAccountId}:destination:evo-uds-v3-production-waf-logs-destination'
               - !Sub 'arn:aws:logs:*:${EVOPlatformAccountId}:destination:evo-waf-log-destination'
           
           # KMS Read Access (Encryption Analysis)

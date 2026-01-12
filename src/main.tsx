@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { AwsAccountProvider } from "@/contexts/AwsAccountContext";
+import { CloudAccountProvider } from "@/contexts/CloudAccountContext";
 import { TVDashboardProvider } from "@/contexts/TVDashboardContext";
 import { ErrorBoundary as GlobalErrorBoundary } from "@/components/ErrorBoundary";
 import { FloatingCopilot } from "@/components/copilot/FloatingCopilot";
@@ -15,6 +16,7 @@ import Features from "./pages/Features";
 import TermsOfService from "./pages/TermsOfService";
 import TVDashboard from "./pages/TVDashboard";
 import AWSSettings from "./pages/AWSSettings";
+import CloudCredentials from "./pages/CloudCredentials";
 import SystemMonitoring from "./pages/SystemMonitoring";
 import ResourceMonitoring from "./pages/ResourceMonitoring";
 import ThreatDetection from "./pages/ThreatDetection";
@@ -82,7 +84,8 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <DefaultTVProvider>
         <AwsAccountProvider>
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <CloudAccountProvider>
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/" element={<AuthSimple />} />
               <Route path="/auth" element={<AuthSimple />} />
@@ -107,6 +110,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <AWSSettings />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/cloud-credentials" 
+                element={
+                  <ProtectedRoute>
+                    <CloudCredentials />
                   </ProtectedRoute>
                 } 
               />
@@ -360,6 +371,7 @@ createRoot(document.getElementById("root")!).render(
             <SonnerToaster />
             <FloatingCopilotWrapper />
           </BrowserRouter>
+          </CloudAccountProvider>
         </AwsAccountProvider>
       </DefaultTVProvider>
     </QueryClientProvider>

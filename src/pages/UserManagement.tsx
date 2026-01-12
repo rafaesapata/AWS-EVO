@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useAuthSafe } from "@/hooks/useAuthSafe";
 import { 
   Users, 
@@ -157,7 +157,7 @@ export default function UserManagement() {
   });
 
   // Use centralized AWS account context instead of direct API call
-  const { accounts: awsAccounts } = useAwsAccount();
+  const { awsAccounts } = useCloudAccount();
 
   // Create user
   const createUserMutation = useMutation({

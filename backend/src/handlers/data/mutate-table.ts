@@ -205,6 +205,11 @@ export async function handler(
               record.author_id = userId;
             }
             
+            // Special handling for remediation_tickets - add created_by
+            if ((body.table === 'remediation_tickets' || body.table === 'tickets') && !record.created_by) {
+              record.created_by = userId;
+            }
+            
             return record;
           });
           
@@ -225,6 +230,11 @@ export async function handler(
           // Special handling for knowledge_base_articles - add author_id
           if (body.table === 'knowledge_base_articles' && (!dataWithOrg.author_id || dataWithOrg.author_id === 'undefined')) {
             dataWithOrg.author_id = userId;
+          }
+          
+          // Special handling for remediation_tickets - add created_by
+          if ((body.table === 'remediation_tickets' || body.table === 'tickets') && !dataWithOrg.created_by) {
+            dataWithOrg.created_by = userId;
           }
           
           result = await model.create({

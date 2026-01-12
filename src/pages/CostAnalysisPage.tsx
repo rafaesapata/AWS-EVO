@@ -19,7 +19,7 @@ import { ExportManager } from "@/components/dashboard/cost-analysis/ExportManage
 import { RiSpAnalysis } from "@/components/cost/RiSpAnalysis";
 import { formatDateBR, compareDates } from "@/lib/utils";
 
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 
 
@@ -48,7 +48,7 @@ export const CostAnalysisPage = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Use global account context for multi-account isolation
-  const { selectedAccountId, accounts: allAccounts } = useAwsAccount();
+  const { selectedAccountId, accounts: allAccounts } = useCloudAccount();
   const { data: organizationId } = useOrganization();
 
   // Get available tags from organization - filtered by selected account

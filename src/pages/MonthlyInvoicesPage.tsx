@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { compareDates, getDayOfMonth } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
@@ -57,7 +57,7 @@ export const MonthlyInvoicesPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId, selectedAccount } = useAwsAccount();
+  const { selectedAccountId, selectedAccount } = useCloudAccount();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);

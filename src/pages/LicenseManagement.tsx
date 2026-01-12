@@ -246,7 +246,7 @@ export default function LicenseManagement() {
         title="Gerenciamento de Licença"
         subtitle="Visualize e gerencie sua licença da plataforma EVO"
         icon={CreditCard}
-        showAwsAccountSelector={false}
+        showCloudAccountSelector={false}
       >
         <div className="max-w-4xl mx-auto space-y-6">
           <Skeleton className="h-12 w-64" />
@@ -262,7 +262,7 @@ export default function LicenseManagement() {
       title="Gerenciamento de Licença"
       subtitle="Visualize e gerencie sua licença da plataforma EVO"
       icon={CreditCard}
-      showAwsAccountSelector={false}
+      showCloudAccountSelector={false}
     >
       <div className="max-w-4xl mx-auto space-y-6">
 

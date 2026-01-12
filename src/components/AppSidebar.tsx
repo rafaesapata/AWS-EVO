@@ -116,6 +116,7 @@ const menuItems: MenuItem[] = [
   { titleKey: "sidebar.communicationCenter", value: "communication-center", icon: Mail },
   { titleKey: "sidebar.license", value: "license", icon: Key },
   { titleKey: "sidebar.awsSettings", value: "aws-settings", icon: Cloud },
+  { titleKey: "sidebar.cloudCredentials", value: "cloud-credentials", icon: Cloud },
   { titleKey: "sidebar.manageUsers", value: "users", icon: Users },
   { titleKey: "sidebar.organizations", value: "organizations", icon: Building2, superAdminOnly: true },
   { titleKey: "sidebar.scheduledJobs", value: "scheduled-jobs", icon: Calendar, superAdminOnly: true },
@@ -163,6 +164,8 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/communication-center');
     } else if (value === 'aws-settings') {
       navigate('/aws-settings');
+    } else if (value === 'cloud-credentials') {
+      navigate('/cloud-credentials');
     } else if (value === 'knowledge-base') {
       navigate('/knowledge-base');
     } else if (value === 'scheduled-jobs') {

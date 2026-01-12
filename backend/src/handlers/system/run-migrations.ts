@@ -523,6 +523,66 @@ const MIGRATION_COMMANDS = [
   )`,
   `CREATE INDEX IF NOT EXISTS "mfa_factors_user_id_idx" ON "mfa_factors"("user_id")`,
   `CREATE INDEX IF NOT EXISTS "mfa_factors_is_active_idx" ON "mfa_factors"("is_active")`,
+  
+  // ==================== AZURE MULTI-CLOUD SUPPORT (2026-01-12) ====================
+  
+  // CloudProvider enum
+  `DO $$ BEGIN
+    CREATE TYPE "CloudProvider" AS ENUM ('AWS', 'AZURE', 'GCP');
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$`,
+  
+  // Azure Credentials table
+  `CREATE TABLE IF NOT EXISTS "azure_credentials" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "subscription_id" TEXT NOT NULL,
+    "subscription_name" TEXT,
+    "tenant_id" TEXT NOT NULL,
+    "client_id" TEXT NOT NULL,
+    "client_secret" TEXT NOT NULL,
+    "regions" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "azure_credentials_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "azure_credentials_organization_id_subscription_id_key" ON "azure_credentials"("organization_id", "subscription_id")`,
+  `CREATE INDEX IF NOT EXISTS "azure_credentials_organization_id_idx" ON "azure_credentials"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "azure_credentials_subscription_id_idx" ON "azure_credentials"("subscription_id")`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'azure_credentials_organization_id_fkey') THEN
+      ALTER TABLE "azure_credentials" ADD CONSTRAINT "azure_credentials_organization_id_fkey" 
+        FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  
+  // Add cloud_provider and azure_credential_id to findings
+  `ALTER TABLE "findings" ADD COLUMN IF NOT EXISTS "cloud_provider" "CloudProvider" DEFAULT 'AWS'`,
+  `ALTER TABLE "findings" ADD COLUMN IF NOT EXISTS "azure_credential_id" UUID`,
+  `CREATE INDEX IF NOT EXISTS "findings_cloud_provider_idx" ON "findings"("cloud_provider")`,
+  
+  // Add cloud_provider and azure_credential_id to security_scans
+  `ALTER TABLE "security_scans" ADD COLUMN IF NOT EXISTS "cloud_provider" "CloudProvider" DEFAULT 'AWS'`,
+  `ALTER TABLE "security_scans" ADD COLUMN IF NOT EXISTS "azure_credential_id" UUID`,
+  `CREATE INDEX IF NOT EXISTS "security_scans_cloud_provider_idx" ON "security_scans"("cloud_provider")`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'security_scans_azure_credential_id_fkey') THEN
+      ALTER TABLE "security_scans" ADD CONSTRAINT "security_scans_azure_credential_id_fkey" 
+        FOREIGN KEY ("azure_credential_id") REFERENCES "azure_credentials"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  
+  // Add cloud_provider and azure_credential_id to daily_costs
+  `ALTER TABLE "daily_costs" ADD COLUMN IF NOT EXISTS "cloud_provider" "CloudProvider" DEFAULT 'AWS'`,
+  `ALTER TABLE "daily_costs" ADD COLUMN IF NOT EXISTS "azure_credential_id" UUID`,
+  `CREATE INDEX IF NOT EXISTS "daily_costs_cloud_provider_idx" ON "daily_costs"("cloud_provider")`,
+  
+  // Add cloud_provider and azure_credential_id to resource_inventory
+  `ALTER TABLE "resource_inventory" ADD COLUMN IF NOT EXISTS "cloud_provider" "CloudProvider" DEFAULT 'AWS'`,
+  `ALTER TABLE "resource_inventory" ADD COLUMN IF NOT EXISTS "azure_credential_id" UUID`,
+  `CREATE INDEX IF NOT EXISTS "resource_inventory_cloud_provider_idx" ON "resource_inventory"("cloud_provider")`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

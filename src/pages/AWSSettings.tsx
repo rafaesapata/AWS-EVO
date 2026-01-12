@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { AWSToolsConfiguration } from "@/components/dashboard/AWSToolsConfiguration";
 import { AWSServicesMonitoring } from "@/components/dashboard/AWSServicesMonitoring";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function AWSSettings() {
@@ -39,7 +39,7 @@ export default function AWSSettings() {
   }, []);
   
   // Use centralized AWS account context with error handling
-  const { accounts: awsAccounts, error: accountsError, isLoading } = useAwsAccount();
+  const { awsAccounts, error: accountsError, isLoading } = useCloudAccount();
 
   // Handle errors from AWS account context
   useEffect(() => {

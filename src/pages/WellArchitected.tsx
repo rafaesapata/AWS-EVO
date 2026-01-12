@@ -15,7 +15,7 @@ import { ScoreOverview } from "@/components/dashboard/well-architected/ScoreOver
 import { PillarCard } from "@/components/dashboard/well-architected/PillarCard";
 import { WellArchitectedHistory } from "@/components/dashboard/well-architected/WellArchitectedHistory";
 import { Layout } from "@/components/Layout";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 
 const WellArchitected = () => {
   const { t } = useTranslation();
@@ -23,7 +23,7 @@ const WellArchitected = () => {
   const [mainTab, setMainTab] = useState<string>("analysis");
   const [viewingHistoricalScan, setViewingHistoricalScan] = useState<string | null>(null);
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
 
   const { data: userProfile } = useQuery({
     queryKey: ['user-profile'],

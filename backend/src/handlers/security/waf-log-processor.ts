@@ -46,11 +46,45 @@ interface ProcessingResult {
 
 /**
  * Decode and decompress CloudWatch Logs data
+ * Handles both direct CloudWatch Logs events and forwarded events
  */
 function decodeCloudWatchLogs(data: string): CloudWatchLogsData {
-  const buffer = Buffer.from(data, 'base64');
-  const decompressed = gunzipSync(buffer);
-  return JSON.parse(decompressed.toString('utf-8'));
+  try {
+    // First, try to decode as base64
+    const buffer = Buffer.from(data, 'base64');
+    
+    // Check if it's gzip compressed (gzip magic number: 0x1f 0x8b)
+    if (buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b) {
+      // It's gzip compressed, decompress it
+      const decompressed = gunzipSync(buffer);
+      return JSON.parse(decompressed.toString('utf-8'));
+    } else {
+      // Not gzip, might be plain JSON after base64 decode
+      const decoded = buffer.toString('utf-8');
+      try {
+        return JSON.parse(decoded);
+      } catch {
+        // If that fails, the original data might already be JSON
+        return JSON.parse(data);
+      }
+    }
+  } catch (err) {
+    // Last resort: try parsing the data directly as JSON
+    // This handles cases where the data was double-encoded or forwarded
+    logger.warn('Standard decode failed, trying alternative methods', { 
+      error: err instanceof Error ? err.message : 'Unknown',
+      dataLength: data.length,
+      dataPreview: data.substring(0, 100)
+    });
+    
+    try {
+      // Maybe it's already plain JSON
+      return JSON.parse(data);
+    } catch {
+      // Re-throw the original error
+      throw err;
+    }
+  }
 }
 
 /**

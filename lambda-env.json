@@ -1,0 +1,8 @@
+{
+  "Variables": {
+    "DATABASE_URL": "postgresql://evo_admin:EvoAdmin2024Secure!@evo-uds-v3-production-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evo_platform",
+    "NODE_ENV": "production",
+    "COGNITO_CLIENT_ID": "4p0okvsr983v2f8rrvgpls76d6",
+    "COGNITO_USER_POOL_ID": "us-east-1_cnesJ48lR"
+  }
+}

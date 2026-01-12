@@ -11,6 +11,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==================== CLOUD PROVIDER ENUM ====================
+
+enum CloudProvider {
+  AWS
+  AZURE
+  GCP
+}
+
 // ==================== ORGANIZAÇÕES & MULTI-TENANT ====================
 
 model Organization {
@@ -23,6 +31,7 @@ model Organization {
   // Relações
   profiles          Profile[]
   aws_credentials   AwsCredential[]
+  azure_credentials AzureCredential[]
   aws_accounts      AwsAccount[]
   findings          Finding[]
   security_scans    SecurityScan[]
@@ -92,12 +101,42 @@ model AwsAccount {
   @@map("aws_accounts")
 }
 
+// ==================== AZURE CREDENTIALS ====================
+
+model AzureCredential {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organization_id       String   @db.Uuid
+  subscription_id       String   // Azure Subscription ID
+  subscription_name     String?
+  tenant_id             String   // Azure AD Tenant ID
+  client_id             String   // Service Principal App ID
+  client_secret         String   // Service Principal Secret (encrypted)
+  regions               String[] // Azure regions (e.g., eastus, westeurope)
+  is_active             Boolean  @default(true)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @updatedAt @db.Timestamptz(6)
+  
+  organization          Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  security_scans        SecurityScan[] @relation("AzureSecurityScans")
+  activity_events       AzureActivityEvent[]
+  defender_findings     AzureDefenderFinding[]
+  reservations          AzureReservation[]
+  waf_events            AzureWafEvent[]
+  
+  @@unique([organization_id, subscription_id])
+  @@index([organization_id])
+  @@index([subscription_id])
+  @@map("azure_credentials")
+}
+
 // ==================== SECURITY & FINDINGS ====================
 
 model Finding {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String?  @db.Uuid
   aws_account_id    String?  @db.Uuid
+  cloud_provider    CloudProvider @default(AWS)
+  azure_credential_id String? @db.Uuid
   event_id          String?
   event_name        String?
   event_time        DateTime? @db.Timestamptz(6)
@@ -128,6 +167,7 @@ model Finding {
   @@index([event_time])
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([cloud_provider])
   @@map("findings")
 }
 
@@ -135,6 +175,9 @@ model SecurityScan {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
   aws_account_id    String   @db.Uuid
+  cloud_provider    CloudProvider @default(AWS)
+  azure_credential  AzureCredential? @relation("AzureSecurityScans", fields: [azure_credential_id], references: [id])
+  azure_credential_id String? @db.Uuid
   scan_type         String
   status            String   @default("pending")
   scan_config       Json?
@@ -155,6 +198,7 @@ model SecurityScan {
   
   @@index([organization_id])
   @@index([status])
+  @@index([cloud_provider])
   @@map("security_scans")
 }
 
@@ -429,6 +473,8 @@ model DailyCost {
   id              String   @id @default(uuid()) @db.Uuid
   organization_id String   @db.Uuid
   aws_account_id  String   @db.Uuid
+  cloud_provider  CloudProvider @default(AWS)
+  azure_credential_id String? @db.Uuid
   date            DateTime @db.Date
   service         String?
   cost            Float    @default(0)
@@ -441,6 +487,7 @@ model DailyCost {
   @@index([date])
   @@index([organization_id, date])
   @@index([aws_account_id])
+  @@index([cloud_provider])
   @@map("daily_costs")
 }
 
@@ -512,6 +559,8 @@ model ResourceInventory {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
   aws_account_id    String
+  cloud_provider    CloudProvider @default(AWS)
+  azure_credential_id String? @db.Uuid
   resource_id       String
   resource_type     String
   resource_name     String?
@@ -523,6 +572,7 @@ model ResourceInventory {
   @@unique([aws_account_id, resource_id, region])
   @@index([organization_id])
   @@index([resource_type])
+  @@index([cloud_provider])
   @@map("resource_inventory")
 }
 
@@ -1789,4 +1839,145 @@ model WafAlertConfig {
   updated_at            DateTime @updatedAt @db.Timestamptz(6)
   
   @@map("waf_alert_configs")
+}
+
+
+// ==================== AZURE ACTIVITY EVENTS ====================
+// Equivalent to CloudTrail for Azure
+
+model AzureActivityEvent {
+  id                  String   @id @default(uuid()) @db.Uuid
+  organization_id     String   @db.Uuid
+  azure_credential_id String   @db.Uuid
+  event_id            String
+  event_name          String
+  event_time          DateTime @db.Timestamptz(6)
+  caller              String?
+  caller_type         String?
+  source_ip           String?
+  correlation_id      String?
+  operation_name      String?
+  resource_id         String?
+  resource_type       String?
+  resource_group      String?
+  status              String?
+  risk_level          String   @default("low")
+  risk_reasons        String[]
+  raw_event           Json?
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  
+  azure_credential    AzureCredential @relation(fields: [azure_credential_id], references: [id], onDelete: Cascade)
+  
+  @@unique([organization_id, event_id])
+  @@index([organization_id])
+  @@index([azure_credential_id])
+  @@index([event_time])
+  @@index([risk_level])
+  @@map("azure_activity_events")
+}
+
+// ==================== AZURE DEFENDER FINDINGS ====================
+// Equivalent to AWS GuardDuty
+
+model AzureDefenderFinding {
+  id                  String   @id @default(uuid()) @db.Uuid
+  organization_id     String   @db.Uuid
+  azure_credential_id String   @db.Uuid
+  alert_id            String
+  alert_type          String
+  severity            String
+  title               String
+  description         String?
+  resource_id         String?
+  resource_type       String?
+  resource_group      String?
+  subscription_id     String?
+  status              String   @default("active")
+  intent              String?
+  compromised_entity  String?
+  remediation_steps   String[]
+  extended_properties Json?
+  start_time          DateTime? @db.Timestamptz(6)
+  end_time            DateTime? @db.Timestamptz(6)
+  processing_end_time DateTime? @db.Timestamptz(6)
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @updatedAt @db.Timestamptz(6)
+  
+  azure_credential    AzureCredential @relation(fields: [azure_credential_id], references: [id], onDelete: Cascade)
+  
+  @@unique([azure_credential_id, alert_id])
+  @@index([organization_id])
+  @@index([severity])
+  @@index([status])
+  @@index([start_time])
+  @@map("azure_defender_findings")
+}
+
+// ==================== AZURE RESERVATIONS ====================
+// Equivalent to AWS Reserved Instances
+
+model AzureReservation {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organization_id       String   @db.Uuid
+  azure_credential_id   String   @db.Uuid
+  reservation_id        String   @unique
+  reservation_order_id  String?
+  display_name          String?
+  sku_name              String?
+  sku_description       String?
+  location              String?
+  quantity              Int?
+  term                  String?
+  billing_scope_id      String?
+  provisioning_state    String?
+  effective_date        DateTime? @db.Timestamptz(6)
+  expiry_date           DateTime? @db.Timestamptz(6)
+  utilization_percentage Float?
+  benefit_start_time    DateTime? @db.Timestamptz(6)
+  last_updated_time     DateTime? @db.Timestamptz(6)
+  applied_scope_type    String?
+  applied_scopes        String[]
+  renew                 Boolean  @default(false)
+  metadata              Json?
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @updatedAt @db.Timestamptz(6)
+  
+  azure_credential      AzureCredential @relation(fields: [azure_credential_id], references: [id], onDelete: Cascade)
+  
+  @@index([organization_id])
+  @@index([azure_credential_id])
+  @@index([expiry_date])
+  @@index([utilization_percentage])
+  @@map("azure_reservations")
+}
+
+// ==================== AZURE WAF EVENTS ====================
+// Equivalent to AWS WAF Events for Azure Front Door/WAF
+
+model AzureWafEvent {
+  id                  String   @id @default(uuid()) @db.Uuid
+  organization_id     String   @db.Uuid
+  azure_credential_id String   @db.Uuid
+  timestamp           DateTime @db.Timestamptz(6)
+  action              String
+  source_ip           String
+  country             String?
+  region              String?
+  user_agent          String?
+  uri                 String?
+  http_method         String?
+  rule_matched        String?
+  threat_type         String?
+  severity            String   @default("low")
+  raw_log             Json?
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  
+  azure_credential    AzureCredential @relation(fields: [azure_credential_id], references: [id], onDelete: Cascade)
+  
+  @@index([organization_id])
+  @@index([azure_credential_id])
+  @@index([timestamp])
+  @@index([source_ip])
+  @@index([severity])
+  @@map("azure_waf_events")
 }

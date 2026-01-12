@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Footer } from "@/components/ui/footer";
-import { AwsAccountSelector } from "@/components/AwsAccountSelector";
+import { CloudAccountSelectorCompact } from "@/components/cloud/CloudAccountSelector";
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
 import UserMenu from "@/components/UserMenu";
@@ -22,7 +22,7 @@ interface PageLayoutProps {
   icon: LucideIcon;
   iconColorClass?: string;
   headerActions?: ReactNode;
-  showAwsAccountSelector?: boolean;
+  showCloudAccountSelector?: boolean;
   showOrganization?: boolean;
   badge?: {
     text: string;
@@ -39,7 +39,7 @@ export function PageLayout({
   icon: Icon,
   iconColorClass = "text-white",
   headerActions,
-  showAwsAccountSelector = true,
+  showCloudAccountSelector = true,
   showOrganization = true,
   badge,
 }: PageLayoutProps) {
@@ -122,7 +122,7 @@ export function PageLayout({
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  {showAwsAccountSelector && <AwsAccountSelector />}
+                  {showCloudAccountSelector && <CloudAccountSelectorCompact />}
                   {badge && (
                     <Badge variant={badge.variant || "secondary"} className="gap-2">
                       {badge.icon && <badge.icon className="h-3 w-3" />}

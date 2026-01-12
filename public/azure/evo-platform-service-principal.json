@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "Creates an App Registration with Service Principal for EVO Platform",
+    "author": "EVO Platform",
+    "version": "2.0.0"
+  },
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "defaultValue": "EVO-Platform",
+      "metadata": { "description": "Name for the App Registration" }
+    }
+  },
+  "variables": {
+    "roleIds": {
+      "Reader": "acdd72a7-3385-48ef-bd42-f606fba81ae7",
+      "SecurityReader": "39bc4728-0917-49c7-9d2c-d95423bc2eb4",
+      "CostReader": "72fafb9e-0641-4937-9268-a91bfd8191a3",
+      "MonitorReader": "43d0d8ad-25c7-4714-9337-8ba259a9fe05"
+    }
+  },
+  "resources": [],
+  "outputs": {
+    "instructions": {
+      "type": "string",
+      "value": "ARM templates cannot create App Registrations. Use Azure CLI or Portal. See documentation."
+    },
+    "cliCommand": {
+      "type": "string", 
+      "value": "[concat('az ad sp create-for-rbac --name ', parameters('appName'), ' --role Reader --scopes /subscriptions/', subscription().subscriptionId)]"
+    },
+    "tenantId": { "type": "string", "value": "[subscription().tenantId]" },
+    "subscriptionId": { "type": "string", "value": "[subscription().subscriptionId]" }
+  }
+}

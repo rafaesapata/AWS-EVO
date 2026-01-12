@@ -8,7 +8,7 @@ import { ptBR } from 'date-fns/locale';
 
 import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
 import { apiClient } from '@/integrations/aws/api-client';
-import { useAwsAccount } from '@/contexts/AwsAccountContext';
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { useOrganization } from '@/hooks/useOrganization';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,7 +70,7 @@ const getStatusMap = (t: any): Record<string, { label: string; variant: 'default
 export default function CommunicationCenter() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
   
   const CHANNELS = getChannels(t);

@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { Footer } from "@/components/ui/footer";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { Building2 } from "lucide-react";
-import { AwsAccountSelector } from "@/components/AwsAccountSelector";
+import { CloudAccountSelectorCompact } from "@/components/cloud/CloudAccountSelector";
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
 import UserMenu from "@/components/UserMenu";
@@ -212,7 +212,7 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <AwsAccountSelector />
+                  <CloudAccountSelectorCompact />
                   <LanguageToggle />
                   <ThemeToggle />
                   <UserMenu />

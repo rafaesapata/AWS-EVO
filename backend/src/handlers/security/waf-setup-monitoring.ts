@@ -83,6 +83,97 @@ function getDestinationArn(region: string): string {
 const SUBSCRIPTION_FILTER_NAME = 'evo-waf-monitoring';
 
 /**
+ * Update the CloudWatch Logs Destination policy in EVO account to allow the customer account
+ * This is required for cross-account subscription filters to work
+ * 
+ * @param customerAwsAccountId - Customer's AWS account ID to add to the policy
+ * @param region - AWS region where the destination exists
+ */
+async function updateDestinationPolicyForCustomer(
+  customerAwsAccountId: string,
+  region: string
+): Promise<void> {
+  const { 
+    CloudWatchLogsClient: EvoLogsClient, 
+    DescribeDestinationsCommand,
+    PutDestinationPolicyCommand 
+  } = await import('@aws-sdk/client-cloudwatch-logs');
+  
+  // Use default credentials (EVO account) - this Lambda runs in EVO account
+  const evoLogsClient = new EvoLogsClient({ region });
+  
+  try {
+    // Get current destination and its policy
+    const destResponse = await evoLogsClient.send(new DescribeDestinationsCommand({
+      DestinationNamePrefix: EVO_WAF_DESTINATION_NAME
+    }));
+    
+    const destination = destResponse.destinations?.find(d => d.destinationName === EVO_WAF_DESTINATION_NAME);
+    if (!destination) {
+      logger.warn('Destination not found, skipping policy update', { 
+        destinationName: EVO_WAF_DESTINATION_NAME, 
+        region 
+      });
+      return;
+    }
+    
+    // Parse current policy
+    let currentAccounts: string[] = [EVO_ACCOUNT_ID];
+    if (destination.accessPolicy) {
+      try {
+        const policy = JSON.parse(destination.accessPolicy);
+        const principal = policy.Statement?.[0]?.Principal?.AWS;
+        if (Array.isArray(principal)) {
+          currentAccounts = principal;
+        } else if (typeof principal === 'string') {
+          currentAccounts = [principal];
+        }
+      } catch (e) {
+        logger.warn('Failed to parse destination policy', { error: e });
+      }
+    }
+    
+    // Add customer account if not already present
+    if (!currentAccounts.includes(customerAwsAccountId)) {
+      currentAccounts.push(customerAwsAccountId);
+      
+      const newPolicy = {
+        Version: '2012-10-17',
+        Statement: [{
+          Sid: 'AllowCrossAccountSubscription',
+          Effect: 'Allow',
+          Principal: {
+            AWS: currentAccounts
+          },
+          Action: 'logs:PutSubscriptionFilter',
+          Resource: `arn:aws:logs:${region}:${EVO_ACCOUNT_ID}:destination:${EVO_WAF_DESTINATION_NAME}`
+        }]
+      };
+      
+      await evoLogsClient.send(new PutDestinationPolicyCommand({
+        destinationName: EVO_WAF_DESTINATION_NAME,
+        accessPolicy: JSON.stringify(newPolicy)
+      }));
+      
+      logger.info('Updated destination policy to include customer account', { 
+        customerAwsAccountId, 
+        region,
+        totalAccounts: currentAccounts.length 
+      });
+    } else {
+      logger.info('Customer account already in destination policy', { customerAwsAccountId, region });
+    }
+  } catch (err: any) {
+    // Log but don't fail - the subscription filter might still work if policy was set manually
+    logger.warn('Failed to update destination policy', { 
+      error: err.message, 
+      customerAwsAccountId, 
+      region 
+    });
+  }
+}
+
+/**
  * Get the CloudWatch Logs filter pattern based on filter mode
  */
 function getFilterPattern(filterMode: LogFilterMode): string {
@@ -538,6 +629,10 @@ async function enableWafMonitoring(
   
   // Create new subscription filter using CloudWatch Logs Destination (required for cross-account)
   const destinationArn = getDestinationArn(region);
+  
+  // IMPORTANT: Update destination policy in EVO account to allow this customer account
+  // This must be done BEFORE creating the subscription filter
+  await updateDestinationPolicyForCustomer(customerAwsAccountId, region);
   
   // Get or create the CloudWatch Logs role in customer account
   const cloudWatchLogsRoleArn = await getOrCreateCloudWatchLogsRole(

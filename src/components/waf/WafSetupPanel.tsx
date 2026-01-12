@@ -27,13 +27,13 @@ import {
 
 interface WafConfig {
   id: string;
-  web_acl_arn: string;
-  web_acl_name: string;
-  filter_mode: string;
-  is_active: boolean;
-  last_event_at: string | null;
-  events_today: number;
-  blocked_today: number;
+  webAclArn: string;
+  webAclName: string;
+  filterMode: string;
+  isActive: boolean;
+  lastEventAt: string | null;
+  eventsToday: number;
+  blockedToday: number;
 }
 
 interface WafSetupPanelProps {
@@ -197,20 +197,20 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{config.web_acl_name}</span>
-                    <Badge variant={config.is_active ? "default" : "secondary"}>
-                      {config.is_active ? t('common.active') : t('common.inactive')}
+                    <span className="font-medium">{config.webAclName}</span>
+                    <Badge variant={config.isActive ? "default" : "secondary"}>
+                      {config.isActive ? t('common.active') : t('common.inactive')}
                     </Badge>
-                    <Badge variant="outline">{config.filter_mode}</Badge>
+                    <Badge variant="outline">{config.filterMode}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground truncate max-w-md">
-                    {config.web_acl_arn}
+                    {config.webAclArn}
                   </p>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>{t('waf.eventsToday')}: {config.events_today}</span>
-                    <span>{t('waf.blockedToday')}: {config.blocked_today}</span>
-                    {config.last_event_at && (
-                      <span>{t('waf.lastEvent')}: {new Date(config.last_event_at).toLocaleString()}</span>
+                    <span>{t('waf.eventsToday')}: {config.eventsToday}</span>
+                    <span>{t('waf.blockedToday')}: {config.blockedToday}</span>
+                    {config.lastEventAt && (
+                      <span>{t('waf.lastEvent')}: {new Date(config.lastEventAt).toLocaleString()}</span>
                     )}
                   </div>
                 </div>
