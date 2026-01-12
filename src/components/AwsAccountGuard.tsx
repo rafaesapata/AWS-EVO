@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAwsAccount } from '@/contexts/AwsAccountContext';
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { useAuthSafe } from '@/hooks/useAuthSafe';
 import { useLicenseValidation } from '@/hooks/useLicenseValidation';
 import { Loader2 } from 'lucide-react';
@@ -10,24 +10,25 @@ interface AwsAccountGuardProps {
 }
 
 /**
- * Componente que verifica se o usuário tem contas AWS conectadas
+ * Componente que verifica se o usuário tem contas cloud conectadas (AWS/Azure)
  * APÓS verificar se tem licença válida
  * 
  * Lógica:
  * 1. Se não tem licença válida -> AuthGuard já redireciona para /license-management
- * 2. Se tem licença válida mas não tem conta AWS -> Redireciona para /aws-settings
- * 3. Se tem licença válida e tem conta AWS -> Sistema normal
+ * 2. Se tem licença válida mas não tem conta cloud -> Redireciona para /cloud-credentials
+ * 3. Se tem licença válida e tem conta cloud -> Sistema normal
  */
 export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthSafe();
-  const { accounts, isLoading: accountsLoading, error } = useAwsAccount();
+  const { accounts, isLoading: accountsLoading, error } = useCloudAccount();
   const { data: licenseStatus, isLoading: licenseLoading } = useLicenseValidation();
 
-  // Páginas que não precisam de verificação de conta AWS
+  // Páginas que não precisam de verificação de conta cloud
   const exemptPaths = [
     '/aws-settings',
+    '/cloud-credentials',
     '/auth',
     '/login',
     '/change-password',
@@ -49,13 +50,13 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     const hasActiveAccounts = Array.isArray(accounts) && accounts.length > 0;
 
     if (!hasActiveAccounts) {
-      console.log('✅ Licença válida, mas sem contas AWS. Redirecionando para configuração...');
-      navigate('/aws-settings', { 
+      console.log('✅ Licença válida, mas sem contas cloud. Redirecionando para configuração...');
+      navigate('/cloud-credentials', { 
         replace: true,
         state: { 
           from: location.pathname,
-          reason: 'no_aws_accounts',
-          message: 'Licença válida! Agora você precisa conectar pelo menos uma conta AWS para usar o sistema.'
+          reason: 'no_cloud_accounts',
+          message: 'Licença válida! Agora você precisa conectar pelo menos uma conta cloud (AWS ou Azure) para usar o sistema.'
         }
       });
       return; // Prevent further execution
@@ -78,7 +79,7 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
         <div className="text-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="text-slate-300">
-            {licenseLoading ? 'Verificando licença...' : 'Verificando contas AWS...'}
+            {licenseLoading ? 'Verificando licença...' : 'Verificando contas cloud...'}
           </p>
         </div>
       </div>
@@ -97,7 +98,7 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <div className="text-center space-y-4">
         <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-        <p className="text-slate-300">Redirecionando para configuração AWS...</p>
+        <p className="text-slate-300">Redirecionando para configuração de contas...</p>
       </div>
     </div>
   );
