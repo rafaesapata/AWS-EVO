@@ -2,12 +2,12 @@
  * List Azure Credentials Handler
  * 
  * Lists all Azure credentials for the current organization.
- * Does NOT expose client_secret for security.
+ * Does NOT expose client_secret or encrypted_refresh_token for security.
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
@@ -23,7 +23,7 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
     logger.info('Listing Azure credentials', { organizationId });
@@ -48,9 +48,16 @@ export async function handler(
         id: true,
         subscription_id: true,
         subscription_name: true,
+        auth_type: true,
         tenant_id: true,
         client_id: true,
         // client_secret is NOT selected for security
+        // encrypted_refresh_token is NOT selected for security
+        oauth_tenant_id: true,
+        oauth_user_email: true,
+        token_expires_at: true,
+        last_refresh_at: true,
+        refresh_error: true,
         regions: true,
         is_active: true,
         created_at: true,
@@ -67,22 +74,21 @@ export async function handler(
     });
 
     // Transform to camelCase for frontend
-    const transformedCredentials = credentials.map((cred: {
-      id: string;
-      subscription_id: string;
-      subscription_name: string | null;
-      tenant_id: string;
-      client_id: string;
-      regions: string[];
-      is_active: boolean;
-      created_at: Date;
-      updated_at: Date;
-    }) => ({
+    const transformedCredentials = credentials.map((cred) => ({
       id: cred.id,
       subscriptionId: cred.subscription_id,
       subscriptionName: cred.subscription_name,
+      authType: cred.auth_type,
+      // Service Principal fields
       tenantId: cred.tenant_id,
       clientId: cred.client_id,
+      // OAuth fields
+      oauthTenantId: cred.oauth_tenant_id,
+      oauthUserEmail: cred.oauth_user_email,
+      tokenExpiresAt: cred.token_expires_at,
+      lastRefreshAt: cred.last_refresh_at,
+      refreshError: cred.refresh_error,
+      // Common fields
       regions: cred.regions,
       isActive: cred.is_active,
       createdAt: cred.created_at,

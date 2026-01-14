@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { AWSPermissionError } from "./AWSPermissionError";
 import { SecurityScanHistory } from "./SecurityScanHistory";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SecurityScanProps {
@@ -25,9 +25,12 @@ export const SecurityScan = ({ onScanComplete }: SecurityScanProps) => {
   const { data: organizationId, isLoading: orgLoading } = useOrganization();
   
   // Use global account context for multi-account isolation
-  const { selectedAccountId, selectedAccount } = useAwsAccount();
+  const { selectedAccountId, selectedAccount, selectedProvider } = useCloudAccount();
   
-  console.log('SecurityScan: State', { organizationId, orgLoading, selectedAccountId });
+  // Multi-cloud support
+  const isAzure = selectedProvider === 'AZURE';
+  
+  console.log('SecurityScan: State', { organizationId, orgLoading, selectedAccountId, provider: selectedProvider });
 
   const handleSecurityScan = async () => {
     setIsScanning(true);
@@ -40,9 +43,16 @@ export const SecurityScan = ({ onScanComplete }: SecurityScanProps) => {
         throw new Error('Sessão não autenticada. Por favor, faça login novamente.');
       }
 
-      toast.info("Iniciando análise de segurança AWS...", {
+      const providerName = isAzure ? 'Azure' : 'AWS';
+      toast.info(`Iniciando análise de segurança ${providerName}...`, {
         description: "Este processo pode levar alguns minutos."
       });
+
+      // Multi-cloud: Call appropriate Lambda based on provider
+      const lambdaName = isAzure ? 'azure-security-scan' : 'security-scan';
+      const bodyParam = isAzure 
+        ? { credentialId: selectedAccountId }
+        : { accountId: selectedAccountId };
 
       // SECURITY: Pass accountId for proper data isolation
       const response = await apiClient.invoke<{
@@ -53,8 +63,8 @@ export const SecurityScan = ({ onScanComplete }: SecurityScanProps) => {
         medium: number;
         low: number;
         permissionErrors?: Array<{ service?: string; error: string; missingPermissions: string[] }>;
-      }>('security-scan', {
-        body: { accountId: selectedAccountId }
+      }>(lambdaName, {
+        body: bodyParam
       });
 
       // Check for API errors

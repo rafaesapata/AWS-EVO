@@ -8,7 +8,7 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { InfoTooltip, tooltipContent } from "@/components/ui/info-tooltip";
 
@@ -19,7 +19,8 @@ export default function AnomalyDetection() {
   const [isScanning, setIsScanning] = useState(false);
   
   // Use global account context for multi-account isolation
-  const { selectedAccountId, isLoading: accountLoading } = useAwsAccount();
+  const { selectedAccountId, isLoading: accountLoading } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
 
   const { data: anomalies, isLoading, refetch } = useQuery({
@@ -27,12 +28,10 @@ export default function AnomalyDetection() {
     // In TV mode, only require organizationId
     enabled: !!organizationId && (isTVMode || !!selectedAccountId),
     queryFn: async () => {
-      const filters: any = { organization_id: organizationId };
-      
-      // Only filter by account if not in TV mode
-      if (!isTVMode && selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
+      const filters: any = { 
+        organization_id: organizationId,
+        ...(!isTVMode ? getAccountFilter() : {}) // Multi-cloud compatible
+      };
       
       const response = await apiClient.select('cost_anomalies', {
         eq: filters,

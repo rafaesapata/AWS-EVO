@@ -6,8 +6,8 @@
 import { getHttpMethod } from '../../lib/middleware.js';
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
-import { getPrismaClient } from '../../lib/database.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
+import { getPrismaClient, getOptionalCredentialFilter } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
@@ -76,7 +76,7 @@ export async function handler(
   
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const body: RequestBody = event.body ? JSON.parse(event.body) : {};
     const { message, history, accountId } = body;
@@ -218,7 +218,7 @@ async function fetchPlatformContext(
     prisma.dailyCost.aggregate({
       where: {
         organization_id: organizationId,
-        ...(accountId && { aws_account_id: accountId }),
+        ...getOptionalCredentialFilter(accountId),
         date: { gte: sevenDaysAgo }
       },
       _sum: { cost: true }
@@ -228,7 +228,7 @@ async function fetchPlatformContext(
     prisma.dailyCost.aggregate({
       where: {
         organization_id: organizationId,
-        ...(accountId && { aws_account_id: accountId }),
+        ...getOptionalCredentialFilter(accountId),
         date: { gte: thirtyDaysAgo }
       },
       _sum: { cost: true }
@@ -238,7 +238,7 @@ async function fetchPlatformContext(
     prisma.dailyCost.aggregate({
       where: {
         organization_id: organizationId,
-        ...(accountId && { aws_account_id: accountId }),
+        ...getOptionalCredentialFilter(accountId),
         date: { gte: fourteenDaysAgo, lt: sevenDaysAgo }
       },
       _sum: { cost: true }
@@ -249,7 +249,7 @@ async function fetchPlatformContext(
       by: ['service'],
       where: {
         organization_id: organizationId,
-        ...(accountId && { aws_account_id: accountId }),
+        ...getOptionalCredentialFilter(accountId),
         date: { gte: sevenDaysAgo },
         service: { not: null }
       },
@@ -305,7 +305,7 @@ async function fetchPlatformContext(
     prisma.resourceInventory.count({
       where: {
         organization_id: organizationId,
-        ...(accountId && { aws_account_id: accountId })
+        ...getOptionalCredentialFilter(accountId)
       }
     }),
     

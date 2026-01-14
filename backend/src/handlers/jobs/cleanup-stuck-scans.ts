@@ -5,7 +5,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 
@@ -30,7 +30,7 @@ export async function handler(
   // Verificar se é execução administrativa (sem autenticação) ou por usuário
   try {
     const user = getUserFromEvent(event);
-    organizationId = getOrganizationId(user);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
     logger.info('Cleanup initiated by user', { userId: user.sub, organizationId });
   } catch (authError) {
     // Execução administrativa (via CloudWatch Events, etc.)

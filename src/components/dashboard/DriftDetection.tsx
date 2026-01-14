@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { format } from "date-fns";
 import { GitBranch, AlertTriangle, CheckCircle2, XCircle, Clock, RefreshCw, Code2, History } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -56,7 +56,8 @@ export default function DriftDetection() {
   const [showDetails, setShowDetails] = useState(false);
   
   // CRITICAL: Get selected AWS account for multi-account isolation
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
 
   useEffect(() => {
     loadDrifts();
@@ -67,11 +68,11 @@ export default function DriftDetection() {
     
     setLoading(true);
     try {
-      // CRITICAL: Filter by selected account
-      const filters: any = { organization_id: organizationId };
-      if (selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
+      // CRITICAL: Filter by selected account (multi-cloud compatible)
+      const filters: any = { 
+        organization_id: organizationId,
+        ...getAccountFilter()
+      };
       
       const response = await apiClient.select('drift_detections', {
         select: '*',

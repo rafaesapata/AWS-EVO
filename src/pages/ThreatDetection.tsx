@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/integrations/aws/api-client";
-import { Shield, AlertTriangle, RefreshCw, Users, Network } from "lucide-react";
+import { Shield, AlertTriangle, RefreshCw, Users, Network, Cloud } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -48,8 +48,11 @@ export default function ThreatDetection() {
   const { toast } = useToast();
   const [scanning, setScanning] = useState(false);
   const { data: organizationId } = useOrganization();
-  // Use centralized AWS account context instead of direct API call
-  const { awsAccounts } = useCloudAccount();
+  // Use centralized cloud account context for multi-cloud support
+  const { awsAccounts, selectedProvider } = useCloudAccount();
+  
+  // Check if Azure is selected - GuardDuty is AWS-specific
+  const isAzure = selectedProvider === 'AZURE';
 
   const { data: guarddutyFindings, refetch: refetchGuardDuty } = useQuery<GuardDutyFinding[]>({
     queryKey: ['guardduty-findings', organizationId],
@@ -173,6 +176,26 @@ export default function ThreatDetection() {
       icon={<Shield className="h-7 w-7 text-white" />}
     >
       <div className="space-y-6">
+        {/* Azure Notice - GuardDuty is AWS-specific */}
+        {isAzure && (
+          <Card className="glass border-blue-500/30 bg-blue-500/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-full bg-blue-500/10">
+                  <Cloud className="h-6 w-6 text-blue-500" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-blue-600 dark:text-blue-400">Azure Selecionado</h3>
+                  <p className="text-sm text-muted-foreground">
+                    A detecção de ameaças via GuardDuty é específica para AWS. Para Azure, utilize o{' '}
+                    <strong>Microsoft Defender for Cloud</strong> através do menu de Segurança.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Header Card */}
         <Card className="glass border-primary/20">
           <CardHeader>
@@ -183,10 +206,17 @@ export default function ThreatDetection() {
                   Detecção de Ameaças
                 </CardTitle>
                 <CardDescription>
-                  Análise de ameaças com GuardDuty, comportamento IAM e movimentação lateral
+                  {isAzure 
+                    ? 'Para Azure, utilize Microsoft Defender for Cloud no menu de Segurança'
+                    : 'Análise de ameaças com GuardDuty, comportamento IAM e movimentação lateral'
+                  }
                 </CardDescription>
               </div>
-              <Button onClick={() => runScan('guardduty')} disabled={scanning} className="glass hover-glow btn-press">
+              <Button 
+                onClick={() => runScan('guardduty')} 
+                disabled={scanning || isAzure} 
+                className="glass hover-glow btn-press"
+              >
                 <RefreshCw className={`h-4 w-4 mr-2 ${scanning ? 'animate-spin' : ''}`} />
                 Escanear Tudo
               </Button>

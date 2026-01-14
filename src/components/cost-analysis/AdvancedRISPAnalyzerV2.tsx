@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,13 @@ import {
   CheckCircle,
   BarChart3,
   Calendar,
-  Info
+  Info,
+  Loader2,
+  BookOpen,
+  Lightbulb,
+  ExternalLink,
+  Clock,
+  Percent
 } from 'lucide-react';
 import { awsService } from '@/services/aws-service';
 
@@ -152,6 +158,31 @@ export function AdvancedRISPAnalyzerV2({ accountId, region = 'us-east-1' }: Adva
           )}
         </Button>
       </div>
+
+      {/* Loading Overlay */}
+      {loading && (
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="relative">
+                <div className="absolute inset-0 animate-ping rounded-full bg-primary/20 h-16 w-16" />
+                <Loader2 className="h-16 w-16 text-primary animate-spin relative z-10" />
+              </div>
+              <div className="text-center space-y-2">
+                <h3 className="text-lg font-semibold">Analisando sua infraestrutura...</h3>
+                <p className="text-muted-foreground max-w-md">
+                  Estamos coletando dados de utilização, Reserved Instances e Savings Plans da sua conta AWS. 
+                  Isso pode levar alguns segundos.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                <span>Tempo estimado: 10-30 segundos</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Error Alert */}
       {errorMessage && (
@@ -340,13 +371,43 @@ export function AdvancedRISPAnalyzerV2({ accountId, region = 'us-east-1' }: Adva
                 ))}
               </div>
             ) : (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhuma Recomendação</h3>
-                    <p className="text-muted-foreground">
-                      Sua infraestrutura está bem otimizada! Não foram encontradas oportunidades de economia significativas.
+              <Card className="border-green-200 bg-green-50/50">
+                <CardContent className="py-8">
+                  <div className="text-center space-y-4">
+                    <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-green-800 mb-2">
+                        Nenhuma Recomendação de RI/SP no Momento
+                      </h3>
+                      <p className="text-green-700 max-w-lg mx-auto">
+                        Com base na análise atual, não identificamos oportunidades significativas de economia 
+                        através de Reserved Instances ou Savings Plans para esta conta.
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white/80 rounded-lg p-4 max-w-xl mx-auto text-left space-y-3 border border-green-200">
+                      <h4 className="font-medium text-green-800 flex items-center gap-2">
+                        <Lightbulb className="h-4 w-4" />
+                        Isso pode significar que:
+                      </h4>
+                      <ul className="text-sm text-green-700 space-y-2 ml-6">
+                        <li className="flex items-start gap-2">
+                          <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                          <span>Sua infraestrutura já está bem otimizada com compromissos existentes</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                          <span>O uso atual é variável demais para justificar compromissos de longo prazo</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                          <span>Os recursos em uso não são elegíveis para RI/SP (ex: Spot Instances)</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground">
+                      Continue monitorando regularmente. Conforme seu uso evolui, novas oportunidades podem surgir.
                     </p>
                   </div>
                 </CardContent>
@@ -412,26 +473,131 @@ export function AdvancedRISPAnalyzerV2({ accountId, region = 'us-east-1' }: Adva
 
       {/* Initial State */}
       {!analysis && !loading && !errorMessage && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Análise de Reserved Instances & Savings Plans</CardTitle>
-            <CardDescription>
-              Execute uma análise completa para identificar oportunidades de otimização de custos
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8">
-              <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground mb-4">
-                Clique em "Executar Análise" para começar a análise avançada de otimização de custos
+        <div className="space-y-6">
+          {/* Educational Section */}
+          <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-indigo-50/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-blue-600" />
+                O que são Reserved Instances e Savings Plans?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-purple-100">
+                      <Clock className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <h4 className="font-semibold">Reserved Instances (RIs)</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Compromisso de uso de 1 ou 3 anos para tipos específicos de instâncias EC2 ou RDS. 
+                    Oferece descontos de até <span className="font-semibold text-green-600">72%</span> comparado ao preço On-Demand.
+                  </p>
+                  <div className="text-xs text-muted-foreground bg-white/60 p-2 rounded">
+                    <strong>Ideal para:</strong> Workloads estáveis e previsíveis com uso contínuo
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-green-100">
+                      <Percent className="h-5 w-5 text-green-600" />
+                    </div>
+                    <h4 className="font-semibold">Savings Plans</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Compromisso de gasto por hora ($/hora) por 1 ou 3 anos, com flexibilidade de uso entre 
+                    diferentes instâncias. Economia de até <span className="font-semibold text-green-600">66%</span>.
+                  </p>
+                  <div className="text-xs text-muted-foreground bg-white/60 p-2 rounded">
+                    <strong>Ideal para:</strong> Ambientes dinâmicos que mudam tipos de instância frequentemente
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Action Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Análise de Reserved Instances & Savings Plans</CardTitle>
+              <CardDescription>
+                Execute uma análise completa para identificar oportunidades de otimização de custos na sua conta AWS
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-6 space-y-4">
+                <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto" />
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  A análise irá verificar seus padrões de uso, compromissos existentes e identificar 
+                  oportunidades de economia com RIs e Savings Plans.
+                </p>
+                <Button onClick={runAnalysis} size="lg">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Executar Análise
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Next Steps if no RI/SP */}
+          <Card className="border-amber-200 bg-amber-50/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-800">
+                <Lightbulb className="h-5 w-5" />
+                Não possui RI ou Savings Plans ainda?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-amber-700">
+                Se você ainda não utiliza Reserved Instances ou Savings Plans, aqui estão os próximos passos recomendados:
               </p>
-              <Button onClick={runAnalysis}>
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Executar Análise
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="bg-white/60 p-4 rounded-lg space-y-2">
+                  <h5 className="font-medium text-amber-800">1. Execute a Análise</h5>
+                  <p className="text-xs text-amber-700">
+                    Clique em "Executar Análise" para entender seus padrões de uso atuais e identificar 
+                    quais recursos são candidatos para compromissos.
+                  </p>
+                </div>
+                <div className="bg-white/60 p-4 rounded-lg space-y-2">
+                  <h5 className="font-medium text-amber-800">2. Avalie as Recomendações</h5>
+                  <p className="text-xs text-amber-700">
+                    Revise as recomendações geradas, considerando o ROI e o período de compromisso 
+                    adequado para seu negócio.
+                  </p>
+                </div>
+                <div className="bg-white/60 p-4 rounded-lg space-y-2">
+                  <h5 className="font-medium text-amber-800">3. Comece Pequeno</h5>
+                  <p className="text-xs text-amber-700">
+                    Inicie com compromissos de 1 ano para workloads mais estáveis antes de expandir 
+                    para compromissos maiores.
+                  </p>
+                </div>
+                <div className="bg-white/60 p-4 rounded-lg space-y-2">
+                  <h5 className="font-medium text-amber-800">4. Monitore Regularmente</h5>
+                  <p className="text-xs text-amber-700">
+                    Acompanhe a utilização dos compromissos e ajuste conforme seu uso evolui para 
+                    maximizar a economia.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-amber-600 pt-2">
+                <ExternalLink className="h-3 w-3" />
+                <a 
+                  href="https://aws.amazon.com/savingsplans/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                >
+                  Saiba mais sobre Savings Plans na documentação AWS
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

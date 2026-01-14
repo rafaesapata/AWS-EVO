@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/integrations/aws/api-client";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { History, TrendingDown, TrendingUp, Activity, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -46,7 +46,8 @@ export const AnomalyHistoryView = ({ organizationId, onViewScan }: AnomalyHistor
   const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
 
   const { data: scanHistory, isLoading } = useQuery({
     queryKey: ['anomaly-scan-history', organizationId, selectedAccountId, selectedPeriod, currentPage, itemsPerPage],
@@ -68,9 +69,9 @@ export const AnomalyHistoryView = ({ organizationId, onViewScan }: AnomalyHistor
 
       const filters: Record<string, any> = { 
         organization_id: organizationId,
-        scan_type: 'anomaly_detection'
+        scan_type: 'anomaly_detection',
+        ...getAccountFilter() // Multi-cloud compatible
       };
-      if (selectedAccountId) filters.aws_account_id = selectedAccountId;
 
       const offset = (currentPage - 1) * itemsPerPage;
 

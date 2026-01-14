@@ -9,7 +9,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 
 interface EndpointMonitorCheckRequest {
@@ -49,7 +49,7 @@ export async function handler(
     if (!isScheduledEvent) {
       try {
         const user = getUserFromEvent(event);
-        organizationId = getOrganizationId(user);
+        organizationId = getOrganizationIdWithImpersonation(event, user);
         const body: EndpointMonitorCheckRequest = event.body ? JSON.parse(event.body) : {};
         endpointId = body.endpointId;
       } catch {

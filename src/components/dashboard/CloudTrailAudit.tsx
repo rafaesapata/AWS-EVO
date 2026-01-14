@@ -44,7 +44,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,7 +72,8 @@ interface UserActivity {
 
 const CloudTrailAudit = () => {
   const organizationId = useOrganizationId();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const queryClient = useQueryClient();
   
   // Scan state
@@ -130,12 +131,10 @@ const CloudTrailAudit = () => {
   const { data: history, isLoading: historyLoading, refetch: refetchHistory } = useQuery({
     queryKey: ['cloudtrail-history', organizationId, selectedAccountId, historyPeriod],
     queryFn: async () => {
-      const filters: any = { organization_id: organizationId };
-      
-      // Filter by account if provided
-      if (selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
+      const filters: any = { 
+        organization_id: organizationId,
+        ...getAccountFilter() // Multi-cloud compatible
+      };
 
       const dateFilter = getDateFilter();
       const result = await apiClient.select('cloudtrail_scans_history', {

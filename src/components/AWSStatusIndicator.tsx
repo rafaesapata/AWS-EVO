@@ -6,7 +6,7 @@ import { Cloud, CheckCircle2, AlertCircle, XCircle, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useTranslation } from "react-i18next";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import {
   Popover,
   PopoverContent,
@@ -17,7 +17,7 @@ export default function AWSStatusIndicator() {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const { data: organizationId } = useOrganization();
-  const { accounts, isLoading: accountsLoading } = useAwsAccount();
+  const { accounts, isLoading: accountsLoading } = useCloudAccount();
   
   const dateLocale = i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US';
   

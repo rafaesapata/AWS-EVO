@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
 import { 
@@ -62,6 +62,7 @@ interface EdgeMetrics {
 export default function EdgeMonitoring() {
   const { toast } = useToast();
   const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -111,7 +112,7 @@ export default function EdgeMonitoring() {
       // Build base filters
       const baseFilters = {
         organization_id: organizationId,
-        aws_account_id: selectedAccountId
+        ...getAccountFilter() // Multi-cloud compatible
       };
 
       // Add service type filter if not 'all'
@@ -221,7 +222,7 @@ export default function EdgeMonitoring() {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible
         },
         gte: { timestamp: startTime.toISOString() },
         order: { column: 'timestamp', ascending: true }

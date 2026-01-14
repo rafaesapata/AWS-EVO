@@ -6,7 +6,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, badRequest, error, corsOptions } from '../../lib/response.js';
 import { logger } from '../../lib/logging.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getOrigin } from '../../lib/middleware.js';
 
@@ -51,7 +51,7 @@ export async function getHandler(
   try {
     const user = getUserFromEvent(event);
     userId = user.sub || user.id || 'unknown';
-    getOrganizationId(user); // Validate auth
+    getOrganizationIdWithImpersonation(event, user); // Validate auth
   } catch (authError) {
     logger.error('Authentication error', authError);
     return error('Unauthorized', 401, undefined, origin);
@@ -106,7 +106,7 @@ export async function postHandler(
   try {
     const user = getUserFromEvent(event);
     userId = user.sub || user.id || 'unknown';
-    getOrganizationId(user);
+    getOrganizationIdWithImpersonation(event, user);
   } catch (authError) {
     logger.error('Authentication error', authError);
     return error('Unauthorized', 401, undefined, origin);
@@ -170,7 +170,7 @@ export async function deleteHandler(
   try {
     const user = getUserFromEvent(event);
     userId = user.sub || user.id || 'unknown';
-    getOrganizationId(user);
+    getOrganizationIdWithImpersonation(event, user);
   } catch (authError) {
     logger.error('Authentication error', authError);
     return error('Unauthorized', 401, undefined, origin);

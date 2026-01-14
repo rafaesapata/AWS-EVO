@@ -30,7 +30,7 @@ import MLWasteDetection from "@/pages/MLWasteDetection";
 import TVDashboardManagement from "@/pages/TVDashboardManagement";
 import ExecutiveDashboardV2 from "@/components/dashboard/ExecutiveDashboard";
 import AuditLog from "@/components/admin/AuditLog";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { CloudAccountSelectorCompact } from "@/components/cloud/CloudAccountSelector";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -83,6 +83,7 @@ const Index = () => {
   
   // Use global account context for multi-account isolation
   const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
 
   // Fetch user role from Cognito token (custom:roles attribute)
@@ -167,7 +168,7 @@ const Index = () => {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible
         },
         gte: { cost_date: startOfMonth.toISOString().split('T')[0] },
         lte: { cost_date: currentDate.toISOString().split('T')[0] }
@@ -178,7 +179,7 @@ const Index = () => {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId,
+          ...getAccountFilter(), // Multi-cloud compatible
           is_resolved: false
         }
       });
@@ -188,7 +189,7 @@ const Index = () => {
         select: 'count',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible
         }
       });
 

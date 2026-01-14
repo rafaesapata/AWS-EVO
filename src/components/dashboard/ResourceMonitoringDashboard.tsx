@@ -15,7 +15,7 @@ import { SavedFilters } from "./resource-monitoring/SavedFilters";
 import { MetricsPeriodSelector, MetricsPeriod, PERIOD_CONFIG } from "./resource-monitoring/MetricsPeriodSelector";
 import { ResourceMetricsChart } from "./resource-monitoring/ResourceMetricsChart";
 import { useOrganizationQuery } from "@/hooks/useOrganizationQuery";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { CACHE_CONFIGS } from "@/hooks/useQueryCache";
 import { AWSPermissionError } from "./AWSPermissionError";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
@@ -252,7 +252,11 @@ export const ResourceMonitoringDashboard = () => {
   const resourcesRef = useRef<HTMLDivElement>(null);
   
   // CRITICAL: Use global account selector instead of local state
-  const { selectedAccountId, accounts, isLoading: accountsLoading } = useAwsAccount();
+  const { selectedAccountId, selectedProvider, accounts, isLoading: accountsLoading } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
+  
+  // Multi-cloud support
+  const isAzure = selectedProvider === 'AZURE';
   
   // PERFORMANCE: Use intelligent metrics cache to avoid refetching already loaded periods
   const { 
@@ -328,7 +332,7 @@ export const ResourceMonitoringDashboard = () => {
       if (accountResponse.error || !accountResponse.data || (accountResponse.data as AwsAccount[]).length === 0) return [];
       
       const resourceResponse = await apiClient.select('monitored_resources', { 
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+        eq: { organization_id: organizationId, ...getAccountFilter() } 
       });
       return (resourceResponse.data || []) as MonitoredResource[];
     },
@@ -400,7 +404,7 @@ export const ResourceMonitoringDashboard = () => {
     if (!selectedAccountId) {
       toast({
         title: "Selecione uma conta",
-        description: "Por favor, selecione uma conta AWS para atualizar as métricas.",
+        description: `Por favor, selecione uma conta ${isAzure ? 'Azure' : 'AWS'} para atualizar as métricas.`,
         variant: "destructive"
       });
       return;
@@ -408,16 +412,23 @@ export const ResourceMonitoringDashboard = () => {
 
     setIsRefreshing(true);
     
+    const providerName = isAzure ? 'Azure' : 'AWS';
+    
     // 🚀 Toast otimista mostrando progresso
     toast({
       title: "🔄 Coletando métricas...",
-      description: "Buscando dados dos recursos AWS em paralelo",
+      description: `Buscando dados dos recursos ${providerName} em paralelo`,
     });
 
     try {
-      // Invocar Lambda function via API Gateway - USE GLOBAL selectedAccountId
-      const response = await apiClient.invoke<any>('fetch-cloudwatch-metrics', {
-        body: { accountId: selectedAccountId }
+      // Multi-cloud: Call appropriate Lambda based on provider
+      const lambdaName = isAzure ? 'azure-fetch-monitor-metrics' : 'fetch-cloudwatch-metrics';
+      const bodyParam = isAzure 
+        ? { credentialId: selectedAccountId }
+        : { accountId: selectedAccountId };
+      
+      const response = await apiClient.invoke<any>(lambdaName, {
+        body: bodyParam
       });
 
       // Handle API error response
@@ -470,7 +481,7 @@ export const ResourceMonitoringDashboard = () => {
     } finally {
       setIsRefreshing(false);
     }
-  }, [selectedAccountId, toast, clearMetricsCache, queryClient, loadMetricsWithCache]);
+  }, [selectedAccountId, isAzure, toast, clearMetricsCache, queryClient, loadMetricsWithCache]);
 
   // PERFORMANCE: Memoize available regions
   const availableRegions = useMemo(() => {

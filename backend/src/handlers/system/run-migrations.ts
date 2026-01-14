@@ -583,6 +583,44 @@ const MIGRATION_COMMANDS = [
   `ALTER TABLE "resource_inventory" ADD COLUMN IF NOT EXISTS "cloud_provider" "CloudProvider" DEFAULT 'AWS'`,
   `ALTER TABLE "resource_inventory" ADD COLUMN IF NOT EXISTS "azure_credential_id" UUID`,
   `CREATE INDEX IF NOT EXISTS "resource_inventory_cloud_provider_idx" ON "resource_inventory"("cloud_provider")`,
+  
+  // ==================== AZURE OAUTH SUPPORT (2026-01-12) ====================
+  
+  // Add OAuth fields to azure_credentials table
+  `ALTER TABLE "azure_credentials" ADD COLUMN IF NOT EXISTS "auth_type" VARCHAR(50) DEFAULT 'service_principal'`,
+  `ALTER TABLE "azure_credentials" ADD COLUMN IF NOT EXISTS "encrypted_refresh_token" TEXT`,
+  `ALTER TABLE "azure_credentials" ADD COLUMN IF NOT EXISTS "token_expires_at" TIMESTAMPTZ`,
+  `ALTER TABLE "azure_credentials" ADD COLUMN IF NOT EXISTS "oauth_tenant_id" VARCHAR(100)`,
+  `ALTER TABLE "azure_credentials" ADD COLUMN IF NOT EXISTS "oauth_user_email" VARCHAR(255)`,
+  `ALTER TABLE "azure_credentials" ADD COLUMN IF NOT EXISTS "last_refresh_at" TIMESTAMPTZ`,
+  `ALTER TABLE "azure_credentials" ADD COLUMN IF NOT EXISTS "refresh_error" TEXT`,
+  
+  // Make tenant_id, client_id, client_secret optional (for OAuth credentials)
+  `ALTER TABLE "azure_credentials" ALTER COLUMN "tenant_id" DROP NOT NULL`,
+  `ALTER TABLE "azure_credentials" ALTER COLUMN "client_id" DROP NOT NULL`,
+  `ALTER TABLE "azure_credentials" ALTER COLUMN "client_secret" DROP NOT NULL`,
+  
+  // Add index on auth_type for filtering
+  `CREATE INDEX IF NOT EXISTS "azure_credentials_auth_type_idx" ON "azure_credentials"("auth_type")`,
+  
+  // Create oauth_states table for CSRF protection during OAuth flow
+  `CREATE TABLE IF NOT EXISTS "oauth_states" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "user_id" VARCHAR(255) NOT NULL,
+    "state" VARCHAR(255) NOT NULL,
+    "code_verifier" VARCHAR(255) NOT NULL,
+    "redirect_uri" VARCHAR(500),
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "expires_at" TIMESTAMPTZ NOT NULL,
+    "used" BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT "oauth_states_pkey" PRIMARY KEY ("id")
+  )`,
+  
+  // Create indexes for oauth_states
+  `CREATE UNIQUE INDEX IF NOT EXISTS "oauth_states_state_key" ON "oauth_states"("state")`,
+  `CREATE INDEX IF NOT EXISTS "oauth_states_expires_at_idx" ON "oauth_states"("expires_at")`,
+  `CREATE INDEX IF NOT EXISTS "oauth_states_organization_id_idx" ON "oauth_states"("organization_id")`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

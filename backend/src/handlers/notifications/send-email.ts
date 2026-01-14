@@ -7,7 +7,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { emailService, EmailOptions } from '../../lib/email-service.js';
 import { logger } from '../../lib/logging.js';
-import { getUserFromEvent, getOrganizationId, checkUserRateLimit, RateLimitError } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation, checkUserRateLimit, RateLimitError } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { sanitizeStringAdvanced } from '../../lib/validation.js';
 
@@ -127,7 +127,7 @@ export async function handler(
   
   try {
     const user = getUserFromEvent(event);
-    organizationId = getOrganizationId(user);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (authError) {
     logger.error('Authentication error', authError);
     return error('Unauthorized', 401, undefined, origin);
@@ -312,7 +312,7 @@ export async function bulkHandler(
 
   try {
     const user = getUserFromEvent(event);
-    getOrganizationId(user); // Validate auth
+    getOrganizationIdWithImpersonation(event, user); // Validate auth
   } catch (authError) {
     logger.error('Authentication error', authError);
     return error('Unauthorized', 401, undefined, origin);
@@ -373,7 +373,7 @@ export async function statsHandler(
 
   try {
     const user = getUserFromEvent(event);
-    getOrganizationId(user); // Validate auth
+    getOrganizationIdWithImpersonation(event, user); // Validate auth
   } catch (authError) {
     logger.error('Authentication error', authError);
     return error('Unauthorized', 401, undefined, origin);

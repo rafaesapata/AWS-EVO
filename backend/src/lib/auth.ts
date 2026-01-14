@@ -52,10 +52,18 @@ function parseExpClaim(exp: any): number | null {
 
 /**
  * Claims obrigatórios com validadores
+ * Note: 'exp' is optional because API Gateway Cognito Authorizer already validates token expiration
+ * and may not pass the exp claim to the Lambda function
  */
 const REQUIRED_CLAIMS: Record<string, (value: any) => boolean> = {
   'sub': (v) => typeof v === 'string' && v.length > 0,
   'email': (v) => typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+};
+
+/**
+ * Optional claims with validators (validated if present)
+ */
+const OPTIONAL_CLAIMS: Record<string, (value: any) => boolean> = {
   'exp': (v) => {
     const expNum = parseExpClaim(v);
     return expNum !== null && expNum * 1000 > Date.now();
@@ -96,6 +104,7 @@ export class RateLimitError extends Error {
 export function validateAuthClaims(claims: Record<string, any>): void {
   const errors: string[] = [];
 
+  // Validate required claims
   for (const [claim, validator] of Object.entries(REQUIRED_CLAIMS)) {
     const value = claims[claim];
 
@@ -109,19 +118,36 @@ export function validateAuthClaims(claims: Record<string, any>): void {
     }
   }
 
-  // Validações adicionais de segurança
-  if (claims.exp && claims.iat) {
-    const tokenLifetime = (claims.exp - claims.iat) * 1000;
-    const maxLifetime = 24 * 60 * 60 * 1000; // 24 horas
+  // Validate optional claims if present
+  for (const [claim, validator] of Object.entries(OPTIONAL_CLAIMS)) {
+    const value = claims[claim];
 
-    if (tokenLifetime > maxLifetime) {
-      errors.push('Token lifetime exceeds maximum allowed');
+    if (value !== undefined && value !== null && !validator(value)) {
+      errors.push(`Invalid value for claim: ${claim}`);
     }
   }
 
-  // Verificar se token não foi emitido no futuro
-  if (claims.iat && claims.iat * 1000 > Date.now() + 60000) {
-    errors.push('Token issued in the future');
+  // Validações adicionais de segurança (only if exp and iat are present)
+  if (claims.exp && claims.iat) {
+    const expNum = parseExpClaim(claims.exp);
+    const iatNum = typeof claims.iat === 'number' ? claims.iat : parseInt(claims.iat, 10);
+    
+    if (expNum && !isNaN(iatNum)) {
+      const tokenLifetime = (expNum - iatNum) * 1000;
+      const maxLifetime = 24 * 60 * 60 * 1000; // 24 horas
+
+      if (tokenLifetime > maxLifetime) {
+        errors.push('Token lifetime exceeds maximum allowed');
+      }
+    }
+  }
+
+  // Verificar se token não foi emitido no futuro (only if iat is present)
+  if (claims.iat) {
+    const iatNum = typeof claims.iat === 'number' ? claims.iat : parseInt(claims.iat, 10);
+    if (!isNaN(iatNum) && iatNum * 1000 > Date.now() + 60000) {
+      errors.push('Token issued in the future');
+    }
   }
 
   if (errors.length > 0) {
@@ -174,6 +200,36 @@ export function getOrganizationId(user: CognitoUser): string {
   }
 
   return orgId;
+}
+
+/**
+ * Get organization ID with impersonation support for super admins
+ * If the user is a super_admin and X-Impersonate-Organization header is present,
+ * returns the impersonated organization ID instead of the user's own organization.
+ */
+export function getOrganizationIdWithImpersonation(event: AuthorizedEvent, user: CognitoUser): string {
+  // Check if user is super_admin
+  if (!isSuperAdmin(user)) {
+    return getOrganizationId(user);
+  }
+
+  // Check for impersonation header
+  const impersonatedOrgId = event.headers?.['x-impersonate-organization'] || 
+                            event.headers?.['X-Impersonate-Organization'];
+
+  if (!impersonatedOrgId) {
+    return getOrganizationId(user);
+  }
+
+  // Validate impersonated organization ID format
+  if (!UUID_REGEX.test(impersonatedOrgId)) {
+    console.error(`[SECURITY] Invalid impersonated organization ID format: ${impersonatedOrgId.substring(0, 8)}...`);
+    throw new Error('Invalid impersonation target organization ID');
+  }
+
+  console.log(`[IMPERSONATION] Super admin ${user.email} impersonating organization ${impersonatedOrgId}`);
+  
+  return impersonatedOrgId;
 }
 
 export function getTenantId(user: CognitoUser): string | undefined {

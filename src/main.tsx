@@ -45,6 +45,7 @@ import Compliance from "./pages/Compliance";
 import EndpointMonitoring from "./pages/EndpointMonitoring";
 import EdgeMonitoring from "./pages/EdgeMonitoring";
 import Organizations from "./pages/Organizations";
+import AzureOAuthCallback from "./pages/AzureOAuthCallback";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./i18n/config";
 import "./index.css";
@@ -342,6 +343,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <Organizations />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/azure/callback" 
+                element={
+                  <ProtectedRoute>
+                    <AzureOAuthCallback />
                   </ProtectedRoute>
                 } 
               />

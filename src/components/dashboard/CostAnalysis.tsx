@@ -16,7 +16,7 @@ import { CostForecast } from "./cost-analysis/CostForecast";
 import { CostTrends } from "./cost-analysis/CostTrends";
 import { ExportManager } from "./cost-analysis/ExportManager";
 import { useQueryCache, CACHE_CONFIGS } from "@/hooks/useQueryCache";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { formatDateBR } from "@/lib/utils";
 
@@ -31,7 +31,8 @@ export const CostAnalysis = () => {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
 
   // Use global account context for multi-account isolation
-  const { selectedAccountId, accounts: allAccounts } = useAwsAccount();
+  const { selectedAccountId, accounts: allAccounts } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
 
   // Get available tags from organization - filtered by selected account
@@ -43,7 +44,7 @@ export const CostAnalysis = () => {
     queryFn: async () => {
       // Query tags filtered by selected account
       const response = await apiClient.select('cost_allocation_tags', { 
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+        eq: { organization_id: organizationId, ...getAccountFilter() } 
       });
       if (response.error) throw response.error;
       
@@ -74,7 +75,7 @@ export const CostAnalysis = () => {
 
       // Always filter by selected account - no 'all' option
       const response = await apiClient.select('daily_costs', { 
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+        eq: { organization_id: organizationId, ...getAccountFilter() } 
       });
       if (response.error) throw response.error;
       const data = response.data;

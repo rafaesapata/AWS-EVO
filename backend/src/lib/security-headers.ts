@@ -303,6 +303,7 @@ export const SECURE_CORS_CONFIG: CORSConfig = {
     'X-CSRF-Token',
     'X-Amz-Date',
     'X-Amz-Security-Token',
+    'X-Impersonate-Organization',
   ],
   exposedHeaders: [
     'X-Request-ID',

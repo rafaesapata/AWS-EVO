@@ -6,7 +6,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { validateAwsCredentials, resolveAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
@@ -26,7 +26,7 @@ export async function handler(
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const user = getUserFromEvent(event);
-  const organizationId = getOrganizationId(user);
+  const organizationId = getOrganizationIdWithImpersonation(event, user);
   
   logger.info('Validate AWS credentials started', { 
     organizationId,

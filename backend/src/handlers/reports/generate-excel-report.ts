@@ -7,8 +7,8 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
-import { getPrismaClient } from '../../lib/database.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
+import { getPrismaClient, getOptionalCredentialFilter } from '../../lib/database.js';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -31,7 +31,7 @@ export async function handler(
   
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const body: GenerateExcelRequest = event.body ? JSON.parse(event.body) : {};
     const { reportType, accountId, startDate, endDate } = body;
@@ -105,10 +105,11 @@ export async function handler(
 }
 
 async function getSecurityData(prisma: any, organizationId: string, accountId?: string) {
+  const { getOptionalCredentialFilter } = await import('../../lib/database.js');
   return await prisma.finding.findMany({
     where: {
       organization_id: organizationId,
-      ...(accountId && { aws_account_id: accountId }),
+      ...getOptionalCredentialFilter(accountId),
     },
     orderBy: { created_at: 'desc' },
     take: 1000,
@@ -122,10 +123,11 @@ async function getCostData(
   startDate?: string,
   endDate?: string
 ) {
+  const { getOptionalCredentialFilter } = await import('../../lib/database.js');
   return await prisma.dailyCost.findMany({
     where: {
       organization_id: organizationId,
-      ...(accountId && { aws_account_id: accountId }),
+      ...getOptionalCredentialFilter(accountId),
       ...(startDate && endDate && {
         date: {
           gte: new Date(startDate),
@@ -139,10 +141,11 @@ async function getCostData(
 }
 
 async function getComplianceData(prisma: any, organizationId: string, accountId?: string) {
+  const { getOptionalCredentialFilter } = await import('../../lib/database.js');
   return await prisma.complianceViolation.findMany({
     where: {
       organization_id: organizationId,
-      ...(accountId && { aws_account_id: accountId }),
+      ...getOptionalCredentialFilter(accountId),
     },
     orderBy: { detected_at: 'desc' },
     take: 1000,
@@ -150,10 +153,11 @@ async function getComplianceData(prisma: any, organizationId: string, accountId?
 }
 
 async function getDriftData(prisma: any, organizationId: string, accountId?: string) {
+  const { getOptionalCredentialFilter } = await import('../../lib/database.js');
   return await prisma.driftDetection.findMany({
     where: {
       organization_id: organizationId,
-      ...(accountId && { aws_account_id: accountId }),
+      ...getOptionalCredentialFilter(accountId),
     },
     orderBy: { detected_at: 'desc' },
     take: 1000,

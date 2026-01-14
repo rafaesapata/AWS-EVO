@@ -5,7 +5,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions, unauthorized } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
@@ -29,7 +29,7 @@ export async function handler(
   
   try {
     user = getUserFromEvent(event);
-    userOrganizationId = getOrganizationId(user);
+    userOrganizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (authError) {
     return unauthorized('Authentication required for manual cleanup');
   }

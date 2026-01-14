@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { 
   Shield, 
   ShieldCheck,
@@ -44,7 +44,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { selectedAccountId, accounts } = useAwsAccount();
+  const { selectedAccountId, accounts } = useCloudAccount();
   
   const [webAclArn, setWebAclArn] = useState("");
   const [filterMode, setFilterMode] = useState<string>("block_only");

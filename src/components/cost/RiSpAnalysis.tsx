@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/integrations/aws/api-client";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
   TrendingUp, 
@@ -26,22 +26,27 @@ import { Progress } from "@/components/ui/progress";
 export const RiSpAnalysis = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { data: organizationId } = useOrganization();
   const [activeTab, setActiveTab] = useState<'overview' | 'ri' | 'sp' | 'recommendations'>('overview');
 
-  // Fetch RI/SP analysis data
+  // Detect if Azure
+  const isAzure = selectedProvider === 'AZURE';
+
+  // Fetch RI/SP analysis data - supports both AWS and Azure
   const { data: analysisData, isLoading, error: queryError } = useQuery({
-    queryKey: ['ri-sp-analysis', organizationId, selectedAccountId],
+    queryKey: ['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider],
     enabled: !!organizationId && !!selectedAccountId,
     staleTime: 10 * 60 * 1000, // 10 minutes
     queryFn: async () => {
-      const response = await apiClient.invoke('analyze-ri-sp', {
-        body: { 
-          accountId: selectedAccountId,
-          analysisType: 'all',
-          lookbackDays: 30
-        }
+      // Call the appropriate Lambda based on provider
+      const lambdaName = isAzure ? 'azure-reservations-analyzer' : 'ri-sp-analyzer';
+      const bodyParam = isAzure 
+        ? { credentialId: selectedAccountId, lookbackDays: 30 }
+        : { accountId: selectedAccountId, analysisType: 'all', lookbackDays: 30 };
+      
+      const response = await apiClient.invoke(lambdaName, {
+        body: bodyParam
       });
       
       if (response.error) {
@@ -52,15 +57,16 @@ export const RiSpAnalysis = () => {
     },
   });
 
-  // Refresh mutation
+  // Refresh mutation - supports both AWS and Azure
   const refreshMutation = useMutation({
     mutationFn: async () => {
-      const result = await apiClient.invoke('analyze-ri-sp', {
-        body: { 
-          accountId: selectedAccountId,
-          analysisType: 'all',
-          lookbackDays: 30
-        }
+      const lambdaName = isAzure ? 'azure-reservations-analyzer' : 'ri-sp-analyzer';
+      const bodyParam = isAzure 
+        ? { credentialId: selectedAccountId, lookbackDays: 30 }
+        : { accountId: selectedAccountId, analysisType: 'all', lookbackDays: 30 };
+      
+      const result = await apiClient.invoke(lambdaName, {
+        body: bodyParam
       });
       
       if (result.error) {

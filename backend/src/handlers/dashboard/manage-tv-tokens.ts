@@ -3,7 +3,7 @@ import { logger } from '../../lib/logging.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import * as crypto from 'crypto';
 
 interface ManageTokensRequest {
@@ -27,7 +27,7 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     if (!organizationId) {
       return error('Organization not found', 401, undefined, origin);

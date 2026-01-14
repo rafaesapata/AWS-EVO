@@ -8,14 +8,14 @@ import { useTranslation } from "react-i18next";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function AWSPermissionsGuide() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { selectedAccountId, selectedAccount, isLoading: accountsLoading } = useAwsAccount();
+  const { selectedAccountId, selectedAccount, isLoading: accountsLoading } = useCloudAccount();
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<{ 
     success: boolean; 
@@ -454,11 +454,11 @@ export function AWSPermissionsGuide() {
               
               {!validationResult.success && validationResult.missingPermissions && validationResult.missingPermissions.length > 0 && (
                 <div className="ml-7 space-y-3">
-                  <div className="text-sm font-semibold">❌ Permissões faltantes ({validationResult.missingPermissions.length}):</div>
-                  <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg">
+                  <div className="text-sm font-semibold text-destructive">❌ Permissões faltantes ({validationResult.missingPermissions.length}):</div>
+                  <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 p-3 rounded-lg">
                     <ul className="text-xs space-y-1 font-mono">
                       {validationResult.missingPermissions.map((perm, idx) => (
-                        <li key={idx} className="text-destructive">• {perm}</li>
+                        <li key={idx} className="text-red-700 dark:text-red-300">• {perm}</li>
                       ))}
                     </ul>
                   </div>
@@ -476,11 +476,11 @@ export function AWSPermissionsGuide() {
               
               {!validationResult.success && validationResult.extraPermissions && validationResult.extraPermissions.length > 0 && (
                 <div className="ml-7 space-y-3 mt-3">
-                  <div className="text-sm font-semibold">⚠️ Permissões extras desnecessárias ({validationResult.extraPermissions.length}):</div>
-                  <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-lg">
+                  <div className="text-sm font-semibold text-orange-700 dark:text-orange-300">⚠️ Permissões extras desnecessárias ({validationResult.extraPermissions.length}):</div>
+                  <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 p-3 rounded-lg">
                     <ul className="text-xs space-y-1 font-mono">
                       {validationResult.extraPermissions.map((perm, idx) => (
-                        <li key={idx} className="text-orange-600 dark:text-orange-400">• {perm}</li>
+                        <li key={idx} className="text-orange-700 dark:text-orange-300">• {perm}</li>
                       ))}
                     </ul>
                   </div>
@@ -496,11 +496,11 @@ export function AWSPermissionsGuide() {
         <div className="space-y-2">
           <h3 className="font-semibold">{t("permissions.requiredPermissions")}</h3>
           
-          <div className="grid gap-2 p-4 bg-muted/30 rounded-lg text-sm mb-4">
+          <div className="grid gap-2 p-4 bg-muted/80 border border-border rounded-lg text-sm mb-4">
             <div>
               <strong className="text-primary">📊 Total: {allPermissions.length} permissões read-only (divididas em 3 políticas)</strong>
             </div>
-            <div className="grid grid-cols-3 gap-y-1 gap-x-4 mt-2 text-xs">
+            <div className="grid grid-cols-3 gap-y-2 gap-x-4 mt-2 text-xs text-foreground">
               <div>✅ EC2, RDS, S3</div>
               <div>✅ IAM, CloudWatch</div>
               <div>✅ ELB, Lambda, ECS</div>
@@ -513,9 +513,9 @@ export function AWSPermissionsGuide() {
             </div>
           </div>
 
-          <Alert className="bg-amber-500/10 border-amber-500/30 mb-4">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <AlertDescription className="text-sm">
+          <Alert className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 mb-4">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-sm text-amber-800 dark:text-amber-200">
               <strong>⚠️ AWS limita políticas a 2048 caracteres.</strong> Por isso, as permissões foram divididas em <strong>3 políticas</strong> que devem ser criadas separadamente e anexadas ao mesmo usuário IAM.
             </AlertDescription>
           </Alert>
@@ -531,12 +531,12 @@ export function AWSPermissionsGuide() {
               </CollapsibleTrigger>
             </div>
             <CollapsibleContent>
-              <div className="bg-muted/30 p-3 rounded-lg max-h-60 overflow-y-auto mb-3">
+              <div className="bg-muted/80 border border-border p-3 rounded-lg max-h-60 overflow-y-auto mb-3">
                 <div className="text-xs font-mono space-y-1">
                   {allPermissions.map((perm, idx) => (
                     <div
                       key={idx}
-                      className="text-muted-foreground hover:text-foreground hover:bg-muted/50 p-1 rounded cursor-pointer transition-colors"
+                      className="text-foreground hover:bg-primary/10 p-1.5 rounded cursor-pointer transition-colors"
                       onClick={() => {
                         navigator.clipboard.writeText(perm);
                         toast({ description: `✅ Copiado: ${perm}` });
@@ -583,9 +583,9 @@ export function AWSPermissionsGuide() {
 
         <div className="space-y-2">
           <h3 className="font-semibold">{t("permissions.howToApply")}</h3>
-          <div className="bg-muted p-4 rounded-lg space-y-3">
-            <p className="text-sm font-medium">{t("permissions.steps.title")}</p>
-            <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+          <div className="bg-muted/80 border border-border p-4 rounded-lg space-y-3">
+            <p className="text-sm font-medium text-foreground">{t("permissions.steps.title")}</p>
+            <ol className="list-decimal list-inside space-y-2 text-sm text-foreground/80">
               <li>{t("permissions.steps.step1")}</li>
               <li>{t("permissions.steps.step2")}</li>
               <li>Cole a <strong>Política 1</strong> (Core Compute & Storage) e crie com nome "EVOPlatformPart1"</li>
@@ -597,11 +597,11 @@ export function AWSPermissionsGuide() {
         </div>
 
         {/* Política 1 */}
-        <div className="space-y-3 p-4 border border-primary/30 rounded-lg bg-primary/5">
+        <div className="space-y-3 p-4 border border-primary/40 rounded-lg bg-primary/10">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-primary">📦 Política 1: Core Compute & Storage</h3>
-              <p className="text-xs text-muted-foreground">{permissionsPolicy1.length} permissões - Nome: EVOPlatformPart1</p>
+              <p className="text-xs text-foreground/70">{permissionsPolicy1.length} permissões - Nome: EVOPlatformPart1</p>
             </div>
             <Button onClick={copyPolicy1} size="sm" className="gap-2">
               <Copy className="w-4 h-4" />
@@ -626,13 +626,13 @@ export function AWSPermissionsGuide() {
         </div>
 
         {/* Política 2 */}
-        <div className="space-y-3 p-4 border border-amber-500/30 rounded-lg bg-amber-500/5">
+        <div className="space-y-3 p-4 border border-amber-400 dark:border-amber-600 rounded-lg bg-amber-50 dark:bg-amber-950/40">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-amber-600 dark:text-amber-400">🔒 Política 2: Security & Monitoring</h3>
-              <p className="text-xs text-muted-foreground">{permissionsPolicy2.length} permissões - Nome: EVOPlatformPart2</p>
+              <h3 className="font-semibold text-amber-700 dark:text-amber-300">🔒 Política 2: Security & Monitoring</h3>
+              <p className="text-xs text-amber-800/70 dark:text-amber-200/70">{permissionsPolicy2.length} permissões - Nome: EVOPlatformPart2</p>
             </div>
-            <Button onClick={copyPolicy2} size="sm" variant="outline" className="gap-2 border-amber-500/50 hover:bg-amber-500/10">
+            <Button onClick={copyPolicy2} size="sm" variant="outline" className="gap-2 border-amber-500 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50">
               <Copy className="w-4 h-4" />
               Copiar Política 2
             </Button>
@@ -655,13 +655,13 @@ export function AWSPermissionsGuide() {
         </div>
 
         {/* Política 3 */}
-        <div className="space-y-3 p-4 border border-secondary/30 rounded-lg bg-secondary/5">
+        <div className="space-y-3 p-4 border border-blue-400 dark:border-blue-600 rounded-lg bg-blue-50 dark:bg-blue-950/40">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-secondary-foreground">🌐 Política 3: Networking, Containers & Costs</h3>
-              <p className="text-xs text-muted-foreground">{permissionsPolicy3.length} permissões - Nome: EVOPlatformPart3</p>
+              <h3 className="font-semibold text-blue-700 dark:text-blue-300">🌐 Política 3: Networking, Containers & Costs</h3>
+              <p className="text-xs text-blue-800/70 dark:text-blue-200/70">{permissionsPolicy3.length} permissões - Nome: EVOPlatformPart3</p>
             </div>
-            <Button onClick={copyPolicy3} size="sm" variant="secondary" className="gap-2">
+            <Button onClick={copyPolicy3} size="sm" variant="outline" className="gap-2 border-blue-500 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50">
               <Copy className="w-4 h-4" />
               Copiar Política 3
             </Button>

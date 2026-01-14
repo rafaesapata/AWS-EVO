@@ -9,7 +9,7 @@ import { TrendingUp, DollarSign, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 
 export function BudgetForecasting() {
@@ -18,7 +18,8 @@ export function BudgetForecasting() {
   const queryClient = useQueryClient();
   
   // Use global account context for multi-account isolation
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
 
   // Load latest saved forecast from database - ISOLATED BY ACCOUNT
@@ -26,10 +27,10 @@ export function BudgetForecasting() {
     queryKey: ['budget-forecast-saved', 'org', organizationId, 'account', selectedAccountId],
     enabled: !!organizationId && (isTVMode || !!selectedAccountId),
     queryFn: async () => {
-      const filters: any = { organization_id: organizationId };
-      if (!isTVMode && selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
+      const filters: any = { 
+        organization_id: organizationId,
+        ...(!isTVMode ? getAccountFilter() : {}) // Multi-cloud compatible
+      };
       
       const response = await apiClient.select('budget_forecasts', {
         eq: filters,

@@ -8,6 +8,9 @@ const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 const SESSION_ID = crypto.randomUUID();
 sessionStorage.setItem('sessionId', SESSION_ID);
 
+// Impersonation storage key
+const IMPERSONATION_KEY = 'evo-impersonation';
+
 export interface ApiResponse<T = any> {
   data: T;
   error: null;
@@ -22,6 +25,24 @@ export interface ApiError {
     status?: number;
     requestId?: string;
   };
+}
+
+/**
+ * Get impersonation state from localStorage
+ */
+function getImpersonationOrgId(): string | null {
+  try {
+    const stored = localStorage.getItem(IMPERSONATION_KEY);
+    if (stored) {
+      const state = JSON.parse(stored);
+      if (state.isImpersonating && state.impersonatedOrgId) {
+        return state.impersonatedOrgId;
+      }
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
 }
 
 /**
@@ -80,6 +101,12 @@ class ApiClient {
       'X-Correlation-ID': correlationId,
       ...getCSRFHeader(), // Add CSRF protection to all requests
     };
+
+    // Add impersonation header if super admin is impersonating
+    const impersonatedOrgId = getImpersonationOrgId();
+    if (impersonatedOrgId) {
+      headers['X-Impersonate-Organization'] = impersonatedOrgId;
+    }
 
     if (session) {
       // Use idToken for Cognito User Pools Authorizer (contains custom attributes)

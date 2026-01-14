@@ -12,7 +12,7 @@ import { CheckCircle, Bell, Settings, RefreshCw, AlertTriangle, DollarSign, Shie
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -33,7 +33,7 @@ export function IntelligentAlerts() {
   const [editingConfig, setEditingConfig] = useState<AlertConfig | null>(null);
   
   // CRITICAL: Get selected AWS account for multi-account isolation
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
 
   const { data: alertConfigs = [] } = useQuery({
     queryKey: ['alert-configs', organizationId, selectedAccountId],

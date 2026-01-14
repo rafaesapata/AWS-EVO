@@ -6,7 +6,7 @@ import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { Tag, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 
 const REQUIRED_TAGS = ['Environment', 'Owner', 'CostCenter', 'Project', 'Application'];
 
@@ -25,7 +25,8 @@ interface TaggingComplianceItem {
 
 export function TaggingCompliance() {
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
 
   const { data: taggingData, isLoading } = useQuery<TaggingComplianceItem[]>({
     queryKey: ['tagging-compliance', organizationId, selectedAccountId],
@@ -38,7 +39,7 @@ export function TaggingCompliance() {
         eq: { 
           organization_id: organizationId,
           scan_type: 'tagging_compliance',
-          ...(selectedAccountId && { aws_account_id: selectedAccountId })
+          ...getAccountFilter()
         }
       });
       

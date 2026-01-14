@@ -8,7 +8,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, forbidden, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId, isSuperAdmin, isAdmin } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation, isSuperAdmin, isAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
@@ -81,7 +81,7 @@ export async function handler(
   }
   
   const user = getUserFromEvent(event);
-  const userOrganizationId = getOrganizationId(user);
+  const userOrganizationId = getOrganizationIdWithImpersonation(event, user);
   const userIsSuperAdmin = isSuperAdmin(user);
   const userIsAdmin = isAdmin(user);
   

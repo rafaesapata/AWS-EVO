@@ -11,6 +11,7 @@ import { CloudAccountSelectorCompact } from "@/components/cloud/CloudAccountSele
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
 import UserMenu from "@/components/UserMenu";
+import SuperAdminOrganizationSwitcher, { getImpersonationState, getEffectiveOrganizationId, getEffectiveOrganizationName } from "@/components/SuperAdminOrganizationSwitcher";
 
 interface LayoutProps {
   children: ReactNode;
@@ -203,12 +204,19 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
                     </div>
                   </div>
                   {user?.organizationId && (
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-md glass">
-                      <Building2 className="h-2.5 w-2.5 text-primary" />
-                      <span className="text-xs font-medium">
-                        {user.organizationName || user.organizationId}
-                      </span>
-                    </div>
+                    userRole.includes('super_admin') ? (
+                      <SuperAdminOrganizationSwitcher 
+                        currentOrgId={user.organizationId}
+                        currentOrgName={user.organizationName}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-md glass">
+                        <Building2 className="h-2.5 w-2.5 text-primary" />
+                        <span className="text-xs font-medium">
+                          {user.organizationName || user.organizationId}
+                        </span>
+                      </div>
+                    )
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">

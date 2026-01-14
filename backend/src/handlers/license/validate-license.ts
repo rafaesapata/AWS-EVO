@@ -8,7 +8,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId, isAdmin } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation, isAdmin } from '../../lib/auth.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { getLicenseSummary, hasValidLicense, assignSeat, syncOrganizationLicenses } from '../../lib/license-service.js';
 import { getPrismaClient } from '../../lib/database.js';
@@ -29,7 +29,7 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     const userId = user.sub;
 
     logger.info(`License validation for org ${organizationId}, user ${userId}`);

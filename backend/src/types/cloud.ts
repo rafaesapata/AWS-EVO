@@ -59,8 +59,31 @@ export interface AWSCredentialFields {
 
 /**
  * Azure-specific credential fields
+ * Supports both Service Principal and OAuth authentication
  */
 export interface AzureCredentialFields {
+  subscriptionId: string;
+  subscriptionName?: string;
+  authType?: 'service_principal' | 'oauth';
+  
+  // Service Principal fields (required when authType = 'service_principal')
+  tenantId?: string | null;
+  clientId?: string | null;
+  clientSecret?: string | null;
+  
+  // OAuth fields (used when authType = 'oauth')
+  oauthTenantId?: string | null;
+  oauthUserEmail?: string | null;
+  encryptedRefreshToken?: string | null;
+  tokenExpiresAt?: Date | null;
+  lastRefreshAt?: Date | null;
+  refreshError?: string | null;
+}
+
+/**
+ * Azure Service Principal credentials (for validation)
+ */
+export interface AzureServicePrincipalCredentials {
   tenantId: string;
   clientId: string;
   clientSecret: string;

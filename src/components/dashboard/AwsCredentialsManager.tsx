@@ -30,7 +30,26 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, CloudAccount } from "@/contexts/CloudAccountContext";
+
+// Extended interface for AWS-specific properties used in this component
+interface AwsAccountExtended extends CloudAccount {
+  access_key_id?: string;
+  account_name: string;
+  is_active: boolean;
+  external_id?: string;
+}
+
+// Helper to convert CloudAccount to AwsAccountExtended
+function toAwsAccountExtended(account: CloudAccount): AwsAccountExtended {
+  return {
+    ...account,
+    access_key_id: account.roleArn ? `ROLE:${account.roleArn}` : undefined,
+    account_name: account.accountName,
+    is_active: account.isActive,
+    external_id: undefined, // Will be fetched from API if needed
+  };
+}
 
 
 const AwsCredentialsManager = () => {
@@ -42,8 +61,11 @@ const AwsCredentialsManager = () => {
   const [editRegions, setEditRegions] = useState<string[]>([]);
   const [editAccountName, setEditAccountName] = useState("");
 
-  // Use centralized AWS account context instead of direct API call
-  const { accounts: allAccounts, isLoading, refreshAccounts: refetch, error: queryError } = useAwsAccount();
+  // Use centralized cloud account context instead of direct API call
+  const { awsAccounts, isLoading, refreshAccounts: refetch, error: queryError } = useCloudAccount();
+  
+  // Convert to extended format for AWS-specific properties
+  const allAccounts = awsAccounts.map(toAwsAccountExtended);
 
   // Debug: Log organization state
   console.log('🏢 AwsCredentialsManager: Organization state', {
@@ -236,19 +258,19 @@ const AwsCredentialsManager = () => {
     <div className="space-y-6">
       {/* Warning for legacy access key accounts */}
       {hasLegacyAccounts && (
-        <Alert variant="destructive" className="border-orange-500/50 bg-orange-500/10">
-          <AlertTriangle className="h-4 w-4" />
+        <Alert variant="destructive" className="border-orange-400 dark:border-orange-700 bg-orange-50 dark:bg-orange-950/40">
+          <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
           <AlertDescription className="space-y-2">
-            <p className="font-medium">
+            <p className="font-semibold text-orange-800 dark:text-orange-200">
               Você possui {legacyAccounts.length} conta(s) usando Chaves de Acesso (método descontinuado)
             </p>
-            <p className="text-sm">
+            <p className="text-sm text-orange-700 dark:text-orange-300">
               Por segurança, recomendamos migrar para IAM Role via CloudFormation. 
               Desative as contas legadas e adicione novamente usando o método recomendado abaixo.
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
               {legacyAccounts.map(acc => (
-                <span key={acc.id} className="text-xs bg-orange-500/20 px-2 py-1 rounded">
+                <span key={acc.id} className="text-xs bg-orange-100 dark:bg-orange-900/60 text-orange-800 dark:text-orange-200 px-2 py-1 rounded-md font-medium border border-orange-200 dark:border-orange-700">
                   {acc.account_name}
                 </span>
               ))}
@@ -282,45 +304,49 @@ const AwsCredentialsManager = () => {
           </CardHeader>
           <CardContent className="space-y-2">
             {allAccounts.map((account) => (
-              <div key={account.id} className={`p-3 border rounded-lg ${
+              <div key={account.id} className={`p-4 border rounded-lg ${
                 account.access_key_id?.startsWith('ROLE:') 
-                  ? 'bg-muted/50 border-border' 
-                  : 'bg-orange-500/5 border-orange-500/30'
+                  ? 'bg-card border-border shadow-sm' 
+                  : 'bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-800'
               }`}>
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{account.account_name}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-foreground">{account.account_name}</p>
                       {account.access_key_id?.startsWith('ROLE:') ? (
-                        <span className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded flex items-center gap-1">
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 rounded-md flex items-center gap-1 font-medium border border-blue-200 dark:border-blue-700">
                           <CloudCog className="w-3 h-3" />
                           IAM Role
                         </span>
                       ) : (
-                        <span className="text-xs px-2 py-0.5 bg-orange-500/10 text-orange-600 rounded flex items-center gap-1">
+                        <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/60 text-orange-800 dark:text-orange-200 rounded-md flex items-center gap-1 font-medium border border-orange-200 dark:border-orange-700">
                           <AlertTriangle className="w-3 h-3" />
                           Legado (migrar)
                         </span>
                       )}
                       {!account.is_active && (
-                        <span className="text-xs px-2 py-0.5 bg-orange-500/10 text-orange-600 rounded">
+                        <span className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-200 rounded-md font-medium border border-red-200 dark:border-red-700">
                           Inativa
                         </span>
                       )}
                     </div>
-                    {account.account_id && (
-                      <p className="text-xs text-muted-foreground">ID: {account.account_id}</p>
+                    {account.accountId && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="font-medium">ID:</span> {account.accountId}
+                      </p>
                     )}
-                    <div className="mt-2 space-y-1">
+                    <div className="mt-3 space-y-2">
                       {account.access_key_id?.startsWith('ROLE:') ? (
                         <>
-                          <p className="text-xs text-muted-foreground">
-                            <span className="font-medium">Role ARN:</span> {account.access_key_id.replace('ROLE:', '')}
+                          <p className="text-xs text-foreground">
+                            <span className="font-medium text-muted-foreground">Role ARN:</span>{' '}
+                            <span className="font-mono bg-muted/80 px-1.5 py-0.5 rounded">{account.access_key_id.replace('ROLE:', '')}</span>
                           </p>
                           {account.external_id && (
                             <div className="flex items-center gap-2">
-                              <p className="text-xs text-muted-foreground">
-                                <span className="font-medium">External ID:</span> {account.external_id}
+                              <p className="text-xs text-foreground">
+                                <span className="font-medium text-muted-foreground">External ID:</span>{' '}
+                                <span className="font-mono bg-muted/80 px-1.5 py-0.5 rounded">{account.external_id}</span>
                               </p>
                               <Button
                                 variant="ghost"
@@ -340,16 +366,16 @@ const AwsCredentialsManager = () => {
                           )}
                         </>
                       ) : (
-                        <p className="text-xs text-orange-600">
+                        <p className="text-xs text-orange-800 dark:text-orange-200 font-medium">
                           ⚠️ Esta conta usa chaves de acesso. Recomendamos migrar para IAM Role.
                         </p>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
+                    <div className="flex flex-wrap gap-1.5 mt-3">
                       {account.regions?.map((region: string) => (
                         <span 
                           key={region}
-                          className="text-xs bg-primary/10 px-2 py-0.5 rounded"
+                          className="text-xs bg-primary/15 text-primary font-medium px-2 py-0.5 rounded-md border border-primary/20"
                         >
                           {region}
                         </span>
@@ -465,13 +491,14 @@ const AwsCredentialsManager = () => {
             </div>
 
             {editingAccount && (
-              <div className="bg-muted/50 p-3 rounded-lg space-y-1">
+              <div className="bg-muted/80 p-4 rounded-lg space-y-2 border border-border">
                 {editingAccount.access_key_id?.startsWith('ROLE:') ? (
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium">Role ARN:</span> {editingAccount.access_key_id.replace('ROLE:', '')}
+                  <p className="text-sm text-foreground">
+                    <span className="font-medium text-muted-foreground">Role ARN:</span>{' '}
+                    <span className="font-mono text-xs bg-background px-2 py-1 rounded border border-border">{editingAccount.access_key_id.replace('ROLE:', '')}</span>
                   </p>
                 ) : (
-                  <p className="text-xs text-orange-600">
+                  <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">
                     ⚠️ Conta usando método legado. Considere migrar para IAM Role.
                   </p>
                 )}

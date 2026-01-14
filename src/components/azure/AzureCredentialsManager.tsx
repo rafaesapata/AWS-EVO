@@ -39,17 +39,24 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { AzureCredentialsForm } from './AzureCredentialsForm';
 import { AzureQuickConnect } from './AzureQuickConnect';
+import { AzureOAuthButton } from './AzureOAuthButton';
 
 interface AzureCredential {
   id: string;
-  tenant_id: string;
-  client_id: string;
-  subscription_id: string;
-  subscription_name: string | null;
+  tenantId: string | null;
+  clientId: string | null;
+  subscriptionId: string;
+  subscriptionName: string | null;
   regions: string[];
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  isActive: boolean;
+  authType?: 'service_principal' | 'oauth';
+  oauthTenantId?: string | null;
+  oauthUserEmail?: string | null;
+  tokenExpiresAt?: string | null;
+  lastRefreshAt?: string | null;
+  refreshError?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export function AzureCredentialsManager() {
@@ -164,12 +171,16 @@ export function AzureCredentialsManager() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <AzureOAuthButton 
+            variant="default"
+            onError={(error) => toast.error(error)}
+          />
           <Button variant="outline" onClick={() => setShowQuickConnect(true)}>
             {t('azure.quickConnect', 'Quick Connect')}
           </Button>
-          <Button onClick={() => setShowAddDialog(true)}>
+          <Button variant="outline" onClick={() => setShowAddDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            {t('azure.addCredential', 'Add Credential')}
+            {t('azure.manualSetup', 'Manual Setup')}
           </Button>
         </div>
       </div>
@@ -184,14 +195,23 @@ export function AzureCredentialsManager() {
               <p className="mt-2 text-sm text-muted-foreground">
                 {t('azure.noCredentialsDescription', 'Add your first Azure subscription to get started.')}
               </p>
-              <div className="mt-6 flex items-center justify-center gap-2">
-                <Button variant="outline" onClick={() => setShowQuickConnect(true)}>
-                  {t('azure.quickConnect', 'Quick Connect')}
-                </Button>
-                <Button onClick={() => setShowAddDialog(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t('azure.addCredential', 'Add Credential')}
-                </Button>
+              <div className="mt-6 flex flex-col items-center gap-3">
+                <AzureOAuthButton 
+                  size="lg"
+                  onError={(error) => toast.error(error)}
+                />
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>{t('common.or', 'or')}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => setShowQuickConnect(true)}>
+                    {t('azure.quickConnect', 'Quick Connect')}
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowAddDialog(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t('azure.manualSetup', 'Manual Setup')}
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -205,12 +225,21 @@ export function AzureCredentialsManager() {
                   <div className="flex items-center gap-2">
                     <Cloud className="h-5 w-5 text-blue-600" />
                     <CardTitle className="text-base">
-                      {credential.subscription_name || 'Azure Subscription'}
+                      {credential.subscriptionName || 'Azure Subscription'}
                     </CardTitle>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={credential.is_active ? 'default' : 'secondary'}>
-                      {credential.is_active ? (
+                    {credential.authType === 'oauth' ? (
+                      <Badge variant="outline" className="border-blue-500 text-blue-600">
+                        OAuth
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">
+                        Service Principal
+                      </Badge>
+                    )}
+                    <Badge variant={credential.isActive ? 'default' : 'secondary'}>
+                      {credential.isActive ? (
                         <>
                           <CheckCircle className="mr-1 h-3 w-3" />
                           {t('common.active', 'Active')}
@@ -234,7 +263,10 @@ export function AzureCredentialsManager() {
                           onClick={() => setDeleteCredentialId(credential.id)}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          {t('common.delete', 'Delete')}
+                          {credential.authType === 'oauth' 
+                            ? t('azure.disconnect', 'Disconnect')
+                            : t('common.delete', 'Delete')
+                          }
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -245,19 +277,29 @@ export function AzureCredentialsManager() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('azure.subscriptionId', 'Subscription ID')}:</span>
-                    <span className="font-mono">{maskId(credential.subscription_id)}</span>
+                    <span className="font-mono">{maskId(credential.subscriptionId)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{t('azure.tenantId', 'Tenant ID')}:</span>
-                    <span className="font-mono">{maskId(credential.tenant_id)}</span>
+                    <span className="text-muted-foreground">{t('azure.tenantId', 'Tenant ID (Directory ID)')}:</span>
+                    <span className="font-mono">
+                      {credential.authType === 'oauth' 
+                        ? maskId(credential.oauthTenantId || '') 
+                        : maskId(credential.tenantId || '')}
+                    </span>
                   </div>
+                  {credential.authType === 'oauth' && credential.oauthUserEmail && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t('azure.connectedAs', 'Connected as')}:</span>
+                      <span>{credential.oauthUserEmail}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('azure.regions', 'Regions')}:</span>
                     <span>{credential.regions?.length || 0} {t('azure.regionsConfigured', 'configured')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('common.created', 'Created')}:</span>
-                    <span>{formatDate(credential.created_at)}</span>
+                    <span>{formatDate(credential.createdAt)}</span>
                   </div>
                 </div>
               </CardContent>

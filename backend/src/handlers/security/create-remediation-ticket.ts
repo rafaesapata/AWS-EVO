@@ -5,7 +5,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { parseAndValidateBody, createRemediationTicketSchema } from '../../lib/validation.js';
 import { logger } from '../../lib/logging.js';
@@ -31,7 +31,7 @@ export async function handler(
   }
   
   try {
-    organizationId = getOrganizationId(user);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (orgError) {
     return error('Unauthorized - organization not found', 401, undefined, origin);
   }

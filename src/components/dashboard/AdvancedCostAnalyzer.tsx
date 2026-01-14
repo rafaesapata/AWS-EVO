@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { TrendingDown, Server, Database, Zap, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 export function AdvancedCostAnalyzer() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { data: organizationId } = useOrganization();
-  const { accounts, selectedAccount } = useAwsAccount();
+  const { accounts, selectedAccount } = useCloudAccount();
 
   const { data: recommendations = [], refetch } = useQuery({
     queryKey: ['advanced-cost-recommendations', organizationId],

@@ -25,7 +25,7 @@ import SecurityScans from "@/pages/SecurityScans";
 import CloudTrailAudit from "@/pages/CloudTrailAudit";
 import Compliance from "@/pages/Compliance";
 import RISavingsPlans from "@/pages/RISavingsPlans";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import evoLogo from "@/assets/evo-logo.png";
 import { 
@@ -67,7 +67,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("overview");
   
   // Use global account context for multi-account isolation
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
 
   useEffect(() => {

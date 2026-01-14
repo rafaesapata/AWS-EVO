@@ -7,7 +7,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions, unauthorized } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
@@ -129,7 +129,8 @@ export async function handler(
   try {
     const user = getUserFromEvent(event);
     userId = user.sub || user.id || 'unknown';
-    organizationId = getOrganizationId(user);
+    // Use impersonation-aware function for super admins
+    organizationId = getOrganizationIdWithImpersonation(event, user);
     
     // Parse roles from user claims
     const rolesStr = user['custom:roles'] || user.roles || '[]';
@@ -296,9 +297,20 @@ export async function handler(
         const updateData: Record<string, any> = { ...body.data };
         
         if (TABLES_WITH_ORG_ID.has(body.table)) {
-          where.organization_id = organizationId;
           createData.organization_id = organizationId;
+          // For profiles table with compound unique key, construct proper where clause
+          if (body.table === 'profiles' && where.user_id_organization_id) {
+            where.user_id_organization_id = {
+              ...where.user_id_organization_id,
+              organization_id: organizationId,
+            };
+          } else if (!where.user_id_organization_id) {
+            where.organization_id = organizationId;
+          }
         }
+        
+        // Remove organization_id from updateData to avoid overwriting
+        delete updateData.organization_id;
         
         result = await model.upsert({
           where,

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { cn } from "@/lib/utils";
 import { 
@@ -33,7 +33,7 @@ interface ChatMessage {
 
 export function FloatingCopilot() {
   const { toast } = useToast();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
   
   const [isOpen, setIsOpen] = useState(false);

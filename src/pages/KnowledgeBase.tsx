@@ -746,7 +746,7 @@ function KnowledgeBaseContent() {
       {/* View Article Dialog */}
       <Dialog open={!!viewingArticle} onOpenChange={(open) => !open && setViewingArticle(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          {viewingArticle && (
+          {viewingArticle ? (
             <>
               <DialogHeader>
                 <div className="flex items-start justify-between gap-4">
@@ -904,6 +904,10 @@ function KnowledgeBaseContent() {
                 </div>
               )}
             </>
+          ) : (
+            <DialogHeader>
+              <DialogTitle>Loading...</DialogTitle>
+            </DialogHeader>
           )}
         </DialogContent>
       </Dialog>
@@ -911,7 +915,7 @@ function KnowledgeBaseContent() {
       {/* Edit Article Dialog */}
       <Dialog open={!!editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {editingArticle && (
+          {editingArticle ? (
             <>
               <DialogHeader>
                 <DialogTitle>Edit Article</DialogTitle>
@@ -985,6 +989,10 @@ function KnowledgeBaseContent() {
                 </div>
               </div>
             </>
+          ) : (
+            <DialogHeader>
+              <DialogTitle>Loading...</DialogTitle>
+            </DialogHeader>
           )}
         </DialogContent>
       </Dialog>

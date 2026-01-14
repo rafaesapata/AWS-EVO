@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
   Scan, 
@@ -74,7 +74,8 @@ export default function SecurityScans() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { selectedAccountId } = useCloudAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [selectedScanType, setSelectedScanType] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -102,13 +103,9 @@ export default function SecurityScans() {
       console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage });
       
       let filters: any = { 
-        organization_id: organizationId
+        organization_id: organizationId,
+        ...getAccountFilter() // Multi-cloud compatible filter
       };
-      
-      // Only filter by account if one is selected
-      if (selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
 
       if (selectedScanType !== 'all') {
         filters.scan_type = selectedScanType;
@@ -194,16 +191,20 @@ export default function SecurityScans() {
     },
   });
 
-  // Start new scan using Security Engine V3
+  // Start new scan using Security Engine V3 - supports both AWS and Azure
   const startScanMutation = useMutation({
     mutationFn: async ({ scanLevel }: { scanLevel: 'quick' | 'standard' | 'deep' }) => {
-      console.log('🔍 Starting security scan...', { scanLevel, selectedAccountId });
+      const isAzure = selectedProvider === 'AZURE';
+      console.log('🔍 Starting security scan...', { scanLevel, selectedAccountId, provider: selectedProvider });
       
-      const response = await apiClient.invoke('start-security-scan', {
-        body: {
-          accountId: selectedAccountId,
-          scanLevel
-        }
+      // Call the appropriate Lambda based on provider
+      const lambdaName = isAzure ? 'start-azure-security-scan' : 'start-security-scan';
+      const bodyParam = isAzure 
+        ? { credentialId: selectedAccountId, scanLevel }
+        : { accountId: selectedAccountId, scanLevel };
+      
+      const response = await apiClient.invoke(lambdaName, {
+        body: bodyParam
       });
 
       console.log('📊 Security scan response:', response);
@@ -216,9 +217,10 @@ export default function SecurityScans() {
       return response.data;
     },
     onSuccess: () => {
+      const providerName = selectedProvider === 'AZURE' ? 'Azure' : 'AWS';
       toast({
         title: "Security Scan Iniciado",
-        description: "O scan de segurança AWS foi iniciado com sucesso usando o Security Engine V3.",
+        description: `O scan de segurança ${providerName} foi iniciado com sucesso usando o Security Engine V3.`,
       });
       
       // Invalidate and refetch immediately
@@ -233,10 +235,13 @@ export default function SecurityScans() {
       console.error('❌ Start scan mutation error:', error);
       
       let errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      const isAzure = selectedProvider === 'AZURE';
       
       // Mensagens de erro mais amigáveis
-      if (errorMessage.includes('No AWS credentials')) {
-        errorMessage = "Nenhuma credencial AWS ativa encontrada. Por favor, adicione uma credencial AWS antes de iniciar o scan.";
+      if (errorMessage.includes('No AWS credentials') || errorMessage.includes('No Azure credentials')) {
+        errorMessage = isAzure 
+          ? "Nenhuma credencial Azure ativa encontrada. Por favor, adicione uma credencial Azure antes de iniciar o scan."
+          : "Nenhuma credencial AWS ativa encontrada. Por favor, adicione uma credencial AWS antes de iniciar o scan.";
       } else if (errorMessage.includes('Já existe um scan') || errorMessage.includes('already running')) {
         errorMessage = "Já existe um scan de segurança em execução. Aguarde a conclusão antes de iniciar um novo.";
       }
@@ -432,26 +437,44 @@ export default function SecurityScans() {
     { 
       value: 'quick', 
       label: 'Quick Scan', 
-      description: 'Verificações essenciais de segurança (5-10 min)',
-      icon: <Zap className="h-5 w-5 text-yellow-500" />,
-      checks: '50+ verificações',
-      time: '5-10 min'
+      description: 'Verificações essenciais de segurança',
+      icon: <Zap className="h-6 w-6" />,
+      checks: '50+',
+      time: '5-10 min',
+      color: 'yellow',
+      bgColor: 'bg-yellow-500/10',
+      borderColor: 'border-yellow-500/30',
+      hoverBg: 'hover:bg-yellow-500/20',
+      iconColor: 'text-yellow-500',
+      buttonBg: 'bg-yellow-500 hover:bg-yellow-600'
     },
     { 
       value: 'standard', 
       label: 'Standard Scan', 
-      description: 'Análise completa de segurança AWS (15-30 min)',
-      icon: <Shield className="h-5 w-5 text-blue-500" />,
-      checks: '120+ verificações',
-      time: '15-30 min'
+      description: 'Análise completa de segurança AWS',
+      icon: <Shield className="h-6 w-6" />,
+      checks: '120+',
+      time: '15-30 min',
+      color: 'blue',
+      bgColor: 'bg-blue-500/10',
+      borderColor: 'border-blue-500/30',
+      hoverBg: 'hover:bg-blue-500/20',
+      iconColor: 'text-blue-500',
+      buttonBg: 'bg-blue-500 hover:bg-blue-600'
     },
     { 
       value: 'deep', 
       label: 'Deep Scan', 
-      description: 'Análise profunda com compliance frameworks (30-60 min)',
-      icon: <Activity className="h-5 w-5 text-purple-500" />,
-      checks: '170+ verificações',
-      time: '30-60 min'
+      description: 'Análise profunda com compliance frameworks',
+      icon: <Activity className="h-6 w-6" />,
+      checks: '170+',
+      time: '30-60 min',
+      color: 'purple',
+      bgColor: 'bg-purple-500/10',
+      borderColor: 'border-purple-500/30',
+      hoverBg: 'hover:bg-purple-500/20',
+      iconColor: 'text-purple-500',
+      buttonBg: 'bg-purple-500 hover:bg-purple-600'
     }
   ];
 
@@ -557,56 +580,93 @@ export default function SecurityScans() {
       </div>
 
       {/* Quick Actions */}
-      <Card className="glass border-primary/20 hover-glow transition-all duration-300">
+      <Card className="glass border-primary/20">
         <CardHeader>
-          <CardTitle>Iniciar Security Scan</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Play className="h-5 w-5 text-primary" />
+            Iniciar Security Scan
+          </CardTitle>
           <CardDescription>
-            Escolha o nível de análise desejado. O Security Engine V3 suporta CIS, Well-Architected, PCI-DSS, NIST, LGPD e SOC2.
+            Clique em um dos cards abaixo para iniciar o scan. O Security Engine V3 suporta CIS, Well-Architected, PCI-DSS, NIST, LGPD e SOC2.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {scanLevels.map((scanLevel) => (
-              <Button
-                key={scanLevel.value}
-                variant="outline"
-                className="h-auto p-6 flex flex-col items-center gap-4 glass hover-glow transition-all duration-300 hover:scale-105"
-                onClick={() => handleStartScan(scanLevel.value as 'quick' | 'standard' | 'deep')}
-                disabled={startScanMutation.isPending || hasRunningScan}
-              >
-                <div className="p-3 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors">
-                  {startScanMutation.isPending && scanLevel.value === 'standard' ? (
-                    <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
-                  ) : hasRunningScan ? (
-                    <Clock className="h-5 w-5 text-yellow-500" />
-                  ) : (
-                    scanLevel.icon
-                  )}
-                </div>
-                <div className="text-center space-y-2">
-                  <div className="font-semibold text-lg">
-                    {startScanMutation.isPending && scanLevel.value === 'standard' 
-                      ? 'Iniciando...' 
-                      : hasRunningScan
-                      ? 'Scan em Execução'
-                      : scanLevel.label
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {scanLevels.map((scanLevel) => {
+              const isCurrentlyStarting = startScanMutation.isPending;
+              const isDisabled = isCurrentlyStarting || hasRunningScan;
+              
+              return (
+                <div
+                  key={scanLevel.value}
+                  onClick={() => !isDisabled && handleStartScan(scanLevel.value as 'quick' | 'standard' | 'deep')}
+                  className={`
+                    relative overflow-hidden rounded-xl border-2 p-6 
+                    transition-all duration-300 
+                    ${isDisabled 
+                      ? 'opacity-60 cursor-not-allowed border-muted bg-muted/20' 
+                      : `cursor-pointer ${scanLevel.bgColor} ${scanLevel.borderColor} ${scanLevel.hoverBg} hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]`
                     }
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {hasRunningScan 
-                      ? 'Aguarde a conclusão do scan atual'
-                      : scanLevel.description
+                  `}
+                  role="button"
+                  tabIndex={isDisabled ? -1 : 0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      if (!isDisabled) handleStartScan(scanLevel.value as 'quick' | 'standard' | 'deep');
                     }
-                  </div>
-                  {!hasRunningScan && (
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{scanLevel.checks}</span>
-                      <span>{scanLevel.time}</span>
+                  }}
+                >
+                  {/* Decorative gradient */}
+                  <div className={`absolute top-0 right-0 w-32 h-32 ${scanLevel.bgColor} rounded-full blur-3xl opacity-50 -translate-y-1/2 translate-x-1/2`} />
+                  
+                  <div className="relative space-y-4">
+                    {/* Icon and Badge */}
+                    <div className="flex items-start justify-between">
+                      <div className={`p-3 rounded-xl ${scanLevel.bgColor} ${scanLevel.iconColor}`}>
+                        {isCurrentlyStarting ? (
+                          <RefreshCw className="h-6 w-6 animate-spin" />
+                        ) : hasRunningScan ? (
+                          <Clock className="h-6 w-6 text-muted-foreground" />
+                        ) : (
+                          scanLevel.icon
+                        )}
+                      </div>
+                      <Badge variant="secondary" className="text-xs font-mono">
+                        {scanLevel.checks} checks
+                      </Badge>
                     </div>
-                  )}
+                    
+                    {/* Title and Description */}
+                    <div className="space-y-2">
+                      <h3 className="font-bold text-lg">
+                        {hasRunningScan ? 'Scan em Execução' : scanLevel.label}
+                      </h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {hasRunningScan 
+                          ? 'Aguarde a conclusão do scan atual antes de iniciar um novo.'
+                          : scanLevel.description
+                        }
+                      </p>
+                    </div>
+                    
+                    {/* Footer with time and CTA */}
+                    {!hasRunningScan && (
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                          <span>{scanLevel.time}</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 text-sm font-medium ${scanLevel.iconColor}`}>
+                          <span>Iniciar</span>
+                          <Play className="h-4 w-4" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </Button>
-            ))}
+              );
+            })}
           </div>
           
           <div className="mt-6 p-4 bg-muted/30 rounded-lg glass-hover">

@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { compareDates, getDayOfMonth } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
@@ -57,7 +57,8 @@ export const MonthlyInvoicesPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId, selectedAccount } = useCloudAccount();
+  const { selectedAccountId, selectedAccount, accounts: allAccounts, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -65,56 +66,101 @@ export const MonthlyInvoicesPage = () => {
   
   const currentLocale = i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US';
 
-  // Sync costs from AWS - always runs on page load to fetch missing days
-  const syncCostsFromAWS = useCallback(async (accountId: string) => {
+  // Sync costs from cloud provider - supports both AWS and Azure
+  const syncCostsFromCloud = useCallback(async (accountId: string) => {
     if (isSyncing || !accountId) return;
     
     setIsSyncing(true);
     
     try {
-      // Call fetch-daily-costs Lambda with incremental=true
-      // The Lambda will automatically detect the last date in DB and fetch only missing days
-      const response = await apiClient.invoke<{
-        success: boolean;
-        summary: {
-          totalRecords: number;
-          newRecords: number;
-          skippedDays: number;
-          uniqueDates: number;
-          incremental: boolean;
-        };
-      }>('fetch-daily-costs', {
-        body: {
-          accountId: accountId,
-          incremental: true, // Lambda will fetch only missing days
-        }
-      });
+      // Use provider from context for consistency
+      const isAzure = selectedProvider === 'AZURE';
 
-      if (response.error) {
-        console.error('Error syncing costs:', response.error);
-        return;
-      }
-
-      const summary = response.data?.summary;
-      
-      // Only show toast and refresh if new data was found
-      if (summary && summary.newRecords > 0) {
-        toast({
-          title: '✅ Novos dados sincronizados',
-          description: `${summary.newRecords} novos registros de custos carregados`,
-        });
+      if (isAzure) {
+        // Azure: Call azure-fetch-costs Lambda
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         
-        // Invalidate cache to reload data from database
-        await queryClient.invalidateQueries({ 
-          queryKey: ['monthly-invoices-data', organizationId, accountId] 
+        const response = await apiClient.invoke<{
+          success?: boolean;
+          summary?: {
+            totalCost: number;
+            recordCount: number;
+            savedCount: number;
+            skippedCount: number;
+          };
+        }>('azure-fetch-costs', {
+          body: {
+            credentialId: accountId,
+            startDate,
+            endDate,
+            granularity: 'DAILY',
+          }
         });
+
+        if (response.error) {
+          console.error('Error syncing Azure costs:', response.error);
+          return;
+        }
+
+        const summary = response.data?.summary;
+        
+        // Only show toast and refresh if new data was found
+        if (summary && summary.savedCount > 0) {
+          toast({
+            title: '✅ Novos dados Azure sincronizados',
+            description: `${summary.savedCount} novos registros de custos carregados`,
+          });
+          
+          // Invalidate cache to reload data from database
+          await queryClient.invalidateQueries({ 
+            queryKey: ['monthly-invoices-data', organizationId, accountId] 
+          });
+        }
+      } else {
+        // AWS: Call fetch-daily-costs Lambda with incremental=true
+        const response = await apiClient.invoke<{
+          success: boolean;
+          summary: {
+            totalRecords: number;
+            newRecords: number;
+            skippedDays: number;
+            uniqueDates: number;
+            incremental: boolean;
+          };
+        }>('fetch-daily-costs', {
+          body: {
+            accountId: accountId,
+            incremental: true, // Lambda will fetch only missing days
+          }
+        });
+
+        if (response.error) {
+          console.error('Error syncing costs:', response.error);
+          return;
+        }
+
+        const summary = response.data?.summary;
+        
+        // Only show toast and refresh if new data was found
+        if (summary && summary.newRecords > 0) {
+          toast({
+            title: '✅ Novos dados sincronizados',
+            description: `${summary.newRecords} novos registros de custos carregados`,
+          });
+          
+          // Invalidate cache to reload data from database
+          await queryClient.invalidateQueries({ 
+            queryKey: ['monthly-invoices-data', organizationId, accountId] 
+          });
+        }
       }
     } catch (error) {
-      console.error('Error syncing costs from AWS:', error);
+      console.error('Error syncing costs from cloud:', error);
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing, organizationId, queryClient, toast]);
+  }, [isSyncing, organizationId, queryClient, toast, selectedProvider]);
 
   // Get all daily costs from organization
   const { data: allCosts, isLoading: isLoadingCosts } = useQuery({
@@ -127,7 +173,7 @@ export const MonthlyInvoicesPage = () => {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible
         },
         order: { column: 'date', ascending: false },
         limit: 50000 // Ensure we get all cost records (default is 1000)
@@ -145,9 +191,9 @@ export const MonthlyInvoicesPage = () => {
   useEffect(() => {
     if (selectedAccountId && organizationId && hasSyncedRef.current !== selectedAccountId) {
       hasSyncedRef.current = selectedAccountId;
-      syncCostsFromAWS(selectedAccountId);
+      syncCostsFromCloud(selectedAccountId);
     }
-  }, [selectedAccountId, organizationId, syncCostsFromAWS]);
+  }, [selectedAccountId, organizationId, syncCostsFromCloud]);
 
   // Process monthly data from daily costs
   // Schema: id, organization_id, aws_account_id, date, service, cost, usage, currency
@@ -278,53 +324,100 @@ export const MonthlyInvoicesPage = () => {
   const loadHistoricalData = async (forceFullRefresh = false) => {
     setIsLoadingHistory(true);
     try {
+      // Use provider from context for consistency
+      const isAzure = selectedProvider === 'AZURE';
+      const providerName = isAzure ? 'Azure' : 'AWS';
+
       toast({
         title: forceFullRefresh ? 'Recarregando todos os dados...' : 'Atualizando custos...',
         description: forceFullRefresh 
-          ? 'Buscando histórico completo de custos' 
-          : 'Buscando apenas novos dados (incremental)',
+          ? `Buscando histórico completo de custos ${providerName}` 
+          : `Buscando apenas novos dados ${providerName} (incremental)`,
       });
 
-      // Chamar a Lambda fetch-daily-costs com busca incremental
-      const response = await apiClient.invoke<{
-        success: boolean;
-        summary: {
-          totalRecords: number;
-          newRecords: number;
-          skippedDays: number;
-          uniqueDates: number;
-          incremental: boolean;
-        };
-      }>('fetch-daily-costs', {
-        body: {
-          accountId: selectedAccountId,
-          incremental: !forceFullRefresh,
-        }
-      });
-
-      if (response.error) {
-        throw new Error(getErrorMessage(response.error));
-      }
-
-      const summary = response.data?.summary;
-      
-      // Invalidar cache para recarregar dados do banco
-      await queryClient.invalidateQueries({ 
-        queryKey: ['monthly-invoices-data', organizationId, selectedAccountId] 
-      });
-
-      if (summary?.newRecords === 0 && summary?.skippedDays > 0) {
-        toast({
-          title: '✅ Dados já atualizados',
-          description: `Nenhum novo dado encontrado. ${summary.skippedDays} dias já estavam no banco.`,
+      if (isAzure) {
+        // Azure: Call azure-fetch-costs Lambda
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = forceFullRefresh 
+          ? '2024-01-01' 
+          : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const response = await apiClient.invoke<{
+          success?: boolean;
+          summary?: {
+            totalCost: number;
+            recordCount: number;
+            savedCount: number;
+            skippedCount: number;
+          };
+        }>('azure-fetch-costs', {
+          body: {
+            credentialId: selectedAccountId,
+            startDate,
+            endDate,
+            granularity: 'DAILY',
+          }
         });
-      } else {
+
+        if (response.error) {
+          throw new Error(getErrorMessage(response.error));
+        }
+
+        const summary = response.data?.summary;
+        
+        // Invalidar cache para recarregar dados do banco
+        await queryClient.invalidateQueries({ 
+          queryKey: ['monthly-invoices-data', organizationId, selectedAccountId] 
+        });
+
         toast({
-          title: '✅ Custos atualizados',
+          title: '✅ Custos Azure atualizados',
           description: summary 
-            ? `${summary.newRecords} novos registros. ${summary.uniqueDates} dias de dados.`
+            ? `${summary.savedCount} registros salvos. Total: $${summary.totalCost?.toFixed(2) || '0.00'}`
             : 'Dados atualizados com sucesso',
         });
+      } else {
+        // AWS: Call fetch-daily-costs Lambda
+        const response = await apiClient.invoke<{
+          success: boolean;
+          summary: {
+            totalRecords: number;
+            newRecords: number;
+            skippedDays: number;
+            uniqueDates: number;
+            incremental: boolean;
+          };
+        }>('fetch-daily-costs', {
+          body: {
+            accountId: selectedAccountId,
+            incremental: !forceFullRefresh,
+          }
+        });
+
+        if (response.error) {
+          throw new Error(getErrorMessage(response.error));
+        }
+
+        const summary = response.data?.summary;
+        
+        // Invalidar cache para recarregar dados do banco
+        await queryClient.invalidateQueries({ 
+          queryKey: ['monthly-invoices-data', organizationId, selectedAccountId] 
+        });
+
+        if (summary?.newRecords === 0 && summary?.skippedDays > 0) {
+          toast({
+            title: '✅ Dados já atualizados',
+            description: `Nenhum novo dado encontrado. ${summary.skippedDays} dias já estavam no banco.`,
+          });
+        } else {
+          toast({
+            title: '✅ Custos atualizados',
+            description: summary 
+              ? `${summary.newRecords} novos registros. ${summary.uniqueDates} dias de dados.`
+              : 'Dados atualizados com sucesso',
+          });
+        }
       }
     } catch (error) {
       console.error('Error loading historical data:', error);
@@ -337,11 +430,14 @@ export const MonthlyInvoicesPage = () => {
       setIsLoadingHistory(false);
     }
   };
+  
+  // Use provider from context for display
+  const providerDisplayName = selectedProvider === 'AZURE' ? 'Azure' : 'AWS';
 
   return (
     <Layout 
-      title="Faturas Mensais AWS" 
-      description="Visualização e análise detalhada das faturas mensais da AWS"
+      title={`Faturas Mensais ${providerDisplayName}`}
+      description={`Visualização e análise detalhada das faturas mensais ${selectedProvider === 'AZURE' ? 'do Azure' : 'da AWS'}`}
       icon={<FileText className="h-5 w-5 text-white" />}
     >
       <div className="space-y-6">

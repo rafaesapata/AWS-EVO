@@ -6,11 +6,12 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
+import { validateServicePrincipalCredentials } from '../../lib/azure-helpers.js';
 import { z } from 'zod';
 
 // Validation schema
@@ -30,7 +31,7 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
     logger.info('Discovering Azure resources', { organizationId });
@@ -63,14 +64,32 @@ export async function handler(
       return error('Azure credential not found or inactive', 404);
     }
 
-    // Create Azure provider and list resources
-    const azureProvider = new AzureProvider(organizationId, {
-      tenantId: credential.tenant_id,
-      clientId: credential.client_id,
-      clientSecret: credential.client_secret,
-      subscriptionId: credential.subscription_id,
-      subscriptionName: credential.subscription_name || undefined,
-    });
+    // Handle both OAuth and Service Principal credentials
+    let azureProvider: AzureProvider;
+    
+    if (credential.auth_type === 'oauth') {
+      const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+      const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
+      
+      if (!tokenResult.success) {
+        return error(tokenResult.error, 400);
+      }
+      
+      azureProvider = AzureProvider.withOAuthToken(
+        organizationId,
+        credential.subscription_id,
+        credential.subscription_name || undefined,
+        credential.oauth_tenant_id || credential.tenant_id || '',
+        tokenResult.accessToken,
+        new Date(Date.now() + 3600 * 1000)
+      );
+    } else {
+      const spValidation = validateServicePrincipalCredentials(credential);
+      if (!spValidation.valid) {
+        return error(spValidation.error, 400);
+      }
+      azureProvider = new AzureProvider(organizationId, spValidation.credentials);
+    }
 
     const resources = await azureProvider.listResources(resourceTypes);
 

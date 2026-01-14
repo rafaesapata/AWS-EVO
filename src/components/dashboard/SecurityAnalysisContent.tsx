@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 import FindingsTable from "./FindingsTable";
 import { SecurityPostureSkeleton, CategoryBreakdownSkeleton, FindingsTableSkeleton } from "./SecurityAnalysisSkeleton";
 import { SecurityAnalysisHistory } from "./SecurityAnalysisHistory";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { InfoTooltip, tooltipContent } from "@/components/ui/info-tooltip";
 
@@ -63,7 +63,8 @@ const SCAN_LEVELS: ScanLevelInfo[] = [
 
 export default function SecurityAnalysisContent() {
   const { t } = useTranslation();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [isScanning, setIsScanning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -78,6 +79,9 @@ export default function SecurityAnalysisContent() {
   const [selectedScanLevel, setSelectedScanLevel] = useState<ScanLevel>('advanced');
   const itemsPerPage = 25;
   const { toast } = useToast();
+  
+  // Multi-cloud support
+  const isAzure = selectedProvider === 'AZURE';
 
   // Get security posture - query from security_posture table
   const { data: posture, refetch: refetchPosture, isLoading: isLoadingPosture } = useQuery({
@@ -87,7 +91,7 @@ export default function SecurityAnalysisContent() {
       const response = await apiClient.select('security_posture', {
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible
         },
         order: { column: 'updated_at', ascending: false },
         limit: 1
@@ -106,7 +110,7 @@ export default function SecurityAnalysisContent() {
       const response = await apiClient.select('security_scans', {
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible
         },
         order: { column: 'created_at', ascending: false },
         limit: 1
@@ -148,7 +152,7 @@ export default function SecurityAnalysisContent() {
         // Since findings don't have scan_id, we'll need to use the scan timestamp
         if (scanData) {
           const findingsResponse = await apiClient.select('findings', { 
-            eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+            eq: { organization_id: organizationId, ...getAccountFilter() } 
           });
           if (findingsResponse.error) throw findingsResponse.error;
           return findingsResponse.data || [];
@@ -167,15 +171,11 @@ export default function SecurityAnalysisContent() {
 
       const mappedStatus = statusMap[selectedStatus.toLowerCase()] || selectedStatus;
 
-      // Build query filters - organization_id is required, aws_account_id is optional
+      // Build query filters - organization_id is required, account filter is multi-cloud compatible
       const filters: Record<string, any> = { 
-        organization_id: organizationId
+        organization_id: organizationId,
+        ...getAccountFilter() // Multi-cloud compatible
       };
-      
-      // Only filter by aws_account_id if selected (for multi-account support)
-      if (selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
       
       // Add status filter if not 'all'
       if (mappedStatus !== 'all') {
@@ -247,16 +247,20 @@ export default function SecurityAnalysisContent() {
     
     try {
       const levelInfo = SCAN_LEVELS.find(l => l.id === selectedScanLevel);
+      const providerName = isAzure ? 'Azure' : 'AWS';
       toast({
         title: t('securityAnalysis.startingScan'),
-        description: `${levelInfo?.icon} ${levelInfo?.name}: ${t('securityAnalysis.analyzingInfra')} (${levelInfo?.estimatedTime})`,
+        description: `${levelInfo?.icon} ${levelInfo?.name}: ${t('securityAnalysis.analyzingInfra')} ${providerName} (${levelInfo?.estimatedTime})`,
       });
 
-      const response = await apiClient.invoke('security-scan', { 
-        body: {
-          accountId: selectedAccountId,
-          scanLevel: selectedScanLevel
-        }
+      // Multi-cloud: Call appropriate Lambda based on provider
+      const lambdaName = isAzure ? 'azure-security-scan' : 'security-scan';
+      const bodyParam = isAzure 
+        ? { credentialId: selectedAccountId, scanLevel: selectedScanLevel }
+        : { accountId: selectedAccountId, scanLevel: selectedScanLevel };
+
+      const response = await apiClient.invoke(lambdaName, { 
+        body: bodyParam
       });
       
       if (response?.error) {

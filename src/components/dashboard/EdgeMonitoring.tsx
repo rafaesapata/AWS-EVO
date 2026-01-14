@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { PageHeader } from "@/components/ui/page-header";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -100,7 +100,8 @@ export const EdgeMonitoring = () => {
   
   // CRITICAL: Get organization ID and global account selector
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId, accounts } = useAwsAccount();
+  const { selectedAccountId, accounts } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   
   // Calculate time window based on period - with 20% buffer for complete coverage
   const getTimeWindow = () => {
@@ -132,7 +133,7 @@ export const EdgeMonitoring = () => {
       const resourceResponse = await apiClient.select('monitored_resources', { 
         eq: { 
           organization_id: organizationId, 
-          aws_account_id: selectedAccountId 
+          ...getAccountFilter() 
         } 
       });
       console.log('Edge resources found:', resourceResponse.data?.length, resourceResponse.data);
@@ -161,7 +162,7 @@ export const EdgeMonitoring = () => {
       const metricsResponse = await apiClient.select('resource_metrics', { 
         eq: { 
           organization_id: organizationId, 
-          aws_account_id: selectedAccountId 
+          ...getAccountFilter() 
         },
         order: { column: 'timestamp', ascending: false },
         limit: 500
@@ -208,7 +209,7 @@ export const EdgeMonitoring = () => {
       const edgeCheckResponse = await apiClient.select('monitored_resources', { 
         eq: { 
           organization_id: organizationId, 
-          aws_account_id: selectedAccountId 
+          ...getAccountFilter() 
         } 
       });
       const edgeCount = edgeCheckResponse.data?.filter(r => 
@@ -274,7 +275,7 @@ export const EdgeMonitoring = () => {
       const response = await apiClient.select('resource_metrics', { 
         eq: { 
           resource_id: selectedResource.resource_id,
-          aws_account_id: selectedAccountId 
+          ...getAccountFilter() 
         },
         order: { column: 'timestamp', ascending: false },
         limit: 100

@@ -9,7 +9,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { logger } from '../../lib/logging.js';
 import { success, error, badRequest, forbidden, corsOptions } from '../../lib/response.js';
 import { getHttpMethod } from '../../lib/middleware.js';
-import { getUserFromEvent, getOrganizationId, requireRole } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation, requireRole } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { manageUserSchema } from '../../lib/schemas.js';
 import { 
@@ -34,7 +34,7 @@ export async function handler(
   
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     // Apenas admins podem gerenciar usuários
     requireRole(user, 'admin');
@@ -198,6 +198,79 @@ export async function handler(
         );
         
         return success({ message: 'Password reset successfully', email });
+      }
+      
+      case 'update_organization': {
+        // SUPER ADMIN ONLY: Update user's organization in Cognito
+        const userRolesStr = user['custom:roles'] || '[]';
+        let userRoles: string[] = [];
+        try {
+          userRoles = JSON.parse(userRolesStr);
+        } catch {
+          userRoles = [];
+        }
+        
+        if (!userRoles.includes('super_admin')) {
+          return forbidden('Only super admins can change user organization');
+        }
+        
+        if (!attributes?.organization_id || !attributes?.organization_name) {
+          return badRequest('organization_id and organization_name are required');
+        }
+        
+        // Verify the target organization exists
+        const targetOrg = await prisma.organization.findUnique({
+          where: { id: attributes.organization_id },
+        });
+        
+        if (!targetOrg) {
+          return badRequest('Target organization not found');
+        }
+        
+        // Update Cognito user attributes
+        const updateAttributes = [
+          { Name: 'custom:organization_id', Value: attributes.organization_id },
+          { Name: 'custom:organization_name', Value: attributes.organization_name },
+        ];
+        
+        if (attributes.roles) {
+          updateAttributes.push({ 
+            Name: 'custom:roles', 
+            Value: JSON.stringify(attributes.roles) 
+          });
+        }
+        
+        await cognitoClient.send(
+          new AdminUpdateUserAttributesCommand({
+            UserPoolId: userPoolId,
+            Username: email,
+            UserAttributes: updateAttributes,
+          })
+        );
+        
+        // Registrar auditoria
+        await prisma.auditLog.create({
+          data: {
+            organization_id: organizationId,
+            user_id: user.sub,
+            action: 'UPDATE_USER_ORGANIZATION',
+            resource_type: 'user',
+            resource_id: email,
+            details: { 
+              new_organization_id: attributes.organization_id,
+              new_organization_name: attributes.organization_name,
+            },
+          },
+        });
+        
+        logger.info(`✅ User ${email} organization updated to ${attributes.organization_name}`);
+        
+        return success({ 
+          message: 'User organization updated successfully', 
+          email,
+          organization_id: attributes.organization_id,
+          organization_name: attributes.organization_name,
+        });
       }
       
       default:

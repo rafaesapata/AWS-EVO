@@ -6,7 +6,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions, badRequest } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getOrigin } from '../../lib/middleware.js';
@@ -185,7 +185,7 @@ export async function handler(
   try {
     // 1. Authentication
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     const userId = user.sub;
 
     // 2. Validate input
@@ -335,24 +335,30 @@ async function getFinancialData(
     take: 5
   });
 
-  // Cost recommendations - try different table names
-  let recommendations = { _sum: { projected_savings_monthly: 0 }, _count: 0 };
+  // Cost optimizations from cost_optimizations table
+  let costOptimizations = { _sum: { potential_savings: 0 }, _count: 0 };
   try {
-    recommendations = await prisma.costRecommendation.aggregate({
-      where: { organization_id: organizationId },
-      _sum: { projected_savings_monthly: true },
+    costOptimizations = await prisma.costOptimization.aggregate({
+      where: { 
+        organization_id: organizationId,
+        status: { in: ['pending', 'active'] }
+      },
+      _sum: { potential_savings: true },
       _count: true
     });
   } catch {
     // Table might not exist
   }
 
-  // RI/SP recommendations
-  let riSpRecommendations = { _sum: { monthly_savings: 0 }, _count: 0 };
+  // RI/SP recommendations from ri_sp_recommendations table
+  let riSpRecommendations = { _sum: { estimated_monthly_savings: 0 }, _count: 0 };
   try {
     riSpRecommendations = await prisma.riSpRecommendation.aggregate({
-      where: { organization_id: organizationId },
-      _sum: { monthly_savings: true },
+      where: { 
+        organization_id: organizationId,
+        status: { in: ['active', 'pending'] }
+      },
+      _sum: { estimated_monthly_savings: true },
       _count: true
     });
   } catch {
@@ -381,11 +387,11 @@ async function getFinancialData(
     budgetUtilization: budgetAmount > 0 ? (mtdTotal / budgetAmount) * 100 : 0,
     topServices: sortedServices,
     savings: {
-      potential: Number(recommendations._sum?.projected_savings_monthly || 0) +
-                 Number(riSpRecommendations._sum?.monthly_savings || 0),
-      costRecommendations: Number(recommendations._sum?.projected_savings_monthly || 0),
-      riSpRecommendations: Number(riSpRecommendations._sum?.monthly_savings || 0),
-      recommendationsCount: (recommendations._count || 0) + (riSpRecommendations._count || 0)
+      potential: Number(costOptimizations._sum?.potential_savings || 0) +
+                 Number(riSpRecommendations._sum?.estimated_monthly_savings || 0),
+      costRecommendations: Number(costOptimizations._sum?.potential_savings || 0),
+      riSpRecommendations: Number(riSpRecommendations._sum?.estimated_monthly_savings || 0),
+      recommendationsCount: (costOptimizations._count || 0) + (riSpRecommendations._count || 0)
     },
     lastCostUpdate: lastCostDate ? lastCostDate.toISOString() : null
   };
@@ -739,23 +745,29 @@ async function getInsightsData(
     let totalSavings = 0;
     
     try {
-      const recommendations = await prisma.costRecommendation.aggregate({
-        where: { organization_id: organizationId },
-        _sum: { projected_savings_monthly: true },
+      const costOptimizations = await prisma.costOptimization.aggregate({
+        where: { 
+          organization_id: organizationId,
+          status: { in: ['pending', 'active'] }
+        },
+        _sum: { potential_savings: true },
         _count: true
       });
-      savingsCount += recommendations._count || 0;
-      totalSavings += Number(recommendations._sum?.projected_savings_monthly || 0);
+      savingsCount += costOptimizations._count || 0;
+      totalSavings += Number(costOptimizations._sum?.potential_savings || 0);
     } catch { /* table might not exist */ }
 
     try {
       const riSpRecs = await prisma.riSpRecommendation.aggregate({
-        where: { organization_id: organizationId },
-        _sum: { monthly_savings: true },
+        where: { 
+          organization_id: organizationId,
+          status: { in: ['active', 'pending'] }
+        },
+        _sum: { estimated_monthly_savings: true },
         _count: true
       });
       savingsCount += riSpRecs._count || 0;
-      totalSavings += Number(riSpRecs._sum?.monthly_savings || 0);
+      totalSavings += Number(riSpRecs._sum?.estimated_monthly_savings || 0);
     } catch { /* table might not exist */ }
 
     if (totalSavings > 100) {

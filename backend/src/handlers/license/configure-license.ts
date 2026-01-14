@@ -6,7 +6,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
 import { success, error, badRequest, corsOptions, forbidden } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId, isAdmin } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation, isAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { syncOrganizationLicenses } from '../../lib/license-service.js';
@@ -29,7 +29,7 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
 
     // Only admins can configure license
     if (!isAdmin(user)) {

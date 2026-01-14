@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Shield, AlertTriangle, CheckCircle2, Clock, FileText, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 
 interface IAMFinding {
   id: string;
@@ -33,16 +33,17 @@ export function IAMAnalysis() {
   const [isScanning, setIsScanning] = useState(false);
   const queryClient = useQueryClient();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
 
   const { data: findings, isLoading } = useQuery({
     queryKey: ['iam-findings', organizationId, selectedAccountId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const filters: Record<string, any> = { organization_id: organizationId };
-      if (selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
+      const filters: Record<string, any> = { 
+        organization_id: organizationId,
+        ...getAccountFilter() // Multi-cloud compatible
+      };
       
       const response = await apiClient.select<IAMFinding>('iam_findings', {
         eq: filters,

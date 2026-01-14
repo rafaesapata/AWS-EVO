@@ -20,8 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
-// Note: CostOptimization already uses useAwsAccount for selectedAccountId
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 
 interface CostOptimizationProps {
   onAnalysisComplete: () => void;
@@ -49,7 +48,7 @@ export const CostOptimization = ({ onAnalysisComplete }: CostOptimizationProps) 
   const { t } = useTranslation();
   const { isTVMode } = useTVDashboard();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedRec, setSelectedRec] = useState<CostRecommendation | null>(null);
   const [showIgnoreDialog, setShowIgnoreDialog] = useState(false);

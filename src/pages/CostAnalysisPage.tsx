@@ -19,7 +19,7 @@ import { ExportManager } from "@/components/dashboard/cost-analysis/ExportManage
 import { RiSpAnalysis } from "@/components/cost/RiSpAnalysis";
 import { formatDateBR, compareDates } from "@/lib/utils";
 
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 
 
@@ -48,7 +48,8 @@ export const CostAnalysisPage = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Use global account context for multi-account isolation
-  const { selectedAccountId, accounts: allAccounts } = useCloudAccount();
+  const { selectedAccountId, accounts: allAccounts, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
 
   // Get available tags from organization - filtered by selected account
@@ -60,7 +61,7 @@ export const CostAnalysisPage = () => {
     queryFn: async () => {
       // Query tags filtered by selected account
       const response = await apiClient.select('cost_allocation_tags', { 
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+        eq: { organization_id: organizationId, ...getAccountFilter() } 
       });
       const data = response.data;
       const error = response.error;
@@ -107,7 +108,7 @@ export const CostAnalysisPage = () => {
       console.log('CostAnalysisPage: Query params:', { startDateStr, endDateStr, organizationId, selectedAccountId });
       
       const response = await apiClient.select('daily_costs', { 
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId },
+        eq: { organization_id: organizationId, ...getAccountFilter() },
         gte: { date: startDateStr },
         lte: { date: endDateStr },
         order: { column: 'date', ascending: false }
@@ -244,7 +245,7 @@ export const CostAnalysisPage = () => {
     return filteredCosts;
   })();
 
-  // Mutation to refresh costs
+  // Mutation to refresh costs - supports both AWS and Azure
   const refreshCostsMutation = useMutation({
     mutationFn: async () => {
       const accountId = selectedAccountId === 'all' ? allAccounts?.[0]?.id : selectedAccountId;
@@ -253,24 +254,62 @@ export const CostAnalysisPage = () => {
         throw new Error(t('costAnalysis.noAwsAccount'));
       }
 
-      const result = await apiClient.invoke<any>('fetch-daily-costs', {
-        body: { accountId: accountId, days: 90 }
-      });
-      
-      if (result.error) {
-        throw new Error(result.error.message || t('costAnalysis.updateError'));
-      }
-      
-      const data = result.data;
-      
-      if (!data?.success) {
-        const errorMsg = typeof data?.error === 'string' 
-          ? data.error 
-          : data?.error?.message || t('costAnalysis.updateError');
-        throw new Error(errorMsg);
-      }
+      // Use provider from context for consistency
+      const isAzure = selectedProvider === 'AZURE';
 
-      return data;
+      if (isAzure) {
+        // Azure: Call azure-fetch-costs Lambda
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const result = await apiClient.invoke<any>('azure-fetch-costs', {
+          body: { 
+            credentialId: accountId, 
+            startDate,
+            endDate,
+            granularity: 'DAILY'
+          }
+        });
+        
+        if (result.error) {
+          throw new Error(result.error.message || t('costAnalysis.updateError'));
+        }
+        
+        const data = result.data;
+        
+        // Azure Lambda returns different structure
+        return {
+          success: true,
+          data: {
+            dailyCosts: data?.byService ? Object.entries(data.byService).map(([service, cost]) => ({
+              service,
+              cost,
+              date: endDate,
+            })) : [],
+          },
+          summary: data?.summary || { totalRecords: 0, newRecords: data?.summary?.savedCount || 0 },
+        };
+      } else {
+        // AWS: Call fetch-daily-costs Lambda
+        const result = await apiClient.invoke<any>('fetch-daily-costs', {
+          body: { accountId: accountId, days: 90 }
+        });
+        
+        if (result.error) {
+          throw new Error(result.error.message || t('costAnalysis.updateError'));
+        }
+        
+        const data = result.data;
+        
+        if (!data?.success) {
+          const errorMsg = typeof data?.error === 'string' 
+            ? data.error 
+            : data?.error?.message || t('costAnalysis.updateError');
+          throw new Error(errorMsg);
+        }
+
+        return data;
+      }
     },
     onSuccess: (data) => {
       const daysUpdated = data.data?.dailyCosts?.length || 0;
@@ -313,7 +352,7 @@ export const CostAnalysisPage = () => {
     },
   });
 
-  // Mutation for full cost data fetch (non-incremental)
+  // Mutation for full cost data fetch (non-incremental) - supports both AWS and Azure
   const fullFetchCostsMutation = useMutation({
     mutationFn: async () => {
       const accountId = selectedAccountId === 'all' ? allAccounts?.[0]?.id : selectedAccountId;
@@ -322,29 +361,66 @@ export const CostAnalysisPage = () => {
         throw new Error(t('costAnalysis.noAwsAccount'));
       }
 
-      const result = await apiClient.invoke<any>('fetch-daily-costs', {
-        body: { 
-          accountId: accountId, 
-          incremental: false, // Force full fetch
-          granularity: 'DAILY',
-          startDate: '2024-01-01' // Fetch from beginning of 2024
-        }
-      });
-      
-      if (result.error) {
-        throw new Error(result.error.message || t('costAnalysis.updateError'));
-      }
-      
-      const data = result.data;
-      
-      if (!data?.success) {
-        const errorMsg = typeof data?.error === 'string' 
-          ? data.error 
-          : data?.error?.message || t('costAnalysis.updateError');
-        throw new Error(errorMsg);
-      }
+      // Use provider from context for consistency
+      const isAzure = selectedProvider === 'AZURE';
 
-      return data;
+      if (isAzure) {
+        // Azure: Call azure-fetch-costs Lambda with full date range
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = '2024-01-01'; // Full fetch from beginning of 2024
+        
+        const result = await apiClient.invoke<any>('azure-fetch-costs', {
+          body: { 
+            credentialId: accountId, 
+            startDate,
+            endDate,
+            granularity: 'DAILY'
+          }
+        });
+        
+        if (result.error) {
+          throw new Error(result.error.message || t('costAnalysis.updateError'));
+        }
+        
+        const data = result.data;
+        
+        return {
+          success: true,
+          data: {
+            dailyCosts: data?.byService ? Object.entries(data.byService).map(([service, cost]) => ({
+              service,
+              cost,
+              date: endDate,
+            })) : [],
+          },
+          summary: data?.summary || { totalRecords: 0, newRecords: data?.summary?.savedCount || 0 },
+        };
+      } else {
+        // AWS: Call fetch-daily-costs Lambda
+        const result = await apiClient.invoke<any>('fetch-daily-costs', {
+          body: { 
+            accountId: accountId, 
+            incremental: false, // Force full fetch
+            granularity: 'DAILY',
+            startDate: '2024-01-01' // Fetch from beginning of 2024
+          }
+        });
+        
+        if (result.error) {
+          throw new Error(result.error.message || t('costAnalysis.updateError'));
+        }
+        
+        const data = result.data;
+        
+        if (!data?.success) {
+          const errorMsg = typeof data?.error === 'string' 
+            ? data.error 
+            : data?.error?.message || t('costAnalysis.updateError');
+          throw new Error(errorMsg);
+        }
+
+        return data;
+      }
     },
     onSuccess: (data) => {
       const daysUpdated = data.data?.dailyCosts?.length || 0;

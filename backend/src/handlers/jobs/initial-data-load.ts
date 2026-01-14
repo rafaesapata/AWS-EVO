@@ -1,7 +1,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { success, error, badRequest, notFound, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
@@ -37,7 +37,7 @@ export async function handler(
   try {
     const user = getUserFromEvent(event);
     userId = user.sub || user.id || 'unknown';
-    organizationId = getOrganizationId(user);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (authError) {
     logger.error('Authentication error', authError);
     return error('Unauthorized', 401, undefined, origin);

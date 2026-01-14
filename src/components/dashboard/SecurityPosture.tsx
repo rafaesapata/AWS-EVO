@@ -6,7 +6,7 @@ import { Shield, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 import { InfoTooltip, tooltipContent } from "@/components/ui/info-tooltip";
@@ -16,7 +16,7 @@ export default function SecurityPosture() {
   const { t } = useTranslation();
   const { isTVMode } = useTVDashboard();
   // Use global account context for multi-account isolation
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
 
   const { data: posture, isLoading } = useQuery({

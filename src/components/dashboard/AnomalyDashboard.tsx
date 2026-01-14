@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
 import { apiClient, getErrorMessage } from '@/integrations/aws/api-client';
 import { useOrganization } from '@/hooks/useOrganization';
-import { useAwsAccount } from '@/contexts/AwsAccountContext';
+import { useCloudAccount, useAccountFilter } from '@/contexts/CloudAccountContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,8 @@ interface AnomalyFinding {
 export function AnomalyDashboard() {
   const { t } = useTranslation();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { toast } = useToast();
   const [selectedAnomaly, setSelectedAnomaly] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'detection' | 'history'>('detection');
@@ -60,13 +61,9 @@ export function AnomalyDashboard() {
 
       const filters: Record<string, any> = { 
         organization_id: organizationId, 
-        scan_type: 'anomaly_detection' 
+        scan_type: 'anomaly_detection',
+        ...getAccountFilter() // Multi-cloud compatible
       };
-      
-      // Filter by selected account if one is selected
-      if (selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
 
       const result = await apiClient.select('findings', {
         select: '*',
@@ -99,13 +96,24 @@ export function AnomalyDashboard() {
         description: t('anomalyDetection.detectionInProgress'),
       });
 
-      const result = await apiClient.invoke('detect-anomalies', {
-        body: { 
-          awsAccountId: selectedAccountId,
-          analysisType: 'all',
-          sensitivity: 'medium',
-          lookbackDays: 30
-        }
+      // Use provider-specific endpoint
+      const endpoint = selectedProvider === 'AZURE' ? 'azure-detect-anomalies' : 'detect-anomalies';
+      const bodyParams = selectedProvider === 'AZURE' 
+        ? {
+            azureCredentialId: selectedAccountId,
+            analysisType: 'all',
+            sensitivity: 'medium',
+            lookbackDays: 30
+          }
+        : { 
+            awsAccountId: selectedAccountId,
+            analysisType: 'all',
+            sensitivity: 'medium',
+            lookbackDays: 30
+          };
+
+      const result = await apiClient.invoke(endpoint, {
+        body: bodyParams
       });
 
       if (result.error) {

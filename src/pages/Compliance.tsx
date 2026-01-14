@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
 import { 
@@ -58,6 +58,7 @@ interface ComplianceControl {
 export default function Compliance() {
   const { toast } = useToast();
   const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [selectedFramework, setSelectedFramework] = useState<string>('all');
 
@@ -71,7 +72,7 @@ export default function Compliance() {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible
         },
         order: { compliance_score: 'desc' }
       });
@@ -92,7 +93,7 @@ export default function Compliance() {
     queryFn: async () => {
       let filters: any = { 
         organization_id: organizationId,
-        aws_account_id: selectedAccountId
+        ...getAccountFilter() // Multi-cloud compatible
       };
 
       if (selectedFramework !== 'all') {

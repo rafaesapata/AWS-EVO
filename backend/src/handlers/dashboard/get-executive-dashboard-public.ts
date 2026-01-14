@@ -128,8 +128,37 @@ async function getFinancialData(prisma: any, organizationId: string, startOfMont
     take: 5
   });
 
+  // Cost optimizations from cost_optimizations table
+  let costOptimizations = { _sum: { potential_savings: 0 }, _count: 0 };
+  try {
+    costOptimizations = await prisma.costOptimization.aggregate({
+      where: { 
+        organization_id: organizationId,
+        status: { in: ['pending', 'active'] }
+      },
+      _sum: { potential_savings: true },
+      _count: true
+    });
+  } catch { /* table might not exist */ }
+
+  // RI/SP recommendations from ri_sp_recommendations table
+  let riSpRecommendations = { _sum: { estimated_monthly_savings: 0 }, _count: 0 };
+  try {
+    riSpRecommendations = await prisma.riSpRecommendation.aggregate({
+      where: { 
+        organization_id: organizationId,
+        status: { in: ['active', 'pending'] }
+      },
+      _sum: { estimated_monthly_savings: true },
+      _count: true
+    });
+  } catch { /* table might not exist */ }
+
   const mtdTotal = Number(mtdCosts._sum.cost || 0);
   const budgetAmount = mtdTotal > 0 ? mtdTotal * 1.2 : 10000;
+
+  const costRecommendationsValue = Number(costOptimizations._sum?.potential_savings || 0);
+  const riSpRecommendationsValue = Number(riSpRecommendations._sum?.estimated_monthly_savings || 0);
 
   return {
     mtdCost: mtdTotal,
@@ -144,7 +173,12 @@ async function getFinancialData(prisma: any, organizationId: string, startOfMont
       percentage: mtdTotal > 0 ? (Number(item._sum.cost || 0) / mtdTotal) * 100 : 0,
       rank: index + 1
     })),
-    savings: { potential: 0, costRecommendations: 0, riSpRecommendations: 0, recommendationsCount: 0 },
+    savings: { 
+      potential: costRecommendationsValue + riSpRecommendationsValue, 
+      costRecommendations: costRecommendationsValue, 
+      riSpRecommendations: riSpRecommendationsValue, 
+      recommendationsCount: (costOptimizations._count || 0) + (riSpRecommendations._count || 0)
+    },
     lastCostUpdate: latestCost?.date?.toISOString() || null
   };
 }

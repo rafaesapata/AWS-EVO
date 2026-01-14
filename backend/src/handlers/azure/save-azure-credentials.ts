@@ -1,21 +1,23 @@
 /**
  * Save Azure Credentials Handler
  * 
- * Saves validated Azure Service Principal credentials to the database.
- * Encrypts the client_secret before storage.
+ * Saves validated Azure credentials to the database.
+ * Supports both Service Principal and OAuth authentication types.
+ * Encrypts sensitive data (client_secret, refresh_token) before storage.
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
 import { z } from 'zod';
 
-// Validation schema for saving Azure credentials
-const saveAzureCredentialsSchema = z.object({
+// Validation schema for Service Principal credentials
+const servicePrincipalSchema = z.object({
+  authType: z.literal('service_principal').optional().default('service_principal'),
   tenantId: z.string().min(1, 'Tenant ID is required'),
   clientId: z.string().min(1, 'Client ID is required'),
   clientSecret: z.string().min(1, 'Client Secret is required'),
@@ -24,6 +26,24 @@ const saveAzureCredentialsSchema = z.object({
   regions: z.array(z.string()).optional().default(['eastus']),
   validateFirst: z.boolean().optional().default(true),
 });
+
+// Validation schema for OAuth credentials (from OAuth callback)
+const oauthSchema = z.object({
+  authType: z.literal('oauth'),
+  subscriptionId: z.string().min(1, 'Subscription ID is required'),
+  subscriptionName: z.string().optional(),
+  encryptedRefreshToken: z.string().min(1, 'Encrypted refresh token is required'),
+  tokenExpiresAt: z.string().datetime().optional(),
+  oauthTenantId: z.string().min(1, 'OAuth tenant ID is required'),
+  oauthUserEmail: z.string().email().optional(),
+  regions: z.array(z.string()).optional().default(['eastus']),
+});
+
+// Combined schema
+const saveAzureCredentialsSchema = z.discriminatedUnion('authType', [
+  servicePrincipalSchema,
+  oauthSchema,
+]);
 
 export async function handler(
   event: AuthorizedEvent,
@@ -36,7 +56,7 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
     logger.info('Saving Azure credentials', { organizationId });
@@ -49,107 +69,182 @@ export async function handler(
       return error('Invalid JSON in request body', 400);
     }
 
+    // Default to service_principal if authType not specified
+    if (!body.authType) {
+      body.authType = 'service_principal';
+    }
+
     const validation = saveAzureCredentialsSchema.safeParse(body);
     if (!validation.success) {
       return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
     }
 
-    const { 
-      tenantId, 
-      clientId, 
-      clientSecret, 
-      subscriptionId, 
-      subscriptionName,
-      regions,
-      validateFirst,
-    } = validation.data;
-
-    // Optionally validate credentials before saving
-    if (validateFirst) {
-      const azureProvider = new AzureProvider(organizationId, {
-        tenantId,
-        clientId,
-        clientSecret,
-        subscriptionId,
-        subscriptionName,
-      });
-
-      const validationResult = await azureProvider.validateCredentials();
-      
-      if (!validationResult.valid) {
-        logger.warn('Azure credential validation failed before save', {
-          organizationId,
-          error: validationResult.error,
-        });
-        
-        return error(validationResult.error || 'Invalid Azure credentials', 401, {
-          valid: false,
-          details: validationResult.details,
-        });
-      }
-    }
+    const data = validation.data;
+    const authType = data.authType;
 
     // Check if credential already exists for this subscription
     const existingCredential = await prisma.azureCredential.findUnique({
       where: {
         organization_id_subscription_id: {
           organization_id: organizationId,
-          subscription_id: subscriptionId,
+          subscription_id: data.subscriptionId,
         },
       },
     });
 
     let credential;
 
-    if (existingCredential) {
-      // Update existing credential
-      credential = await prisma.azureCredential.update({
-        where: { id: existingCredential.id },
-        data: {
-          tenant_id: tenantId,
-          client_id: clientId,
-          client_secret: clientSecret, // TODO: Encrypt with KMS
-          subscription_name: subscriptionName,
-          regions,
-          is_active: true,
-          updated_at: new Date(),
-        },
-      });
+    if (authType === 'service_principal') {
+      const spData = data as z.infer<typeof servicePrincipalSchema>;
+      
+      // Optionally validate credentials before saving
+      if (spData.validateFirst) {
+        const azureProvider = new AzureProvider(organizationId, {
+          tenantId: spData.tenantId,
+          clientId: spData.clientId,
+          clientSecret: spData.clientSecret,
+          subscriptionId: spData.subscriptionId,
+          subscriptionName: spData.subscriptionName,
+        });
 
-      logger.info('Azure credentials updated', {
-        organizationId,
-        credentialId: credential.id,
-        subscriptionId,
-      });
+        const validationResult = await azureProvider.validateCredentials();
+        
+        if (!validationResult.valid) {
+          logger.warn('Azure credential validation failed before save', {
+            organizationId,
+            error: validationResult.error,
+          });
+          
+          return error(validationResult.error || 'Invalid Azure credentials', 401, {
+            valid: false,
+            details: validationResult.details,
+          });
+        }
+      }
+
+      if (existingCredential) {
+        // Update existing credential
+        credential = await prisma.azureCredential.update({
+          where: { id: existingCredential.id },
+          data: {
+            auth_type: 'service_principal',
+            tenant_id: spData.tenantId,
+            client_id: spData.clientId,
+            client_secret: spData.clientSecret, // TODO: Encrypt with KMS
+            subscription_name: spData.subscriptionName,
+            regions: spData.regions,
+            // Clear OAuth fields
+            encrypted_refresh_token: null,
+            token_expires_at: null,
+            oauth_tenant_id: null,
+            oauth_user_email: null,
+            last_refresh_at: null,
+            refresh_error: null,
+            is_active: true,
+            updated_at: new Date(),
+          },
+        });
+
+        logger.info('Azure Service Principal credentials updated', {
+          organizationId,
+          credentialId: credential.id,
+          subscriptionId: spData.subscriptionId,
+        });
+      } else {
+        // Create new credential
+        credential = await prisma.azureCredential.create({
+          data: {
+            organization_id: organizationId,
+            auth_type: 'service_principal',
+            tenant_id: spData.tenantId,
+            client_id: spData.clientId,
+            client_secret: spData.clientSecret, // TODO: Encrypt with KMS
+            subscription_id: spData.subscriptionId,
+            subscription_name: spData.subscriptionName,
+            regions: spData.regions,
+            is_active: true,
+          },
+        });
+
+        logger.info('Azure Service Principal credentials created', {
+          organizationId,
+          credentialId: credential.id,
+          subscriptionId: spData.subscriptionId,
+        });
+      }
     } else {
-      // Create new credential
-      credential = await prisma.azureCredential.create({
-        data: {
-          organization_id: organizationId,
-          tenant_id: tenantId,
-          client_id: clientId,
-          client_secret: clientSecret, // TODO: Encrypt with KMS
-          subscription_id: subscriptionId,
-          subscription_name: subscriptionName,
-          regions,
-          is_active: true,
-        },
-      });
+      // OAuth credentials
+      const oauthData = data as z.infer<typeof oauthSchema>;
 
-      logger.info('Azure credentials created', {
-        organizationId,
-        credentialId: credential.id,
-        subscriptionId,
-      });
+      if (existingCredential) {
+        // Update existing credential
+        credential = await prisma.azureCredential.update({
+          where: { id: existingCredential.id },
+          data: {
+            auth_type: 'oauth',
+            subscription_name: oauthData.subscriptionName,
+            encrypted_refresh_token: oauthData.encryptedRefreshToken,
+            token_expires_at: oauthData.tokenExpiresAt ? new Date(oauthData.tokenExpiresAt) : null,
+            oauth_tenant_id: oauthData.oauthTenantId,
+            oauth_user_email: oauthData.oauthUserEmail,
+            last_refresh_at: new Date(),
+            refresh_error: null,
+            regions: oauthData.regions,
+            // Clear Service Principal fields
+            tenant_id: null,
+            client_id: null,
+            client_secret: null,
+            is_active: true,
+            updated_at: new Date(),
+          },
+        });
+
+        logger.info('Azure OAuth credentials updated', {
+          organizationId,
+          credentialId: credential.id,
+          subscriptionId: oauthData.subscriptionId,
+        });
+      } else {
+        // Create new credential
+        credential = await prisma.azureCredential.create({
+          data: {
+            organization_id: organizationId,
+            auth_type: 'oauth',
+            subscription_id: oauthData.subscriptionId,
+            subscription_name: oauthData.subscriptionName,
+            encrypted_refresh_token: oauthData.encryptedRefreshToken,
+            token_expires_at: oauthData.tokenExpiresAt ? new Date(oauthData.tokenExpiresAt) : null,
+            oauth_tenant_id: oauthData.oauthTenantId,
+            oauth_user_email: oauthData.oauthUserEmail,
+            last_refresh_at: new Date(),
+            regions: oauthData.regions,
+            is_active: true,
+          },
+        });
+
+        logger.info('Azure OAuth credentials created', {
+          organizationId,
+          credentialId: credential.id,
+          subscriptionId: oauthData.subscriptionId,
+        });
+      }
     }
 
-    // Return credential without exposing the secret
+    // Return credential without exposing secrets
     return success({
       id: credential.id,
       subscriptionId: credential.subscription_id,
       subscriptionName: credential.subscription_name,
+      authType: credential.auth_type,
+      // Service Principal fields (only if applicable)
       tenantId: credential.tenant_id,
       clientId: credential.client_id,
+      // OAuth fields (only if applicable)
+      oauthTenantId: credential.oauth_tenant_id,
+      oauthUserEmail: credential.oauth_user_email,
+      tokenExpiresAt: credential.token_expires_at,
+      lastRefreshAt: credential.last_refresh_at,
+      // Common fields
       regions: credential.regions,
       isActive: credential.is_active,
       createdAt: credential.created_at,

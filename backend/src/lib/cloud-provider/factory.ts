@@ -11,6 +11,7 @@ import type {
   ICloudProvider,
   AWSCredentialFields,
   AzureCredentialFields,
+  AzureServicePrincipalCredentials,
   GCPCredentialFields,
   ProviderFactoryConfig,
 } from '../../types/cloud';
@@ -60,9 +61,25 @@ export class CloudProviderFactory {
         break;
 
       case 'AZURE':
+        // Cast to AzureServicePrincipalCredentials - factory assumes Service Principal auth
+        const azureCreds = credentials as AzureCredentialFields;
+        if (!azureCreds.tenantId || !azureCreds.clientId || !azureCreds.clientSecret) {
+          throw new CloudProviderError(
+            'Azure Service Principal credentials are incomplete',
+            'AZURE',
+            'INVALID_CREDENTIALS',
+            400
+          );
+        }
         providerInstance = new AzureProvider(
           organizationId,
-          credentials as AzureCredentialFields
+          {
+            tenantId: azureCreds.tenantId,
+            clientId: azureCreds.clientId,
+            clientSecret: azureCreds.clientSecret,
+            subscriptionId: azureCreds.subscriptionId,
+            subscriptionName: azureCreds.subscriptionName,
+          }
         );
         break;
 

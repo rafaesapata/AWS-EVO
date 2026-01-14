@@ -23,7 +23,7 @@ const WellArchitected = () => {
   const [mainTab, setMainTab] = useState<string>("analysis");
   const [viewingHistoricalScan, setViewingHistoricalScan] = useState<string | null>(null);
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
-  const { selectedAccountId } = useCloudAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
 
   const { data: userProfile } = useQuery({
     queryKey: ['user-profile'],
@@ -183,12 +183,21 @@ const WellArchitected = () => {
     }
     
     setIsScanning(true);
-    toast.info('Iniciando scan Well-Architected...', { duration: 2000 });
+    const isAzure = selectedProvider === 'AZURE';
+    const providerName = isAzure ? 'Azure' : 'AWS';
+    toast.info(`Iniciando scan Well-Architected ${providerName}...`, { duration: 2000 });
     
     try {
-      console.log('🔍 Calling API with accountId:', selectedAccountId);
-      const result = await apiClient.invoke('well-architected-scan', {
-        body: { accountId: selectedAccountId }
+      console.log('🔍 Calling API with accountId:', selectedAccountId, 'provider:', selectedProvider);
+      
+      // Call the appropriate Lambda based on provider
+      const lambdaName = isAzure ? 'azure-well-architected-scan' : 'well-architected-scan';
+      const bodyParam = isAzure 
+        ? { credentialId: selectedAccountId }
+        : { accountId: selectedAccountId };
+      
+      const result = await apiClient.invoke(lambdaName, {
+        body: bodyParam
       });
       
       console.log('🔍 API result:', result);

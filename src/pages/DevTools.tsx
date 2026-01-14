@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
   Code, 
@@ -55,6 +55,7 @@ interface PerformanceMetric {
 export default function DevTools() {
   const { toast } = useToast();
   const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [selectedLogLevel, setSelectedLogLevel] = useState<string>('all');
   const [selectedService, setSelectedService] = useState<string>('all');
@@ -69,7 +70,7 @@ export default function DevTools() {
     queryFn: async () => {
       let filters: any = { 
         organization_id: organizationId,
-        aws_account_id: selectedAccountId
+        ...getAccountFilter() // Multi-cloud compatible
       };
 
       if (selectedLogLevel !== 'all') {
@@ -105,7 +106,7 @@ export default function DevTools() {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible
         },
         order: { timestamp: 'desc' },
         limit: 50

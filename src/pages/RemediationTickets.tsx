@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
 import { 
@@ -64,6 +64,7 @@ export default function RemediationTickets() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -88,7 +89,7 @@ export default function RemediationTickets() {
     queryFn: async () => {
       let filters: any = { 
         organization_id: organizationId,
-        aws_account_id: selectedAccountId
+        ...getAccountFilter() // Multi-cloud compatible
       };
 
       if (selectedStatus !== 'all') {
@@ -120,7 +121,7 @@ export default function RemediationTickets() {
       const cleanData = {
         ...ticketData,
         organization_id: organizationId,
-        aws_account_id: selectedAccountId,
+        ...getAccountFilter(), // Multi-cloud compatible
         status: 'open',
         created_by: 'current_user',
         automation_available: false,

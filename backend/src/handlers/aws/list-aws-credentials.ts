@@ -4,7 +4,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 
@@ -33,7 +33,7 @@ export async function handler(
   try {
     const user = getUserFromEvent(event);
     userId = user.sub || user.id || 'unknown';
-    organizationId = getOrganizationId(user);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (authError: any) {
     logger.error('Authentication error', authError);
     return error('Authentication failed: ' + (authError.message || 'Unknown error'), 401, undefined, origin);

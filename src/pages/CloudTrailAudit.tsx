@@ -10,10 +10,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { formatDateBR, parseDateString } from "@/lib/utils";
 import { CloudTrailAnalysisHistory } from "@/components/dashboard/CloudTrailAnalysisHistory";
+import { AzureActivityLogs } from "@/components/dashboard/AzureActivityLogs";
 import { 
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area
@@ -21,7 +22,7 @@ import {
 import { 
   FileText, Search, AlertTriangle, Eye, Clock, User, MapPin,
   RefreshCw, Download, Shield, Activity, Play, TrendingUp, History,
-  AlertCircle, CheckCircle2
+  AlertCircle, CheckCircle2, Cloud
 } from "lucide-react";
 import {
   AlertDialog,
@@ -95,7 +96,8 @@ const RISK_COLORS = {
 export default function CloudTrailAudit() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { selectedAccountId } = useCloudAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
@@ -104,6 +106,22 @@ export default function CloudTrailAudit() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showReprocessDialog, setShowReprocessDialog] = useState(false);
   const [periodOverlapInfo, setPeriodOverlapInfo] = useState<StartAnalysisResponse | null>(null);
+
+  // Check if Azure is selected - show Azure Activity Logs instead
+  const isAzure = selectedProvider === 'AZURE';
+  
+  // If Azure is selected, render Azure Activity Logs component
+  if (isAzure) {
+    return (
+      <Layout 
+        title="Logs de Atividade" 
+        description="Analise eventos de atividade e identifique problemas de segurança"
+        icon={<FileText className="h-7 w-7 text-white" />}
+      >
+        <AzureActivityLogs />
+      </Layout>
+    );
+  }
 
   // Get CloudTrail events from database - defined first so refetch is available
   const { data: events, isLoading, refetch } = useQuery({
@@ -128,7 +146,7 @@ export default function CloudTrailAudit() {
 
       const filters: any = { 
         organization_id: organizationId,
-        aws_account_id: selectedAccountId,
+        ...getAccountFilter(), // Multi-cloud compatible
       };
 
       if (selectedRiskLevel !== 'all') {

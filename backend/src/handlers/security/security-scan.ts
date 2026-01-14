@@ -6,7 +6,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { parseAndValidateBody, securityScanSchema } from '../../lib/validation.js';
 import { resolveAwsCredentials } from '../../lib/aws-helpers.js';
@@ -36,7 +36,7 @@ async function securityScanHandler(
   }
   
   try {
-    organizationId = getOrganizationId(user);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (orgError) {
     return error('Unauthorized - organization not found', 401, undefined, origin);
   }

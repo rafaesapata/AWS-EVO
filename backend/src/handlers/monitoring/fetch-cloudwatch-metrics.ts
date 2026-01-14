@@ -8,7 +8,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { withAwsCircuitBreaker } from '../../lib/circuit-breaker.js';
@@ -150,7 +150,7 @@ async function fetchCloudwatchMetricsHandler(
   }
   
   try {
-    organizationId = getOrganizationId(user);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (orgError) {
     return error('Unauthorized - organization not found', 401, undefined, origin);
   }

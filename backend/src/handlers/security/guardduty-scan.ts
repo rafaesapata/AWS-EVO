@@ -6,7 +6,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { GuardDutyClient, ListDetectorsCommand, ListFindingsCommand, GetFindingsCommand } from '@aws-sdk/client-guardduty';
@@ -48,7 +48,7 @@ export async function handler(
   
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const body: GuardDutyScanRequest = event.body ? JSON.parse(event.body) : {};
     const { accountId } = body;

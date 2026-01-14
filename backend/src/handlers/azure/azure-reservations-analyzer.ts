@@ -7,7 +7,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
@@ -28,7 +28,7 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
     logger.info('Starting Azure reservations analysis', { organizationId });
@@ -66,11 +66,38 @@ export async function handler(
     try {
       const identity = await import('@azure/identity');
       const consumption = await import('@azure/arm-consumption');
-      const tokenCredential = new identity.ClientSecretCredential(
-        credential.tenant_id,
-        credential.client_id,
-        credential.client_secret
-      );
+      
+      let tokenCredential: any;
+      
+      if (credential.auth_type === 'oauth') {
+        // Use getAzureCredentialWithToken for OAuth
+        const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+        const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
+        
+        if (!tokenResult.success) {
+          return error(tokenResult.error, 400);
+        }
+        
+        // Create a simple token credential for OAuth
+        tokenCredential = {
+          getToken: async () => ({
+            token: tokenResult.accessToken,
+            expiresOnTimestamp: Date.now() + 3600 * 1000,
+          }),
+        };
+      } else {
+        // Service Principal
+        if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
+          return error('Missing Service Principal credentials', 400);
+        }
+        
+        tokenCredential = new identity.ClientSecretCredential(
+          credential.tenant_id,
+          credential.client_id,
+          credential.client_secret
+        );
+      }
+      
       consumptionClient = new consumption.ConsumptionManagementClient(
         tokenCredential,
         credential.subscription_id

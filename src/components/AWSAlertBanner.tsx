@@ -5,7 +5,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 
 interface AWSAlertBannerProps {
   onViewDetails?: () => void;
@@ -14,7 +14,7 @@ interface AWSAlertBannerProps {
 export default function AWSAlertBanner({ onViewDetails }: AWSAlertBannerProps) {
   const { t } = useTranslation();
   const { data: organizationId } = useOrganization();
-  const { accounts, isLoading: accountsLoading } = useAwsAccount();
+  const { accounts, isLoading: accountsLoading } = useCloudAccount();
   const [dismissed, setDismissed] = useState(false);
   
   // Only fetch validation status, accounts come from context

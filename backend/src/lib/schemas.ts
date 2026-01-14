@@ -80,9 +80,9 @@ export const createUserSchema = z.object({
 });
 
 export const manageUserSchema = z.object({
-  action: z.enum(['update', 'delete', 'disable', 'enable', 'reset_password']),
+  action: z.enum(['update', 'delete', 'disable', 'enable', 'reset_password', 'update_organization']),
   email: emailSchema,
-  attributes: z.record(z.string()).optional(),
+  attributes: z.record(z.any()).optional(),
   password: z.string().min(8).optional(),
 });
 

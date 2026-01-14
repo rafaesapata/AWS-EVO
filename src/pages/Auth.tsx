@@ -360,20 +360,30 @@ export default function Auth() {
         });
       } else {
         let errorMessage = "Ocorreu um erro inesperado. Tente novamente.";
+        let errorTitle = "Erro ao fazer login";
         
         if (error.code === 'NotAuthorizedException') {
-          errorMessage = "Email ou senha incorretos. Verifique suas credenciais e tente novamente.";
+          // Check for specific message about expired temporary password
+          if (error.message?.includes('Temporary password has expired')) {
+            errorTitle = "Senha temporária expirada";
+            errorMessage = "Sua senha temporária expirou. Entre em contato com o administrador para receber uma nova senha temporária.";
+          } else {
+            errorMessage = "Email ou senha incorretos. Verifique suas credenciais e tente novamente.";
+          }
         } else if (error.code === 'UserNotConfirmedException') {
           errorMessage = "Conta não confirmada. Verifique seu email para confirmar a conta.";
         } else if (error.code === 'UserNotFoundException') {
           errorMessage = "Usuário não encontrado. Verifique o email ou crie uma nova conta.";
         } else if (error.code === 'TooManyRequestsException') {
           errorMessage = "Muitas tentativas de login. Tente novamente em alguns minutos.";
+        } else if (error.code === 'PasswordResetRequiredException') {
+          errorTitle = "Redefinição de senha necessária";
+          errorMessage = "Você precisa redefinir sua senha. Use a opção 'Esqueci minha senha' para criar uma nova.";
         }
         
         toast({
           variant: "destructive",
-          title: "Erro ao fazer login",
+          title: errorTitle,
           description: errorMessage,
         });
       }

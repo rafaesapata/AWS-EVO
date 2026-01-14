@@ -6,7 +6,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId, requireRole } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation, requireRole } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { OrganizationsClient, CreateAccountCommand } from '@aws-sdk/client-organizations';
@@ -23,7 +23,7 @@ export async function handler(
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const user = getUserFromEvent(event);
-  const organizationId = getOrganizationId(user);
+  const organizationId = getOrganizationIdWithImpersonation(event, user);
   
   logger.info('Create organization account started', { 
     organizationId,

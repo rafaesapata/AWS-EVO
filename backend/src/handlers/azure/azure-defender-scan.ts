@@ -7,7 +7,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
@@ -30,7 +30,7 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
     logger.info('Starting Azure Defender scan', { organizationId });
@@ -49,7 +49,6 @@ export async function handler(
 
     const { credentialId, severity, status, limit } = validation.data;
 
-
     // Fetch Azure credential
     const credential = await prisma.azureCredential.findFirst({
       where: {
@@ -63,25 +62,47 @@ export async function handler(
       return error('Azure credential not found or inactive', 404);
     }
 
-    // Import Azure SDK dynamically
+    // Import Azure SDK dynamically and create token credential
     let SecurityCenter: any;
-    let ClientSecretCredential: any;
+    let tokenCredential: any;
     
     try {
-      const identity = await import('@azure/identity');
       const security = await import('@azure/arm-security');
-      ClientSecretCredential = identity.ClientSecretCredential;
       SecurityCenter = security.SecurityCenter;
+      
+      // Handle both OAuth and Service Principal credentials
+      if (credential.auth_type === 'oauth') {
+        // Use getAzureCredentialWithToken for OAuth
+        const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+        const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
+        
+        if (!tokenResult.success) {
+          return error(tokenResult.error, 400);
+        }
+        
+        // Create a token credential that returns the OAuth token
+        tokenCredential = {
+          getToken: async () => ({
+            token: tokenResult.accessToken,
+            expiresOnTimestamp: Date.now() + 3600 * 1000,
+          }),
+        };
+      } else {
+        // Service Principal credentials - validate required fields
+        if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
+          return error('Service Principal credentials incomplete. Missing tenant_id, client_id, or client_secret.', 400);
+        }
+        const identity = await import('@azure/identity');
+        tokenCredential = new identity.ClientSecretCredential(
+          credential.tenant_id,
+          credential.client_id,
+          credential.client_secret
+        );
+      }
     } catch (err: any) {
       logger.error('Azure SDK not installed', { error: err.message });
       return error('Azure SDK not available. Contact administrator.', 500);
     }
-
-    const tokenCredential = new ClientSecretCredential(
-      credential.tenant_id,
-      credential.client_id,
-      credential.client_secret
-    );
 
     const securityClient = new SecurityCenter(
       tokenCredential,

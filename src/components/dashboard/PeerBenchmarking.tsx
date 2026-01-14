@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { TrendingUp, TrendingDown, Users, Award, RefreshCw, Building2, Shield } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 
 interface BenchmarkData {
@@ -24,7 +24,8 @@ export default function PeerBenchmarking() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const [loading, setLoading] = useState(false);
   const [sector, setSector] = useState("technology");
   const [size, setSize] = useState("medium");
@@ -68,7 +69,7 @@ export default function PeerBenchmarking() {
         select: 'total_cost',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId 
+          ...getAccountFilter() 
         },
         order: { date: 'desc' },
         limit: 30

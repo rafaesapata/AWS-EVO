@@ -12,7 +12,7 @@ import { PillarCard } from "./well-architected/PillarCard";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTranslation } from "react-i18next";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 
 interface WellArchitectedScoreProps {
@@ -60,7 +60,7 @@ export const WellArchitectedScorecard = ({ onScanComplete }: WellArchitectedScor
   const { data: organizationId } = useOrganization();
   
   // CRITICAL: Get selected AWS account for multi-account isolation
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
 
   const { data: scores, refetch, isLoading } = useQuery({
     queryKey: ['well-architected-scores', organizationId, selectedAccountId],

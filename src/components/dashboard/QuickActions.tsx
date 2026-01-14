@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 
 interface QuickActionsProps {
   organizationId: string;
@@ -40,7 +40,7 @@ export default function QuickActions({
   onExport 
 }: QuickActionsProps) {
   const { toast } = useToast();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
   const [showFiltersDialog, setShowFiltersDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [exportFormat, setExportFormat] = useState<'pdf' | 'excel'>('pdf');

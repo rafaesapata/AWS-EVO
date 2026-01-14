@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
   Bot, 
@@ -52,6 +52,7 @@ export default function CopilotAI() {
   const { toast } = useToast();
   const { t } = useTranslation();
   const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
@@ -67,7 +68,7 @@ export default function CopilotAI() {
       // Get recent costs
       const costsResponse = await apiClient.select('daily_costs', {
         select: '*',
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId },
+        eq: { organization_id: organizationId, ...getAccountFilter() },
         order: { cost_date: 'desc' },
         limit: 7
       });
@@ -82,7 +83,7 @@ export default function CopilotAI() {
       // Get resources
       const resourcesResponse = await apiClient.select('aws_resources', {
         select: '*',
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId },
+        eq: { organization_id: organizationId, ...getAccountFilter() },
         limit: 20
       });
 

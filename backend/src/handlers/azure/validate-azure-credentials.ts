@@ -5,9 +5,15 @@
  * authenticate and list resource groups.
  */
 
+// Ensure crypto is available globally for Azure SDK
+import * as crypto from 'crypto';
+if (typeof globalThis.crypto === 'undefined') {
+  (globalThis as any).crypto = crypto.webcrypto || crypto;
+}
+
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
@@ -32,8 +38,21 @@ export async function handler(
   }
 
   try {
-    const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
+    // Get user with lenient validation (exp claim optional for this endpoint)
+    const claims = event.requestContext.authorizer?.claims || 
+                   event.requestContext.authorizer?.jwt?.claims;
+
+    if (!claims) {
+      return error('No authentication claims found', 401);
+    }
+
+    // Validate only essential claims (sub, email, organization_id)
+    if (!claims.sub || !claims.email) {
+      return error('Missing required authentication claims', 401);
+    }
+
+    const user = claims;
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
 
     logger.info('Validating Azure credentials', { organizationId });
 

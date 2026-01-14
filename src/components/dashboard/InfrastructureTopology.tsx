@@ -9,7 +9,7 @@ import { Network, RefreshCw, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 
 interface TopologyNode {
   id: string;
@@ -46,7 +46,8 @@ export default function InfrastructureTopology() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [nodes, setNodes] = useState<TopologyNode[]>([]);
   const [selectedNode, setSelectedNode] = useState<TopologyNode | null>(null);
@@ -173,10 +174,10 @@ export default function InfrastructureTopology() {
       const syncResponse = await apiClient.lambda('sync-resource-inventory');
       // Ignore sync warnings silently
 
-      const filters: any = { organization_id: organizationId };
-      if (selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
+      const filters: any = { 
+        organization_id: organizationId,
+        ...getAccountFilter() // Multi-cloud compatible
+      };
 
       const { data: resources, error } = await apiClient.select('resource_inventory', {
         select: '*',

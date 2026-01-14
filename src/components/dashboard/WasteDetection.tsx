@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/pagination";
 import { WasteDetectionHistory } from "./WasteDetectionHistory";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 import { useTranslation } from "react-i18next";
 
@@ -49,7 +49,8 @@ export default function WasteDetection() {
   const { data: organizationId } = useOrganization();
   
   // Use global account context for multi-account isolation
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   
   const { data: wasteItems, isLoading, refetch } = useQuery<any[]>({
     queryKey: ['waste-detection', 'org', organizationId, 'account', selectedAccountId, viewingHistoricalScan?.scanId],
@@ -73,7 +74,7 @@ export default function WasteDetection() {
         const endTime = new Date(scanTime.getTime() + 60000);
 
         const wasteResponse = await apiClient.select('waste_detection', { 
-          eq: { organization_id: organizationId, aws_account_id: selectedAccountId } 
+          eq: { organization_id: organizationId, ...getAccountFilter() } 
         });
         if (wasteResponse.error) {
           throw wasteResponse.error;
@@ -84,7 +85,7 @@ export default function WasteDetection() {
 
       // Fetch active waste items - FILTERED BY SELECTED ACCOUNT
       const response = await apiClient.select('waste_detection', { 
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId, status: 'active' } 
+        eq: { organization_id: organizationId, ...getAccountFilter(), status: 'active' } 
       });
       if (response.error) {
         throw response.error;

@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 
 interface RISPRecommendation {
@@ -44,7 +44,8 @@ interface RISPRecommendation {
 export default function RISPOptimizer() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { selectedAccountId } = useAwsAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [recommendations, setRecommendations] = useState<RISPRecommendation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -70,7 +71,7 @@ export default function RISPOptimizer() {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId 
+          ...getAccountFilter() // Multi-cloud compatible
         },
         order: { yearly_savings: 'desc' },
         limit: 50
@@ -96,17 +97,22 @@ export default function RISPOptimizer() {
     if (!selectedAccountId) {
       toast({
         title: t('common.error'),
-        description: "Selecione uma conta AWS primeiro",
+        description: "Selecione uma conta cloud primeiro",
         variant: "destructive"
       });
       return;
     }
     
     setAnalyzing(true);
+    const isAzure = selectedProvider === 'AZURE';
+    const providerName = isAzure ? 'Azure' : 'AWS';
+    
     try {
       toast({
         title: "Analisando...",
-        description: "Analisando instâncias EC2, RDS e oportunidades de economia com RI/SP"
+        description: isAzure 
+          ? "Analisando recursos Azure e oportunidades de economia com Reservations"
+          : "Analisando instâncias EC2, RDS e oportunidades de economia com RI/SP"
       });
 
       // Get current user for authentication
@@ -115,13 +121,18 @@ export default function RISPOptimizer() {
         throw new Error('No active session');
       }
 
-      // Chamar edge function para análise real de RI/SP
-      const analysisResult = await apiClient.invoke('ri-sp-analyzer', {
-        body: { accountId: selectedAccountId }
+      // Call the appropriate Lambda based on provider
+      const lambdaName = isAzure ? 'azure-reservations-analyzer' : 'ri-sp-analyzer';
+      const bodyParam = isAzure 
+        ? { credentialId: selectedAccountId }
+        : { accountId: selectedAccountId };
+      
+      const analysisResult = await apiClient.invoke(lambdaName, {
+        body: bodyParam
       });
 
       if (analysisResult.error) {
-        throw new Error('Falha ao analisar RI/SP. Verifique se suas credenciais AWS estão corretas e têm as permissões necessárias.');
+        throw new Error(`Falha ao analisar ${isAzure ? 'Reservations' : 'RI/SP'}. Verifique se suas credenciais ${providerName} estão corretas e têm as permissões necessárias.`);
       }
 
       const analysisData = analysisResult.data;

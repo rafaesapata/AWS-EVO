@@ -3,12 +3,12 @@
  * 
  * Implements ICloudProvider interface for Microsoft Azure.
  * Uses Azure SDK for JavaScript to interact with Azure services.
+ * Supports both Service Principal and OAuth authentication.
  */
 
 import type {
   ICloudProvider,
   CloudProviderType,
-  AzureCredentialFields,
   ValidationResult,
   Resource,
   CostData,
@@ -19,33 +19,132 @@ import type {
   ScanSummary,
   ActivityEvent,
   ActivityQueryParams,
+  AzureServicePrincipalCredentials,
 } from '../../types/cloud.js';
 import { CloudProviderError } from '../../types/cloud.js';
 import { logger } from '../logging.js';
 
-// Azure SDK imports - these will be installed in the next step
-// For now, we'll use dynamic imports to handle missing packages gracefully
+/**
+ * OAuth credentials for Azure
+ */
+export interface AzureOAuthCredentials {
+  subscriptionId: string;
+  subscriptionName?: string;
+  tenantId: string;
+  accessToken: string;
+  expiresAt?: Date;
+}
+
+/**
+ * Combined credentials type
+ */
+export type AzureCredentials = AzureServicePrincipalCredentials | AzureOAuthCredentials;
+
+/**
+ * Type guard for OAuth credentials
+ */
+function isOAuthCredentials(creds: AzureCredentials): creds is AzureOAuthCredentials {
+  return 'accessToken' in creds;
+}
+
+/**
+ * Type guard for Service Principal credentials
+ */
+function isServicePrincipalCredentials(creds: AzureCredentials): creds is AzureServicePrincipalCredentials {
+  return 'clientId' in creds && 'clientSecret' in creds;
+}
+
+/**
+ * Custom TokenCredential implementation for OAuth access tokens
+ * This allows using pre-obtained OAuth tokens with Azure SDK clients
+ */
+class OAuthTokenCredential {
+  private accessToken: string;
+  private expiresAt: Date;
+
+  constructor(accessToken: string, expiresAt?: Date) {
+    this.accessToken = accessToken;
+    // Default to 1 hour if not specified
+    this.expiresAt = expiresAt || new Date(Date.now() + 60 * 60 * 1000);
+  }
+
+  async getToken(_scopes: string | string[]): Promise<{ token: string; expiresOnTimestamp: number }> {
+    // Check if token is expired
+    if (this.expiresAt.getTime() < Date.now()) {
+      throw new CloudProviderError(
+        'OAuth access token has expired. Please refresh the token.',
+        'AZURE',
+        'TOKEN_EXPIRED',
+        401
+      );
+    }
+
+    return {
+      token: this.accessToken,
+      expiresOnTimestamp: this.expiresAt.getTime(),
+    };
+  }
+}
 
 /**
  * Azure Provider
  * 
  * Implements the ICloudProvider interface for Azure.
- * Uses Service Principal authentication with client credentials.
+ * Supports both Service Principal and OAuth authentication.
  */
 export class AzureProvider implements ICloudProvider {
   readonly providerType: CloudProviderType = 'AZURE';
   
   private _organizationId: string;
-  private credentials: AzureCredentialFields;
+  private credentials: AzureCredentials;
   private tokenCredential: any = null;
+  private authType: 'service_principal' | 'oauth';
 
-  constructor(organizationId: string, credentials: AzureCredentialFields) {
+  constructor(organizationId: string, credentials: AzureCredentials) {
     this._organizationId = organizationId;
     this.credentials = credentials;
+    this.authType = isOAuthCredentials(credentials) ? 'oauth' : 'service_principal';
+  }
+
+  /**
+   * Get the subscription ID from credentials
+   */
+  get subscriptionId(): string {
+    return this.credentials.subscriptionId;
+  }
+
+  /**
+   * Get the authentication type
+   */
+  get authenticationType(): 'service_principal' | 'oauth' {
+    return this.authType;
+  }
+
+  /**
+   * Get access token for Azure Management API
+   * Used by modular scanners that make direct REST API calls
+   */
+  async getAccessToken(): Promise<string | null> {
+    try {
+      const credential = await this.getTokenCredential();
+      
+      // For OAuth credentials, we already have the token
+      if (isOAuthCredentials(this.credentials)) {
+        return this.credentials.accessToken;
+      }
+      
+      // For Service Principal, get a token from the credential
+      const tokenResponse = await credential.getToken('https://management.azure.com/.default');
+      return tokenResponse?.token || null;
+    } catch (error: any) {
+      logger.error('Failed to get Azure access token', { error: error.message });
+      return null;
+    }
   }
 
   /**
    * Get Azure token credential for SDK clients
+   * Supports both Service Principal and OAuth authentication
    */
   private async getTokenCredential(): Promise<any> {
     if (this.tokenCredential) {
@@ -53,14 +152,40 @@ export class AzureProvider implements ICloudProvider {
     }
 
     try {
-      // Dynamic import to handle missing package gracefully
-      const { ClientSecretCredential } = await import('@azure/identity');
-      
-      this.tokenCredential = new ClientSecretCredential(
-        this.credentials.tenantId,
-        this.credentials.clientId,
-        this.credentials.clientSecret
-      );
+      if (isOAuthCredentials(this.credentials)) {
+        // Use OAuth access token
+        this.tokenCredential = new OAuthTokenCredential(
+          this.credentials.accessToken,
+          this.credentials.expiresAt
+        );
+        
+        logger.debug('Using OAuth token credential', {
+          subscriptionId: this.credentials.subscriptionId,
+          tenantId: this.credentials.tenantId,
+        });
+      } else if (isServicePrincipalCredentials(this.credentials)) {
+        // Use Service Principal credentials
+        const { ClientSecretCredential } = await import('@azure/identity');
+        
+        this.tokenCredential = new ClientSecretCredential(
+          this.credentials.tenantId,
+          this.credentials.clientId,
+          this.credentials.clientSecret
+        );
+        
+        logger.debug('Using Service Principal credential', {
+          subscriptionId: this.credentials.subscriptionId,
+          tenantId: this.credentials.tenantId,
+          clientId: this.credentials.clientId,
+        });
+      } else {
+        throw new CloudProviderError(
+          'Invalid Azure credentials format',
+          'AZURE',
+          'INVALID_CREDENTIALS',
+          400
+        );
+      }
 
       return this.tokenCredential;
     } catch (error: any) {
@@ -74,6 +199,27 @@ export class AzureProvider implements ICloudProvider {
       }
       throw error;
     }
+  }
+
+  /**
+   * Create a new AzureProvider instance with a fresh OAuth access token
+   * Used when the token needs to be refreshed
+   */
+  static withOAuthToken(
+    organizationId: string,
+    subscriptionId: string,
+    subscriptionName: string | undefined,
+    tenantId: string,
+    accessToken: string,
+    expiresAt?: Date
+  ): AzureProvider {
+    return new AzureProvider(organizationId, {
+      subscriptionId,
+      subscriptionName,
+      tenantId,
+      accessToken,
+      expiresAt,
+    });
   }
 
   /**
@@ -98,9 +244,14 @@ export class AzureProvider implements ICloudProvider {
         if (resourceGroups.length >= 5) break; // Just need to verify access
       }
 
+      const tenantId = isOAuthCredentials(this.credentials) 
+        ? this.credentials.tenantId 
+        : (this.credentials as AzureServicePrincipalCredentials).tenantId;
+
       logger.info('Azure credentials validated', {
         subscriptionId: this.credentials.subscriptionId,
         resourceGroupsFound: resourceGroups.length,
+        authType: this.authType,
       });
 
       return {
@@ -108,20 +259,28 @@ export class AzureProvider implements ICloudProvider {
         accountId: this.credentials.subscriptionId,
         accountName: this.credentials.subscriptionName || this.credentials.subscriptionId,
         details: {
-          tenantId: this.credentials.tenantId,
+          tenantId,
           resourceGroups: resourceGroups.slice(0, 5),
+          authType: this.authType,
         },
       };
     } catch (error: any) {
-      logger.error('Azure credential validation failed', { error: error.message });
+      logger.error('Azure credential validation failed', { 
+        error: error.message,
+        authType: this.authType,
+      });
       
       // Parse Azure-specific errors
       let errorMessage = error.message || 'Failed to validate Azure credentials';
       
-      if (error.statusCode === 401 || error.code === 'AuthenticationError') {
-        errorMessage = 'Invalid Azure credentials. Please check tenant ID, client ID, and client secret.';
+      if (error.statusCode === 401 || error.code === 'AuthenticationError' || error.code === 'TOKEN_EXPIRED') {
+        errorMessage = this.authType === 'oauth'
+          ? 'OAuth token has expired or been revoked. Please reconnect your Azure account.'
+          : 'Invalid Azure credentials. Please check tenant ID, client ID, and client secret.';
       } else if (error.statusCode === 403) {
-        errorMessage = 'Access denied. The Service Principal may not have sufficient permissions.';
+        errorMessage = this.authType === 'oauth'
+          ? 'Access denied. Your Azure account may not have sufficient permissions for this subscription.'
+          : 'Access denied. The Service Principal may not have sufficient permissions.';
       } else if (error.code === 'SubscriptionNotFound') {
         errorMessage = 'Subscription not found. Please verify the subscription ID.';
       }
@@ -132,6 +291,7 @@ export class AzureProvider implements ICloudProvider {
         details: {
           code: error.code || error.statusCode,
           statusCode: error.statusCode,
+          authType: this.authType,
         },
       };
     }
@@ -374,7 +534,17 @@ export class AzureProvider implements ICloudProvider {
         endDate: params.endDate,
       });
     } catch (error: any) {
-      logger.error('Failed to get Azure costs', { error: error.message });
+      // Properly serialize the error for logging
+      const errorDetails = {
+        message: error?.message || 'Unknown error',
+        code: error?.code,
+        statusCode: error?.statusCode,
+        name: error?.name,
+        details: error?.details,
+        stack: error?.stack?.split('\n').slice(0, 3).join('\n'),
+      };
+      
+      logger.error('Failed to get Azure costs', { error: JSON.stringify(errorDetails) });
       
       // Return empty array instead of throwing for cost retrieval failures
       // This allows the system to continue working even if cost data is unavailable

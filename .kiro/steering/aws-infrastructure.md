@@ -24,35 +24,69 @@ aws apigateway flush-stage-cache --rest-api-id 3l66kn0eaj --stage-name prod --re
 
 ## Lambda Layers
 
-- **Prisma + Zod Layer**: `arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:2`
-  - Contém: `@prisma/client`, `.prisma/client` (gerado), `zod`
+### Layer Atual (com Azure SDK)
+- **Prisma + Zod + Azure SDK Layer**: `arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:46`
+  - Contém: `@prisma/client`, `.prisma/client` (gerado), `zod`, `@azure/*` (SDK completo), `@typespec/ts-http-runtime` (com internal exports fix), `debug`, `ms`, `tslib`, `events`, `jsonwebtoken`, `http-proxy-agent`, `https-proxy-agent`
   - Binários: `rhel-openssl-1.0.x`, `rhel-openssl-3.0.x` (para Lambda)
+  - Tamanho: ~45MB comprimido, ~172MB descomprimido
 
-### Atualizar Layer
+### Versões do Layer
+| Versão | Descrição | Data |
+|--------|-----------|------|
+| 43 | Prisma + Zod + Azure SDK + @typespec + internal exports fix | 2026-01-12 |
+| 42 | Prisma + Zod + Azure SDK + @typespec (sem internal exports) | 2026-01-12 |
+| 41 | Prisma + Zod + Azure SDK (sem @typespec) | 2026-01-12 |
+| 40 | Prisma + Zod + Azure SDK inicial | 2026-01-12 |
+| 39 | Prisma com AzureCredential model | 2026-01-12 |
+| 2 | Prisma + Zod básico | 2025-xx-xx |
+
+### Atualizar Layer (com Azure SDK)
 ```bash
-# 1. Gerar Prisma Client
-cd backend && npm run prisma:generate
+# 1. Instalar dependências e gerar Prisma Client
+npm install --prefix backend
+npm run prisma:generate --prefix backend
 
 # 2. Criar estrutura do layer
-rm -rf /tmp/lambda-layer-prisma && mkdir -p /tmp/lambda-layer-prisma/nodejs/node_modules
-cp -r node_modules/@prisma /tmp/lambda-layer-prisma/nodejs/node_modules/
-cp -r node_modules/.prisma /tmp/lambda-layer-prisma/nodejs/node_modules/
-cp -r node_modules/zod /tmp/lambda-layer-prisma/nodejs/node_modules/
+rm -rf /tmp/lambda-layer-azure && mkdir -p /tmp/lambda-layer-azure/nodejs/node_modules
+cp -r backend/node_modules/@prisma /tmp/lambda-layer-azure/nodejs/node_modules/
+cp -r backend/node_modules/.prisma /tmp/lambda-layer-azure/nodejs/node_modules/
+cp -r backend/node_modules/zod /tmp/lambda-layer-azure/nodejs/node_modules/
+cp -r backend/node_modules/@azure /tmp/lambda-layer-azure/nodejs/node_modules/
 
-# 3. Remover binários desnecessários (manter apenas rhel)
-rm -f /tmp/lambda-layer-prisma/nodejs/node_modules/.prisma/client/libquery_engine-darwin-arm64.dylib.node
-rm -rf /tmp/lambda-layer-prisma/nodejs/node_modules/.prisma/client/deno
+# 3. Copiar dependências do Azure SDK
+for pkg in tslib uuid ms http-proxy-agent https-proxy-agent agent-base debug events fast-xml-parser strnum; do
+  [ -d "backend/node_modules/$pkg" ] && cp -r "backend/node_modules/$pkg" /tmp/lambda-layer-azure/nodejs/node_modules/
+done
 
-# 4. Criar zip e publicar
-pushd /tmp/lambda-layer-prisma; zip -r /tmp/prisma-layer.zip nodejs; popd
-aws lambda publish-layer-version --layer-name evo-prisma-deps-layer --zip-file fileb:///tmp/prisma-layer.zip --compatible-runtimes nodejs18.x nodejs20.x --region us-east-1
+# 4. Remover arquivos desnecessários para reduzir tamanho
+rm -f /tmp/lambda-layer-azure/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node
+rm -rf /tmp/lambda-layer-azure/nodejs/node_modules/.prisma/client/deno
+find /tmp/lambda-layer-azure/nodejs/node_modules -name "*.ts" -not -name "*.d.ts" -delete
+find /tmp/lambda-layer-azure/nodejs/node_modules -name "*.map" -delete
+find /tmp/lambda-layer-azure/nodejs/node_modules -name "*.md" -delete
+find /tmp/lambda-layer-azure/nodejs/node_modules -type d -name "test" -exec rm -rf {} + 2>/dev/null
+find /tmp/lambda-layer-azure/nodejs/node_modules -type d -name "tests" -exec rm -rf {} + 2>/dev/null
+
+# 5. Criar zip
+pushd /tmp/lambda-layer-azure && zip -r /tmp/prisma-azure-layer.zip nodejs && popd
+
+# 6. Upload para S3 (necessário para layers > 50MB)
+aws s3 cp /tmp/prisma-azure-layer.zip s3://evo-uds-v3-production-frontend-383234048592/layers/prisma-azure-layer.zip --region us-east-1
+
+# 7. Publicar layer
+aws lambda publish-layer-version \
+  --layer-name evo-prisma-deps-layer \
+  --description "Prisma client with Azure SDK support" \
+  --content S3Bucket=evo-uds-v3-production-frontend-383234048592,S3Key=layers/prisma-azure-layer.zip \
+  --compatible-runtimes nodejs18.x nodejs20.x \
+  --region us-east-1
 ```
 
 ## Lambda Functions (Prefixo: `evo-uds-v3-production-`)
 
-Todas as Lambdas usam o layer `evo-prisma-deps-layer:1`.
+Todas as Lambdas usam o layer `evo-prisma-deps-layer:40`.
 
-### Principais Lambdas
+### Principais Lambdas AWS
 - `security-scan` - Scan de segurança AWS
 - `well-architected-scan` - Análise Well-Architected
 - `compliance-scan` - Verificação de compliance
@@ -62,9 +96,26 @@ Todas as Lambdas usam o layer `evo-prisma-deps-layer:1`.
 - `webauthn-register` - Registro WebAuthn/Passkey
 - `webauthn-authenticate` - Autenticação WebAuthn
 
+### Lambdas Azure (Multi-Cloud)
+- `validate-azure-credentials` - Validar credenciais Azure
+- `save-azure-credentials` - Salvar credenciais Azure
+- `list-azure-credentials` - Listar credenciais Azure
+- `delete-azure-credentials` - Remover credenciais Azure
+- `azure-security-scan` - Scan de segurança Azure
+- `start-azure-security-scan` - Iniciar scan Azure (async)
+- `azure-defender-scan` - Microsoft Defender for Cloud
+- `azure-compliance-scan` - Compliance CIS/Azure Benchmark
+- `azure-well-architected-scan` - Azure Well-Architected Framework
+- `azure-cost-optimization` - Azure Advisor cost recommendations
+- `azure-reservations-analyzer` - Azure Reserved Instances analysis
+- `azure-fetch-costs` - Buscar custos Azure
+- `azure-resource-inventory` - Inventário de recursos Azure
+- `azure-activity-logs` - Logs de atividade Azure
+- `list-cloud-credentials` - Listar credenciais unificadas (AWS + Azure)
+
 ### Atualizar Layer em Todas as Lambdas
 ```bash
-LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:1"
+LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:43"
 for func in $(aws lambda list-functions --region us-east-1 --query 'Functions[?starts_with(FunctionName, `evo-uds-v3-production`)].FunctionName' --output text); do
   aws lambda update-function-configuration --function-name "$func" --layers "$LAYER_ARN" --region us-east-1
 done
@@ -218,4 +269,56 @@ aws ec2 describe-route-tables --route-table-ids rtb-060d53b4730d4507c --region u
 3. Verificar se Lambda está nas private subnets corretas:
 ```bash
 aws lambda get-function-configuration --function-name FUNCTION_NAME --query 'VpcConfig' --region us-east-1
+```
+
+### Azure SDK "not installed" Error
+Se receber erro "Azure SDK not installed", significa que o layer da Lambda não inclui os pacotes Azure.
+
+**Solução:**
+1. Verificar versão do layer na Lambda:
+```bash
+aws lambda get-function-configuration --function-name FUNCTION_NAME --query 'Layers[0].Arn' --output text --region us-east-1
+```
+
+2. Atualizar para layer versão 46 (com Azure SDK + @typespec + internal exports fix):
+```bash
+aws lambda update-function-configuration \
+  --function-name FUNCTION_NAME \
+  --layers "arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:46" \
+  --region us-east-1
+```
+
+3. Se precisar atualizar todas as Lambdas Azure:
+```bash
+LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:46"
+for func in validate-azure-credentials save-azure-credentials list-azure-credentials delete-azure-credentials azure-security-scan start-azure-security-scan azure-defender-scan azure-compliance-scan azure-well-architected-scan azure-cost-optimization azure-reservations-analyzer azure-fetch-costs azure-resource-inventory azure-activity-logs list-cloud-credentials; do
+  aws lambda update-function-configuration --function-name "evo-uds-v3-production-$func" --layers "$LAYER_ARN" --region us-east-1
+done
+```
+
+### API Gateway 500 "Cannot read properties of undefined (reading 'authorizer')"
+A Lambda não está recebendo o contexto de autorização do Cognito.
+
+**Causas:**
+1. Método POST não tem `authorizationType: COGNITO_USER_POOLS`
+2. `authorizerId` incorreto (deve ser `joelbs`)
+3. Permissão Lambda com path incorreto
+
+**Solução:**
+```bash
+# Verificar permissões da Lambda
+aws lambda get-policy --function-name LAMBDA_NAME --region us-east-1
+
+# O source-arn DEVE incluir o path completo:
+# arn:aws:execute-api:us-east-1:383234048592:3l66kn0eaj/*/POST/api/functions/ENDPOINT-NAME
+# NÃO: arn:aws:execute-api:us-east-1:383234048592:3l66kn0eaj/*/POST/ENDPOINT-NAME
+
+# Adicionar permissão correta se necessário:
+aws lambda add-permission \
+  --function-name LAMBDA_NAME \
+  --statement-id apigateway-ENDPOINT-NAME-fix \
+  --action lambda:InvokeFunction \
+  --principal apigateway.amazonaws.com \
+  --source-arn "arn:aws:execute-api:us-east-1:383234048592:3l66kn0eaj/*/POST/api/functions/ENDPOINT-NAME" \
+  --region us-east-1
 ```

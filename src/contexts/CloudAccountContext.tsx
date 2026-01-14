@@ -353,3 +353,64 @@ export function useProviderAccounts(provider: CloudProvider) {
   const context = useCloudAccount();
   return provider === 'AWS' ? context.awsAccounts : context.azureAccounts;
 }
+
+/**
+ * Helper hook for API compatibility
+ * Returns the correct filter object based on selected provider
+ * 
+ * Usage:
+ * const { getAccountFilter, getAccountFilterField } = useAccountFilter();
+ * 
+ * // For queries:
+ * const filters = { organization_id: orgId, ...getAccountFilter() };
+ * 
+ * // For specific field:
+ * filters[getAccountFilterField()] = selectedAccountId;
+ */
+export function useAccountFilter() {
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  
+  /**
+   * Returns the correct filter object for the selected account
+   * AWS: { aws_account_id: id }
+   * Azure: { azure_credential_id: id }
+   */
+  const getAccountFilter = useCallback(() => {
+    if (!selectedAccountId) return {};
+    
+    if (selectedProvider === 'AZURE') {
+      return { azure_credential_id: selectedAccountId };
+    }
+    // Default to AWS
+    return { aws_account_id: selectedAccountId };
+  }, [selectedAccountId, selectedProvider]);
+  
+  /**
+   * Returns the field name for the selected provider
+   */
+  const getAccountFilterField = useCallback(() => {
+    if (selectedProvider === 'AZURE') {
+      return 'azure_credential_id';
+    }
+    return 'aws_account_id';
+  }, [selectedProvider]);
+  
+  /**
+   * Returns account ID with provider info for API calls
+   */
+  const getAccountInfo = useCallback(() => {
+    return {
+      accountId: selectedAccountId,
+      provider: selectedProvider,
+      filterField: selectedProvider === 'AZURE' ? 'azure_credential_id' : 'aws_account_id',
+    };
+  }, [selectedAccountId, selectedProvider]);
+  
+  return {
+    getAccountFilter,
+    getAccountFilterField,
+    getAccountInfo,
+    selectedAccountId,
+    selectedProvider,
+  };
+}

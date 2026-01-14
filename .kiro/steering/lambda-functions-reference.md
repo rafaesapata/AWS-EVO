@@ -138,6 +138,10 @@ Ao criar uma nova Lambda ou endpoint:
 
 | Lambda | Endpoint | Descrição | Arquivo |
 |--------|----------|-----------|---------|
+| `azure-oauth-initiate` | `/api/functions/azure-oauth-initiate` | Inicia fluxo OAuth Azure | `azure/azure-oauth-initiate.ts` |
+| `azure-oauth-callback` | `/api/functions/azure-oauth-callback` | Callback OAuth Azure | `azure/azure-oauth-callback.ts` |
+| `azure-oauth-refresh` | `/api/functions/azure-oauth-refresh` | Refresh token OAuth Azure | `azure/azure-oauth-refresh.ts` |
+| `azure-oauth-revoke` | `/api/functions/azure-oauth-revoke` | Revoga credencial OAuth Azure | `azure/azure-oauth-revoke.ts` |
 | `validate-azure-credentials` | `/api/functions/validate-azure-credentials` | Valida credenciais Azure | `azure/validate-azure-credentials.ts` |
 | `save-azure-credentials` | `/api/functions/save-azure-credentials` | Salva credenciais Azure | `azure/save-azure-credentials.ts` |
 | `list-azure-credentials` | `/api/functions/list-azure-credentials` | Lista credenciais Azure | `azure/list-azure-credentials.ts` |
@@ -152,6 +156,8 @@ Ao criar uma nova Lambda ou endpoint:
 | `azure-fetch-costs` | `/api/functions/azure-fetch-costs` | Busca custos Azure | `azure/azure-fetch-costs.ts` |
 | `azure-resource-inventory` | `/api/functions/azure-resource-inventory` | Inventário de recursos Azure | `azure/azure-resource-inventory.ts` |
 | `azure-activity-logs` | `/api/functions/azure-activity-logs` | Logs de atividade Azure | `azure/azure-activity-logs.ts` |
+| `azure-fetch-monitor-metrics` | `/api/functions/azure-fetch-monitor-metrics` | Busca métricas Azure Monitor (VMs, App Services, etc) | `azure/azure-fetch-monitor-metrics.ts` |
+| `azure-detect-anomalies` | `/api/functions/azure-detect-anomalies` | Detecção de anomalias Azure (custos, performance, segurança) | `azure/azure-detect-anomalies.ts` |
 | `list-cloud-credentials` | `/api/functions/list-cloud-credentials` | Lista credenciais unificadas (AWS + Azure) | `cloud/list-cloud-credentials.ts` |
 
 ### 📜 Licenciamento (license/)
@@ -228,6 +234,7 @@ Ao criar uma nova Lambda ou endpoint:
 | `list-background-jobs` | `/api/functions/list-background-jobs` | Lista jobs em background | `jobs/list-background-jobs.ts` |
 | `execute-scheduled-job` | `/api/functions/execute-scheduled-job` | Executa job agendado | `jobs/execute-scheduled-job.ts` |
 | `scheduled-scan-executor` | `/api/functions/scheduled-scan-executor` | Executor de scans agendados | `jobs/scheduled-scan-executor.ts` |
+| `cleanup-expired-oauth-states` | N/A (scheduled) | Limpa OAuth states expirados | `jobs/cleanup-expired-oauth-states.ts` |
 | `run-migrations` | N/A (interno) | Executa migrações Prisma | `system/run-migrations.ts` |
 | `run-sql-migration` | N/A (interno) | Executa migração SQL | `system/run-sql-migration.ts` |
 | `create-mfa-table` | N/A (interno) | Cria tabela MFA | `system/create-mfa-table.ts` |
@@ -259,16 +266,16 @@ Ao criar uma nova Lambda ou endpoint:
 
 ## Estatísticas
 
-- **Total de Lambdas**: ~110 funções
-- **Total de Endpoints API Gateway**: ~100 endpoints
+- **Total de Lambdas**: ~111 funções
+- **Total de Endpoints API Gateway**: ~101 endpoints
 - **Categorias**: 15 categorias principais
 
 ---
 
 ## Última Atualização
 
-**Data**: 2026-01-12
-**Versão**: 1.0
+**Data**: 2026-01-13
+**Versão**: 1.1
 **Atualizado por**: Sistema
 
 ---

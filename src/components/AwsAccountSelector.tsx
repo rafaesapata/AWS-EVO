@@ -37,7 +37,7 @@ export function AwsAccountSelector({
     setSelectedAccountId, 
     isLoading,
     hasMultipleAccounts 
-  } = useAwsAccount();
+  } = useCloudAccount();
 
   if (isLoading) {
     return (

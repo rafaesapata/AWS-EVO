@@ -182,12 +182,24 @@ export default function UserManagement() {
         throw new Error(getErrorMessage(cognitoResponse.error));
       }
 
-      // Create user record in database (profiles table)
-      const response = await apiClient.insert('profiles', {
-        user_id: cognitoResponse.data.userId,
-        organization_id: targetOrgId,
-        full_name: userData.name,
-        role: userData.role,
+      // Create user record in database (profiles table) - use upsert to handle existing profiles
+      const response = await apiClient.invoke('mutate-table', {
+        body: {
+          table: 'profiles',
+          operation: 'upsert',
+          where: {
+            user_id_organization_id: {
+              user_id: cognitoResponse.data.userId,
+              organization_id: targetOrgId,
+            }
+          },
+          data: {
+            user_id: cognitoResponse.data.userId,
+            organization_id: targetOrgId,
+            full_name: userData.name,
+            role: userData.role,
+          }
+        }
       });
 
       if (response.error) {
@@ -240,13 +252,25 @@ export default function UserManagement() {
         // Organizations to remove (in currentOrgIds but not in newOrgIds)
         const orgsToRemove = currentOrgIds.filter((id: string) => !newOrgIds.includes(id));
         
-        // Create profiles for new organizations
+        // Create profiles for new organizations - use upsert to handle race conditions
         for (const orgId of orgsToAdd) {
-          await apiClient.insert('profiles', {
-            user_id: userData.user_id,
-            organization_id: orgId,
-            full_name: userData.name,
-            role: userData.role || 'user',
+          await apiClient.invoke('mutate-table', {
+            body: {
+              table: 'profiles',
+              operation: 'upsert',
+              where: {
+                user_id_organization_id: {
+                  user_id: userData.user_id,
+                  organization_id: orgId,
+                }
+              },
+              data: {
+                user_id: userData.user_id,
+                organization_id: orgId,
+                full_name: userData.name,
+                role: userData.role || 'user',
+              }
+            }
           });
         }
         
@@ -264,6 +288,30 @@ export default function UserManagement() {
             { full_name: userData.name, role: userData.role },
             { user_id: userData.user_id, organization_id: orgId }
           );
+        }
+        
+        // IMPORTANT: Update Cognito attributes with the PRIMARY organization (first in list)
+        // This ensures the user's JWT token will have the correct organization
+        if (newOrgIds.length > 0 && userData.email) {
+          const primaryOrgId = newOrgIds[0];
+          // Get organization name for the primary org
+          const orgsResponse = await apiClient.select('organizations', {
+            eq: { id: primaryOrgId }
+          });
+          const primaryOrgName = orgsResponse.data?.[0]?.name || 'Unknown';
+          
+          // Update Cognito user attributes
+          await apiClient.invoke('admin-manage-user', {
+            body: {
+              action: 'update_organization',
+              email: userData.email,
+              attributes: {
+                organization_id: primaryOrgId,
+                organization_name: primaryOrgName,
+                roles: userData.role ? [userData.role] : ['user'],
+              }
+            }
+          });
         }
         
         return { success: true };

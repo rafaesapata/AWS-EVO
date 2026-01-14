@@ -8,13 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 
 export function MultiAccountComparison() {
   const [isOpen, setIsOpen] = useState(false);
 
   // Use centralized AWS account context instead of direct API call
-  const { accounts, isLoading } = useAwsAccount();
+  const { accounts, isLoading } = useCloudAccount();
 
   const { data: metricsData = [] } = useOrganizationQuery(
     ['multi-account-metrics', accounts?.length],

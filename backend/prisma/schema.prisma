@@ -108,9 +108,24 @@ model AzureCredential {
   organization_id       String   @db.Uuid
   subscription_id       String   // Azure Subscription ID
   subscription_name     String?
-  tenant_id             String   // Azure AD Tenant ID
-  client_id             String   // Service Principal App ID
-  client_secret         String   // Service Principal Secret (encrypted)
+  
+  // Authentication type: 'service_principal' or 'oauth'
+  auth_type             String   @default("service_principal")
+  
+  // Service Principal fields (used when auth_type = 'service_principal')
+  tenant_id             String?  // Azure AD Tenant ID (optional for OAuth)
+  client_id             String?  // Service Principal App ID (optional for OAuth)
+  client_secret         String?  // Service Principal Secret (encrypted, optional for OAuth)
+  
+  // OAuth fields (used when auth_type = 'oauth')
+  encrypted_refresh_token String? // Encrypted OAuth refresh token
+  token_expires_at      DateTime? @db.Timestamptz(6) // When current access token expires
+  oauth_tenant_id       String?  // Tenant ID from OAuth flow
+  oauth_user_email      String?  // Email of user who authorized
+  last_refresh_at       DateTime? @db.Timestamptz(6) // Last successful token refresh
+  refresh_error         String?  // Error message if refresh failed
+  
+  // Common fields
   regions               String[] // Azure regions (e.g., eastus, westeurope)
   is_active             Boolean  @default(true)
   created_at            DateTime @default(now()) @db.Timestamptz(6)
@@ -126,7 +141,27 @@ model AzureCredential {
   @@unique([organization_id, subscription_id])
   @@index([organization_id])
   @@index([subscription_id])
+  @@index([auth_type])
   @@map("azure_credentials")
+}
+
+// ==================== OAUTH STATE (CSRF Protection) ====================
+
+model OAuthState {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  user_id         String   // Cognito user ID
+  state           String   @unique // Random state parameter
+  code_verifier   String   // PKCE code verifier
+  redirect_uri    String?  // Optional: store redirect URI for validation
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  expires_at      DateTime @db.Timestamptz(6) // 10 minutes from creation
+  used            Boolean  @default(false) // Mark as used after callback
+  
+  @@index([state])
+  @@index([expires_at])
+  @@index([organization_id])
+  @@map("oauth_states")
 }
 
 // ==================== SECURITY & FINDINGS ====================

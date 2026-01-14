@@ -402,3 +402,84 @@ if (!isLambda) {
     process.exit(0);
   });
 }
+
+/**
+ * Multi-cloud credential filter helper
+ * Creates a Prisma where clause that works with both AWS and Azure credentials
+ * 
+ * @param credentialId - The credential ID (can be AWS or Azure)
+ * @param cloudProvider - Optional cloud provider hint ('AWS' | 'AZURE')
+ * @returns Prisma where clause for credential filtering
+ */
+export function createCredentialFilter(
+  credentialId: string,
+  cloudProvider?: 'AWS' | 'AZURE'
+): { aws_account_id?: string; azure_credential_id?: string; OR?: Array<{ aws_account_id?: string; azure_credential_id?: string }> } {
+  // If cloud provider is specified, use direct filter
+  if (cloudProvider === 'AWS') {
+    return { aws_account_id: credentialId };
+  }
+  if (cloudProvider === 'AZURE') {
+    return { azure_credential_id: credentialId };
+  }
+  
+  // If no provider specified, create OR filter for both
+  return {
+    OR: [
+      { aws_account_id: credentialId },
+      { azure_credential_id: credentialId }
+    ]
+  };
+}
+
+/**
+ * Get credential filter for optional credential ID
+ * Returns empty object if no credentialId provided
+ */
+export function getOptionalCredentialFilter(
+  credentialId?: string,
+  cloudProvider?: 'AWS' | 'AZURE'
+): Record<string, any> {
+  if (!credentialId) {
+    return {};
+  }
+  return createCredentialFilter(credentialId, cloudProvider);
+}
+
+/**
+ * Detect cloud provider from credential ID by checking database
+ */
+export async function detectCloudProvider(
+  organizationId: string,
+  credentialId: string
+): Promise<'AWS' | 'AZURE' | null> {
+  const prisma = getPrismaClient();
+  
+  // Check AWS credentials first
+  const awsCredential = await prisma.awsCredential.findFirst({
+    where: {
+      id: credentialId,
+      organization_id: organizationId,
+    },
+    select: { id: true },
+  });
+  
+  if (awsCredential) {
+    return 'AWS';
+  }
+  
+  // Check Azure credentials
+  const azureCredential = await prisma.azureCredential.findFirst({
+    where: {
+      id: credentialId,
+      organization_id: organizationId,
+    },
+    select: { id: true },
+  });
+  
+  if (azureCredential) {
+    return 'AZURE';
+  }
+  
+  return null;
+}

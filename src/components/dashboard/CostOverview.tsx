@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTranslation } from "react-i18next";
@@ -26,8 +26,12 @@ const CostOverview = () => {
   const [awsRoleError, setAwsRoleError] = useState<string | null>(null);
   
   // Use global account context
-  const { selectedAccountId, selectedAccount, isLoading: accountLoading } = useAwsAccount();
+  const { selectedAccountId, selectedAccount, selectedProvider, isLoading: accountLoading } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
+  
+  // Multi-cloud support
+  const isAzure = selectedProvider === 'AZURE';
   
   // Get locale for date formatting
   const dateLocale = i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US';
@@ -44,10 +48,7 @@ const CostOverview = () => {
       oneYearAgo.setDate(oneYearAgo.getDate() - 365);
 
 
-      const filters: any = { organization_id: organizationId };
-      if (selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
+      const filters: any = { organization_id: organizationId, ...getAccountFilter() };
 
       const { data, error } = await AWSService.getDailyCosts(filters);
       
@@ -70,11 +71,16 @@ const CostOverview = () => {
       }, [] as typeof data) || [];
 
 
-      // If no data, fetch from edge function
+      // If no data, fetch from edge function - multi-cloud support
       if (!uniqueCosts || uniqueCosts.length === 0) {
         try {
-          const fetchedData = await apiClient.lambda('fetch-daily-costs', {
-            body: { accountId: selectedAccountId!, days: 365 }
+          const lambdaName = isAzure ? 'azure-fetch-costs' : 'fetch-daily-costs';
+          const bodyParam = isAzure 
+            ? { credentialId: selectedAccountId!, startDate: oneYearAgo.toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] }
+            : { accountId: selectedAccountId!, days: 365 };
+          
+          const fetchedData = await apiClient.lambda(lambdaName, {
+            body: bodyParam
           });
 
           // Check for errors - both from fetchError and from response data
@@ -140,8 +146,14 @@ const CostOverview = () => {
     
     setIsRefreshing(true);
     try {
-      const result = await apiClient.lambda('fetch-daily-costs', {
-        body: { accountId: selectedAccountId, days: 365 }
+      // Multi-cloud support
+      const lambdaName = isAzure ? 'azure-fetch-costs' : 'fetch-daily-costs';
+      const bodyParam = isAzure 
+        ? { credentialId: selectedAccountId, startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] }
+        : { accountId: selectedAccountId, days: 365 };
+      
+      const result = await apiClient.lambda(lambdaName, {
+        body: bodyParam
       });
       
       const checkAssumeRoleError = (msg: string): boolean => {

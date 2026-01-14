@@ -846,64 +846,64 @@ const CloudFormationDeploy = () => {
           <div className="space-y-6">
             {/* Success Header */}
             <div className="text-center space-y-2">
-              <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="w-8 h-8 text-green-600" />
+              <div className="w-16 h-16 mx-auto bg-green-500/30 rounded-full flex items-center justify-center">
+                <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
               </div>
-              <h3 className="text-xl font-semibold text-green-700 dark:text-green-400">
+              <h3 className="text-xl font-semibold text-green-700 dark:text-green-300">
                 {savedAccountData.updated ? 'Conta Atualizada com Sucesso!' : 'Conta Conectada com Sucesso!'}
               </h3>
             </div>
 
             {/* Account Details Card */}
-            <div className="bg-muted/50 rounded-lg p-4 space-y-4">
-              <h4 className="font-medium flex items-center gap-2">
+            <div className="bg-card border border-border rounded-lg p-4 space-y-4 shadow-sm">
+              <h4 className="font-semibold flex items-center gap-2 text-foreground">
                 <Shield className="w-4 h-4 text-primary" />
                 Detalhes da Conta AWS
               </h4>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">ID da Conta AWS</p>
-                  <p className="font-mono font-medium bg-background px-2 py-1 rounded">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ID da Conta AWS</p>
+                  <p className="font-mono font-semibold text-foreground bg-muted/80 px-3 py-2 rounded-md border border-border">
                     {savedAccountData.account_id}
                   </p>
                 </div>
                 
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Nome da Conta</p>
-                  <p className="font-medium bg-background px-2 py-1 rounded">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nome da Conta</p>
+                  <p className="font-semibold text-foreground bg-muted/80 px-3 py-2 rounded-md border border-border">
                     {savedAccountData.account_name}
                   </p>
                 </div>
                 
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Status</p>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${savedAccountData.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <span className={savedAccountData.is_active ? 'text-green-600' : 'text-red-600'}>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</p>
+                  <div className="flex items-center gap-2 bg-muted/80 px-3 py-2 rounded-md border border-border">
+                    <span className={`w-2.5 h-2.5 rounded-full ${savedAccountData.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className={`font-semibold ${savedAccountData.is_active ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                       {savedAccountData.is_active ? 'Ativa' : 'Inativa'}
                     </span>
                   </div>
                 </div>
                 
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Método de Conexão</p>
-                  <p className="font-medium bg-background px-2 py-1 rounded flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-green-600" />
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Método de Conexão</p>
+                  <p className="font-semibold text-foreground bg-muted/80 px-3 py-2 rounded-md border border-border flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-green-600 dark:text-green-400" />
                     IAM Role (CloudFormation)
                   </p>
                 </div>
                 
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">ID Interno</p>
-                  <p className="font-mono text-xs bg-background px-2 py-1 rounded truncate">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ID Interno</p>
+                  <p className="font-mono text-xs text-foreground bg-muted/80 px-3 py-2 rounded-md border border-border truncate">
                     {savedAccountData.id}
                   </p>
                 </div>
                 
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Data de Conexão</p>
-                  <p className="font-medium bg-background px-2 py-1 rounded">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data de Conexão</p>
+                  <p className="font-semibold text-foreground bg-muted/80 px-3 py-2 rounded-md border border-border">
                     {new Date(savedAccountData.created_at).toLocaleString('pt-BR')}
                   </p>
                 </div>
@@ -911,10 +911,10 @@ const CloudFormationDeploy = () => {
             </div>
 
             {/* Regions Section */}
-            <div className="bg-blue-500/10 rounded-lg p-4 space-y-3 border border-blue-500/20">
+            <div className="bg-blue-50 dark:bg-blue-950/40 rounded-lg p-4 space-y-3 border border-blue-200 dark:border-blue-800">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium flex items-center gap-2">
-                  <CloudCog className="w-4 h-4 text-blue-600" />
+                <h4 className="font-semibold flex items-center gap-2 text-blue-900 dark:text-blue-100">
+                  <CloudCog className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   Regiões Monitoradas ({savedAccountData.regions.length})
                 </h4>
                 {!isEditingRegions && (
@@ -925,7 +925,7 @@ const CloudFormationDeploy = () => {
                       setEditedRegions(savedAccountData.regions);
                       setIsEditingRegions(true);
                     }}
-                    className="text-blue-600 hover:text-blue-700"
+                    className="text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 hover:bg-blue-100 dark:hover:bg-blue-900/50"
                   >
                     ✏️ Editar Regiões
                   </Button>
@@ -966,7 +966,7 @@ const CloudFormationDeploy = () => {
                   {savedAccountData.regions.map((region) => (
                     <span
                       key={region}
-                      className="px-2 py-1 bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded text-sm font-mono"
+                      className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 rounded-md text-sm font-mono font-medium border border-blue-200 dark:border-blue-700"
                     >
                       {region}
                     </span>
@@ -976,12 +976,12 @@ const CloudFormationDeploy = () => {
             </div>
 
             {/* External ID Info */}
-            <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
-              <div className="flex items-start gap-2">
-                <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                <div className="text-xs">
-                  <p className="font-medium text-yellow-700 dark:text-yellow-400">External ID Utilizado</p>
-                  <code className="font-mono text-muted-foreground break-all">{externalId}</code>
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-amber-800 dark:text-amber-200">External ID Utilizado</p>
+                  <code className="font-mono text-sm text-amber-900 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/60 px-2 py-1 rounded break-all block">{externalId}</code>
                 </div>
               </div>
             </div>

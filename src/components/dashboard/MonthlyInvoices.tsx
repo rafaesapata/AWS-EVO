@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { parseDateString, compareDates, getDayOfMonth } from "@/lib/utils";
 
 export const MonthlyInvoices = () => {
@@ -31,7 +31,8 @@ export const MonthlyInvoices = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId, accounts } = useAwsAccount();
+  const { selectedAccountId, accounts } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -43,10 +44,10 @@ export const MonthlyInvoices = () => {
     queryKey: ['monthly-invoices-data', organizationId, selectedAccountId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const filters: any = { organization_id: organizationId };
-      if (selectedAccountId) {
-        filters.aws_account_id = selectedAccountId;
-      }
+      const filters: any = { 
+        organization_id: organizationId,
+        ...getAccountFilter() // Multi-cloud compatible
+      };
 
       const response = await apiClient.select('daily_costs', {
         eq: filters,

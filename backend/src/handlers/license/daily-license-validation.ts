@@ -3,7 +3,7 @@ import { ScheduledEvent } from 'aws-lambda';
 import { logger } from '../../lib/logging.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 
@@ -40,8 +40,9 @@ export async function handler(
   let filterOrgId: string | undefined;
   if (!isScheduled) {
     try {
-      const user = getUserFromEvent(event as AuthorizedEvent);
-      filterOrgId = getOrganizationId(user);
+      const authorizedEvent = event as AuthorizedEvent;
+      const user = getUserFromEvent(authorizedEvent);
+      filterOrgId = getOrganizationIdWithImpersonation(authorizedEvent, user);
     } catch (authError) {
       logger.error('Authentication error', authError);
       return error('Unauthorized', 401, undefined, origin);

@@ -9,7 +9,7 @@ import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { Shield, CheckCircle2, AlertTriangle, XCircle, PlayCircle, Loader2, Ticket, ExternalLink, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -19,10 +19,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useAwsAccount } from "@/contexts/AwsAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 
-const FRAMEWORKS = [
+// AWS Frameworks
+const AWS_FRAMEWORKS = [
   {
     id: 'cis',
     name: 'CIS AWS',
@@ -55,6 +56,40 @@ const FRAMEWORKS = [
   },
 ];
 
+// Azure Frameworks
+const AZURE_FRAMEWORKS = [
+  {
+    id: 'cis-azure',
+    name: 'CIS Azure',
+    description: 'CIS Microsoft Azure Foundations Benchmark',
+    icon: '🔒',
+  },
+  {
+    id: 'azure-security-benchmark',
+    name: 'Azure Security Benchmark',
+    description: 'Microsoft Azure Security Benchmark',
+    icon: '🛡️',
+  },
+  {
+    id: 'lgpd',
+    name: 'LGPD',
+    description: 'Lei Geral de Proteção de Dados (Brasil)',
+    icon: '🇧🇷',
+  },
+  {
+    id: 'gdpr',
+    name: 'GDPR',
+    description: 'General Data Protection Regulation (Europa)',
+    icon: '🇪🇺',
+  },
+  {
+    id: 'pci-dss',
+    name: 'PCI-DSS',
+    description: 'Payment Card Industry Data Security Standard',
+    icon: '💳',
+  },
+];
+
 export function ComplianceFrameworks() {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -69,8 +104,12 @@ export function ComplianceFrameworks() {
   const CHECKS_PER_PAGE = 10;
   const { data: organizationId } = useOrganization();
   
-  // CRITICAL: Get selected AWS account for multi-account isolation
-  const { selectedAccountId } = useAwsAccount();
+  // CRITICAL: Get selected cloud account and provider for multi-cloud support
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  
+  // Determine which frameworks to show based on selected provider
+  const isAzure = selectedProvider === 'AZURE';
+  const FRAMEWORKS = useMemo(() => isAzure ? AZURE_FRAMEWORKS : AWS_FRAMEWORKS, [isAzure]);
 
   const { data: complianceChecks = [], isLoading } = useQuery({
     queryKey: ['compliance-checks', organizationId, selectedAccountId],
@@ -126,12 +165,14 @@ export function ComplianceFrameworks() {
         description: `Verificando compliance com ${FRAMEWORKS.find(f => f.id === frameworkId)?.name}...`
       });
 
-      // Call the compliance-scan Lambda function
-      const result = await apiClient.invoke('compliance-scan', { 
-        body: {
-          frameworkId,
-          scanId: scanData.data.id 
-        }
+      // Call the appropriate compliance-scan Lambda based on provider
+      const lambdaName = isAzure ? 'azure-compliance-scan' : 'compliance-scan';
+      const bodyParams = isAzure 
+        ? { frameworkId, scanId: scanData.data.id, credentialId: selectedAccountId }
+        : { frameworkId, scanId: scanData.data.id, accountId: selectedAccountId };
+      
+      const result = await apiClient.invoke(lambdaName, { 
+        body: bodyParams
       });
 
       if (result.error) {
