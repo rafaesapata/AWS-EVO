@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,7 +25,6 @@ import {
   Download,
   Eye,
   Bug,
-  Lock,
   Zap,
   Activity,
   ChevronLeft,
@@ -72,6 +71,7 @@ interface ScanFinding {
 
 export default function SecurityScans() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider } = useCloudAccount();
@@ -82,24 +82,24 @@ export default function SecurityScans() {
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   
   // Findings filters
-  const [selectedFindings, setSelectedFindings] = useState<Set<string>>(new Set());
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [findingsPage, setFindingsPage] = useState<number>(1);
 
   // Get security scans
-  const { data: scanData, isLoading, refetch } = useQuery({
+  const { data: scanData, isLoading, refetch } = useQuery<{ scans: SecurityScan[], total: number }>({
     queryKey: ['security-scans', organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage],
     enabled: !!organizationId, // Only require organizationId, accountId is optional
     staleTime: 10 * 1000, // 10 seconds - faster updates for running scans
     refetchInterval: (query) => {
       // Auto-refresh every 5 seconds if there are running scans
       const data = query.state.data as { scans: SecurityScan[], total: number } | undefined;
-      const hasRunningScans = data?.scans?.some(scan => scan.status === 'running');
+      const hasRunningScans = data?.scans?.some((scan: SecurityScan) => scan.status === 'running');
       return hasRunningScans ? 5000 : false;
     },
-    queryFn: async () => {
+    queryFn: async (): Promise<{ scans: SecurityScan[], total: number }> => {
       console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage });
       
       let filters: any = { 
@@ -137,12 +137,12 @@ export default function SecurityScans() {
       const totalCount = countResponse.data?.length || 0;
 
       // Ensure we always return an array
-      const scans = Array.isArray(response.data) ? response.data : [];
+      const scans = Array.isArray(response.data) ? response.data as SecurityScan[] : [];
       return { scans, total: totalCount };
     },
   });
 
-  const scans = scanData?.scans || [];
+  const scans: SecurityScan[] = scanData?.scans || [];
   const totalScans = scanData?.total || 0;
   const totalPages = Math.ceil(totalScans / itemsPerPage);
 
@@ -162,12 +162,12 @@ export default function SecurityScans() {
   };
 
   // Get scan findings for the latest completed scan
-  const { data: findings, isLoading: findingsLoading } = useQuery({
+  const { data: findings, isLoading: findingsLoading } = useQuery<ScanFinding[]>({
     queryKey: ['scan-findings', organizationId, selectedAccountId],
     enabled: !!organizationId && scans && scans.length > 0,
     staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      const latestCompletedScan = scans?.find(scan => scan.status === 'completed');
+    queryFn: async (): Promise<ScanFinding[]> => {
+      const latestCompletedScan = scans?.find((scan: SecurityScan) => scan.status === 'completed');
       if (!latestCompletedScan) return [];
 
       const filters: any = { 
@@ -187,7 +187,7 @@ export default function SecurityScans() {
       }
 
       // Ensure we always return an array
-      return Array.isArray(response.data) ? response.data : [];
+      return Array.isArray(response.data) ? response.data as ScanFinding[] : [];
     },
   });
 
@@ -927,6 +927,69 @@ export default function SecurityScans() {
         </TabsContent>
 
         <TabsContent value="findings" className="space-y-4">
+          {/* Findings Filters */}
+          <Card className="glass border-primary/20">
+            <CardContent className="pt-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <input
+                    type="text"
+                    placeholder="Buscar achados..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setFindingsPage(1);
+                    }}
+                    className="w-full px-3 py-2 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <Select value={severityFilter} onValueChange={(value) => {
+                  setSeverityFilter(value);
+                  setFindingsPage(1);
+                }}>
+                  <SelectTrigger className="w-[150px] glass">
+                    <SelectValue placeholder="Severidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Severidades</SelectItem>
+                    <SelectItem value="critical">Crítico</SelectItem>
+                    <SelectItem value="high">Alto</SelectItem>
+                    <SelectItem value="medium">Médio</SelectItem>
+                    <SelectItem value="low">Baixo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={serviceFilter} onValueChange={(value) => {
+                  setServiceFilter(value);
+                  setFindingsPage(1);
+                }}>
+                  <SelectTrigger className="w-[150px] glass">
+                    <SelectValue placeholder="Serviço" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos Serviços</SelectItem>
+                    {Array.from(new Set(findings?.map(f => f.service).filter(Boolean) || [])).map(service => (
+                      <SelectItem key={service} value={service!}>{service}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={categoryFilter} onValueChange={(value) => {
+                  setCategoryFilter(value);
+                  setFindingsPage(1);
+                }}>
+                  <SelectTrigger className="w-[150px] glass">
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Categorias</SelectItem>
+                    {Array.from(new Set(findings?.map(f => f.category).filter(Boolean) || [])).map(category => (
+                      <SelectItem key={category} value={category!}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="glass border-primary/20">
             <CardHeader>
               <CardTitle>Achados de Segurança</CardTitle>
@@ -940,8 +1003,52 @@ export default function SecurityScans() {
                   ))}
                 </div>
               ) : findings && findings.length > 0 ? (
+                (() => {
+                  // Apply filters
+                  const filteredFindings = findings.filter(finding => {
+                    // Severity filter
+                    if (severityFilter !== 'all' && finding.severity !== severityFilter) return false;
+                    // Service filter
+                    if (serviceFilter !== 'all' && finding.service !== serviceFilter) return false;
+                    // Category filter
+                    if (categoryFilter !== 'all' && finding.category !== categoryFilter) return false;
+                    // Search query
+                    if (searchQuery) {
+                      const query = searchQuery.toLowerCase();
+                      const matchesDescription = finding.description?.toLowerCase().includes(query);
+                      const matchesService = finding.service?.toLowerCase().includes(query);
+                      const matchesCategory = finding.category?.toLowerCase().includes(query);
+                      const matchesResourceId = finding.resource_id?.toLowerCase().includes(query);
+                      if (!matchesDescription && !matchesService && !matchesCategory && !matchesResourceId) return false;
+                    }
+                    return true;
+                  });
+
+                  // Pagination for findings
+                  const findingsPerPage = 10;
+                  const totalFindingsPages = Math.ceil(filteredFindings.length / findingsPerPage);
+                  const paginatedFindings = filteredFindings.slice(
+                    (findingsPage - 1) * findingsPerPage,
+                    findingsPage * findingsPerPage
+                  );
+
+                  return (
                 <div className="space-y-4">
-                  {findings.map((finding) => {
+                  {/* Summary */}
+                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                    <span>
+                      Mostrando {paginatedFindings.length} de {filteredFindings.length} achados
+                      {filteredFindings.length !== findings.length && ` (${findings.length} total)`}
+                    </span>
+                    <div className="flex gap-2">
+                      <Badge variant="destructive">{filteredFindings.filter(f => f.severity === 'critical').length} Críticos</Badge>
+                      <Badge className="bg-orange-500">{filteredFindings.filter(f => f.severity === 'high').length} Altos</Badge>
+                      <Badge variant="secondary">{filteredFindings.filter(f => f.severity === 'medium').length} Médios</Badge>
+                      <Badge variant="outline">{filteredFindings.filter(f => f.severity === 'low').length} Baixos</Badge>
+                    </div>
+                  </div>
+
+                  {paginatedFindings.map((finding) => {
                     // Helper functions para extrair dados dos campos corretos
                     const getTitle = () => {
                       if (finding.details?.title) return finding.details.title;
@@ -1104,7 +1211,78 @@ export default function SecurityScans() {
                     </div>
                   );
                   })}
+
+                  {/* Findings Pagination */}
+                  {totalFindingsPages > 1 && (
+                    <div className="flex items-center justify-between pt-6 border-t mt-6">
+                      <div className="text-sm text-muted-foreground">
+                        Página {findingsPage} de {totalFindingsPages}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFindingsPage(1)}
+                          disabled={findingsPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFindingsPage(p => Math.max(1, p - 1))}
+                          disabled={findingsPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        
+                        {Array.from({ length: Math.min(5, totalFindingsPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalFindingsPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (findingsPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (findingsPage >= totalFindingsPages - 2) {
+                            pageNum = totalFindingsPages - 4 + i;
+                          } else {
+                            pageNum = findingsPage - 2 + i;
+                          }
+                          
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={findingsPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setFindingsPage(pageNum)}
+                              className="w-8"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFindingsPage(p => Math.min(totalFindingsPages, p + 1))}
+                          disabled={findingsPage === totalFindingsPages}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFindingsPage(totalFindingsPages)}
+                          disabled={findingsPage === totalFindingsPages}
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
+                  );
+                })()
               ) : (
                 <div className="text-center py-12">
                   <CheckCircle className="h-16 w-16 mx-auto mb-4 text-success" />
