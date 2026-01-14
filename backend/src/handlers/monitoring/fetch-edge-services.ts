@@ -447,15 +447,27 @@ async function collectWAFMetrics(
   endTime: Date
 ): Promise<EdgeMetricsData> {
   const webAclName = service.serviceName;
+  const scope = service.metadata?.scope as string || 'REGIONAL';
+  const region = scope === 'CLOUDFRONT' ? 'Global' : service.region;
+  
+  // Dimensões corretas para WAFv2:
+  // - WebACL: Nome do Web ACL
+  // - Region: 'Global' para CloudFront ou nome da região para regional
+  // - Rule: 'ALL' para todas as regras
   const dimensions: Dimension[] = [
     { Name: 'WebACL', Value: webAclName },
+    { Name: 'Region', Value: region },
     { Name: 'Rule', Value: 'ALL' },
   ];
+  
+  logger.info(`📊 Collecting WAF metrics for ${webAclName} in ${region} with dimensions:`, { dimensions });
   
   const [allowedRequests, blockedRequests] = await Promise.all([
     getMetricSum(client, 'AWS/WAFV2', 'AllowedRequests', dimensions, startTime, endTime),
     getMetricSum(client, 'AWS/WAFV2', 'BlockedRequests', dimensions, startTime, endTime),
   ]);
+  
+  logger.info(`📊 WAF metrics for ${webAclName}: allowed=${allowedRequests}, blocked=${blockedRequests}`);
   
   return {
     timestamp: new Date(),
@@ -550,8 +562,17 @@ async function getMetricSum(
       Statistics: ['Sum'],
     }));
     
-    return response.Datapoints?.reduce((sum, dp) => sum + (dp.Sum || 0), 0) || 0;
-  } catch {
+    const sum = response.Datapoints?.reduce((acc, dp) => acc + (dp.Sum || 0), 0) || 0;
+    
+    if (response.Datapoints?.length === 0) {
+      logger.debug(`No datapoints found for ${namespace}/${metricName}`, { dimensions });
+    } else {
+      logger.debug(`Got ${response.Datapoints?.length} datapoints for ${namespace}/${metricName}, sum=${sum}`);
+    }
+    
+    return sum;
+  } catch (err: any) {
+    logger.warn(`Failed to get metric ${namespace}/${metricName}: ${err.message}`, { dimensions });
     return 0;
   }
 }

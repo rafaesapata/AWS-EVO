@@ -286,7 +286,7 @@ Format your response as JSON with: answer, insights (array), recommendations (ar
 
   try {
     const response = await bedrockClient.send(new InvokeModelCommand({
-      modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
       contentType: 'application/json',
       accept: 'application/json',
       body: JSON.stringify({

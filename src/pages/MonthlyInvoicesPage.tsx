@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Calendar, 
   Download, 
@@ -515,8 +516,67 @@ export const MonthlyInvoicesPage = () => {
         </CardContent>
       </Card>
 
+      {/* Loading Skeleton */}
+      {isLoadingCosts && (
+        <div className="space-y-6">
+          {/* Summary Cards Skeleton */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i} className="glass border-primary/20">
+                <CardHeader className="pb-2">
+                  <Skeleton className="h-4 w-24" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-32 mb-2" />
+                  <Skeleton className="h-3 w-20" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          
+          {/* Chart Skeleton */}
+          <Card className="glass border-primary/20">
+            <CardHeader>
+              <Skeleton className="h-6 w-48 mb-2" />
+              <Skeleton className="h-4 w-64" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[400px] w-full" />
+            </CardContent>
+          </Card>
+          
+          {/* Invoice List Skeleton */}
+          <Card className="glass border-primary/20">
+            <CardHeader>
+              <Skeleton className="h-6 w-40 mb-2" />
+              <Skeleton className="h-4 w-56" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <Skeleton className="h-5 w-5 rounded" />
+                      <div>
+                        <Skeleton className="h-5 w-32 mb-1" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                      <Skeleton className="h-6 w-24" />
+                      <Skeleton className="h-8 w-8 rounded" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Monthly Summary Cards */}
-      {selectedMonthData && (
+      {!isLoadingCosts && selectedMonthData && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="glass border-primary/20">
             <CardHeader className="pb-2">
@@ -572,6 +632,7 @@ export const MonthlyInvoicesPage = () => {
       )}
 
       {/* Tabs for different views */}
+      {!isLoadingCosts && (
       <Tabs defaultValue="comparison" className="w-full">
         <TabsList className="glass">
           <TabsTrigger value="comparison">Comparação Mensal</TabsTrigger>
@@ -766,8 +827,10 @@ export const MonthlyInvoicesPage = () => {
           )}
         </TabsContent>
       </Tabs>
+      )}
 
       {/* Monthly Invoice List */}
+      {!isLoadingCosts && (
       <Card className="glass border-primary/20">
         <CardHeader>
           <CardTitle>Histórico de Faturas</CardTitle>
@@ -785,6 +848,14 @@ export const MonthlyInvoicesPage = () => {
               const prevData = prevMonth ? monthlyData[prevMonth as keyof typeof monthlyData] : null;
               const change = prevData ? ((data.netCost - prevData.netCost) / prevData.netCost) * 100 : 0;
 
+              // Badge classes with proper contrast
+              const getBadgeClasses = (changeValue: number) => {
+                if (changeValue >= 0) {
+                  return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800';
+                }
+                return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800';
+              };
+
               return (
                 <div 
                   key={month}
@@ -800,7 +871,7 @@ export const MonthlyInvoicesPage = () => {
                   </div>
                   <div className="flex items-center gap-4">
                     {prevData && (
-                      <Badge variant={change >= 0 ? "destructive" : "default"} className="gap-1">
+                      <Badge variant="outline" className={`gap-1 ${getBadgeClasses(change)}`}>
                         {change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                         {change >= 0 ? '+' : ''}{change.toFixed(1)}%
                       </Badge>
@@ -829,6 +900,7 @@ export const MonthlyInvoicesPage = () => {
           </div>
         </CardContent>
       </Card>
+      )}
       </div>
     </Layout>
   );

@@ -99,9 +99,9 @@ export async function handler(
     // Construir prompt compacto COM histórico
     const compactPrompt = buildCompactPrompt(platformContext, user, message, history);
 
-    // Call Bedrock with Claude 3.5 Sonnet v2 (latest version)
+    // Call Bedrock with Claude 3.5 Sonnet v1 (on-demand compatible)
     const bedrockResponse = await bedrockClient.send(new InvokeModelCommand({
-      modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
       contentType: 'application/json',
       accept: 'application/json',
       body: JSON.stringify({

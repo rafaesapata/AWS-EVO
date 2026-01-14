@@ -132,19 +132,14 @@ export function CostTrends({ accountId, costs }: Props) {
     }
   };
 
-  const getTrendColor = (change: number) => {
-    if (change > 20) return 'text-red-600';
-    if (change > 10) return 'text-orange-500';
-    if (change > 0) return 'text-yellow-600';
-    if (change < -20) return 'text-green-600';
-    if (change < -10) return 'text-green-500';
-    return 'text-muted-foreground';
-  };
-
-  const getTrendBadgeVariant = (change: number): "default" | "destructive" | "outline" | "secondary" => {
-    if (change > 15) return 'destructive';
-    if (change < -15) return 'default';
-    return 'outline';
+  const getTrendBadgeClasses = (change: number) => {
+    // Badge classes with proper contrast - background + text color
+    if (change > 20) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800';
+    if (change > 10) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-800';
+    if (change > 0) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800';
+    if (change < -20) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800';
+    if (change < -10) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+    return 'bg-muted text-muted-foreground border-border';
   };
 
   return (
@@ -164,7 +159,10 @@ export function CostTrends({ accountId, costs }: Props) {
               ) : (
                 <Minus className="h-5 w-5 text-muted-foreground" />
               )}
-              <Badge variant={analysis.overallChange > 10 ? 'destructive' : 'default'}>
+              <Badge 
+                variant="outline"
+                className={getTrendBadgeClasses(analysis.overallChange)}
+              >
                 {analysis.overallChange > 0 ? '+' : ''}{analysis.overallChange.toFixed(1)}%
               </Badge>
             </div>
@@ -184,8 +182,8 @@ export function CostTrends({ accountId, costs }: Props) {
                         {item.service.replace('Amazon ', '').replace('AWS ', '')}
                       </span>
                       <Badge 
-                        variant={getTrendBadgeVariant(item.weeklyChange)}
-                        className={getTrendColor(item.weeklyChange)}
+                        variant="outline"
+                        className={getTrendBadgeClasses(item.weeklyChange)}
                       >
                         {item.weeklyChange > 0 ? '+' : ''}{item.weeklyChange.toFixed(1)}%
                       </Badge>

@@ -429,23 +429,23 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Todos os Status</SelectItem>
-                        <SelectItem value="OPEN">Aberto</SelectItem>
-                        <SelectItem value="investigating">Investigando</SelectItem>
-                        <SelectItem value="resolved">Resolvido</SelectItem>
-                        <SelectItem value="false_positive">Falso Positivo</SelectItem>
+                        <SelectItem value="all">{t('anomalyDetection.allStatuses')}</SelectItem>
+                        <SelectItem value="OPEN">{t('anomalyDetection.statusOpen', 'Open')}</SelectItem>
+                        <SelectItem value="investigating">{t('anomalyDetection.statusInvestigating')}</SelectItem>
+                        <SelectItem value="resolved">{t('anomalyDetection.statusResolved')}</SelectItem>
+                        <SelectItem value="false_positive">{t('anomalyDetection.statusFalsePositive')}</SelectItem>
                       </SelectContent>
                     </Select>
 
                     <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setCurrentPage(1); }}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Categoria" />
+                        <SelectValue placeholder={t('common.category')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Todas as Categorias</SelectItem>
-                        <SelectItem value="cost">Custo</SelectItem>
-                        <SelectItem value="performance">Performance</SelectItem>
-                        <SelectItem value="security">Segurança</SelectItem>
+                        <SelectItem value="all">{t('anomalyDetection.allTypes')}</SelectItem>
+                        <SelectItem value="cost">{t('anomalyDetection.typeCost')}</SelectItem>
+                        <SelectItem value="performance">{t('anomalyDetection.typePerformance')}</SelectItem>
+                        <SelectItem value="security">{t('anomalyDetection.typeSecurity', 'Security')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -492,7 +492,7 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                                     <Button variant="ghost" size="sm" onClick={(e) => {
                                       e.stopPropagation();
                                       updateAnomalyStatus(anomaly.id, 'investigating');
-                                    }} title="Marcar como investigando">
+                                    }} title={t('anomalyDetection.markAsInvestigating', 'Mark as investigating')}>
                                       <CheckCircle className="h-4 w-4" />
                                     </Button>
                                   )}
@@ -501,7 +501,7 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                                       <Button variant="ghost" size="sm" onClick={(e) => {
                                         e.stopPropagation();
                                         updateAnomalyStatus(anomaly.id, 'resolved');
-                                      }} title="Marcar como resolvido">
+                                      }} title={t('anomalyDetection.markAsResolved', 'Mark as resolved')}>
                                         <CheckCircle className="h-4 w-4 text-green-600" />
                                       </Button>
                                       <Button
@@ -511,7 +511,7 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                                           e.stopPropagation();
                                           updateAnomalyStatus(anomaly.id, 'false_positive');
                                         }}
-                                        title="Marcar como falso positivo"
+                                        title={t('anomalyDetection.markAsFalsePositive', 'Mark as false positive')}
                                       >
                                         <X className="h-4 w-4" />
                                       </Button>
@@ -526,16 +526,16 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                                 </p>
                                 {anomaly.resource_id && (
                                   <p className="text-sm text-muted-foreground">
-                                    <span className="font-medium">Resource:</span> {anomaly.resource_id}
+                                    <span className="font-medium">{t('anomalyDetection.resource')}:</span> {anomaly.resource_id}
                                   </p>
                                 )}
                                 {anomaly.service && (
                                   <p className="text-sm text-muted-foreground">
-                                    <span className="font-medium">Service:</span> {anomaly.service}
+                                    <span className="font-medium">{t('anomalyDetection.service', 'Service')}:</span> {anomaly.service}
                                   </p>
                                 )}
                                 <p className="text-xs text-muted-foreground">
-                                  Detectado {formatDistanceToNow(new Date(anomaly.created_at))} atrás
+                                  {t('anomalyDetection.detected')} {formatDistanceToNow(new Date(anomaly.created_at))} {t('anomalyDetection.ago', 'ago')}
                                 </p>
                               </div>
 
@@ -543,11 +543,11 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                                 <div className="p-2 bg-muted rounded-md">
                                   <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
-                                      <span className="text-muted-foreground">Valor Esperado:</span>
+                                      <span className="text-muted-foreground">{t('anomalyDetection.expectedValue')}:</span>
                                       <span className="ml-2 font-medium">{anomaly.details?.expectedValue?.toFixed(2) || 'N/A'}</span>
                                     </div>
                                     <div>
-                                      <span className="text-muted-foreground">Valor Atual:</span>
+                                      <span className="text-muted-foreground">{t('anomalyDetection.actualValue')}:</span>
                                       <span className="ml-2 font-medium">{anomaly.details?.actualValue?.toFixed(2) || 'N/A'}</span>
                                     </div>
                                   </div>
@@ -556,7 +556,7 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
 
                               {anomaly.remediation && (
                                 <div className="space-y-1">
-                                  <p className="text-xs font-medium">Recomendação:</p>
+                                  <p className="text-xs font-medium">{t('anomalyDetection.recommendation', 'Recommendation')}:</p>
                                   <p className="text-xs text-muted-foreground">{anomaly.remediation}</p>
                                 </div>
                               )}
@@ -568,7 +568,7 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                       <div className="text-center py-12 text-muted-foreground">
                         <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p className="font-semibold text-lg">
-                          Nenhuma anomalia encontrada com os filtros aplicados
+                          {t('anomalyDetection.noAnomaliesWithFilters', 'No anomalies found with the applied filters')}
                         </p>
                       </div>
                     )}
@@ -579,7 +579,7 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                     <div className="flex items-center justify-between mt-6 pt-4 border-t">
                       <div className="flex items-center gap-4">
                         <div className="text-sm text-muted-foreground">
-                          Página {currentPage} de {totalPages}
+                          {t('common.page')} {currentPage} {t('common.of')} {totalPages}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -590,7 +590,7 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                           disabled={currentPage === 1}
                         >
                           <ChevronLeft className="h-4 w-4 mr-1" />
-                          Anterior
+                          {t('common.previous')}
                         </Button>
                         <Button
                           variant="outline"
@@ -598,7 +598,7 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                           onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                           disabled={currentPage === totalPages}
                         >
-                          Próxima
+                          {t('common.next')}
                           <ChevronRight className="h-4 w-4 ml-1" />
                         </Button>
                       </div>
