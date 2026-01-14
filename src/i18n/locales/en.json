@@ -469,6 +469,7 @@
     "dataUpdated": "Data updated",
     "analysisCompleted": "Security analysis completed successfully",
     "errorRunning": "Error running scan",
+    "errorStartingScan": "Error starting scan",
     "noItemSelected": "No item selected",
     "selectAtLeastOne": "Select at least one finding to continue",
     "findingsUpdated": "Findings updated",
@@ -731,7 +732,10 @@
     "refreshed": "Refreshed",
     "retry": "Retry",
     "created": "Created",
-    "copyFailed": "Failed to copy"
+    "copyFailed": "Failed to copy",
+    "errorUpdating": "Error updating",
+    "couldNotUpdateData": "Could not update data.",
+    "executing": "Executing..."
   },
   "communication": {
     "title": "Communication Center",
@@ -1156,7 +1160,14 @@
     "ignoreError": "Error ignoring recommendation",
     "service": "Service",
     "difficulty": "Difficulty",
-    "savingsPerYear": "Savings: ${{amount}}/year ({{percentage}}%)"
+    "savingsPerYear": "Savings: ${{amount}}/year ({{percentage}}%)",
+    "analysisCompleted": "Analysis completed",
+    "optimizationsFound": "Found {{count}} optimization opportunities with potential savings of {{amount}}/month.",
+    "errorAnalysis": "Analysis error",
+    "unknownError": "Unknown error",
+    "recommendationImplemented": "Recommendation implemented",
+    "recommendationImplementedDesc": "The recommendation was successfully marked as implemented.",
+    "errorUpdating": "Error updating"
   },
   "costAnalysis": {
     "title": "Detailed Cost Analysis",

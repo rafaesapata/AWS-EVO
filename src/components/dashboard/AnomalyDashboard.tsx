@@ -245,13 +245,13 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
   const getStatusBadge = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'open':
-        return <Badge variant="destructive">Aberto</Badge>;
+        return <Badge variant="destructive">{t('anomalyDetection.statusOpen')}</Badge>;
       case 'investigating':
-        return <Badge variant="secondary">Investigando</Badge>;
+        return <Badge variant="secondary">{t('anomalyDetection.statusInvestigating')}</Badge>;
       case 'resolved':
-        return <Badge variant="outline" className="bg-green-100 text-green-800">Resolvido</Badge>;
+        return <Badge variant="outline" className="bg-green-100 text-green-800">{t('anomalyDetection.statusResolved')}</Badge>;
       case 'false_positive':
-        return <Badge variant="outline">Falso Positivo</Badge>;
+        return <Badge variant="outline">{t('anomalyDetection.statusFalsePositive')}</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }

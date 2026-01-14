@@ -629,7 +629,7 @@ export default function CostOptimization() {
     },
     onSuccess: async (data) => {
       toast({
-        title: "Análise concluída",
+        title: t('costOptimization.analysisCompleted'),
         description: `Encontradas ${data.optimizations?.length || 0} oportunidades de otimização com economia potencial de $${data.summary?.monthly_savings || 0}/mês.`,
       });
       // Invalidate all related queries to force refetch from database
@@ -638,8 +638,8 @@ export default function CostOptimization() {
     },
     onError: (error) => {
       toast({
-        title: "Erro na análise",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        title: t('costOptimization.errorAnalysis'),
+        description: error instanceof Error ? error.message : t('costOptimization.unknownError'),
         variant: "destructive"
       });
     }
@@ -661,8 +661,8 @@ export default function CostOptimization() {
     },
     onSuccess: async () => {
       toast({
-        title: "Recomendação implementada",
-        description: "A recomendação foi marcada como implementada com sucesso.",
+        title: t('costOptimization.recommendationImplemented'),
+        description: t('costOptimization.recommendationImplementedDesc'),
       });
       setSelectedRecommendation(null);
       await queryClient.invalidateQueries({ queryKey: ['cost-optimization'] });
@@ -670,8 +670,8 @@ export default function CostOptimization() {
     },
     onError: (error) => {
       toast({
-        title: "Erro ao atualizar",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        title: t('costOptimization.errorUpdating'),
+        description: error instanceof Error ? error.message : t('costOptimization.unknownError'),
         variant: "destructive"
       });
     }

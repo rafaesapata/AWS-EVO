@@ -32,7 +32,7 @@ import {
   ChevronsRight,
   X
 } from "lucide-react";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart, Pie, Cell, ComposedChart, Legend } from "recharts";
 
 interface EdgeService {
   id: string;
@@ -280,13 +280,42 @@ export default function EdgeMonitoring() {
     ? edgeServices.reduce((sum, service) => sum + service.error_rate, 0) / edgeServices.length 
     : 0;
 
-  // Prepare chart data
-  const requestsData = metrics?.map(m => ({
-    time: new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    requests: m.requests,
-    blocked: m.blocked_requests,
-    cache_hit_rate: m.cache_hits / (m.cache_hits + m.cache_misses) * 100
-  })) || [];
+  // Prepare chart data - aggregate by timestamp
+  const requestsData = (() => {
+    if (!metrics || metrics.length === 0) return [];
+    
+    // Group metrics by timestamp
+    const groupedByTime = metrics.reduce((acc, m) => {
+      const timeKey = new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      if (!acc[timeKey]) {
+        acc[timeKey] = {
+          time: timeKey,
+          timestamp: new Date(m.timestamp).getTime(),
+          requests: 0,
+          blocked: 0,
+          cache_hits: 0,
+          cache_misses: 0,
+        };
+      }
+      acc[timeKey].requests += m.requests || 0;
+      acc[timeKey].blocked += m.blocked_requests || 0;
+      acc[timeKey].cache_hits += m.cache_hits || 0;
+      acc[timeKey].cache_misses += m.cache_misses || 0;
+      return acc;
+    }, {} as Record<string, { time: string; timestamp: number; requests: number; blocked: number; cache_hits: number; cache_misses: number }>);
+    
+    // Convert to array and sort by timestamp
+    return Object.values(groupedByTime)
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map(item => ({
+        time: item.time,
+        requests: item.requests,
+        blocked: item.blocked,
+        cache_hit_rate: (item.cache_hits + item.cache_misses) > 0 
+          ? (item.cache_hits / (item.cache_hits + item.cache_misses)) * 100 
+          : 0
+      }));
+  })();
 
   const serviceDistribution = edgeServices?.reduce((acc, service) => {
     const type = service.service_type;
@@ -408,7 +437,7 @@ export default function EdgeMonitoring() {
                   <Skeleton className="h-[300px] w-full" />
                 ) : requestsData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={requestsData}>
+                    <ComposedChart data={requestsData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis 
                         dataKey="time" 
@@ -416,8 +445,17 @@ export default function EdgeMonitoring() {
                         tick={{ fill: 'hsl(var(--muted-foreground))' }}
                       />
                       <YAxis 
+                        yAxisId="left"
                         className="text-xs"
                         tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
+                      />
+                      <YAxis 
+                        yAxisId="right"
+                        orientation="right"
+                        className="text-xs"
+                        tick={{ fill: '#ef4444' }}
+                        tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
                       />
                       <Tooltip 
                         contentStyle={{
@@ -425,22 +463,27 @@ export default function EdgeMonitoring() {
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                         }}
+                        formatter={(value: number, name: string) => [
+                          value.toLocaleString(),
+                          name === 'requests' ? 'Requests' : 'Bloqueados'
+                        ]}
                       />
-                      <Line 
-                        type="monotone" 
+                      <Legend />
+                      <Bar 
+                        yAxisId="left"
                         dataKey="requests" 
-                        stroke="#3b82f6" 
-                        strokeWidth={2}
+                        fill="#3b82f6" 
                         name="Requests"
+                        radius={[4, 4, 0, 0]}
                       />
-                      <Line 
-                        type="monotone" 
+                      <Bar 
+                        yAxisId="right"
                         dataKey="blocked" 
-                        stroke="#ef4444" 
-                        strokeWidth={2}
+                        fill="#ef4444" 
                         name="Bloqueados"
+                        radius={[4, 4, 0, 0]}
                       />
-                    </LineChart>
+                    </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">

@@ -618,6 +618,7 @@
     "dataUpdated": "Dados atualizados",
     "analysisCompleted": "A análise de segurança foi concluída com sucesso",
     "errorRunning": "Erro ao executar scan",
+    "errorStartingScan": "Erro ao iniciar scan",
     "noItemSelected": "Nenhum item selecionado",
     "selectAtLeastOne": "Selecione pelo menos um finding para continuar",
     "findingsUpdated": "Findings atualizados",
@@ -880,7 +881,10 @@
     "refreshed": "Atualizado",
     "retry": "Tentar novamente",
     "created": "Criado",
-    "copyFailed": "Falha ao copiar"
+    "copyFailed": "Falha ao copiar",
+    "errorUpdating": "Erro ao atualizar",
+    "couldNotUpdateData": "Não foi possível atualizar os dados.",
+    "executing": "Executando..."
   },
   "communication": {
     "title": "Central de Comunicação",
@@ -1305,7 +1309,14 @@
     "ignoreError": "Erro ao ignorar recomendação",
     "service": "Serviço",
     "difficulty": "Dificuldade",
-    "savingsPerYear": "Economia: ${{amount}}/ano ({{percentage}}%)"
+    "savingsPerYear": "Economia: ${{amount}}/ano ({{percentage}}%)",
+    "analysisCompleted": "Análise concluída",
+    "optimizationsFound": "Encontradas {{count}} oportunidades de otimização com economia potencial de {{amount}}/mês.",
+    "errorAnalysis": "Erro na análise",
+    "unknownError": "Erro desconhecido",
+    "recommendationImplemented": "Recomendação implementada",
+    "recommendationImplementedDesc": "A recomendação foi marcada como implementada com sucesso.",
+    "errorUpdating": "Erro ao atualizar"
   },
   "costAnalysis": {
     "title": "Análise Detalhada de Custos",

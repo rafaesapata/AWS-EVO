@@ -441,6 +441,7 @@
     "dataUpdated": "Datos actualizados",
     "analysisCompleted": "El análisis de seguridad se completó exitosamente",
     "errorRunning": "Error al ejecutar escaneo",
+    "errorStartingScan": "Error al iniciar escaneo",
     "noItemSelected": "Ningún ítem seleccionado",
     "selectAtLeastOne": "Selecciona al menos un hallazgo para continuar",
     "findingsUpdated": "Hallazgos actualizados",
@@ -700,7 +701,13 @@
     "copiedToClipboard": "copiado al portapapeles",
     "copy": "Copiar",
     "saving": "Guardando...",
-    "refreshed": "Actualizado"
+    "refreshed": "Actualizado",
+    "retry": "Reintentar",
+    "created": "Creado",
+    "copyFailed": "Error al copiar",
+    "errorUpdating": "Error al actualizar",
+    "couldNotUpdateData": "No se pudieron actualizar los datos.",
+    "executing": "Ejecutando..."
   },
   "communication": {
     "title": "Centro de Comunicación",
@@ -1125,7 +1132,14 @@
     "ignoreError": "Error al ignorar recomendación",
     "service": "Servicio",
     "difficulty": "Dificultad",
-    "savingsPerYear": "Ahorro: ${{amount}}/año ({{percentage}}%)"
+    "savingsPerYear": "Ahorro: ${{amount}}/año ({{percentage}}%)",
+    "analysisCompleted": "Análisis completado",
+    "optimizationsFound": "Encontradas {{count}} oportunidades de optimización con ahorro potencial de {{amount}}/mes.",
+    "errorAnalysis": "Error en el análisis",
+    "unknownError": "Error desconocido",
+    "recommendationImplemented": "Recomendación implementada",
+    "recommendationImplementedDesc": "La recomendación fue marcada como implementada exitosamente.",
+    "errorUpdating": "Error al actualizar"
   },
   "costAnalysis": {
     "title": "Análisis Detallado de Costos",

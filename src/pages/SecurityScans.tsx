@@ -234,7 +234,7 @@ export default function SecurityScans() {
     onError: (error) => {
       console.error('❌ Start scan mutation error:', error);
       
-      let errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      let errorMessage = error instanceof Error ? error.message : t('common.unknownError', 'Unknown error');
       const isAzure = selectedProvider === 'AZURE';
       
       // Mensagens de erro mais amigáveis
@@ -247,7 +247,7 @@ export default function SecurityScans() {
       }
       
       toast({
-        title: "Erro ao iniciar scan",
+        title: t('securityAnalysis.errorStartingScan', 'Error starting scan'),
         description: errorMessage,
         variant: "destructive"
       });
@@ -267,8 +267,8 @@ export default function SecurityScans() {
       });
     } catch (error) {
       toast({
-        title: "Erro ao atualizar",
-        description: "Não foi possível atualizar os dados.",
+        title: t('common.errorUpdating', 'Error updating'),
+        description: t('common.couldNotUpdateData', 'Could not update data.'),
         variant: "destructive"
       });
     }
