@@ -79,7 +79,8 @@ const FindingsTable = ({ findings, onUpdate }: FindingsTableProps) => {
           organization_id: organizationId,
           title: `Security: ${f.event_name}`,
           description: `${f.description}\n\nSeverity: ${f.severity}\n\nDetails: ${JSON.stringify(f.details, null, 2)}`,
-          ticket_type: 'security',
+          category: 'security',
+          severity: f.severity || 'medium',
           priority: f.severity === 'critical' ? 'critical' : f.severity === 'high' ? 'high' : 'medium',
           status: 'pending',
           finding_id: f.id

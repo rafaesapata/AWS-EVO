@@ -296,6 +296,105 @@ export async function handler(
     const riMonthlySavings = allReservedInstances.reduce((sum, ri) => sum + (ri.monthlyCost || 0) * 0.31, 0); // 31% savings estimate
     const spMonthlySavings = allSavingsPlans.reduce((sum, sp) => sum + (sp.commitment || 0) * 730 * 0.22, 0); // 22% savings estimate
     
+    // ============================================================================
+    // PERSIST DATA TO DATABASE
+    // ============================================================================
+    try {
+      logger.info('💾 Saving RI/SP analysis to database...');
+      
+      // Save Reserved Instances
+      for (const ri of allReservedInstances) {
+        await prisma.reservedInstance.upsert({
+          where: { reserved_instance_id: ri.id },
+          create: {
+            organization_id: organizationId,
+            aws_account_id: accountId,
+            reserved_instance_id: ri.id,
+            instance_type: ri.instanceType,
+            product_description: ri.platform || 'Linux/UNIX',
+            availability_zone: ri.availabilityZone,
+            instance_count: ri.instanceCount,
+            state: ri.state,
+            start_date: ri.start,
+            end_date: ri.end,
+            offering_type: ri.offeringType,
+            offering_class: 'standard',
+            duration_seconds: Math.floor((ri.end.getTime() - ri.start.getTime()) / 1000),
+            scope: ri.scope || 'Regional',
+            region: ri.region || primaryRegion,
+            utilization_percentage: ri.utilizationPercentage || 0,
+            usage_price: ri.hourlyCost || 0,
+            net_savings: (ri.monthlyCost || 0) * 0.31,
+          },
+          update: {
+            instance_count: ri.instanceCount,
+            state: ri.state,
+            utilization_percentage: ri.utilizationPercentage || 0,
+            usage_price: ri.hourlyCost || 0,
+            net_savings: (ri.monthlyCost || 0) * 0.31,
+          },
+        });
+      }
+      
+      // Save Savings Plans
+      for (const sp of allSavingsPlans) {
+        await prisma.savingsPlan.upsert({
+          where: { savings_plan_id: sp.id },
+          create: {
+            organization_id: organizationId,
+            aws_account_id: accountId,
+            savings_plan_id: sp.id,
+            savings_plan_type: sp.type,
+            payment_option: sp.paymentOption,
+            state: sp.state,
+            commitment: sp.commitment,
+            start_date: new Date(sp.start),
+            end_date: sp.end ? new Date(sp.end) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+            region: sp.region,
+            utilization_percentage: sp.utilizationPercentage || 0,
+            used_commitment: sp.commitment * (sp.utilizationPercentage || 0) / 100,
+            unused_commitment: sp.commitment * (1 - (sp.utilizationPercentage || 0) / 100),
+            net_savings: sp.commitment * 730 * 0.22,
+          },
+          update: {
+            state: sp.state,
+            utilization_percentage: sp.utilizationPercentage || 0,
+            used_commitment: sp.commitment * (sp.utilizationPercentage || 0) / 100,
+            unused_commitment: sp.commitment * (1 - (sp.utilizationPercentage || 0) / 100),
+            net_savings: sp.commitment * 730 * 0.22,
+          },
+        });
+      }
+      
+      // Save Recommendations
+      for (const rec of recommendations) {
+        await prisma.riSpRecommendation.create({
+          data: {
+            organization_id: organizationId,
+            aws_account_id: accountId,
+            recommendation_type: rec.type === 'ri_purchase' || rec.type === 'ri_renewal' ? 'reserved_instance' : 'savings_plan',
+            service: rec.service,
+            region: primaryRegion,
+            instance_type: rec.details?.currentInstances?.[0]?.instanceType,
+            savings_plan_type: rec.type === 'sp_purchase' ? 'Compute' : undefined,
+            estimated_monthly_savings: rec.potentialSavings.monthly,
+            estimated_annual_savings: rec.potentialSavings.annual,
+            priority: rec.priority === 'critical' ? 1 : rec.priority === 'high' ? 2 : rec.priority === 'medium' ? 3 : 4,
+            confidence_level: 'high',
+            implementation_effort: rec.implementation.difficulty,
+            status: 'active',
+            recommendation_details: rec as any,
+            generated_at: new Date(),
+          },
+        });
+      }
+      
+      logger.info(`✅ Saved ${allReservedInstances.length} RIs, ${allSavingsPlans.length} SPs, ${recommendations.length} recommendations to database`);
+    } catch (dbError) {
+      logger.error('❌ Error saving to database (non-fatal):', dbError);
+      // Continue execution - database save is not critical
+    }
+    
     return success({
       success: true,
       executiveSummary,

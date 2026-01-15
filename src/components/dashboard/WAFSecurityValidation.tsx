@@ -158,7 +158,8 @@ export default function WAFSecurityValidation() {
           organization_id: profile?.organization_id,
           title: `WAF/SG Issue: ${v.resource_name || v.resource_id}`,
           description: `${v.resource_type} - Risk: ${v.risk_level}\n\nRecommendations:\n${v.recommendations}`,
-          ticket_type: 'security',
+          category: 'security',
+          severity: v.risk_level || 'medium',
           priority: v.risk_level === 'critical' ? 'critical' : v.risk_level === 'high' ? 'high' : 'medium',
           status: 'pending'
         }));

@@ -13,7 +13,6 @@ import { logger } from '../../lib/logging.js';
 import { complianceScanSchema } from '../../lib/schemas.js';
 
 // AWS SDK imports
-import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { IAMClient, GetAccountSummaryCommand, GetAccountPasswordPolicyCommand, ListUsersCommand, ListMFADevicesCommand, ListAttachedUserPoliciesCommand, GenerateCredentialReportCommand, GetCredentialReportCommand, ListAccessKeysCommand } from '@aws-sdk/client-iam';
 import { S3Client, ListBucketsCommand, GetBucketEncryptionCommand, GetPublicAccessBlockCommand, GetBucketPolicyStatusCommand } from '@aws-sdk/client-s3';
 import { EC2Client, DescribeSecurityGroupsCommand, DescribeVpcsCommand, DescribeFlowLogsCommand, GetEbsEncryptionByDefaultCommand } from '@aws-sdk/client-ec2';
@@ -77,24 +76,16 @@ interface ComplianceControl {
 
 // Helper to get AWS clients with assumed role
 async function getAWSClients(credential: any, region: string): Promise<AWSClients> {
-  // Validate role_arn exists
-  if (!credential.role_arn) {
-    throw new Error('AWS credential does not have a role_arn configured. Please update your AWS credentials with a valid IAM role ARN.');
-  }
+  // Use resolveAwsCredentials helper which handles both direct credentials and role assumption
+  // This function automatically detects if access_key_id starts with "ROLE:" and handles it
+  const { resolveAwsCredentials } = await import('../../lib/aws-helpers.js');
   
-  const stsClient = new STSClient({ region: 'us-east-1' });
-  
-  const assumeRoleResponse = await stsClient.send(new AssumeRoleCommand({
-    RoleArn: credential.role_arn,
-    RoleSessionName: `evo-compliance-scan-${Date.now()}`,
-    ExternalId: credential.external_id || undefined,
-    DurationSeconds: 3600,
-  }));
+  const resolvedCreds = await resolveAwsCredentials(credential, region);
   
   const credentials = {
-    accessKeyId: assumeRoleResponse.Credentials!.AccessKeyId!,
-    secretAccessKey: assumeRoleResponse.Credentials!.SecretAccessKey!,
-    sessionToken: assumeRoleResponse.Credentials!.SessionToken!,
+    accessKeyId: resolvedCreds.accessKeyId,
+    secretAccessKey: resolvedCreds.secretAccessKey,
+    sessionToken: resolvedCreds.sessionToken,
   };
   
   return {

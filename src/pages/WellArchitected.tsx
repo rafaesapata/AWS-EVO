@@ -247,7 +247,8 @@ const WellArchitected = () => {
         priority: recommendation.severity === 'critical' ? 'critical' : 
                  recommendation.severity === 'high' ? 'high' : 
                  recommendation.severity === 'medium' ? 'medium' : 'low',
-        ticket_type: 'improvement',
+        category: 'configuration',
+        severity: recommendation.severity || 'medium',
         created_by: userProfile.id,
       });
 
@@ -283,7 +284,8 @@ const WellArchitected = () => {
         priority: rec.severity === 'critical' ? 'critical' : 
                  rec.severity === 'high' ? 'high' : 
                  rec.severity === 'medium' ? 'medium' : 'low',
-        ticket_type: 'improvement',
+        category: 'configuration',
+        severity: rec.severity || 'medium',
         created_by: userProfile.id,
       }));
 

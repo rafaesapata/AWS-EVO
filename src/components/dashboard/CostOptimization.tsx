@@ -128,7 +128,8 @@ export const CostOptimization = ({ onAnalysisComplete }: CostOptimizationProps) 
           title: rec.title,
           description: rec.description,
           priority: rec.priority,
-          ticket_type: 'cost_optimization',
+          severity: rec.priority,
+          category: 'cost_optimization',
           status: 'pending',
           cost_recommendation_id: rec.id,
           estimated_savings: rec.projected_savings_yearly

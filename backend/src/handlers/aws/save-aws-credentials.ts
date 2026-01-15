@@ -20,6 +20,7 @@ interface SaveCredentialsRequest {
   regions: string[];
   account_id: string;
   is_active?: boolean;
+  role_arn?: string; // Direct role_arn field (optional, for backward compatibility)
 }
 
 /**
@@ -94,6 +95,25 @@ export async function handler(
       return badRequest('Missing required fields: account_name, access_key_id, secret_access_key, account_id', undefined, origin);
     }
     
+    // Extract role_arn from access_key_id if it's in the format "ROLE:{arn}"
+    // This is used by CloudFormation Quick Connect
+    let roleArn = body.role_arn; // Direct field takes precedence
+    let actualAccessKeyId = body.access_key_id;
+    let actualSecretAccessKey = body.secret_access_key;
+    let actualExternalId = body.external_id;
+    
+    if (body.access_key_id.startsWith('ROLE:')) {
+      roleArn = body.access_key_id.substring(5); // Extract ARN after "ROLE:"
+      actualAccessKeyId = ''; // Clear access_key_id since we're using role
+      logger.info('Extracted role_arn from access_key_id', { roleArn });
+    }
+    
+    if (body.secret_access_key.startsWith('EXTERNAL_ID:')) {
+      actualExternalId = body.secret_access_key.substring(12); // Extract external_id after "EXTERNAL_ID:"
+      actualSecretAccessKey = ''; // Clear secret since we're using role
+      logger.info('Extracted external_id from secret_access_key', { externalId: actualExternalId });
+    }
+    
     const prisma = getPrismaClient();
     
     // CRITICAL: Ensure organization exists in database
@@ -154,9 +174,10 @@ export async function handler(
         where: { id: existingCred.id },
         data: {
           account_name: body.account_name,
-          access_key_id: body.access_key_id,
-          secret_access_key: body.secret_access_key,
-          external_id: body.external_id,
+          access_key_id: actualAccessKeyId || undefined,
+          secret_access_key: actualSecretAccessKey || undefined,
+          role_arn: roleArn || undefined,
+          external_id: actualExternalId || undefined,
           regions: body.regions,
           is_active: body.is_active !== false,
         }
@@ -197,9 +218,10 @@ export async function handler(
         organization_id: organizationId,
         account_id: body.account_id,
         account_name: body.account_name,
-        access_key_id: body.access_key_id,
-        secret_access_key: body.secret_access_key,
-        external_id: body.external_id,
+        access_key_id: actualAccessKeyId || undefined,
+        secret_access_key: actualSecretAccessKey || undefined,
+        role_arn: roleArn || undefined,
+        external_id: actualExternalId || undefined,
         regions: body.regions,
         is_active: body.is_active !== false,
       },

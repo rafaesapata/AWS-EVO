@@ -168,7 +168,8 @@ export const WellArchitectedScorecard = ({ onScanComplete }: WellArchitectedScor
           title: `${PILLAR_NAMES[pillar.pillar as keyof typeof PILLAR_NAMES]}: ${issue.title || 'Correção necessária'}`,
           description: issue.description || issue.issue || 'Pendência identificada no Well-Architected Framework',
           priority: issue.severity === 'critical' ? 'critical' : issue.severity === 'high' ? 'high' : 'medium',
-          ticket_type: 'improvement',
+          category: 'configuration',
+          severity: issue.severity || 'medium',
           status: 'pending'
         };
       }).filter(Boolean);

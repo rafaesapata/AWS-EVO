@@ -489,11 +489,11 @@ export default function Compliance() {
     setCreatingTicketId(ticketKey);
     
     try {
-      let ticketType: 'security' | 'improvement' | 'cost_optimization' = 'improvement';
+      let category: 'security' | 'compliance' | 'cost_optimization' | 'configuration' = 'compliance';
       
       if (check.framework === 'lgpd' || check.framework === 'gdpr' || 
           check.severity === 'critical' || check.severity === 'high') {
-        ticketType = 'security';
+        category = 'security';
       }
 
       await apiClient.insert('remediation_tickets', {
@@ -501,8 +501,9 @@ export default function Compliance() {
         title: `[${check.framework.toUpperCase()}] ${check.control_name}`,
         description: check.remediation_steps || "No remediation steps available",
         priority: check.severity === 'critical' ? 'high' : check.severity === 'high' ? 'medium' : 'low',
+        severity: check.severity || 'medium',
         status: 'pending',
-        ticket_type: ticketType,
+        category: category,
         compliance_check_id: check.id
       });
 

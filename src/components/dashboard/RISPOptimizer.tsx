@@ -188,7 +188,8 @@ export default function RISPOptimizer() {
         title: ticketTitle,
         description: ticketDescription,
         priority: rec.yearly_savings > 5000 ? 'high' : rec.yearly_savings > 2000 ? 'medium' : 'low',
-        ticket_type: 'cost_optimization',
+        severity: rec.yearly_savings > 5000 ? 'high' : rec.yearly_savings > 2000 ? 'medium' : 'low',
+        category: 'cost_optimization',
         status: 'pending',
         estimated_savings: rec.yearly_savings
       });

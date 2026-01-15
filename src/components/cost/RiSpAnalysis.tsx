@@ -102,13 +102,27 @@ export const RiSpAnalysis = () => {
   const isAzure = selectedProvider === 'AZURE';
 
   // Fetch RI/SP analysis data - supports both AWS and Azure
-  // For AWS, we analyze all regions configured for the account
+  // First try to get cached data from database, then fall back to live analysis
   const { data: analysisData, isLoading } = useQuery<RiSpAnalysisData>({
     queryKey: ['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions],
     enabled: !!organizationId && !!selectedAccountId,
     staleTime: 10 * 60 * 1000, // 10 minutes
     queryFn: async () => {
-      // Call the appropriate Lambda based on provider
+      // Try to get saved data from database first (faster)
+      try {
+        const cachedResponse = await apiClient.invoke<RiSpAnalysisData>('get-ri-sp-analysis', {
+          body: { accountId: selectedAccountId }
+        });
+        
+        if (!cachedResponse.error && cachedResponse.data?.hasData) {
+          console.log('✅ Loaded RI/SP analysis from database cache');
+          return cachedResponse.data;
+        }
+      } catch (cacheError) {
+        console.log('⚠️ No cached data, will run live analysis');
+      }
+      
+      // If no cached data, run live analysis
       const lambdaName = isAzure ? 'azure-reservations-analyzer' : 'ri-sp-analyzer';
       const bodyParam = isAzure 
         ? { credentialId: selectedAccountId, lookbackDays: 30 }

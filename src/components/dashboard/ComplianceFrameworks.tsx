@@ -266,8 +266,9 @@ export function ComplianceFrameworks() {
         title: `[${check.framework.toUpperCase()}] ${check.control_name}`,
         description: check.remediation_steps || t("compliance.noRemediationSteps"),
         priority: check.severity === 'critical' ? 'high' : check.severity === 'high' ? 'medium' : 'low',
+        severity: check.severity || 'medium',
         status: 'pending',
-        ticket_type: ticketType,
+        category: ticketType,
         compliance_check_id: check.id
       });
 
@@ -317,8 +318,9 @@ export function ComplianceFrameworks() {
           title: `[${check.framework.toUpperCase()}] ${check.control_name}`,
           description: check.remediation_steps || t("compliance.noRemediationSteps"),
           priority: check.severity === 'critical' ? 'high' : check.severity === 'high' ? 'medium' : 'low',
+          severity: check.severity || 'medium',
           status: 'pending',
-          ticket_type: ticketType,
+          category: ticketType,
           compliance_check_id: check.id
         });
       }

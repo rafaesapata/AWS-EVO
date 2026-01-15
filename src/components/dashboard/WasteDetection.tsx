@@ -194,7 +194,8 @@ export default function WasteDetection() {
         title: `Desperdício detectado: ${wasteItem.resource_name || wasteItem.resource_id}`,
         description: wasteItem.recommendations || 'Recurso identificado como desperdício',
         priority: wasteItem.monthly_waste_cost > 100 ? 'high' : 'medium',
-        ticket_type: 'cost_optimization',
+        severity: wasteItem.monthly_waste_cost > 100 ? 'high' : 'medium',
+        category: 'cost_optimization',
         status: 'pending'
       };
       

@@ -1,0 +1,447 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO Platform - Centralized Error Monitoring (5XX errors)'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - development
+    Description: Environment name
+  
+  AlertEmail:
+    Type: String
+    Default: alerts@udstec.io
+    Description: Email address for error alerts
+  
+  SlackWebhookUrl:
+    Type: String
+    Default: ''
+    Description: (Optional) Slack webhook URL for notifications
+
+Resources:
+  # ============================================================================
+  # SNS TOPIC FOR ALERTS
+  # ============================================================================
+  
+  ErrorAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'evo-${Environment}-error-alerts'
+      DisplayName: 'EVO Error Alerts'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: evo-platform
+
+  ErrorAlertsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref ErrorAlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # ============================================================================
+  # CLOUDWATCH LOG GROUP FOR AGGREGATED ERRORS
+  # ============================================================================
+  
+  AggregatedErrorsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/evo/${Environment}/aggregated-errors'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # METRIC FILTERS FOR 5XX ERRORS
+  # ============================================================================
+  
+  # Filter for Lambda errors (status 500-599)
+  LambdaError5xxMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/evo-uds-v3-${Environment}-*'
+      FilterPattern: '?"statusCode\":5" ?"statusCode\": 5" ?"\"statusCode\":5" ?ERROR ?Error ?error ?CRITICAL ?Exception ?exception'
+      MetricTransformations:
+        - MetricName: Lambda5xxErrors
+          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # Filter for API Gateway 5XX errors
+  ApiGateway5xxMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub 'API-Gateway-Execution-Logs_3l66kn0eaj/prod'
+      FilterPattern: '[..., status_code=5*, ...]'
+      MetricTransformations:
+        - MetricName: ApiGateway5xxErrors
+          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # Filter for Frontend errors (captured via log-frontend-error Lambda)
+  FrontendErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/evo-uds-v3-${Environment}-log-frontend-error'
+      FilterPattern: '?"FRONTEND_ERROR" ?"source\":\"FRONTEND\"" ?"errorType\":"'
+      MetricTransformations:
+        - MetricName: FrontendErrors
+          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # Filter for Frontend API errors (5XX from frontend perspective)
+  FrontendApiErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/evo-uds-v3-${Environment}-log-frontend-error'
+      FilterPattern: '?"api_error" ?"statusCode\":5" ?"statusCode\": 5"'
+      MetricTransformations:
+        - MetricName: FrontendApiErrors
+          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # Filter for Critical Frontend errors
+  FrontendCriticalErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/evo-uds-v3-${Environment}-log-frontend-error'
+      FilterPattern: '?"severity\":\"critical\"" ?"render_error\"" ?CRITICAL'
+      MetricTransformations:
+        - MetricName: FrontendCriticalErrors
+          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # ============================================================================
+  # CLOUDWATCH ALARMS
+  # ============================================================================
+  
+  # Alarm for Lambda 5XX errors (triggers if > 5 errors in 5 minutes)
+  Lambda5xxErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'evo-${Environment}-lambda-5xx-errors'
+      AlarmDescription: 'Alert when Lambda functions return 5XX errors'
+      MetricName: Lambda5xxErrors
+      Namespace: !Sub 'EVO/${Environment}/Errors'
+      Statistic: Sum
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref ErrorAlertsTopic
+      OKActions:
+        - !Ref ErrorAlertsTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Alarm for API Gateway 5XX errors
+  ApiGateway5xxErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'evo-${Environment}-api-gateway-5xx-errors'
+      AlarmDescription: 'Alert when API Gateway returns 5XX errors'
+      MetricName: ApiGateway5xxErrors
+      Namespace: !Sub 'EVO/${Environment}/Errors'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref ErrorAlertsTopic
+      OKActions:
+        - !Ref ErrorAlertsTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Critical alarm - high error rate
+  CriticalErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'evo-${Environment}-critical-error-rate'
+      AlarmDescription: 'CRITICAL: High error rate detected across the platform'
+      MetricName: Lambda5xxErrors
+      Namespace: !Sub 'EVO/${Environment}/Errors'
+      Statistic: Sum
+      Period: 60  # 1 minute
+      EvaluationPeriods: 3
+      Threshold: 20
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref ErrorAlertsTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Alarm for Frontend errors
+  FrontendErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'evo-${Environment}-frontend-errors'
+      AlarmDescription: 'Alert when frontend errors are detected'
+      MetricName: FrontendErrors
+      Namespace: !Sub 'EVO/${Environment}/Errors'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref ErrorAlertsTopic
+      OKActions:
+        - !Ref ErrorAlertsTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Alarm for Frontend Critical errors (render errors, etc)
+  FrontendCriticalErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'evo-${Environment}-frontend-critical-errors'
+      AlarmDescription: 'CRITICAL: Frontend render errors or critical failures'
+      MetricName: FrontendCriticalErrors
+      Namespace: !Sub 'EVO/${Environment}/Errors'
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref ErrorAlertsTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # CLOUDWATCH DASHBOARD
+  # ============================================================================
+  
+  ErrorMonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'EVO-${Environment}-Error-Monitoring'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "All Errors - Last 24 Hours",
+                "metrics": [
+                  ["EVO/${Environment}/Errors", "Lambda5xxErrors", {"label": "Lambda 5XX", "color": "#d62728"}],
+                  ["EVO/${Environment}/Errors", "ApiGateway5xxErrors", {"label": "API Gateway 5XX", "color": "#ff7f0e"}],
+                  ["EVO/${Environment}/Errors", "FrontendErrors", {"label": "Frontend Errors", "color": "#9467bd"}],
+                  ["EVO/${Environment}/Errors", "FrontendCriticalErrors", {"label": "Frontend Critical", "color": "#e377c2"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 6,
+              "height": 6,
+              "properties": {
+                "title": "Total Errors Today",
+                "metrics": [
+                  ["EVO/${Environment}/Errors", "Lambda5xxErrors", {"label": "Backend", "stat": "Sum", "period": 86400}],
+                  ["EVO/${Environment}/Errors", "FrontendErrors", {"label": "Frontend", "stat": "Sum", "period": 86400}]
+                ],
+                "view": "singleValue",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "alarm",
+              "x": 18,
+              "y": 0,
+              "width": 6,
+              "height": 6,
+              "properties": {
+                "title": "Alarm Status",
+                "alarms": [
+                  "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:evo-${Environment}-lambda-5xx-errors",
+                  "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:evo-${Environment}-api-gateway-5xx-errors",
+                  "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:evo-${Environment}-frontend-errors",
+                  "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:evo-${Environment}-frontend-critical-errors",
+                  "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:evo-${Environment}-critical-error-rate"
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Frontend vs Backend Errors",
+                "metrics": [
+                  ["EVO/${Environment}/Errors", "Lambda5xxErrors", {"label": "Backend (Lambda)", "color": "#d62728"}],
+                  ["EVO/${Environment}/Errors", "FrontendErrors", {"label": "Frontend (Browser)", "color": "#9467bd"}],
+                  ["EVO/${Environment}/Errors", "FrontendApiErrors", {"label": "Frontend API Errors", "color": "#17becf"}]
+                ],
+                "view": "timeSeries",
+                "stacked": true,
+                "region": "${AWS::Region}",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "log",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Recent Frontend Errors",
+                "query": "SOURCE '/aws/lambda/evo-uds-v3-${Environment}-log-frontend-error' | fields @timestamp, errorType, message, url, severity | filter @message like /FRONTEND_ERROR/ | sort @timestamp desc | limit 20",
+                "region": "${AWS::Region}",
+                "view": "table"
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 12,
+              "width": 24,
+              "height": 8,
+              "properties": {
+                "title": "Recent Backend 5XX Errors (All Lambdas)",
+                "query": "SOURCE '/aws/lambda/evo-uds-v3-${Environment}-security-scan' | SOURCE '/aws/lambda/evo-uds-v3-${Environment}-query-table' | SOURCE '/aws/lambda/evo-uds-v3-${Environment}-fetch-daily-costs' | fields @timestamp, @message | filter @message like /(?i)(error|exception|5[0-9]{2})/ | sort @timestamp desc | limit 50",
+                "region": "${AWS::Region}",
+                "view": "table"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 20,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "title": "Error Rate by Hour",
+                "metrics": [
+                  ["EVO/${Environment}/Errors", "Lambda5xxErrors", {"label": "Backend"}],
+                  ["EVO/${Environment}/Errors", "FrontendErrors", {"label": "Frontend"}]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "period": 3600,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 8,
+              "y": 20,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "title": "Error Trend (7 days)",
+                "metrics": [
+                  ["EVO/${Environment}/Errors", "Lambda5xxErrors", {"stat": "Sum", "period": 86400, "label": "Backend"}],
+                  ["EVO/${Environment}/Errors", "FrontendErrors", {"stat": "Sum", "period": 86400, "label": "Frontend"}]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "text",
+              "x": 16,
+              "y": 20,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "markdown": "## Quick Links\n\n- [CloudWatch Logs Insights](https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logsV2:logs-insights)\n- [Lambda Functions](https://console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions)\n- [API Gateway](https://console.aws.amazon.com/apigateway/home?region=${AWS::Region})\n- [SNS Topics](https://console.aws.amazon.com/sns/v3/home?region=${AWS::Region}#/topics)\n\n### Thresholds\n- **Backend Warning**: >5 errors in 5 min\n- **Frontend Warning**: >10 errors in 5 min\n- **Critical**: >20 errors in 3 min\n- **Frontend Critical**: >3 render errors in 1 min"
+              }
+            }
+          ]
+        }
+
+  # ============================================================================
+  # LAMBDA FOR DETAILED ERROR PROCESSING (Optional - for Slack/detailed alerts)
+  # ============================================================================
+  
+  ErrorProcessorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'evo-${Environment}-error-processor-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ErrorProcessorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:FilterLogEvents
+                  - logs:GetLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref ErrorAlertsTopic
+
+Outputs:
+  ErrorAlertsTopicArn:
+    Description: SNS Topic ARN for error alerts
+    Value: !Ref ErrorAlertsTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-ErrorAlertsTopicArn'
+
+  DashboardUrl:
+    Description: CloudWatch Dashboard URL
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=EVO-${Environment}-Error-Monitoring'
+
+  Lambda5xxAlarmArn:
+    Description: Lambda 5XX Errors Alarm ARN
+    Value: !GetAtt Lambda5xxErrorsAlarm.Arn
+
+  ApiGateway5xxAlarmArn:
+    Description: API Gateway 5XX Errors Alarm ARN
+    Value: !GetAtt ApiGateway5xxErrorsAlarm.Arn

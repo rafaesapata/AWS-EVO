@@ -302,6 +302,63 @@ Antes de considerar o deploy completo:
 
 ## 📜 Histórico de Incidentes de Deploy
 
+### 2026-01-15 - save-aws-credentials com erro 502 (Quick Connect falhando)
+
+**Problema:** Usuário reportou erro ao conectar nova conta AWS via Quick Connect. Lambda `save-aws-credentials` retornando erro 502 "Cannot find module '../../lib/response.js'"
+
+**Impacto:** CRÍTICO - Quick Connect completamente quebrado, impossível adicionar novas contas AWS
+
+**Causa:** Deploy incorreto - apenas o arquivo .js do handler foi copiado, sem o diretório `lib/` e sem ajustar os imports.
+
+**Sintomas nos logs:**
+```
+Runtime.ImportModuleError: Error: Cannot find module '../../lib/response.js'
+Require stack:
+- /var/task/save-aws-credentials.js
+- /var/runtime/index.mjs
+```
+
+**Diagnóstico:**
+```bash
+# Logs mostraram erro desde 2026-01-15T16:26:18.406Z
+aws logs filter-log-events \
+  --log-group-name "/aws/lambda/evo-uds-v3-production-save-aws-credentials" \
+  --start-time $(date -v-24H +%s000) \
+  --filter-pattern "ERROR" \
+  --region us-east-1
+
+# Handler path estava incorreto
+aws lambda get-function-configuration \
+  --function-name evo-uds-v3-production-save-aws-credentials \
+  --region us-east-1 \
+  --query 'Handler'
+# Output: "handlers/aws/save-aws-credentials.handler" (ERRADO)
+```
+
+**Solução aplicada:**
+1. Recompilar backend: `npm run build --prefix backend`
+2. Criar ZIP com estrutura correta (handler + lib/ + types/)
+3. Ajustar imports de `../../lib/` para `./lib/`
+4. Deploy do código: `aws lambda update-function-code`
+5. Atualizar handler path de `handlers/aws/save-aws-credentials.handler` para `save-aws-credentials.handler`
+6. Testar invocação: Lambda respondendo corretamente
+
+**Lambda afetada:**
+- `evo-uds-v3-production-save-aws-credentials`
+
+**Lição aprendida:** 
+- Quick Connect é funcionalidade CRÍTICA - erros aqui bloqueiam onboarding de novos clientes
+- SEMPRE verificar logs de Lambdas críticas após deploys
+- SEMPRE seguir o processo de deploy documentado
+- Considerar adicionar health checks automáticos para Lambdas críticas
+
+**Prevenção futura:**
+- [ ] Adicionar testes automatizados de integração para Quick Connect
+- [ ] Criar script de validação pós-deploy para Lambdas críticas
+- [ ] Adicionar alertas CloudWatch para erros em save-aws-credentials
+
+---
+
 ### 2026-01-15 - MFA Lambdas com erro 502
 
 **Problema:** Todas as Lambdas MFA retornando erro 502 "Cannot find module '../../lib/middleware.js'"
