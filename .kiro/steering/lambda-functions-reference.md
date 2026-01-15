@@ -63,7 +63,10 @@ Ao criar uma nova Lambda ou endpoint:
 |--------|----------|-----------|---------|
 | `security-scan` | `/api/functions/security-scan` | Security Engine V3 - 23 scanners, 170+ verificações | `security/security-scan.ts` |
 | `start-security-scan` | `/api/functions/start-security-scan` | Inicia scan de segurança (async) | `security/start-security-scan.ts` |
-| `compliance-scan` | `/api/functions/compliance-scan` | Scan de compliance (CIS, LGPD, PCI-DSS) | `security/compliance-scan.ts` |
+| `compliance-scan` | `/api/functions/compliance-scan` | Scan de compliance v2.0 - Multi-region, 7 frameworks (CIS, LGPD, PCI-DSS, HIPAA, GDPR, SOC2, NIST) | `security/compliance-scan.ts` |
+| `start-compliance-scan` | `/api/functions/start-compliance-scan` | Inicia scan de compliance (async) - Cria BackgroundJob e invoca compliance-scan | `security/start-compliance-scan.ts` |
+| `get-compliance-scan-status` | `/api/functions/get-compliance-scan-status` | Retorna status e progresso de um scan de compliance | `security/get-compliance-scan-status.ts` |
+| `get-compliance-history` | `/api/functions/get-compliance-history` | Retorna histórico de compliance para análise de tendências | `security/get-compliance-history.ts` |
 | `well-architected-scan` | `/api/functions/well-architected-scan` | Análise Well-Architected (6 pilares) | `security/well-architected-scan.ts` |
 | `guardduty-scan` | `/api/functions/guardduty-scan` | Integração com GuardDuty | `security/guardduty-scan.ts` |
 | `get-findings` | `/api/functions/get-findings` | Lista findings de segurança | `security/get-findings.ts` |
@@ -266,17 +269,20 @@ Ao criar uma nova Lambda ou endpoint:
 
 ## Estatísticas
 
-- **Total de Lambdas**: ~111 funções
-- **Total de Endpoints API Gateway**: ~101 endpoints
+- **Total de Lambdas**: ~114 funções
+- **Total de Endpoints API Gateway**: ~104 endpoints
 - **Categorias**: 15 categorias principais
 
 ---
 
 ## Última Atualização
 
-**Data**: 2026-01-13
-**Versão**: 1.1
+**Data**: 2026-01-15
+**Versão**: 1.2
 **Atualizado por**: Sistema
+
+### Changelog
+- 2026-01-15: Adicionados 3 novos endpoints de compliance (start-compliance-scan, get-compliance-scan-status, get-compliance-history)
 
 ---
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +9,11 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Layout } from "@/components/Layout";
+import { Checkbox } from "@/components/ui/checkbox";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useAuthSafe } from "@/hooks/useAuthSafe";
 import { 
   Shield, 
   AlertTriangle, 
@@ -28,21 +30,29 @@ import {
   RefreshCw,
   Download,
   BarChart3,
-  PieChart
+  PieChart,
+  Ticket,
+  CheckSquare
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Cell, Pie, LineChart, Line } from "recharts";
 
 interface SecurityFinding {
   id: string;
-  title: string;
+  title?: string;  // May not exist - use description as fallback
   description: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
-  status: 'active' | 'resolved' | 'suppressed';
-  resource: string;
-  service: string;
-  region: string;
-  compliance_standards: string[];
-  remediation: string;
+  status: 'active' | 'resolved' | 'suppressed' | 'pending';
+  resource?: string;  // Legacy field
+  resource_id?: string;  // Actual DB field
+  resource_arn?: string;  // Actual DB field
+  service?: string;
+  region?: string;
+  category?: string;
+  compliance_standards?: string[];
+  compliance?: string[];  // Actual DB field
+  remediation?: string;
+  remediation_ticket_id?: string;  // Link to ticket
+  details?: Record<string, unknown>;  // JSON field from DB
   created_at: string;
   updated_at: string;
 }
@@ -60,7 +70,12 @@ export default function SecurityPosture() {
   const { t } = useTranslation();
   const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
+  const { user } = useAuthSafe();
+  const queryClient = useQueryClient();
   const [selectedStandard, setSelectedStandard] = useState<string>('all');
+  const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
+  const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
+  const [creatingBatchTickets, setCreatingBatchTickets] = useState(false);
 
   // Get security posture data
   const { data: securityData, isLoading, refetch } = useQuery({
@@ -230,6 +245,179 @@ export default function SecurityPosture() {
     { key: 'iso27001', name: 'ISO 27001' },
     { key: 'nist', name: 'NIST Framework' }
   ];
+
+  // Toggle finding selection
+  const toggleFindingSelection = (findingId: string) => {
+    setSelectedFindings(prev => 
+      prev.includes(findingId) 
+        ? prev.filter(id => id !== findingId)
+        : [...prev, findingId]
+    );
+  };
+
+  // Select all findings on current page
+  const selectAllFindings = () => {
+    if (!securityData?.findings) return;
+    const allIds = securityData.findings.map((f: SecurityFinding) => f.id);
+    const allSelected = allIds.every((id: string) => selectedFindings.includes(id));
+    
+    if (allSelected) {
+      setSelectedFindings([]);
+    } else {
+      setSelectedFindings(allIds);
+    }
+  };
+
+  // Create ticket for a single finding
+  const createTicketForFinding = async (finding: SecurityFinding) => {
+    if (creatingTicketId === finding.id) return;
+    
+    // Check if finding already has a ticket
+    if (finding.remediation_ticket_id) {
+      toast({ 
+        title: t('securityPosture.ticketAlreadyExists', 'Ticket já existe'),
+        description: t('securityPosture.ticketAlreadyExistsDesc', 'Este achado já possui um ticket de remediação vinculado'),
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    setCreatingTicketId(finding.id);
+    
+    try {
+      // Helper to get a valid title - handles undefined/null cases
+      const getTitle = () => {
+        // Check various possible title sources
+        if (finding.title) return finding.title;
+        if (finding.details && typeof finding.details === 'object') {
+          const details = finding.details as Record<string, unknown>;
+          if (details.title && typeof details.title === 'string') return details.title;
+          if (details.check_name && typeof details.check_name === 'string') return details.check_name;
+        }
+        if (finding.description && finding.description.length <= 100) return finding.description;
+        if (finding.description) return finding.description.substring(0, 100) + '...';
+        return 'Security Finding';
+      };
+
+      // Helper to get affected resources - filters out null/undefined values
+      const getAffectedResources = (): string[] => {
+        const resources: string[] = [];
+        // Check all possible resource fields
+        if (finding.resource_arn) resources.push(finding.resource_arn);
+        else if (finding.resource_id) resources.push(finding.resource_id);
+        else if (finding.resource) resources.push(finding.resource);
+        return resources;
+      };
+
+      // Get compliance standards from either field
+      const getComplianceStandards = (): string[] => {
+        if (finding.compliance_standards && finding.compliance_standards.length > 0) {
+          return finding.compliance_standards;
+        }
+        if (finding.compliance && finding.compliance.length > 0) {
+          return finding.compliance;
+        }
+        return [];
+      };
+
+      const response = await apiClient.insert('remediation_tickets', {
+        organization_id: organizationId,
+        aws_account_id: selectedAccountId || null,
+        title: `[${(finding.severity || 'medium').toUpperCase()}] ${getTitle()}`,
+        description: (finding.description || 'No description available') + (finding.remediation ? `\n\nRemediação: ${typeof finding.remediation === 'string' ? finding.remediation : JSON.stringify(finding.remediation)}` : ''),
+        severity: finding.severity || 'medium',
+        priority: finding.severity === 'critical' ? 'urgent' : finding.severity === 'high' ? 'high' : 'medium',
+        status: 'open',
+        category: finding.category || 'security',
+        created_by: user?.email || 'system',
+        finding_ids: [finding.id],
+        affected_resources: getAffectedResources(),
+        metadata: {
+          service: finding.service || 'unknown',
+          region: finding.region || 'unknown',
+          compliance_standards: getComplianceStandards()
+        }
+      });
+
+      if ('error' in response && response.error) {
+        console.error('Error creating ticket:', response.error);
+        throw new Error(response.error.message || 'Failed to create ticket');
+      }
+
+      // Get the created ticket ID and update the finding
+      const ticketId = response.data?.id;
+      if (ticketId) {
+        // Update the finding with the ticket ID to create the bidirectional link
+        await apiClient.update('findings', finding.id, {
+          remediation_ticket_id: ticketId
+        });
+      }
+
+      toast({ 
+        title: t('dashboard.ticketCreated', 'Ticket criado'),
+        description: t('dashboard.ticketCreatedSuccess', 'Ticket de remediação criado com sucesso')
+      });
+      
+      // Invalidate both queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['remediation-tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['security-posture-page'] });
+    } catch (err) {
+      console.error('Error creating ticket:', err);
+      toast({ 
+        title: t('dashboard.errorCreatingTicket', 'Erro ao criar ticket'), 
+        description: err instanceof Error ? err.message : 'Erro desconhecido',
+        variant: "destructive" 
+      });
+    } finally {
+      setCreatingTicketId(null);
+    }
+  };
+
+  // Create tickets for selected findings
+  const createTicketsForSelected = async () => {
+    if (selectedFindings.length === 0) {
+      toast({ 
+        title: t('compliance.selectChecks', 'Selecione pelo menos um finding'), 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setCreatingBatchTickets(true);
+    
+    try {
+      const findingsToCreate = securityData?.findings?.filter((f: SecurityFinding) => 
+        selectedFindings.includes(f.id) && !f.remediation_ticket_id  // Skip findings that already have tickets
+      ) || [];
+
+      if (findingsToCreate.length === 0) {
+        toast({ 
+          title: t('securityPosture.allHaveTickets', 'Todos os achados selecionados já possuem tickets'),
+          variant: "destructive" 
+        });
+        setCreatingBatchTickets(false);
+        return;
+      }
+
+      let createdCount = 0;
+      for (const finding of findingsToCreate) {
+        await createTicketForFinding(finding);
+        createdCount++;
+      }
+
+      toast({ 
+        title: t('securityPosture.ticketsCreatedCount', '{{count}} ticket(s) criado(s) com sucesso', { count: createdCount })
+      });
+      setSelectedFindings([]);
+    } catch (error) {
+      toast({ 
+        title: t('compliance.ticketsError', 'Erro ao criar tickets'), 
+        variant: "destructive" 
+      });
+    } finally {
+      setCreatingBatchTickets(false);
+    }
+  };
 
   // Prepare chart data
   const severityChartData = Object.entries(securityData?.findings_by_severity || {}).map(([severity, count]) => ({
@@ -486,8 +674,40 @@ export default function SecurityPosture() {
         <TabsContent value="findings" className="space-y-6">
           <Card className="glass border-primary/20">
             <CardHeader>
-              <CardTitle>Findings de Segurança</CardTitle>
-              <CardDescription>Lista detalhada dos achados de segurança</CardDescription>
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <CardTitle>Findings de Segurança</CardTitle>
+                  <CardDescription>Lista detalhada dos achados de segurança</CardDescription>
+                </div>
+                {securityData?.findings && securityData.findings.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllFindings}
+                      className="gap-2"
+                    >
+                      <CheckSquare className="h-4 w-4" />
+                      {selectedFindings.length === securityData.findings.length 
+                        ? 'Desmarcar Todos' 
+                        : 'Selecionar Todos'}
+                    </Button>
+                    {selectedFindings.length > 0 && (
+                      <Button
+                        onClick={createTicketsForSelected}
+                        disabled={creatingBatchTickets}
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Ticket className="h-4 w-4" />
+                        {creatingBatchTickets 
+                          ? 'Criando...' 
+                          : `Criar ${selectedFindings.length} Ticket(s)`}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -500,10 +720,21 @@ export default function SecurityPosture() {
                 <div className="space-y-4">
                   {securityData.findings.map((finding) => {
                     const SeverityIcon = getSeverityIcon(finding.severity);
+                    const isSelected = selectedFindings.includes(finding.id);
                     return (
-                      <div key={finding.id} className="border rounded-lg p-4 space-y-3">
+                      <div 
+                        key={finding.id} 
+                        className={`border rounded-lg p-4 space-y-3 transition-colors ${
+                          isSelected ? 'border-primary bg-primary/5' : ''
+                        }`}
+                      >
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-3">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleFindingSelection(finding.id)}
+                              className="mt-1"
+                            />
                             <SeverityIcon 
                               className="h-5 w-5 mt-0.5" 
                               style={{ color: getSeverityColor(finding.severity) }}
@@ -520,20 +751,44 @@ export default function SecurityPosture() {
                               </div>
                             </div>
                           </div>
-                          <Badge 
-                            variant="outline"
-                            style={{ 
-                              borderColor: getSeverityColor(finding.severity),
-                              color: getSeverityColor(finding.severity)
-                            }}
-                          >
-                            {finding.severity.toUpperCase()}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            {finding.remediation_ticket_id ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled
+                                title={t('securityPosture.ticketLinked', 'Ticket já vinculado')}
+                                className="h-8 w-8 p-0 text-green-500"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => createTicketForFinding(finding)}
+                                disabled={creatingTicketId === finding.id}
+                                title={t('securityPosture.createTicket', 'Criar ticket de remediação')}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Ticket className={`h-4 w-4 ${creatingTicketId === finding.id ? 'animate-pulse' : ''}`} />
+                              </Button>
+                            )}
+                            <Badge 
+                              variant="outline"
+                              style={{ 
+                                borderColor: getSeverityColor(finding.severity),
+                                color: getSeverityColor(finding.severity)
+                              }}
+                            >
+                              {(finding.severity || 'medium').toUpperCase()}
+                            </Badge>
+                          </div>
                         </div>
                         
-                        {finding.compliance_standards && finding.compliance_standards.length > 0 && (
+                        {((finding.compliance_standards && finding.compliance_standards.length > 0) || (finding.compliance && finding.compliance.length > 0)) && (
                           <div className="flex gap-2 flex-wrap">
-                            {finding.compliance_standards.map((standard) => (
+                            {(finding.compliance_standards || finding.compliance || []).map((standard) => (
                               <Badge key={standard} variant="secondary" className="text-xs">
                                 {standard}
                               </Badge>

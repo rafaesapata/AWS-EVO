@@ -38,7 +38,33 @@ export async function handler(
     
     const prisma = getPrismaClient();
     
-    // Check if there's already a running scan for this organization
+    // PROTECTION: Auto-cleanup stuck scans before checking for running scans
+    // Scans running for more than 60 minutes are considered stuck
+    const STUCK_THRESHOLD_MS = 60 * 60 * 1000; // 60 minutes
+    const stuckThreshold = new Date(Date.now() - STUCK_THRESHOLD_MS);
+    
+    const stuckScansCleanup = await prisma.securityScan.updateMany({
+      where: {
+        organization_id: organizationId,
+        status: { in: ['running', 'pending', 'starting'] },
+        started_at: { lt: stuckThreshold }
+      },
+      data: {
+        status: 'failed',
+        completed_at: new Date(),
+        results: {
+          error: 'Auto-cleanup: Scan was stuck for more than 60 minutes',
+          cleanup_reason: 'automatic_stuck_scan_protection',
+          cleanup_timestamp: new Date().toISOString()
+        }
+      }
+    });
+    
+    if (stuckScansCleanup.count > 0) {
+      console.log(`🧹 Auto-cleaned ${stuckScansCleanup.count} stuck scan(s)`);
+    }
+    
+    // Check if there's already a running scan for this organization (after cleanup)
     const runningScan = await prisma.securityScan.findFirst({
       where: {
         organization_id: organizationId,

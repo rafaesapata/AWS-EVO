@@ -128,9 +128,10 @@ export const securityScanRequestSchema = z.object({
 });
 
 export const complianceScanSchema = z.object({
-  frameworkId: z.enum(['cis', 'lgpd', 'pci-dss', 'nist', 'soc2', 'well-architected']),
+  frameworkId: z.enum(['cis', 'lgpd', 'pci-dss', 'nist', 'soc2', 'hipaa', 'gdpr', 'well-architected']),
   scanId: uuidSchema.optional(),
   accountId: uuidSchema.optional(),
+  jobId: uuidSchema.optional(), // For async scan progress tracking
 });
 
 // ============================================================================

@@ -13,6 +13,43 @@ import ForgotPassword from "@/components/auth/ForgotPassword";
 import NewPasswordRequired from "@/components/auth/NewPasswordRequired";
 import MFAVerify from "@/components/auth/MFAVerify";
 
+// Types for MFA check response
+interface MFACheckResponse {
+  requiresMFA: boolean;
+  hasMFA: boolean;
+  hasWebAuthn: boolean;
+  mfaFactors: Array<{
+    id: string;
+    type: string;
+    name: string;
+    status: string;
+    verifiedAt?: string;
+  }>;
+  webauthnCredentials: Array<{
+    id: string;
+    name: string;
+    createdAt: string;
+  }>;
+}
+
+// Types for WebAuthn
+interface WebAuthnStartResponse {
+  options: {
+    challenge: string;
+    allowCredentials?: Array<{
+      id: string;
+      type: string;
+    }>;
+    timeout?: number;
+    userVerification?: string;
+  };
+}
+
+interface WebAuthnFinishResponse {
+  user: any;
+  sessionToken: string;
+}
+
 export default function AuthSimple() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -46,11 +83,14 @@ export default function AuthSimple() {
   }, []);
 
   // Check if user is already logged in (but not if we're showing WebAuthn or MFA screen)
+  // Also check if we're in the middle of MFA check (mfaPending)
+  const [mfaPending, setMfaPending] = useState(false);
+  
   useEffect(() => {
-    if (user && !showWebAuthn && !showMFAVerify) {
+    if (user && !showWebAuthn && !showMFAVerify && !mfaPending) {
       navigate("/app");
     }
-  }, [user, navigate, showWebAuthn, showMFAVerify]);
+  }, [user, navigate, showWebAuthn, showMFAVerify, mfaPending]);
 
   // Watch for NEW_PASSWORD_REQUIRED challenge
   useEffect(() => {
@@ -74,22 +114,51 @@ export default function AuthSimple() {
     clearError();
     setWebAuthnError("");
     setMfaError("");
+    setMfaPending(true); // Prevent auto-redirect while checking MFA
     
     // Try normal login first
-    const success = await signIn(email, password);
+    const loginSuccess = await signIn(email, password);
     
-    if (success) {
-      // After successful Cognito login, check for local MFA settings
+    if (loginSuccess) {
+      // After successful Cognito login, check for MFA settings
       try {
-        await apiClient.invoke('mfa-check', {
+        const mfaCheckResult = await apiClient.invoke<MFACheckResponse>('mfa-check', {
           body: {}
         });
-        // TEMPORARILY DISABLED - allow user to enter and delete old credentials
+        
+        const mfaData = mfaCheckResult.data;
+        
+        // Check if user has MFA enabled and needs to verify
+        if (mfaData?.requiresMFA) {
+          // Check for WebAuthn first (higher priority)
+          if (mfaData.hasWebAuthn && mfaData.webauthnCredentials?.length > 0) {
+            // Store email for WebAuthn flow
+            sessionStorage.setItem('webauthn-email', email);
+            setShowWebAuthn(true);
+            setMfaPending(false);
+            return; // Don't navigate, show WebAuthn screen
+          }
+          
+          // Check for TOTP MFA
+          if (mfaData.hasMFA && mfaData.mfaFactors?.length > 0) {
+            // Set MFA factors and show MFA verification screen
+            setMfaFactors(mfaData.mfaFactors);
+            setShowMFAVerify(true);
+            setMfaPending(false);
+            return; // Don't navigate, show MFA screen
+          }
+        }
       } catch (error) {
-        // Continue with normal login if checks fail
+        // If MFA check fails, log but continue with normal login
+        // This ensures users can still login if MFA service has issues
+        console.warn('MFA check failed, continuing with normal login:', error);
       }
       
+      // No MFA required or MFA check failed - proceed to app
+      setMfaPending(false);
       navigate("/app");
+    } else {
+      setMfaPending(false);
     }
   };
 
@@ -99,7 +168,7 @@ export default function AuthSimple() {
     
     try {
       // Step 1: Start WebAuthn authentication
-      const startResult = await apiClient.invoke('webauthn-authenticate', {
+      const startResult = await apiClient.invoke<WebAuthnStartResponse>('webauthn-authenticate', {
         body: { action: 'start', email }
       });
 
@@ -107,17 +176,20 @@ export default function AuthSimple() {
         throw new Error(startResult.error.message || 'Failed to start WebAuthn');
       }
 
-      const options = startResult.data.options;
+      const options = startResult.data?.options;
+      if (!options) {
+        throw new Error('Invalid WebAuthn response');
+      }
       
       // Step 2: Get credential from user's device
       const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
-        challenge: Uint8Array.from(options.challenge, c => c.charCodeAt(0)),
-        allowCredentials: options.allowCredentials?.map((cred: any) => ({
-          id: Uint8Array.from(cred.id, c => c.charCodeAt(0)),
+        challenge: Uint8Array.from(options.challenge, (c: string) => c.charCodeAt(0)),
+        allowCredentials: options.allowCredentials?.map((cred) => ({
+          id: Uint8Array.from(cred.id, (c: string) => c.charCodeAt(0)),
           type: cred.type as PublicKeyCredentialType,
         })) || [],
         timeout: options.timeout || 60000,
-        userVerification: options.userVerification || 'preferred',
+        userVerification: (options.userVerification as UserVerificationRequirement) || 'preferred',
         rpId: 'evo.ai.udstec.io'
       };
 
@@ -132,7 +204,7 @@ export default function AuthSimple() {
       // Step 3: Verify credential with backend
       const response = credential.response as AuthenticatorAssertionResponse;
       
-      const finishResult = await apiClient.invoke('webauthn-authenticate', {
+      const finishResult = await apiClient.invoke<WebAuthnFinishResponse>('webauthn-authenticate', {
         body: {
           action: 'finish',
           challenge: options.challenge,
@@ -156,12 +228,14 @@ export default function AuthSimple() {
 
       // Success! Store session and redirect
       const sessionData = finishResult.data;
-      localStorage.setItem('evo-auth', JSON.stringify({
-        user: sessionData.user,
-        accessToken: sessionData.sessionToken,
-        idToken: sessionData.sessionToken,
-        refreshToken: sessionData.sessionToken
-      }));
+      if (sessionData) {
+        localStorage.setItem('evo-auth', JSON.stringify({
+          user: sessionData.user,
+          accessToken: sessionData.sessionToken,
+          idToken: sessionData.sessionToken,
+          refreshToken: sessionData.sessionToken
+        }));
+      }
 
       navigate("/app");
     } catch (error: any) {
@@ -188,7 +262,7 @@ export default function AuthSimple() {
 
   const handleMFAVerify = async (factorId: string, code: string): Promise<boolean> => {
     try {
-      const result = await apiClient.invoke('mfa-verify-login', {
+      const result = await apiClient.invoke<{ verified: boolean }>('mfa-verify-login', {
         body: { factorId, code }
       });
 
@@ -221,6 +295,7 @@ export default function AuthSimple() {
     setShowForgotPassword(false);
     setShowNewPasswordRequired(false);
     setShowMFAVerify(false);
+    setMfaPending(false);
     setWebAuthnError("");
     setMfaError("");
     setNewPasswordSession("");
@@ -229,6 +304,8 @@ export default function AuthSimple() {
     setPassword("");
     sessionStorage.removeItem('webauthn-required');
     sessionStorage.removeItem('webauthn-email');
+    // Sign out to clear any partial session
+    signOut();
   };
 
   // Se está mostrando a tela de recuperação de senha
@@ -241,11 +318,11 @@ export default function AuthSimple() {
     return (
       <NewPasswordRequired
         email={email}
-        session={challengeSession || newPasswordSession}
+        session={challengeSession ?? newPasswordSession ?? ''}
         onPasswordSet={handleNewPasswordSet}
         onBackToLogin={handleBackToLogin}
         isLoading={isLoading}
-        error={error}
+        error={error ?? undefined}
       />
     );
   }

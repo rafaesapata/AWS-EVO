@@ -84,13 +84,18 @@ export default function RemediationTickets() {
   // Get remediation tickets
   const { data: tickets, isLoading, refetch } = useQuery({
     queryKey: ['remediation-tickets', organizationId, selectedAccountId, selectedStatus, selectedSeverity],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: !!organizationId,
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
       let filters: any = { 
-        organization_id: organizationId,
-        ...getAccountFilter() // Multi-cloud compatible
+        organization_id: organizationId
       };
+
+      // Only filter by account if one is selected
+      if (selectedAccountId) {
+        const accountFilter = getAccountFilter();
+        filters = { ...filters, ...accountFilter };
+      }
 
       if (selectedStatus !== 'all') {
         filters.status = selectedStatus;
@@ -103,7 +108,7 @@ export default function RemediationTickets() {
       const response = await apiClient.select('remediation_tickets', {
         select: '*',
         eq: filters,
-        order: { created_at: 'desc' }
+        order: { column: 'created_at', ascending: false }
       });
 
       if (response.error) {

@@ -26,6 +26,7 @@ import { awsService } from '@/services/aws-service';
 interface AdvancedRISPAnalyzerV2Props {
   accountId: string;
   region?: string;
+  regions?: string[];
 }
 
 interface AnalysisData {
@@ -64,18 +65,33 @@ interface AnalysisData {
     annual: number;
     maxPercentage: number;
   };
+  currentResources?: {
+    ec2Instances: number;
+    rdsInstances: number;
+  };
+  analysisMetadata?: {
+    region?: string;
+    regions?: string[];
+    regionsCount?: number;
+    accountId: string;
+    timestamp: string;
+    dataSource?: string;
+  };
 }
 
-export function AdvancedRISPAnalyzerV2({ accountId, region = 'us-east-1' }: AdvancedRISPAnalyzerV2Props) {
+export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedRISPAnalyzerV2Props) {
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Use regions array if provided, otherwise fall back to single region or default
+  const regionsToAnalyze = regions?.length ? regions : (region ? [region] : ['us-east-1']);
 
   const runAnalysis = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const response = await awsService.analyzeRISP(accountId, region, 'comprehensive');
+      const response = await awsService.analyzeRISP(accountId, regionsToAnalyze, 'comprehensive');
       
       if (response.error) {
         setErrorMessage(response.error.message || 'Erro na análise');
@@ -195,6 +211,55 @@ export function AdvancedRISPAnalyzerV2({ accountId, region = 'us-east-1' }: Adva
 
       {/* Analysis Results */}
       {analysis && analysis.executiveSummary && (
+        <>
+          {/* Check if there are any resources to analyze */}
+          {analysis.currentResources?.ec2Instances === 0 && analysis.currentResources?.rdsInstances === 0 ? (
+            <Card className="border-amber-200 bg-amber-50/50">
+              <CardContent className="py-8">
+                <div className="text-center space-y-4">
+                  <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-amber-800 mb-2">
+                      Nenhum Recurso Computacional Encontrado
+                    </h3>
+                    <p className="text-amber-700 max-w-lg mx-auto">
+                      Não foram encontradas instâncias EC2 ou RDS em execução nesta conta AWS na região selecionada.
+                      A análise de Reserved Instances e Savings Plans requer recursos computacionais ativos.
+                    </p>
+                  </div>
+                  
+                  <div className="bg-white/80 rounded-lg p-4 max-w-xl mx-auto text-left space-y-3 border border-amber-200">
+                    <h4 className="font-medium text-amber-800 flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4" />
+                      Possíveis causas:
+                    </h4>
+                    <ul className="text-sm text-amber-700 space-y-2 ml-6">
+                      <li className="flex items-start gap-2">
+                        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>A conta não possui instâncias EC2 ou RDS em execução</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>Os recursos estão em outra região (atual: {analysis.analysisMetadata?.region || 'us-east-1'})</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>A role IAM não tem permissão para listar instâncias EC2/RDS</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>Os recursos usam outros serviços (Lambda, Fargate, etc.)</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground">
+                    Tente selecionar outra conta AWS ou verifique se há recursos em outras regiões.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
         <Tabs defaultValue="summary" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="summary">Resumo Executivo</TabsTrigger>
@@ -469,6 +534,8 @@ export function AdvancedRISPAnalyzerV2({ accountId, region = 'us-east-1' }: Adva
             </div>
           </TabsContent>
         </Tabs>
+          )}
+        </>
       )}
 
       {/* Initial State */}

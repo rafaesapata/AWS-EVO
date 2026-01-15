@@ -19,7 +19,11 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
 import { WAFV2Client } from '@aws-sdk/client-wafv2';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { blockIp, unblockIp, DEFAULT_AUTO_BLOCK_CONFIG } from '../../lib/waf/auto-blocker.js';
+
+// Bedrock client for AI analysis
+const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 // Query parameters for events endpoint
 interface EventsQueryParams {
@@ -111,6 +115,16 @@ export async function handler(
           return await handleGetMonitoringConfigs(prisma, organizationId);
         case 'diagnose':
           return await handleDiagnose(event, prisma, organizationId);
+        case 'fix-subscription':
+          return await handleFixSubscription(event, prisma, organizationId);
+        case 'ai-analysis':
+          return await handleAiAnalysis(event, prisma, organizationId);
+        case 'get-latest-analysis':
+          return await handleGetLatestAnalysis(prisma, organizationId);
+        case 'threat-stats':
+          return await handleGetThreatStats(prisma, organizationId);
+        case 'init-ai-analysis-table':
+          return await handleInitAiAnalysisTable(prisma);
         default:
           return error(`Unknown action: ${body.action}`, 400);
       }
@@ -184,30 +198,48 @@ async function handleGetEvents(
 ): Promise<APIGatewayProxyResultV2> {
   const params = (event.queryStringParameters || {}) as EventsQueryParams;
   
-  const page = parseInt(params.page || '1', 10);
-  const limit = Math.min(parseInt(params.limit || '50', 10), 1000);
+  // Also check body for parameters (used by frontend apiClient.invoke)
+  let bodyParams: any = {};
+  if (event.body) {
+    try {
+      bodyParams = JSON.parse(event.body);
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  
+  const page = parseInt(params.page || bodyParams.page || '1', 10);
+  const limit = Math.min(parseInt(params.limit || bodyParams.limit || '50', 10), 1000);
   const skip = (page - 1) * limit;
   
   // Build where clause
   const where: any = { organization_id: organizationId };
   
-  if (params.startDate) {
-    where.timestamp = { ...where.timestamp, gte: new Date(params.startDate) };
+  const startDate = params.startDate || bodyParams.startDate;
+  const endDate = params.endDate || bodyParams.endDate;
+  const severity = params.severity || bodyParams.severity;
+  const threatType = params.threatType || bodyParams.threatType;
+  const sourceIp = params.sourceIp || bodyParams.sourceIp;
+  // Support both 'action' and 'filterAction' for filtering (filterAction avoids conflict with API action)
+  const action = params.action || bodyParams.filterAction || bodyParams.actionFilter;
+  
+  if (startDate) {
+    where.timestamp = { ...where.timestamp, gte: new Date(startDate) };
   }
-  if (params.endDate) {
-    where.timestamp = { ...where.timestamp, lte: new Date(params.endDate) };
+  if (endDate) {
+    where.timestamp = { ...where.timestamp, lte: new Date(endDate) };
   }
-  if (params.severity) {
-    where.severity = params.severity;
+  if (severity) {
+    where.severity = severity;
   }
-  if (params.threatType) {
-    where.threat_type = params.threatType;
+  if (threatType) {
+    where.threat_type = threatType;
   }
-  if (params.sourceIp) {
-    where.source_ip = params.sourceIp;
+  if (sourceIp) {
+    where.source_ip = sourceIp;
   }
-  if (params.action) {
-    where.action = params.action;
+  if (action) {
+    where.action = action;
   }
   
   const [events, total] = await Promise.all([
@@ -247,6 +279,7 @@ async function handleGetEvents(
 
 /**
  * GET /waf-metrics - Aggregated metrics
+ * OPTIMIZED: Uses raw SQL for better performance and reduced connection pool usage
  */
 async function handleGetMetrics(
   prisma: ReturnType<typeof getPrismaClient>,
@@ -256,72 +289,98 @@ async function handleGetMetrics(
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
-  const where = {
-    organization_id: organizationId,
-    timestamp: { gte: since },
-  };
-  
-  const [
-    totalRequests,
-    blockedRequests,
-    allowedRequests,
-    countedRequests,
-    uniqueIpsResult,
-    uniqueCountriesResult,
-    severityCounts,
-    activeCampaigns,
-  ] = await Promise.all([
-    prisma.wafEvent.count({ where }),
-    prisma.wafEvent.count({ where: { ...where, action: 'BLOCK' } }),
-    prisma.wafEvent.count({ where: { ...where, action: 'ALLOW' } }),
-    prisma.wafEvent.count({ where: { ...where, action: 'COUNT' } }),
-    prisma.wafEvent.groupBy({
-      by: ['source_ip'],
-      where,
-      _count: true,
-    }),
-    prisma.wafEvent.groupBy({
-      by: ['country'],
-      where,
-      _count: true,
-    }),
-    prisma.wafEvent.groupBy({
-      by: ['severity'],
-      where,
-      _count: true,
-    }),
-    prisma.wafAttackCampaign.count({
+  try {
+    // Use a single optimized raw SQL query to get all metrics at once
+    // This reduces connection pool usage from 8 queries to 2
+    const metricsResult = await prisma.$queryRaw<Array<{
+      total_requests: bigint;
+      blocked_requests: bigint;
+      allowed_requests: bigint;
+      counted_requests: bigint;
+      unique_attackers: bigint;
+      unique_countries: bigint;
+      critical_threats: bigint;
+      high_threats: bigint;
+      medium_threats: bigint;
+      low_threats: bigint;
+    }>>`
+      SELECT 
+        COUNT(*) as total_requests,
+        COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_requests,
+        COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed_requests,
+        COUNT(*) FILTER (WHERE action = 'COUNT') as counted_requests,
+        COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_attackers,
+        COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN country END) as unique_countries,
+        COUNT(*) FILTER (WHERE severity = 'critical') as critical_threats,
+        COUNT(*) FILTER (WHERE severity = 'high') as high_threats,
+        COUNT(*) FILTER (WHERE severity = 'medium') as medium_threats,
+        COUNT(*) FILTER (WHERE severity = 'low') as low_threats
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+    `;
+    
+    // Get active campaigns count separately (different table)
+    const activeCampaigns = await prisma.wafAttackCampaign.count({
       where: {
         organization_id: organizationId,
         status: 'active',
       },
-    }),
-  ]);
-  
-  const severityMap = severityCounts.reduce((acc, item) => {
-    acc[item.severity] = item._count;
-    return acc;
-  }, {} as Record<string, number>);
-  
-  const metrics: WafMetrics = {
-    totalRequests,
-    blockedRequests,
-    allowedRequests,
-    countedRequests,
-    uniqueIps: uniqueIpsResult.length,
-    uniqueCountries: uniqueCountriesResult.length,
-    criticalThreats: severityMap['critical'] || 0,
-    highThreats: severityMap['high'] || 0,
-    mediumThreats: severityMap['medium'] || 0,
-    lowThreats: severityMap['low'] || 0,
-    activeCampaigns,
-  };
-  
-  return success({ metrics, period: '24h' });
+    });
+    
+    const row = metricsResult[0] || {
+      total_requests: BigInt(0),
+      blocked_requests: BigInt(0),
+      allowed_requests: BigInt(0),
+      counted_requests: BigInt(0),
+      unique_attackers: BigInt(0),
+      unique_countries: BigInt(0),
+      critical_threats: BigInt(0),
+      high_threats: BigInt(0),
+      medium_threats: BigInt(0),
+      low_threats: BigInt(0),
+    };
+    
+    const metrics: WafMetrics = {
+      totalRequests: Number(row.total_requests),
+      blockedRequests: Number(row.blocked_requests),
+      allowedRequests: Number(row.allowed_requests),
+      countedRequests: Number(row.counted_requests),
+      uniqueIps: Number(row.unique_attackers),
+      uniqueCountries: Number(row.unique_countries),
+      criticalThreats: Number(row.critical_threats),
+      highThreats: Number(row.high_threats),
+      mediumThreats: Number(row.medium_threats),
+      lowThreats: Number(row.low_threats),
+      activeCampaigns,
+    };
+    
+    return success({ metrics, period: '24h' });
+  } catch (err) {
+    logger.error('Failed to get WAF metrics', err as Error, { organizationId });
+    
+    // Return empty metrics on error instead of failing
+    const emptyMetrics: WafMetrics = {
+      totalRequests: 0,
+      blockedRequests: 0,
+      allowedRequests: 0,
+      countedRequests: 0,
+      uniqueIps: 0,
+      uniqueCountries: 0,
+      criticalThreats: 0,
+      highThreats: 0,
+      mediumThreats: 0,
+      lowThreats: 0,
+      activeCampaigns: 0,
+    };
+    
+    return success({ metrics: emptyMetrics, period: '24h', error: 'Failed to load metrics' });
+  }
 }
 
 /**
  * GET /waf-top-attackers - Top attacking IPs
+ * OPTIMIZED: Uses raw SQL with LIMIT for better performance
  */
 async function handleGetTopAttackers(
   event: AuthorizedEvent,
@@ -329,39 +388,56 @@ async function handleGetTopAttackers(
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
   const params = event.queryStringParameters || {};
-  const limit = Math.min(parseInt(params.limit || '10', 10), 100);
+  let bodyParams: any = {};
+  if (event.body) {
+    try {
+      bodyParams = JSON.parse(event.body);
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  const limit = Math.min(parseInt(params.limit || bodyParams.limit || '10', 10), 100);
   
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
-  const topAttackers = await prisma.wafEvent.groupBy({
-    by: ['source_ip', 'country'],
-    where: {
-      organization_id: organizationId,
-      timestamp: { gte: since },
-      action: 'BLOCK',
-    },
-    _count: true,
-    orderBy: {
-      _count: {
-        source_ip: 'desc',
-      },
-    },
-    take: limit,
-  });
-  
-  return success({
-    topAttackers: topAttackers.map(item => ({
-      sourceIp: item.source_ip,
-      country: item.country,
-      blockedRequests: item._count,
-    })),
-    period: '24h',
-  });
+  try {
+    // Use raw SQL for better performance
+    const topAttackers = await prisma.$queryRaw<Array<{
+      source_ip: string;
+      country: string | null;
+      blocked_count: bigint;
+    }>>`
+      SELECT 
+        source_ip,
+        country,
+        COUNT(*) as blocked_count
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+        AND action = 'BLOCK'
+      GROUP BY source_ip, country
+      ORDER BY blocked_count DESC
+      LIMIT ${limit}
+    `;
+    
+    return success({
+      topAttackers: topAttackers.map(item => ({
+        sourceIp: item.source_ip,
+        country: item.country,
+        blockedRequests: Number(item.blocked_count),
+      })),
+      period: '24h',
+    });
+  } catch (err) {
+    logger.error('Failed to get top attackers', err as Error, { organizationId });
+    return success({ topAttackers: [], period: '24h', error: 'Failed to load data' });
+  }
 }
 
 /**
  * GET /waf-attack-types - Distribution by attack type
+ * OPTIMIZED: Uses raw SQL for better performance
  */
 async function handleGetAttackTypes(
   event: AuthorizedEvent,
@@ -371,32 +447,38 @@ async function handleGetAttackTypes(
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
-  const attackTypes = await prisma.wafEvent.groupBy({
-    by: ['threat_type'],
-    where: {
-      organization_id: organizationId,
-      timestamp: { gte: since },
-      threat_type: { not: null },
-    },
-    _count: true,
-    orderBy: {
-      _count: {
-        threat_type: 'desc',
-      },
-    },
-  });
-  
-  return success({
-    attackTypes: attackTypes.map(item => ({
-      type: item.threat_type,
-      count: item._count,
-    })),
-    period: '24h',
-  });
+  try {
+    const attackTypes = await prisma.$queryRaw<Array<{
+      threat_type: string;
+      count: bigint;
+    }>>`
+      SELECT 
+        threat_type,
+        COUNT(*) as count
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+        AND threat_type IS NOT NULL
+      GROUP BY threat_type
+      ORDER BY count DESC
+    `;
+    
+    return success({
+      attackTypes: attackTypes.map(item => ({
+        type: item.threat_type,
+        count: Number(item.count),
+      })),
+      period: '24h',
+    });
+  } catch (err) {
+    logger.error('Failed to get attack types', err as Error, { organizationId });
+    return success({ attackTypes: [], period: '24h', error: 'Failed to load data' });
+  }
 }
 
 /**
  * GET /waf-geo-distribution - Geographic distribution
+ * OPTIMIZED: Uses raw SQL for better performance
  */
 async function handleGetGeoDistribution(
   event: AuthorizedEvent,
@@ -406,29 +488,34 @@ async function handleGetGeoDistribution(
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
-  const geoDistribution = await prisma.wafEvent.groupBy({
-    by: ['country'],
-    where: {
-      organization_id: organizationId,
-      timestamp: { gte: since },
-      action: 'BLOCK',
-      country: { not: null },
-    },
-    _count: true,
-    orderBy: {
-      _count: {
-        country: 'desc',
-      },
-    },
-  });
-  
-  return success({
-    geoDistribution: geoDistribution.map(item => ({
-      country: item.country,
-      blockedRequests: item._count,
-    })),
-    period: '24h',
-  });
+  try {
+    const geoDistribution = await prisma.$queryRaw<Array<{
+      country: string;
+      blocked_count: bigint;
+    }>>`
+      SELECT 
+        country,
+        COUNT(*) as blocked_count
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+        AND action = 'BLOCK'
+        AND country IS NOT NULL
+      GROUP BY country
+      ORDER BY blocked_count DESC
+    `;
+    
+    return success({
+      geoDistribution: geoDistribution.map(item => ({
+        country: item.country,
+        blockedRequests: Number(item.blocked_count),
+      })),
+      period: '24h',
+    });
+  } catch (err) {
+    logger.error('Failed to get geo distribution', err as Error, { organizationId });
+    return success({ geoDistribution: [], period: '24h', error: 'Failed to load data' });
+  }
 }
 
 /**
@@ -783,6 +870,8 @@ async function handleDiagnose(
     
     // Check 1: WAF Logging Configuration
     logger.info('Checking WAF logging configuration', { webAclArn: config.web_acl_arn });
+    let actualLogDestination: string | null = null;
+    
     try {
       const wafClient = new WAFV2Client({
         region: region,
@@ -796,12 +885,16 @@ async function handleDiagnose(
       );
       
       if (loggingConfig.LoggingConfiguration) {
+        const destinations = loggingConfig.LoggingConfiguration.LogDestinationConfigs || [];
+        actualLogDestination = destinations[0] || null;
+        
         diagnosticResults.checks.push({
           name: 'WAF Logging',
           status: 'success',
           message: 'WAF logging is enabled',
           details: {
-            destinations: loggingConfig.LoggingConfiguration.LogDestinationConfigs || [],
+            destinations: destinations,
+            actualLogGroup: actualLogDestination,
           },
         });
       } else {
@@ -832,8 +925,24 @@ async function handleDiagnose(
       credentials: awsCredentials,
     });
     
-    // Use the log group name from config, or construct from web ACL name
-    const logGroupName = config.log_group_name || `aws-waf-logs-${config.web_acl_name}`;
+    // Use the ACTUAL log destination from WAF config, or fall back to config/constructed name
+    let logGroupName = config.log_group_name || `aws-waf-logs-${config.web_acl_name}`;
+    
+    // If we got the actual destination from WAF, extract the log group name from it
+    if (actualLogDestination) {
+      // Format: arn:aws:logs:region:account:log-group:LOG_GROUP_NAME
+      const arnParts = actualLogDestination.split(':');
+      if (arnParts.length >= 7) {
+        const extractedLogGroup = arnParts.slice(6).join(':');
+        if (extractedLogGroup && extractedLogGroup !== logGroupName) {
+          logger.info('Using actual log group from WAF config', { 
+            configured: logGroupName, 
+            actual: extractedLogGroup 
+          });
+          logGroupName = extractedLogGroup;
+        }
+      }
+    }
     
     const logGroupsResponse = await cwlClient.send(
       new DescribeLogGroupsCommand({
@@ -1014,5 +1123,758 @@ async function handleDiagnose(
     diagnosticResults.overallStatus = 'error';
     
     return success(diagnosticResults);
+  }
+}
+
+
+/**
+ * POST /waf-fix-subscription - Fix subscription filter to point to EVO
+ * Adds EVO subscription filter without removing existing filters
+ * 
+ * IMPORTANT: This function gets the ACTUAL log group from WAF logging configuration,
+ * not from the database, to ensure we're fixing the correct log group.
+ */
+async function handleFixSubscription(
+  event: AuthorizedEvent,
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  const body = JSON.parse(event.body || '{}');
+  const { configId } = body;
+  
+  if (!configId) {
+    return error('configId is required', 400);
+  }
+  
+  logger.info('Fixing WAF subscription filter', { organizationId, configId });
+  
+  // Get the configuration
+  const config = await prisma.wafMonitoringConfig.findFirst({
+    where: {
+      id: configId,
+      organization_id: organizationId,
+    },
+  });
+  
+  if (!config) {
+    return error('Configuration not found', 404);
+  }
+  
+  try {
+    // Get AWS credentials for customer account
+    const awsCredential = await prisma.awsCredential.findFirst({
+      where: {
+        id: config.aws_account_id,
+        organization_id: organizationId,
+      },
+    });
+    
+    if (!awsCredential) {
+      return error('AWS credentials not found for this account', 404);
+    }
+    
+    // Extract region from Web ACL ARN
+    const arnParts = config.web_acl_arn.split(':');
+    const region = arnParts[3] || 'us-east-1';
+    
+    const credentials = await resolveAwsCredentials(awsCredential, region);
+    const awsCredentials = toAwsCredentials(credentials);
+    
+    const { CloudWatchLogsClient, PutSubscriptionFilterCommand, DescribeSubscriptionFiltersCommand } = await import('@aws-sdk/client-cloudwatch-logs');
+    const { WAFV2Client, GetLoggingConfigurationCommand } = await import('@aws-sdk/client-wafv2');
+    const { IAMClient, GetRoleCommand } = await import('@aws-sdk/client-iam');
+    
+    const cwlClient = new CloudWatchLogsClient({
+      region: region,
+      credentials: awsCredentials,
+    });
+    
+    // CRITICAL: Get the ACTUAL log group from WAF logging configuration
+    // This ensures we fix the correct log group, not the one stored in database
+    let logGroupName = config.log_group_name || `aws-waf-logs-${config.web_acl_name}`;
+    
+    try {
+      const wafClient = new WAFV2Client({
+        region: region,
+        credentials: awsCredentials,
+      });
+      
+      const loggingConfig = await wafClient.send(
+        new GetLoggingConfigurationCommand({
+          ResourceArn: config.web_acl_arn,
+        })
+      );
+      
+      if (loggingConfig.LoggingConfiguration?.LogDestinationConfigs?.[0]) {
+        const actualLogDestination = loggingConfig.LoggingConfiguration.LogDestinationConfigs[0];
+        // Format: arn:aws:logs:region:account:log-group:LOG_GROUP_NAME
+        const logArnParts = actualLogDestination.split(':');
+        if (logArnParts.length >= 7) {
+          const extractedLogGroup = logArnParts.slice(6).join(':');
+          if (extractedLogGroup) {
+            logger.info('Using actual log group from WAF config', { 
+              configured: logGroupName, 
+              actual: extractedLogGroup 
+            });
+            logGroupName = extractedLogGroup;
+          }
+        }
+      }
+    } catch (err: any) {
+      logger.warn('Could not get WAF logging config, using database value', { 
+        error: err.message,
+        logGroupName 
+      });
+    }
+    
+    logger.info('Checking subscription filters on log group', { logGroupName, region });
+    
+    // Check existing subscription filters
+    const existingFilters = await cwlClient.send(new DescribeSubscriptionFiltersCommand({
+      logGroupName: logGroupName,
+    }));
+    
+    const evoFilterName = 'evo-waf-monitoring';
+    const evoDestinationArn = `arn:aws:logs:${region}:383234048592:destination:evo-uds-v3-production-waf-logs-destination`;
+    
+    // Check if EVO filter already exists
+    const existingEvoFilter = existingFilters.subscriptionFilters?.find(
+      f => f.filterName === evoFilterName || f.destinationArn === evoDestinationArn
+    );
+    
+    if (existingEvoFilter) {
+      logger.info('EVO subscription filter already exists', {
+        logGroupName,
+        filterName: existingEvoFilter.filterName,
+        destinationArn: existingEvoFilter.destinationArn,
+      });
+      return success({
+        success: true,
+        message: 'EVO subscription filter already exists',
+        filterName: existingEvoFilter.filterName,
+        destinationArn: existingEvoFilter.destinationArn,
+        logGroupName: logGroupName,
+      });
+    }
+    
+    // Check if we can add another filter (max 2 per log group)
+    const filterCount = existingFilters.subscriptionFilters?.length || 0;
+    if (filterCount >= 2) {
+      return error(
+        `Cannot add EVO subscription filter: Log group "${logGroupName}" already has ${filterCount} subscription filters (max 2). ` +
+        `Please remove one of the existing filters first: ${existingFilters.subscriptionFilters?.map(f => f.filterName).join(', ')}`,
+        400
+      );
+    }
+    
+    // Get customer AWS account ID
+    const customerAwsAccountId = awsCredential.role_arn?.split(':')[4] || config.web_acl_arn.split(':')[4];
+    
+    // Check if CloudWatch Logs role exists
+    const iamClient = new IAMClient({ region: 'us-east-1', credentials: awsCredentials });
+    const roleName = 'EVO-CloudWatch-Logs-Role';
+    let roleArn: string;
+    
+    try {
+      await iamClient.send(new GetRoleCommand({ RoleName: roleName }));
+      roleArn = `arn:aws:iam::${customerAwsAccountId}:role/${roleName}`;
+    } catch (err: any) {
+      if (err.name === 'NoSuchEntity') {
+        return error(
+          `CloudWatch Logs role "${roleName}" not found. ` +
+          `Please update your CloudFormation stack to the latest version. ` +
+          `Go to AWS Console → CloudFormation → Select your EVO stack → Update → Use current template → Submit.`,
+          400
+        );
+      }
+      throw err;
+    }
+    
+    // Create the EVO subscription filter
+    const filterPattern = config.filter_mode === 'all_requests' ? '' : '{ $.action = "BLOCK" || $.action = "COUNT" }';
+    
+    logger.info('Creating EVO subscription filter', {
+      logGroupName,
+      filterName: evoFilterName,
+      destinationArn: evoDestinationArn,
+      roleArn,
+      filterPattern,
+    });
+    
+    await cwlClient.send(new PutSubscriptionFilterCommand({
+      logGroupName: logGroupName,
+      filterName: evoFilterName,
+      filterPattern: filterPattern,
+      destinationArn: evoDestinationArn,
+      roleArn: roleArn,
+    }));
+    
+    logger.info('EVO subscription filter created successfully', {
+      organizationId,
+      configId,
+      logGroupName,
+      filterName: evoFilterName,
+      destinationArn: evoDestinationArn,
+    });
+    
+    // Update config to mark subscription filter as configured AND update log_group_name if different
+    await prisma.wafMonitoringConfig.update({
+      where: { id: configId },
+      data: {
+        subscription_filter: evoFilterName,
+        log_group_name: logGroupName, // Update to actual log group
+        updated_at: new Date(),
+      },
+    });
+    
+    return success({
+      success: true,
+      message: 'EVO subscription filter created successfully',
+      filterName: evoFilterName,
+      destinationArn: evoDestinationArn,
+      logGroupName: logGroupName,
+      note: 'WAF events will start flowing to EVO within 1-2 minutes',
+    });
+    
+  } catch (err) {
+    logger.error('Failed to fix subscription filter', err as Error, { organizationId, configId });
+    return error(err instanceof Error ? err.message : 'Failed to fix subscription filter');
+  }
+}
+
+
+/**
+ * GET /waf-threat-stats - Get threat type statistics
+ * Returns distribution of threat types and events with/without classification
+ * OPTIMIZED: Uses single raw SQL query for better performance
+ */
+async function handleGetThreatStats(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  const since = new Date();
+  since.setHours(since.getHours() - 24);
+  
+  try {
+    // Get all stats in a single query
+    const statsResult = await prisma.$queryRaw<Array<{
+      total_events: bigint;
+      events_with_threat_type: bigint;
+      events_without_threat_type: bigint;
+      blocked_events: bigint;
+    }>>`
+      SELECT 
+        COUNT(*) as total_events,
+        COUNT(*) FILTER (WHERE threat_type IS NOT NULL) as events_with_threat_type,
+        COUNT(*) FILTER (WHERE threat_type IS NULL) as events_without_threat_type,
+        COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_events
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+    `;
+    
+    // Get threat type distribution
+    const threatTypeDistribution = await prisma.$queryRaw<Array<{
+      threat_type: string;
+      count: bigint;
+    }>>`
+      SELECT threat_type, COUNT(*) as count
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+        AND threat_type IS NOT NULL
+      GROUP BY threat_type
+      ORDER BY count DESC
+    `;
+    
+    // Get severity distribution
+    const severityDistribution = await prisma.$queryRaw<Array<{
+      severity: string | null;
+      count: bigint;
+    }>>`
+      SELECT severity, COUNT(*) as count
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+      GROUP BY severity
+    `;
+    
+    const row = statsResult[0] || {
+      total_events: BigInt(0),
+      events_with_threat_type: BigInt(0),
+      events_without_threat_type: BigInt(0),
+      blocked_events: BigInt(0),
+    };
+    
+    const totalEvents = Number(row.total_events);
+    const eventsWithThreatType = Number(row.events_with_threat_type);
+    
+    return success({
+      stats: {
+        totalEvents,
+        eventsWithThreatType,
+        eventsWithoutThreatType: Number(row.events_without_threat_type),
+        blockedEvents: Number(row.blocked_events),
+        classificationRate: totalEvents > 0 
+          ? Math.round((eventsWithThreatType / totalEvents) * 100) 
+          : 0,
+        threatTypes: threatTypeDistribution.map(t => ({
+          type: t.threat_type,
+          count: Number(t.count),
+        })),
+        severities: severityDistribution.reduce((acc, s) => {
+          acc[s.severity || 'unknown'] = Number(s.count);
+          return acc;
+        }, {} as Record<string, number>),
+      },
+      period: '24h',
+    });
+  } catch (err) {
+    logger.error('Failed to get threat stats', err as Error, { organizationId });
+    return success({
+      stats: {
+        totalEvents: 0,
+        eventsWithThreatType: 0,
+        eventsWithoutThreatType: 0,
+        blockedEvents: 0,
+        classificationRate: 0,
+        threatTypes: [],
+        severities: {},
+      },
+      period: '24h',
+      error: 'Failed to load data',
+    });
+  }
+}
+
+/**
+ * POST /waf-ai-analysis - AI-powered analysis of WAF traffic
+ * Uses AWS Bedrock to analyze blocked requests and identify patterns
+ */
+async function handleAiAnalysis(
+  event: AuthorizedEvent,
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  logger.info('Starting WAF AI analysis', { organizationId });
+  
+  const since = new Date();
+  since.setHours(since.getHours() - 24);
+  
+  // Fetch comprehensive data for AI analysis
+  const [
+    // Metrics summary
+    totalEvents,
+    blockedEvents,
+    uniqueAttackers,
+    
+    // Threat type distribution
+    threatTypes,
+    
+    // Top attackers with details
+    topAttackers,
+    
+    // Sample of blocked requests (for pattern analysis)
+    blockedSamples,
+    
+    // Geographic distribution
+    geoDistribution,
+    
+    // Hourly distribution (to detect attack patterns)
+    hourlyDistribution,
+    
+    // Most targeted URIs
+    targetedUris,
+    
+    // User agent analysis
+    userAgentAnalysis,
+  ] = await Promise.all([
+    prisma.wafEvent.count({
+      where: { organization_id: organizationId, timestamp: { gte: since } },
+    }),
+    prisma.wafEvent.count({
+      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
+    }),
+    prisma.wafEvent.groupBy({
+      by: ['source_ip'],
+      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
+      _count: true,
+    }),
+    prisma.wafEvent.groupBy({
+      by: ['threat_type'],
+      where: { organization_id: organizationId, timestamp: { gte: since }, threat_type: { not: null } },
+      _count: true,
+      orderBy: { _count: { threat_type: 'desc' } },
+    }),
+    prisma.wafEvent.groupBy({
+      by: ['source_ip', 'country'],
+      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
+      _count: true,
+      orderBy: { _count: { source_ip: 'desc' } },
+      take: 10,
+    }),
+    prisma.wafEvent.findMany({
+      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
+      orderBy: { timestamp: 'desc' },
+      take: 50,
+      select: {
+        timestamp: true,
+        source_ip: true,
+        country: true,
+        uri: true,
+        http_method: true,
+        user_agent: true,
+        rule_matched: true,
+        threat_type: true,
+        severity: true,
+      },
+    }),
+    prisma.wafEvent.groupBy({
+      by: ['country'],
+      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK', country: { not: null } },
+      _count: true,
+      orderBy: { _count: { country: 'desc' } },
+      take: 10,
+    }),
+    prisma.$queryRaw`
+      SELECT 
+        EXTRACT(HOUR FROM timestamp) as hour,
+        COUNT(*) as count
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+        AND action = 'BLOCK'
+      GROUP BY EXTRACT(HOUR FROM timestamp)
+      ORDER BY hour
+    ` as Promise<Array<{ hour: number; count: bigint }>>,
+    prisma.wafEvent.groupBy({
+      by: ['uri'],
+      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
+      _count: true,
+      orderBy: { _count: { uri: 'desc' } },
+      take: 10,
+    }),
+    prisma.wafEvent.groupBy({
+      by: ['user_agent'],
+      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
+      _count: true,
+      orderBy: { _count: { user_agent: 'desc' } },
+      take: 10,
+    }),
+  ]);
+  
+  // Build context for AI
+  const analysisContext = {
+    period: '24 hours',
+    metrics: {
+      totalRequests: totalEvents,
+      blockedRequests: blockedEvents,
+      blockRate: totalEvents > 0 ? ((blockedEvents / totalEvents) * 100).toFixed(2) + '%' : '0%',
+      uniqueAttackers: uniqueAttackers.length,
+    },
+    threatTypes: threatTypes.map(t => ({
+      type: t.threat_type || 'unknown',
+      count: t._count,
+      percentage: blockedEvents > 0 ? ((t._count / blockedEvents) * 100).toFixed(1) + '%' : '0%',
+    })),
+    topAttackers: topAttackers.slice(0, 5).map(a => ({
+      ip: a.source_ip,
+      country: a.country || 'Unknown',
+      blockedRequests: a._count,
+    })),
+    geoDistribution: geoDistribution.slice(0, 5).map(g => ({
+      country: g.country || 'Unknown',
+      blockedRequests: g._count,
+    })),
+    hourlyPattern: (hourlyDistribution as Array<{ hour: number; count: bigint }>).map(h => ({
+      hour: Number(h.hour),
+      count: Number(h.count),
+    })),
+    targetedEndpoints: targetedUris.slice(0, 5).map(u => ({
+      uri: u.uri?.substring(0, 100) || 'Unknown',
+      attacks: u._count,
+    })),
+    suspiciousUserAgents: userAgentAnalysis.slice(0, 5).map(ua => ({
+      userAgent: ua.user_agent?.substring(0, 80) || 'Empty',
+      count: ua._count,
+    })),
+    sampleAttacks: blockedSamples.slice(0, 10).map(s => ({
+      time: s.timestamp.toISOString(),
+      ip: s.source_ip,
+      country: s.country || 'Unknown',
+      method: s.http_method,
+      uri: s.uri?.substring(0, 80) || '/',
+      userAgent: s.user_agent?.substring(0, 50) || 'Unknown',
+      rule: s.rule_matched || 'Unknown',
+      threatType: s.threat_type || 'unclassified',
+      severity: s.severity || 'low',
+    })),
+  };
+  
+  // Build AI prompt
+  const prompt = buildWafAnalysisPrompt(analysisContext);
+  
+  try {
+    // Call Bedrock with Claude 3.5 Sonnet
+    const bedrockResponse = await bedrockClient.send(new InvokeModelCommand({
+      modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: JSON.stringify({
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: 2048,
+        temperature: 0.3,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      }),
+    }));
+    
+    const responseBody = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
+    const aiAnalysis = responseBody.content?.[0]?.text || 'Unable to generate analysis.';
+    
+    logger.info('WAF AI analysis completed', { organizationId });
+    
+    // Extract risk level from analysis
+    const riskLevelMatch = aiAnalysis.match(/Nível de Risco.*?(Baixo|Médio|Alto|Crítico)/i);
+    const riskLevel = riskLevelMatch ? riskLevelMatch[1].toLowerCase() : null;
+    
+    // Save analysis to database
+    const savedAnalysis = await prisma.wafAiAnalysis.create({
+      data: {
+        organization_id: organizationId,
+        analysis: aiAnalysis,
+        context: analysisContext as any,
+        risk_level: riskLevel,
+        ai_model: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        is_fallback: false,
+      },
+    });
+    
+    return success({
+      id: savedAnalysis.id,
+      analysis: aiAnalysis,
+      context: analysisContext,
+      riskLevel,
+      generatedAt: savedAnalysis.created_at.toISOString(),
+    });
+    
+  } catch (err) {
+    logger.error('Bedrock AI analysis failed', err as Error, { organizationId });
+    
+    // Generate fallback analysis
+    const fallbackAnalysis = generateFallbackAnalysis(analysisContext);
+    const riskLevel = analysisContext.metrics.blockedRequests > 1000 ? 'alto' 
+      : analysisContext.metrics.blockedRequests > 100 ? 'médio' 
+      : 'baixo';
+    
+    // Save fallback analysis to database
+    const savedAnalysis = await prisma.wafAiAnalysis.create({
+      data: {
+        organization_id: organizationId,
+        analysis: fallbackAnalysis,
+        context: analysisContext as any,
+        risk_level: riskLevel,
+        ai_model: null,
+        is_fallback: true,
+      },
+    });
+    
+    return success({
+      id: savedAnalysis.id,
+      analysis: fallbackAnalysis,
+      context: analysisContext,
+      riskLevel,
+      generatedAt: savedAnalysis.created_at.toISOString(),
+      aiError: 'AI analysis temporarily unavailable, showing automated summary',
+    });
+  }
+}
+
+/**
+ * GET /waf-get-latest-analysis - Get the most recent AI analysis
+ */
+async function handleGetLatestAnalysis(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  const latestAnalysis = await prisma.wafAiAnalysis.findFirst({
+    where: { organization_id: organizationId },
+    orderBy: { created_at: 'desc' },
+  });
+  
+  if (!latestAnalysis) {
+    return success({
+      hasAnalysis: false,
+      message: 'No analysis found. Run an AI analysis to get started.',
+    });
+  }
+  
+  return success({
+    hasAnalysis: true,
+    id: latestAnalysis.id,
+    analysis: latestAnalysis.analysis,
+    context: latestAnalysis.context,
+    riskLevel: latestAnalysis.risk_level,
+    isFallback: latestAnalysis.is_fallback,
+    generatedAt: latestAnalysis.created_at.toISOString(),
+  });
+}
+
+/**
+ * Build the prompt for WAF traffic analysis
+ */
+function buildWafAnalysisPrompt(ctx: any): string {
+  return `Você é um especialista em segurança de aplicações web e análise de tráfego WAF (Web Application Firewall).
+
+Analise os seguintes dados de tráfego WAF das últimas 24 horas e forneça uma análise detalhada em português:
+
+## MÉTRICAS GERAIS
+- Total de requisições: ${ctx.metrics.totalRequests}
+- Requisições bloqueadas: ${ctx.metrics.blockedRequests} (${ctx.metrics.blockRate})
+- Atacantes únicos (IPs): ${ctx.metrics.uniqueAttackers}
+
+## TIPOS DE AMEAÇAS DETECTADAS
+${ctx.threatTypes.length > 0 
+  ? ctx.threatTypes.map((t: any) => `- ${t.type}: ${t.count} (${t.percentage})`).join('\n')
+  : '- Nenhuma ameaça classificada detectada'}
+
+## TOP 5 ATACANTES
+${ctx.topAttackers.map((a: any) => `- ${a.ip} (${a.country}): ${a.blockedRequests} bloqueios`).join('\n')}
+
+## DISTRIBUIÇÃO GEOGRÁFICA
+${ctx.geoDistribution.map((g: any) => `- ${g.country}: ${g.blockedRequests} ataques`).join('\n')}
+
+## ENDPOINTS MAIS ATACADOS
+${ctx.targetedEndpoints.map((e: any) => `- ${e.uri}: ${e.attacks} tentativas`).join('\n')}
+
+## USER-AGENTS SUSPEITOS
+${ctx.suspiciousUserAgents.map((ua: any) => `- "${ua.userAgent}": ${ua.count} requisições`).join('\n')}
+
+## PADRÃO HORÁRIO (ataques por hora)
+${ctx.hourlyPattern.map((h: any) => `- ${h.hour}h: ${h.count} ataques`).join('\n')}
+
+## AMOSTRA DE ATAQUES RECENTES
+${ctx.sampleAttacks.slice(0, 5).map((s: any) => 
+  `- [${s.time}] ${s.ip} (${s.country}) → ${s.method} ${s.uri} | Regra: ${s.rule} | Tipo: ${s.threatType}`
+).join('\n')}
+
+---
+
+Por favor, forneça uma análise estruturada incluindo:
+
+1. **📊 RESUMO EXECUTIVO** (2-3 frases sobre o estado geral da segurança)
+
+2. **🎯 PRINCIPAIS AMEAÇAS IDENTIFICADAS**
+   - Tipos de ataque mais frequentes
+   - Padrões de comportamento suspeito
+   - Possíveis campanhas coordenadas
+
+3. **🌍 ANÁLISE GEOGRÁFICA**
+   - Países de origem dos ataques
+   - Se há concentração suspeita de alguma região
+
+4. **⏰ ANÁLISE TEMPORAL**
+   - Horários de pico de ataques
+   - Se há padrões que indicam automação/bots
+
+5. **🔍 ENDPOINTS EM RISCO**
+   - Quais endpoints estão sendo mais visados
+   - Possíveis vulnerabilidades sendo exploradas
+
+6. **⚠️ ALERTAS E RECOMENDAÇÕES**
+   - Ações imediatas recomendadas
+   - IPs que devem ser bloqueados permanentemente
+   - Regras WAF adicionais sugeridas
+
+7. **📈 NÍVEL DE RISCO GERAL** (Baixo/Médio/Alto/Crítico)
+
+Seja objetivo e forneça insights acionáveis. Use emojis para melhorar a legibilidade.`;
+}
+
+/**
+ * Generate fallback analysis when AI is unavailable
+ */
+function generateFallbackAnalysis(ctx: any): string {
+  const riskLevel = ctx.metrics.blockedRequests > 1000 ? 'Alto' 
+    : ctx.metrics.blockedRequests > 100 ? 'Médio' 
+    : 'Baixo';
+  
+  let analysis = `## 📊 Resumo Automático (últimas 24h)\n\n`;
+  analysis += `**Total de requisições:** ${ctx.metrics.totalRequests.toLocaleString()}\n`;
+  analysis += `**Requisições bloqueadas:** ${ctx.metrics.blockedRequests.toLocaleString()} (${ctx.metrics.blockRate})\n`;
+  analysis += `**Atacantes únicos:** ${ctx.metrics.uniqueAttackers}\n\n`;
+  
+  if (ctx.threatTypes.length > 0) {
+    analysis += `### 🎯 Tipos de Ameaças\n`;
+    ctx.threatTypes.forEach((t: any) => {
+      analysis += `- **${t.type}**: ${t.count} ocorrências (${t.percentage})\n`;
+    });
+    analysis += '\n';
+  }
+  
+  if (ctx.topAttackers.length > 0) {
+    analysis += `### 🔴 Top Atacantes\n`;
+    ctx.topAttackers.forEach((a: any) => {
+      analysis += `- ${a.ip} (${a.country}): ${a.blockedRequests} bloqueios\n`;
+    });
+    analysis += '\n';
+  }
+  
+  if (ctx.geoDistribution.length > 0) {
+    analysis += `### 🌍 Origem dos Ataques\n`;
+    ctx.geoDistribution.forEach((g: any) => {
+      analysis += `- ${g.country}: ${g.blockedRequests} ataques\n`;
+    });
+    analysis += '\n';
+  }
+  
+  analysis += `### 📈 Nível de Risco: **${riskLevel}**\n\n`;
+  analysis += `*Análise automática gerada sem IA. Para análise detalhada, tente novamente em alguns minutos.*`;
+  
+  return analysis;
+}
+
+
+/**
+ * Initialize the waf_ai_analyses table if it doesn't exist
+ */
+async function handleInitAiAnalysisTable(
+  prisma: ReturnType<typeof getPrismaClient>
+): Promise<APIGatewayProxyResultV2> {
+  try {
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS waf_ai_analyses (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL,
+        analysis TEXT NOT NULL,
+        context JSONB NOT NULL,
+        risk_level VARCHAR(50),
+        ai_model VARCHAR(100),
+        is_fallback BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    
+    await prisma.$executeRaw`
+      CREATE INDEX IF NOT EXISTS idx_waf_ai_analyses_org ON waf_ai_analyses(organization_id)
+    `;
+    
+    await prisma.$executeRaw`
+      CREATE INDEX IF NOT EXISTS idx_waf_ai_analyses_org_created ON waf_ai_analyses(organization_id, created_at DESC)
+    `;
+    
+    logger.info('WAF AI Analysis table initialized successfully');
+    
+    return success({
+      success: true,
+      message: 'WAF AI Analysis table created/verified successfully',
+    });
+  } catch (err) {
+    logger.error('Failed to initialize WAF AI Analysis table', err as Error);
+    return error(err instanceof Error ? err.message : 'Failed to create table');
   }
 }

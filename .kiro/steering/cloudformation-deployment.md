@@ -245,6 +245,19 @@ echo "✅ Template atualizado! Clientes podem usar 'Use current template' no Clo
 
 ## 📝 Histórico de Atualizações
 
+### 2026-01-14 - RI/SP Coverage Permissions
+**Problema:** Análise de RI/SP mostrando 0% de utilização e cobertura  
+**Causa:** Faltavam permissões `ce:GetReservationCoverage` e `ce:GetSavingsPlansCoverage`  
+**Solução:** Adicionadas permissões em `EVOPlatformNetworkingCostsPolicy`:
+- `ce:GetReservationCoverage` - Obter cobertura de Reserved Instances
+- `ce:GetSavingsPlansCoverage` - Obter cobertura de Savings Plans
+
+**Template atualizado:** `public/cloudformation/evo-platform-role.yaml`  
+**Seção:** `CostExplorerReadAccess` statement  
+**Versão:** 2.3.0-ri-sp-coverage-permissions  
+**Deploy:** Frontend build + S3 sync + CloudFront invalidation  
+**Status:** ✅ LIVE em https://evo.ai.udstec.io/cloudformation/evo-platform-role.yaml
+
 ### 2026-01-08 - WAF Monitoring Permissions
 **Problema:** AccessDeniedException ao habilitar WAF monitoring  
 **Causa:** Faltavam permissões para criar CloudWatch Logs resource policy  

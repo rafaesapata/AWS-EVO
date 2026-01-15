@@ -544,11 +544,23 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
                                   <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
                                       <span className="text-muted-foreground">{t('anomalyDetection.expectedValue')}:</span>
-                                      <span className="ml-2 font-medium">{anomaly.details?.expectedValue?.toFixed(2) || 'N/A'}</span>
+                                      <span className="ml-2 font-medium">
+                                        {anomaly.details?.expectedValue !== undefined 
+                                          ? `$${anomaly.details.expectedValue < 0.01 && anomaly.details.expectedValue > 0 
+                                              ? anomaly.details.expectedValue.toFixed(4) 
+                                              : anomaly.details.expectedValue.toFixed(2)}`
+                                          : 'N/A'}
+                                      </span>
                                     </div>
                                     <div>
                                       <span className="text-muted-foreground">{t('anomalyDetection.actualValue')}:</span>
-                                      <span className="ml-2 font-medium">{anomaly.details?.actualValue?.toFixed(2) || 'N/A'}</span>
+                                      <span className="ml-2 font-medium">
+                                        {anomaly.details?.actualValue !== undefined 
+                                          ? `$${anomaly.details.actualValue < 0.01 && anomaly.details.actualValue > 0 
+                                              ? anomaly.details.actualValue.toFixed(4) 
+                                              : anomaly.details.actualValue.toFixed(2)}`
+                                          : 'N/A'}
+                                      </span>
                                     </div>
                                   </div>
                                 </div>

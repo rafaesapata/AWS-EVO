@@ -506,6 +506,35 @@ const MIGRATION_COMMANDS = [
   `ALTER TABLE "knowledge_base_articles" ADD COLUMN IF NOT EXISTS "is_restricted" BOOLEAN NOT NULL DEFAULT false`,
   `CREATE INDEX IF NOT EXISTS "knowledge_base_articles_approval_status_idx" ON "knowledge_base_articles"("approval_status")`,
   
+  // Knowledge Base Comments table
+  `CREATE TABLE IF NOT EXISTS "knowledge_base_comments" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "article_id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "user_name" VARCHAR(255),
+    "user_email" VARCHAR(255),
+    "content" TEXT NOT NULL,
+    "parent_id" UUID,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "knowledge_base_comments_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "knowledge_base_comments_article_id_idx" ON "knowledge_base_comments"("article_id")`,
+  `CREATE INDEX IF NOT EXISTS "knowledge_base_comments_user_id_idx" ON "knowledge_base_comments"("user_id")`,
+  `CREATE INDEX IF NOT EXISTS "knowledge_base_comments_parent_id_idx" ON "knowledge_base_comments"("parent_id")`,
+  
+  // Knowledge Base Favorites table
+  `CREATE TABLE IF NOT EXISTS "knowledge_base_favorites" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "article_id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "knowledge_base_favorites_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "knowledge_base_favorites_article_user_key" ON "knowledge_base_favorites"("article_id", "user_id")`,
+  `CREATE INDEX IF NOT EXISTS "knowledge_base_favorites_user_id_idx" ON "knowledge_base_favorites"("user_id")`,
+  `CREATE INDEX IF NOT EXISTS "knowledge_base_favorites_article_id_idx" ON "knowledge_base_favorites"("article_id")`,
+  
   // MFA Factors table
   `CREATE TABLE IF NOT EXISTS "mfa_factors" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -621,6 +650,23 @@ const MIGRATION_COMMANDS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS "oauth_states_state_key" ON "oauth_states"("state")`,
   `CREATE INDEX IF NOT EXISTS "oauth_states_expires_at_idx" ON "oauth_states"("expires_at")`,
   `CREATE INDEX IF NOT EXISTS "oauth_states_organization_id_idx" ON "oauth_states"("organization_id")`,
+  
+  // ==================== WAF AI ANALYSIS TABLE (2026-01-15) ====================
+  
+  // WAF AI Analysis table for persisting AI-generated traffic analysis
+  `CREATE TABLE IF NOT EXISTS "waf_ai_analyses" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "analysis" TEXT NOT NULL,
+    "context" JSONB NOT NULL,
+    "risk_level" VARCHAR(50),
+    "ai_model" VARCHAR(100),
+    "is_fallback" BOOLEAN NOT NULL DEFAULT FALSE,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT "waf_ai_analyses_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "waf_ai_analyses_organization_id_idx" ON "waf_ai_analyses"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "waf_ai_analyses_org_created_idx" ON "waf_ai_analyses"("organization_id", "created_at" DESC)`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

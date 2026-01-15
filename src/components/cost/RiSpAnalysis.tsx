@@ -11,8 +11,6 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { 
-  TrendingUp, 
-  TrendingDown, 
   RefreshCw, 
   AlertTriangle, 
   CheckCircle2,
@@ -23,19 +21,90 @@ import {
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
+// Interface for RI/SP analysis data from Lambda
+interface RiSpAnalysisData {
+  success?: boolean;
+  executiveSummary?: {
+    status: string;
+    totalCommitments: number;
+    coverageScore: number;
+    potentialAnnualSavings: number;
+    recommendationsSummary?: {
+      total: number;
+      critical: number;
+      high: number;
+      quickWins: number;
+    };
+    keyInsights?: string[];
+  };
+  reservedInstances?: {
+    ec2?: any[];
+    rds?: any[];
+    total?: number;
+    count?: number;
+    active?: number;
+    averageUtilization?: number;
+    totalMonthlySavings?: number;
+    underutilized?: any[];
+    underutilizedCount?: number;
+  };
+  savingsPlans?: {
+    plans?: any[];
+    total?: number;
+    count?: number;
+    active?: number;
+    averageUtilization?: number;
+    averageCoverage?: number;
+    totalMonthlySavings?: number;
+    underutilized?: any[];
+  };
+  recommendations?: any[] | {
+    count?: number;
+    topRecommendations?: any[];
+    totalPotentialAnnualSavings?: number;
+  };
+  coverage?: {
+    reservedInstances?: number;
+    savingsPlans?: number;
+    overall?: number;
+  };
+  potentialSavings?: {
+    monthly?: number;
+    annual?: number;
+    maxPercentage?: number;
+  };
+  currentResources?: {
+    ec2Instances?: number;
+    rdsInstances?: number;
+    totalMonthlyCost?: number;
+  };
+  analysisMetadata?: {
+    analysisDepth?: string;
+    region?: string;
+    regions?: string[];
+    timestamp?: string;
+    accountId?: string;
+  };
+  analyzedAt?: string;
+}
+
 export const RiSpAnalysis = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { selectedAccountId, selectedProvider, selectedAccount } = useCloudAccount();
   const { data: organizationId } = useOrganization();
   const [activeTab, setActiveTab] = useState<'overview' | 'ri' | 'sp' | 'recommendations'>('overview');
+
+  // Get regions from selected account (default to us-east-1 if not set)
+  const accountRegions = selectedAccount?.regions?.length ? selectedAccount.regions : ['us-east-1'];
 
   // Detect if Azure
   const isAzure = selectedProvider === 'AZURE';
 
   // Fetch RI/SP analysis data - supports both AWS and Azure
-  const { data: analysisData, isLoading, error: queryError } = useQuery({
-    queryKey: ['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider],
+  // For AWS, we analyze all regions configured for the account
+  const { data: analysisData, isLoading } = useQuery<RiSpAnalysisData>({
+    queryKey: ['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions],
     enabled: !!organizationId && !!selectedAccountId,
     staleTime: 10 * 60 * 1000, // 10 minutes
     queryFn: async () => {
@@ -43,9 +112,9 @@ export const RiSpAnalysis = () => {
       const lambdaName = isAzure ? 'azure-reservations-analyzer' : 'ri-sp-analyzer';
       const bodyParam = isAzure 
         ? { credentialId: selectedAccountId, lookbackDays: 30 }
-        : { accountId: selectedAccountId, analysisType: 'all', lookbackDays: 30 };
+        : { accountId: selectedAccountId, analysisType: 'all', lookbackDays: 30, regions: accountRegions };
       
-      const response = await apiClient.invoke(lambdaName, {
+      const response = await apiClient.invoke<RiSpAnalysisData>(lambdaName, {
         body: bodyParam
       });
       
@@ -58,14 +127,14 @@ export const RiSpAnalysis = () => {
   });
 
   // Refresh mutation - supports both AWS and Azure
-  const refreshMutation = useMutation({
+  const refreshMutation = useMutation<RiSpAnalysisData>({
     mutationFn: async () => {
       const lambdaName = isAzure ? 'azure-reservations-analyzer' : 'ri-sp-analyzer';
       const bodyParam = isAzure 
         ? { credentialId: selectedAccountId, lookbackDays: 30 }
-        : { accountId: selectedAccountId, analysisType: 'all', lookbackDays: 30 };
+        : { accountId: selectedAccountId, analysisType: 'all', lookbackDays: 30, regions: accountRegions };
       
-      const result = await apiClient.invoke(lambdaName, {
+      const result = await apiClient.invoke<RiSpAnalysisData>(lambdaName, {
         body: bodyParam
       });
       
@@ -75,11 +144,12 @@ export const RiSpAnalysis = () => {
       
       return result.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ri-sp-analysis'] });
+    onSuccess: (data) => {
+      // Update the query cache directly with the new data
+      queryClient.setQueryData(['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions], data);
       toast({
         title: "Análise Atualizada",
-        description: "Dados de Reserved Instances e Savings Plans atualizados com sucesso.",
+        description: `Dados de Reserved Instances e Savings Plans atualizados para ${accountRegions.length} região(ões).`,
       });
     },
     onError: (error: any) => {
@@ -105,16 +175,36 @@ export const RiSpAnalysis = () => {
     );
   }
 
+  // Normalize data from Lambda response format
   const ri = analysisData?.reservedInstances;
   const sp = analysisData?.savingsPlans;
   const recommendations = analysisData?.recommendations;
+  
+  // Calculate counts from Lambda response format
+  const riCount = ri?.total ?? ri?.count ?? 0;
+  const spCount = sp?.total ?? sp?.count ?? 0;
+  const recommendationsCount = Array.isArray(recommendations) ? recommendations.length : (recommendations?.count ?? 0);
+  
+  // Get recommendations array (normalize both formats)
+  const recommendationsArray = Array.isArray(recommendations) 
+    ? recommendations 
+    : (recommendations?.topRecommendations ?? []);
+  
+  // Get total potential savings
+  const totalPotentialAnnualSavings = analysisData?.potentialSavings?.annual ?? 
+    (Array.isArray(recommendations) 
+      ? recommendations.reduce((sum: number, r: any) => sum + (r.potentialSavings?.annual || r.annualSavings || 0), 0)
+      : (recommendations?.totalPotentialAnnualSavings ?? 0));
 
   // Verificar se os dados foram realmente analisados
   const hasRealData = analysisData && (
-    (ri && ri.count > 0) || 
-    (sp && sp.count > 0) || 
-    (recommendations && recommendations.count > 0) ||
-    analysisData.analyzedAt
+    analysisData.success === true ||
+    analysisData.executiveSummary ||
+    riCount > 0 || 
+    spCount > 0 || 
+    recommendationsCount > 0 ||
+    analysisData.analyzedAt ||
+    analysisData.analysisMetadata
   );
 
   // Se não há dados reais, mostrar instruções para primeira execução
@@ -216,9 +306,9 @@ export const RiSpAnalysis = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{ri?.count || 0}</div>
+            <div className="text-2xl font-bold">{riCount}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {ri?.active || 0} ativas
+              {ri?.active || riCount} ativas
             </p>
           </CardContent>
         </Card>
@@ -230,9 +320,9 @@ export const RiSpAnalysis = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{sp?.count || 0}</div>
+            <div className="text-2xl font-bold">{spCount}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {sp?.active || 0} ativos
+              {sp?.active || spCount} ativos
             </p>
           </CardContent>
         </Card>
@@ -245,7 +335,7 @@ export const RiSpAnalysis = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              ${((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
+              ${((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0) + (analysisData?.potentialSavings?.monthly || 0)).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Economia atual
@@ -261,10 +351,10 @@ export const RiSpAnalysis = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              ${((recommendations?.totalPotentialAnnualSavings || 0) / 12).toFixed(2)}
+              ${(totalPotentialAnnualSavings / 12).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {recommendations?.count || 0} recomendações
+              {recommendationsCount} recomendações
             </p>
           </CardContent>
         </Card>
@@ -278,8 +368,8 @@ export const RiSpAnalysis = () => {
           <TabsTrigger value="sp">Savings Plans</TabsTrigger>
           <TabsTrigger value="recommendations">
             Recomendações
-            {recommendations?.count > 0 && (
-              <Badge variant="secondary" className="ml-2">{recommendations.count}</Badge>
+            {recommendationsCount > 0 && (
+              <Badge variant="secondary" className="ml-2">{recommendationsCount}</Badge>
             )}
           </TabsTrigger>
         </TabsList>
@@ -300,10 +390,10 @@ export const RiSpAnalysis = () => {
                   <Progress value={ri?.averageUtilization || 0} />
                 </div>
                 
-                {ri?.underutilizedCount > 0 && (
+                {(ri?.underutilizedCount ?? 0) > 0 && (
                   <div className="flex items-center gap-2 text-sm text-amber-600">
                     <AlertTriangle className="h-4 w-4" />
-                    <span>{ri.underutilizedCount} RIs subutilizadas (&lt;75%)</span>
+                    <span>{ri?.underutilizedCount} RIs subutilizadas (&lt;75%)</span>
                   </div>
                 )}
               </CardContent>
@@ -334,8 +424,8 @@ export const RiSpAnalysis = () => {
             </Card>
           </div>
 
-          {/* Top Recommendations */}
-          {recommendations?.topRecommendations && recommendations.topRecommendations.length > 0 && (
+          {/* Top Recommendations - Support both array format and topRecommendations format */}
+          {recommendationsArray.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Top Recomendações</CardTitle>
@@ -345,13 +435,13 @@ export const RiSpAnalysis = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {recommendations.topRecommendations.map((rec: any, idx: number) => (
+                  {recommendationsArray.slice(0, 5).map((rec: any, idx: number) => (
                     <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-full ${
-                          rec.type === 'reserved_instance' ? 'bg-purple-100' : 'bg-blue-100'
+                          rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? 'bg-purple-100' : 'bg-blue-100'
                         }`}>
-                          {rec.type === 'reserved_instance' ? (
+                          {rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? (
                             <Clock className="h-4 w-4 text-purple-600" />
                           ) : (
                             <Zap className="h-4 w-4 text-blue-600" />
@@ -359,19 +449,19 @@ export const RiSpAnalysis = () => {
                         </div>
                         <div>
                           <div className="font-medium text-sm">
-                            {rec.type === 'reserved_instance' ? 'Reserved Instance' : 'Savings Plan'}
+                            {rec.title || (rec.type === 'reserved_instance' ? 'Reserved Instance' : 'Savings Plan')}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {rec.instanceType || rec.savingsPlanType} • {rec.service}
+                            {rec.instanceType || rec.savingsPlanType || rec.service} • {rec.service}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-green-600">
-                          ${rec.annualSavings.toFixed(2)}/ano
+                          ${(rec.potentialSavings?.annual || rec.annualSavings || 0).toFixed(2)}/ano
                         </div>
-                        <Badge variant={rec.priority === 1 ? 'default' : 'secondary'} className="text-xs">
-                          Prioridade {rec.priority}
+                        <Badge variant={rec.priority === 1 || rec.priority === 'critical' || rec.priority === 'high' ? 'default' : 'secondary'} className="text-xs">
+                          {typeof rec.priority === 'string' ? rec.priority.toUpperCase() : `Prioridade ${rec.priority}`}
                         </Badge>
                       </div>
                     </div>
@@ -427,11 +517,11 @@ export const RiSpAnalysis = () => {
                     ))}
                   </TableBody>
                 </Table>
-              ) : ri && ri.count > 0 ? (
+              ) : ri && riCount > 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle2 className="h-12 w-12 mx-auto mb-2 text-green-500" />
                   <p>Todas as Reserved Instances estão bem utilizadas!</p>
-                  <p className="text-sm mt-1">Utilização média: {ri.averageUtilization}%</p>
+                  <p className="text-sm mt-1">Utilização média: {ri.averageUtilization || analysisData?.coverage?.reservedInstances?.toFixed(1) || 0}%</p>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
@@ -489,11 +579,11 @@ export const RiSpAnalysis = () => {
                     ))}
                   </TableBody>
                 </Table>
-              ) : sp && sp.count > 0 ? (
+              ) : sp && spCount > 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle2 className="h-12 w-12 mx-auto mb-2 text-green-500" />
                   <p>Todos os Savings Plans estão bem utilizados!</p>
-                  <p className="text-sm mt-1">Utilização média: {sp.averageUtilization}% | Cobertura: {sp.averageCoverage}%</p>
+                  <p className="text-sm mt-1">Utilização média: {sp.averageUtilization || analysisData?.coverage?.savingsPlans?.toFixed(1) || 0}% | Cobertura: {sp.averageCoverage || analysisData?.coverage?.overall?.toFixed(1) || 0}%</p>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
@@ -515,31 +605,32 @@ export const RiSpAnalysis = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {recommendations?.topRecommendations && recommendations.topRecommendations.length > 0 ? (
+              {recommendationsArray.length > 0 ? (
                 <div className="space-y-4">
-                  {recommendations.topRecommendations.map((rec: any, idx: number) => (
+                  {recommendationsArray.map((rec: any, idx: number) => (
                     <Card key={idx} className="border-2">
                       <CardContent className="pt-6">
                         <div className="flex items-start justify-between">
                           <div className="space-y-2 flex-1">
                             <div className="flex items-center gap-2">
-                              <Badge variant={rec.priority === 1 ? 'default' : 'secondary'}>
-                                Prioridade {rec.priority}
+                              <Badge variant={rec.priority === 'critical' || rec.priority === 'high' || rec.priority === 1 ? 'default' : 'secondary'}>
+                                {typeof rec.priority === 'string' ? rec.priority.toUpperCase() : `Prioridade ${rec.priority}`}
                               </Badge>
                               <Badge variant="outline">
-                                {rec.type === 'reserved_instance' ? 'Reserved Instance' : 'Savings Plan'}
+                                {rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? 'Reserved Instance' : 
+                                 rec.type === 'sp_purchase' ? 'Savings Plan' : rec.service || rec.type}
                               </Badge>
                             </div>
                             <h4 className="font-semibold">
-                              {rec.instanceType || rec.savingsPlanType}
+                              {rec.title || rec.instanceType || rec.savingsPlanType}
                             </h4>
                             <p className="text-sm text-muted-foreground">
-                              Serviço: {rec.service}
+                              {rec.description || `Serviço: ${rec.service}`}
                             </p>
                           </div>
                           <div className="text-right">
                             <div className="text-2xl font-bold text-green-600">
-                              ${rec.annualSavings.toFixed(2)}
+                              ${(rec.potentialSavings?.annual || rec.annualSavings || 0).toFixed(2)}
                             </div>
                             <p className="text-xs text-muted-foreground">economia anual</p>
                           </div>
@@ -554,7 +645,7 @@ export const RiSpAnalysis = () => {
                       <span className="font-semibold text-blue-900">Economia Total Potencial</span>
                     </div>
                     <div className="text-3xl font-bold text-blue-600">
-                      ${recommendations.totalPotentialAnnualSavings.toFixed(2)}/ano
+                      ${totalPotentialAnnualSavings.toFixed(2)}/ano
                     </div>
                     <p className="text-sm text-blue-700 mt-1">
                       Implementando todas as recomendações

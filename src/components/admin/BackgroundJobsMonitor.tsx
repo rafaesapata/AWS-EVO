@@ -12,14 +12,18 @@ import { format } from "date-fns";
 
 interface BackgroundJob {
   id: string;
-  name: string;
+  job_type: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  type: string;
-  progress: number;
-  startedAt?: string;
-  completedAt?: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
   error?: string;
-  metadata?: Record<string, any>;
+  result?: Record<string, any>;
+  organization_id: string;
+  // Computed fields for display
+  name?: string;
+  type?: string;
+  progress?: number;
 }
 
 export default function BackgroundJobsMonitor() {
@@ -29,10 +33,15 @@ export default function BackgroundJobsMonitor() {
   const { data: jobs, isLoading, refetch } = useQuery({
     queryKey: ['background-jobs', filter],
     queryFn: async () => {
-      const response = await apiClient.lambda<BackgroundJob[]>('list-background-jobs', {
+      const response = await apiClient.lambda<{ jobs: BackgroundJob[], pagination: any }>('list-background-jobs', {
         status: filter === 'all' ? undefined : filter
       });
-      return response.data || [];
+      // API returns { jobs: [...], pagination: {...} }
+      const data = response.data;
+      if (Array.isArray(data)) {
+        return data;
+      }
+      return data?.jobs || [];
     },
     refetchInterval: 5000,
   });
@@ -123,8 +132,8 @@ export default function BackgroundJobsMonitor() {
                   <div className="flex items-center gap-3">
                     {getStatusIcon(job.status)}
                     <div>
-                      <p className="font-medium">{job.name}</p>
-                      <p className="text-sm text-muted-foreground">{job.type}</p>
+                      <p className="font-medium">{job.job_type}</p>
+                      <p className="text-sm text-muted-foreground">ID: {job.id.slice(0, 8)}...</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -152,30 +161,19 @@ export default function BackgroundJobsMonitor() {
                   </div>
                 </div>
 
-                {job.status === 'running' && (
-                  <div className="mt-3">
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-blue-500 h-2 rounded-full transition-all"
-                        style={{ width: `${job.progress}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {job.progress}% complete
-                    </p>
-                  </div>
-                )}
-
                 {job.error && (
                   <p className="text-sm text-red-600 mt-2">{job.error}</p>
                 )}
 
                 <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                  {job.startedAt && (
-                    <span>Started: {format(new Date(job.startedAt), 'MMM d, HH:mm')}</span>
+                  {job.created_at && (
+                    <span>Created: {format(new Date(job.created_at), 'MMM d, HH:mm')}</span>
                   )}
-                  {job.completedAt && (
-                    <span>Completed: {format(new Date(job.completedAt), 'MMM d, HH:mm')}</span>
+                  {job.started_at && (
+                    <span>Started: {format(new Date(job.started_at), 'MMM d, HH:mm')}</span>
+                  )}
+                  {job.completed_at && (
+                    <span>Completed: {format(new Date(job.completed_at), 'MMM d, HH:mm')}</span>
                   )}
                 </div>
               </div>

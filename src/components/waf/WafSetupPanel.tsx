@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
@@ -22,7 +23,9 @@ import {
   Info,
   ExternalLink,
   RefreshCw,
-  Trash2
+  Trash2,
+  Stethoscope,
+  XCircle
 } from "lucide-react";
 
 interface WafConfig {
@@ -34,6 +37,24 @@ interface WafConfig {
   lastEventAt: string | null;
   eventsToday: number;
   blockedToday: number;
+}
+
+interface DiagnosticCheck {
+  name: string;
+  status: 'success' | 'warning' | 'error';
+  message: string;
+  details?: any;
+  recommendation?: string;
+}
+
+interface DiagnosticResult {
+  configId: string;
+  webAclName: string;
+  webAclArn: string;
+  region: string;
+  awsAccountId: string;
+  overallStatus: 'success' | 'warning' | 'error' | 'unknown';
+  checks: DiagnosticCheck[];
 }
 
 interface WafSetupPanelProps {
@@ -49,6 +70,8 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
   const [webAclArn, setWebAclArn] = useState("");
   const [filterMode, setFilterMode] = useState<string>("block_only");
   const [isScanning, setIsScanning] = useState(false);
+  const [diagnosticOpen, setDiagnosticOpen] = useState(false);
+  const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
 
   // Fetch existing WAF configurations
   const { data: configsData, isLoading: configsLoading, refetch: refetchConfigs } = useQuery({
@@ -138,6 +161,66 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
     },
   });
 
+  // Diagnose WAF monitoring mutation
+  const diagnoseMutation = useMutation({
+    mutationFn: async (configId: string) => {
+      const response = await apiClient.invoke<DiagnosticResult>('waf-dashboard-api', {
+        body: { 
+          action: 'diagnose',
+          configId
+        }
+      });
+      if (response.error) throw new Error(getErrorMessage(response.error));
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data) {
+        setDiagnosticResult(data);
+        setDiagnosticOpen(true);
+      }
+    },
+    onError: (error) => {
+      toast({ 
+        title: t('common.error'), 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const handleDiagnose = (configId: string) => {
+    diagnoseMutation.mutate(configId);
+  };
+
+  // Fix subscription filter mutation
+  const fixSubscriptionMutation = useMutation({
+    mutationFn: async (configId: string) => {
+      const response = await apiClient.invoke<{ success: boolean; message: string; filterName?: string }>('waf-dashboard-api', {
+        body: { 
+          action: 'fix-subscription',
+          configId
+        }
+      });
+      if (response.error) throw new Error(getErrorMessage(response.error));
+      return response.data;
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: t('waf.subscriptionFixed', 'Subscription Fixed'),
+        description: data?.message || t('waf.subscriptionFixedDesc', 'EVO subscription filter created successfully. Events will start flowing within 1-2 minutes.'),
+      });
+      queryClient.invalidateQueries({ queryKey: ['waf-configs'] });
+      setDiagnosticOpen(false);
+    },
+    onError: (error) => {
+      toast({ 
+        title: t('common.error'), 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
   const handleScanWafs = () => {
     setIsScanning(true);
     refetchWafs();
@@ -214,14 +297,29 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
                     )}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => disableMutation.mutate(config.id)}
-                  disabled={disableMutation.isPending}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDiagnose(config.id)}
+                    disabled={diagnoseMutation.isPending}
+                    title={t('waf.diagnose', 'Diagnose')}
+                  >
+                    {diagnoseMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    ) : (
+                      <Stethoscope className="h-4 w-4 text-primary" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => disableMutation.mutate(config.id)}
+                    disabled={disableMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -388,6 +486,116 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
           </a>
         </CardContent>
       </Card>
+
+      {/* Diagnostic Modal */}
+      <Dialog open={diagnosticOpen} onOpenChange={setDiagnosticOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Stethoscope className="h-5 w-5 text-primary" />
+              {t('waf.diagnosticTitle', 'WAF Monitoring Diagnostic')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('waf.diagnosticDesc', 'Check the status of monitoring configuration')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {diagnosticResult && (
+            <div className="space-y-4">
+              {/* Overall Status */}
+              <Card className={`border-2 ${
+                diagnosticResult.overallStatus === 'success' ? 'border-green-500/50 bg-green-500/5' :
+                diagnosticResult.overallStatus === 'warning' ? 'border-yellow-500/50 bg-yellow-500/5' :
+                diagnosticResult.overallStatus === 'error' ? 'border-red-500/50 bg-red-500/5' :
+                'border-muted'
+              }`}>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{diagnosticResult.webAclName}</p>
+                      <p className="text-sm text-muted-foreground">{diagnosticResult.region}</p>
+                    </div>
+                    <Badge variant={
+                      diagnosticResult.overallStatus === 'success' ? 'default' :
+                      diagnosticResult.overallStatus === 'warning' ? 'secondary' :
+                      'destructive'
+                    } className="text-sm">
+                      {diagnosticResult.overallStatus === 'success' && <CheckCircle className="h-4 w-4 mr-1" />}
+                      {diagnosticResult.overallStatus === 'warning' && <AlertTriangle className="h-4 w-4 mr-1" />}
+                      {diagnosticResult.overallStatus === 'error' && <XCircle className="h-4 w-4 mr-1" />}
+                      {t(`waf.status${diagnosticResult.overallStatus.charAt(0).toUpperCase() + diagnosticResult.overallStatus.slice(1)}`, diagnosticResult.overallStatus)}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Checks */}
+              <div className="space-y-3">
+                {diagnosticResult.checks.map((check, index) => (
+                  <div 
+                    key={index}
+                    className={`p-4 rounded-lg border ${
+                      check.status === 'success' ? 'border-green-500/30 bg-green-500/5' :
+                      check.status === 'warning' ? 'border-yellow-500/30 bg-yellow-500/5' :
+                      'border-red-500/30 bg-red-500/5'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {check.status === 'success' && <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />}
+                      {check.status === 'warning' && <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />}
+                      {check.status === 'error' && <XCircle className="h-5 w-5 text-red-500 mt-0.5" />}
+                      <div className="flex-1 space-y-1">
+                        <p className="font-medium">{check.name}</p>
+                        <p className="text-sm text-muted-foreground">{check.message}</p>
+                        {check.recommendation && (
+                          <Alert className="mt-2">
+                            <Info className="h-4 w-4" />
+                            <AlertDescription className="text-sm">
+                              {check.recommendation}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        {/* Show Fix button for Subscription Filter issues */}
+                        {check.name === 'Subscription Filter' && (check.status === 'warning' || check.status === 'error') && (
+                          <Button
+                            size="sm"
+                            className="mt-2"
+                            onClick={() => fixSubscriptionMutation.mutate(diagnosticResult.configId)}
+                            disabled={fixSubscriptionMutation.isPending}
+                          >
+                            {fixSubscriptionMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Settings className="h-4 w-4 mr-2" />
+                            )}
+                            {t('waf.fixSubscription', 'Fix Subscription Filter')}
+                          </Button>
+                        )}
+                        {check.details && (
+                          <details className="mt-2">
+                            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                              {t('waf.checkDetails', 'Details')}
+                            </summary>
+                            <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-x-auto">
+                              {JSON.stringify(check.details, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setDiagnosticOpen(false)}>
+                  {t('waf.closeDiagnostic', 'Close')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

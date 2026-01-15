@@ -86,7 +86,8 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'waste_detection_history': 'mLAnalysisHistory',
   // user_roles não existe no banco - retornar vazio
   // 'user_roles': 'userRole',  // REMOVIDO - tabela não existe
-  'knowledge_base_favorites': 'knowledgeBaseArticle',
+  'knowledge_base_favorites': 'knowledgeBaseFavorite',
+  'knowledge_base_comments': 'knowledgeBaseComment',
 };
 
 // Mapeamento de campos do frontend para campos do Prisma
@@ -124,6 +125,7 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   'well_architected_scores': { 'aws_account_id': null },
   'knowledge_base_articles': { 'aws_account_id': null },
   'knowledge_base_favorites': { 'aws_account_id': null },
+  'knowledge_base_comments': { 'aws_account_id': null },
   'profiles': { 'aws_account_id': null },
   'user_roles': { 'aws_account_id': null },
   

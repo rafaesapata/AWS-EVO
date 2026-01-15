@@ -134,13 +134,13 @@ O código TypeScript compilado usa imports relativos como `../../lib/middleware.
 
 **NUNCA** faça deploy apenas copiando o arquivo .js do handler. Isso causa erro 502!
 
-### ✅ PROCESSO CORRETO DE DEPLOY:
+### ✅ PROCESSO CORRETO DE DEPLOY (Passo a Passo):
 
 ```bash
 # 1. Compilar o backend
 npm run build --prefix backend
 
-# 2. Criar diretório temporário
+# 2. Criar diretório temporário limpo
 rm -rf /tmp/lambda-deploy && mkdir -p /tmp/lambda-deploy
 
 # 3. Copiar handler E AJUSTAR IMPORTS (de ../../lib/ para ./lib/)
@@ -152,12 +152,26 @@ cp -r backend/dist/lib /tmp/lambda-deploy/
 cp -r backend/dist/types /tmp/lambda-deploy/
 
 # 5. Criar ZIP
-pushd /tmp/lambda-deploy && zip -r ../lambda.zip . && popd
+pushd /tmp/lambda-deploy
+zip -r ../lambda.zip .
+popd
 
-# 6. Deploy
+# 6. Deploy do código
 aws lambda update-function-code \
-  --function-name {nome-da-lambda} \
+  --function-name evo-uds-v3-production-{nome} \
   --zip-file fileb:///tmp/lambda.zip \
+  --region us-east-1
+
+# 7. ⚠️ CRÍTICO: Atualizar o handler path na configuração
+# O handler DEVE apontar para o arquivo na RAIZ do ZIP, não para handlers/{categoria}/
+aws lambda update-function-configuration \
+  --function-name evo-uds-v3-production-{nome} \
+  --handler {handler}.handler \
+  --region us-east-1
+
+# 8. Aguardar atualização completar
+aws lambda wait function-updated \
+  --function-name evo-uds-v3-production-{nome} \
   --region us-east-1
 ```
 
@@ -173,18 +187,151 @@ lambda.zip
 │   ├── database.js
 │   ├── aws-helpers.js
 │   ├── logging.js
+│   ├── audit-service.js
 │   └── ...
 └── types/                # Tipos TypeScript compilados
     └── lambda.js
 ```
+
+### ⚠️ Handler Path - MUITO IMPORTANTE
+
+| Situação | Handler Path | Resultado |
+|----------|--------------|-----------|
+| ❌ ERRADO | `handlers/auth/mfa-handlers.handler` | Erro 502 - arquivo não encontrado |
+| ✅ CORRETO | `mfa-handlers.handler` | Funciona - arquivo na raiz do ZIP |
+
+O handler path na configuração da Lambda DEVE corresponder à localização do arquivo DENTRO do ZIP, não à estrutura original do projeto.
 
 ### ❌ ERROS COMUNS A EVITAR:
 
 1. **Copiar apenas o .js do handler** → Erro: Cannot find module '../../lib/xxx.js'
 2. **Não ajustar os imports** → Erro: Cannot find module '../../lib/xxx.js'
 3. **Estrutura de diretórios errada no ZIP** → Erro: Cannot find module
+4. **Handler path incorreto** → Erro 502: Runtime.ImportModuleError
+5. **Não atualizar handler path após deploy** → Lambda continua usando path antigo
+
+### 🔍 Como Diagnosticar Erro 502
+
+```bash
+# 1. Verificar logs do CloudWatch
+aws logs tail /aws/lambda/evo-uds-v3-production-{nome} --since 5m --region us-east-1
+
+# 2. Procurar por "Runtime.ImportModuleError" ou "Cannot find module"
+# Se aparecer: problema de imports ou handler path
+
+# 3. Verificar configuração atual da Lambda
+aws lambda get-function-configuration \
+  --function-name evo-uds-v3-production-{nome} \
+  --region us-east-1 \
+  --query '{Handler: Handler, Layers: Layers[*].Arn}'
+
+# 4. Testar invocação direta
+aws lambda invoke \
+  --function-name evo-uds-v3-production-{nome} \
+  --cli-binary-format raw-in-base64-out \
+  --payload '{"requestContext":{"http":{"method":"OPTIONS"}}}' \
+  --region us-east-1 \
+  /tmp/test-output.json
+
+cat /tmp/test-output.json
+```
+
+### 📝 Exemplo Completo: Deploy do mfa-handlers
+
+```bash
+# Build
+npm run build --prefix backend
+
+# Preparar deploy
+rm -rf /tmp/lambda-deploy-mfa && mkdir -p /tmp/lambda-deploy-mfa
+
+# Copiar e ajustar imports
+sed 's|require("../../lib/|require("./lib/|g' backend/dist/handlers/auth/mfa-handlers.js | \
+sed 's|require("../../types/|require("./types/|g' > /tmp/lambda-deploy-mfa/mfa-handlers.js
+
+# Copiar dependências
+cp -r backend/dist/lib /tmp/lambda-deploy-mfa/
+cp -r backend/dist/types /tmp/lambda-deploy-mfa/
+
+# Criar ZIP
+pushd /tmp/lambda-deploy-mfa
+zip -r ../mfa-handlers.zip .
+popd
+
+# Deploy para TODAS as Lambdas que usam este handler
+for func in mfa-enroll mfa-check mfa-challenge-verify mfa-list-factors mfa-unenroll; do
+  echo "Deploying evo-uds-v3-production-$func..."
+  
+  aws lambda update-function-code \
+    --function-name "evo-uds-v3-production-$func" \
+    --zip-file fileb:///tmp/mfa-handlers.zip \
+    --region us-east-1
+  
+  aws lambda update-function-configuration \
+    --function-name "evo-uds-v3-production-$func" \
+    --handler mfa-handlers.handler \
+    --region us-east-1
+  
+  sleep 2
+done
+
+echo "✅ Deploy completo!"
+```
 
 ### 🔧 Script Disponível:
 
 Use o script `scripts/fix-lambda-imports-v2.sh` para deploy correto de múltiplas Lambdas.
 
+### 📊 Checklist de Deploy
+
+Antes de considerar o deploy completo:
+
+- [ ] Backend compilado (`npm run build --prefix backend`)
+- [ ] Imports ajustados de `../../lib/` para `./lib/`
+- [ ] Imports ajustados de `../../types/` para `./types/`
+- [ ] Diretório `lib/` incluído no ZIP
+- [ ] Diretório `types/` incluído no ZIP
+- [ ] Handler path atualizado na configuração da Lambda
+- [ ] `aws lambda wait function-updated` executado
+- [ ] Teste de invocação bem-sucedido
+- [ ] Logs do CloudWatch sem erros de import
+
+
+
+---
+
+## 📜 Histórico de Incidentes de Deploy
+
+### 2026-01-15 - MFA Lambdas com erro 502
+
+**Problema:** Todas as Lambdas MFA retornando erro 502 "Cannot find module '../../lib/middleware.js'"
+
+**Causa:** Deploy incorreto - apenas o arquivo .js do handler foi copiado, sem o diretório `lib/` e sem ajustar os imports.
+
+**Sintomas nos logs:**
+```
+Runtime.ImportModuleError: Error: Cannot find module '../../lib/middleware.js'
+Require stack:
+- /var/task/mfa-handlers.js
+```
+
+**Solução:**
+1. Recompilar backend: `npm run build --prefix backend`
+2. Criar ZIP com estrutura correta (handler + lib/ + types/)
+3. Ajustar imports de `../../lib/` para `./lib/`
+4. Atualizar handler path de `handlers/auth/mfa-handlers.handler` para `mfa-handlers.handler`
+5. Deploy em todas as 5 Lambdas MFA
+
+**Lambdas afetadas:**
+- `evo-uds-v3-production-mfa-enroll`
+- `evo-uds-v3-production-mfa-check`
+- `evo-uds-v3-production-mfa-challenge-verify`
+- `evo-uds-v3-production-mfa-list-factors`
+- `evo-uds-v3-production-mfa-unenroll`
+
+**Lição aprendida:** SEMPRE seguir o processo de deploy documentado. Nunca fazer deploy "rápido" copiando apenas o handler.
+
+---
+
+**Última atualização:** 2026-01-15
+**Versão:** 1.1

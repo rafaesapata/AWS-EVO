@@ -266,10 +266,14 @@ function detectAnomalies(costData: CostDataPoint[], threshold: number): Anomaly[
     // Calculate statistics
     const costs = points.map(p => p.cost);
     const mean = costs.reduce((a, b) => a + b, 0) / costs.length;
+    
+    // Skip services with negligible costs (less than $0.10/day average)
+    if (mean < 0.10) continue;
+    
     const variance = costs.reduce((sum, cost) => sum + Math.pow(cost - mean, 2), 0) / costs.length;
     const stdDev = Math.sqrt(variance);
 
-    // Skip if no variation
+    // Skip if no variation (all values are the same)
     if (stdDev === 0) continue;
 
     // Check each point for anomalies
@@ -277,6 +281,9 @@ function detectAnomalies(costData: CostDataPoint[], threshold: number): Anomaly[
       const zScore = (point.cost - mean) / stdDev;
       const deviation = point.cost - mean;
       const deviationPercent = mean > 0 ? (deviation / mean) * 100 : 0;
+      
+      // Skip if absolute difference is less than $1 (not worth alerting)
+      if (Math.abs(deviation) < 1.0) continue;
 
       if (Math.abs(zScore) > threshold) {
         const isSpike = zScore > 0;

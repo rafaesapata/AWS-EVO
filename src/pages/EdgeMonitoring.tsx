@@ -654,17 +654,27 @@ export default function EdgeMonitoring() {
                           <span className="text-muted-foreground">Requests/min:</span>
                           <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
                         </div>
-                        <div>
-                          <span className="text-muted-foreground">Cache Hit Rate:</span>
-                          <div className="font-medium">{service.cache_hit_rate.toFixed(1)}%</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Taxa de Erro:</span>
-                          <div className="font-medium">{service.error_rate.toFixed(2)}%</div>
-                        </div>
+                        {service.service_type !== 'waf' && (
+                          <div>
+                            <span className="text-muted-foreground">Cache Hit Rate:</span>
+                            <div className="font-medium">{service.cache_hit_rate.toFixed(1)}%</div>
+                          </div>
+                        )}
+                        {service.service_type !== 'waf' && (
+                          <div>
+                            <span className="text-muted-foreground">Taxa de Erro:</span>
+                            <div className="font-medium">{service.error_rate.toFixed(2)}%</div>
+                          </div>
+                        )}
+                        {service.service_type === 'waf' && (
+                          <div>
+                            <span className="text-muted-foreground">Regras:</span>
+                            <div className="font-medium">{service.metadata?.rulesCount || 0}</div>
+                          </div>
+                        )}
                         <div>
                           <span className="text-muted-foreground">Bloqueados:</span>
-                          <div className="font-medium">{service.blocked_requests.toLocaleString()}</div>
+                          <div className="font-medium text-red-500">{service.blocked_requests.toLocaleString()}</div>
                         </div>
                       </div>
                     </div>
@@ -794,13 +804,65 @@ export default function EdgeMonitoring() {
               <CardDescription>Monitoramento de distribuições CloudFront</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <Cloud className="h-12 w-12 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">CloudFront em desenvolvimento</h3>
-                  <p>Métricas detalhadas do CloudFront serão exibidas aqui.</p>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
                 </div>
-              </div>
+              ) : (() => {
+                const cloudfrontServices = edgeServices?.filter(s => s.service_type === 'cloudfront') || [];
+                return cloudfrontServices.length > 0 ? (
+                  <div className="space-y-4">
+                    {cloudfrontServices.map((service) => (
+                      <div key={service.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <Cloud className="h-5 w-5 text-blue-500" />
+                            <div className="space-y-1">
+                              <h4 className="font-semibold text-sm">{service.service_name}</h4>
+                              <p className="text-sm text-muted-foreground">{service.service_id}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>{service.region}</span>
+                                <span>•</span>
+                                <span>Atualizado: {new Date(service.last_updated).toLocaleString('pt-BR')}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {getStatusBadge(service.status)}
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Requests/min:</span>
+                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Cache Hit Rate:</span>
+                            <div className="font-medium">{service.cache_hit_rate.toFixed(1)}%</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Taxa de Erro:</span>
+                            <div className="font-medium">{service.error_rate.toFixed(2)}%</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Bandwidth:</span>
+                            <div className="font-medium">{(service.metadata?.bandwidth_gb || 0).toFixed(2)} GB</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Cloud className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhuma distribuição CloudFront</h3>
+                    <p className="text-muted-foreground">Clique em "Descobrir Serviços" para buscar distribuições CloudFront.</p>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
@@ -815,13 +877,63 @@ export default function EdgeMonitoring() {
               <CardDescription>Monitoramento de Web Application Firewall</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <Shield className="h-12 w-12 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">WAF em desenvolvimento</h3>
-                  <p>Análises de segurança e bloqueios do WAF serão exibidas aqui.</p>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
                 </div>
-              </div>
+              ) : (() => {
+                const wafServices = edgeServices?.filter(s => s.service_type === 'waf') || [];
+                return wafServices.length > 0 ? (
+                  <div className="space-y-4">
+                    {wafServices.map((service) => (
+                      <div key={service.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <Shield className="h-5 w-5 text-red-500" />
+                            <div className="space-y-1">
+                              <h4 className="font-semibold text-sm">{service.service_name}</h4>
+                              <p className="text-sm text-muted-foreground">{service.service_id}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>{service.metadata?.scope || 'REGIONAL'}</span>
+                                <span>•</span>
+                                <span>{service.region}</span>
+                                <span>•</span>
+                                <span>Atualizado: {new Date(service.last_updated).toLocaleString('pt-BR')}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {getStatusBadge(service.status)}
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Total Requests:</span>
+                            <div className="font-medium">{Math.round(service.requests_per_minute * 60).toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Bloqueados:</span>
+                            <div className="font-medium text-red-500">{service.blocked_requests.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Regras:</span>
+                            <div className="font-medium">{service.metadata?.rulesCount || 0}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhum Web ACL configurado</h3>
+                    <p className="text-muted-foreground">Clique em "Descobrir Serviços" para buscar Web ACLs do WAF.</p>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
@@ -836,13 +948,69 @@ export default function EdgeMonitoring() {
               <CardDescription>Monitoramento de Application e Network Load Balancers</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <Zap className="h-12 w-12 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Load Balancers em desenvolvimento</h3>
-                  <p>Métricas de balanceamento de carga serão exibidas aqui.</p>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
                 </div>
-              </div>
+              ) : (() => {
+                const lbServices = edgeServices?.filter(s => s.service_type === 'load_balancer') || [];
+                return lbServices.length > 0 ? (
+                  <div className="space-y-4">
+                    {lbServices.map((service) => (
+                      <div key={service.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <Zap className="h-5 w-5 text-green-500" />
+                            <div className="space-y-1">
+                              <h4 className="font-semibold text-sm">{service.service_name}</h4>
+                              <p className="text-sm text-muted-foreground truncate max-w-md">{service.domain_name}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline" className="text-xs">
+                                  {service.metadata?.type === 'application' ? 'ALB' : 'NLB'}
+                                </Badge>
+                                <span>•</span>
+                                <span>{service.metadata?.scheme || 'internet-facing'}</span>
+                                <span>•</span>
+                                <span>{service.region}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {getStatusBadge(service.status)}
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Requests/min:</span>
+                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Response Time:</span>
+                            <div className="font-medium">{(service.metadata?.response_time || 0).toFixed(0)} ms</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Taxa de Erro:</span>
+                            <div className="font-medium">{service.error_rate.toFixed(2)}%</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">AZs:</span>
+                            <div className="font-medium">{service.metadata?.availabilityZones?.length || 0}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhum Load Balancer encontrado</h3>
+                    <p className="text-muted-foreground">Clique em "Descobrir Serviços" para buscar ALBs e NLBs.</p>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>

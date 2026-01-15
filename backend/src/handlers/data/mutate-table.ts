@@ -72,6 +72,8 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'licenses': 'license',
   'license_seat_assignments': 'licenseSeatAssignment',
   'organization_license_configs': 'organizationLicenseConfig',
+  // Knowledge base favorites
+  'knowledge_base_favorites': 'knowledgeBaseFavorite',
 };
 
 // Tabelas que têm organization_id para multi-tenancy

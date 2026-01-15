@@ -79,6 +79,9 @@ Access-Control-Allow-Origin: *
 | `mru5m2` | `/api/functions/security-scan` | `evo-uds-v3-production-security-scan` |
 | `l57dh7` | `/api/functions/start-security-scan` | `evo-uds-v3-production-start-security-scan` |
 | `4e9me7` | `/api/functions/compliance-scan` | `evo-uds-v3-production-compliance-scan` |
+| `brgrmb` | `/api/functions/start-compliance-scan` | `evo-uds-v3-production-start-compliance-scan` |
+| `9ss8w4` | `/api/functions/get-compliance-scan-status` | `evo-uds-v3-production-get-compliance-scan-status` |
+| `43b21j` | `/api/functions/get-compliance-history` | `evo-uds-v3-production-get-compliance-history` |
 | `xrrjft` | `/api/functions/well-architected-scan` | `evo-uds-v3-production-well-architected-scan` |
 | `ddne82` | `/api/functions/guardduty-scan` | `evo-uds-v3-production-guardduty-scan` |
 | `6gsogw` | `/api/functions/get-findings` | `evo-uds-v3-production-get-findings` |
@@ -265,7 +268,7 @@ Access-Control-Allow-Origin: *
 
 ## Estatísticas
 
-- **Total de Endpoints**: 108 endpoints sob `/api/functions/`
+- **Total de Endpoints**: 111 endpoints sob `/api/functions/`
 - **Endpoints Especiais**: 4 endpoints
 - **Categorias**: 15 categorias
 
@@ -452,7 +455,13 @@ Adicionado `X-Impersonate-Organization` aos headers CORS permitidos em todos os 
 ### 2026-01-12 - Fix Permissão Lambda validate-azure-credentials
 Corrigida permissão Lambda que estava com path incorreto (`/validate-azure-credentials` em vez de `/api/functions/validate-azure-credentials`).
 
+### 2026-01-15 - Novos Endpoints de Compliance
+Adicionados 3 novos endpoints para o sistema avançado de compliance:
+- `start-compliance-scan` (brgrmb) - Inicia scan de compliance assíncrono
+- `get-compliance-scan-status` (9ss8w4) - Retorna status e progresso do scan
+- `get-compliance-history` (43b21j) - Retorna histórico para análise de tendências
+
 ---
 
-**Última atualização:** 2026-01-12
-**Versão:** 1.1
+**Última atualização:** 2026-01-15
+**Versão:** 1.2

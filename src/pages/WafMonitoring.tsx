@@ -18,10 +18,11 @@ import { WafMetricsCards } from "@/components/waf/WafMetricsCards";
 import { WafEventsFeed } from "@/components/waf/WafEventsFeed";
 import { WafAttackTypesChart } from "@/components/waf/WafAttackTypesChart";
 import { WafTopAttackers } from "@/components/waf/WafTopAttackers";
-import { WafBlockedIpsList } from "@/components/waf/WafBlockedIpsList";
+import { WafBlockedRequestsList } from "@/components/waf/WafBlockedRequestsList";
 import { WafGeoDistribution } from "@/components/waf/WafGeoDistribution";
 import { WafConfigPanel } from "@/components/waf/WafConfigPanel";
 import { WafSetupPanel } from "@/components/waf/WafSetupPanel";
+import { WafAiAnalysis } from "@/components/waf/WafAiAnalysis";
 
 export default function WafMonitoring() {
   const { t } = useTranslation();
@@ -68,7 +69,23 @@ export default function WafMonitoring() {
     refetchInterval: 30 * 1000,
     queryFn: async () => {
       const response = await apiClient.invoke<{ events: any[]; pagination: any }>('waf-dashboard-api', {
-        body: { action: 'events', limit: 50 }
+        body: { action: 'events', limit: 100 }
+      });
+      if (response.error) throw new Error(getErrorMessage(response.error));
+      return response.data;
+    },
+  });
+
+  // Fetch blocked events specifically for the blocked requests list
+  const { data: blockedEventsData, isLoading: blockedEventsLoading } = useQuery({
+    queryKey: ['waf-blocked-events', organizationId],
+    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
+    staleTime: 15 * 1000,
+    refetchInterval: 30 * 1000,
+    queryFn: async () => {
+      // Note: 'action' in body is the API action, we need to pass filter separately
+      const response = await apiClient.invoke<{ events: any[]; pagination: any }>('waf-dashboard-api', {
+        body: { action: 'events', filterAction: 'BLOCK', limit: 50 }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
@@ -117,20 +134,6 @@ export default function WafMonitoring() {
     },
   });
 
-  // Fetch blocked IPs
-  const { data: blockedIpsData, isLoading: blockedIpsLoading, refetch: refetchBlockedIps } = useQuery({
-    queryKey: ['waf-blocked-ips', organizationId],
-    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
-    staleTime: 30 * 1000,
-    queryFn: async () => {
-      const response = await apiClient.invoke<{ blockedIps: any[] }>('waf-dashboard-api', {
-        body: { action: 'blocked-ips' }
-      });
-      if (response.error) throw new Error(getErrorMessage(response.error));
-      return response.data;
-    },
-  });
-
   // Block IP mutation
   const blockIpMutation = useMutation({
     mutationFn: async ({ ipAddress, reason }: { ipAddress: string; reason: string }) => {
@@ -160,7 +163,6 @@ export default function WafMonitoring() {
     },
     onSuccess: () => {
       toast({ title: t('waf.ipUnblocked'), description: t('waf.ipUnblockedDesc') });
-      queryClient.invalidateQueries({ queryKey: ['waf-blocked-ips'] });
     },
     onError: (error) => {
       toast({ title: t('common.error'), description: error.message, variant: "destructive" });
@@ -171,7 +173,6 @@ export default function WafMonitoring() {
     await Promise.all([
       refetchMetrics(),
       refetchEvents(),
-      refetchBlockedIps(),
     ]);
     toast({ title: t('common.refreshed'), description: t('waf.dataRefreshed') });
   };
@@ -182,7 +183,9 @@ export default function WafMonitoring() {
   const topAttackers = attackersData?.topAttackers || [];
   const attackTypes = attackTypesData?.attackTypes || [];
   const geoDistribution = geoData?.geoDistribution || [];
-  const blockedIps = blockedIpsData?.blockedIps || [];
+  
+  // Use dedicated blocked events query for the blocked requests list
+  const blockedRequests = blockedEventsData?.events || [];
 
 
   return (
@@ -247,7 +250,6 @@ export default function WafMonitoring() {
               <TabsList className="glass">
                 <TabsTrigger value="overview">{t('waf.overview', 'Visão Geral')}</TabsTrigger>
                 <TabsTrigger value="events">{t('waf.events', 'Eventos')}</TabsTrigger>
-                <TabsTrigger value="blocked">{t('waf.blockedIps', 'IPs Bloqueados')}</TabsTrigger>
                 <TabsTrigger value="config">
                   <Settings className="h-4 w-4 mr-1" />
                   {t('waf.configuration', 'Configuração')}
@@ -255,6 +257,9 @@ export default function WafMonitoring() {
               </TabsList>
 
               <TabsContent value="overview" className="space-y-6">
+                {/* AI Analysis Section */}
+                <WafAiAnalysis accountId={selectedAccountId || undefined} />
+
                 <div className="grid gap-6 md:grid-cols-2">
                   <WafAttackTypesChart 
                     attackTypes={attackTypes} 
@@ -277,6 +282,12 @@ export default function WafMonitoring() {
                     isLoading={eventsLoading} 
                   />
                 </div>
+
+                {/* Blocked Requests List */}
+                <WafBlockedRequestsList 
+                  blockedRequests={blockedRequests.slice(0, 20)} 
+                  isLoading={blockedEventsLoading} 
+                />
               </TabsContent>
 
               <TabsContent value="events" className="space-y-4">
@@ -285,15 +296,6 @@ export default function WafMonitoring() {
                   isLoading={eventsLoading}
                   showFilters
                   showPagination
-                />
-              </TabsContent>
-
-              <TabsContent value="blocked" className="space-y-4">
-                <WafBlockedIpsList 
-                  blockedIps={blockedIps}
-                  isLoading={blockedIpsLoading}
-                  onUnblock={(ip) => unblockIpMutation.mutate(ip)}
-                  onBlock={(ip, reason) => blockIpMutation.mutate({ ipAddress: ip, reason })}
                 />
               </TabsContent>
 

@@ -95,7 +95,7 @@ Resources:
         - Key: EVOPlatformAccountId
           Value: !Ref EVOPlatformAccountId
         - Key: TemplateVersion
-          Value: '2.2.0-waf-destination-fix'
+          Value: '2.3.0-ri-sp-coverage-permissions'
 
   # ----------------------------------------------------------------------------
   # Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
@@ -471,7 +471,9 @@ Resources:
               - 'ce:GetCostAndUsage'
               - 'ce:GetCostForecast'
               - 'ce:GetReservationUtilization'
+              - 'ce:GetReservationCoverage'
               - 'ce:GetSavingsPlansUtilization'
+              - 'ce:GetSavingsPlansCoverage'
               - 'ce:GetReservationPurchaseRecommendation'
               - 'ce:GetSavingsPlansPurchaseRecommendation'
               - 'ce:GetRightsizingRecommendation'

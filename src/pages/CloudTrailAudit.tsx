@@ -176,6 +176,39 @@ export default function CloudTrailAudit() {
     },
   });
 
+  // Check for running analysis on page load
+  const { data: runningAnalysis } = useQuery<CloudTrailAnalysisStatus | undefined>({
+    queryKey: ['cloudtrail-running-analysis', organizationId, selectedAccountId],
+    enabled: !!organizationId && !!selectedAccountId && !analysisId,
+    staleTime: 5000,
+    queryFn: async () => {
+      const response = await apiClient.select('cloudtrail_analyses', {
+        select: '*',
+        eq: { 
+          organization_id: organizationId,
+          aws_account_id: selectedAccountId,
+          status: 'running'
+        },
+        order: { column: 'created_at', ascending: false },
+        limit: 1
+      });
+      if (response.error) return undefined;
+      return response.data?.[0] as CloudTrailAnalysisStatus | undefined;
+    },
+  });
+
+  // Auto-detect running analysis on page load
+  useEffect(() => {
+    if (runningAnalysis && !analysisId && !isAnalyzing) {
+      setAnalysisId(runningAnalysis.id);
+      setIsAnalyzing(true);
+      toast({
+        title: "Análise em andamento",
+        description: "Detectada análise em execução. Acompanhando progresso...",
+      });
+    }
+  }, [runningAnalysis, analysisId, isAnalyzing, toast]);
+
   // Poll for analysis status when running
   const { data: analysisStatus } = useQuery<CloudTrailAnalysisStatus | undefined>({
     queryKey: ['cloudtrail-analysis-status', analysisId],
@@ -691,7 +724,7 @@ export default function CloudTrailAudit() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                       outerRadius={100}
                       dataKey="value"
                     >

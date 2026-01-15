@@ -225,11 +225,14 @@ export class AWSService {
   }
 
   // Advanced RI/SP Analysis
-  static async analyzeRISP(accountId: string, region: string = 'us-east-1', analysisDepth: string = 'comprehensive') {
+  static async analyzeRISP(accountId: string, regions: string | string[] = 'us-east-1', analysisDepth: string = 'comprehensive') {
     try {
+      // Support both single region (string) and multiple regions (array)
+      const regionsArray = Array.isArray(regions) ? regions : [regions];
+      
       const response = await apiClient.post('/api/functions/ri-sp-analyzer', {
         accountId,
-        region,
+        regions: regionsArray,
         analysisDepth
       });
       return response;

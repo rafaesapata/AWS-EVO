@@ -274,26 +274,36 @@ async function detectCostAnomalies(
     if (costs.length < 7) continue;
 
     const mean = costs.reduce((a, b) => a + b, 0) / costs.length;
-    
-    // Skip services with no meaningful cost data
-    if (mean < 0.01) continue;
-    
-    const stdDev = Math.sqrt(costs.reduce((sum, c) => sum + Math.pow(c - mean, 2), 0) / costs.length);
     const lastCost = costs[costs.length - 1];
     
-    // Skip if both values are essentially zero
-    if (mean < 0.01 && lastCost < 0.01) continue;
+    // Skip services with no meaningful cost data (less than $0.10/day average)
+    // This prevents false positives for services with negligible costs
+    if (mean < 0.10 && lastCost < 0.10) continue;
     
-    const deviation = Math.abs(lastCost - mean) / (stdDev || 1);
+    // Also skip if the absolute difference is less than $1 (not worth alerting)
+    const absoluteDiff = Math.abs(lastCost - mean);
+    if (absoluteDiff < 1.0) continue;
+    
+    const stdDev = Math.sqrt(costs.reduce((sum, c) => sum + Math.pow(c - mean, 2), 0) / costs.length);
+    
+    // Avoid division by zero - if stdDev is 0, all values are the same (no anomaly)
+    if (stdDev === 0) continue;
+    
+    const deviation = absoluteDiff / stdDev;
+    const percentageDeviation = mean > 0 ? absoluteDiff / mean : 0;
 
-    if (deviation > 2 && Math.abs(lastCost - mean) / mean > thresholds.costDeviation) {
+    // Only flag as anomaly if:
+    // 1. Statistical deviation > 2 standard deviations
+    // 2. Percentage deviation exceeds threshold
+    // 3. Absolute difference is meaningful (> $1)
+    if (deviation > 2 && percentageDeviation > thresholds.costDeviation) {
       anomalies.push({
         id: `cost-${service}-${Date.now()}`,
         type: 'COST_SPIKE',
         category: 'cost',
         severity: deviation > 3 ? 'HIGH' : 'MEDIUM',
         title: `Cost anomaly detected for ${service}`,
-        description: `${service} cost deviated ${(deviation * 100).toFixed(1)}% from normal`,
+        description: `${service} cost deviated ${(percentageDeviation * 100).toFixed(1)}% from normal`,
         metric: 'UnblendedCost',
         expectedValue: mean,
         actualValue: lastCost,

@@ -403,6 +403,35 @@ model KnowledgeBaseArticle {
   @@map("knowledge_base_articles")
 }
 
+model KnowledgeBaseFavorite {
+  id          String   @id @default(uuid()) @db.Uuid
+  article_id  String   @db.Uuid
+  user_id     String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@unique([article_id, user_id])
+  @@index([user_id])
+  @@index([article_id])
+  @@map("knowledge_base_favorites")
+}
+
+model KnowledgeBaseComment {
+  id          String   @id @default(uuid()) @db.Uuid
+  article_id  String   @db.Uuid
+  user_id     String   @db.Uuid
+  user_name   String?
+  user_email  String?
+  content     String
+  parent_id   String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([article_id])
+  @@index([user_id])
+  @@index([parent_id])
+  @@map("knowledge_base_comments")
+}
+
 // ==================== LICENSING ====================
 
 model License {
@@ -1816,6 +1845,8 @@ model WafEvent {
   @@index([threat_type])
   @@index([severity])
   @@index([organization_id, timestamp])
+  @@index([organization_id, action])
+  @@index([organization_id, timestamp, action])
   @@map("waf_events")
 }
 
@@ -1874,6 +1905,21 @@ model WafAlertConfig {
   updated_at            DateTime @updatedAt @db.Timestamptz(6)
   
   @@map("waf_alert_configs")
+}
+
+model WafAiAnalysis {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  analysis          String   @db.Text  // AI-generated analysis markdown
+  context           Json     // Metrics, threat types, top attackers, etc.
+  risk_level        String?  // low, medium, high, critical
+  ai_model          String?  // Model used (e.g., claude-3.5-sonnet)
+  is_fallback       Boolean  @default(false) // True if AI was unavailable
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  @@index([organization_id])
+  @@index([organization_id, created_at(sort: Desc)])
+  @@map("waf_ai_analyses")
 }
 
 

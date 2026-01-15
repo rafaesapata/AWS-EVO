@@ -9,6 +9,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 interface SaveCredentialsRequest {
   account_name: string;
@@ -167,6 +168,18 @@ export async function handler(
         organizationId 
       });
 
+      // Audit log
+      logAuditAsync({
+        organizationId,
+        userId,
+        action: 'CREDENTIAL_UPDATE',
+        resourceType: 'aws_credential',
+        resourceId: updatedCred.id,
+        details: { account_id: body.account_id, account_name: body.account_name },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
+      });
+
       return success({
         id: updatedCred.id,
         account_id: updatedCred.account_id,
@@ -196,6 +209,18 @@ export async function handler(
       credentialId: credential.id,
       accountId: body.account_id,
       organizationId 
+    });
+    
+    // Audit log
+    logAuditAsync({
+      organizationId,
+      userId,
+      action: 'CREDENTIAL_CREATE',
+      resourceType: 'aws_credential',
+      resourceId: credential.id,
+      details: { account_id: body.account_id, account_name: body.account_name },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
     });
     
     return success({

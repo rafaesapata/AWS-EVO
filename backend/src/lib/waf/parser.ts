@@ -16,25 +16,53 @@ import { logger } from '../logging.js';
  * @returns Date object normalizado
  */
 function normalizeTimestamp(timestamp: number): Date {
-  // Se timestamp tem menos de 13 dígitos, provavelmente está em segundos
-  if (timestamp < 10000000000000) {
-    // Verificar se é um timestamp válido em segundos (após 2000-01-01)
-    // 946684800 = 2000-01-01 00:00:00 UTC em segundos
-    if (timestamp > 946684800) {
-      logger.debug('Converting timestamp from seconds to milliseconds', { 
-        original: timestamp,
-        converted: timestamp * 1000 
-      });
-      return new Date(timestamp * 1000);
-    }
-    
-    // Se for menor que 2000, provavelmente é inválido
-    logger.warn('Invalid timestamp detected (before year 2000)', { timestamp });
-    return new Date(); // Fallback para agora
+  // Validar que é um número válido
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    logger.warn('Invalid timestamp: not a positive finite number', { timestamp });
+    return new Date();
   }
   
-  // Timestamp já está em milissegundos
-  return new Date(timestamp);
+  // Limites razoáveis para timestamps
+  // Min: 2020-01-01 00:00:00 UTC em milissegundos = 1577836800000
+  // Max: 2030-01-01 00:00:00 UTC em milissegundos = 1893456000000
+  const MIN_VALID_MS = 1577836800000; // 2020-01-01
+  const MAX_VALID_MS = 1893456000000; // 2030-01-01
+  const MIN_VALID_SEC = 1577836800;   // 2020-01-01 em segundos
+  const MAX_VALID_SEC = 1893456000;   // 2030-01-01 em segundos
+  
+  // Primeiro, verificar se está em milissegundos (13 dígitos, valor típico ~1.7 trilhão)
+  if (timestamp >= MIN_VALID_MS && timestamp <= MAX_VALID_MS) {
+    return new Date(timestamp);
+  }
+  
+  // Verificar se está em segundos (10 dígitos, valor típico ~1.7 bilhão)
+  if (timestamp >= MIN_VALID_SEC && timestamp <= MAX_VALID_SEC) {
+    logger.debug('Converting timestamp from seconds to milliseconds', { 
+      original: timestamp,
+      converted: timestamp * 1000 
+    });
+    return new Date(timestamp * 1000);
+  }
+  
+  // Se o timestamp é muito grande (> 2030 em ms), pode ser um bug no log
+  // Tentar dividir por 1000 para ver se faz sentido
+  if (timestamp > MAX_VALID_MS) {
+    const asSeconds = Math.floor(timestamp / 1000);
+    if (asSeconds >= MIN_VALID_SEC && asSeconds <= MAX_VALID_SEC) {
+      logger.warn('Timestamp appears to be in microseconds, converting', { 
+        original: timestamp,
+        converted: asSeconds * 1000 
+      });
+      return new Date(asSeconds * 1000);
+    }
+  }
+  
+  // Timestamp inválido - usar data atual como fallback
+  logger.warn('Invalid timestamp detected, using current time', { 
+    timestamp,
+    timestampLength: String(timestamp).length
+  });
+  return new Date();
 }
 
 // WAF Log Types

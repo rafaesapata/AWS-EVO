@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useOrganizationQuery } from "@/hooks/useOrganizationQuery";
-import { Book, Search, Plus, ThumbsUp, Eye, Edit2, Trash2, Star, Clock, CheckCircle, XCircle, AlertCircle, FileText, Download, History, Lock, Shield } from "lucide-react";
+import { Book, Search, Plus, ThumbsUp, Eye, Edit2, Trash2, Star, Clock, CheckCircle, XCircle, AlertCircle, Download, History, Lock, Shield } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,28 @@ import { ArticleAttachments } from "@/components/knowledge-base/ArticleAttachmen
 import { ArticleAuditLog } from "@/components/knowledge-base/ArticleAuditLog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Layout } from "@/components/Layout";
+
+// Article type definition
+interface KBArticle {
+  id: string;
+  organization_id: string;
+  author_id: string;
+  title: string;
+  content: string;
+  category: string;
+  tags: string[];
+  is_public: boolean;
+  is_restricted: boolean;
+  status: string;
+  approval_status: string;
+  rejection_reason?: string;
+  approved_by?: string;
+  approved_at?: string;
+  views: number;
+  helpful_count: number;
+  created_at: string;
+  updated_at: string;
+}
 
 function KnowledgeBaseContent() {
   const { toast } = useToast();
@@ -71,63 +93,102 @@ function KnowledgeBaseContent() {
     cognitoAuth.getCurrentUser().then((user) => {
       if (user) {
         setCurrentUser({
-          id: user.username,
-          email: user.attributes?.email || 'Unknown',
-          name: user.attributes?.name || user.attributes?.email?.split('@')[0] || 'Unknown'
+          id: user.id,
+          email: user.email || 'Unknown',
+          name: user.name || user.email?.split('@')[0] || 'Unknown'
         });
       }
     });
   }, []);
 
-  const { data: articles, isLoading, error: articlesError } = useOrganizationQuery(
+  const { data: articles, isLoading, error: articlesError } = useOrganizationQuery<KBArticle[]>(
     ['knowledge-base', debouncedSearch, selectedCategory, selectedTab, selectedApprovalStatus],
-    async (orgId) => {
-      let filters: any = { organization_id: orgId };
+    async (orgId): Promise<KBArticle[]> => {
+      const filters: Record<string, any> = { organization_id: orgId };
       
+      // Category filter
       if (selectedCategory !== 'all') {
         filters.category = selectedCategory;
       }
 
+      // Approval status filter
       if (selectedApprovalStatus !== 'all') {
-        query = query.eq('approval_status', selectedApprovalStatus);
+        filters.approval_status = selectedApprovalStatus;
       }
 
+      // Tab-specific filters
       if (selectedTab === 'favorites') {
         const user = await cognitoAuth.getCurrentUser();
         if (user) {
           const favs = await apiClient.select('knowledge_base_favorites', {
             select: 'article_id',
-            eq: { user_id: user.username }
+            eq: { user_id: user.id }
           });
           
           if (favs.data && favs.data.length > 0) {
             const articleIds = favs.data.map((f: any) => f.article_id);
-            filters.id = { in: articleIds };
+            // Fetch articles by IDs
+            const articlesResult = await apiClient.select<KBArticle>('knowledge_base_articles', {
+              eq: { organization_id: orgId },
+              order: { column: 'created_at', ascending: false }
+            });
+            
+            if (articlesResult.error) {
+              console.error('Error fetching articles:', articlesResult.error);
+              return [];
+            }
+            
+            // Filter by favorite IDs
+            return (articlesResult.data || []).filter((a) => articleIds.includes(a.id));
           } else {
             // No favorites, return empty
             return [];
           }
         }
+        return [];
       } else if (selectedTab === 'my-articles') {
         const user = await cognitoAuth.getCurrentUser();
         if (user) {
-          filters.author_id = user.username;
+          filters.author_id = user.id;
         }
       } else if (selectedTab === 'pending') {
-        query = query.eq('approval_status', 'pending_review');
-      } else if (selectedTab !== 'all') {
-        query = query.eq('approval_status', 'approved');
+        filters.approval_status = 'pending_review';
       }
 
+      // Build query options
+      const queryOptions: any = {
+        eq: filters,
+        order: { column: 'created_at', ascending: false }
+      };
+
+      // Add search filter if present
       if (debouncedSearch) {
-        // Escape special characters to prevent SQL injection
-        const escapedSearch = debouncedSearch.replace(/[%_]/g, '\\$&');
-        query = query.or(`title.ilike.%${escapedSearch}%,content.ilike.%${escapedSearch}%,tags.cs.{${escapedSearch}}`);
+        queryOptions.ilike = { title: `%${debouncedSearch}%` };
       }
 
-      const { data, error } = await query;
+      const result = await apiClient.select<KBArticle>('knowledge_base_articles', queryOptions);
       
-      return data || [];
+      if (result.error) {
+        console.error('Error fetching articles:', result.error);
+        return [];
+      }
+      
+      // If searching, also filter by content (since ilike only supports one field at a time)
+      let articles: KBArticle[] = result.data || [];
+      if (debouncedSearch && articles.length === 0) {
+        // Try searching in content if title search returned nothing
+        const contentResult = await apiClient.select<KBArticle>('knowledge_base_articles', {
+          eq: filters,
+          ilike: { content: `%${debouncedSearch}%` },
+          order: { column: 'created_at', ascending: false }
+        });
+        
+        if (!contentResult.error) {
+          articles = contentResult.data || [];
+        }
+      }
+      
+      return articles;
     },
     { staleTime: 30000, gcTime: 60000 } // Cache for 30 seconds, keep in memory for 1 minute
   );
@@ -256,21 +317,21 @@ function KnowledgeBaseContent() {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
 
-      const existing = await apiClient.select('knowledge_base_favorites', {
+      const existing = await apiClient.select<{ id: string }>('knowledge_base_favorites', {
         select: 'id',
-        eq: { article_id: articleId, user_id: user.username },
-        single: true
+        eq: { article_id: articleId, user_id: user.id },
+        limit: 1
       });
 
-      if (existing.data) {
+      if (existing.data && existing.data.length > 0) {
         const result = await apiClient.delete('knowledge_base_favorites', {
-          eq: { id: existing.data.id }
+          eq: { id: existing.data[0].id }
         });
         if (result.error) throw new Error(getErrorMessage(result.error));
       } else {
         const result = await apiClient.insert('knowledge_base_favorites', {
           article_id: articleId,
-          user_id: user.username,
+          user_id: user.id,
         });
         if (result.error) throw new Error(getErrorMessage(result.error));
       }
@@ -301,7 +362,7 @@ function KnowledgeBaseContent() {
       const user = await cognitoAuth.getCurrentUser();
       const result = await apiClient.update('knowledge_base_articles', {
         approval_status: status,
-        approved_by: status === 'approved' ? user?.username : null,
+        approved_by: status === 'approved' ? user?.id : null,
         approved_at: status === 'approved' ? new Date().toISOString() : null,
         rejection_reason: status === 'rejected' ? reason : null,
       }, { eq: { id } });
@@ -365,7 +426,7 @@ function KnowledgeBaseContent() {
 
   const handleExport = async (articleId: string, format: string) => {
     try {
-      const result = await apiClient.invoke('kb-export-pdf', {
+      const result = await apiClient.invoke<{ content: string; mimeType: string; filename: string }>('kb-export-pdf', {
         body: { articleId, format }
       });
 
@@ -688,15 +749,11 @@ function KnowledgeBaseContent() {
                       <div className="flex gap-3">
                         <div className="flex items-center gap-1">
                           <Eye className="h-3 w-3" />
-                          {article.view_count || 0}
+                          {article.views || 0}
                         </div>
                         <div className="flex items-center gap-1">
                           <ThumbsUp className="h-3 w-3" />
                           {article.helpful_count || 0}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <FileText className="h-3 w-3" />
-                          v{article.version || 1}
                         </div>
                       </div>
                       <div className="flex gap-1 items-center" onClick={(e) => e.stopPropagation()}>
@@ -761,11 +818,6 @@ function KnowledgeBaseContent() {
                         <Badge variant="outline">{viewingArticle.category}</Badge>
                         <span>·</span>
                         {getStatusBadge(viewingArticle.approval_status)}
-                        <span>·</span>
-                        <span className="flex items-center gap-1">
-                          <FileText className="h-3 w-3" />
-                          Versão {viewingArticle.version || 1}
-                        </span>
                       </div>
                     </DialogDescription>
                   </div>

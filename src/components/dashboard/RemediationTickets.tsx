@@ -124,7 +124,7 @@ export const RemediationTickets = () => {
       const response = await apiClient.select('remediation_tickets', {
         select: '*',
         eq: filters,
-        order: { created_at: 'desc' },
+        order: { column: 'created_at', ascending: false },
         limit: pageSize,
         offset: (page - 1) * pageSize
       });

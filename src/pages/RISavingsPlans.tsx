@@ -9,7 +9,10 @@ import {
 } from "lucide-react";
 
 export default function RISavingsPlans() {
-  const { selectedAccountId } = useCloudAccount();
+  const { selectedAccountId, selectedAccount } = useCloudAccount();
+  
+  // Get regions from selected account (default to us-east-1 if not set)
+  const accountRegions = selectedAccount?.regions?.length ? selectedAccount.regions : ['us-east-1'];
 
   return (
     <Layout 
@@ -20,7 +23,7 @@ export default function RISavingsPlans() {
       {selectedAccountId ? (
         <AdvancedRISPAnalyzerV2 
           accountId={selectedAccountId} 
-          region="us-east-1" 
+          regions={accountRegions}
         />
       ) : (
         <Card className="glass border-primary/20">

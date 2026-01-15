@@ -10,6 +10,7 @@ import { getUserFromEvent, getOrganizationId, checkUserRateLimit, RateLimitError
 import { getPrismaClient } from '../../lib/database.js';
 import { mfaEnrollSchema, mfaVerifySchema, mfaUnenrollSchema } from '../../lib/schemas.js';
 import { logger } from '../../lib/logging.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { CognitoIdentityProviderClient, AdminSetUserMFAPreferenceCommand, AdminGetUserCommand, AssociateSoftwareTokenCommand, VerifySoftwareTokenCommand } from '@aws-sdk/client-cognito-identity-provider';
 import * as crypto from 'crypto';
 
@@ -161,6 +162,18 @@ export async function enrollHandler(
         logger.info('🔐 MFA Enroll: Factor created successfully', { 
           factorId, 
           userId: user.sub 
+        });
+        
+        // Audit log
+        logAuditAsync({
+          organizationId: getOrganizationId(user),
+          userId: user.sub,
+          action: 'MFA_ENABLED',
+          resourceType: 'mfa',
+          resourceId: factorId,
+          details: { factor_type: 'totp' },
+          ipAddress: getIpFromEvent(event),
+          userAgent: getUserAgentFromEvent(event),
         });
       } catch (e: any) {
         logger.error('MFA Enroll: Failed to create factor', { error: e.message });

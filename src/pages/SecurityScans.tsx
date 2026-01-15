@@ -10,9 +10,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Layout } from "@/components/Layout";
+import { Checkbox } from "@/components/ui/checkbox";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useAuthSafe } from "@/hooks/useAuthSafe";
 import { 
   Scan, 
   Shield, 
@@ -30,7 +32,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Ticket,
+  CheckSquare
 } from "lucide-react";
 
 interface SecurityScan {
@@ -66,6 +70,7 @@ interface ScanFinding {
   remediation: string | null;
   risk_vector: string | null;
   evidence: any;
+  remediation_ticket_id: string | null;  // Link to ticket
   created_at: string;
 }
 
@@ -77,6 +82,7 @@ export default function SecurityScans() {
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
+  const { user } = useAuthSafe();
   const [selectedScanType, setSelectedScanType] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
@@ -87,6 +93,11 @@ export default function SecurityScans() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [findingsPage, setFindingsPage] = useState<number>(1);
+
+  // Ticket creation states
+  const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
+  const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
+  const [creatingBatchTickets, setCreatingBatchTickets] = useState(false);
 
   // Get security scans
   const { data: scanData, isLoading, refetch } = useQuery<{ scans: SecurityScan[], total: number }>({
@@ -408,6 +419,151 @@ export default function SecurityScans() {
     }
   };
 
+  // Toggle finding selection
+  const toggleFindingSelection = (findingId: string) => {
+    setSelectedFindings(prev => 
+      prev.includes(findingId) 
+        ? prev.filter(id => id !== findingId)
+        : [...prev, findingId]
+    );
+  };
+
+  // Select all findings on current page
+  const selectAllFindings = (filteredFindings: ScanFinding[]) => {
+    const allIds = filteredFindings.map(f => f.id);
+    const allSelected = allIds.every(id => selectedFindings.includes(id));
+    
+    if (allSelected) {
+      setSelectedFindings(prev => prev.filter(id => !allIds.includes(id)));
+    } else {
+      setSelectedFindings(prev => [...new Set([...prev, ...allIds])]);
+    }
+  };
+
+  // Create ticket for a single finding
+  const createTicketForFinding = async (finding: ScanFinding) => {
+    if (creatingTicketId === finding.id) return;
+    
+    // Check if finding already has a ticket
+    if (finding.remediation_ticket_id) {
+      toast({ 
+        title: t('securityPosture.ticketAlreadyExists', 'Ticket já existe'),
+        description: t('securityPosture.ticketAlreadyExistsDesc', 'Este achado já possui um ticket de remediação vinculado'),
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    setCreatingTicketId(finding.id);
+    
+    try {
+      const getTitle = () => {
+        if (finding.details?.title) return finding.details.title;
+        if (finding.details?.check_name) return finding.details.check_name;
+        if (finding.description && finding.description.length <= 100) return finding.description;
+        return finding.description?.substring(0, 100) + '...' || 'N/A';
+      };
+
+      const response = await apiClient.insert('remediation_tickets', {
+        organization_id: organizationId,
+        aws_account_id: finding.aws_account_id || selectedAccountId || null,
+        title: `[${finding.severity.toUpperCase()}] ${getTitle()}`,
+        description: finding.description + (finding.remediation ? `\n\nRemediação: ${typeof finding.remediation === 'string' ? finding.remediation : JSON.stringify(finding.remediation)}` : ''),
+        severity: finding.severity,
+        priority: finding.severity === 'critical' ? 'urgent' : finding.severity === 'high' ? 'high' : 'medium',
+        status: 'open',
+        category: 'security',
+        created_by: user?.email || 'system',
+        finding_ids: [finding.id],
+        affected_resources: finding.resource_arn ? [finding.resource_arn] : finding.resource_id ? [finding.resource_id] : [],
+        metadata: {
+          service: finding.service,
+          category: finding.category,
+          compliance: finding.compliance,
+          source: finding.source
+        }
+      });
+
+      if ('error' in response && response.error) {
+        console.error('Error creating ticket:', response.error);
+        throw new Error(response.error.message || 'Failed to create ticket');
+      }
+
+      // Get the created ticket ID and update the finding
+      const ticketId = response.data?.id;
+      if (ticketId) {
+        // Update the finding with the ticket ID to create the bidirectional link
+        await apiClient.update('findings', finding.id, {
+          remediation_ticket_id: ticketId
+        });
+      }
+
+      toast({ 
+        title: t('dashboard.ticketCreated', 'Ticket criado'),
+        description: t('dashboard.ticketCreatedSuccess', 'Ticket de remediação criado com sucesso')
+      });
+      
+      // Invalidate queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['remediation-tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['security-findings'] });
+    } catch (err) {
+      console.error('Error creating ticket:', err);
+      toast({ 
+        title: t('dashboard.errorCreatingTicket', 'Erro ao criar ticket'),
+        description: err instanceof Error ? err.message : 'Erro desconhecido',
+        variant: "destructive" 
+      });
+    } finally {
+      setCreatingTicketId(null);
+    }
+  };
+
+  // Create tickets for selected findings
+  const createTicketsForSelected = async () => {
+    if (selectedFindings.length === 0) {
+      toast({ 
+        title: t('securityPosture.selectAtLeastOne', 'Selecione pelo menos um finding'), 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setCreatingBatchTickets(true);
+    
+    try {
+      const findingsToCreate = findings?.filter(f => 
+        selectedFindings.includes(f.id) && !f.remediation_ticket_id  // Skip findings that already have tickets
+      ) || [];
+
+      if (findingsToCreate.length === 0) {
+        toast({ 
+          title: t('securityPosture.allHaveTickets', 'Todos os achados selecionados já possuem tickets'),
+          variant: "destructive" 
+        });
+        setCreatingBatchTickets(false);
+        return;
+      }
+
+      let createdCount = 0;
+      for (const finding of findingsToCreate) {
+        await createTicketForFinding(finding);
+        createdCount++;
+      }
+
+      toast({ 
+        title: t('securityPosture.ticketsCreatedCount', '{{count}} ticket(s) criado(s) com sucesso', { count: createdCount })
+      });
+      setSelectedFindings([]);
+    } catch (error) {
+      toast({ 
+        title: t('compliance.ticketsError', 'Erro ao criar tickets'), 
+        variant: "destructive" 
+      });
+    } finally {
+      setCreatingBatchTickets(false);
+    }
+  };
+
   const getSeverityBadge = (severity: string) => {
     switch (severity) {
       case 'critical': return <Badge variant="destructive">Crítico</Badge>;
@@ -427,11 +583,67 @@ export default function SecurityScans() {
 
   // Calculate summary metrics - ensure scans is always an array
   const scansArray = scans || [];
-  const runningScans = scansArray.filter(scan => scan.status === 'running').length;
-  const hasRunningScan = runningScans > 0;
+  
+  // Detect stuck scans (running for more than 60 minutes)
+  const STUCK_SCAN_THRESHOLD_MS = 60 * 60 * 1000; // 60 minutes
+  const now = Date.now();
+  
+  const runningScansData = scansArray.filter(scan => scan.status === 'running');
+  const stuckScans = runningScansData.filter(scan => {
+    const startedAt = new Date(scan.started_at).getTime();
+    return (now - startedAt) > STUCK_SCAN_THRESHOLD_MS;
+  });
+  const activeScans = runningScansData.filter(scan => {
+    const startedAt = new Date(scan.started_at).getTime();
+    return (now - startedAt) <= STUCK_SCAN_THRESHOLD_MS;
+  });
+  
+  const runningScans = runningScansData.length;
+  const hasStuckScan = stuckScans.length > 0;
+  const hasActiveRunningScan = activeScans.length > 0;
+  // Only block new scans if there's an ACTIVE running scan (not stuck)
+  const hasRunningScan = hasActiveRunningScan;
+  
   const completedScans = scansArray.filter(scan => scan.status === 'completed').length;
   const totalFindings = scansArray.reduce((sum, scan) => sum + (scan.findings_count || 0), 0);
   const criticalFindings = scansArray.reduce((sum, scan) => sum + (scan.critical_count || 0), 0);
+
+  // Mutation to cleanup stuck scans
+  const cleanupStuckScansMutation = useMutation({
+    mutationFn: async () => {
+      // Update stuck scans to failed status via mutate-table
+      const stuckScanIds = stuckScans.map(s => s.id);
+      
+      for (const scanId of stuckScanIds) {
+        await apiClient.update('security_scans', scanId, {
+          status: 'failed',
+          completed_at: new Date().toISOString(),
+          results: {
+            error: 'Scan timeout - automatically marked as failed after 60 minutes',
+            cleanup_reason: 'stuck_scan_auto_cleanup',
+            cleanup_timestamp: new Date().toISOString()
+          }
+        });
+      }
+      
+      return { cleaned: stuckScanIds.length };
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Scans travados limpos",
+        description: `${data.cleaned} scan(s) foram marcados como falhos e você pode iniciar um novo scan.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['security-scans'] });
+      refetch();
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao limpar scans",
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: "destructive"
+      });
+    }
+  });
 
   const scanLevels = [
     { 
@@ -523,6 +735,47 @@ export default function SecurityScans() {
           </div>
         </CardHeader>
       </Card>
+
+      {/* Stuck Scans Alert */}
+      {hasStuckScan && (
+        <Card className="glass border-orange-500/50 bg-orange-500/10">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-orange-500" />
+                <div>
+                  <h4 className="font-semibold text-orange-600 dark:text-orange-400">
+                    {stuckScans.length} scan(s) travado(s) detectado(s)
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    Estes scans estão em execução há mais de 60 minutos e provavelmente falharam silenciosamente.
+                    Limpe-os para poder iniciar novos scans.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => cleanupStuckScansMutation.mutate()}
+                disabled={cleanupStuckScansMutation.isPending}
+                className="border-orange-500/50 text-orange-600 hover:bg-orange-500/20"
+              >
+                {cleanupStuckScansMutation.isPending ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Limpando...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Limpar Scans Travados
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -992,8 +1245,29 @@ export default function SecurityScans() {
 
           <Card className="glass border-primary/20">
             <CardHeader>
-              <CardTitle>Achados de Segurança</CardTitle>
-              <CardDescription>Vulnerabilidades e problemas identificados no último scan</CardDescription>
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <CardTitle>Achados de Segurança</CardTitle>
+                  <CardDescription>Vulnerabilidades e problemas identificados no último scan</CardDescription>
+                </div>
+                {findings && findings.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    {selectedFindings.length > 0 && (
+                      <Button
+                        onClick={createTicketsForSelected}
+                        disabled={creatingBatchTickets}
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Ticket className="h-4 w-4" />
+                        {creatingBatchTickets 
+                          ? 'Criando...' 
+                          : `Criar ${selectedFindings.length} Ticket(s)`}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {findingsLoading ? (
@@ -1032,14 +1306,29 @@ export default function SecurityScans() {
                     findingsPage * findingsPerPage
                   );
 
+                  // Check if all filtered findings are selected
+                  const allFilteredSelected = filteredFindings.length > 0 && 
+                    filteredFindings.every(f => selectedFindings.includes(f.id));
+
                   return (
                 <div className="space-y-4">
-                  {/* Summary */}
-                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-                    <span>
-                      Mostrando {paginatedFindings.length} de {filteredFindings.length} achados
-                      {filteredFindings.length !== findings.length && ` (${findings.length} total)`}
-                    </span>
+                  {/* Summary with Select All */}
+                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-4 flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => selectAllFindings(filteredFindings)}
+                        className="gap-2"
+                      >
+                        <CheckSquare className="h-4 w-4" />
+                        {allFilteredSelected ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                      </Button>
+                      <span>
+                        Mostrando {paginatedFindings.length} de {filteredFindings.length} achados
+                        {filteredFindings.length !== findings.length && ` (${findings.length} total)`}
+                      </span>
+                    </div>
                     <div className="flex gap-2">
                       <Badge variant="destructive">{filteredFindings.filter(f => f.severity === 'critical').length} Críticos</Badge>
                       <Badge className="bg-orange-500">{filteredFindings.filter(f => f.severity === 'high').length} Altos</Badge>
@@ -1089,11 +1378,22 @@ export default function SecurityScans() {
                     const resourceType = getResourceType();
                     const region = getRegion();
                     const complianceStandards = getComplianceStandards();
+                    const isSelected = selectedFindings.includes(finding.id);
                     
                     return (
-                    <div key={finding.id} className="border rounded-lg p-4 space-y-3">
+                    <div 
+                      key={finding.id} 
+                      className={`border rounded-lg p-4 space-y-3 transition-colors ${
+                        isSelected ? 'border-primary bg-primary/5' : ''
+                      }`}
+                    >
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleFindingSelection(finding.id)}
+                            className="mt-1"
+                          />
                           {getSeverityIcon(finding.severity)}
                           <div className="space-y-1">
                             <h4 className="font-semibold text-sm">{getTitle()}</h4>
@@ -1137,7 +1437,29 @@ export default function SecurityScans() {
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="flex items-center gap-2">
+                          {finding.remediation_ticket_id ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled
+                              title={t('securityPosture.ticketLinked', 'Ticket já vinculado')}
+                              className="h-8 w-8 p-0 text-green-500"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => createTicketForFinding(finding)}
+                              disabled={creatingTicketId === finding.id}
+                              title={t('securityPosture.createTicket', 'Criar ticket de remediação')}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Ticket className={`h-4 w-4 ${creatingTicketId === finding.id ? 'animate-pulse' : ''}`} />
+                            </Button>
+                          )}
                           {getSeverityBadge(finding.severity)}
                         </div>
                       </div>

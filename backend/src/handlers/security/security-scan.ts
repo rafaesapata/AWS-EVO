@@ -15,6 +15,7 @@ import { logger } from '../../lib/logging.js';
 import { businessMetrics } from '../../lib/metrics.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { runSecurityScan, type ScanContext, type ScanLevel, resetGlobalCache } from '../../lib/security-engine/index.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 async function securityScanHandler(
   event: AuthorizedEvent,
@@ -280,6 +281,46 @@ async function securityScanHandler(
       duration,
       totalFindings: savedFindings.length,
       summary: scanResult.summary,
+    });
+    
+    // Audit log (fire-and-forget, won't break main flow)
+    logAuditAsync({
+      organizationId,
+      userId: user.sub,
+      action: 'SECURITY_SCAN_COMPLETE',
+      resourceType: 'security_scan',
+      resourceId: scan.id,
+      details: {
+        duration_ms: duration,
+        findings_count: savedFindings.length,
+        critical: scanResult.summary.critical,
+        high: scanResult.summary.high,
+        medium: scanResult.summary.medium,
+        low: scanResult.summary.low,
+        aws_account_id: awsAccountId,
+      },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
+    });
+    
+    // Audit log (fire-and-forget, won't break the flow)
+    logAuditAsync({
+      organizationId,
+      userId: user.sub,
+      action: 'SECURITY_SCAN_COMPLETE',
+      resourceType: 'security_scan',
+      resourceId: scan.id,
+      details: {
+        duration_ms: duration,
+        findings_count: savedFindings.length,
+        critical: scanResult.summary.critical,
+        high: scanResult.summary.high,
+        medium: scanResult.summary.medium,
+        low: scanResult.summary.low,
+        scan_level: scanLevel,
+      },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
     });
     
     return success({
