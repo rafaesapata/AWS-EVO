@@ -77,6 +77,11 @@ interface ComplianceControl {
 
 // Helper to get AWS clients with assumed role
 async function getAWSClients(credential: any, region: string): Promise<AWSClients> {
+  // Validate role_arn exists
+  if (!credential.role_arn) {
+    throw new Error('AWS credential does not have a role_arn configured. Please update your AWS credentials with a valid IAM role ARN.');
+  }
+  
   const stsClient = new STSClient({ region: 'us-east-1' });
   
   const assumeRoleResponse = await stsClient.send(new AssumeRoleCommand({
@@ -1692,6 +1697,29 @@ export async function handler(
     
   } catch (err) {
     logger.error('Compliance scan error', err as Error);
+    
+    // Update job as failed if jobId was provided
+    try {
+      const body = event.body ? JSON.parse(event.body) : {};
+      if (body.jobId) {
+        const prisma = getPrismaClient();
+        await prisma.backgroundJob.update({
+          where: { id: body.jobId },
+          data: { 
+            status: 'failed',
+            completed_at: new Date(),
+            error: err instanceof Error ? err.message : 'Internal server error',
+            result: {
+              progress: 0,
+              error: err instanceof Error ? err.message : 'Internal server error',
+            }
+          },
+        });
+      }
+    } catch (updateErr) {
+      logger.error('Failed to update job status', updateErr as Error);
+    }
+    
     return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
 }

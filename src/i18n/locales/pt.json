@@ -937,7 +937,16 @@
     "ticketsCreated": "{{count}} tarefas criadas com sucesso",
     "ticketsError": "Erro ao criar tarefas",
     "remediationSteps": "Passos de Correção",
-    "noRemediationSteps": "Sem passos de correção disponíveis"
+    "noRemediationSteps": "Sem passos de correção disponíveis",
+    "resumingScans": "Retomando Scans",
+    "scansInProgress": "scan(s) de compliance em andamento",
+    "scanStarted": "Scan de Compliance Iniciado",
+    "scanCompleted": "Scan Concluído",
+    "scanFailed": "Scan Falhou",
+    "scanError": "Erro no Scan",
+    "scanInProgress": "Scan em Andamento",
+    "scanning": "Escaneando...",
+    "running": "Executando..."
   },
   "ticketType": {
     "security": "Segurança",

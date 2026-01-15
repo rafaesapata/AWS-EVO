@@ -96,7 +96,8 @@ export default function WafMonitoring() {
   const { data: attackersData, isLoading: attackersLoading } = useQuery({
     queryKey: ['waf-top-attackers', organizationId],
     enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000, // Auto-refresh every 60 seconds
     queryFn: async () => {
       const response = await apiClient.invoke<{ topAttackers: any[]; period: string }>('waf-dashboard-api', {
         body: { action: 'top-attackers', limit: 10 }
@@ -110,7 +111,8 @@ export default function WafMonitoring() {
   const { data: attackTypesData, isLoading: attackTypesLoading } = useQuery({
     queryKey: ['waf-attack-types', organizationId],
     enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000, // Auto-refresh every 60 seconds
     queryFn: async () => {
       const response = await apiClient.invoke<{ attackTypes: any[]; period: string }>('waf-dashboard-api', {
         body: { action: 'attack-types' }
@@ -124,7 +126,8 @@ export default function WafMonitoring() {
   const { data: geoData, isLoading: geoLoading } = useQuery({
     queryKey: ['waf-geo-distribution', organizationId],
     enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000, // Auto-refresh every 60 seconds
     queryFn: async () => {
       const response = await apiClient.invoke<{ geoDistribution: any[]; period: string }>('waf-dashboard-api', {
         body: { action: 'geo-distribution' }

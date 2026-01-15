@@ -1,6 +1,7 @@
 /**
  * Safe Authentication Hook
  * Prevents infinite loops and recursion in auth operations
+ * Includes automatic token refresh to keep users logged in
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -30,6 +31,7 @@ export function useAuthSafe(): UseAuthSafeReturn {
   // Prevent multiple simultaneous auth operations
   const authOperationRef = useRef<boolean>(false);
   const initializationRef = useRef<boolean>(false);
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize auth state
   useEffect(() => {
@@ -44,6 +46,9 @@ export function useAuthSafe(): UseAuthSafeReturn {
         if (currentSession) {
           setSession(currentSession);
           setUser(currentSession.user);
+          
+          // Start auto-refresh timer
+          scheduleTokenRefresh(currentSession.accessToken);
         }
       } catch (error) {
         console.error('❌ Auth initialization failed:', error);
@@ -54,6 +59,66 @@ export function useAuthSafe(): UseAuthSafeReturn {
     };
 
     initializeAuth();
+  }, []);
+
+  // Auto-refresh token before expiration
+  const scheduleTokenRefresh = useCallback((accessToken: string) => {
+    // Clear existing timer
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+
+    try {
+      // Decode JWT to get expiration time
+      const parts = accessToken.split('.');
+      if (parts.length !== 3) return;
+
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      const now = Date.now();
+      
+      // Refresh 5 minutes before expiration (or immediately if less than 5 min left)
+      const refreshTime = exp - now - (5 * 60 * 1000);
+      const timeUntilRefresh = Math.max(refreshTime, 0);
+
+      console.log('🔄 Token refresh scheduled in', Math.round(timeUntilRefresh / 1000 / 60), 'minutes');
+
+      refreshTimerRef.current = setTimeout(async () => {
+        console.log('🔄 Auto-refreshing token...');
+        
+        try {
+          const newSession = await cognitoAuth.refreshSession();
+          
+          if (newSession) {
+            console.log('✅ Token refreshed successfully');
+            setSession(newSession);
+            setUser(newSession.user);
+            
+            // Schedule next refresh
+            scheduleTokenRefresh(newSession.accessToken);
+          } else {
+            console.warn('⚠️ Token refresh returned null, user will be logged out');
+            setSession(null);
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('❌ Auto-refresh failed:', error);
+          // Don't log out immediately, let the user continue until token actually expires
+          // The API will return 401 and trigger logout then
+        }
+      }, timeUntilRefresh);
+    } catch (error) {
+      console.error('❌ Failed to schedule token refresh:', error);
+    }
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
   }, []);
 
   const signIn = useCallback(async (username: string, password: string): Promise<boolean> => {
@@ -80,6 +145,10 @@ export function useAuthSafe(): UseAuthSafeReturn {
         console.log('🔐 [useAuthSafe] Login successful, setting session');
         setSession(result);
         setUser(result.user);
+        
+        // Start auto-refresh timer
+        scheduleTokenRefresh(result.accessToken);
+        
         return true;
       } else if ('challengeName' in result) {
         console.log('🔐 [useAuthSafe] Challenge detected:', result.challengeName);
@@ -118,13 +187,19 @@ export function useAuthSafe(): UseAuthSafeReturn {
       setIsLoading(false);
       authOperationRef.current = false;
     }
-  }, []);
+  }, [scheduleTokenRefresh]);
 
   const signOut = useCallback(async (): Promise<void> => {
     if (authOperationRef.current) return;
     
     authOperationRef.current = true;
     setIsLoading(true);
+
+    // Clear refresh timer
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
 
     try {
       await cognitoAuth.signOut();
@@ -160,6 +235,10 @@ export function useAuthSafe(): UseAuthSafeReturn {
       const result = await cognitoAuth.confirmNewPassword(session, newPassword);
       setSession(result);
       setUser(result.user);
+      
+      // Start auto-refresh timer
+      scheduleTokenRefresh(result.accessToken);
+      
       return true;
     } catch (error: any) {
       console.error('❌ Confirm new password failed:', error);
@@ -169,7 +248,7 @@ export function useAuthSafe(): UseAuthSafeReturn {
       setIsLoading(false);
       authOperationRef.current = false;
     }
-  }, []);
+  }, [scheduleTokenRefresh]);
 
   const clearError = useCallback(() => {
     setError(null);

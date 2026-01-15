@@ -788,7 +788,16 @@
     "ticketsCreated": "{{count}} tickets created successfully",
     "ticketsError": "Error creating tickets",
     "remediationSteps": "Remediation Steps",
-    "noRemediationSteps": "No remediation steps available"
+    "noRemediationSteps": "No remediation steps available",
+    "resumingScans": "Resuming Scans",
+    "scansInProgress": "compliance scan(s) in progress",
+    "scanStarted": "Compliance Scan Started",
+    "scanCompleted": "Scan Completed",
+    "scanFailed": "Scan Failed",
+    "scanError": "Scan Error",
+    "scanInProgress": "Scan Already Running",
+    "scanning": "Scanning...",
+    "running": "Running..."
   },
   "ticketType": {
     "security": "Security",

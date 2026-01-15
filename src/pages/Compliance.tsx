@@ -256,6 +256,60 @@ export default function Compliance() {
     }
   }, []);
 
+  // Check for running jobs on page load
+  useEffect(() => {
+    const checkRunningJobs = async () => {
+      if (!organizationId) return;
+      
+      try {
+        // Query for running compliance scan jobs
+        const result = await apiClient.select('background_jobs', {
+          select: '*',
+          organization_id: organizationId,
+          job_type: 'compliance-scan',
+          status: 'in:pending,running',
+          order: { created_at: 'desc' },
+          limit: 10,
+        });
+        
+        if (result.error || !result.data) return;
+        
+        // Add running jobs to state
+        const jobs = result.data as any[];
+        if (jobs.length > 0) {
+          const newRunningJobs = new Map<string, ScanJob>();
+          
+          for (const job of jobs) {
+            const frameworkId = job.parameters?.frameworkId;
+            if (frameworkId) {
+              newRunningJobs.set(frameworkId, {
+                job_id: job.id,
+                status: job.status,
+                progress: job.result?.progress || 0,
+                message: job.result?.message || 'Scan in progress...',
+                framework: frameworkId,
+                completed: job.result?.completed || 0,
+                total: job.result?.total || 0,
+              });
+            }
+          }
+          
+          if (newRunningJobs.size > 0) {
+            setRunningJobs(newRunningJobs);
+            toast({
+              title: t('compliance.resumingScans', 'Resuming Scans'),
+              description: `${newRunningJobs.size} ${t('compliance.scansInProgress', 'compliance scan(s) in progress')}`,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error checking running jobs:', err);
+      }
+    };
+    
+    checkRunningJobs();
+  }, [organizationId, toast, t]);
+
   // Effect to poll running jobs
   useEffect(() => {
     const runningJobsList = Array.from(runningJobs.values()).filter(

@@ -131,6 +131,45 @@ export default function LicenseManagement() {
     },
   });
 
+  // Mutation for syncing licenses from external API
+  const syncLicenseMutation = useMutation({
+    mutationFn: async () => {
+      const user = await cognitoAuth.getCurrentUser();
+      if (!user) throw new Error("Não autenticado");
+
+      const result = await apiClient.invoke("sync-license", { 
+        body: {}
+      });
+
+      if (result.error) throw result.error;
+      return result.data;
+    },
+    onSuccess: (data: any) => {
+      const syncResult = data?.sync_result;
+      if (syncResult?.success) {
+        toast({
+          title: "Licenças sincronizadas com sucesso",
+          description: `${syncResult.licenses_synced || 0} licença(s) sincronizada(s) da API externa`,
+        });
+      } else {
+        toast({
+          title: "Sync parcial",
+          description: syncResult?.errors?.join(', ') || "Algumas licenças não foram sincronizadas",
+          variant: "destructive",
+        });
+      }
+      // Refetch license data after sync
+      refetchLicense();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao sincronizar licenças",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleLinkCustomerId = () => {
     if (!customerId.trim()) {
       toast({
@@ -145,7 +184,8 @@ export default function LicenseManagement() {
   };
 
   const handleRefreshLicense = () => {
-    refetchLicense();
+    // Trigger sync from external API instead of just refetching
+    syncLicenseMutation.mutate();
   };
 
   const getStatusBadge = (status: string, isExpired: boolean) => {
@@ -337,14 +377,14 @@ export default function LicenseManagement() {
                         </div>
                         <Button
                           onClick={handleRefreshLicense}
-                          disabled={linkCustomerIdMutation.isPending || licenseLoading}
+                          disabled={syncLicenseMutation.isPending || licenseLoading}
                           variant="outline"
                           size="sm"
                         >
-                          {linkCustomerIdMutation.isPending || licenseLoading ? (
+                          {syncLicenseMutation.isPending ? (
                             <>
                               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                              Atualizando...
+                              Sincronizando...
                             </>
                           ) : (
                             <>
