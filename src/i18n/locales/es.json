@@ -101,7 +101,9 @@
     "organizations": "Organizaciones",
     "scheduledJobs": "Tareas Programadas",
     "devTools": "Dev Tools",
-    "setup": "Configuración"
+    "setup": "Configuración",
+    "settings": "Configuración",
+    "cloudCredentials": "Credenciales Cloud"
   },
   "dashboard": {
     "title": "EVO - Plataforma AWS",
@@ -945,7 +947,19 @@
     "low": "Bajos",
     "breakdownByCategory": "Desglose por Categoría",
     "compliance": "Compliance",
-    "compliantControls": "Controles Conformes"
+    "compliantControls": "Controles Conformes",
+    "selectAll": "Seleccionar Todos",
+    "deselectAll": "Deseleccionar Todos",
+    "createTickets": "Crear {{count}} Ticket(s)",
+    "creatingTickets": "Creando...",
+    "selectAtLeastOne": "Seleccione al menos un hallazgo",
+    "ticketsCreatedSuccess": "{{count}} tickets creados con éxito",
+    "ticketAlreadyExists": "Ticket ya existe",
+    "ticketAlreadyExistsDesc": "Este hallazgo ya tiene un ticket de remediación vinculado",
+    "ticketLinked": "Ticket ya vinculado",
+    "createTicket": "Crear ticket de remediación",
+    "allHaveTickets": "Todos los hallazgos seleccionados ya tienen tickets",
+    "ticketsCreatedCount": "{{count}} ticket(s) creado(s) con éxito"
   },
   "wasteDetection": {
     "title": "Detección de Desperdicio AWS",
@@ -1276,6 +1290,28 @@
     "userAgent": "User Agent",
     "ruleMatched": "Regla Activada",
     "rawLog": "Log Crudo",
-    "blockThisIp": "Bloquear esta IP"
+    "blockThisIp": "Bloquear esta IP",
+    "ipDetails": "Detalles de IP",
+    "ipDetailsDesc": "Información de geolocalización y red",
+    "coordinates": "Coordenadas",
+    "isp": "Proveedor (ISP)",
+    "organization": "Organización",
+    "asNumber": "Número AS",
+    "timezone": "Zona Horaria",
+    "viewOnMap": "Ver en Mapa",
+    "checkAbuseDb": "Verificar AbuseIPDB",
+    "checkAbuseIPDB": "Verificar AbuseIPDB",
+    "geoInfoUnavailable": "Información de geolocalización no disponible",
+    "blockedRequestsDesc": "Solicitudes bloqueadas por las reglas del WAF en las últimas 24 horas",
+    "noBlockedRequests": "No hay solicitudes bloqueadas en las últimas 24 horas",
+    "blockedRequestDetails": "Detalles de la Solicitud Bloqueada",
+    "sourceInfo": "Información de Origen",
+    "requestInfo": "Información de la Solicitud",
+    "threatInfo": "Información de la Amenaza",
+    "method": "Método",
+    "host": "Host",
+    "labels": "Etiquetas",
+    "recentRequestsFromIp": "Últimas Solicitudes de esta IP",
+    "noRecentRequests": "No hay solicitudes recientes"
   }
 }

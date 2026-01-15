@@ -8,25 +8,19 @@ import {
   TrendingUp, 
   Scan, 
   Zap, 
-  AlertTriangle, 
-  Trash2, 
   Shield, 
   FileCheck, 
   Bell, 
   Ticket, 
-  Users, 
   ChevronDown,
   ChevronRight,
-  Building2,
   Activity,
-  Calendar,
-  Cloud,
   Tv,
   ShieldAlert,
   BookOpen,
-  Key,
   Mail,
-  Radar
+  Radar,
+  Settings
 } from "lucide-react";
 import {
   Sidebar,
@@ -41,7 +35,6 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
   useSidebar,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -49,7 +42,7 @@ interface MenuItem {
   titleKey: string;
   value: string;
   icon: any;
-  subItems?: { titleKey: string; value: string }[];
+  subItems?: { titleKey: string; value: string; superAdminOnly?: boolean }[];
   superAdminOnly?: boolean;
 }
 
@@ -114,12 +107,19 @@ const menuItems: MenuItem[] = [
   { titleKey: "sidebar.tvDashboards", value: "tv-dashboards", icon: Tv },
   { titleKey: "sidebar.audit", value: "audit", icon: FileCheck },
   { titleKey: "sidebar.communicationCenter", value: "communication-center", icon: Mail },
-  { titleKey: "sidebar.license", value: "license", icon: Key },
-  { titleKey: "sidebar.awsSettings", value: "aws-settings", icon: Cloud },
-  { titleKey: "sidebar.cloudCredentials", value: "cloud-credentials", icon: Cloud },
-  { titleKey: "sidebar.manageUsers", value: "users", icon: Users },
-  { titleKey: "sidebar.organizations", value: "organizations", icon: Building2, superAdminOnly: true },
-  { titleKey: "sidebar.scheduledJobs", value: "scheduled-jobs", icon: Calendar, superAdminOnly: true },
+  { 
+    titleKey: "sidebar.settings", 
+    value: "settings", 
+    icon: Settings,
+    subItems: [
+      { titleKey: "sidebar.license", value: "license" },
+      { titleKey: "sidebar.awsSettings", value: "aws-settings" },
+      { titleKey: "sidebar.cloudCredentials", value: "cloud-credentials" },
+      { titleKey: "sidebar.manageUsers", value: "users" },
+      { titleKey: "sidebar.organizations", value: "organizations", superAdminOnly: true },
+      { titleKey: "sidebar.scheduledJobs", value: "scheduled-jobs", superAdminOnly: true },
+    ]
+  },
   { titleKey: "sidebar.devTools", value: "devtools", icon: Activity, superAdminOnly: true },
 ];
 
@@ -140,6 +140,7 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
     "monitoring", 
     "scans", 
     "optimization"
+    // "settings" não está incluído - começa colapsado por padrão
   ]));
   
   const isSuperAdmin = Array.isArray(userRole) 
@@ -282,7 +283,9 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
                         {!isCollapsed && (
                           <CollapsibleContent>
                             <SidebarMenuSub className="mx-1 border-l border-sidebar-border/50">
-                              {item.subItems.map((subItem) => (
+                              {item.subItems
+                                .filter((subItem) => !subItem.superAdminOnly || isSuperAdmin)
+                                .map((subItem) => (
                                 <SidebarMenuSubItem key={subItem.value}>
                                   <SidebarMenuSubButton
                                     size="sm"
