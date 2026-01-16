@@ -51,7 +51,7 @@ export default function OperationsCenterCard({ data }: Props) {
               {t('executiveDashboard.endpointStatus', 'Endpoint Status')}
             </span>
             <Badge className="text-xs px-2.5 py-1 bg-[#003C7D]/10 text-[#003C7D] border-[#003C7D]/20 rounded-full font-medium">
-              {data.endpoints.total} monitored
+              {data.endpoints.total} {t('executiveDashboard.monitored', 'monitored')}
             </Badge>
           </div>
 
@@ -59,12 +59,12 @@ export default function OperationsCenterCard({ data }: Props) {
             <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
               <Server className="h-4 w-4 mx-auto mb-1 text-[#003C7D]" />
               <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.endpoints.total}</div>
-              <span className="text-xs text-gray-500">Total</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.total', 'Total')}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20 text-center">
               <CheckCircle2 className="h-4 w-4 mx-auto mb-1 text-[#10B981]" />
               <div className="text-2xl font-light text-[#10B981] tabular-nums">{data.endpoints.healthy}</div>
-              <span className="text-xs text-gray-500">Healthy</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.healthy', 'Healthy')}</span>
             </div>
             <div className={cn(
               "p-3 rounded-xl text-center border",
@@ -78,7 +78,7 @@ export default function OperationsCenterCard({ data }: Props) {
                 "text-2xl font-light tabular-nums",
                 data.endpoints.degraded > 0 ? 'text-amber-600' : 'text-[#1F2937]'
               )}>{data.endpoints.degraded}</div>
-              <span className="text-xs text-gray-500">Degraded</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.degraded', 'Degraded')}</span>
             </div>
             <div className={cn(
               "p-3 rounded-xl text-center border",
@@ -94,7 +94,7 @@ export default function OperationsCenterCard({ data }: Props) {
               )}>
                 {data.endpoints.down}
               </div>
-              <span className="text-xs text-gray-500">Down</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.down', 'Down')}</span>
             </div>
           </div>
         </div>
@@ -102,18 +102,18 @@ export default function OperationsCenterCard({ data }: Props) {
         {/* Uptime & Response Time */}
         <div className="grid grid-cols-2 gap-3">
           <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
-            <span className="text-xs text-gray-500">Uptime</span>
+            <span className="text-xs text-gray-500">{t('executiveDashboard.uptime', 'Uptime')}</span>
             <div className={cn('text-3xl font-light tabular-nums mt-1', getUptimeColor(data.uptime.current))}>
               {data.uptime.current.toFixed(2)}%
             </div>
             <span className="text-xs text-gray-400">
-              Target: {data.uptime.target}%
+              {t('executiveDashboard.target', 'Target')}: {data.uptime.target}%
             </span>
           </div>
           <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-gray-400" />
-              <span className="text-xs text-gray-500">Avg Response</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.avgResponse', 'Avg Response')}</span>
             </div>
             <div className="text-3xl font-light text-[#1F2937] tabular-nums mt-1">
               {data.responseTime.avg}ms
@@ -122,7 +122,7 @@ export default function OperationsCenterCard({ data }: Props) {
               "text-xs",
               data.responseTime.avg < 500 ? 'text-[#10B981]' : data.responseTime.avg < 1000 ? 'text-amber-500' : 'text-red-500'
             )}>
-              {data.responseTime.avg < 500 ? 'Good' : data.responseTime.avg < 1000 ? 'Fair' : 'Slow'}
+              {data.responseTime.avg < 500 ? t('executiveDashboard.responseGood', 'Good') : data.responseTime.avg < 1000 ? t('executiveDashboard.responseFair', 'Fair') : t('executiveDashboard.responseSlow', 'Slow')}
             </span>
           </div>
         </div>
@@ -138,13 +138,13 @@ export default function OperationsCenterCard({ data }: Props) {
                 {data.alerts.active.length}
               </Badge>
             </div>
-            <div className="space-y-2 max-h-28 overflow-y-auto">
+            <div className="divide-y divide-gray-100 max-h-28 overflow-y-auto rounded-xl border border-gray-200 bg-white">
               {data.alerts.active.slice(0, 3).map((alert) => (
                 <div 
                   key={alert.id} 
                   className={cn(
-                    "flex items-center gap-2 p-3 rounded-xl border",
-                    alert.severity.toLowerCase() === 'critical' ? 'bg-red-50 border-red-200' : 'bg-[#F9FAFB] border-gray-100'
+                    "flex items-center gap-2 p-3",
+                    alert.severity.toLowerCase() === 'critical' ? 'bg-red-50' : 'bg-white'
                   )}
                 >
                   <AlertTriangle className={cn(
@@ -154,7 +154,7 @@ export default function OperationsCenterCard({ data }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-[#1F2937] truncate">{alert.title}</div>
                     <div className="text-xs text-gray-500">
-                      Since {new Date(alert.since).toLocaleString()}
+                      {t('executiveDashboard.since', 'Since')} {new Date(alert.since).toLocaleString()}
                     </div>
                   </div>
                   <Badge 
@@ -182,21 +182,21 @@ export default function OperationsCenterCard({ data }: Props) {
           <div className="grid grid-cols-3 gap-2">
             <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
               <div className="text-xl font-light text-[#1F2937] tabular-nums">{data.remediations.pending}</div>
-              <span className="text-xs text-gray-500">Pending</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.pending', 'Pending')}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#008CFF]/10 border border-[#008CFF]/20 text-center">
               <div className="text-xl font-light text-[#008CFF] tabular-nums">{data.remediations.inProgress}</div>
-              <span className="text-xs text-gray-500">In Progress</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.inProgress', 'In Progress')}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20 text-center">
               <div className="text-xl font-light text-[#10B981] tabular-nums">{data.remediations.resolved}</div>
-              <span className="text-xs text-gray-500">Resolved</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.resolved', 'Resolved')}</span>
             </div>
           </div>
 
           {data.remediations.total > 0 && (
             <div className="text-xs text-gray-400 text-center">
-              {data.remediations.resolved}/{data.remediations.total} completed
+              {data.remediations.resolved}/{data.remediations.total} {t('executiveDashboard.completed', 'completed')}
             </div>
           )}
         </div>
@@ -204,7 +204,7 @@ export default function OperationsCenterCard({ data }: Props) {
         {/* Last Check */}
         {data.lastCheckDate && (
           <div className="text-xs text-gray-400 text-center">
-            Last check: {new Date(data.lastCheckDate).toLocaleString()}
+            {t('executiveDashboard.lastCheck', 'Last check')}: {new Date(data.lastCheckDate).toLocaleString()}
           </div>
         )}
       </div>

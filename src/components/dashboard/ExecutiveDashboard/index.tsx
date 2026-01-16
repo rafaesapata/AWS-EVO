@@ -111,7 +111,7 @@ export default function ExecutiveDashboardV2() {
   });
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] -m-6 p-6 space-y-8">
+    <div className="min-h-screen bg-mesh-subtle -m-6 p-6 space-y-8">
       {/* Header with Search and Date */}
       {!isTVMode && (
         <div className="flex items-center justify-between">
@@ -349,7 +349,7 @@ function QuickActionsSummary({
 // Skeleton Loading - Clean Light Design
 function DashboardSkeleton() {
   return (
-    <div className="min-h-screen bg-[#F9FAFB] -m-6 p-6 space-y-8">
+    <div className="min-h-screen bg-mesh-subtle -m-6 p-6 space-y-8">
       <section className="space-y-4">
         <div className="flex items-start gap-3 mb-4">
           <Skeleton className="h-10 w-10 rounded-xl" />

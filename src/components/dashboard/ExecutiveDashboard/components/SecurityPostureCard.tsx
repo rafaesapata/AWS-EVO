@@ -49,11 +49,11 @@ export default function SecurityPostureCard({ data }: Props) {
 
   const getTrendText = () => {
     if (data.trend.netChange > 0) {
-      return `+${data.trend.netChange} new issues`;
+      return `+${data.trend.netChange} ${t('executiveDashboard.newIssues', 'new issues')}`;
     } else if (data.trend.netChange < 0) {
-      return `${data.trend.netChange} issues resolved`;
+      return `${data.trend.netChange} ${t('executiveDashboard.issuesResolved', 'issues resolved')}`;
     }
-    return 'No change';
+    return t('executiveDashboard.noChange', 'No change');
   };
 
   const handleRunFirstScan = () => {
@@ -150,19 +150,19 @@ export default function SecurityPostureCard({ data }: Props) {
               )}>
                 {data.findings.critical}
               </div>
-              <span className="text-xs text-gray-500">Critical</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.severityCritical', 'Critical')}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
               <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.findings.high}</div>
-              <span className="text-xs text-gray-500">High</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.severityHigh', 'High')}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
               <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.findings.medium}</div>
-              <span className="text-xs text-gray-500">Medium</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.severityMedium', 'Medium')}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
               <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.findings.low}</div>
-              <span className="text-xs text-gray-500">Low</span>
+              <span className="text-xs text-gray-500">{t('executiveDashboard.severityLow', 'Low')}</span>
             </div>
           </div>
         </div>
@@ -190,14 +190,14 @@ export default function SecurityPostureCard({ data }: Props) {
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               <div>
                 <div className="text-lg font-light text-[#1F2937] tabular-nums">{data.trend.newLast7Days}</div>
-                <span className="text-xs text-gray-500">New Issues</span>
+                <span className="text-xs text-gray-500">{t('executiveDashboard.newIssues', 'New Issues')}</span>
               </div>
             </div>
             <div className="flex items-center gap-2 p-3 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20">
               <Shield className="h-4 w-4 text-[#10B981]" />
               <div>
                 <div className="text-lg font-light text-[#10B981] tabular-nums">{data.trend.resolvedLast7Days}</div>
-                <span className="text-xs text-gray-500">Resolved</span>
+                <span className="text-xs text-gray-500">{t('executiveDashboard.resolved', 'Resolved')}</span>
               </div>
             </div>
           </div>
@@ -214,7 +214,7 @@ export default function SecurityPostureCard({ data }: Props) {
         {/* Last Scan */}
         {data.lastScanDate && (
           <div className="text-xs text-gray-400 text-center">
-            Last scan: {new Date(data.lastScanDate).toLocaleString()}
+            {t('executiveDashboard.lastScan', 'Last scan')}: {new Date(data.lastScanDate).toLocaleString()}
           </div>
         )}
       </div>

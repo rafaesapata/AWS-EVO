@@ -109,11 +109,8 @@ export default function FinancialHealthCard({ data }: Props) {
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div 
-                      className="h-full rounded-full transition-all"
-                      style={{ 
-                        width: `${service.percentage}%`,
-                        background: 'linear-gradient(90deg, #005FC5 0%, #003C7D 100%)'
-                      }}
+                      className="h-full rounded-full transition-all bg-[#60A5FA]"
+                      style={{ width: `${service.percentage}%` }}
                     />
                   </div>
                 </div>

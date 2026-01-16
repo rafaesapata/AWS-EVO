@@ -113,7 +113,7 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
             <div className="p-4 rounded-2xl bg-[#10B981]/5 border border-[#10B981]/20">
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="h-4 w-4 text-[#10B981]" />
-                <span className="text-sm font-semibold text-[#1F2937]">AI Summary</span>
+                <span className="text-sm font-semibold text-[#1F2937]">{t('executiveDashboard.aiSummary', 'AI Summary')}</span>
               </div>
               <div className="space-y-2">
                 {insights.slice(0, 3).map((insight, idx) => (
@@ -159,14 +159,14 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
                       {insight.description}
                     </p>
                     {insight.recommendation && (
-                      <div className="mt-2 flex items-center gap-1.5 text-xs text-[#003C7D]">
-                        <Lightbulb className="h-3.5 w-3.5" />
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
+                        <Lightbulb className="h-3.5 w-3.5 text-gray-400" />
                         <span className="truncate font-medium">{insight.recommendation}</span>
                       </div>
                     )}
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-xs text-gray-400 tabular-nums">
-                        Confidence: {(insight.confidence * 100).toFixed(0)}%
+                        {t('executiveDashboard.confidence', 'Confidence')}: {(insight.confidence * 100).toFixed(0)}%
                       </span>
                       <ChevronRight className="h-4 w-4 text-gray-400" />
                     </div>

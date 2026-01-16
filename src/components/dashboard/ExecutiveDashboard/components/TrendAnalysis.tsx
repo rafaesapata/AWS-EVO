@@ -34,9 +34,9 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
   const { t } = useTranslation();
 
   const periodLabels = {
-    '7d': '7 Days',
-    '30d': '30 Days',
-    '90d': '90 Days'
+    '7d': t('executiveDashboard.period7d', '7 Days'),
+    '30d': t('executiveDashboard.period30d', '30 Days'),
+    '90d': t('executiveDashboard.period90d', '90 Days')
   };
 
   // Format date for display (MON, TUE, WED style for 7d)
@@ -94,7 +94,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
 
       <div className="p-6">
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Cost Trend - Bar Chart with Gradient */}
+          {/* Cost Trend - Bar Chart */}
           <div className="space-y-4">
             <h4 className="text-sm font-semibold text-[#1F2937]">
               {t('executiveDashboard.costTrend', 'Cost Trend')}
@@ -102,12 +102,6 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
             {costChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={costChartData} barCategoryGap="20%">
-                  <defs>
-                    <linearGradient id="costBarGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#005FC5" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#003C7D" stopOpacity={1}/>
-                    </linearGradient>
-                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
                   <XAxis 
                     dataKey="date" 
@@ -137,7 +131,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
                   />
                   <Bar 
                     dataKey="cost" 
-                    fill="url(#costBarGradient)"
+                    fill="#60A5FA"
                     radius={[6, 6, 0, 0]}
                     name="Total Cost"
                   />
@@ -145,7 +139,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
               </ResponsiveContainer>
             ) : (
               <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm bg-[#F9FAFB] rounded-xl">
-                No cost data available
+                {t('executiveDashboard.noCostData', 'No cost data available')}
               </div>
             )}
           </div>
@@ -216,7 +210,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
               </ResponsiveContainer>
             ) : (
               <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm bg-[#F9FAFB] rounded-xl">
-                No security trend data available
+                {t('executiveDashboard.noSecurityTrendData', 'No security trend data available')}
               </div>
             )}
           </div>
@@ -227,18 +221,18 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
           <div className="mt-6 p-5 rounded-2xl bg-gradient-to-r from-[#003C7D]/5 to-[#008CFF]/5 border border-[#003C7D]/10">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-sm text-gray-500">Period Activity</span>
+                <span className="text-sm text-gray-500">{t('executiveDashboard.periodActivity', 'Period Activity')}</span>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-5xl font-light text-[#003C7D] tabular-nums">
                     {Math.round((data.cost.reduce((sum, d) => sum + d.cost, 0) / data.cost.length) * 10) / 10}%
                   </span>
-                  <span className="text-sm text-gray-500">avg utilization</span>
+                  <span className="text-sm text-gray-500">{t('executiveDashboard.avgUtilization', 'avg utilization')}</span>
                 </div>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-1 text-[#10B981]">
                   <span className="text-sm font-medium">↑ 3.5%</span>
-                  <span className="text-xs text-gray-500">vs last period</span>
+                  <span className="text-xs text-gray-500">{t('executiveDashboard.vsLastPeriod', 'vs last period')}</span>
                 </div>
               </div>
             </div>
