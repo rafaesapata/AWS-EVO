@@ -12,7 +12,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { PageHeader } from "@/components/ui/page-header";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
@@ -60,7 +59,7 @@ const ApiGatewayMetricsHelpDialog = () => {
         <div className="space-y-4 my-4">
           {steps.map((step, idx) => (
             <div key={idx} className="flex gap-4 p-4 border rounded-lg bg-muted/30">
-              <div className="flex-shrink-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-bold text-sm">
+              <div className="flex-shrink-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-semibold text-sm">
                 {idx + 1}
               </div>
               <div>
@@ -470,35 +469,28 @@ export const EdgeMonitoring = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Monitoramento de Borda"
-        description="ALB, NLB, ELB, CloudFront e WAF em tempo real"
-        icon={Globe}
-        actions={
-          <div className="flex items-center gap-3">
-            {/* Period Selector */}
-            <Select value={metricsPeriod} onValueChange={(v) => setMetricsPeriod(v as '3h' | '24h' | '7d')}>
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3h">3 horas</SelectItem>
-                <SelectItem value="24h">24 horas</SelectItem>
-                <SelectItem value="7d">7 dias</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Button 
-              onClick={handleRefresh} 
-              disabled={isRefreshing || !selectedAccountId}
-              className="gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Atualizar
-            </Button>
-          </div>
-        }
-      />
+      {/* Period Selector and Refresh Button */}
+      <div className="flex items-center justify-end gap-3">
+        <Select value={metricsPeriod} onValueChange={(v) => setMetricsPeriod(v as '3h' | '24h' | '7d')}>
+          <SelectTrigger className="w-[120px]">
+            <SelectValue placeholder="Período" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="3h">3 horas</SelectItem>
+            <SelectItem value="24h">24 horas</SelectItem>
+            <SelectItem value="7d">7 dias</SelectItem>
+          </SelectContent>
+        </Select>
+        
+        <Button 
+          onClick={handleRefresh} 
+          disabled={isRefreshing || !selectedAccountId}
+          className="gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Atualizar
+        </Button>
+      </div>
 
       {selectedAccountId ? (
         <>
@@ -536,7 +528,7 @@ export const EdgeMonitoring = () => {
                     <Network className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{albResources.length + nlbResources.length + elbResources.length}</div>
+                    <div className="text-2xl font-semibold">{albResources.length + nlbResources.length + elbResources.length}</div>
                     <p className="text-xs text-muted-foreground">
                       {albResources.length} ALB, {nlbResources.length} NLB, {elbResources.length} ELB
                     </p>
@@ -552,7 +544,7 @@ export const EdgeMonitoring = () => {
                     <Network className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{apigatewayResources.length}</div>
+                    <div className="text-2xl font-semibold">{apigatewayResources.length}</div>
                     <p className="text-xs text-muted-foreground">REST APIs</p>
                   </CardContent>
                 </Card>
@@ -566,7 +558,7 @@ export const EdgeMonitoring = () => {
                     <Globe className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{cloudfrontResources.length}</div>
+                    <div className="text-2xl font-semibold">{cloudfrontResources.length}</div>
                     <p className="text-xs text-muted-foreground">Distribuições</p>
                   </CardContent>
                 </Card>
@@ -580,7 +572,7 @@ export const EdgeMonitoring = () => {
                     <Shield className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{wafResources.length}</div>
+                    <div className="text-2xl font-semibold">{wafResources.length}</div>
                     <p className="text-xs text-muted-foreground">Web ACLs</p>
                   </CardContent>
                 </Card>
@@ -594,7 +586,7 @@ export const EdgeMonitoring = () => {
                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-semibold">
                       {(
                         [...albMetrics, ...elbMetrics].reduce((sum, lb) => sum + lb.requests, 0) +
                         cloudfrontMetrics.reduce((sum, cf) => sum + cf.requests, 0) +
@@ -858,19 +850,19 @@ export const EdgeMonitoring = () => {
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div>
                               <p className="text-muted-foreground">Requisições</p>
-                              <p className="text-lg font-bold">{elb.requests.toLocaleString()}</p>
+                              <p className="text-lg font-semibold">{elb.requests.toLocaleString()}</p>
                             </div>
                             <div>
                               <p className="text-muted-foreground">Latência</p>
-                              <p className="text-lg font-bold">{elb.latency.toFixed(2)}ms</p>
+                              <p className="text-lg font-semibold">{elb.latency.toFixed(2)}ms</p>
                             </div>
                             <div>
                               <p className="text-muted-foreground">Taxa de Erro</p>
-                              <p className="text-lg font-bold">{elb.errorRate.toFixed(2)}%</p>
+                              <p className="text-lg font-semibold">{elb.errorRate.toFixed(2)}%</p>
                             </div>
                             <div>
                               <p className="text-muted-foreground">Erros 5xx</p>
-                              <p className="text-lg font-bold text-red-600">{elb.errors5xx}</p>
+                              <p className="text-lg font-semibold text-red-600">{elb.errors5xx}</p>
                             </div>
                           </div>
                         </div>
@@ -915,29 +907,29 @@ export const EdgeMonitoring = () => {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                               <div>
                                 <p className="text-muted-foreground">Fluxos Ativos</p>
-                                <p className="text-lg font-bold">{nlb.activeFlows.toLocaleString()}</p>
+                                <p className="text-lg font-semibold">{nlb.activeFlows.toLocaleString()}</p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Novos Fluxos</p>
-                                <p className="text-lg font-bold">{nlb.newFlows.toLocaleString()}</p>
+                                <p className="text-lg font-semibold">{nlb.newFlows.toLocaleString()}</p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Bytes Processados</p>
-                                <p className="text-lg font-bold">{(nlb.processedBytes / 1024 / 1024).toFixed(2)} MB</p>
+                                <p className="text-lg font-semibold">{(nlb.processedBytes / 1024 / 1024).toFixed(2)} MB</p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Pacotes Processados</p>
-                                <p className="text-lg font-bold">{nlb.processedPackets.toLocaleString()}</p>
+                                <p className="text-lg font-semibold">{nlb.processedPackets.toLocaleString()}</p>
                               </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4 text-sm mt-2">
                               <div>
                                 <p className="text-muted-foreground">Hosts Saudáveis</p>
-                                <p className="text-lg font-bold text-green-600">{nlb.healthyHosts}</p>
+                                <p className="text-lg font-semibold text-green-600">{nlb.healthyHosts}</p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Hosts Não Saudáveis</p>
-                                <p className="text-lg font-bold text-red-600">{nlb.unhealthyHosts}</p>
+                                <p className="text-lg font-semibold text-red-600">{nlb.unhealthyHosts}</p>
                               </div>
                             </div>
                           </div>
@@ -1092,7 +1084,7 @@ export const EdgeMonitoring = () => {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                               <div>
                                 <p className="text-muted-foreground">Requisições</p>
-                                <p className="text-lg font-bold">
+                                <p className="text-lg font-semibold">
                                   {api.requests > 0 ? api.requests.toLocaleString() : (
                                     <span className="text-muted-foreground/70 text-sm">Sem dados</span>
                                   )}
@@ -1100,7 +1092,7 @@ export const EdgeMonitoring = () => {
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Latência Média</p>
-                                <p className={`text-lg font-bold ${api.latency > 0 ? 'text-green-600' : ''}`}>
+                                <p className={`text-lg font-semibold ${api.latency > 0 ? 'text-green-600' : ''}`}>
                                   {api.latency > 0 ? `${api.latency.toFixed(0)}ms` : (
                                     <span className="text-muted-foreground/70 text-sm">Sem dados</span>
                                   )}
@@ -1108,13 +1100,13 @@ export const EdgeMonitoring = () => {
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Erros 4xx</p>
-                                <p className={`text-lg font-bold ${api.error4xx > 0 ? 'text-yellow-600' : ''}`}>
+                                <p className={`text-lg font-semibold ${api.error4xx > 0 ? 'text-yellow-600' : ''}`}>
                                   {api.error4xx > 0 ? api.error4xx.toLocaleString() : '0'}
                                 </p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Erros 5xx</p>
-                                <p className={`text-lg font-bold ${api.error5xx > 0 ? 'text-red-600' : ''}`}>
+                                <p className={`text-lg font-semibold ${api.error5xx > 0 ? 'text-red-600' : ''}`}>
                                   {api.error5xx > 0 ? api.error5xx.toLocaleString() : '0'}
                                 </p>
                               </div>
@@ -1242,7 +1234,7 @@ export const EdgeMonitoring = () => {
                         <Shield className="h-4 w-4 text-muted-foreground" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold">{wafMetrics.length}</div>
+                        <div className="text-2xl font-semibold">{wafMetrics.length}</div>
                         <p className="text-xs text-muted-foreground">
                           {wafMetrics.filter(w => w.scope === 'CLOUDFRONT').length} Global, {wafMetrics.filter(w => w.scope === 'REGIONAL').length} Regional
                         </p>
@@ -1255,7 +1247,7 @@ export const EdgeMonitoring = () => {
                         <AlertTriangle className="h-4 w-4 text-destructive" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold text-destructive">
+                        <div className="text-2xl font-semibold text-destructive">
                           {wafMetrics.reduce((sum, w) => sum + w.blocked, 0).toLocaleString()}
                         </div>
                         <p className="text-xs text-muted-foreground">Última hora</p>
@@ -1268,7 +1260,7 @@ export const EdgeMonitoring = () => {
                         <Shield className="h-4 w-4 text-muted-foreground" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold">
+                        <div className="text-2xl font-semibold">
                           {wafMetrics.length > 0 
                             ? (wafMetrics.reduce((sum, w) => sum + w.blockRate, 0) / wafMetrics.length).toFixed(2)
                             : '0.00'}%

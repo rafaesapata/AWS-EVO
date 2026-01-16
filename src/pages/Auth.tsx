@@ -656,7 +656,7 @@ export default function Auth() {
           <p className="text-xs text-muted-foreground">FinOps & Security Intelligence Platform</p>
         </div>
 
-        <Card className="glass shadow-elegant animate-scale-in relative overflow-hidden border-2 border-primary/20 hover:border-primary/40 transition-all duration-500">
+        <Card className="animate-scale-in relative overflow-hidden border-2 border-primary/20 hover:border-primary/40 transition-all duration-500">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 pointer-events-none" />
           <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-blue-500/20 to-primary/20 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-1000 animate-pulse" />
           <CardHeader className="pb-3 space-y-0.5 relative z-10">
@@ -818,7 +818,7 @@ export default function Auth() {
               </div>
             ) : (
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-                <TabsList className="glass grid w-full grid-cols-2 mb-3">
+                <TabsList className="glass-card-float grid w-full grid-cols-2 mb-3">
                   <TabsTrigger value="login" className="text-xs py-1.5">Login</TabsTrigger>
                   <TabsTrigger value="signup" className="text-xs py-1.5">Cadastro</TabsTrigger>
                 </TabsList>

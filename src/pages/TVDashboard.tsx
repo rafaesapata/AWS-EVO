@@ -96,7 +96,7 @@ export default function TVDashboard() {
       <div className="min-h-screen flex items-center justify-center bg-background p-8">
         <div className="text-center max-w-md">
           <AlertCircle className="h-16 w-16 mx-auto mb-4 text-destructive" />
-          <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+          <h1 className="text-2xl font-semibold mb-2">Access Denied</h1>
           <p className="text-muted-foreground mb-4">{error}</p>
           <p className="text-sm text-muted-foreground">
             This TV Dashboard link may have expired or been deactivated.
@@ -120,7 +120,7 @@ export default function TVDashboard() {
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">{dashboard.name}</h1>
+                <h1 className="text-xl font-semibold">{dashboard.name}</h1>
                 <p className="text-xs text-muted-foreground">EVO - AWS Platform</p>
               </div>
             </div>

@@ -175,7 +175,7 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total de Vulnerabilidades</p>
-                    <p className="text-2xl font-bold">{latestScan.findings_count || 0}</p>
+                    <p className="text-2xl font-semibold">{latestScan.findings_count || 0}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${totalTrend < 0 ? 'text-green-500' : totalTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {totalTrend < 0 ? <TrendingDown className="h-5 w-5" /> : totalTrend > 0 ? <TrendingUp className="h-5 w-5" /> : null}
@@ -189,7 +189,7 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Vulnerabilidades Críticas</p>
-                    <p className="text-2xl font-bold">{latestScan.critical_count || 0}</p>
+                    <p className="text-2xl font-semibold">{latestScan.critical_count || 0}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${criticalTrend < 0 ? 'text-green-500' : criticalTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {criticalTrend < 0 ? <TrendingDown className="h-5 w-5" /> : criticalTrend > 0 ? <TrendingUp className="h-5 w-5" /> : null}
@@ -287,7 +287,7 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                      <Badge variant="secondary" className="text-lg font-bold">{scan.findings_count || 0}</Badge>
+                      <Badge variant="secondary" className="text-lg font-semibold">{scan.findings_count || 0}</Badge>
                       {onViewScan && (
                         <Button size="sm" variant="ghost" onClick={() => onViewScan(scan.id)}>
                           <Eye className="h-4 w-4 mr-1" />Ver Detalhes

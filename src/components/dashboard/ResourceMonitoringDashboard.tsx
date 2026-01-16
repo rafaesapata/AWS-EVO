@@ -746,7 +746,7 @@ export const ResourceMonitoringDashboard = () => {
               Voltar
             </Button>
             <div>
-              <h2 className="text-3xl font-bold">{selectedResource.resource_name}</h2>
+              <h2 className="text-3xl font-semibold">{selectedResource.resource_name}</h2>
               <p className="text-muted-foreground">
                 {selectedResource.resource_type.toUpperCase()} • {selectedResource.region} • {selectedResource.status}
               </p>
@@ -813,26 +813,7 @@ export const ResourceMonitoringDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold flex items-center gap-2">
-            Monitoramento de Recursos
-            <InfoTooltip title="O que é monitorado?">
-              <>
-                <p className="text-muted-foreground">
-                  Monitora recursos em tempo real com métricas de CloudWatch.
-                </p>
-                <ul className="text-xs text-muted-foreground space-y-1 mt-2">
-                  <li>• EC2: CPU, memória, rede, disco</li>
-                  <li>• RDS: CPU, conexões, IOPS</li>
-                  <li>• Lambda: invocações, erros, duração</li>
-                  <li>• ECS: CPU, memória dos serviços</li>
-                  <li>• Load Balancers: requisições, latência</li>
-                </ul>
-              </>
-            </InfoTooltip>
-          </h2>
-        </div>
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-4">
           <Select value={autoRefreshInterval} onValueChange={setAutoRefreshInterval}>
             <SelectTrigger className="w-[180px]">
@@ -896,7 +877,7 @@ export const ResourceMonitoringDashboard = () => {
                       <Icon className={`h-4 w-4 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-semibold">
                         {stat.type === 'ec2' && stat.count > 0 ? (
                           <>
                             <span className="text-primary">{stat.runningCount}</span>

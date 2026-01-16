@@ -93,7 +93,7 @@ export default function AnalyticsDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                    <p className="text-2xl font-bold mt-2">{stat.value.toLocaleString()}</p>
+                    <p className="text-2xl font-semibold mt-2">{stat.value.toLocaleString()}</p>
                   </div>
                   <Icon className={`h-8 w-8 ${stat.color}`} />
                 </div>
@@ -223,19 +223,19 @@ export default function AnalyticsDashboard() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-3 border border-border rounded-lg">
               <span className="text-sm text-muted-foreground">Tempo Médio de Leitura</span>
-              <span className="text-lg font-bold">
+              <span className="text-lg font-semibold">
                 {Math.round(analytics?.avgReadingTime?.avg_reading_time || 0)}s
               </span>
             </div>
             <div className="flex items-center justify-between p-3 border border-border rounded-lg">
               <span className="text-sm text-muted-foreground">Taxa de Scroll Médio</span>
-              <span className="text-lg font-bold">
+              <span className="text-lg font-semibold">
                 {Math.round(analytics?.avgScrollDepth?.avg_scroll_depth || 0)}%
               </span>
             </div>
             <div className="flex items-center justify-between p-3 border border-border rounded-lg">
               <span className="text-sm text-muted-foreground">Taxa de Conclusão</span>
-              <span className="text-lg font-bold">
+              <span className="text-lg font-semibold">
                 {analytics?.completionRate ? 
                   Math.round((analytics.completionRate.completed_reads / Math.max(analytics.completionRate.total_views, 1)) * 100) 
                   : 0}%
@@ -243,7 +243,7 @@ export default function AnalyticsDashboard() {
             </div>
             <div className="flex items-center justify-between p-3 border border-border rounded-lg">
               <span className="text-sm text-muted-foreground">Total de Exportações</span>
-              <span className="text-lg font-bold flex items-center gap-1">
+              <span className="text-lg font-semibold flex items-center gap-1">
                 <Download className="h-4 w-4" />
                 {analytics?.totalEngagements?.exports || 0}
               </span>

@@ -13,10 +13,10 @@ interface StatsCardProps {
 
 export default function StatsCard({ title, value, icon: Icon, variant = "primary", change, trend }: StatsCardProps) {
   const variants = {
-    primary: "glass-hover border-primary/30 bg-gradient-to-br from-primary/5 to-cyan-500/5",
-    success: "glass-hover border-success/30 bg-gradient-to-br from-success/5 to-emerald-500/5",
-    warning: "glass-hover border-warning/30 bg-gradient-to-br from-warning/5 to-orange-500/5",
-    critical: "glass-hover border-destructive/30 bg-gradient-to-br from-destructive/5 to-rose-500/5",
+    primary: "hover:bg-gray-50 border-primary/30 bg-gradient-to-br from-primary/5 to-cyan-500/5",
+    success: "hover:bg-gray-50 border-success/30 bg-gradient-to-br from-success/5 to-emerald-500/5",
+    warning: "hover:bg-gray-50 border-warning/30 bg-gradient-to-br from-warning/5 to-orange-500/5",
+    critical: "hover:bg-gray-50 border-destructive/30 bg-gradient-to-br from-destructive/5 to-rose-500/5",
   };
 
   const iconColors = {
@@ -58,7 +58,7 @@ export default function StatsCard({ title, value, icon: Icon, variant = "primary
       </CardHeader>
       <CardContent className="relative z-10">
         <div className="flex items-baseline justify-between">
-          <div className={cn("text-3xl font-bold gradient-text")}>
+          <div className={cn("text-3xl font-semibold gradient-text")}>
             {value}
           </div>
           {change !== undefined && trend && (

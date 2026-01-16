@@ -340,7 +340,7 @@ export const MonthlyInvoices = () => {
               <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.totalCost')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${selectedMonthData.totalCost.toFixed(2)}</div>
+              <div className="text-2xl font-semibold">${selectedMonthData.totalCost.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">{selectedMonthData.days} {t('monthlyInvoices.days')}</p>
             </CardContent>
           </Card>
@@ -349,7 +349,7 @@ export const MonthlyInvoices = () => {
               <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.appliedCredits')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-semibold text-green-600">
                 ${selectedMonthData.totalCredits.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -362,7 +362,7 @@ export const MonthlyInvoices = () => {
               <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.netCost')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${selectedMonthData.netCost.toFixed(2)}</div>
+              <div className="text-2xl font-semibold">${selectedMonthData.netCost.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">{t('monthlyInvoices.amountDue')}</p>
             </CardContent>
           </Card>
@@ -371,7 +371,7 @@ export const MonthlyInvoices = () => {
               <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.dailyAverage')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-semibold">
                 ${(selectedMonthData.netCost / selectedMonthData.days).toFixed(2)}
               </div>
               <Button
@@ -623,7 +623,7 @@ export const MonthlyInvoices = () => {
                       </Badge>
                     )}
                     <div className="text-right">
-                      <div className="font-mono font-bold">${data.netCost.toFixed(2)}</div>
+                      <div className="font-mono font-semibold">${data.netCost.toFixed(2)}</div>
                       {data.totalCredits > 0 && (
                         <div className="text-sm text-green-600 font-mono">-${data.totalCredits.toFixed(2)}</div>
                       )}

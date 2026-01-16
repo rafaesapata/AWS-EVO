@@ -96,6 +96,7 @@ Ao criar uma nova Lambda ou endpoint:
 |--------|----------|-----------|---------|
 | `fetch-daily-costs` | `/api/functions/fetch-daily-costs` | Busca custos diários via Cost Explorer | `cost/fetch-daily-costs.ts` |
 | `ri-sp-analyzer` | `/api/functions/ri-sp-analyzer` | Análise de Reserved Instances e Savings Plans | `cost/ri-sp-analyzer.ts` |
+| `get-ri-sp-data` | `/api/functions/get-ri-sp-data` | Busca dados salvos de RI/SP do banco | `cost/get-ri-sp-data.ts` |
 | `analyze-ri-sp` | `/api/functions/analyze-ri-sp` | Alias para ri-sp-analyzer | `cost/analyze-ri-sp.ts` |
 | `cost-optimization` | `/api/functions/cost-optimization` | Recomendações de otimização | `cost/cost-optimization.ts` |
 | `budget-forecast` | `/api/functions/budget-forecast` | Previsão de orçamento | `cost/budget-forecast.ts` |
@@ -128,6 +129,9 @@ Ao criar uma nova Lambda ou endpoint:
 | `fetch-edge-services` | `/api/functions/fetch-edge-services` | Busca serviços de edge (CloudFront, etc) | `monitoring/fetch-edge-services.ts` |
 | `endpoint-monitor-check` | `/api/functions/endpoint-monitor-check` | Verifica endpoints monitorados | `monitoring/endpoint-monitor-check.ts` |
 | `monitored-endpoints` | `/monitored_endpoints` | CRUD de endpoints monitorados | `monitoring/monitored-endpoints.ts` |
+| `generate-error-fix-prompt` | `/api/functions/generate-error-fix-prompt` | Gera prompts de correção dinâmicos | `monitoring/generate-error-fix-prompt.ts` |
+| `get-platform-metrics` | `/api/functions/get-platform-metrics` | Métricas de 114 Lambdas + 111 endpoints + frontend | `monitoring/get-platform-metrics.ts` |
+| `get-recent-errors` | `/api/functions/get-recent-errors` | Erros recentes do CloudWatch Logs | `monitoring/get-recent-errors.ts` |
 
 ### ☁️ AWS Credentials (aws/)
 
@@ -269,8 +273,8 @@ Ao criar uma nova Lambda ou endpoint:
 
 ## Estatísticas
 
-- **Total de Lambdas**: ~114 funções
-- **Total de Endpoints API Gateway**: ~104 endpoints
+- **Total de Lambdas**: ~117 funções
+- **Total de Endpoints API Gateway**: ~107 endpoints
 - **Categorias**: 15 categorias principais
 
 ---
@@ -278,10 +282,11 @@ Ao criar uma nova Lambda ou endpoint:
 ## Última Atualização
 
 **Data**: 2026-01-15
-**Versão**: 1.2
+**Versão**: 1.3
 **Atualizado por**: Sistema
 
 ### Changelog
+- 2026-01-15: Adicionados 3 novos endpoints de Platform Monitoring (generate-error-fix-prompt, get-platform-metrics, get-recent-errors)
 - 2026-01-15: Adicionados 3 novos endpoints de compliance (start-compliance-scan, get-compliance-scan-status, get-compliance-history)
 
 ---

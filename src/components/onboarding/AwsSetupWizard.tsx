@@ -27,7 +27,7 @@ const AwsSetupWizard = ({ onComplete, onSkip }: AwsSetupWizardProps) => {
         <div className="w-20 h-20 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center mx-auto mb-4">
           <Zap className="w-10 h-10 text-white" />
         </div>
-        <h2 className="text-2xl font-bold mb-2">Configure sua conta AWS</h2>
+        <h2 className="text-2xl font-semibold mb-2">Configure sua conta AWS</h2>
         <p className="text-muted-foreground">
           Conecte sua infraestrutura AWS de forma segura usando CloudFormation
         </p>

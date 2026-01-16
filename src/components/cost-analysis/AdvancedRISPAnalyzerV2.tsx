@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -83,9 +83,36 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loadingSavedData, setLoadingSavedData] = useState(true);
   
   // Use regions array if provided, otherwise fall back to single region or default
   const regionsToAnalyze = regions?.length ? regions : (region ? [region] : ['us-east-1']);
+
+  // Load saved data on mount
+  useEffect(() => {
+    const loadSavedData = async () => {
+      if (!accountId) return;
+      
+      setLoadingSavedData(true);
+      try {
+        const response = await awsService.getRISPData(accountId);
+        
+        // Response is wrapped in { data: ..., error: null }
+        const data = response?.data || response;
+        
+        if (data?.hasData && data?.executiveSummary) {
+          setAnalysis(data as AnalysisData);
+        }
+      } catch (error) {
+        console.error('Error loading saved RI/SP data:', error);
+        // Don't show error - just means no saved data exists
+      } finally {
+        setLoadingSavedData(false);
+      }
+    };
+    
+    loadSavedData();
+  }, [accountId]);
 
   const runAnalysis = async () => {
     setLoading(true);
@@ -155,10 +182,16 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Análise Avançada de Reserved Instances & Savings Plans</h2>
+          <h2 className="text-2xl font-semibold">Análise Avançada de Reserved Instances & Savings Plans</h2>
           <p className="text-muted-foreground">
             Análise completa de oportunidades de otimização de custos com recomendações detalhadas
           </p>
+          {analysis && analysis.analysisMetadata?.dataSource === 'database' && (
+            <Badge variant="outline" className="mt-2">
+              <Clock className="h-3 w-3 mr-1" />
+              Análise anterior carregada - {new Date(analysis.analysisMetadata.timestamp).toLocaleString('pt-BR')}
+            </Badge>
+          )}
         </div>
         <Button onClick={runAnalysis} disabled={loading}>
           {loading ? (
@@ -169,7 +202,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
           ) : (
             <>
               <BarChart3 className="h-4 w-4 mr-2" />
-              Executar Análise
+              {analysis ? 'Atualizar Análise' : 'Executar Análise'}
             </>
           )}
         </Button>
@@ -195,6 +228,18 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                 <Clock className="h-4 w-4" />
                 <span>Tempo estimado: 10-30 segundos</span>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loading Saved Data */}
+      {loadingSavedData && !loading && (
+        <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-indigo-50/50">
+          <CardContent className="py-8">
+            <div className="flex items-center justify-center space-x-3">
+              <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+              <span className="text-sm text-muted-foreground">Carregando análise anterior...</span>
             </div>
           </CardContent>
         </Card>
@@ -276,7 +321,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                   {getStatusIcon(analysis.executiveSummary.status)}
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{getStatusText(analysis.executiveSummary.status)}</div>
+                  <div className="text-2xl font-semibold">{getStatusText(analysis.executiveSummary.status)}</div>
                   <p className="text-xs text-muted-foreground">
                     {analysis.executiveSummary.totalCommitments} compromissos ativos
                   </p>
@@ -289,7 +334,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                   <DollarSign className="h-4 w-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-2xl font-semibold text-green-600">
                     {formatCurrency(analysis.potentialSavings?.annual || 0)}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -304,7 +349,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                   <Target className="h-4 w-4 text-blue-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-semibold">
                     {(analysis.coverage?.overall || 0).toFixed(1)}%
                   </div>
                   <Progress value={analysis.coverage?.overall || 0} className="mt-2" />
@@ -317,7 +362,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                   <TrendingUp className="h-4 w-4 text-purple-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-semibold">
                     {analysis.recommendations?.length || 0}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -358,19 +403,19 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="text-center p-4 bg-muted/50 rounded-lg">
-                    <div className="text-2xl font-bold">{analysis.reservedInstances?.ec2?.length || 0}</div>
+                    <div className="text-2xl font-semibold">{analysis.reservedInstances?.ec2?.length || 0}</div>
                     <div className="text-sm text-muted-foreground">EC2 RIs</div>
                   </div>
                   <div className="text-center p-4 bg-muted/50 rounded-lg">
-                    <div className="text-2xl font-bold">{analysis.reservedInstances?.rds?.length || 0}</div>
+                    <div className="text-2xl font-semibold">{analysis.reservedInstances?.rds?.length || 0}</div>
                     <div className="text-sm text-muted-foreground">RDS RIs</div>
                   </div>
                   <div className="text-center p-4 bg-muted/50 rounded-lg">
-                    <div className="text-2xl font-bold">{analysis.savingsPlans?.total || 0}</div>
+                    <div className="text-2xl font-semibold">{analysis.savingsPlans?.total || 0}</div>
                     <div className="text-sm text-muted-foreground">Savings Plans</div>
                   </div>
                   <div className="text-center p-4 bg-muted/50 rounded-lg">
-                    <div className="text-2xl font-bold">{analysis.executiveSummary.totalCommitments}</div>
+                    <div className="text-2xl font-semibold">{analysis.executiveSummary.totalCommitments}</div>
                     <div className="text-sm text-muted-foreground">Total Compromissos</div>
                   </div>
                 </div>
@@ -397,7 +442,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                           <CardDescription>{rec.description}</CardDescription>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold text-green-600">
+                          <div className="text-2xl font-semibold text-green-600">
                             {formatCurrency(rec.potentialSavings?.annual || 0)}
                           </div>
                           <div className="text-sm text-muted-foreground">
@@ -426,7 +471,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                         </div>
                         <div>
                           <h4 className="font-semibold mb-2">Economia Mensal</h4>
-                          <div className="text-xl font-bold text-green-600">
+                          <div className="text-xl font-semibold text-green-600">
                             {formatCurrency(rec.potentialSavings?.monthly || 0)}
                           </div>
                         </div>
@@ -489,7 +534,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                   <CardDescription>Cobertura de instâncias reservadas</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold mb-2">
+                  <div className="text-3xl font-semibold mb-2">
                     {(analysis.coverage?.reservedInstances || 0).toFixed(1)}%
                   </div>
                   <Progress value={analysis.coverage?.reservedInstances || 0} className="mb-2" />
@@ -505,7 +550,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                   <CardDescription>Cobertura de planos de economia</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold mb-2">
+                  <div className="text-3xl font-semibold mb-2">
                     {(analysis.coverage?.savingsPlans || 0).toFixed(1)}%
                   </div>
                   <Progress value={analysis.coverage?.savingsPlans || 0} className="mb-2" />
@@ -521,7 +566,7 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
                   <CardDescription>Score combinado de otimização</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold mb-2">
+                  <div className="text-3xl font-semibold mb-2">
                     {(analysis.coverage?.overall || 0).toFixed(1)}%
                   </div>
                   <Progress value={analysis.coverage?.overall || 0} className="mb-2" />

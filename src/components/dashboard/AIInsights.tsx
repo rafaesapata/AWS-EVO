@@ -88,7 +88,7 @@ export default function AIInsights({ organizationId }: { organizationId: string 
   };
 
   return (
-    <Card className="glass-card">
+    <Card className="">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />

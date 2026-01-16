@@ -139,7 +139,7 @@ export default function CommunicationCenter() {
 
       {/* Refresh Button */}
       <div className="flex justify-end">
-        <Button onClick={handleRefresh} disabled={isFetching} variant="outline" className="glass">
+        <Button onClick={handleRefresh} disabled={isFetching} variant="outline" >
           <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
           {t('common.refresh')}
         </Button>

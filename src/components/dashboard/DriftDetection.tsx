@@ -249,19 +249,19 @@ export default function DriftDetection() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Total Drifts</div>
-                  <div className="text-2xl font-bold">{drifts.length}</div>
+                  <div className="text-2xl font-semibold">{drifts.length}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Open Drifts</div>
-                  <div className="text-2xl font-bold text-yellow-600">{openDrifts}</div>
+                  <div className="text-2xl font-semibold text-yellow-600">{openDrifts}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Critical</div>
-                  <div className="text-2xl font-bold text-red-600">{criticalDrifts}</div>
+                  <div className="text-2xl font-semibold text-red-600">{criticalDrifts}</div>
                 </CardContent>
               </Card>
               <Card>

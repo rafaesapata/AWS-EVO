@@ -453,8 +453,8 @@ export default function CloudTrailAudit() {
   return (
     <Layout 
       title="Auditoria CloudTrail" 
-      description="Analise eventos do CloudTrail e identifique problemas de segurança"
-      icon={<FileText className="h-7 w-7 text-white" />}
+      description="Análise de eventos AWS com identificação de usuários responsáveis por problemas de segurança"
+      icon={<FileText className="h-4 w-4 text-white" />}
     >
       {/* Reprocess Confirmation Dialog */}
       <AlertDialog open={showReprocessDialog} onOpenChange={setShowReprocessDialog}>
@@ -498,54 +498,39 @@ export default function CloudTrailAudit() {
       </AlertDialog>
 
       <div className="space-y-6">
-        {/* Header */}
-        <Card className="glass border-primary/20">
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-6 w-6 text-primary" />
-                  Auditoria CloudTrail
-                </CardTitle>
-                <CardDescription>
-                  Análise de eventos AWS com identificação de usuários responsáveis por problemas de segurança ({getPeriodDescription(selectedTimeRange)})
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  onClick={() => startAnalysisMutation.mutate(false)}
-                  disabled={startAnalysisMutation.isPending || isAnalyzing || !selectedAccountId}
-                  className="gap-2"
-                >
-                  {startAnalysisMutation.isPending || isAnalyzing ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Play className="h-4 w-4" />
-                  )}
-                  {startAnalysisMutation.isPending ? 'Iniciando...' : isAnalyzing ? 'Analisando...' : 'Buscar Eventos'}
-                </Button>
-                {(['60d', '90d', '120d'].includes(selectedTimeRange)) && (
-                  <div className="flex items-center gap-1 text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                    <Clock className="h-3 w-3" />
-                    Período extenso - pode levar vários minutos
-                  </div>
-                )}
-                <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                  Atualizar
-                </Button>
-                <Button variant="outline" size="sm" onClick={exportEvents} disabled={!events?.length}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Exportar
-                </Button>
-              </div>
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-2 flex-wrap">
+          <Button 
+            onClick={() => startAnalysisMutation.mutate(false)}
+            disabled={startAnalysisMutation.isPending || isAnalyzing || !selectedAccountId}
+            className="gap-2"
+          >
+            {startAnalysisMutation.isPending || isAnalyzing ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            {startAnalysisMutation.isPending ? 'Iniciando...' : isAnalyzing ? 'Analisando...' : 'Buscar Eventos'}
+          </Button>
+          {(['60d', '90d', '120d'].includes(selectedTimeRange)) && (
+            <div className="flex items-center gap-1 text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded">
+              <Clock className="h-3 w-3" />
+              Período extenso - pode levar vários minutos
             </div>
-          </CardHeader>
-        </Card>
+          )}
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportEvents} disabled={!events?.length}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
+        </div>
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total de Eventos</CardTitle>
             </CardHeader>
@@ -557,13 +542,13 @@ export default function CloudTrailAudit() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{summary.total.toLocaleString()}</div>
+                  <div className="text-2xl font-semibold">{summary.total.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">{summary.securityEvents} eventos de segurança</p>
                 </>
               )}
             </CardContent>
           </Card>
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Eventos Críticos</CardTitle>
             </CardHeader>
@@ -575,13 +560,13 @@ export default function CloudTrailAudit() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold text-red-500">{summary.critical}</div>
+                  <div className="text-2xl font-semibold text-red-500">{summary.critical}</div>
                   <p className="text-xs text-muted-foreground">{summary.high} de alto risco</p>
                 </>
               )}
             </CardContent>
           </Card>
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Erros/Falhas</CardTitle>
             </CardHeader>
@@ -593,13 +578,13 @@ export default function CloudTrailAudit() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold text-orange-500">{summary.errors}</div>
+                  <div className="text-2xl font-semibold text-orange-500">{summary.errors}</div>
                   <p className="text-xs text-muted-foreground">Tentativas negadas</p>
                 </>
               )}
             </CardContent>
           </Card>
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Usuários Únicos</CardTitle>
             </CardHeader>
@@ -611,7 +596,7 @@ export default function CloudTrailAudit() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{summary.users}</div>
+                  <div className="text-2xl font-semibold">{summary.users}</div>
                   <p className="text-xs text-muted-foreground">Identidades ativas</p>
                 </>
               )}
@@ -620,7 +605,7 @@ export default function CloudTrailAudit() {
         </div>
 
         {/* Filters */}
-        <Card className="glass border-primary/20">
+        <Card >
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="relative">
@@ -660,7 +645,7 @@ export default function CloudTrailAudit() {
         {/* Charts Section */}
         {isLoading ? (
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <Skeleton className="h-6 w-48 mb-2" />
                 <Skeleton className="h-4 w-64" />
@@ -669,7 +654,7 @@ export default function CloudTrailAudit() {
                 <Skeleton className="h-[300px] w-full" />
               </CardContent>
             </Card>
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <Skeleton className="h-6 w-40 mb-2" />
                 <Skeleton className="h-4 w-56" />
@@ -682,7 +667,7 @@ export default function CloudTrailAudit() {
         ) : events && events.length > 0 ? (
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Timeline Chart - Security Events by Date */}
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
@@ -708,7 +693,7 @@ export default function CloudTrailAudit() {
             </Card>
 
             {/* Risk Distribution Pie Chart */}
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5" />
@@ -739,7 +724,7 @@ export default function CloudTrailAudit() {
             </Card>
 
             {/* Users with Security Issues */}
-            <Card className="glass border-primary/20 lg:col-span-2">
+            <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="h-5 w-5" />
@@ -779,7 +764,7 @@ export default function CloudTrailAudit() {
           </TabsList>
 
           <TabsContent value="events" className="space-y-4">
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>Todos os Eventos</CardTitle>
                 <CardDescription>Lista completa de eventos do CloudTrail</CardDescription>
@@ -860,7 +845,7 @@ export default function CloudTrailAudit() {
           </TabsContent>
 
           <TabsContent value="security" className="space-y-4">
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-orange-500" />
@@ -952,7 +937,7 @@ export default function CloudTrailAudit() {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-4">
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="h-5 w-5" />
@@ -1004,7 +989,7 @@ export default function CloudTrailAudit() {
 
         {/* Running Analysis Status */}
         {isAnalyzing && analysisId && (
-          <Card className="glass border-blue-500/50 bg-blue-500/5">
+          <Card className=" border-blue-500/50 bg-blue-500/5">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />

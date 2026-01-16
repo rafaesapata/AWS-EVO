@@ -103,7 +103,7 @@ export function TaggingCompliance() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className={`text-3xl font-bold ${
+                <div className={`text-3xl font-semibold ${
                   compliancePercentage >= 80 ? 'text-green-600' :
                   compliancePercentage >= 60 ? 'text-yellow-600' :
                   'text-red-600'
@@ -118,7 +118,7 @@ export function TaggingCompliance() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-green-600">{compliantCount}</div>
+                <div className="text-3xl font-semibold text-green-600">{compliantCount}</div>
                 <div className="text-sm text-muted-foreground">Compliant</div>
               </div>
             </CardContent>
@@ -127,7 +127,7 @@ export function TaggingCompliance() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-yellow-600">{partialCount}</div>
+                <div className="text-3xl font-semibold text-yellow-600">{partialCount}</div>
                 <div className="text-sm text-muted-foreground">Parcial</div>
               </div>
             </CardContent>
@@ -136,7 +136,7 @@ export function TaggingCompliance() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-red-600">{nonCompliantCount}</div>
+                <div className="text-3xl font-semibold text-red-600">{nonCompliantCount}</div>
                 <div className="text-sm text-muted-foreground">Não Compliant</div>
               </div>
             </CardContent>

@@ -20,7 +20,8 @@ import {
   BookOpen,
   Mail,
   Radar,
-  Settings
+  Settings,
+  AlertTriangle
 } from "lucide-react";
 import {
   Sidebar,
@@ -121,6 +122,7 @@ const menuItems: MenuItem[] = [
     ]
   },
   { titleKey: "sidebar.devTools", value: "devtools", icon: Activity, superAdminOnly: true },
+  { titleKey: "sidebar.platformMonitoring", value: "platform-monitoring", icon: Activity, superAdminOnly: true },
 ];
 
 interface AppSidebarProps {
@@ -173,6 +175,8 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/background-jobs');
     } else if (value === 'devtools') {
       navigate('/bedrock-test');
+    } else if (value === 'platform-monitoring') {
+      navigate('/platform-monitoring');
     } else if (value === 'well-architected') {
       navigate('/well-architected');
     } else if (value === 'copilot') {
@@ -188,7 +192,7 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
     } else if (value === 'tickets') {
       navigate('/remediation-tickets');
     } else if (value === 'tv-dashboards') {
-      navigate('/app?tab=tv-dashboards');
+      navigate('/tv-dashboards');
     } else if (value === 'security-scan') {
       navigate('/security-scans');
     } else if (value === 'cloudtrail-audit') {
@@ -208,31 +212,24 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
     } else if (value === 'anomalies') {
       navigate('/anomaly-detection');
     } else if (value === 'waste') {
-      navigate('/app?tab=waste');
+      navigate('/ml-waste-detection');
     } else if (value === 'resource-monitoring') {
       navigate('/resource-monitoring');
     } else if (value === 'cost-analysis') {
-      navigate('/app?tab=cost-analysis');
+      navigate('/cost-analysis');
     } else if (value === 'invoices') {
-      navigate('/app?tab=invoices');
+      navigate('/monthly-invoices');
     } else if (value === 'executive') {
-      onTabChange('executive');
       navigate('/app');
-    } else if (value === 'costs') {
-      navigate('/app?tab=costs');
-    } else if (value === 'monitoring') {
-      navigate('/app?tab=monitoring');
-    } else if (value === 'optimization') {
-      navigate('/app?tab=optimization');
     } else if (value === 'users') {
-      navigate('/app?tab=users');
+      navigate('/user-management');
     } else if (value === 'organizations') {
       navigate('/organizations');
     } else if (value === 'audit') {
-      navigate('/app?tab=audit');
+      navigate('/audit-log');
     } else {
-      // Todas as outras ficam no /app
-      onTabChange(value);
+      // Grupos de menu (costs, monitoring, optimization) não navegam
+      // Apenas expandem/colapsam o submenu
     }
   };
 

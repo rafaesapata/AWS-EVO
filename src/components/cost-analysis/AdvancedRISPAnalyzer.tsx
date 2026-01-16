@@ -199,7 +199,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Análise Avançada de Reserved Instances & Savings Plans</h2>
+          <h2 className="text-2xl font-semibold">Análise Avançada de Reserved Instances & Savings Plans</h2>
           <p className="text-muted-foreground">
             Análise completa de oportunidades de otimização de custos com recomendações detalhadas
           </p>
@@ -253,7 +253,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
                   )}
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-semibold">
                     {analysis.executiveSummary.status === 'needs_attention' ? 'Atenção' : 'Otimizado'}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -268,7 +268,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
                   <DollarSign className="h-4 w-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-2xl font-semibold text-green-600">
                     {formatCurrency(analysis.potentialSavings.annual)}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -283,7 +283,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
                   <Target className="h-4 w-4 text-blue-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-semibold">
                     {analysis.coverage.overall.toFixed(1)}%
                   </div>
                   <Progress value={analysis.coverage.overall} className="mt-2" />
@@ -296,7 +296,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
                   <Zap className="h-4 w-4 text-purple-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-semibold">
                     {analysis.recommendations.length}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -355,7 +355,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
                           <CardDescription>{rec.description}</CardDescription>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold text-green-600">
+                          <div className="text-2xl font-semibold text-green-600">
                             {formatCurrency(rec.potentialSavings.annual)}
                           </div>
                           <div className="text-sm text-muted-foreground">
@@ -384,7 +384,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
                         </div>
                         <div>
                           <h4 className="font-semibold mb-2">Economia Mensal</h4>
-                          <div className="text-xl font-bold text-green-600">
+                          <div className="text-xl font-semibold text-green-600">
                             {formatCurrency(rec.potentialSavings.monthly)}
                           </div>
                         </div>
@@ -475,7 +475,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
                   <CardDescription>Cobertura de instâncias reservadas</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold mb-2">
+                  <div className="text-3xl font-semibold mb-2">
                     {analysis.coverage.reservedInstances.toFixed(1)}%
                   </div>
                   <Progress value={analysis.coverage.reservedInstances} className="mb-2" />
@@ -491,7 +491,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
                   <CardDescription>Cobertura de planos de economia</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold mb-2">
+                  <div className="text-3xl font-semibold mb-2">
                     {analysis.coverage.savingsPlans.toFixed(1)}%
                   </div>
                   <Progress value={analysis.coverage.savingsPlans} className="mb-2" />
@@ -507,7 +507,7 @@ export function AdvancedRISPAnalyzer({ accountId, region = 'us-east-1' }: Advanc
                   <CardDescription>Score combinado de otimização</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold mb-2">
+                  <div className="text-3xl font-semibold mb-2">
                     {analysis.coverage.overall.toFixed(1)}%
                   </div>
                   <Progress value={analysis.coverage.overall} className="mb-2" />

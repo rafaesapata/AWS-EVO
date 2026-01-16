@@ -436,51 +436,34 @@ export default function SecurityPosture() {
     <Layout 
       title="Postura de Segurança" 
       description="Visão abrangente da segurança e compliance da sua infraestrutura AWS"
-      icon={<Shield className="h-7 w-7 text-white" />}
+      icon={<Shield className="h-4 w-4 text-white" />}
     >
       <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-6 w-6 text-primary" />
-                Postura de Segurança
-              </CardTitle>
-              <CardDescription>
-                Visão abrangente da segurança e compliance da sua infraestrutura AWS
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isLoading || isRefreshing}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Analisando...' : 'Atualizar'}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={exportReport}
-                className="glass"
-                disabled={!securityData}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Exportar Relatório
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+      {/* Action Buttons */}
+      <div className="flex items-center justify-end gap-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleRefresh}
+          disabled={isLoading || isRefreshing}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Analisando...' : 'Atualizar'}
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={exportReport}
+          disabled={!securityData}
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Exportar Relatório
+        </Button>
+      </div>
 
       {/* Security Score Overview */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass border-primary/20">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Security Score</CardTitle>
           </CardHeader>
@@ -489,7 +472,7 @@ export default function SecurityPosture() {
               <Skeleton className="h-12 w-20" />
             ) : !securityData ? (
               <div className="space-y-2">
-                <div className="text-3xl font-bold text-muted-foreground">
+                <div className="text-3xl font-semibold text-muted-foreground">
                   --/100
                 </div>
                 <Progress value={0} className="h-2" />
@@ -500,7 +483,7 @@ export default function SecurityPosture() {
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="text-3xl font-bold">
+                <div className="text-3xl font-semibold">
                   {securityData.overall_score}/100
                 </div>
                 <Progress value={securityData.overall_score} className="h-2" />
@@ -527,7 +510,7 @@ export default function SecurityPosture() {
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Findings Críticos</CardTitle>
           </CardHeader>
@@ -535,16 +518,16 @@ export default function SecurityPosture() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : !securityData ? (
-              <div className="text-3xl font-bold text-muted-foreground">--</div>
+              <div className="text-3xl font-semibold text-muted-foreground">--</div>
             ) : (
-              <div className="text-3xl font-bold text-destructive">
+              <div className="text-3xl font-semibold text-destructive">
                 {securityData.findings_by_severity?.critical || 0}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Findings Altos</CardTitle>
           </CardHeader>
@@ -552,16 +535,16 @@ export default function SecurityPosture() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : !securityData ? (
-              <div className="text-3xl font-bold text-muted-foreground">--</div>
+              <div className="text-3xl font-semibold text-muted-foreground">--</div>
             ) : (
-              <div className="text-3xl font-bold text-warning">
+              <div className="text-3xl font-semibold text-warning">
                 {securityData.findings_by_severity?.high || 0}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Findings</CardTitle>
           </CardHeader>
@@ -569,9 +552,9 @@ export default function SecurityPosture() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : !securityData ? (
-              <div className="text-3xl font-bold text-muted-foreground">--</div>
+              <div className="text-3xl font-semibold text-muted-foreground">--</div>
             ) : (
-              <div className="text-3xl font-bold">
+              <div className="text-3xl font-semibold">
                 {Object.values(securityData.findings_by_severity || {}).reduce((sum, count) => sum + count, 0)}
               </div>
             )}
@@ -581,7 +564,7 @@ export default function SecurityPosture() {
 
       {/* Charts and Details */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="glass">
+        <TabsList className="glass-card-float">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="findings">Findings</TabsTrigger>
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
@@ -591,7 +574,7 @@ export default function SecurityPosture() {
         <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Findings by Severity */}
-            <Card className="glass border-primary/20">
+            <Card>
               <CardHeader>
                 <CardTitle>Findings por Severidade</CardTitle>
                 <CardDescription>Distribuição dos achados de segurança</CardDescription>
@@ -628,7 +611,7 @@ export default function SecurityPosture() {
             </Card>
 
             {/* Compliance Scores */}
-            <Card className="glass border-primary/20">
+            <Card>
               <CardHeader>
                 <CardTitle>Scores de Compliance</CardTitle>
                 <CardDescription>Conformidade com padrões de segurança</CardDescription>
@@ -672,7 +655,7 @@ export default function SecurityPosture() {
         </TabsContent>
 
         <TabsContent value="findings" className="space-y-6">
-          <Card className="glass border-primary/20">
+          <Card>
             <CardHeader>
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
@@ -870,7 +853,7 @@ export default function SecurityPosture() {
         </TabsContent>
 
         <TabsContent value="compliance" className="space-y-6">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Status de Compliance</CardTitle>
               <CardDescription>Conformidade com padrões de segurança</CardDescription>
@@ -917,7 +900,7 @@ export default function SecurityPosture() {
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-6">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Tendências de Segurança</CardTitle>
               <CardDescription>Evolução da postura de segurança ao longo do tempo</CardDescription>

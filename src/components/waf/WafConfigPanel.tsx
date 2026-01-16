@@ -105,7 +105,7 @@ export function WafConfigPanel({ accountId }: WafConfigPanelProps) {
 
   if (!config) {
     return (
-      <Card className="glass border-primary/20">
+      <Card className="">
         <CardContent className="flex flex-col items-center justify-center h-[200px]">
           <Settings className="h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-muted-foreground">{t('waf.noConfig')}</p>
@@ -117,7 +117,7 @@ export function WafConfigPanel({ accountId }: WafConfigPanelProps) {
   return (
     <div className="space-y-6">
       {/* Alert Configuration */}
-      <Card className="glass border-primary/20">
+      <Card className="">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5 text-primary" />
@@ -196,7 +196,7 @@ export function WafConfigPanel({ accountId }: WafConfigPanelProps) {
       </Card>
 
       {/* Campaign Detection */}
-      <Card className="glass border-primary/20">
+      <Card className="">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-primary" />
@@ -242,7 +242,7 @@ export function WafConfigPanel({ accountId }: WafConfigPanelProps) {
       </Card>
 
       {/* Auto-Block Configuration */}
-      <Card className="glass border-primary/20">
+      <Card className="">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />

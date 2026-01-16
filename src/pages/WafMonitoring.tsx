@@ -194,44 +194,28 @@ export default function WafMonitoring() {
   return (
     <Layout
       title={t('waf.title', 'WAF Monitoring')}
-      description={t('waf.description', 'Monitoramento de ameaças em tempo real')}
-      icon={<ShieldAlert className="h-7 w-7 text-white" />}
+      description={t('waf.monitoringDescription', 'Detecte e bloqueie ameaças automaticamente')}
+      icon={<ShieldAlert className="h-4 w-4 text-white" />}
     >
       <div className="space-y-6">
-        {/* Header */}
-        <Card className="glass border-primary/20">
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldAlert className="h-6 w-6 text-primary" />
-                  {t('waf.realTimeMonitoring', 'Monitoramento em Tempo Real')}
-                </CardTitle>
-                <CardDescription>
-                  {t('waf.monitoringDescription', 'Detecte e bloqueie ameaças automaticamente')}
-                </CardDescription>
-              </div>
-              {hasActiveConfig && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRefresh}
-                    disabled={metricsLoading}
-                    className="glass hover-glow"
-                  >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${metricsLoading ? 'animate-spin' : ''}`} />
-                    {t('common.refresh', 'Atualizar')}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-        </Card>
+        {/* Action Buttons */}
+        {hasActiveConfig && (
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={metricsLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${metricsLoading ? 'animate-spin' : ''}`} />
+              {t('common.refresh', 'Atualizar')}
+            </Button>
+          </div>
+        )}
 
         {/* Show Setup Panel if no active config */}
         {configsLoading ? (
-          <Card className="glass">
+          <Card>
             <CardContent className="flex items-center justify-center py-12">
               <RefreshCw className="h-6 w-6 animate-spin mr-2" />
               <span>{t('common.loading', 'Carregando...')}</span>
@@ -250,7 +234,7 @@ export default function WafMonitoring() {
 
             {/* Main Content Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="glass">
+              <TabsList className="glass-card-float">
                 <TabsTrigger value="overview">{t('waf.overview', 'Visão Geral')}</TabsTrigger>
                 <TabsTrigger value="events">{t('waf.events', 'Eventos')}</TabsTrigger>
                 <TabsTrigger value="config">

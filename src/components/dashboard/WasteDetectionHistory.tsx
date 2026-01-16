@@ -115,7 +115,7 @@ export const WasteDetectionHistory = ({ organizationId, onViewScan }: WasteDetec
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Recursos Desperdiçados</p>
-                    <p className="text-2xl font-bold">{latestScan.total_waste_count}</p>
+                    <p className="text-2xl font-semibold">{latestScan.total_waste_count}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${wasteTrend < 0 ? 'text-green-500' : wasteTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {wasteTrend < 0 ? (
@@ -134,7 +134,7 @@ export const WasteDetectionHistory = ({ organizationId, onViewScan }: WasteDetec
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Desperdício Anual</p>
-                    <p className="text-2xl font-bold text-destructive">${latestScan.total_yearly_cost.toFixed(2)}</p>
+                    <p className="text-2xl font-semibold text-destructive">${latestScan.total_yearly_cost.toFixed(2)}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${costTrend < 0 ? 'text-green-500' : costTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {costTrend < 0 ? (

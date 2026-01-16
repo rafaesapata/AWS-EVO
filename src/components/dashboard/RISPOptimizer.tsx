@@ -291,7 +291,7 @@ export default function RISPOptimizer() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">Potential Yearly Savings</div>
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-2xl font-semibold text-green-600">
                       ${totalYearlySavings.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                     </div>
                   </div>
@@ -305,7 +305,7 @@ export default function RISPOptimizer() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">Monthly Savings</div>
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-semibold">
                       ${totalMonthlySavings.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                     </div>
                   </div>
@@ -319,7 +319,7 @@ export default function RISPOptimizer() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">Avg. Confidence</div>
-                    <div className="text-2xl font-bold">{avgConfidence.toFixed(0)}%</div>
+                    <div className="text-2xl font-semibold">{avgConfidence.toFixed(0)}%</div>
                     <Progress value={avgConfidence} className="h-1 mt-2" />
                   </div>
                   <Target className="h-8 w-8 text-primary/20" />
@@ -378,7 +378,7 @@ export default function RISPOptimizer() {
                     <TableCell className="text-green-600 font-semibold">
                       ${rec.monthly_savings.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                     </TableCell>
-                    <TableCell className="text-green-600 font-bold">
+                    <TableCell className="text-green-600 font-semibold">
                       ${rec.yearly_savings.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                     </TableCell>
                     <TableCell>
@@ -543,12 +543,12 @@ export default function RISPOptimizer() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm text-muted-foreground">Custo On-Demand Atual</label>
-                      <p className="text-2xl font-bold">${selectedRec.current_on_demand_cost.toLocaleString('en-US', { maximumFractionDigits: 2 })}</p>
+                      <p className="text-2xl font-semibold">${selectedRec.current_on_demand_cost.toLocaleString('en-US', { maximumFractionDigits: 2 })}</p>
                       <p className="text-xs text-muted-foreground">por mês</p>
                     </div>
                     <div>
                       <label className="text-sm text-muted-foreground">Custo com Compromisso</label>
-                      <p className="text-2xl font-bold text-primary">${selectedRec.recommended_commitment_cost.toLocaleString('en-US', { maximumFractionDigits: 2 })}</p>
+                      <p className="text-2xl font-semibold text-primary">${selectedRec.recommended_commitment_cost.toLocaleString('en-US', { maximumFractionDigits: 2 })}</p>
                       <p className="text-xs text-muted-foreground">por mês</p>
                     </div>
                   </div>
@@ -557,7 +557,7 @@ export default function RISPOptimizer() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-sm text-muted-foreground">Economia Mensal</label>
-                        <p className="text-2xl font-bold text-green-600">
+                        <p className="text-2xl font-semibold text-green-600">
                           ${selectedRec.monthly_savings.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                         </p>
                         <p className="text-xs text-muted-foreground">
@@ -566,7 +566,7 @@ export default function RISPOptimizer() {
                       </div>
                       <div>
                         <label className="text-sm text-muted-foreground">Economia Anual</label>
-                        <p className="text-2xl font-bold text-green-600">
+                        <p className="text-2xl font-semibold text-green-600">
                           ${selectedRec.yearly_savings.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                         </p>
                         {selectedRec.break_even_months !== null && (

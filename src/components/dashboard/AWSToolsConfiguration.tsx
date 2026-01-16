@@ -399,7 +399,7 @@ export function AWSToolsConfiguration() {
               <Settings className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-sm font-medium">Total de Ferramentas</p>
-                <p className="text-2xl font-bold">{tools.length}</p>
+                <p className="text-2xl font-semibold">{tools.length}</p>
               </div>
             </div>
           </CardContent>
@@ -411,7 +411,7 @@ export function AWSToolsConfiguration() {
               <CheckCircle2 className="h-5 w-5 text-green-500" />
               <div>
                 <p className="text-sm font-medium">Habilitadas</p>
-                <p className="text-2xl font-bold text-green-600">{enabledTools.length}</p>
+                <p className="text-2xl font-semibold text-green-600">{enabledTools.length}</p>
               </div>
             </div>
           </CardContent>
@@ -423,7 +423,7 @@ export function AWSToolsConfiguration() {
               <Wrench className="h-5 w-5 text-blue-500" />
               <div>
                 <p className="text-sm font-medium">Configuradas</p>
-                <p className="text-2xl font-bold text-blue-600">{configuredTools.length}</p>
+                <p className="text-2xl font-semibold text-blue-600">{configuredTools.length}</p>
               </div>
             </div>
           </CardContent>
@@ -435,7 +435,7 @@ export function AWSToolsConfiguration() {
               <DollarSign className="h-5 w-5 text-orange-500" />
               <div>
                 <p className="text-sm font-medium">Custo Estimado</p>
-                <p className="text-2xl font-bold text-orange-600">~$50/mês</p>
+                <p className="text-2xl font-semibold text-orange-600">~$50/mês</p>
               </div>
             </div>
           </CardContent>

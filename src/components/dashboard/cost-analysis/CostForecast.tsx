@@ -283,7 +283,7 @@ export function CostForecast({ accountId }: Props) {
             </CardDescription>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold">${predictedMonthlyCost.toFixed(2)}</div>
+            <div className="text-2xl font-semibold">${predictedMonthlyCost.toFixed(2)}</div>
             <Badge variant={growthRate > 10 ? "destructive" : "default"}>
               {growthRate > 0 ? '+' : ''}{growthRate.toFixed(1)}% vs atual
             </Badge>

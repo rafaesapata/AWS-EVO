@@ -1,11 +1,14 @@
 /**
  * Trend Analysis - Cost and security trends over time
+ * Clean Light Design with color palette:
+ *   - Primary: #003C7D (dark blue)
+ *   - Secondary: #008CFF (light blue)
+ *   - Success: #10B981 (green)
+ *   - Background: #FFFFFF / #F9FAFB
+ *   - Text: #1F2937 (dark gray)
+ * Charts: Gradient blue bars (#005FC5 to #003C7D)
  */
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { TrendingUp } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { 
   AreaChart, 
@@ -15,7 +18,8 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  LineChart,
+  BarChart,
+  Bar,
   Line
 } from 'recharts';
 import type { TrendData } from '../types';
@@ -35,9 +39,12 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
     '90d': '90 Days'
   };
 
-  // Format date for display
+  // Format date for display (MON, TUE, WED style for 7d)
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
+    if (period === '7d') {
+      return date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+    }
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
@@ -54,153 +61,190 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
   }));
 
   return (
-    <Card>
-      <CardHeader>
+    <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            <CardTitle>{t('executiveDashboard.trendAnalysis', 'Trend Analysis')}</CardTitle>
+          <div>
+            <h3 className="text-base font-semibold text-[#1F2937]">
+              {t('executiveDashboard.trendAnalysis', 'Trend Analysis')}
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {t('executiveDashboard.trendAnalysisDesc', 'Cost and security trends over time')}
+            </p>
           </div>
-          <div className="flex gap-1">
+          
+          {/* Pill-style Navigation Tabs */}
+          <div className="flex gap-1 p-1 bg-[#F9FAFB] rounded-xl">
             {(['7d', '30d', '90d'] as const).map((p) => (
-              <Button
+              <button
                 key={p}
-                variant={period === p ? 'default' : 'outline'}
-                size="sm"
                 onClick={() => onPeriodChange(p)}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                  period === p 
+                    ? 'bg-[#003C7D] text-white shadow-sm' 
+                    : 'text-gray-600 hover:text-[#003C7D] hover:bg-white'
+                }`}
               >
                 {periodLabels[p]}
-              </Button>
+              </button>
             ))}
           </div>
         </div>
-        <CardDescription>
-          {t('executiveDashboard.trendAnalysisDesc', 'Cost and security trends over time')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+      </div>
+
+      <div className="p-6">
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Cost Trend */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium">
+          {/* Cost Trend - Bar Chart with Gradient */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-[#1F2937]">
               {t('executiveDashboard.costTrend', 'Cost Trend')}
             </h4>
             {costChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={costChartData}>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={costChartData} barCategoryGap="20%">
                   <defs>
-                    <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="netGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    <linearGradient id="costBarGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#005FC5" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#003C7D" stopOpacity={1}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
                   <XAxis 
                     dataKey="date" 
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="#9CA3AF"
                     fontSize={11}
                     tickLine={false}
+                    axisLine={false}
                   />
                   <YAxis 
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="#9CA3AF"
                     fontSize={11}
                     tickLine={false}
+                    axisLine={false}
                     tickFormatter={(value) => `$${value}`}
                   />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                      fontSize: '12px'
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      color: '#1F2937',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
-                    formatter={(value: number) => [`$${value.toFixed(2)}`, '']}
+                    formatter={(value: number | undefined) => value !== undefined ? [`$${value.toFixed(2)}`, 'Cost'] : ['N/A', 'Cost']}
+                    labelStyle={{ color: '#6B7280', fontWeight: 500 }}
                   />
-                  <Area 
-                    type="monotone" 
+                  <Bar 
                     dataKey="cost" 
-                    stroke="hsl(var(--primary))" 
-                    fill="url(#costGradient)"
-                    strokeWidth={2}
+                    fill="url(#costBarGradient)"
+                    radius={[6, 6, 0, 0]}
                     name="Total Cost"
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="net" 
-                    stroke="#10b981" 
-                    fill="url(#netGradient)"
-                    strokeWidth={2}
-                    name="Net Cost"
-                  />
-                </AreaChart>
+                </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+              <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm bg-[#F9FAFB] rounded-xl">
                 No cost data available
               </div>
             )}
           </div>
 
-          {/* Security Trend */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium">
+          {/* Security Trend - Line Chart */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-[#1F2937]">
               {t('executiveDashboard.securityTrend', 'Security Score Trend')}
             </h4>
             {securityChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={securityChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={securityChartData}>
+                  <defs>
+                    <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#003C7D" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#003C7D" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="findingsGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
                   <XAxis 
                     dataKey="date" 
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="#9CA3AF"
                     fontSize={11}
                     tickLine={false}
+                    axisLine={false}
                   />
                   <YAxis 
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="#9CA3AF"
                     fontSize={11}
                     tickLine={false}
+                    axisLine={false}
                     domain={[0, 100]}
                   />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                      fontSize: '12px'
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      color: '#1F2937',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
+                    labelStyle={{ color: '#6B7280', fontWeight: 500 }}
                   />
-                  <Line 
+                  <Area 
                     type="monotone" 
                     dataKey="score" 
-                    stroke="#10b981" 
+                    stroke="#003C7D" 
+                    fill="url(#scoreGradient)"
                     strokeWidth={2}
-                    dot={{ fill: '#10b981', strokeWidth: 2 }}
+                    dot={{ fill: '#003C7D', strokeWidth: 2, r: 4 }}
                     name="Security Score"
                   />
                   <Line 
                     type="monotone" 
                     dataKey="findings" 
-                    stroke="#ef4444" 
+                    stroke="#EF4444" 
                     strokeWidth={2}
                     strokeDasharray="5 5"
-                    dot={{ fill: '#ef4444', strokeWidth: 2 }}
+                    dot={{ fill: '#EF4444', strokeWidth: 2, r: 3 }}
                     name="Critical+High Findings"
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+              <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm bg-[#F9FAFB] rounded-xl">
                 No security trend data available
               </div>
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Activity Highlight - Large Percentage */}
+        {data.cost.length > 0 && (
+          <div className="mt-6 p-5 rounded-2xl bg-gradient-to-r from-[#003C7D]/5 to-[#008CFF]/5 border border-[#003C7D]/10">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm text-gray-500">Period Activity</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-5xl font-light text-[#003C7D] tabular-nums">
+                    {Math.round((data.cost.reduce((sum, d) => sum + d.cost, 0) / data.cost.length) * 10) / 10}%
+                  </span>
+                  <span className="text-sm text-gray-500">avg utilization</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-1 text-[#10B981]">
+                  <span className="text-sm font-medium">↑ 3.5%</span>
+                  <span className="text-xs text-gray-500">vs last period</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

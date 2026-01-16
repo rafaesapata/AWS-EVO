@@ -145,7 +145,7 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
 
           <div className="space-y-6">
             <div className="space-y-2">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent animate-slide-up">
+              <h2 className="text-3xl font-semibold bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent animate-slide-up">
                 {currentStepData.title}
               </h2>
               <p className="text-lg text-muted-foreground animate-fade-in">

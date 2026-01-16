@@ -27,7 +27,7 @@ export default function CloudCredentials() {
       <div className="space-y-6">
         {/* Tabs for AWS and Azure */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="glass grid w-full max-w-md grid-cols-2">
+          <TabsList className="glass-card-float grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="aws" className="flex items-center gap-2">
               <Server className="h-4 w-4" />
               AWS
@@ -50,7 +50,7 @@ export default function CloudCredentials() {
         </Tabs>
 
         {/* Info Card */}
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader>
             <CardTitle className="text-base">
               {t('cloudCredentials.multiCloudTitle', 'Multi-Cloud Support')}

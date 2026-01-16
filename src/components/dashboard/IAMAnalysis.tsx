@@ -108,7 +108,7 @@ export function IAMAnalysis() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold">Análise de Permissões IAM</h2>
+          <h2 className="text-3xl font-semibold">Análise de Permissões IAM</h2>
           <p className="text-muted-foreground">Identifique privilégios excessivos e recursos não utilizados</p>
         </div>
         <Button onClick={handleRunAnalysis} disabled={isScanning} size="lg">
@@ -121,11 +121,11 @@ export function IAMAnalysis() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-5">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{stats.total}</div></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Críticos</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-destructive">{stats.critical}</div></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Alta Prioridade</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-orange-600">{stats.high}</div></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Não Utilizados</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{stats.unused}</div></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Sobreprivilegiados</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{stats.overprivileged}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total</CardTitle></CardHeader><CardContent><div className="text-2xl font-semibold">{stats.total}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Críticos</CardTitle></CardHeader><CardContent><div className="text-2xl font-semibold text-destructive">{stats.critical}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Alta Prioridade</CardTitle></CardHeader><CardContent><div className="text-2xl font-semibold text-orange-600">{stats.high}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Não Utilizados</CardTitle></CardHeader><CardContent><div className="text-2xl font-semibold">{stats.unused}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Sobreprivilegiados</CardTitle></CardHeader><CardContent><div className="text-2xl font-semibold">{stats.overprivileged}</div></CardContent></Card>
       </div>
 
       <Tabs defaultValue="all" className="w-full">

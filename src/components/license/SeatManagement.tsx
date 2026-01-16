@@ -369,15 +369,15 @@ export function SeatManagement({ organizationId, totalSeats, licenseKey }: SeatM
         {/* Seat Statistics */}
         <div className="grid grid-cols-3 gap-4">
           <div className="p-4 rounded-lg bg-muted">
-            <div className="text-2xl font-bold">{totalSeats}</div>
+            <div className="text-2xl font-semibold">{totalSeats}</div>
             <div className="text-sm text-muted-foreground">Total de Assentos</div>
           </div>
           <div className="p-4 rounded-lg bg-primary/10">
-            <div className="text-2xl font-bold text-primary">{allocatedSeats}</div>
+            <div className="text-2xl font-semibold text-primary">{allocatedSeats}</div>
             <div className="text-sm text-muted-foreground">Assentos Alocados</div>
           </div>
           <div className="p-4 rounded-lg bg-green-500/10">
-            <div className="text-2xl font-bold text-green-600">{availableSeatsCount}</div>
+            <div className="text-2xl font-semibold text-green-600">{availableSeatsCount}</div>
             <div className="text-sm text-muted-foreground">Assentos Disponíveis</div>
           </div>
         </div>

@@ -26,7 +26,7 @@ export function PageHeader({
   return (
     <div className={cn("flex items-start justify-between mb-6", className)}>
       <div>
-        <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+        <h2 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
           {Icon && <Icon className="h-8 w-8 text-primary" />}
           {title}
           {children}

@@ -241,6 +241,19 @@ export class AWSService {
       throw error;
     }
   }
+
+  // Get saved RI/SP data from database
+  static async getRISPData(accountId: string) {
+    try {
+      const response = await apiClient.post('/api/functions/get-ri-sp-data', {
+        accountId
+      });
+      return response;
+    } catch (error) {
+      console.error('Get RI/SP Data Error:', error);
+      throw error;
+    }
+  }
 }
 
 export const awsService = AWSService;

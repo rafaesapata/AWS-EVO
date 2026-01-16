@@ -119,7 +119,7 @@ export default function OrganizationSettings() {
   }
 
   return (
-    <Card className="glass-hover">
+    <Card className="hover:bg-gray-50">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

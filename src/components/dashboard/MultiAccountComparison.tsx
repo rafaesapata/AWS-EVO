@@ -115,12 +115,12 @@ export function MultiAccountComparison() {
                     return (
                       <div key={account.id} className="p-4 border rounded-lg">
                         <div className="flex items-center gap-4 mb-3">
-                          <div className={`text-2xl font-bold ${badge.color}`}>{badge.icon}</div>
+                          <div className={`text-2xl font-semibold ${badge.color}`}>{badge.icon}</div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <h4 className="font-semibold text-sm">{account.account_name}</h4>
                               <div className="text-right">
-                                <div className="font-bold text-green-600">${account.total_savings.toLocaleString()}</div>
+                                <div className="font-semibold text-green-600">${account.total_savings.toLocaleString()}</div>
                                 <div className="text-xs text-muted-foreground">economia total</div>
                               </div>
                             </div>
@@ -146,11 +146,11 @@ export function MultiAccountComparison() {
                     return (
                       <div key={account.id} className="p-4 border rounded-lg">
                         <div className="flex items-center gap-4 mb-3">
-                          <div className={`text-2xl font-bold ${badge.color}`}>{badge.icon}</div>
+                          <div className={`text-2xl font-semibold ${badge.color}`}>{badge.icon}</div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <h4 className="font-semibold text-sm">{account.account_name}</h4>
-                              <div className={`font-bold ${account.critical_findings === 0 ? 'text-green-600' : account.critical_findings < 5 ? 'text-yellow-600' : 'text-red-600'}`}>
+                              <div className={`font-semibold ${account.critical_findings === 0 ? 'text-green-600' : account.critical_findings < 5 ? 'text-yellow-600' : 'text-red-600'}`}>
                                 {account.critical_findings} críticos
                               </div>
                             </div>
@@ -175,11 +175,11 @@ export function MultiAccountComparison() {
                     return (
                       <div key={account.id} className="p-4 border rounded-lg">
                         <div className="flex items-center gap-4 mb-3">
-                          <div className={`text-2xl font-bold ${badge.color}`}>{badge.icon}</div>
+                          <div className={`text-2xl font-semibold ${badge.color}`}>{badge.icon}</div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <h4 className="font-semibold text-sm">{account.account_name}</h4>
-                              <div className={`text-2xl font-bold ${account.wa_score >= 80 ? 'text-green-600' : account.wa_score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                              <div className={`text-2xl font-semibold ${account.wa_score >= 80 ? 'text-green-600' : account.wa_score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
                                 {account.wa_score.toFixed(0)}%
                               </div>
                             </div>
@@ -195,9 +195,9 @@ export function MultiAccountComparison() {
 
             <div className="mt-6 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/20 dark:to-orange-950/20 border-2 border-yellow-500 dark:border-yellow-600 rounded-lg">
               <div className="flex items-center gap-3 mb-2">
-                <div className="text-4xl">🏆</div>
+                <div className="text-3xl">🏆</div>
                 <div>
-                  <h3 className="font-bold text-lg">Conta Campeã Geral</h3>
+                  <h3 className="font-semibold text-lg">Conta Campeã Geral</h3>
                   <p className="text-sm text-muted-foreground">Melhor performance consolidada</p>
                 </div>
               </div>

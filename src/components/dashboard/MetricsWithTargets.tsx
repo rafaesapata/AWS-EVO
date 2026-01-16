@@ -72,7 +72,7 @@ export default function MetricsWithTargets({ organizationId }: { organizationId:
   };
 
   return (
-    <Card className="glass-card">
+    <Card className="">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <Target className="h-5 w-5 text-primary" />

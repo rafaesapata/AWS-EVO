@@ -279,8 +279,8 @@ export default function AzureOAuthCallback() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
-      <Card className="w-full max-w-lg glass">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-lg ">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 p-3 rounded-full bg-blue-100 dark:bg-blue-900/30 w-fit">
             <Cloud className="h-8 w-8 text-blue-600" />

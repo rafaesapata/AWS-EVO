@@ -26,7 +26,7 @@ export default function RISavingsPlans() {
           regions={accountRegions}
         />
       ) : (
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-yellow-500" />

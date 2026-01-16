@@ -210,7 +210,7 @@ export const ResourceMetricsChart = ({
             </div>
             {latestDatapoint && (
               <div className="text-right">
-                <p className="text-xl font-bold text-muted-foreground">
+                <p className="text-xl font-semibold text-muted-foreground">
                   {isCountMetric 
                     ? Math.round(Number(latestDatapoint.metric_value)).toLocaleString()
                     : Number(latestDatapoint.metric_value).toFixed(2)
@@ -252,7 +252,7 @@ export const ResourceMetricsChart = ({
             </CardDescription>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold">
+            <p className="text-2xl font-semibold">
               {formatMetricValue(metricName, latestValue)}
             </p>
             <p className="text-xs text-muted-foreground">{unit}</p>

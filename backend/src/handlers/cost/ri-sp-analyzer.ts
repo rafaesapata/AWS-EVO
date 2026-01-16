@@ -366,6 +366,14 @@ export async function handler(
         });
       }
       
+      // Delete old recommendations before creating new ones
+      await prisma.riSpRecommendation.deleteMany({
+        where: {
+          organization_id: organizationId,
+          aws_account_id: accountId,
+        },
+      });
+      
       // Save Recommendations
       for (const rec of recommendations) {
         await prisma.riSpRecommendation.create({

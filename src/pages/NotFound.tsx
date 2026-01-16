@@ -7,7 +7,7 @@ import evoLogo from "@/assets/evo-logo.png";
 const NotFound = () => {
   return (
     <div className="min-h-screen animated-gradient flex items-center justify-center p-4">
-      <Card className="glass shadow-elegant max-w-lg w-full animate-scale-in">
+      <Card className="max-w-lg w-full animate-scale-in">
         <CardContent className="p-8 text-center">
           <div className="mb-6">
             <img src={evoLogo} alt="EVO Cloud Intelligence" className="h-20 mx-auto mb-4" />
@@ -15,7 +15,7 @@ const NotFound = () => {
           
           <div className="mb-6">
             <AlertTriangle className="h-16 w-16 text-primary mx-auto mb-4 animate-pulse" />
-            <h1 className="text-6xl font-bold text-primary mb-2">404</h1>
+            <h1 className="text-6xl font-semibold text-primary mb-2">404</h1>
             <h2 className="text-2xl font-semibold mb-2">Página Não Encontrada</h2>
             <p className="text-muted-foreground">
               A página que você está procurando não existe ou foi movida.

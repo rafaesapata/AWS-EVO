@@ -241,43 +241,27 @@ export default function EndpointMonitoring() {
   return (
     <Layout 
       title="Monitoramento de Endpoints" 
-      description="Monitore a saúde e performance dos seus endpoints e APIs"
-      icon={<Activity className="h-7 w-7 text-white" />}
+      description="Monitoramento em tempo real de APIs, Load Balancers e endpoints críticos"
+      icon={<Activity className="h-4 w-4 text-white" />}
     >
       <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-6 w-6 text-primary" />
-                Monitoramento de Endpoints
-              </CardTitle>
-              <CardDescription>
-                Monitoramento em tempo real de APIs, Load Balancers e endpoints críticos
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isLoading}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                {isLoading ? 'Atualizando...' : 'Atualizar'}
-              </Button>
-              <CreateEndpointDialog />
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+      {/* Action Buttons */}
+      <div className="flex items-center justify-end gap-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleRefresh}
+          disabled={isLoading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Atualizar
+        </Button>
+        <CreateEndpointDialog />
+      </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Endpoints</CardTitle>
           </CardHeader>
@@ -285,12 +269,12 @@ export default function EndpointMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold">{totalCount}</div>
+              <div className="text-2xl font-semibold">{totalCount}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Online</CardTitle>
           </CardHeader>
@@ -298,12 +282,12 @@ export default function EndpointMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-green-500">{upCount}</div>
+              <div className="text-2xl font-semibold text-green-500">{upCount}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Com Problemas</CardTitle>
           </CardHeader>
@@ -311,12 +295,12 @@ export default function EndpointMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-red-500">{downCount + degradedCount}</div>
+              <div className="text-2xl font-semibold text-red-500">{downCount + degradedCount}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Tempo de Resposta Médio</CardTitle>
           </CardHeader>
@@ -324,12 +308,12 @@ export default function EndpointMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold">{avgResponseTime ? avgResponseTime.toFixed(0) : '-'}ms</div>
+              <div className="text-2xl font-semibold">{avgResponseTime ? avgResponseTime.toFixed(0) : '-'}ms</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Ativos</CardTitle>
           </CardHeader>
@@ -338,7 +322,7 @@ export default function EndpointMonitoring() {
               <Skeleton className="h-8 w-16" />
             ) : (
               <div className="space-y-2">
-                <div className="text-2xl font-bold">{activeCount}/{totalCount}</div>
+                <div className="text-2xl font-semibold">{activeCount}/{totalCount}</div>
                 <Progress value={totalCount > 0 ? (activeCount / totalCount) * 100 : 0} className="h-2" />
               </div>
             )}
@@ -348,7 +332,7 @@ export default function EndpointMonitoring() {
 
       {/* Main Content */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="glass">
+        <TabsList className="glass-card-float">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
           <TabsTrigger value="metrics">Métricas</TabsTrigger>
@@ -358,7 +342,7 @@ export default function EndpointMonitoring() {
         <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Response Time Chart */}
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>Tempo de Resposta</CardTitle>
                 <CardDescription>Histórico recente</CardDescription>
@@ -404,7 +388,7 @@ export default function EndpointMonitoring() {
             </Card>
 
             {/* Status Distribution */}
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>Distribuição de Status</CardTitle>
                 <CardDescription>Status atual dos endpoints</CardDescription>
@@ -450,7 +434,7 @@ export default function EndpointMonitoring() {
         </TabsContent>
 
         <TabsContent value="endpoints" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Lista de Endpoints</CardTitle>
               <CardDescription>Status detalhado de todos os endpoints monitorados</CardDescription>
@@ -541,7 +525,7 @@ export default function EndpointMonitoring() {
         </TabsContent>
 
         <TabsContent value="metrics" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Métricas Detalhadas</CardTitle>
               <CardDescription>Análise histórica de performance dos endpoints</CardDescription>
@@ -618,29 +602,29 @@ export default function EndpointMonitoring() {
                   
                   {/* Summary Stats */}
                   <div className="grid grid-cols-4 gap-4">
-                    <Card className="glass">
+                    <Card >
                       <CardContent className="pt-4">
-                        <div className="text-2xl font-bold text-green-600">{upCount}</div>
+                        <div className="text-2xl font-semibold text-green-600">{upCount}</div>
                         <div className="text-sm text-muted-foreground">Endpoints Online</div>
                       </CardContent>
                     </Card>
-                    <Card className="glass">
+                    <Card >
                       <CardContent className="pt-4">
-                        <div className="text-2xl font-bold">{avgResponseTime ? avgResponseTime.toFixed(0) : '-'}ms</div>
+                        <div className="text-2xl font-semibold">{avgResponseTime ? avgResponseTime.toFixed(0) : '-'}ms</div>
                         <div className="text-sm text-muted-foreground">Tempo Médio</div>
                       </CardContent>
                     </Card>
-                    <Card className="glass">
+                    <Card >
                       <CardContent className="pt-4">
-                        <div className="text-2xl font-bold text-blue-600">
+                        <div className="text-2xl font-semibold text-blue-600">
                           {endpoints.filter(e => e.monitor_ssl && e.ssl_valid).length}/{endpoints.filter(e => e.monitor_ssl).length}
                         </div>
                         <div className="text-sm text-muted-foreground">SSL Válidos</div>
                       </CardContent>
                     </Card>
-                    <Card className="glass">
+                    <Card >
                       <CardContent className="pt-4">
-                        <div className="text-2xl font-bold text-yellow-600">
+                        <div className="text-2xl font-semibold text-yellow-600">
                           {alerts?.filter(a => !a.resolved_at).length || 0}
                         </div>
                         <div className="text-sm text-muted-foreground">Alertas Ativos</div>
@@ -662,7 +646,7 @@ export default function EndpointMonitoring() {
         </TabsContent>
 
         <TabsContent value="alerts" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bell className="h-5 w-5" />

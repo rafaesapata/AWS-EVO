@@ -76,7 +76,7 @@ export default function SuperAdminPanel() {
 
   return (
     <>
-      <Card className="glass-hover border-primary/30">
+      <Card className="hover:bg-gray-50 border-primary/30">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

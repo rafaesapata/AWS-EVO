@@ -95,7 +95,7 @@ export function SavingsSimulator() {
           <Card className="bg-gradient-primary text-white">
             <CardContent className="pt-6">
               <div className="text-sm opacity-90">Economia Mensal</div>
-              <div className="text-3xl font-bold flex items-center gap-2">
+              <div className="text-3xl font-semibold flex items-center gap-2">
                 <DollarSign className="w-6 h-6" />
                 {totalMonthlySavings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
@@ -105,7 +105,7 @@ export function SavingsSimulator() {
           <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
             <CardContent className="pt-6">
               <div className="text-sm opacity-90">Economia Anual</div>
-              <div className="text-3xl font-bold flex items-center gap-2">
+              <div className="text-3xl font-semibold flex items-center gap-2">
                 <DollarSign className="w-6 h-6" />
                 {totalYearlySavings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
@@ -115,7 +115,7 @@ export function SavingsSimulator() {
           <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
             <CardContent className="pt-6">
               <div className="text-sm opacity-90">Redução de Custo</div>
-              <div className="text-3xl font-bold">
+              <div className="text-3xl font-semibold">
                 {savingsPercentage.toFixed(1)}%
               </div>
             </CardContent>
@@ -129,7 +129,7 @@ export function SavingsSimulator() {
               <Calendar className="w-5 h-5 text-primary" />
               <span className="font-semibold">Período de Retorno</span>
             </div>
-            <div className="text-2xl font-bold text-primary">
+            <div className="text-2xl font-semibold text-primary">
               {paybackPeriod} {paybackPeriod === 1 ? 'mês' : 'meses'}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
@@ -221,13 +221,13 @@ export function SavingsSimulator() {
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div>
                 <div className="text-xs text-muted-foreground">Economia Total (12 meses)</div>
-                <div className="text-xl font-bold text-green-600">
+                <div className="text-xl font-semibold text-green-600">
                   ${totalYearlySavings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">ROI Estimado</div>
-                <div className="text-xl font-bold text-primary">
+                <div className="text-xl font-semibold text-primary">
                   {(totalYearlySavings / 1000).toFixed(1)}x
                 </div>
               </div>

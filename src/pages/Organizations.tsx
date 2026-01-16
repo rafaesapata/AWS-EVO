@@ -240,7 +240,7 @@ export default function Organizations() {
       <div className="space-y-6">
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Organizações</CardTitle>
           </CardHeader>
@@ -248,12 +248,12 @@ export default function Organizations() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold">{totalOrgs}</div>
+              <div className="text-2xl font-semibold">{totalOrgs}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Organizações Ativas</CardTitle>
           </CardHeader>
@@ -261,12 +261,12 @@ export default function Organizations() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-green-500">{activeOrgs}</div>
+              <div className="text-2xl font-semibold text-green-500">{activeOrgs}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Usuários</CardTitle>
           </CardHeader>
@@ -274,12 +274,12 @@ export default function Organizations() {
             {isLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold">{totalUsers}</div>
+              <div className="text-2xl font-semibold">{totalUsers}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Custo Total Mensal</CardTitle>
           </CardHeader>
@@ -287,7 +287,7 @@ export default function Organizations() {
             {isLoading ? (
               <Skeleton className="h-8 w-20" />
             ) : (
-              <div className="text-2xl font-bold text-blue-500">
+              <div className="text-2xl font-semibold text-blue-500">
                 ${totalMonthlyCost.toFixed(2)}
               </div>
             )}
@@ -296,7 +296,7 @@ export default function Organizations() {
       </div>
 
       {/* Organizations List */}
-      <Card className="glass border-primary/20">
+      <Card >
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Lista de Organizações</CardTitle>

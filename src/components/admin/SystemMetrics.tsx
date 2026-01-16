@@ -73,7 +73,7 @@ export function SystemMetrics() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold">System Metrics & Configuration</h2>
+          <h2 className="text-3xl font-semibold">System Metrics & Configuration</h2>
           <p className="text-muted-foreground">Monitor performance and configure system behavior</p>
         </div>
         <div className="flex gap-2">
@@ -166,7 +166,7 @@ export function SystemMetrics() {
                   {activeTimers.map((timerId) => (
                     <div
                       key={timerId}
-                      className="flex items-center justify-between p-3 rounded-lg glass"
+                      className="flex items-center justify-between p-3 rounded-lg "
                     >
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-primary" />

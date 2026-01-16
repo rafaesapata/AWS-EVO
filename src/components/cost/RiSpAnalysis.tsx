@@ -17,13 +17,18 @@ import {
   DollarSign,
   Clock,
   Target,
-  Zap
+  Zap,
+  History,
+  TrendingUp,
+  TrendingDown
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 // Interface for RI/SP analysis data from Lambda
 interface RiSpAnalysisData {
   success?: boolean;
+  hasData?: boolean; // Flag from backend indicating if there's data in database
+  analyzedAt?: string;
   executiveSummary?: {
     status: string;
     totalCommitments: number;
@@ -85,7 +90,6 @@ interface RiSpAnalysisData {
     timestamp?: string;
     accountId?: string;
   };
-  analyzedAt?: string;
 }
 
 export const RiSpAnalysis = () => {
@@ -93,7 +97,7 @@ export const RiSpAnalysis = () => {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider, selectedAccount } = useCloudAccount();
   const { data: organizationId } = useOrganization();
-  const [activeTab, setActiveTab] = useState<'overview' | 'ri' | 'sp' | 'recommendations'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'ri' | 'sp' | 'recommendations' | 'history'>('overview');
 
   // Get regions from selected account (default to us-east-1 if not set)
   const accountRegions = selectedAccount?.regions?.length ? selectedAccount.regions : ['us-east-1'];
@@ -101,53 +105,52 @@ export const RiSpAnalysis = () => {
   // Detect if Azure
   const isAzure = selectedProvider === 'AZURE';
 
-  // Fetch RI/SP analysis data - supports both AWS and Azure
-  // First try to get cached data from database, then fall back to live analysis
-  const { data: analysisData, isLoading } = useQuery<RiSpAnalysisData>({
+  // Fetch RI/SP analysis data from DATABASE - supports both AWS and Azure
+  // Data is automatically saved to database by ri-sp-analyzer Lambda
+  const { data: analysisData, isLoading, isFetching } = useQuery<RiSpAnalysisData>({
     queryKey: ['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions],
     enabled: !!organizationId && !!selectedAccountId,
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 30 * 60 * 1000, // 30 minutes - data stays fresh
+    gcTime: 60 * 60 * 1000, // 1 hour - keep in cache
     queryFn: async () => {
-      // Try to get saved data from database first (faster)
-      try {
-        const cachedResponse = await apiClient.invoke<RiSpAnalysisData>('get-ri-sp-analysis', {
-          body: { accountId: selectedAccountId }
-        });
-        
-        if (!cachedResponse.error && cachedResponse.data?.hasData) {
-          console.log('✅ Loaded RI/SP analysis from database cache');
-          return cachedResponse.data;
-        }
-      } catch (cacheError) {
-        console.log('⚠️ No cached data, will run live analysis');
-      }
+      console.log('🔄 Fetching RI/SP analysis from database...', {
+        organizationId,
+        selectedAccountId,
+        selectedProvider
+      });
       
-      // If no cached data, run live analysis
-      const lambdaName = isAzure ? 'azure-reservations-analyzer' : 'ri-sp-analyzer';
-      const bodyParam = isAzure 
-        ? { credentialId: selectedAccountId, lookbackDays: 30 }
-        : { accountId: selectedAccountId, analysisType: 'all', lookbackDays: 30, regions: accountRegions };
-      
-      const response = await apiClient.invoke<RiSpAnalysisData>(lambdaName, {
-        body: bodyParam
+      // Get saved data from database
+      const response = await apiClient.invoke<RiSpAnalysisData>('get-ri-sp-analysis', {
+        body: { accountId: selectedAccountId, includeHistory: false }
       });
       
       if (response.error) {
+        console.error('❌ Error fetching RI/SP analysis:', response.error);
         throw new Error(response.error.message);
       }
+      
+      console.log('✅ RI/SP analysis loaded from database:', {
+        hasData: response.data?.hasData,
+        riCount: response.data?.reservedInstances?.total,
+        spCount: response.data?.savingsPlans?.total,
+        recommendationsCount: Array.isArray(response.data?.recommendations) ? response.data.recommendations.length : 0
+      });
       
       return response.data;
     },
   });
 
-  // Refresh mutation - supports both AWS and Azure
+  // Refresh mutation - runs NEW analysis and saves to database
   const refreshMutation = useMutation<RiSpAnalysisData>({
     mutationFn: async () => {
+      console.log('🔄 Running NEW RI/SP analysis...');
+      
       const lambdaName = isAzure ? 'azure-reservations-analyzer' : 'ri-sp-analyzer';
       const bodyParam = isAzure 
         ? { credentialId: selectedAccountId, lookbackDays: 30 }
         : { accountId: selectedAccountId, analysisType: 'all', lookbackDays: 30, regions: accountRegions };
       
+      // Run analysis (Lambda will automatically save to database)
       const result = await apiClient.invoke<RiSpAnalysisData>(lambdaName, {
         body: bodyParam
       });
@@ -156,11 +159,14 @@ export const RiSpAnalysis = () => {
         throw new Error(result.error.message);
       }
       
+      console.log('✅ New analysis completed and saved to database');
       return result.data;
     },
     onSuccess: (data) => {
       // Update the query cache directly with the new data
       queryClient.setQueryData(['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions], data);
+      // Invalidate history to refresh it
+      queryClient.invalidateQueries({ queryKey: ['ri-sp-history', organizationId, selectedAccountId] });
       toast({
         title: "Análise Atualizada",
         description: `Dados de Reserved Instances e Savings Plans atualizados para ${accountRegions.length} região(ões).`,
@@ -172,6 +178,24 @@ export const RiSpAnalysis = () => {
         description: error.message || "Falha ao atualizar análise de RI/SP.",
         variant: "destructive",
       });
+    },
+  });
+
+  // Fetch analysis history
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ['ri-sp-history', organizationId, selectedAccountId],
+    enabled: !!organizationId && !!selectedAccountId && activeTab === 'history',
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: async () => {
+      const response = await apiClient.invoke('list-ri-sp-history', {
+        body: { accountId: selectedAccountId, limit: 30 }
+      });
+      
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+      
+      return response.data;
     },
   });
 
@@ -211,15 +235,23 @@ export const RiSpAnalysis = () => {
       : (recommendations?.totalPotentialAnnualSavings ?? 0));
 
   // Verificar se os dados foram realmente analisados
-  const hasRealData = analysisData && (
-    analysisData.success === true ||
-    analysisData.executiveSummary ||
-    riCount > 0 || 
-    spCount > 0 || 
-    recommendationsCount > 0 ||
-    analysisData.analyzedAt ||
-    analysisData.analysisMetadata
+  // Usar o campo hasData do backend como fonte de verdade
+  const hasRealData = analysisData?.hasData === true || (
+    analysisData && (
+      riCount > 0 || 
+      spCount > 0 || 
+      recommendationsCount > 0
+    )
   );
+
+  console.log('📊 Data check:', {
+    hasData: analysisData?.hasData,
+    hasRealData,
+    riCount,
+    spCount,
+    recommendationsCount,
+    analyzedAt: analysisData?.analyzedAt
+  });
 
   // Se não há dados reais, mostrar instruções para primeira execução
   if (!isLoading && !hasRealData) {
@@ -320,7 +352,7 @@ export const RiSpAnalysis = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{riCount}</div>
+            <div className="text-2xl font-semibold">{riCount}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {ri?.active || riCount} ativas
             </p>
@@ -334,7 +366,7 @@ export const RiSpAnalysis = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{spCount}</div>
+            <div className="text-2xl font-semibold">{spCount}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {sp?.active || spCount} ativos
             </p>
@@ -348,7 +380,7 @@ export const RiSpAnalysis = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-semibold text-green-600">
               ${((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0) + (analysisData?.potentialSavings?.monthly || 0)).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -364,7 +396,7 @@ export const RiSpAnalysis = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-semibold text-blue-600">
               ${(totalPotentialAnnualSavings / 12).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -376,7 +408,7 @@ export const RiSpAnalysis = () => {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="ri">Reserved Instances</TabsTrigger>
           <TabsTrigger value="sp">Savings Plans</TabsTrigger>
@@ -386,6 +418,7 @@ export const RiSpAnalysis = () => {
               <Badge variant="secondary" className="ml-2">{recommendationsCount}</Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="history">Histórico</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -399,7 +432,7 @@ export const RiSpAnalysis = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Utilização Média</span>
-                    <span className="text-sm font-bold">{ri?.averageUtilization || 0}%</span>
+                    <span className="text-sm font-semibold">{ri?.averageUtilization || 0}%</span>
                   </div>
                   <Progress value={ri?.averageUtilization || 0} />
                 </div>
@@ -422,7 +455,7 @@ export const RiSpAnalysis = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Utilização Média</span>
-                    <span className="text-sm font-bold">{sp?.averageUtilization || 0}%</span>
+                    <span className="text-sm font-semibold">{sp?.averageUtilization || 0}%</span>
                   </div>
                   <Progress value={sp?.averageUtilization || 0} />
                 </div>
@@ -430,7 +463,7 @@ export const RiSpAnalysis = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Cobertura Média</span>
-                    <span className="text-sm font-bold">{sp?.averageCoverage || 0}%</span>
+                    <span className="text-sm font-semibold">{sp?.averageCoverage || 0}%</span>
                   </div>
                   <Progress value={sp?.averageCoverage || 0} className="bg-blue-100" />
                 </div>
@@ -471,7 +504,7 @@ export const RiSpAnalysis = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-green-600">
+                        <div className="font-semibold text-green-600">
                           ${(rec.potentialSavings?.annual || rec.annualSavings || 0).toFixed(2)}/ano
                         </div>
                         <Badge variant={rec.priority === 1 || rec.priority === 'critical' || rec.priority === 'high' ? 'default' : 'secondary'} className="text-xs">
@@ -643,7 +676,7 @@ export const RiSpAnalysis = () => {
                             </p>
                           </div>
                           <div className="text-right">
-                            <div className="text-2xl font-bold text-green-600">
+                            <div className="text-2xl font-semibold text-green-600">
                               ${(rec.potentialSavings?.annual || rec.annualSavings || 0).toFixed(2)}
                             </div>
                             <p className="text-xs text-muted-foreground">economia anual</p>
@@ -658,7 +691,7 @@ export const RiSpAnalysis = () => {
                       <DollarSign className="h-5 w-5 text-blue-600" />
                       <span className="font-semibold text-blue-900">Economia Total Potencial</span>
                     </div>
-                    <div className="text-3xl font-bold text-blue-600">
+                    <div className="text-3xl font-semibold text-blue-600">
                       ${totalPotentialAnnualSavings.toFixed(2)}/ano
                     </div>
                     <p className="text-sm text-blue-700 mt-1">
@@ -671,6 +704,141 @@ export const RiSpAnalysis = () => {
                   <CheckCircle2 className="h-12 w-12 mx-auto mb-2 text-green-500" />
                   <p>Nenhuma recomendação no momento.</p>
                   <p className="text-sm mt-1">Seu uso atual está otimizado!</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Histórico de Análises
+              </CardTitle>
+              <CardDescription>
+                Acompanhe a evolução das suas Reserved Instances e Savings Plans ao longo do tempo
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {historyLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : historyData?.history && historyData.history.length > 0 ? (
+                <div className="space-y-3">
+                  {historyData.history.map((entry: any, idx: number) => {
+                    const prevEntry = historyData.history[idx + 1];
+                    const utilizationChange = prevEntry 
+                      ? ((entry.avgRiUtilization + entry.avgSpUtilization) / 2) - ((prevEntry.avgRiUtilization + prevEntry.avgSpUtilization) / 2)
+                      : 0;
+                    const savingsChange = prevEntry 
+                      ? entry.totalSavings - prevEntry.totalSavings
+                      : 0;
+
+                    return (
+                      <Card key={idx} className="border-2">
+                        <CardContent className="pt-6">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-3">
+                                <div className="text-sm font-medium text-muted-foreground">
+                                  {new Date(entry.date).toLocaleDateString('pt-BR', {
+                                    day: '2-digit',
+                                    month: 'long',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </div>
+                                {idx === 0 && (
+                                  <Badge variant="default" className="text-xs">Mais recente</Badge>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+                                <div>
+                                  <div className="text-xs text-muted-foreground">RIs Ativas</div>
+                                  <div className="text-lg font-semibold">{entry.activeRiCount}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    de {entry.riCount} total
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-xs text-muted-foreground">SPs Ativos</div>
+                                  <div className="text-lg font-semibold">{entry.activeSpCount}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    de {entry.spCount} total
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-xs text-muted-foreground">Utilização Média</div>
+                                  <div className="text-lg font-semibold flex items-center gap-1">
+                                    {((entry.avgRiUtilization + entry.avgSpUtilization) / 2).toFixed(1)}%
+                                    {utilizationChange !== 0 && (
+                                      utilizationChange > 0 ? (
+                                        <TrendingUp className="h-4 w-4 text-green-500" />
+                                      ) : (
+                                        <TrendingDown className="h-4 w-4 text-red-500" />
+                                      )
+                                    )}
+                                  </div>
+                                  {utilizationChange !== 0 && (
+                                    <div className={`text-xs ${utilizationChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      {utilizationChange > 0 ? '+' : ''}{utilizationChange.toFixed(1)}% vs anterior
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <div className="text-xs text-muted-foreground">Economia Total</div>
+                                  <div className="text-lg font-semibold text-green-600 flex items-center gap-1">
+                                    ${(entry.totalSavings / 12).toFixed(2)}/mês
+                                    {savingsChange !== 0 && (
+                                      savingsChange > 0 ? (
+                                        <TrendingUp className="h-4 w-4 text-green-500" />
+                                      ) : (
+                                        <TrendingDown className="h-4 w-4 text-red-500" />
+                                      )
+                                    )}
+                                  </div>
+                                  {savingsChange !== 0 && (
+                                    <div className={`text-xs ${savingsChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      {savingsChange > 0 ? '+' : ''}${(savingsChange / 12).toFixed(2)}/mês
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {entry.recommendationsCount > 0 && (
+                                <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-sm font-medium text-blue-900">
+                                      {entry.recommendationsCount} recomendações ativas
+                                    </div>
+                                    <div className="text-sm font-semibold text-blue-600">
+                                      Potencial: ${(entry.potentialSavings / 12).toFixed(2)}/mês
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <History className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                  <p>Nenhum histórico disponível</p>
+                  <p className="text-sm mt-1">Execute uma análise para começar a rastrear o histórico</p>
                 </div>
               )}
             </CardContent>

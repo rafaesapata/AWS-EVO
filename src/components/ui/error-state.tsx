@@ -65,7 +65,7 @@ export function ErrorState({
 
   return (
     <div className={`flex items-center justify-center min-h-[400px] p-8 ${className}`}>
-      <Card className="max-w-2xl w-full glass border-destructive/20">
+      <Card className="max-w-2xl w-full bg-white border border-red-200 shadow-sm">
         <CardContent className="pt-12 pb-12">
           <div className="flex flex-col items-center text-center space-y-6">
             {/* Animated Error Icon */}
@@ -81,7 +81,7 @@ export function ErrorState({
 
             {/* Error Message */}
             <div className="space-y-3">
-              <h3 className="text-2xl font-bold text-foreground">
+              <h3 className="text-2xl font-semibold text-foreground">
                 {displayTitle}
               </h3>
               <p className="text-muted-foreground max-w-md">

@@ -13,7 +13,6 @@ import { useToast } from "@/hooks/use-toast";
 import { format, Locale } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
 import { InfoTooltip, tooltipContent } from "@/components/ui/info-tooltip";
-import { PageHeader } from "@/components/ui/page-header";
 import {
   Pagination,
   PaginationContent,
@@ -319,17 +318,6 @@ export default function WasteDetection() {
 
   return (
     <div className="space-y-6">
-      {/* Page Title */}
-      <PageHeader
-        title={t('wasteDetection.title')}
-        description={t('wasteDetection.description')}
-        icon={Trash2}
-      >
-        <InfoTooltip title="Como funciona a detecção?">
-          {tooltipContent.wasteDetection}
-        </InfoTooltip>
-      </PageHeader>
-
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'detection' | 'history')} className="w-full space-y-6">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="detection">{t('wasteDetection.currentDetection')}</TabsTrigger>
@@ -392,7 +380,7 @@ export default function WasteDetection() {
             <CardTitle className="text-sm font-medium">{t('wasteDetection.wastedResources')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{wasteItems?.length || 0}</div>
+            <div className="text-2xl font-semibold">{wasteItems?.length || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -400,7 +388,7 @@ export default function WasteDetection() {
             <CardTitle className="text-sm font-medium">{t('wasteDetection.monthlyWaste')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">${totalWasteMonthly.toFixed(2)}</div>
+            <div className="text-2xl font-semibold text-destructive">${totalWasteMonthly.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -408,7 +396,7 @@ export default function WasteDetection() {
             <CardTitle className="text-sm font-medium">{t('wasteDetection.yearlyWaste')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">${totalWasteYearly.toFixed(2)}</div>
+            <div className="text-2xl font-semibold text-destructive">${totalWasteYearly.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -416,7 +404,7 @@ export default function WasteDetection() {
             <CardTitle className="text-sm font-medium">{t('wasteDetection.autoRemediable')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">
+            <div className="text-2xl font-semibold text-success">
               {wasteItems?.filter(w => w.auto_remediation_available).length || 0}
             </div>
           </CardContent>

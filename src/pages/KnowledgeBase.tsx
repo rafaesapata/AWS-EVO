@@ -462,7 +462,7 @@ function KnowledgeBaseContent() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Knowledge Base</h1>
+            <h1 className="text-3xl font-semibold">Knowledge Base</h1>
             <p className="text-muted-foreground">Organizational wiki and documentation</p>
           </div>
         </div>
@@ -519,7 +519,7 @@ function KnowledgeBaseContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Knowledge Base</h1>
+          <h1 className="text-3xl font-semibold">Knowledge Base</h1>
           <p className="text-muted-foreground">Organizational wiki and documentation</p>
         </div>
         <Dialog open={isAddingArticle} onOpenChange={setIsAddingArticle}>
@@ -619,7 +619,7 @@ function KnowledgeBaseContent() {
               <CardTitle className="text-sm font-medium">Total Articles</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
+              <div className="text-2xl font-semibold">{stats.total}</div>
             </CardContent>
           </Card>
           <Card>
@@ -627,7 +627,7 @@ function KnowledgeBaseContent() {
               <CardTitle className="text-sm font-medium">Approved</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+              <div className="text-2xl font-semibold text-green-600">{stats.approved}</div>
             </CardContent>
           </Card>
           <Card>
@@ -635,7 +635,7 @@ function KnowledgeBaseContent() {
               <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+              <div className="text-2xl font-semibold text-yellow-600">{stats.pending}</div>
             </CardContent>
           </Card>
           <Card>
@@ -643,7 +643,7 @@ function KnowledgeBaseContent() {
               <CardTitle className="text-sm font-medium">Draft</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-600">{stats.draft}</div>
+              <div className="text-2xl font-semibold text-gray-600">{stats.draft}</div>
             </CardContent>
           </Card>
         </div>

@@ -138,6 +138,9 @@ Access-Control-Allow-Origin: *
 | `jjmfls` | `/api/functions/fetch-cloudwatch-metrics` | `evo-uds-v3-production-fetch-cloudwatch-metrics` |
 | `qemkl5` | `/api/functions/fetch-edge-services` | `evo-uds-v3-production-fetch-edge-services` |
 | `c50w7v` | `/api/functions/endpoint-monitor-check` | `evo-uds-v3-production-endpoint-monitor-check` |
+| `658jbt` | `/api/functions/generate-error-fix-prompt` | `evo-uds-v3-production-generate-error-fix-prompt` |
+| `goaymq` | `/api/functions/get-platform-metrics` | `evo-uds-v3-production-get-platform-metrics` |
+| `j7obmh` | `/api/functions/get-recent-errors` | `evo-uds-v3-production-get-recent-errors` |
 
 ### ☁️ AWS Credentials
 
@@ -268,7 +271,7 @@ Access-Control-Allow-Origin: *
 
 ## Estatísticas
 
-- **Total de Endpoints**: 111 endpoints sob `/api/functions/`
+- **Total de Endpoints**: 114 endpoints sob `/api/functions/`
 - **Endpoints Especiais**: 4 endpoints
 - **Categorias**: 15 categorias
 
@@ -455,6 +458,12 @@ Adicionado `X-Impersonate-Organization` aos headers CORS permitidos em todos os 
 ### 2026-01-12 - Fix Permissão Lambda validate-azure-credentials
 Corrigida permissão Lambda que estava com path incorreto (`/validate-azure-credentials` em vez de `/api/functions/validate-azure-credentials`).
 
+### 2026-01-15 - Platform Monitoring Endpoints
+Adicionados 3 novos endpoints para o sistema de Platform Monitoring com 100% de cobertura:
+- `generate-error-fix-prompt` (658jbt) - Gera prompts de correção dinâmicos
+- `get-platform-metrics` (goaymq) - Métricas de 114 Lambdas + 111 endpoints + frontend
+- `get-recent-errors` (j7obmh) - Erros recentes do CloudWatch Logs em tempo real
+
 ### 2026-01-15 - Novos Endpoints de Compliance
 Adicionados 3 novos endpoints para o sistema avançado de compliance:
 - `start-compliance-scan` (brgrmb) - Inicia scan de compliance assíncrono
@@ -464,4 +473,4 @@ Adicionados 3 novos endpoints para o sistema avançado de compliance:
 ---
 
 **Última atualização:** 2026-01-15
-**Versão:** 1.2
+**Versão:** 1.3

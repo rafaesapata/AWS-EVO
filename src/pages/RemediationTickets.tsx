@@ -298,7 +298,7 @@ export default function RemediationTickets() {
       <div className="space-y-6">
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Tickets</CardTitle>
           </CardHeader>
@@ -306,12 +306,12 @@ export default function RemediationTickets() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold">{totalTickets}</div>
+              <div className="text-2xl font-semibold">{totalTickets}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Abertos</CardTitle>
           </CardHeader>
@@ -319,12 +319,12 @@ export default function RemediationTickets() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-blue-500">{openTickets}</div>
+              <div className="text-2xl font-semibold text-blue-500">{openTickets}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Em Progresso</CardTitle>
           </CardHeader>
@@ -332,12 +332,12 @@ export default function RemediationTickets() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-yellow-500">{inProgressTickets}</div>
+              <div className="text-2xl font-semibold text-yellow-500">{inProgressTickets}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Críticos</CardTitle>
           </CardHeader>
@@ -345,12 +345,12 @@ export default function RemediationTickets() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-red-500">{criticalTickets}</div>
+              <div className="text-2xl font-semibold text-red-500">{criticalTickets}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Atrasados</CardTitle>
           </CardHeader>
@@ -358,18 +358,18 @@ export default function RemediationTickets() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-red-600">{overdueTickets}</div>
+              <div className="text-2xl font-semibold text-red-600">{overdueTickets}</div>
             )}
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <Card className="glass border-primary/20">
+      <Card >
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="glass">
+              <SelectTrigger >
                 <SelectValue placeholder="Filtrar por status" />
               </SelectTrigger>
               <SelectContent>
@@ -382,7 +382,7 @@ export default function RemediationTickets() {
               </SelectContent>
             </Select>
             <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
-              <SelectTrigger className="glass">
+              <SelectTrigger >
                 <SelectValue placeholder="Filtrar por severidade" />
               </SelectTrigger>
               <SelectContent>
@@ -398,7 +398,7 @@ export default function RemediationTickets() {
       </Card>
 
       {/* Tickets List */}
-      <Card className="glass border-primary/20">
+      <Card >
         <CardHeader>
           <CardTitle>Lista de Tickets</CardTitle>
           <CardDescription>Todos os tickets de remediação</CardDescription>

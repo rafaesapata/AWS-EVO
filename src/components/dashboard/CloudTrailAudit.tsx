@@ -380,25 +380,25 @@ const CloudTrailAudit = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-destructive">{criticalCount}</div>
+            <div className="text-2xl font-semibold text-destructive">{criticalCount}</div>
             <p className="text-sm text-muted-foreground">Críticos</p>
           </CardContent>
         </Card>
         <Card className="border-orange-500/50 bg-orange-500/5">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-orange-600">{highCount}</div>
+            <div className="text-2xl font-semibold text-orange-600">{highCount}</div>
             <p className="text-sm text-muted-foreground">Altos</p>
           </CardContent>
         </Card>
         <Card className="border-yellow-500/50 bg-yellow-500/5">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-yellow-600">{mediumCount}</div>
+            <div className="text-2xl font-semibold text-yellow-600">{mediumCount}</div>
             <p className="text-sm text-muted-foreground">Médios</p>
           </CardContent>
         </Card>
         <Card className="border-blue-500/50 bg-blue-500/5">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-blue-600">{lowCount}</div>
+            <div className="text-2xl font-semibold text-blue-600">{lowCount}</div>
             <p className="text-sm text-muted-foreground">Baixos</p>
           </CardContent>
         </Card>
@@ -623,7 +623,7 @@ const CloudTrailAudit = () => {
                             <Badge variant="outline">{user.userType}</Badge>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="font-bold text-lg">{user.eventCount}</span>
+                            <span className="font-semibold text-lg">{user.eventCount}</span>
                           </TableCell>
                           <TableCell className="text-center">
                             {user.criticalCount > 0 ? (
@@ -655,13 +655,13 @@ const CloudTrailAudit = () => {
                 <div className="mt-4 grid grid-cols-3 gap-4">
                   <Card className="bg-muted/50">
                     <CardContent className="pt-4">
-                      <div className="text-2xl font-bold">{activeUsers.length}</div>
+                      <div className="text-2xl font-semibold">{activeUsers.length}</div>
                       <p className="text-xs text-muted-foreground">Usuários únicos</p>
                     </CardContent>
                   </Card>
                   <Card className="bg-muted/50">
                     <CardContent className="pt-4">
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-semibold">
                         {activeUsers.reduce((sum, u) => sum + u.eventCount, 0)}
                       </div>
                       <p className="text-xs text-muted-foreground">Total de eventos</p>
@@ -669,7 +669,7 @@ const CloudTrailAudit = () => {
                   </Card>
                   <Card className="bg-muted/50">
                     <CardContent className="pt-4">
-                      <div className="text-2xl font-bold text-destructive">
+                      <div className="text-2xl font-semibold text-destructive">
                         {activeUsers.filter(u => u.criticalCount > 0 || u.highCount > 0).length}
                       </div>
                       <p className="text-xs text-muted-foreground">Usuários com alertas</p>

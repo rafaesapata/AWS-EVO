@@ -8,8 +8,21 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
+    /* Design Refresh - Base Neutra */
     --background: 220 30% 98%;
     --foreground: 220 20% 10%;
+    
+    /* Cinzas Neutros com Toque Quente */
+    --gray-50: 30 8% 98%;
+    --gray-100: 30 6% 96%;
+    --gray-200: 30 5% 91%;
+    --gray-300: 30 4% 84%;
+    --gray-400: 30 3% 66%;
+    --gray-500: 30 3% 47%;
+    --gray-600: 30 4% 34%;
+    --gray-700: 30 5% 26%;
+    --gray-800: 30 6% 16%;
+    --gray-900: 30 7% 11%;
 
     --card: 0 0% 100%;
     --card-foreground: 220 20% 10%;
@@ -249,7 +262,7 @@ All colors MUST be HSL.
 }
 
 @layer components {
-  /* Glass Morphism */
+  /* Glass Morphism - Enhanced */
   .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur));
@@ -265,6 +278,81 @@ All colors MUST be HSL.
     background: hsl(var(--card) / 0.9);
     box-shadow: var(--shadow-glass);
     transform: translateY(-2px);
+  }
+  
+  /* Glass Card - Floating effect with frosted glass */
+  .glass-card-float {
+    background: hsl(0 0% 100% / 0.65);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid hsl(220 18% 90% / 0.6);
+    border-radius: 12px;
+    box-shadow: 
+      0 4px 24px -4px hsl(220 15% 15% / 0.08),
+      0 2px 8px -2px hsl(220 15% 15% / 0.04),
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.6);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .glass-card-float:hover {
+    background: hsl(0 0% 100% / 0.75);
+    box-shadow: 
+      0 8px 32px -4px hsl(220 15% 15% / 0.12),
+      0 4px 12px -2px hsl(220 15% 15% / 0.06),
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.8);
+    transform: translateY(-2px);
+  }
+  
+  .dark .glass-card-float {
+    background: hsl(220 22% 12% / 0.65);
+    border: 1px solid hsl(220 22% 20% / 0.5);
+    box-shadow: 
+      0 4px 24px -4px hsl(0 0% 0% / 0.3),
+      0 2px 8px -2px hsl(0 0% 0% / 0.2),
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.05);
+  }
+  
+  .dark .glass-card-float:hover {
+    background: hsl(220 22% 14% / 0.75);
+    box-shadow: 
+      0 8px 32px -4px hsl(0 0% 0% / 0.4),
+      0 4px 12px -2px hsl(0 0% 0% / 0.25),
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.08);
+  }
+  
+  /* Background for pages - slightly darker gray */
+  .bg-page {
+    background: hsl(220 20% 96%);
+  }
+  
+  .dark .bg-page {
+    background: hsl(220 25% 7%);
+  }
+  
+  /* Background with subtle gradient for depth */
+  .bg-page-gradient {
+    background: 
+      linear-gradient(180deg, hsl(220 20% 97%) 0%, hsl(220 20% 94%) 100%);
+  }
+  
+  .dark .bg-page-gradient {
+    background: 
+      linear-gradient(180deg, hsl(220 25% 8%) 0%, hsl(220 25% 6%) 100%);
+  }
+  
+  /* Mesh gradient background for visual interest */
+  .bg-mesh-subtle {
+    background: 
+      radial-gradient(ellipse at 20% 0%, hsl(200 100% 60% / 0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, hsl(220 100% 65% / 0.03) 0%, transparent 50%),
+      hsl(220 20% 96%);
+  }
+  
+  .dark .bg-mesh-subtle {
+    background: 
+      radial-gradient(ellipse at 20% 0%, hsl(200 100% 50% / 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, hsl(220 100% 60% / 0.04) 0%, transparent 50%),
+      hsl(220 25% 7%);
   }
   
   /* Gradient Text */

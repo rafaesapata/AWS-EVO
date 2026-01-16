@@ -241,7 +241,7 @@ export default function DevTools() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card className="glass border-primary/20">
+      <Card >
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
@@ -260,7 +260,7 @@ export default function DevTools() {
                 size="sm" 
                 onClick={handleRefresh}
                 disabled={logsLoading}
-                className="glass"
+                
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${logsLoading ? 'animate-spin' : ''}`} />
                 {logsLoading ? 'Atualizando...' : 'Atualizar'}
@@ -269,7 +269,7 @@ export default function DevTools() {
                 variant="outline" 
                 size="sm" 
                 onClick={exportLogs}
-                className="glass"
+                
                 disabled={!logs || logs.length === 0}
               >
                 <Download className="h-4 w-4 mr-2" />
@@ -282,7 +282,7 @@ export default function DevTools() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Logs de Erro</CardTitle>
           </CardHeader>
@@ -290,12 +290,12 @@ export default function DevTools() {
             {logsLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-red-500">{errorCount}</div>
+              <div className="text-2xl font-semibold text-red-500">{errorCount}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Warnings</CardTitle>
           </CardHeader>
@@ -303,12 +303,12 @@ export default function DevTools() {
             {logsLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-yellow-500">{warnCount}</div>
+              <div className="text-2xl font-semibold text-yellow-500">{warnCount}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Tempo de Resposta Médio</CardTitle>
           </CardHeader>
@@ -316,12 +316,12 @@ export default function DevTools() {
             {metricsLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold">{avgResponseTime.toFixed(0)}ms</div>
+              <div className="text-2xl font-semibold">{avgResponseTime.toFixed(0)}ms</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Uso de Memória Médio</CardTitle>
           </CardHeader>
@@ -329,7 +329,7 @@ export default function DevTools() {
             {metricsLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold">{avgMemoryUsage.toFixed(0)}MB</div>
+              <div className="text-2xl font-semibold">{avgMemoryUsage.toFixed(0)}MB</div>
             )}
           </CardContent>
         </Card>
@@ -337,7 +337,7 @@ export default function DevTools() {
 
       {/* Main Content */}
       <Tabs defaultValue="logs" className="w-full">
-        <TabsList className="glass">
+        <TabsList className="glass-card-float">
           <TabsTrigger value="logs">Logs da Aplicação</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="database">Database Query</TabsTrigger>
@@ -346,11 +346,11 @@ export default function DevTools() {
 
         <TabsContent value="logs" className="space-y-4">
           {/* Log Filters */}
-          <Card className="glass border-primary/20">
+          <Card >
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Select value={selectedLogLevel} onValueChange={setSelectedLogLevel}>
-                  <SelectTrigger className="glass">
+                  <SelectTrigger >
                     <SelectValue placeholder="Filtrar por nível" />
                   </SelectTrigger>
                   <SelectContent>
@@ -362,7 +362,7 @@ export default function DevTools() {
                   </SelectContent>
                 </Select>
                 <Select value={selectedService} onValueChange={setSelectedService}>
-                  <SelectTrigger className="glass">
+                  <SelectTrigger >
                     <SelectValue placeholder="Filtrar por serviço" />
                   </SelectTrigger>
                   <SelectContent>
@@ -377,14 +377,14 @@ export default function DevTools() {
                   placeholder="Buscar nos logs..."
                   value={logQuery}
                   onChange={(e) => setLogQuery(e.target.value)}
-                  className="glass"
+                  
                 />
               </div>
             </CardContent>
           </Card>
 
           {/* Logs List */}
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Logs da Aplicação</CardTitle>
               <CardDescription>Logs em tempo real dos serviços AWS</CardDescription>
@@ -439,7 +439,7 @@ export default function DevTools() {
         </TabsContent>
 
         <TabsContent value="performance" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Métricas de Performance</CardTitle>
               <CardDescription>Monitoramento de performance dos serviços</CardDescription>
@@ -470,7 +470,7 @@ export default function DevTools() {
                           </div>
                         </div>
                         <div className="text-right space-y-1">
-                          <div className="text-lg font-bold">
+                          <div className="text-lg font-semibold">
                             {metric.response_time_ms}ms
                           </div>
                           <div className="text-sm text-muted-foreground">
@@ -495,7 +495,7 @@ export default function DevTools() {
         </TabsContent>
 
         <TabsContent value="database" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Database Query Tool</CardTitle>
               <CardDescription>Ferramenta de consulta ao banco de dados (desabilitada por segurança)</CardDescription>
@@ -517,34 +517,34 @@ export default function DevTools() {
         </TabsContent>
 
         <TabsContent value="debug" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Ferramentas de Debug</CardTitle>
               <CardDescription>Ferramentas avançadas para debug e troubleshooting</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 glass">
+                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 ">
                   <Database className="h-8 w-8 text-primary" />
                   <span className="text-sm font-medium">Cache Inspector</span>
                 </Button>
-                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 glass">
+                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 ">
                   <Zap className="h-8 w-8 text-primary" />
                   <span className="text-sm font-medium">API Tester</span>
                 </Button>
-                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 glass">
+                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 ">
                   <Settings className="h-8 w-8 text-primary" />
                   <span className="text-sm font-medium">Config Viewer</span>
                 </Button>
-                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 glass">
+                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 ">
                   <FileText className="h-8 w-8 text-primary" />
                   <span className="text-sm font-medium">Error Reports</span>
                 </Button>
-                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 glass">
+                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 ">
                   <Activity className="h-8 w-8 text-primary" />
                   <span className="text-sm font-medium">Health Checks</span>
                 </Button>
-                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 glass">
+                <Button variant="outline" className="h-24 flex flex-col items-center gap-2 ">
                   <Eye className="h-8 w-8 text-primary" />
                   <span className="text-sm font-medium">Request Tracer</span>
                 </Button>

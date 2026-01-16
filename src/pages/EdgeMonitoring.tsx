@@ -359,7 +359,7 @@ export default function EdgeMonitoring() {
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Requests/min</CardTitle>
           </CardHeader>
@@ -367,12 +367,12 @@ export default function EdgeMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-20" />
             ) : (
-              <div className="text-2xl font-bold">{totalRequests.toLocaleString()}</div>
+              <div className="text-2xl font-semibold">{totalRequests.toLocaleString()}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Cache Hit Rate</CardTitle>
           </CardHeader>
@@ -381,14 +381,14 @@ export default function EdgeMonitoring() {
               <Skeleton className="h-8 w-16" />
             ) : (
               <div className="space-y-2">
-                <div className="text-2xl font-bold">{avgCacheHitRate.toFixed(1)}%</div>
+                <div className="text-2xl font-semibold">{avgCacheHitRate.toFixed(1)}%</div>
                 <Progress value={avgCacheHitRate} className="h-2" />
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Requests Bloqueados</CardTitle>
           </CardHeader>
@@ -396,12 +396,12 @@ export default function EdgeMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold text-red-500">{totalBlockedRequests.toLocaleString()}</div>
+              <div className="text-2xl font-semibold text-red-500">{totalBlockedRequests.toLocaleString()}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Taxa de Erro</CardTitle>
           </CardHeader>
@@ -409,7 +409,7 @@ export default function EdgeMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold">{avgErrorRate.toFixed(2)}%</div>
+              <div className="text-2xl font-semibold">{avgErrorRate.toFixed(2)}%</div>
             )}
           </CardContent>
         </Card>
@@ -417,7 +417,7 @@ export default function EdgeMonitoring() {
 
       {/* Main Content */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="glass">
+        <TabsList className="glass-card-float">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="cloudfront">CloudFront</TabsTrigger>
           <TabsTrigger value="waf">WAF</TabsTrigger>
@@ -427,7 +427,7 @@ export default function EdgeMonitoring() {
         <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Requests Chart */}
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>Requests e Bloqueios</CardTitle>
                 <CardDescription>Últimas {selectedTimeRange}</CardDescription>
@@ -494,7 +494,7 @@ export default function EdgeMonitoring() {
             </Card>
 
             {/* Service Distribution */}
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>Distribuição de Serviços</CardTitle>
                 <CardDescription>Tipos de serviços de borda configurados</CardDescription>
@@ -532,7 +532,7 @@ export default function EdgeMonitoring() {
           </div>
 
           {/* Services List */}
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Serviços de Borda</CardTitle>
               <CardDescription>Status e métricas dos serviços configurados</CardDescription>
@@ -795,7 +795,7 @@ export default function EdgeMonitoring() {
         </TabsContent>
 
         <TabsContent value="cloudfront" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Cloud className="h-5 w-5 text-blue-500" />
@@ -868,7 +868,7 @@ export default function EdgeMonitoring() {
         </TabsContent>
 
         <TabsContent value="waf" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-red-500" />
@@ -939,7 +939,7 @@ export default function EdgeMonitoring() {
         </TabsContent>
 
         <TabsContent value="loadbalancer" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Zap className="h-5 w-5 text-green-500" />

@@ -85,12 +85,12 @@ export function PageLayout({
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-subtle">
+      <div className="min-h-screen flex w-full bg-gray-50">
         <AppSidebar activeTab={activeTab} onTabChange={handleTabChange} userRole={userRole} />
         
         <div className="flex-1 flex flex-col">
           {/* Header Padrão */}
-          <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
+          <header className="sticky top-0 z-10  border-b border-border/40 shadow-sm">
             <div className="w-full px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -100,7 +100,7 @@ export function PageLayout({
                       <Icon className={`h-6 w-6 ${iconColorClass}`} />
                     </div>
                     <div>
-                      <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                      <h1 className="text-2xl font-semibold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
                         {title}
                       </h1>
                       <p className="text-sm text-muted-foreground">
@@ -109,7 +109,7 @@ export function PageLayout({
                     </div>
                   </div>
                   {showOrganization && userProfile?.organizations && (
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg ">
                       <Building2 className="h-4 w-4 text-primary" />
                       <span className="text-sm font-medium">
                         {(() => {

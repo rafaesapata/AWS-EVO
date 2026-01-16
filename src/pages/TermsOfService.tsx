@@ -17,7 +17,7 @@ export default function TermsOfService() {
           <p className="text-muted-foreground">FinOps & Security Intelligence Platform</p>
         </div>
 
-        <Card className="glass shadow-elegant animate-scale-in">
+        <Card className="animate-scale-in">
           <CardHeader>
             <Button
               type="button"

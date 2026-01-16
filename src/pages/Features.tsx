@@ -265,7 +265,7 @@ const Features = () => {
             <Badge className="mb-4" variant="secondary">
               Platform Features
             </Badge>
-            <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <h1 className="text-5xl font-semibold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
               Complete AWS Governance Platform
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
@@ -295,7 +295,7 @@ const Features = () => {
             <Card key={index} className="text-center">
               <CardContent className="pt-6">
                 <stat.icon className="w-8 h-8 mx-auto mb-2 text-primary" />
-                <div className="text-3xl font-bold mb-1">{stat.value}</div>
+                <div className="text-3xl font-semibold mb-1">{stat.value}</div>
                 <div className="text-sm text-muted-foreground">{stat.label}</div>
               </CardContent>
             </Card>
@@ -312,7 +312,7 @@ const Features = () => {
                 <category.icon className="w-8 h-8 text-primary" />
               </div>
               <div>
-                <h2 className="text-3xl font-bold">{category.category}</h2>
+                <h2 className="text-3xl font-semibold">{category.category}</h2>
                 <p className="text-muted-foreground">
                   {category.features.length} powerful features
                 </p>
@@ -348,7 +348,7 @@ const Features = () => {
       <div className="border-t bg-card/50 backdrop-blur-sm">
         <div className="w-full px-6 py-16">
           <div className="text-center max-w-3xl mx-auto">
-            <h2 className="text-4xl font-bold mb-4">
+            <h2 className="text-3xl font-semibold mb-4">
               Ready to Optimize Your AWS Infrastructure?
             </h2>
             <p className="text-xl text-muted-foreground mb-8">

@@ -219,7 +219,7 @@ export default function PeerBenchmarking() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Your Overall Ranking</div>
-                  <div className="text-3xl font-bold flex items-center gap-2">
+                  <div className="text-3xl font-semibold flex items-center gap-2">
                     <Award className="h-8 w-8 text-yellow-500" />
                     Top {percentileRank}%
                   </div>
@@ -245,7 +245,7 @@ export default function PeerBenchmarking() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Your Score</span>
-                        <span className="font-bold">{benchmark.yourScore.toFixed(1)}</span>
+                        <span className="font-semibold">{benchmark.yourScore.toFixed(1)}</span>
                       </div>
                       <Progress value={benchmark.yourScore} className="h-2" />
                     </div>

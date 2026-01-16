@@ -1,16 +1,16 @@
 /**
  * Executive Summary Bar - Top-level KPIs
+ * Clean Light Design with color palette:
+ *   - Primary: #003C7D (dark blue)
+ *   - Secondary: #008CFF (light blue)
+ *   - Success: #10B981 (green)
+ *   - Background: #FFFFFF / #F9FAFB
+ *   - Text: #1F2937 (dark gray)
  */
 
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { 
   TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  Shield, 
-  Activity,
+  TrendingDown,
   AlertTriangle 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,150 +25,146 @@ export default function ExecutiveSummaryBar({ data }: Props) {
   const { t } = useTranslation();
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-500';
-    if (score >= 60) return 'text-yellow-500';
-    return 'text-red-500';
+    if (score >= 80) return 'text-[#10B981]';
+    if (score >= 60) return 'text-[#1F2937]';
+    return 'text-red-600';
   };
 
   const getScoreBg = (score: number) => {
-    if (score >= 80) return 'bg-green-500/10 border-green-500/20';
-    if (score >= 60) return 'bg-yellow-500/10 border-yellow-500/20';
-    return 'bg-red-500/10 border-red-500/20';
+    if (score >= 80) return 'bg-[#10B981]/10 border-[#10B981]/20';
+    if (score >= 60) return 'bg-white border-gray-200';
+    return 'bg-red-50 border-red-200';
   };
 
   const budgetPercentage = Math.min(100, data.budgetUtilization);
   const getBudgetColor = () => {
     if (budgetPercentage >= 90) return 'bg-red-500';
-    if (budgetPercentage >= 75) return 'bg-yellow-500';
-    return 'bg-green-500';
+    if (budgetPercentage >= 75) return 'bg-amber-500';
+    return 'bg-[#003C7D]';
   };
 
   const totalAlerts = data.activeAlerts.critical + data.activeAlerts.high + data.activeAlerts.medium;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 animate-stagger">
-      {/* Overall Health Score */}
-      <Card className={cn('border card-hover-lift card-shine', getScoreBg(data.overallScore))}>
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('executiveDashboard.healthScore', 'Health Score')}
-            </span>
-            <Shield className={cn('h-4 w-4 icon-pulse', getScoreColor(data.overallScore))} />
-          </div>
+    <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
+      <h2 className="text-base font-semibold text-[#1F2937] mb-5">
+        {t('executiveDashboard.summary', 'Resumo Executivo')}
+      </h2>
+      
+      {/* 2x2 Grid Layout for Performance Metrics style */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Overall Health Score */}
+        <div className={cn('p-4 rounded-2xl border', getScoreBg(data.overallScore))}>
+          <p className="text-sm font-medium text-gray-500 mb-2">
+            {t('executiveDashboard.healthScore', 'Health Score')}
+          </p>
           <div className="flex items-baseline gap-1">
-            <span className={cn('text-2xl font-bold tabular-nums', getScoreColor(data.overallScore))}>
+            <span className={cn('text-4xl font-light tabular-nums', getScoreColor(data.overallScore))}>
               {data.overallScore}
             </span>
-            <span className="text-xs text-muted-foreground">/100</span>
-            {data.scoreChange !== 0 && (
-              <Badge variant={data.scoreChange > 0 ? 'default' : 'destructive'} className="ml-1 text-[10px] px-1 py-0">
-                {data.scoreChange > 0 ? <TrendingUp className="h-2.5 w-2.5 mr-0.5" /> : <TrendingDown className="h-2.5 w-2.5 mr-0.5" />}
-                {data.scoreChange > 0 ? '+' : ''}{data.scoreChange}%
-              </Badge>
-            )}
+            <span className="text-sm text-gray-400">{t('executiveDashboard.outOf100', '/100')}</span>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* MTD Spend */}
-      <Card className="card-hover-lift card-shine">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('executiveDashboard.mtdSpend', 'MTD Spend')}
-            </span>
-            <DollarSign className="h-4 w-4 text-muted-foreground icon-bounce" />
-          </div>
-          <div className="text-xl font-bold mb-1.5 tabular-nums">
-            ${data.mtdSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-          </div>
-          <div className="space-y-0.5">
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>{t('executiveDashboard.budget', 'Budget')}</span>
-              <span className="tabular-nums">{budgetPercentage.toFixed(0)}%</span>
+          {data.scoreChange !== 0 && (
+            <div className={cn(
+              'flex items-center gap-1 mt-2 text-xs font-medium',
+              data.scoreChange > 0 ? 'text-[#10B981]' : 'text-red-600'
+            )}>
+              {data.scoreChange > 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+              {data.scoreChange > 0 ? '+' : ''}{data.scoreChange}% {t('executiveDashboard.vsLastPeriod', 'vs last period')}
             </div>
-            <Progress value={budgetPercentage} className={cn('h-1', getBudgetColor())} />
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </div>
 
-      {/* Potential Savings */}
-      <Card className="bg-green-500/5 border-green-500/20 card-hover-lift card-shine glow-success">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('executiveDashboard.savingsPotential', 'Savings Potential')}
-            </span>
-            <TrendingUp className="h-4 w-4 text-green-500 icon-bounce" />
+        {/* MTD Spend */}
+        <div className="p-4 rounded-2xl bg-white border border-gray-200">
+          <p className="text-sm font-medium text-gray-500 mb-2">
+            {t('executiveDashboard.mtdSpend', 'MTD Spend')}
+          </p>
+          <p className="text-4xl font-light text-[#1F2937] tabular-nums">
+            ${data.mtdSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+          </p>
+          <div className="mt-3 space-y-1.5">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">{t('executiveDashboard.budget', 'Budget')}</span>
+              <span className={cn('font-medium tabular-nums', budgetPercentage >= 90 ? 'text-red-600' : 'text-[#1F2937]')}>
+                {budgetPercentage.toFixed(0)}%
+              </span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div 
+                className={cn('h-full rounded-full transition-all', getBudgetColor())}
+                style={{ width: `${budgetPercentage}%` }}
+              />
+            </div>
           </div>
-          <div className="text-xl font-bold text-green-500 tabular-nums">
+        </div>
+
+        {/* Potential Savings */}
+        <div className="p-4 rounded-2xl bg-[#10B981]/10 border border-[#10B981]/20">
+          <p className="text-sm font-medium text-gray-500 mb-2">
+            {t('executiveDashboard.savingsPotential', 'Savings Potential')}
+          </p>
+          <p className="text-4xl font-light text-[#10B981] tabular-nums">
             ${data.potentialSavings.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-          </div>
-          <span className="text-[10px] text-muted-foreground">/month</span>
-        </CardContent>
-      </Card>
+          </p>
+          <span className="text-xs text-gray-500 mt-2 block">{t('executiveDashboard.perMonth', '/month')}</span>
+        </div>
 
-      {/* Uptime SLA */}
-      <Card className="card-hover-lift card-shine">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('executiveDashboard.uptimeSLA', 'Uptime SLA')}
-            </span>
-            <Activity className="h-4 w-4 text-muted-foreground icon-pulse" />
-          </div>
-          <div className={cn(
-            'text-xl font-bold tabular-nums',
-            data.uptimeSLA >= 99.9 ? 'text-green-500' : 
-            data.uptimeSLA >= 99 ? 'text-yellow-500' : 'text-red-500'
+        {/* Uptime SLA */}
+        <div className="p-4 rounded-2xl bg-white border border-gray-200">
+          <p className="text-sm font-medium text-gray-500 mb-2">
+            {t('executiveDashboard.uptimeSLA', 'Uptime SLA')}
+          </p>
+          <p className={cn(
+            'text-4xl font-light tabular-nums',
+            data.uptimeSLA >= 99.9 ? 'text-[#10B981]' : 
+            data.uptimeSLA >= 99 ? 'text-[#1F2937]' : 'text-red-600'
           )}>
             {data.uptimeSLA.toFixed(2)}%
-          </div>
-          <span className="text-[10px] text-muted-foreground">Target: 99.9%</span>
-        </CardContent>
-      </Card>
+          </p>
+          <span className="text-xs text-gray-500 mt-2 block">{t('executiveDashboard.target', 'Target')}: 99.9%</span>
+        </div>
+      </div>
 
-      {/* Active Alerts */}
-      <Card className={cn(
-        'card-hover-lift card-shine',
-        totalAlerts > 0 ? 'bg-red-500/5 border-red-500/20 glow-danger' : ''
-      )}>
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('executiveDashboard.activeAlerts', 'Active Alerts')}
-            </span>
-            <AlertTriangle className={cn(
-              'h-4 w-4',
-              totalAlerts > 0 ? 'text-red-500 icon-pulse' : 'text-muted-foreground'
-            )} />
+      {/* Active Alerts - Separate row */}
+      {totalAlerts > 0 && (
+        <div className={cn(
+          'mt-4 p-4 rounded-2xl border',
+          data.activeAlerts.critical > 0 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
+        )}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className={cn(
+                'h-5 w-5',
+                data.activeAlerts.critical > 0 ? 'text-red-600' : 'text-amber-600'
+              )} />
+              <span className="text-sm font-medium text-[#1F2937]">
+                {t('executiveDashboard.activeAlerts', 'Active Alerts')}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              {data.activeAlerts.critical > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-2xl font-light text-red-600 tabular-nums">{data.activeAlerts.critical}</span>
+                  <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">{t('executiveDashboard.alertCritical', 'CRITICAL')}</span>
+                </div>
+              )}
+              {data.activeAlerts.high > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xl font-light text-amber-600 tabular-nums">{data.activeAlerts.high}</span>
+                  <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">{t('executiveDashboard.alertHigh', 'HIGH')}</span>
+                </div>
+              )}
+              {data.activeAlerts.medium > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg font-light text-gray-600 tabular-nums">{data.activeAlerts.medium}</span>
+                  <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{t('executiveDashboard.alertMedium', 'MEDIUM')}</span>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex items-baseline gap-2">
-            {data.activeAlerts.critical > 0 && (
-              <div className="flex items-center gap-0.5">
-                <span className="text-lg font-bold text-red-500 tabular-nums">{data.activeAlerts.critical}</span>
-                <span className="text-[10px] text-red-500">CRIT</span>
-              </div>
-            )}
-            {data.activeAlerts.high > 0 && (
-              <div className="flex items-center gap-0.5">
-                <span className="text-base font-bold text-orange-500 tabular-nums">{data.activeAlerts.high}</span>
-                <span className="text-[10px] text-orange-500">HIGH</span>
-              </div>
-            )}
-            {data.activeAlerts.medium > 0 && (
-              <div className="flex items-center gap-0.5">
-                <span className="text-sm font-semibold text-yellow-500 tabular-nums">{data.activeAlerts.medium}</span>
-                <span className="text-[10px] text-yellow-500">MED</span>
-              </div>
-            )}
-            {totalAlerts === 0 && (
-              <span className="text-xl font-bold text-green-500 tabular-nums">0</span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      )}
     </div>
   );
 }

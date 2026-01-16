@@ -223,15 +223,15 @@ export const CostOptimization = ({ onAnalysisComplete }: CostOptimizationProps) 
           {recommendations && recommendations.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
               <div className="text-center">
-                <p className="text-3xl font-bold text-success">${totalSavings.toFixed(2)}</p>
+                <p className="text-3xl font-semibold text-success">${totalSavings.toFixed(2)}</p>
                 <p className="text-sm text-muted-foreground">{t('costOptimization.potentialYearlySavings')}</p>
               </div>
               <div className="text-center">
-                <p className="text-3xl font-bold">{recommendations.filter(r => r.status === 'pending').length}</p>
+                <p className="text-3xl font-semibold">{recommendations.filter(r => r.status === 'pending').length}</p>
                 <p className="text-sm text-muted-foreground">{t('costOptimization.pendingRecommendations')}</p>
               </div>
               <div className="text-center">
-                <p className="text-3xl font-bold">{recommendations.filter(r => r.status === 'completed').length}</p>
+                <p className="text-3xl font-semibold">{recommendations.filter(r => r.status === 'completed').length}</p>
                 <p className="text-sm text-muted-foreground">{t('costOptimization.implemented')}</p>
               </div>
             </div>
@@ -323,11 +323,11 @@ export const CostOptimization = ({ onAnalysisComplete }: CostOptimizationProps) 
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">{t('costOptimization.monthlySavings')}</p>
-                  <p className="text-2xl font-bold text-success">${selectedRec.projected_savings_monthly}</p>
+                  <p className="text-2xl font-semibold text-success">${selectedRec.projected_savings_monthly}</p>
                 </div>
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">{t('costOptimization.yearlySavings')}</p>
-                  <p className="text-2xl font-bold text-success">${selectedRec.projected_savings_yearly}</p>
+                  <p className="text-2xl font-semibold text-success">${selectedRec.projected_savings_yearly}</p>
                 </div>
               </div>
 
@@ -398,7 +398,7 @@ const RecommendationCard = ({ rec, onView, onCreateTicket, onIgnore, getPriority
         <div className="flex items-center gap-4 text-sm flex-wrap">
           <span className="font-medium">{t('costOptimization.service')}: {rec.service}</span>
           <span>{t('costOptimization.difficulty')}: {getDifficultyBadge(rec.implementation_difficulty)}</span>
-          <span className="text-success font-bold">
+          <span className="text-success font-semibold">
             {t('costOptimization.savingsPerYear', { amount: rec.projected_savings_yearly, percentage: rec.savings_percentage })}
           </span>
         </div>

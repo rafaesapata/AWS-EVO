@@ -31,7 +31,7 @@ export function WafTimeSeriesChart({ data, isLoading }: WafTimeSeriesChartProps)
   };
 
   return (
-    <Card className="glass border-primary/20">
+    <Card className="">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

@@ -1,8 +1,13 @@
 /**
- * AI Command Center - AI-generated insights
+ * AI Command Center - AI-generated insights with checkmarks
+ * Clean Light Design with color palette:
+ *   - Primary: #003C7D (dark blue)
+ *   - Secondary: #008CFF (light blue)
+ *   - Success: #10B981 (green)
+ *   - Background: #FFFFFF / #F9FAFB
+ *   - Text: #1F2937 (dark gray)
  */
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
@@ -11,7 +16,8 @@ import {
   Lightbulb,
   AlertTriangle,
   TrendingUp,
-  ChevronRight
+  ChevronRight,
+  CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -39,101 +45,130 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
     }
   };
 
-  const getSeverityColor = (severity: string) => {
+  const getSeverityStyles = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return 'text-red-500 bg-red-500/10 border-red-500/20';
+        return 'bg-red-50 border-red-200';
       case 'warning':
-        return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
+        return 'bg-amber-50 border-amber-200';
       default:
-        return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
+        return 'bg-[#F9FAFB] border-gray-100';
     }
   };
 
-  const getSeverityBadge = (severity: string) => {
+  const getSeverityBadgeStyles = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return 'destructive';
+        return 'bg-red-100 text-red-600 border-red-200';
       case 'warning':
-        return 'secondary';
+        return 'bg-amber-100 text-amber-600 border-amber-200';
       default:
-        return 'outline';
+        return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
 
   return (
-    <Card className="h-full card-hover-lift card-shine">
-      <CardHeader className="pb-3">
+    <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary icon-pulse" />
-            <CardTitle className="text-base">{t('executiveDashboard.aiCommandCenter', 'AI Command Center')}</CardTitle>
+            <div className="p-2 bg-[#003C7D]/10 rounded-xl">
+              <Sparkles className="h-4 w-4 text-[#003C7D]" />
+            </div>
+            <h3 className="text-base font-semibold text-[#1F2937]">
+              {t('executiveDashboard.aiCommandCenter', 'AI Command Center')}
+            </h3>
           </div>
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={onRefresh}
             disabled={isLoading}
-            className="h-7 w-7 p-0 transition-all hover:scale-105 active:scale-95"
+            className="h-8 w-8 p-0 text-gray-500 hover:text-[#003C7D] hover:bg-[#003C7D]/10 rounded-xl"
           >
-            <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
+            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
           </Button>
         </div>
-        <CardDescription className="text-xs">
+        <p className="text-xs text-gray-500 mt-1 ml-10">
           {t('executiveDashboard.aiCommandCenterDesc', 'AI-generated insights and recommendations')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+        </p>
+      </div>
+
+      <div className="p-6 space-y-4">
         {insights.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center animate-in fade-in-0 zoom-in-95 duration-500">
-            <Sparkles className="h-10 w-10 text-muted-foreground/50 mb-3 icon-pulse" />
-            <p className="text-xs text-muted-foreground">
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="p-4 bg-[#F9FAFB] rounded-2xl mb-4">
+              <Sparkles className="h-12 w-12 text-gray-300" />
+            </div>
+            <p className="text-sm font-medium text-[#1F2937]">
               {t('executiveDashboard.noInsights', 'No insights available yet')}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
+            <p className="text-xs text-gray-500 mt-1">
               {t('executiveDashboard.insightsWillAppear', 'AI insights will appear as data is analyzed')}
             </p>
           </div>
         ) : (
-          <div className="space-y-2 animate-stagger">
-            {insights.map((insight, index) => (
+          <div className="space-y-3">
+            {/* AI Summary Section with Checkmarks */}
+            <div className="p-4 rounded-2xl bg-[#10B981]/5 border border-[#10B981]/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="h-4 w-4 text-[#10B981]" />
+                <span className="text-sm font-semibold text-[#1F2937]">AI Summary</span>
+              </div>
+              <div className="space-y-2">
+                {insights.slice(0, 3).map((insight, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-[#10B981] mt-0.5 flex-shrink-0" />
+                    <span className="text-sm text-gray-600">{insight.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Detailed Insights */}
+            {insights.map((insight) => (
               <div 
                 key={insight.id}
                 className={cn(
-                  'p-3 rounded-lg border transition-all duration-300 hover:bg-muted/50 hover:translate-x-1 cursor-pointer',
-                  getSeverityColor(insight.severity),
-                  insight.severity === 'critical' && 'alert-pulse glow-danger'
+                  'p-4 rounded-2xl border transition-all hover:shadow-sm cursor-pointer',
+                  getSeverityStyles(insight.severity)
                 )}
-                style={{ animationDelay: `${index * 100}ms` }}
               >
-                <div className="flex items-start gap-2">
+                <div className="flex items-start gap-3">
                   <div className={cn(
-                    'p-1.5 rounded-lg',
-                    getSeverityColor(insight.severity)
+                    'p-2 rounded-xl',
+                    insight.severity === 'critical' ? 'bg-red-100 text-red-600' : 
+                    insight.severity === 'warning' ? 'bg-amber-100 text-amber-600' :
+                    'bg-[#003C7D]/10 text-[#003C7D]'
                   )}>
                     {getInsightIcon(insight.type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="font-medium text-xs">{insight.title}</span>
-                      <Badge variant={getSeverityBadge(insight.severity) as any} className="text-[10px] px-1 py-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-sm text-[#1F2937]">{insight.title}</span>
+                      <Badge 
+                        className={cn(
+                          "text-xs px-2 py-0.5 rounded-full font-medium",
+                          getSeverityBadgeStyles(insight.severity)
+                        )}
+                      >
                         {insight.severity}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2">
+                    <p className="text-xs text-gray-500 line-clamp-2">
                       {insight.description}
                     </p>
                     {insight.recommendation && (
-                      <div className="mt-1.5 flex items-center gap-1 text-[10px] text-primary">
-                        <Lightbulb className="h-2.5 w-2.5" />
-                        <span className="truncate">{insight.recommendation}</span>
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-[#003C7D]">
+                        <Lightbulb className="h-3.5 w-3.5" />
+                        <span className="truncate font-medium">{insight.recommendation}</span>
                       </div>
                     )}
-                    <div className="mt-1.5 flex items-center justify-between">
-                      <span className="text-[10px] text-muted-foreground tabular-nums">
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-xs text-gray-400 tabular-nums">
                         Confidence: {(insight.confidence * 100).toFixed(0)}%
                       </span>
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
                     </div>
                   </div>
                 </div>
@@ -143,22 +178,30 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
         )}
 
         {/* Quick Actions */}
-        <div className="border-t pt-3">
-          <span className="text-xs font-medium mb-2 block">
+        <div className="border-t border-gray-100 pt-4">
+          <span className="text-sm font-semibold text-[#1F2937] mb-3 block">
             {t('executiveDashboard.quickActions', 'Quick Actions')}
           </span>
-          <div className="grid grid-cols-2 gap-1.5">
-            <Button variant="outline" size="sm" className="h-7 text-xs justify-start transition-all hover:scale-[1.02] active:scale-95 btn-press">
-              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+          <div className="grid grid-cols-2 gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-10 text-sm justify-start rounded-xl border-gray-200 bg-[#F9FAFB] text-[#1F2937] hover:bg-[#003C7D]/5 hover:border-[#003C7D]/30 hover:text-[#003C7D]"
+            >
+              <AlertTriangle className="h-4 w-4 mr-2 text-[#003C7D]" />
               {t('executiveDashboard.runSecurityScan', 'Security Scan')}
             </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs justify-start transition-all hover:scale-[1.02] active:scale-95 btn-press">
-              <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-10 text-sm justify-start rounded-xl border-gray-200 bg-[#F9FAFB] text-[#1F2937] hover:bg-[#003C7D]/5 hover:border-[#003C7D]/30 hover:text-[#003C7D]"
+            >
+              <TrendingUp className="h-4 w-4 mr-2 text-[#003C7D]" />
               {t('executiveDashboard.costReport', 'Cost Report')}
             </Button>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

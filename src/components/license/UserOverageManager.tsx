@@ -96,17 +96,17 @@ export function UserOverageManager({ organizationId, totalSeats, activeUsersCoun
         {/* Statistics */}
         <div className="grid grid-cols-3 gap-4">
           <div className="p-4 rounded-lg bg-muted">
-            <div className="text-2xl font-bold">{totalSeats}</div>
+            <div className="text-2xl font-semibold">{totalSeats}</div>
             <div className="text-sm text-muted-foreground">{t('userOverage.licenseLimit')}</div>
           </div>
           <div className={`p-4 rounded-lg ${canDelete ? 'bg-destructive/10' : 'bg-primary/10'}`}>
-            <div className={`text-2xl font-bold ${canDelete ? 'text-destructive' : 'text-primary'}`}>
+            <div className={`text-2xl font-semibold ${canDelete ? 'text-destructive' : 'text-primary'}`}>
               {activeUsersCount}
             </div>
             <div className="text-sm text-muted-foreground">{t('userOverage.activeUsers')}</div>
           </div>
           <div className={`p-4 rounded-lg ${canDelete ? 'bg-destructive/10' : 'bg-green-500/10'}`}>
-            <div className={`text-2xl font-bold ${canDelete ? 'text-destructive' : 'text-green-600'}`}>
+            <div className={`text-2xl font-semibold ${canDelete ? 'text-destructive' : 'text-green-600'}`}>
               {canDelete ? excessUsers : totalSeats - activeUsersCount}
             </div>
             <div className="text-sm text-muted-foreground">

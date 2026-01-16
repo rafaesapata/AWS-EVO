@@ -100,7 +100,7 @@ export function WafGeoDistribution({ geoDistribution, isLoading }: WafGeoDistrib
   const total = geoDistribution.reduce((sum, item) => sum + item.blockedRequests, 0);
 
   return (
-    <Card className="glass border-primary/20">
+    <Card className="">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Globe className="h-5 w-5 text-primary" />

@@ -244,7 +244,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
 
   if (!selectedAccountId) {
     return (
-      <Card className="glass border-yellow-500/30">
+      <Card className=" border-yellow-500/30">
         <CardContent className="pt-6">
           <Alert>
             <AlertTriangle className="h-4 w-4" />
@@ -262,7 +262,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
     <div className="space-y-6">
       {/* Existing Configurations */}
       {hasConfigs && (
-        <Card className="glass border-green-500/30">
+        <Card className=" border-green-500/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-green-500" />
@@ -327,7 +327,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
       )}
 
       {/* Setup New WAF */}
-      <Card className="glass border-primary/20">
+      <Card className="">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5 text-primary" />
@@ -458,7 +458,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
       </Card>
 
       {/* Requirements */}
-      <Card className="glass border-muted">
+      <Card className=" border-muted">
         <CardHeader>
           <CardTitle className="text-sm">{t('waf.requirements')}</CardTitle>
         </CardHeader>

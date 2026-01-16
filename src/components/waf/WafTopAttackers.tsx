@@ -157,7 +157,7 @@ export function WafTopAttackers({ topAttackers, isLoading, onBlockIp }: WafTopAt
 
   return (
     <>
-      <Card className="glass border-primary/20">
+      <Card className="">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
@@ -186,7 +186,7 @@ export function WafTopAttackers({ topAttackers, isLoading, onBlockIp }: WafTopAt
                     className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
                     onClick={() => setSelectedIp(attacker.sourceIp)}
                   >
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-red-500/10 text-red-500 font-bold text-sm">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-red-500/10 text-red-500 font-semibold text-sm">
                       {index + 1}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -254,7 +254,7 @@ export function WafTopAttackers({ topAttackers, isLoading, onBlockIp }: WafTopAt
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
               <div className="flex items-center gap-2">
                 <Network className="h-5 w-5 text-primary" />
-                <span className="font-mono text-lg font-bold">{selectedIp}</span>
+                <span className="font-mono text-lg font-semibold">{selectedIp}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" onClick={handleCopyIp}>

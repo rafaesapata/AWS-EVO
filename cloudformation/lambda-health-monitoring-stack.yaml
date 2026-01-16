@@ -1,0 +1,212 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lambda Health Monitoring Stack - Monitora saúde de Lambdas críticas'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - development
+      - production
+    Description: Environment name
+
+  AlertEmail:
+    Type: String
+    Description: Email para receber alertas de saúde das Lambdas
+    Default: devops@udstec.io
+
+Resources:
+  # SNS Topic para alertas
+  LambdaHealthAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'evo-lambda-health-alerts-${Environment}'
+      DisplayName: EVO Lambda Health Alerts
+      Subscription:
+        - Endpoint: !Ref AlertEmail
+          Protocol: email
+
+  # Lambda de Health Check
+  LambdaHealthCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'evo-uds-v3-${Environment}-lambda-health-check'
+      Runtime: nodejs18.x
+      Handler: lambda-health-check.handler
+      Role: !GetAtt LambdaHealthCheckRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          ALERT_SNS_TOPIC_ARN: !Ref LambdaHealthAlertTopic
+          NODE_ENV: !Ref Environment
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Lambda Health Check placeholder - deploy real code');
+            return { statusCode: 200 };
+          };
+
+  # IAM Role para Lambda Health Check
+  LambdaHealthCheckRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'evo-lambda-health-check-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LambdaHealthCheckPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Invocar outras Lambdas
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                  - lambda:GetFunctionConfiguration
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:evo-uds-v3-${Environment}-*'
+              
+              # Ler logs do CloudWatch
+              - Effect: Allow
+                Action:
+                  - logs:FilterLogEvents
+                  - logs:DescribeLogGroups
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/evo-uds-v3-${Environment}-*:*'
+              
+              # Publicar métricas customizadas
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+              
+              # Enviar alertas via SNS
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref LambdaHealthAlertTopic
+
+  # EventBridge Rule - Executar a cada 5 minutos
+  LambdaHealthCheckSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'evo-lambda-health-check-schedule-${Environment}'
+      Description: Executa health check de Lambdas críticas a cada 5 minutos
+      ScheduleExpression: rate(5 minutes)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LambdaHealthCheckFunction.Arn
+          Id: LambdaHealthCheckTarget
+
+  # Permissão para EventBridge invocar a Lambda
+  LambdaHealthCheckInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaHealthCheckFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LambdaHealthCheckSchedule.Arn
+
+  # CloudWatch Alarm - Overall Health < 80%
+  OverallHealthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'evo-lambda-overall-health-low-${Environment}'
+      AlarmDescription: Alerta quando saúde geral das Lambdas cai abaixo de 80%
+      MetricName: OverallHealthPercentage
+      Namespace: EVO/LambdaHealth
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref LambdaHealthAlertTopic
+      TreatMissingData: notBreaching
+
+  # CloudWatch Alarm - Critical Lambda Down
+  CriticalLambdaDownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'evo-lambda-critical-down-${Environment}'
+      AlarmDescription: Alerta quando uma Lambda crítica está down (health = 0)
+      MetricName: LambdaHealth
+      Namespace: EVO/LambdaHealth
+      Statistic: Minimum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0.1
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref LambdaHealthAlertTopic
+      TreatMissingData: breaching
+
+  # CloudWatch Dashboard
+  LambdaHealthDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'EVO-Lambda-Health-${Environment}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["EVO/LambdaHealth", "OverallHealthPercentage"]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Overall Lambda Health",
+                "yAxis": {
+                  "left": {
+                    "min": 0,
+                    "max": 100
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["EVO/LambdaHealth", "LambdaHealth", {"stat": "Minimum"}]
+                ],
+                "period": 300,
+                "stat": "Minimum",
+                "region": "${AWS::Region}",
+                "title": "Critical Lambdas Health (Min)",
+                "yAxis": {
+                  "left": {
+                    "min": 0,
+                    "max": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+
+Outputs:
+  LambdaHealthCheckFunctionArn:
+    Description: ARN da Lambda de Health Check
+    Value: !GetAtt LambdaHealthCheckFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-HealthCheckFunctionArn'
+
+  AlertTopicArn:
+    Description: ARN do SNS Topic para alertas
+    Value: !Ref LambdaHealthAlertTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-AlertTopicArn'
+
+  DashboardURL:
+    Description: URL do CloudWatch Dashboard
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=EVO-Lambda-Health-${Environment}'

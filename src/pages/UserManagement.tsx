@@ -489,7 +489,7 @@ export default function UserManagement() {
       <div className="space-y-6">
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-4">
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Usuários</CardTitle>
           </CardHeader>
@@ -497,14 +497,14 @@ export default function UserManagement() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-semibold">
                 {users?.length || 0}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Usuários Ativos</CardTitle>
           </CardHeader>
@@ -512,14 +512,14 @@ export default function UserManagement() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-green-500">
+              <div className="text-2xl font-semibold text-green-500">
                 {users?.filter(user => user.status === 'active').length || 0}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Administradores</CardTitle>
           </CardHeader>
@@ -527,14 +527,14 @@ export default function UserManagement() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-blue-500">
+              <div className="text-2xl font-semibold text-blue-500">
                 {users?.filter(user => user.role === 'admin' || user.role === 'super_admin').length || 0}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Pendentes</CardTitle>
           </CardHeader>
@@ -542,7 +542,7 @@ export default function UserManagement() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold text-yellow-500">
+              <div className="text-2xl font-semibold text-yellow-500">
                 {users?.filter(user => user.status === 'pending').length || 0}
               </div>
             )}
@@ -551,7 +551,7 @@ export default function UserManagement() {
       </div>
 
       {/* Filters */}
-      <Card className="glass border-primary/20">
+      <Card >
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
@@ -560,11 +560,11 @@ export default function UserManagement() {
                 placeholder="Buscar usuários..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 glass"
+                className="pl-10 "
               />
             </div>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="glass">
+              <SelectTrigger >
                 <SelectValue placeholder="Filtrar por função" />
               </SelectTrigger>
               <SelectContent>
@@ -576,7 +576,7 @@ export default function UserManagement() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="glass">
+              <SelectTrigger >
                 <SelectValue placeholder="Filtrar por status" />
               </SelectTrigger>
               <SelectContent>
@@ -591,7 +591,7 @@ export default function UserManagement() {
       </Card>
 
       {/* Users Table */}
-      <Card className="glass border-primary/20">
+      <Card >
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Lista de Usuários</CardTitle>

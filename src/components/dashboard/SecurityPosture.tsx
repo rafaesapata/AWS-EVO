@@ -133,7 +133,7 @@ export default function SecurityPosture() {
         </CardHeader>
         <CardContent>
           <div className="text-center mb-6">
-            <div className={`text-6xl font-bold ${getScoreColor(posture?.overall_score || 0)}`}>
+            <div className={`text-6xl font-semibold ${getScoreColor(posture?.overall_score || 0)}`}>
               {posture?.overall_score?.toFixed(0) || 0}
             </div>
             <div className="text-sm text-muted-foreground">{t('securityPosture.outOf')}</div>
@@ -143,19 +143,19 @@ export default function SecurityPosture() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-3 bg-destructive/10 rounded-lg">
-              <div className="text-2xl font-bold text-destructive">{posture?.critical_findings || 0}</div>
+              <div className="text-2xl font-semibold text-destructive">{posture?.critical_findings || 0}</div>
               <div className="text-xs text-muted-foreground">{t('securityPosture.critical')}</div>
             </div>
             <div className="text-center p-3 bg-orange-500/10 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">{posture?.high_findings || 0}</div>
+              <div className="text-2xl font-semibold text-orange-600">{posture?.high_findings || 0}</div>
               <div className="text-xs text-muted-foreground">{t('securityPosture.high')}</div>
             </div>
             <div className="text-center p-3 bg-yellow-500/10 rounded-lg">
-              <div className="text-2xl font-bold text-yellow-600">{posture?.medium_findings || 0}</div>
+              <div className="text-2xl font-semibold text-yellow-600">{posture?.medium_findings || 0}</div>
               <div className="text-xs text-muted-foreground">{t('securityPosture.medium')}</div>
             </div>
             <div className="text-center p-3 bg-blue-500/10 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{posture?.low_findings || 0}</div>
+              <div className="text-2xl font-semibold text-blue-600">{posture?.low_findings || 0}</div>
               <div className="text-xs text-muted-foreground">{t('securityPosture.low')}</div>
             </div>
           </div>

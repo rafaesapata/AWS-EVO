@@ -28,7 +28,7 @@ const EnhancedAwsSetupWizard = ({ onComplete, onSkip }: EnhancedAwsSetupWizardPr
         <div className="w-24 h-24 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
           <Zap className="w-12 h-12 text-white" />
         </div>
-        <h1 className="text-3xl font-bold mb-3">Bem-vindo ao EVO Platform</h1>
+        <h1 className="text-3xl font-semibold mb-3">Bem-vindo ao EVO Platform</h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
           Conecte sua infraestrutura AWS de forma segura e comece a otimizar seus custos e segurança em minutos
         </p>

@@ -46,6 +46,12 @@ import EndpointMonitoring from "./pages/EndpointMonitoring";
 import EdgeMonitoring from "./pages/EdgeMonitoring";
 import Organizations from "./pages/Organizations";
 import AzureOAuthCallback from "./pages/AzureOAuthCallback";
+import PlatformMonitoring from "./pages/PlatformMonitoring";
+import { CostAnalysisPage } from "./pages/CostAnalysisPage";
+import { MonthlyInvoicesPage } from "./pages/MonthlyInvoicesPage";
+import TVDashboardManagement from "./pages/TVDashboardManagement";
+import UserManagement from "./pages/UserManagement";
+import AuditLogPage from "./pages/AuditLogPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./i18n/config";
 import "./index.css";
@@ -92,6 +98,14 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/auth" element={<AuthSimple />} />
               <Route 
                 path="/app" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/app-old" 
                 element={
                   <ProtectedRoute>
                     <Index />
@@ -275,6 +289,22 @@ createRoot(document.getElementById("root")!).render(
                 } 
               />
               <Route 
+                path="/cost-analysis" 
+                element={
+                  <ProtectedRoute>
+                    <CostAnalysisPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/monthly-invoices" 
+                element={
+                  <ProtectedRoute>
+                    <MonthlyInvoicesPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
                 path="/cost-optimization" 
                 element={
                   <ProtectedRoute>
@@ -343,6 +373,38 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <Organizations />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/platform-monitoring" 
+                element={
+                  <ProtectedRoute>
+                    <PlatformMonitoring />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/tv-dashboards" 
+                element={
+                  <ProtectedRoute>
+                    <TVDashboardManagement />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/user-management" 
+                element={
+                  <ProtectedRoute>
+                    <UserManagement />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/audit-log" 
+                element={
+                  <ProtectedRoute>
+                    <AuditLogPage />
                   </ProtectedRoute>
                 } 
               />

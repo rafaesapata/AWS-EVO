@@ -60,70 +60,16 @@ Resources:
   # METRIC FILTERS FOR 5XX ERRORS
   # ============================================================================
   
-  # Filter for Lambda errors (status 500-599)
-  LambdaError5xxMetricFilter:
-    Type: AWS::Logs::MetricFilter
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/evo-uds-v3-${Environment}-*'
-      FilterPattern: '?"statusCode\":5" ?"statusCode\": 5" ?"\"statusCode\":5" ?ERROR ?Error ?error ?CRITICAL ?Exception ?exception'
-      MetricTransformations:
-        - MetricName: Lambda5xxErrors
-          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
-          MetricValue: '1'
-          DefaultValue: 0
-          Unit: Count
+  # Note: Metric filters for Lambda errors will be created by setup script
+  # CloudFormation doesn't support wildcards in log group names
+  # The setup script will create filters for all Lambda log groups
 
-  # Filter for API Gateway 5XX errors
-  ApiGateway5xxMetricFilter:
-    Type: AWS::Logs::MetricFilter
-    Properties:
-      LogGroupName: !Sub 'API-Gateway-Execution-Logs_3l66kn0eaj/prod'
-      FilterPattern: '[..., status_code=5*, ...]'
-      MetricTransformations:
-        - MetricName: ApiGateway5xxErrors
-          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
-          MetricValue: '1'
-          DefaultValue: 0
-          Unit: Count
-
-  # Filter for Frontend errors (captured via log-frontend-error Lambda)
-  FrontendErrorMetricFilter:
-    Type: AWS::Logs::MetricFilter
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/evo-uds-v3-${Environment}-log-frontend-error'
-      FilterPattern: '?"FRONTEND_ERROR" ?"source\":\"FRONTEND\"" ?"errorType\":"'
-      MetricTransformations:
-        - MetricName: FrontendErrors
-          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
-          MetricValue: '1'
-          DefaultValue: 0
-          Unit: Count
-
-  # Filter for Frontend API errors (5XX from frontend perspective)
-  FrontendApiErrorMetricFilter:
-    Type: AWS::Logs::MetricFilter
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/evo-uds-v3-${Environment}-log-frontend-error'
-      FilterPattern: '?"api_error" ?"statusCode\":5" ?"statusCode\": 5"'
-      MetricTransformations:
-        - MetricName: FrontendApiErrors
-          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
-          MetricValue: '1'
-          DefaultValue: 0
-          Unit: Count
-
-  # Filter for Critical Frontend errors
-  FrontendCriticalErrorMetricFilter:
-    Type: AWS::Logs::MetricFilter
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/evo-uds-v3-${Environment}-log-frontend-error'
-      FilterPattern: '?"severity\":\"critical\"" ?"render_error\"" ?CRITICAL'
-      MetricTransformations:
-        - MetricName: FrontendCriticalErrors
-          MetricNamespace: !Sub 'EVO/${Environment}/Errors'
-          MetricValue: '1'
-          DefaultValue: 0
-          Unit: Count
+  # Note: Metric filters will be created by setup script after log groups exist
+  # This includes:
+  # - API Gateway 5XX errors
+  # - Frontend errors (via log-frontend-error Lambda)
+  # - Frontend API errors
+  # - Frontend critical errors
 
   # ============================================================================
   # CLOUDWATCH ALARMS

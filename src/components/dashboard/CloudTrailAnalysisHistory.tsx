@@ -167,7 +167,7 @@ export const CloudTrailAnalysisHistory = ({ organizationId, accountId, onViewAna
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Eventos Críticos</p>
-                    <p className="text-2xl font-bold text-red-500">{latestAnalysis.critical_count || 0}</p>
+                    <p className="text-2xl font-semibold text-red-500">{latestAnalysis.critical_count || 0}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${criticalTrend < 0 ? 'text-green-500' : criticalTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {criticalTrend < 0 ? <TrendingDown className="h-5 w-5" /> : criticalTrend > 0 ? <TrendingUp className="h-5 w-5" /> : null}
@@ -181,7 +181,7 @@ export const CloudTrailAnalysisHistory = ({ organizationId, accountId, onViewAna
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Eventos de Alto Risco</p>
-                    <p className="text-2xl font-bold text-orange-500">{latestAnalysis.high_count || 0}</p>
+                    <p className="text-2xl font-semibold text-orange-500">{latestAnalysis.high_count || 0}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${highTrend < 0 ? 'text-green-500' : highTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {highTrend < 0 ? <TrendingDown className="h-5 w-5" /> : highTrend > 0 ? <TrendingUp className="h-5 w-5" /> : null}
@@ -273,7 +273,7 @@ export const CloudTrailAnalysisHistory = ({ organizationId, accountId, onViewAna
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         {analysis.status === 'completed' && (
-                          <Badge variant="secondary" className="text-lg font-bold">
+                          <Badge variant="secondary" className="text-lg font-semibold">
                             {analysis.events_processed || 0} eventos
                           </Badge>
                         )}

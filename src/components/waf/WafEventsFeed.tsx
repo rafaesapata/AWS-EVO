@@ -113,7 +113,7 @@ export function WafEventsFeed({ events, isLoading, showFilters, showPagination }
   };
 
   return (
-    <Card className="glass border-primary/20">
+    <Card className="">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-primary" />

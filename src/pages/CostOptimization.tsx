@@ -784,58 +784,43 @@ export default function CostOptimization() {
   return (
     <Layout 
       title="Otimização de Custos" 
-      description="Identifique oportunidades de economia e otimize seus gastos AWS"
-      icon={<Zap className="h-7 w-7 text-white" />}
+      description="Recomendações inteligentes baseadas em ML para reduzir custos AWS"
+      icon={<Zap className="h-4 w-4 text-white" />}
     >
       <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-6 w-6 text-primary" />
-                Otimização de Custos
-              </CardTitle>
-              <CardDescription>
-                Recomendações inteligentes baseadas em ML para reduzir custos AWS
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="default" 
-                size="sm" 
-                onClick={() => runOptimizationMutation.mutate()}
-                disabled={runOptimizationMutation.isPending || !selectedAccountId}
-                className="glass"
-              >
-                <Target className={`h-4 w-4 mr-2 ${runOptimizationMutation.isPending ? 'animate-spin' : ''}`} />
-                {runOptimizationMutation.isPending ? 'Analisando...' : 'Executar Análise'}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isLoading}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                {isLoading ? 'Atualizando...' : 'Atualizar'}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={exportRecommendations}
-                className="glass"
-                disabled={!recommendations || recommendations.length === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Exportar
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+      {/* Action Buttons */}
+      <div className="flex items-center justify-end gap-2">
+        <Button 
+          variant="default" 
+          size="sm" 
+          onClick={() => runOptimizationMutation.mutate()}
+          disabled={runOptimizationMutation.isPending || !selectedAccountId}
+          className="glass hover-glow"
+        >
+          <Target className={`h-4 w-4 mr-2 ${runOptimizationMutation.isPending ? 'animate-spin' : ''}`} />
+          {runOptimizationMutation.isPending ? 'Analisando...' : 'Executar Análise'}
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleRefresh}
+          disabled={isLoading}
+          className="glass hover-glow"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Atualizar
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={exportRecommendations}
+          className="glass hover-glow"
+          disabled={!recommendations || recommendations.length === 0}
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Exportar
+        </Button>
+      </div>
 
       {/* Metrics Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -847,7 +832,7 @@ export default function CostOptimization() {
             {metricsLoading ? (
               <Skeleton className="h-8 w-20" />
             ) : (
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-semibold">
                 ${(metrics?.total_monthly_cost ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             )}
@@ -863,7 +848,7 @@ export default function CostOptimization() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="space-y-1">
-                <div className="text-2xl font-bold text-green-500">
+                <div className="text-2xl font-semibold text-green-500">
                   ${(metrics?.total_potential_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -888,14 +873,14 @@ export default function CostOptimization() {
               <div className="space-y-2">
                 {recommendations && recommendations.length > 0 ? (
                   <>
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-semibold">
                       {Math.round(metrics?.optimization_score || 0)}/100
                     </div>
                     <Progress value={metrics?.optimization_score || 0} className="h-2" />
                   </>
                 ) : (
                   <>
-                    <div className="text-2xl font-bold text-muted-foreground">
+                    <div className="text-2xl font-semibold text-muted-foreground">
                       N/A
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -916,7 +901,7 @@ export default function CostOptimization() {
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-semibold">
                 {recommendations?.length || 0}
               </div>
             )}
@@ -931,7 +916,7 @@ export default function CostOptimization() {
             {metricsLoading ? (
               <Skeleton className="h-8 w-20" />
             ) : (
-              <div className="text-2xl font-bold text-blue-500">
+              <div className="text-2xl font-semibold text-blue-500">
                 ${(metrics?.implemented_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             )}
@@ -1021,7 +1006,7 @@ export default function CostOptimization() {
                             </div>
                           </div>
                           <div className="text-right space-y-1">
-                            <div className="text-2xl font-bold text-green-500">
+                            <div className="text-2xl font-semibold text-green-500">
                               ${rec.potential_savings.toFixed(2)}
                             </div>
                             <div className="text-sm text-muted-foreground">
@@ -1245,13 +1230,13 @@ export default function CostOptimization() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-green-800 dark:text-green-200">Total de Economia Realizada</p>
-                        <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                        <p className="text-2xl font-semibold text-green-700 dark:text-green-300">
                           ${recommendations?.filter(rec => rec.status === 'implemented').reduce((sum, rec) => sum + rec.potential_savings, 0).toFixed(2)}/mês
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium text-green-800 dark:text-green-200">Implementações</p>
-                        <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                        <p className="text-2xl font-semibold text-green-700 dark:text-green-300">
                           {recommendations?.filter(rec => rec.status === 'implemented').length}
                         </p>
                       </div>
@@ -1280,7 +1265,7 @@ export default function CostOptimization() {
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Implementado
                               </Badge>
-                              <p className="text-lg font-bold text-green-600 dark:text-green-400 mt-2">
+                              <p className="text-lg font-semibold text-green-600 dark:text-green-400 mt-2">
                                 ${rec.potential_savings.toFixed(2)}/mês
                               </p>
                               <p className="text-xs text-muted-foreground">economia realizada</p>
@@ -1343,15 +1328,15 @@ export default function CostOptimization() {
                 <div className="grid grid-cols-3 gap-4">
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">Custo Atual</p>
-                    <p className="text-xl font-bold">${selectedRecommendation.current_cost.toFixed(2)}</p>
+                    <p className="text-xl font-semibold">${selectedRecommendation.current_cost.toFixed(2)}</p>
                   </Card>
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">Custo Otimizado</p>
-                    <p className="text-xl font-bold text-green-500">${selectedRecommendation.optimized_cost.toFixed(2)}</p>
+                    <p className="text-xl font-semibold text-green-500">${selectedRecommendation.optimized_cost.toFixed(2)}</p>
                   </Card>
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">Economia</p>
-                    <p className="text-xl font-bold text-primary">${selectedRecommendation.potential_savings.toFixed(2)}</p>
+                    <p className="text-xl font-semibold text-primary">${selectedRecommendation.potential_savings.toFixed(2)}</p>
                     <p className="text-xs text-muted-foreground">{selectedRecommendation.savings_percentage.toFixed(1)}%</p>
                   </Card>
                 </div>

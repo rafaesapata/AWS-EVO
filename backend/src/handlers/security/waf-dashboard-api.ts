@@ -56,17 +56,8 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  const user = getUserFromEvent(event);
-  const organizationId = getOrganizationIdWithImpersonation(event, user);
   const method = getHttpMethod(event);
   const path = getHttpPath(event);
-  
-  logger.info('WAF Dashboard API request', { 
-    organizationId,
-    method,
-    path,
-    requestId: context.awsRequestId 
-  });
   
   if (method === 'OPTIONS') {
     return corsOptions();
@@ -84,6 +75,28 @@ export async function handler(
         // Body is not JSON, ignore
       }
     }
+    
+    // Special handling for background worker (no auth required)
+    // Background Lambda invocations don't have auth claims
+    if (body.action === 'ai-analysis-background') {
+      const bgOrgId = body.organizationId;
+      if (!bgOrgId) {
+        return error('organizationId is required for background analysis', 400);
+      }
+      logger.info('Background AI analysis worker invoked (no auth)', { organizationId: bgOrgId });
+      return await handleAiAnalysisBackground(event, prisma, bgOrgId);
+    }
+    
+    // All other actions require authentication
+    const user = getUserFromEvent(event);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
+    
+    logger.info('WAF Dashboard API request', { 
+      organizationId,
+      method,
+      path,
+      requestId: context.awsRequestId 
+    });
     
     // Action-based routing from body (preferred for frontend)
     if (body.action) {
@@ -180,7 +193,6 @@ export async function handler(
     
   } catch (err) {
     logger.error('WAF Dashboard API error', err as Error, { 
-      organizationId,
       path,
       requestId: context.awsRequestId 
     });
@@ -1449,14 +1461,123 @@ async function handleGetThreatStats(
 
 /**
  * POST /waf-ai-analysis - AI-powered analysis of WAF traffic
- * Uses AWS Bedrock to analyze blocked requests and identify patterns
+ * OPTIMIZED: Returns cached analysis immediately, triggers background refresh
+ * This prevents 504 timeout (analysis takes 30+ seconds)
  */
 async function handleAiAnalysis(
   event: AuthorizedEvent,
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
-  logger.info('Starting WAF AI analysis', { organizationId });
+  logger.info('WAF AI analysis requested', { organizationId });
+  
+  // 1. Check if there's a recent analysis (< 5 minutes old)
+  const recentAnalysis = await prisma.wafAiAnalysis.findFirst({
+    where: { organization_id: organizationId },
+    orderBy: { created_at: 'desc' },
+  });
+  
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const hasRecentAnalysis = recentAnalysis && recentAnalysis.created_at > fiveMinutesAgo;
+  
+  if (hasRecentAnalysis) {
+    logger.info('Returning cached AI analysis', { 
+      organizationId, 
+      age: Math.round((Date.now() - recentAnalysis.created_at.getTime()) / 1000) + 's' 
+    });
+    
+    return success({
+      id: recentAnalysis.id,
+      analysis: recentAnalysis.analysis,
+      context: recentAnalysis.context,
+      riskLevel: recentAnalysis.risk_level,
+      generatedAt: recentAnalysis.created_at.toISOString(),
+      cached: true,
+      cacheAge: Math.round((Date.now() - recentAnalysis.created_at.getTime()) / 1000),
+    });
+  }
+  
+  // 2. No recent analysis - trigger background processing and return fallback
+  logger.info('No recent analysis, triggering background generation', { organizationId });
+  
+  // Trigger async Lambda invocation (fire-and-forget)
+  try {
+    const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
+    const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
+    
+    await lambdaClient.send(new InvokeCommand({
+      FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME || 'evo-uds-v3-production-waf-dashboard-api',
+      InvocationType: 'Event', // Async invocation
+      Payload: JSON.stringify({
+        requestContext: { http: { method: 'POST' } },
+        body: JSON.stringify({ 
+          action: 'ai-analysis-background',
+          organizationId,
+        }),
+      }),
+    }));
+    
+    logger.info('Background AI analysis triggered', { organizationId });
+  } catch (err) {
+    logger.warn('Failed to trigger background analysis', err as Error);
+  }
+  
+  // 3. Return immediate fallback response
+  const since = new Date();
+  since.setHours(since.getHours() - 24);
+  
+  // Quick metrics query (optimized)
+  const quickMetrics = await prisma.$queryRaw<Array<{
+    total_events: bigint;
+    blocked_events: bigint;
+    unique_ips: bigint;
+  }>>`
+    SELECT 
+      COUNT(*) as total_events,
+      COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_events,
+      COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_ips
+    FROM waf_events
+    WHERE organization_id = ${organizationId}::uuid
+      AND timestamp >= ${since}
+  `;
+  
+  const metrics = quickMetrics[0] || { total_events: BigInt(0), blocked_events: BigInt(0), unique_ips: BigInt(0) };
+  const blockedCount = Number(metrics.blocked_events);
+  
+  const fallbackAnalysis = `## 📊 Análise Rápida (últimas 24h)
+
+**Status:** Análise detalhada em processamento...
+
+**Métricas Rápidas:**
+- Total de requisições: ${Number(metrics.total_events).toLocaleString()}
+- Requisições bloqueadas: ${blockedCount.toLocaleString()}
+- IPs únicos bloqueados: ${Number(metrics.unique_ips).toLocaleString()}
+
+**Nível de Risco:** ${blockedCount > 1000 ? 'Alto' : blockedCount > 100 ? 'Médio' : 'Baixo'}
+
+*Uma análise completa com IA está sendo gerada em segundo plano. Recarregue a página em 30 segundos para ver a análise detalhada.*`;
+
+  const riskLevel = blockedCount > 1000 ? 'alto' : blockedCount > 100 ? 'médio' : 'baixo';
+  
+  return success({
+    analysis: fallbackAnalysis,
+    riskLevel,
+    generatedAt: new Date().toISOString(),
+    processing: true,
+    message: 'Quick analysis returned. Detailed AI analysis is being generated in background.',
+  });
+}
+
+/**
+ * Background AI Analysis Worker
+ * Called asynchronously to generate full AI analysis without blocking the API
+ */
+async function handleAiAnalysisBackground(
+  event: AuthorizedEvent,
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  logger.info('Starting background WAF AI analysis', { organizationId });
   
   const since = new Date();
   since.setHours(since.getHours() - 24);

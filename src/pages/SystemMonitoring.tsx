@@ -104,7 +104,7 @@ const SystemMonitoring = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">CPU Usage</p>
-                    <p className="text-2xl font-bold text-gray-900">{metrics.cpu}%</p>
+                    <p className="text-2xl font-semibold text-gray-900">{metrics.cpu}%</p>
                     <Progress value={metrics.cpu} className="mt-2" />
                   </div>
                   <Cpu className="h-8 w-8 text-blue-500" />
@@ -117,7 +117,7 @@ const SystemMonitoring = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Memory</p>
-                    <p className="text-2xl font-bold text-gray-900">{metrics.memory}%</p>
+                    <p className="text-2xl font-semibold text-gray-900">{metrics.memory}%</p>
                     <Progress value={metrics.memory} className="mt-2" />
                   </div>
                   <MemoryStick className="h-8 w-8 text-green-500" />
@@ -130,7 +130,7 @@ const SystemMonitoring = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Disk Usage</p>
-                    <p className="text-2xl font-bold text-gray-900">{metrics.disk}%</p>
+                    <p className="text-2xl font-semibold text-gray-900">{metrics.disk}%</p>
                     <Progress value={metrics.disk} className="mt-2" />
                   </div>
                   <HardDrive className="h-8 w-8 text-orange-500" />
@@ -143,7 +143,7 @@ const SystemMonitoring = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Network I/O</p>
-                    <p className="text-2xl font-bold text-gray-900">{metrics.network}%</p>
+                    <p className="text-2xl font-semibold text-gray-900">{metrics.network}%</p>
                     <Progress value={metrics.network} className="mt-2" />
                   </div>
                   <Wifi className="h-8 w-8 text-purple-500" />
@@ -154,7 +154,7 @@ const SystemMonitoring = () => {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="glass grid w-full grid-cols-4">
+            <TabsList className="glass-card-float grid w-full grid-cols-4">
               <TabsTrigger value="overview">Visão Geral</TabsTrigger>
               <TabsTrigger value="services">Serviços</TabsTrigger>
               <TabsTrigger value="performance">Performance</TabsTrigger>

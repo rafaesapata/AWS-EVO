@@ -1,10 +1,14 @@
 /**
  * Financial Health Card - Cost metrics and savings
+ * Clean Light Design with color palette:
+ *   - Primary: #003C7D (dark blue)
+ *   - Secondary: #008CFF (light blue)
+ *   - Success: #10B981 (green)
+ *   - Background: #FFFFFF / #F9FAFB
+ *   - Text: #1F2937 (dark gray)
  */
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { DollarSign, TrendingUp, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import type { FinancialHealth } from '../types';
@@ -17,85 +21,100 @@ export default function FinancialHealthCard({ data }: Props) {
   const { t } = useTranslation();
 
   const getBudgetColor = (utilization: number) => {
-    if (utilization >= 90) return 'text-red-500';
-    if (utilization >= 75) return 'text-yellow-500';
-    return 'text-green-500';
+    if (utilization >= 90) return 'text-red-600';
+    if (utilization >= 75) return 'text-amber-600';
+    return 'text-[#1F2937]';
+  };
+
+  const getBudgetBarColor = (utilization: number) => {
+    if (utilization >= 90) return 'bg-red-500';
+    if (utilization >= 75) return 'bg-amber-500';
+    return 'bg-[#003C7D]';
   };
 
   return (
-    <Card className="h-full card-hover-lift card-shine">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <DollarSign className="h-4 w-4 text-primary icon-bounce" />
-          <CardTitle className="text-base">{t('executiveDashboard.financialHealth', 'Financial Health')}</CardTitle>
-        </div>
-        <CardDescription className="text-xs">
+    <div className="h-full bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-gray-100">
+        <h3 className="text-base font-semibold text-[#1F2937]">
+          {t('executiveDashboard.financialHealth', 'Financial Health')}
+        </h3>
+        <p className="text-xs text-gray-500 mt-0.5">
           {t('executiveDashboard.financialHealthDesc', 'Cost overview and savings opportunities')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Cost Summary */}
-        <div className="grid grid-cols-2 gap-3 animate-stagger">
-          <div className="space-y-0.5">
-            <span className="text-xs text-muted-foreground">
+        </p>
+      </div>
+
+      <div className="p-6 space-y-5">
+        {/* Cost Summary - 2x2 Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
+            <span className="text-sm font-medium text-gray-500">
               {t('executiveDashboard.mtdCost', 'MTD Cost')}
             </span>
-            <div className="text-lg font-bold tabular-nums">
+            <div className="text-3xl font-light text-[#1F2937] tabular-nums mt-1">
               ${data.mtdCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             {data.credits > 0 && (
-              <span className="text-[10px] text-green-500">
-                -${data.credits.toFixed(2)} credits
+              <span className="text-xs text-[#10B981] font-medium mt-1 block">
+                -${data.credits.toFixed(2)} {t('executiveDashboard.credits', 'credits')}
               </span>
             )}
           </div>
-          <div className="space-y-0.5">
-            <span className="text-xs text-muted-foreground">
+          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
+            <span className="text-sm font-medium text-gray-500">
               {t('executiveDashboard.ytdCost', 'YTD Cost')}
             </span>
-            <div className="text-lg font-bold tabular-nums">
+            <div className="text-3xl font-light text-[#1F2937] tabular-nums mt-1">
               ${data.ytdCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </div>
           </div>
         </div>
 
         {/* Budget Utilization */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="font-medium text-gray-500">
               {t('executiveDashboard.budgetUtilization', 'Budget Utilization')}
             </span>
-            <span className={cn('font-medium tabular-nums', getBudgetColor(data.budgetUtilization))}>
+            <span className={cn('font-semibold tabular-nums', getBudgetColor(data.budgetUtilization))}>
               {data.budgetUtilization.toFixed(1)}%
             </span>
           </div>
-          <Progress 
-            value={Math.min(100, data.budgetUtilization)} 
-            className="h-1.5 progress-shimmer"
-          />
-          <div className="flex justify-between text-[10px] text-muted-foreground">
+          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div 
+              className={cn('h-full rounded-full transition-all', getBudgetBarColor(data.budgetUtilization))}
+              style={{ width: `${Math.min(100, data.budgetUtilization)}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-400">
             <span>${data.mtdCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-            <span>${data.budget.toLocaleString('en-US', { maximumFractionDigits: 0 })} budget</span>
+            <span>${data.budget.toLocaleString('en-US', { maximumFractionDigits: 0 })} {t('executiveDashboard.budget', 'budget')}</span>
           </div>
         </div>
 
         {/* Top Services */}
         {data.topServices.length > 0 && (
           <div className="space-y-3">
-            <span className="text-sm font-medium">
+            <span className="text-sm font-semibold text-[#1F2937]">
               {t('executiveDashboard.topServices', 'Top Services')}
             </span>
-            <div className="space-y-2 animate-stagger">
+            <div className="space-y-2.5">
               {data.topServices.map((service) => (
-                <div key={service.service} className="flex items-center gap-2 transition-transform hover:translate-x-1">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="truncate">{service.service}</span>
-                      <span className="font-medium tabular-nums">
-                        ${service.cost.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                      </span>
-                    </div>
-                    <Progress value={service.percentage} className="h-1.5 progress-shimmer" />
+                <div key={service.service} className="space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 truncate">{service.service}</span>
+                    <span className="font-medium text-[#1F2937] tabular-nums">
+                      ${service.cost.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all"
+                      style={{ 
+                        width: `${service.percentage}%`,
+                        background: 'linear-gradient(90deg, #005FC5 0%, #003C7D 100%)'
+                      }}
+                    />
                   </div>
                 </div>
               ))}
@@ -104,53 +123,50 @@ export default function FinancialHealthCard({ data }: Props) {
         )}
 
         {/* Savings Breakdown */}
-        <div className="border-t pt-3 space-y-2">
-          <div className="flex items-center gap-1.5">
-            <TrendingUp className="h-3.5 w-3.5 text-green-500 icon-bounce" />
-            <span className="text-xs font-medium">
-              {t('executiveDashboard.savingsOpportunities', 'Savings Opportunities')}
-            </span>
-          </div>
+        <div className="border-t border-gray-100 pt-4 space-y-3">
+          <span className="text-sm font-semibold text-[#1F2937]">
+            {t('executiveDashboard.savingsOpportunities', 'Savings Opportunities')}
+          </span>
           
-          <div className="grid grid-cols-2 gap-2 animate-stagger">
-            <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 transition-all hover:scale-[1.02] hover:shadow-md">
-              <div className="text-base font-bold text-blue-500 tabular-nums">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100">
+              <div className="text-xl font-light text-[#1F2937] tabular-nums">
                 ${data.savings.costRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-gray-500">
                 {t('executiveDashboard.costOptimizations', 'Cost Optimizations')}
               </span>
             </div>
-            <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/20 transition-all hover:scale-[1.02] hover:shadow-md glow-success">
-              <div className="text-base font-bold text-green-500 tabular-nums">
+            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100">
+              <div className="text-xl font-light text-[#1F2937] tabular-nums">
                 ${data.savings.riSpRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-gray-500">
                 {t('executiveDashboard.riSavingsPlans', 'RI/Savings Plans')}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-2 rounded-lg bg-green-500/5 border border-green-500/20 glow-success transition-all hover:scale-[1.01]">
-            <span className="text-xs font-medium">
+          <div className="flex items-center justify-between p-4 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20">
+            <span className="text-sm font-medium text-[#1F2937]">
               {t('executiveDashboard.totalPotential', 'Total Potential')}
             </span>
             <div className="text-right">
-              <div className="text-base font-bold text-green-500 tabular-nums">
-                ${data.savings.potential.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo
+              <div className="text-2xl font-light text-[#10B981] tabular-nums">
+                ${data.savings.potential.toLocaleString('en-US', { maximumFractionDigits: 0 })}{t('executiveDashboard.perMonth', '/mo')}
               </div>
-              <span className="text-[10px] text-muted-foreground tabular-nums">
-                ${(data.savings.potential * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}/year
+              <span className="text-xs text-gray-500 tabular-nums">
+                ${(data.savings.potential * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}{t('executiveDashboard.perYear', '/year')}
               </span>
             </div>
           </div>
 
-          <p className="text-[10px] text-amber-600 flex items-start gap-1 alert-pulse">
-            <AlertTriangle className="h-2.5 w-2.5 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-gray-400 flex items-start gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
             <span>{t('executiveDashboard.estimatedValuesWarning', 'Estimated values based on current usage patterns')}</span>
           </p>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

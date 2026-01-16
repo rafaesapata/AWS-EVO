@@ -654,30 +654,28 @@ export default function Compliance() {
     <Layout 
       title={t('compliance.title', 'Compliance & Conformity')}
       description={t('compliance.description', 'Security framework compliance verification')}
-      icon={<FileCheck className="h-5 w-5 text-white" />}
+      icon={<FileCheck className="h-4 w-4 text-white" />}
     >
       <div className="space-y-6">
         {/* Action Buttons */}
-        <Card className="glass border-primary/20">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-primary" />
-                <span className="font-medium">
-                  {isAzure ? 'Azure Compliance Frameworks' : 'AWS Compliance Frameworks'}
-                </span>
-                {hasRunningScans && (
-                  <Badge variant="secondary" className="animate-pulse">
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    {t('compliance.scanning', 'Scanning...')}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button 
-                  onClick={runSelectedFrameworks}
-                  disabled={hasRunningScans || selectedFrameworks.length === 0}
-                  variant="default"
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            <span className="font-medium">
+              {isAzure ? 'Azure Compliance Frameworks' : 'AWS Compliance Frameworks'}
+            </span>
+            {hasRunningScans && (
+              <Badge variant="secondary" className="animate-pulse">
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                {t('compliance.scanning', 'Scanning...')}
+              </Badge>
+            )}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              onClick={runSelectedFrameworks}
+              disabled={hasRunningScans || selectedFrameworks.length === 0}
+              variant="default"
                   size="sm"
                   className="gap-2"
                 >
@@ -724,12 +722,10 @@ export default function Compliance() {
                 </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {t('compliance.frameworks', 'Frameworks')}
@@ -739,12 +735,12 @@ export default function Compliance() {
               {isLoading ? (
                 <Skeleton className="h-8 w-12" />
               ) : (
-                <div className="text-2xl font-bold">{frameworksWithData}/{totalFrameworks}</div>
+                <div className="text-2xl font-semibold">{frameworksWithData}/{totalFrameworks}</div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {t('compliance.compliant', 'Compliant (≥80%)')}
@@ -754,12 +750,12 @@ export default function Compliance() {
               {isLoading ? (
                 <Skeleton className="h-8 w-12" />
               ) : (
-                <div className="text-2xl font-bold text-green-500">{compliantFrameworks}</div>
+                <div className="text-2xl font-semibold text-green-500">{compliantFrameworks}</div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {t('compliance.avgScore', 'Avg Score')}
@@ -770,14 +766,14 @@ export default function Compliance() {
                 <Skeleton className="h-8 w-16" />
               ) : (
                 <div className="space-y-2">
-                  <div className="text-2xl font-bold">{avgComplianceScore.toFixed(1)}%</div>
+                  <div className="text-2xl font-semibold">{avgComplianceScore.toFixed(1)}%</div>
                   <Progress value={avgComplianceScore} className="h-2" />
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {t('compliance.totalControls', 'Total Controls')}
@@ -787,12 +783,12 @@ export default function Compliance() {
               {isLoading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-bold">{totalControls}</div>
+                <div className="text-2xl font-semibold">{totalControls}</div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {t('compliance.passedControls', 'Passed')}
@@ -803,7 +799,7 @@ export default function Compliance() {
                 <Skeleton className="h-8 w-16" />
               ) : (
                 <div className="space-y-1">
-                  <div className="text-2xl font-bold text-green-500">{passedControls}</div>
+                  <div className="text-2xl font-semibold text-green-500">{passedControls}</div>
                   <div className="text-xs text-muted-foreground">
                     {totalControls > 0 ? `${((passedControls / totalControls) * 100).toFixed(1)}%` : '0%'}
                   </div>
@@ -812,7 +808,7 @@ export default function Compliance() {
             </CardContent>
           </Card>
 
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
                 {t('compliance.trend', 'Trend')}
@@ -824,7 +820,7 @@ export default function Compliance() {
                 <Skeleton className="h-8 w-16" />
               ) : (
                 <div className="space-y-1">
-                  <div className={`text-2xl font-bold ${
+                  <div className={`text-2xl font-semibold ${
                     complianceHistory?.summary?.score_change > 0 ? 'text-green-500' : 
                     complianceHistory?.summary?.score_change < 0 ? 'text-red-500' : ''
                   }`}>
@@ -843,7 +839,7 @@ export default function Compliance() {
 
         {/* Main Content */}
         <Tabs defaultValue="frameworks" className="w-full">
-          <TabsList className="glass">
+          <TabsList >
             <TabsTrigger value="frameworks">{t('compliance.frameworks', 'Frameworks')}</TabsTrigger>
             <TabsTrigger value="controls">{t('compliance.controls', 'Controls')}</TabsTrigger>
             <TabsTrigger value="trends">{t('compliance.trends', 'Trends')}</TabsTrigger>
@@ -851,7 +847,7 @@ export default function Compliance() {
           </TabsList>
 
           <TabsContent value="frameworks" className="space-y-6">
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>{t('compliance.complianceFrameworks', 'Compliance Frameworks')}</CardTitle>
                 <CardDescription>
@@ -971,7 +967,7 @@ export default function Compliance() {
 
           <TabsContent value="controls" className="space-y-4">
             {selectedChecks.length > 0 && (
-              <Card className="glass border-primary/20">
+              <Card >
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
@@ -991,7 +987,7 @@ export default function Compliance() {
               </Card>
             )}
 
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>{t('compliance.complianceControls', 'Compliance Controls')}</CardTitle>
                 <CardDescription>{t('compliance.controlsDetails', 'Details of verified controls')}</CardDescription>
@@ -1194,7 +1190,7 @@ export default function Compliance() {
 
             {/* Trend Summary */}
             <div className="grid gap-4 md:grid-cols-3">
-              <Card className="glass border-primary/20">
+              <Card >
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <History className="h-4 w-4" />
@@ -1206,7 +1202,7 @@ export default function Compliance() {
                     <Skeleton className="h-12 w-20" />
                   ) : (
                     <div className="flex items-end gap-2">
-                      <span className="text-3xl font-bold">
+                      <span className="text-3xl font-semibold">
                         {complianceHistory?.summary?.current_score?.toFixed(1) || '0'}%
                       </span>
                       {complianceHistory?.summary?.score_change !== 0 && (
@@ -1227,7 +1223,7 @@ export default function Compliance() {
                 </CardContent>
               </Card>
 
-              <Card className="glass border-primary/20">
+              <Card >
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <BarChart3 className="h-4 w-4" />
@@ -1238,14 +1234,14 @@ export default function Compliance() {
                   {isLoadingHistory ? (
                     <Skeleton className="h-12 w-16" />
                   ) : (
-                    <div className="text-3xl font-bold">
+                    <div className="text-3xl font-semibold">
                       {complianceHistory?.total_scans || 0}
                     </div>
                   )}
                 </CardContent>
               </Card>
 
-              <Card className="glass border-primary/20">
+              <Card >
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4" />
@@ -1256,7 +1252,7 @@ export default function Compliance() {
                   {isLoadingHistory ? (
                     <Skeleton className="h-12 w-16" />
                   ) : (
-                    <div className="text-3xl font-bold text-red-500">
+                    <div className="text-3xl font-semibold text-red-500">
                       {complianceHistory?.recent_critical_findings?.length || 0}
                     </div>
                   )}
@@ -1265,7 +1261,7 @@ export default function Compliance() {
             </div>
 
             {/* Compliance Score Trend Chart */}
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>{t('compliance.scoreTrend', 'Compliance Score Trend')}</CardTitle>
                 <CardDescription>
@@ -1325,7 +1321,7 @@ export default function Compliance() {
             </Card>
 
             {/* Framework Trends */}
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>{t('compliance.frameworkTrends', 'Framework Trends')}</CardTitle>
                 <CardDescription>
@@ -1379,7 +1375,7 @@ export default function Compliance() {
 
             {/* Recent Critical Findings */}
             {complianceHistory?.recent_critical_findings?.length > 0 && (
-              <Card className="glass border-red-500/20">
+              <Card className=" border-red-500/20">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-red-500">
                     <AlertTriangle className="h-5 w-5" />
@@ -1415,7 +1411,7 @@ export default function Compliance() {
           <TabsContent value="analytics" className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Compliance Scores Chart */}
-              <Card className="glass border-primary/20">
+              <Card >
                 <CardHeader>
                   <CardTitle>{t('compliance.scoresByFramework', 'Scores by Framework')}</CardTitle>
                   <CardDescription>{t('compliance.comparisonBetween', 'Compliance comparison between frameworks')}</CardDescription>
@@ -1460,7 +1456,7 @@ export default function Compliance() {
               </Card>
 
               {/* Status Distribution */}
-              <Card className="glass border-primary/20">
+              <Card >
                 <CardHeader>
                   <CardTitle>{t('compliance.statusDistribution', 'Status Distribution')}</CardTitle>
                   <CardDescription>{t('compliance.verifiedControlsStatus', 'Status of verified controls')}</CardDescription>
@@ -1502,7 +1498,7 @@ export default function Compliance() {
             </div>
 
             {/* Findings by Severity */}
-            <Card className="glass border-primary/20">
+            <Card >
               <CardHeader>
                 <CardTitle>{t('compliance.findingsBySeverity', 'Findings by Severity')}</CardTitle>
                 <CardDescription>{t('compliance.breakdownBySeverity', 'Breakdown of failed controls by severity level')}</CardDescription>
@@ -1524,7 +1520,7 @@ export default function Compliance() {
                       };
                       return (
                         <div key={severity} className={`rounded-lg p-4 ${colors[severity]}`}>
-                          <div className="text-3xl font-bold">{count}</div>
+                          <div className="text-3xl font-semibold">{count}</div>
                           <div className="text-sm capitalize">{severity}</div>
                         </div>
                       );

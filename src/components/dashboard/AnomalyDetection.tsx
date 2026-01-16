@@ -129,7 +129,7 @@ export default function AnomalyDetection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{anomalies?.length || 0}</div>
+            <div className="text-2xl font-semibold">{anomalies?.length || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -137,7 +137,7 @@ export default function AnomalyDetection() {
             <CardTitle className="text-sm font-medium">Críticas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">
+            <div className="text-2xl font-semibold text-destructive">
               {anomalies?.filter(a => a.severity === 'critical').length || 0}
             </div>
           </CardContent>
@@ -147,7 +147,7 @@ export default function AnomalyDetection() {
             <CardTitle className="text-sm font-medium">Custo Extra Detectado</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               ${anomalies?.reduce((sum, a) => sum + (a.current_cost - a.baseline_cost), 0).toFixed(2) || '0'}
             </div>
           </CardContent>
@@ -157,7 +157,7 @@ export default function AnomalyDetection() {
             <CardTitle className="text-sm font-medium">Desvio Médio</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               {anomalies?.length ? (anomalies.reduce((sum, a) => sum + a.deviation_percentage, 0) / anomalies.length).toFixed(0) : 0}%
             </div>
           </CardContent>

@@ -401,7 +401,7 @@ export function ComplianceFrameworks() {
 
   if (isLoading) {
     return (
-      <Card className="glass border-primary/20">
+      <Card className="">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="w-5 h-5" />
@@ -420,7 +420,7 @@ export function ComplianceFrameworks() {
 
   return (
     <>
-      <Card className="glass border-primary/20">
+      <Card className="">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -565,7 +565,7 @@ export function ComplianceFrameworks() {
                         )}
                       </Button>
                       <div className="text-right">
-                        <div className={`text-3xl font-bold ${
+                        <div className={`text-3xl font-semibold ${
                           stats.compliance >= 80 ? 'text-green-600' :
                           stats.compliance >= 60 ? 'text-yellow-600' :
                           'text-red-600'

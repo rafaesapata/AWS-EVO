@@ -443,7 +443,7 @@ export const MonthlyInvoicesPage = () => {
     >
       <div className="space-y-6">
       {/* Main Content Card */}
-      <Card className="glass border-primary/20">
+      <Card>
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
@@ -461,7 +461,7 @@ export const MonthlyInvoicesPage = () => {
                 size="sm"
                 onClick={() => loadHistoricalData(false)}
                 disabled={isLoadingHistory}
-                className="glass"
+                className="glass-card-float"
               >
                 {isLoadingHistory ? (
                   <>
@@ -495,7 +495,7 @@ export const MonthlyInvoicesPage = () => {
             <div className="flex-1 min-w-[200px]">
               <label className="text-sm font-medium mb-2 block">Mês</label>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="glass">
+                <SelectTrigger className="glass-card-float">
                   <SelectValue placeholder="Selecionar mês" />
                 </SelectTrigger>
                 <SelectContent>
@@ -522,7 +522,7 @@ export const MonthlyInvoicesPage = () => {
           {/* Summary Cards Skeleton */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
-              <Card key={i} className="glass border-primary/20">
+              <Card key={i}>
                 <CardHeader className="pb-2">
                   <Skeleton className="h-4 w-24" />
                 </CardHeader>
@@ -535,7 +535,7 @@ export const MonthlyInvoicesPage = () => {
           </div>
           
           {/* Chart Skeleton */}
-          <Card className="glass border-primary/20">
+          <Card>
             <CardHeader>
               <Skeleton className="h-6 w-48 mb-2" />
               <Skeleton className="h-4 w-64" />
@@ -546,7 +546,7 @@ export const MonthlyInvoicesPage = () => {
           </Card>
           
           {/* Invoice List Skeleton */}
-          <Card className="glass border-primary/20">
+          <Card>
             <CardHeader>
               <Skeleton className="h-6 w-40 mb-2" />
               <Skeleton className="h-4 w-56" />
@@ -578,21 +578,21 @@ export const MonthlyInvoicesPage = () => {
       {/* Monthly Summary Cards */}
       {!isLoadingCosts && selectedMonthData && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="glass border-primary/20">
+          <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Custo Total</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${selectedMonthData.totalCost.toFixed(2)}</div>
+              <div className="text-2xl font-semibold">${selectedMonthData.totalCost.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">{selectedMonthData.days} dias</p>
             </CardContent>
           </Card>
-          <Card className="glass border-primary/20">
+          <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Créditos Aplicados</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-success">
+              <div className="text-2xl font-semibold text-success">
                 ${selectedMonthData.totalCredits.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -600,27 +600,27 @@ export const MonthlyInvoicesPage = () => {
               </p>
             </CardContent>
           </Card>
-          <Card className="glass border-primary/20">
+          <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Custo Líquido</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${selectedMonthData.netCost.toFixed(2)}</div>
+              <div className="text-2xl font-semibold">${selectedMonthData.netCost.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">Valor a pagar</p>
             </CardContent>
           </Card>
-          <Card className="glass border-primary/20">
+          <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Média Diária</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-semibold">
                 ${(selectedMonthData.netCost / selectedMonthData.days).toFixed(2)}
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="mt-2 w-full glass"
+                className="mt-2 w-full glass-card-float"
                 onClick={() => exportInvoice(selectedMonth)}
               >
                 <Download className="h-4 w-4 mr-2" />
@@ -634,7 +634,7 @@ export const MonthlyInvoicesPage = () => {
       {/* Tabs for different views */}
       {!isLoadingCosts && (
       <Tabs defaultValue="comparison" className="w-full">
-        <TabsList className="glass">
+        <TabsList className="glass-card-float">
           <TabsTrigger value="comparison">Comparação Mensal</TabsTrigger>
           <TabsTrigger value="services">Serviços</TabsTrigger>
           <TabsTrigger value="daily">Evolução Diária</TabsTrigger>
@@ -642,7 +642,7 @@ export const MonthlyInvoicesPage = () => {
 
         {/* Monthly Comparison Tab */}
         <TabsContent value="comparison" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card>
             <CardHeader>
               <CardTitle>Comparação dos Últimos 12 Meses</CardTitle>
               <CardDescription>Evolução dos custos, créditos e valores líquidos</CardDescription>
@@ -684,7 +684,7 @@ export const MonthlyInvoicesPage = () => {
           {selectedMonthData && (
             <>
               <div className="grid gap-4 lg:grid-cols-2">
-                <Card className="glass border-primary/20">
+                <Card >
                   <CardHeader>
                     <CardTitle>Distribuição por Serviços</CardTitle>
                     <CardDescription>Top 10 serviços por custo</CardDescription>
@@ -712,7 +712,7 @@ export const MonthlyInvoicesPage = () => {
                   </CardContent>
                 </Card>
 
-                <Card className="glass border-primary/20">
+                <Card >
                   <CardHeader>
                     <CardTitle>Detalhes dos Serviços</CardTitle>
                     <CardDescription>Custos por serviço AWS</CardDescription>
@@ -757,7 +757,7 @@ export const MonthlyInvoicesPage = () => {
         {/* Daily Evolution Tab */}
         <TabsContent value="daily" className="space-y-4">
           {selectedMonthData && (
-            <Card className="glass border-primary/20">
+            <Card>
               <CardHeader>
                 <CardTitle>Custos Diários</CardTitle>
                 <CardDescription>Evolução dos custos durante o mês</CardDescription>
@@ -831,7 +831,7 @@ export const MonthlyInvoicesPage = () => {
 
       {/* Monthly Invoice List */}
       {!isLoadingCosts && (
-      <Card className="glass border-primary/20">
+      <Card>
         <CardHeader>
           <CardTitle>Histórico de Faturas</CardTitle>
           <CardDescription>Todas as faturas disponíveis</CardDescription>
@@ -877,7 +877,7 @@ export const MonthlyInvoicesPage = () => {
                       </Badge>
                     )}
                     <div className="text-right">
-                      <div className="font-mono font-bold">${data.netCost.toFixed(2)}</div>
+                      <div className="font-mono font-semibold">${data.netCost.toFixed(2)}</div>
                       {data.totalCredits > 0 && (
                         <div className="text-sm text-success font-mono">-${data.totalCredits.toFixed(2)}</div>
                       )}
@@ -889,7 +889,7 @@ export const MonthlyInvoicesPage = () => {
                         e.stopPropagation();
                         exportInvoice(month);
                       }}
-                      className="glass"
+                      className="glass-card-float"
                     >
                       <Download className="h-4 w-4" />
                     </Button>

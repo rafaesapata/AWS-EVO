@@ -136,7 +136,7 @@ export default function AuditLog() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl font-semibold flex items-center gap-2">
             <Shield className="h-6 w-6 text-primary" />
             Auditoria do Sistema
           </h1>
@@ -166,7 +166,7 @@ export default function AuditLog() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total de Eventos</p>
-                <p className="text-2xl font-bold">{logs.length}</p>
+                <p className="text-2xl font-semibold">{logs.length}</p>
               </div>
             </div>
           </CardContent>
@@ -179,7 +179,7 @@ export default function AuditLog() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Criações</p>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-semibold">
                   {logs.filter(l => l.action.toUpperCase().includes('CREATE')).length}
                 </p>
               </div>
@@ -194,7 +194,7 @@ export default function AuditLog() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Logins</p>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-semibold">
                   {logs.filter(l => l.action.toUpperCase().includes('LOGIN')).length}
                 </p>
               </div>
@@ -209,7 +209,7 @@ export default function AuditLog() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Exclusões</p>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-semibold">
                   {logs.filter(l => l.action.toUpperCase().includes('DELETE')).length}
                 </p>
               </div>

@@ -118,7 +118,7 @@ export function GamificationDashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm opacity-90">Total de Pontos</div>
-                      <div className="text-3xl font-bold">{totalPoints}</div>
+                      <div className="text-3xl font-semibold">{totalPoints}</div>
                     </div>
                     <Star className="w-12 h-12 opacity-80" />
                   </div>
@@ -130,7 +130,7 @@ export function GamificationDashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm opacity-90">Conquistas</div>
-                      <div className="text-3xl font-bold">{earnedAchievements}/{totalAchievements}</div>
+                      <div className="text-3xl font-semibold">{earnedAchievements}/{totalAchievements}</div>
                     </div>
                     <Award className="w-12 h-12 opacity-80" />
                   </div>
@@ -142,7 +142,7 @@ export function GamificationDashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm opacity-90">Progresso</div>
-                      <div className="text-3xl font-bold">{progressPercentage.toFixed(0)}%</div>
+                      <div className="text-3xl font-semibold">{progressPercentage.toFixed(0)}%</div>
                     </div>
                     <TrendingUp className="w-12 h-12 opacity-80" />
                   </div>
@@ -164,7 +164,7 @@ export function GamificationDashboard() {
                   {userAchievements.slice(0, 4).map((ua: any) => (
                     <div key={ua.id} className="p-4 border rounded-lg bg-muted/50">
                       <div className="flex items-start gap-3">
-                        <div className="text-4xl">{ua.achievement?.icon || '🏆'}</div>
+                        <div className="text-3xl">{ua.achievement?.icon || '🏆'}</div>
                         <div className="flex-1">
                           <h4 className="font-semibold text-sm">{ua.achievement?.name}</h4>
                           <p className="text-sm text-muted-foreground mb-2">{ua.achievement?.description}</p>
@@ -196,7 +196,7 @@ export function GamificationDashboard() {
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="text-4xl">{achievement.icon || '🏆'}</div>
+                      <div className="text-3xl">{achievement.icon || '🏆'}</div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
                           <h4 className="font-semibold text-sm">{achievement.name}</h4>
@@ -277,7 +277,7 @@ export function GamificationDashboard() {
                       ''
                     }`}
                   >
-                    <div className="text-2xl font-bold w-8">
+                    <div className="text-2xl font-semibold w-8">
                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
                     </div>
                     <div className="flex-1">
@@ -289,7 +289,7 @@ export function GamificationDashboard() {
                     <div className="text-right">
                       <div className="flex items-center gap-1 text-yellow-600">
                         <Star className="w-4 h-4 fill-current" />
-                        <span className="font-bold">{entry.total_points}</span>
+                        <span className="font-semibold">{entry.total_points}</span>
                       </div>
                       {entry.current_streak > 0 && (
                         <div className="flex items-center gap-1 text-orange-600 text-xs">

@@ -13,7 +13,7 @@ const BackgroundJobs = () => {
       icon={<Clock className="h-7 w-7 text-white" />}
     >
       <Tabs defaultValue="jobs" className="w-full">
-        <TabsList className="glass grid w-full grid-cols-3">
+        <TabsList className="glass-card-float grid w-full grid-cols-3">
           <TabsTrigger value="jobs">Background Jobs</TabsTrigger>
           <TabsTrigger value="dlq">Dead Letter Queue</TabsTrigger>
           <TabsTrigger value="alerts">Alertas Automáticos</TabsTrigger>

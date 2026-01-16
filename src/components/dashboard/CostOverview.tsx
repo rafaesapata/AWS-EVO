@@ -340,7 +340,7 @@ const CostOverview = () => {
             <DollarSign className="w-4 h-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               ${monthToDateTotal.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -361,7 +361,7 @@ const CostOverview = () => {
             )}
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               ${today ? today.total.toFixed(2) : '0.00'}
             </div>
             <div className="flex items-center gap-2 mt-1">
@@ -381,7 +381,7 @@ const CostOverview = () => {
             <Zap className="w-4 h-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               ${averageDailyCost.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -432,7 +432,7 @@ const CostOverview = () => {
             <Calendar className="w-4 h-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               ${projectedMonthEnd.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">

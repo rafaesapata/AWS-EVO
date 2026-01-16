@@ -146,21 +146,21 @@ export function BudgetForecasting() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground">Dados Históricos</div>
-                  <div className="text-2xl font-bold">{forecastData.historical_days} dias</div>
+                  <div className="text-2xl font-semibold">{forecastData.historical_days} dias</div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground">Período da Previsão</div>
-                  <div className="text-2xl font-bold">{forecastData.forecast_months} meses</div>
+                  <div className="text-2xl font-semibold">{forecastData.forecast_months} meses</div>
                 </CardContent>
               </Card>
 
               <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
                 <CardContent className="pt-6">
                   <div className="text-sm text-green-800 dark:text-green-400">Economia Potencial/Mês</div>
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  <div className="text-2xl font-semibold text-green-600 dark:text-green-400">
                     ${Number(forecastData.potential_monthly_savings || 0).toLocaleString('en-US', { 
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2 

@@ -361,7 +361,7 @@ export function AWSServicesMonitoring() {
               <CheckCircle2 className="h-5 w-5 text-green-500" />
               <div>
                 <p className="text-sm font-medium">Saudáveis</p>
-                <p className="text-2xl font-bold text-green-600">{healthyServices}</p>
+                <p className="text-2xl font-semibold text-green-600">{healthyServices}</p>
               </div>
             </div>
           </CardContent>
@@ -373,7 +373,7 @@ export function AWSServicesMonitoring() {
               <AlertCircle className="h-5 w-5 text-yellow-500" />
               <div>
                 <p className="text-sm font-medium">Atenção</p>
-                <p className="text-2xl font-bold text-yellow-600">{warningServices}</p>
+                <p className="text-2xl font-semibold text-yellow-600">{warningServices}</p>
               </div>
             </div>
           </CardContent>
@@ -385,7 +385,7 @@ export function AWSServicesMonitoring() {
               <XCircle className="h-5 w-5 text-red-500" />
               <div>
                 <p className="text-sm font-medium">Críticos</p>
-                <p className="text-2xl font-bold text-red-600">{criticalServices}</p>
+                <p className="text-2xl font-semibold text-red-600">{criticalServices}</p>
               </div>
             </div>
           </CardContent>
@@ -397,7 +397,7 @@ export function AWSServicesMonitoring() {
               <Bell className="h-5 w-5 text-orange-500" />
               <div>
                 <p className="text-sm font-medium">Alertas</p>
-                <p className="text-2xl font-bold text-orange-600">{totalAlerts}</p>
+                <p className="text-2xl font-semibold text-orange-600">{totalAlerts}</p>
               </div>
             </div>
           </CardContent>
@@ -409,7 +409,7 @@ export function AWSServicesMonitoring() {
               <DollarSign className="h-5 w-5 text-blue-500" />
               <div>
                 <p className="text-sm font-medium">Custo Total</p>
-                <p className="text-2xl font-bold text-blue-600">${totalCost.toFixed(0)}</p>
+                <p className="text-2xl font-semibold text-blue-600">${totalCost.toFixed(0)}</p>
               </div>
             </div>
           </CardContent>
@@ -530,7 +530,7 @@ export function AWSServicesMonitoring() {
                         {service.metrics.map((metric, index) => (
                           <div key={index} className="text-center p-3 bg-muted/50 rounded-lg">
                             <p className="text-xs text-muted-foreground mb-1">{metric.name}</p>
-                            <p className="text-lg font-bold">{metric.value}</p>
+                            <p className="text-lg font-semibold">{metric.value}</p>
                             <div className="flex items-center justify-center gap-1 mt-1">
                               {getTrendIcon(metric.trend)}
                               <span className={`text-xs ${
@@ -590,19 +590,19 @@ export function AWSServicesMonitoring() {
           <div className="grid md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-green-500/10 rounded-lg">
               <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-green-600">{((healthyServices / services.length) * 100).toFixed(1)}%</p>
+              <p className="text-2xl font-semibold text-green-600">{((healthyServices / services.length) * 100).toFixed(1)}%</p>
               <p className="text-sm text-muted-foreground">Serviços Saudáveis</p>
             </div>
             
             <div className="text-center p-4 bg-blue-500/10 rounded-lg">
               <DollarSign className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-blue-600">${totalCost.toFixed(0)}</p>
+              <p className="text-2xl font-semibold text-blue-600">${totalCost.toFixed(0)}</p>
               <p className="text-sm text-muted-foreground">Custo Total Mensal</p>
             </div>
             
             <div className="text-center p-4 bg-orange-500/10 rounded-lg">
               <Bell className="h-8 w-8 text-orange-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-orange-600">{totalAlerts}</p>
+              <p className="text-2xl font-semibold text-orange-600">{totalAlerts}</p>
               <p className="text-sm text-muted-foreground">Alertas Ativos</p>
             </div>
           </div>

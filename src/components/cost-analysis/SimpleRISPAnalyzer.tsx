@@ -28,7 +28,7 @@ export function SimpleRISPAnalyzer({ accountId, region = 'us-east-1' }: SimpleRI
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Análise de Reserved Instances & Savings Plans</h2>
+          <h2 className="text-2xl font-semibold">Análise de Reserved Instances & Savings Plans</h2>
           <p className="text-muted-foreground">
             Análise de oportunidades de otimização de custos
           </p>

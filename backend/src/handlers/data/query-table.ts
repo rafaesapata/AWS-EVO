@@ -137,7 +137,8 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
 // NOTA: 'organizations' NÃO tem organization_id (usa 'id')
 const TABLES_WITH_ORG_ID = new Set([
   'profiles', 'aws_credentials', 'aws_accounts',
-  'daily_costs', 'findings', 'security_scans', 'compliance_checks',
+  'daily_costs', 'findings', 'security_scans',
+  // NOTE: compliance_checks does NOT have organization_id - it uses scan_id -> SecurityScan
   'guardduty_findings', 'security_posture', 'knowledge_base_articles',
   'communication_logs', 'waste_detections', 'drift_detections',
   'resource_inventory', 'compliance_violations', 'alerts', 'alert_rules',

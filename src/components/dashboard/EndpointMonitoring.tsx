@@ -440,7 +440,7 @@ export default function EndpointMonitoring() {
         <>
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              <h2 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
                 <Activity className="h-8 w-8 text-primary" />
                 Endpoint Monitoring
               </h2>
@@ -967,7 +967,7 @@ export default function EndpointMonitoring() {
                         <Activity className="h-5 w-5 text-primary" />
                         <p className="text-sm text-muted-foreground">Total de Monitors</p>
                       </div>
-                      <p className="text-3xl font-bold">{monitors?.length || 0}</p>
+                      <p className="text-3xl font-semibold">{monitors?.length || 0}</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {monitors?.filter(m => m.is_active).length || 0} ativos
                       </p>
@@ -978,7 +978,7 @@ export default function EndpointMonitoring() {
                         <CheckCircle2 className="h-5 w-5 text-green-600" />
                         <p className="text-sm text-muted-foreground">Healthy</p>
                       </div>
-                      <p className="text-3xl font-bold text-green-600">
+                      <p className="text-3xl font-semibold text-green-600">
                         {monitors?.filter(m => m.consecutive_failures === 0).length || 0}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -991,7 +991,7 @@ export default function EndpointMonitoring() {
                         <XCircle className="h-5 w-5 text-red-600" />
                         <p className="text-sm text-muted-foreground">Com Falhas</p>
                       </div>
-                      <p className="text-3xl font-bold text-red-600">
+                      <p className="text-3xl font-semibold text-red-600">
                         {monitors?.filter(m => m.consecutive_failures > 0).length || 0}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -1023,7 +1023,7 @@ export default function EndpointMonitoring() {
                         return (
                           <>
                             <div className="flex items-baseline gap-2">
-                              <p className="text-3xl font-bold text-blue-600">{overallAvg}ms</p>
+                              <p className="text-3xl font-semibold text-blue-600">{overallAvg}ms</p>
                               {overallTrend === 'up' && (
                                 <TrendingUp className="h-5 w-5 text-red-500" />
                               )}
@@ -1132,12 +1132,12 @@ export default function EndpointMonitoring() {
                               {monitor.consecutive_failures > 0 ? (
                                 <div className="text-red-600">
                                   <p className="text-sm font-semibold">Falhas consecutivas</p>
-                                  <p className="text-2xl font-bold">{monitor.consecutive_failures}</p>
+                                  <p className="text-2xl font-semibold">{monitor.consecutive_failures}</p>
                                 </div>
                               ) : (
                                 <div className="text-green-600">
                                   <p className="text-sm font-semibold">Status</p>
-                                  <p className="text-xl font-bold">OK</p>
+                                  <p className="text-xl font-semibold">OK</p>
                                 </div>
                               )}
                             </div>
@@ -1234,11 +1234,11 @@ export default function EndpointMonitoring() {
                     <div className="grid grid-cols-4 gap-4">
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Uptime (últimas 24h)</p>
-                        <p className="text-2xl font-bold text-green-600">{calculateUptime()}%</p>
+                        <p className="text-2xl font-semibold text-green-600">{calculateUptime()}%</p>
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Tempo Médio</p>
-                        <p className="text-2xl font-bold">{calculateAvgResponse()}ms</p>
+                        <p className="text-2xl font-semibold">{calculateAvgResponse()}ms</p>
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Status Atual</p>
@@ -1367,7 +1367,7 @@ export default function EndpointMonitoring() {
                           <CardTitle className="text-sm">P50</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-2xl font-bold">{stats[0].p50_response_time_ms}ms</p>
+                          <p className="text-2xl font-semibold">{stats[0].p50_response_time_ms}ms</p>
                         </CardContent>
                       </Card>
                       <Card>
@@ -1375,7 +1375,7 @@ export default function EndpointMonitoring() {
                           <CardTitle className="text-sm">P95</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-2xl font-bold">{stats[0].p95_response_time_ms}ms</p>
+                          <p className="text-2xl font-semibold">{stats[0].p95_response_time_ms}ms</p>
                         </CardContent>
                       </Card>
                       <Card>
@@ -1383,7 +1383,7 @@ export default function EndpointMonitoring() {
                           <CardTitle className="text-sm">P99</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-2xl font-bold">{stats[0].p99_response_time_ms}ms</p>
+                          <p className="text-2xl font-semibold">{stats[0].p99_response_time_ms}ms</p>
                         </CardContent>
                       </Card>
                     </>

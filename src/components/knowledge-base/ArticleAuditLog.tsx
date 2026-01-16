@@ -70,15 +70,15 @@ export function ArticleAuditLog({ articleId, isOpen, onClose }: ArticleAuditLogP
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div className="p-4 border rounded-lg">
             <p className="text-sm text-muted-foreground">Total de Visualizações</p>
-            <p className="text-2xl font-bold">{totalViews}</p>
+            <p className="text-2xl font-semibold">{totalViews}</p>
           </div>
           <div className="p-4 border rounded-lg">
             <p className="text-sm text-muted-foreground">Visualizadores Únicos</p>
-            <p className="text-2xl font-bold">{uniqueViewers}</p>
+            <p className="text-2xl font-semibold">{uniqueViewers}</p>
           </div>
           <div className="p-4 border rounded-lg">
             <p className="text-sm text-muted-foreground">Tempo Médio de Leitura</p>
-            <p className="text-2xl font-bold">
+            <p className="text-2xl font-semibold">
               {avgReadingTime > 0 ? `${Math.floor(avgReadingTime / 60)}m ${avgReadingTime % 60}s` : '-'}
             </p>
           </div>

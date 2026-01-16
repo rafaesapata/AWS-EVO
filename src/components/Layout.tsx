@@ -174,7 +174,7 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-subtle">
+      <div className="min-h-screen flex w-full bg-mesh-subtle dark:bg-mesh-subtle">
         <AppSidebar 
           activeTab={activeTab} 
           onTabChange={handleTabChange} 
@@ -182,23 +182,23 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
         />
         
         <div className="flex-1 flex flex-col">
-          {/* Header - Padrão Visual Consistente */}
-          <header className="sticky top-0 z-10 glass border-b border-border/40 shadow-elegant">
+          {/* Header - Glass Effect */}
+          <header className="sticky top-0 z-10 glass-card-float border-b-0 rounded-none">
             <div className="w-full px-3 py-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <SidebarTrigger className="-ml-1" />
                   <div className="flex items-center gap-1.5">
                     {icon && (
-                      <div className="h-6 w-6 rounded-md bg-gradient-primary flex items-center justify-center shadow-glow">
+                      <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 dark:from-gray-600 dark:to-gray-800 flex items-center justify-center shadow-sm">
                         {icon}
                       </div>
                     )}
                     <div>
-                      <h1 className="text-base font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                      <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">
                         {title || "EVO Platform"}
                       </h1>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
                         {description || "AWS Cloud Intelligence Platform v3.2"}
                       </p>
                     </div>
@@ -210,9 +210,9 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
                         currentOrgName={user.organizationName}
                       />
                     ) : (
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-md glass">
-                        <Building2 className="h-2.5 w-2.5 text-primary" />
-                        <span className="text-xs font-medium">
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/50 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 backdrop-blur-sm">
+                        <Building2 className="h-2.5 w-2.5 text-gray-600 dark:text-gray-400" />
+                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
                           {user.organizationName || user.organizationId}
                         </span>
                       </div>

@@ -223,7 +223,7 @@ export const AnomalyHistoryView = ({ organizationId, onViewScan }: AnomalyHistor
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total de Anomalias</p>
-                    <p className="text-2xl font-bold">{latestScan.findings_count || 0}</p>
+                    <p className="text-2xl font-semibold">{latestScan.findings_count || 0}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${totalTrend < 0 ? 'text-green-500' : totalTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {totalTrend < 0 ? <TrendingDown className="h-5 w-5" /> : totalTrend > 0 ? <TrendingUp className="h-5 w-5" /> : null}
@@ -237,7 +237,7 @@ export const AnomalyHistoryView = ({ organizationId, onViewScan }: AnomalyHistor
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Anomalias Críticas</p>
-                    <p className="text-2xl font-bold">{latestScan.critical_count || 0}</p>
+                    <p className="text-2xl font-semibold">{latestScan.critical_count || 0}</p>
                   </div>
                   <div className={`flex items-center gap-1 ${criticalTrend < 0 ? 'text-green-500' : criticalTrend > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                     {criticalTrend < 0 ? <TrendingDown className="h-5 w-5" /> : criticalTrend > 0 ? <TrendingUp className="h-5 w-5" /> : null}
@@ -358,7 +358,7 @@ export const AnomalyHistoryView = ({ organizationId, onViewScan }: AnomalyHistor
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       {scan.status === 'completed' && (
-                        <Badge variant="secondary" className="text-lg font-bold">
+                        <Badge variant="secondary" className="text-lg font-semibold">
                           {scan.findings_count || 0}
                         </Badge>
                       )}

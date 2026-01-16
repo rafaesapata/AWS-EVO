@@ -106,7 +106,7 @@ export function PredictiveIncidentsHistory({ organizationId, onViewScan }: Predi
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <span className="text-3xl font-bold">{latestScan?.total_predictions || 0}</span>
+              <span className="text-3xl font-semibold">{latestScan?.total_predictions || 0}</span>
               {totalTrend !== 0 && (
                 <Badge variant={totalTrend > 0 ? "destructive" : "default"}>
                   {totalTrend > 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
@@ -124,7 +124,7 @@ export function PredictiveIncidentsHistory({ organizationId, onViewScan }: Predi
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <span className="text-3xl font-bold text-destructive">{latestScan?.critical_count || 0}</span>
+              <span className="text-3xl font-semibold text-destructive">{latestScan?.critical_count || 0}</span>
               {criticalTrend !== 0 && (
                 <Badge variant={criticalTrend > 0 ? "destructive" : "default"}>
                   {criticalTrend > 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
@@ -142,7 +142,7 @@ export function PredictiveIncidentsHistory({ organizationId, onViewScan }: Predi
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <span className="text-3xl font-bold text-amber-600">{latestScan?.high_risk_count || 0}</span>
+              <span className="text-3xl font-semibold text-amber-600">{latestScan?.high_risk_count || 0}</span>
               <Clock className="h-6 w-6 text-muted-foreground" />
             </div>
             <p className="text-xs text-muted-foreground mt-2">predições de alto risco</p>

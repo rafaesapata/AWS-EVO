@@ -523,7 +523,7 @@ export const CostAnalysis = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">{t('costAnalysis.periodTotal')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-semibold">
                     ${costs.reduce((sum, c) => sum + Number(c.total_cost), 0).toFixed(2)}
                   </div>
                 </CardContent>
@@ -533,7 +533,7 @@ export const CostAnalysis = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">{t('costAnalysis.creditsUsed')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-2xl font-semibold text-green-600">
                     ${costs.reduce((sum, c) => sum + Number(c.credits_used || 0), 0).toFixed(2)}
                   </div>
                 </CardContent>
@@ -543,7 +543,7 @@ export const CostAnalysis = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">{t('costAnalysis.netCost')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-semibold">
                     ${costs.reduce((sum, c) => sum + Number(c.net_cost || c.total_cost), 0).toFixed(2)}
                   </div>
                 </CardContent>
@@ -553,7 +553,7 @@ export const CostAnalysis = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">{t('costAnalysis.daysAnalyzed')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{sortedDates.length}</div>
+                  <div className="text-2xl font-semibold">{sortedDates.length}</div>
                 </CardContent>
               </Card>
             </div>

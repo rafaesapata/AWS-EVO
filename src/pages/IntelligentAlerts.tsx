@@ -320,41 +320,28 @@ export default function IntelligentAlerts() {
   return (
     <Layout 
       title="Alertas Inteligentes" 
-      description="Configure e gerencie alertas automáticos para sua infraestrutura AWS"
-      icon={<Bell className="h-7 w-7 text-white" />}
+      description="Sistema avançado de alertas baseado em ML e thresholds personalizados"
+      icon={<Bell className="h-4 w-4 text-white" />}
     >
       <div className="space-y-6">
-      {/* Header */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-6 w-6 text-primary" />
-                Alertas Inteligentes
-              </CardTitle>
-              <CardDescription>
-                Sistema avançado de alertas baseado em ML e thresholds personalizados
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => refetchRules()}
-                disabled={rulesLoading}
-                className="glass"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${rulesLoading ? 'animate-spin' : ''}`} />
-                Atualizar
-              </Button>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Nova Regra
-                  </Button>
-                </DialogTrigger>
+      {/* Action Buttons */}
+      <div className="flex items-center justify-end gap-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => refetchRules()}
+          disabled={rulesLoading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${rulesLoading ? 'animate-spin' : ''}`} />
+          Atualizar
+        </Button>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Regra
+            </Button>
+          </DialogTrigger>
                 <DialogContent className="max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>Criar Nova Regra de Alerta</DialogTitle>
@@ -478,14 +465,11 @@ export default function IntelligentAlerts() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+      </div>
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Regras Ativas</CardTitle>
           </CardHeader>
@@ -493,14 +477,14 @@ export default function IntelligentAlerts() {
             {rulesLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-semibold">
                 {alertRules?.filter(rule => rule.is_active).length || 0}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total de Regras</CardTitle>
           </CardHeader>
@@ -508,14 +492,14 @@ export default function IntelligentAlerts() {
             {rulesLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-semibold">
                 {alertRules?.length || 0}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Alertas Hoje</CardTitle>
           </CardHeader>
@@ -523,7 +507,7 @@ export default function IntelligentAlerts() {
             {historyLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-semibold">
                 {alertHistory?.filter(alert => 
                   new Date(alert.triggered_at).toDateString() === new Date().toDateString()
                 ).length || 0}
@@ -532,7 +516,7 @@ export default function IntelligentAlerts() {
           </CardContent>
         </Card>
 
-        <Card className="glass border-primary/20">
+        <Card >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Taxa de Sucesso</CardTitle>
           </CardHeader>
@@ -540,7 +524,7 @@ export default function IntelligentAlerts() {
             {historyLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-semibold">
                 {alertHistory && alertHistory.length > 0 
                   ? Math.round((alertHistory.filter(alert => alert.status === 'sent').length / alertHistory.length) * 100)
                   : 0}%
@@ -552,14 +536,14 @@ export default function IntelligentAlerts() {
 
       {/* Main Content */}
       <Tabs defaultValue="rules" className="w-full">
-        <TabsList className="glass">
+        <TabsList className="glass-card-float">
           <TabsTrigger value="rules">Regras de Alerta</TabsTrigger>
           <TabsTrigger value="history">Histórico</TabsTrigger>
           <TabsTrigger value="channels">Canais</TabsTrigger>
         </TabsList>
 
         <TabsContent value="rules" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Regras Configuradas</CardTitle>
               <CardDescription>Gerencie suas regras de alerta inteligentes</CardDescription>
@@ -654,7 +638,7 @@ export default function IntelligentAlerts() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Histórico de Alertas</CardTitle>
               <CardDescription>Últimos alertas disparados pelo sistema</CardDescription>
@@ -717,7 +701,7 @@ export default function IntelligentAlerts() {
         </TabsContent>
 
         <TabsContent value="channels" className="space-y-4">
-          <Card className="glass border-primary/20">
+          <Card >
             <CardHeader>
               <CardTitle>Configuração de Canais</CardTitle>
               <CardDescription>Configure os canais de notificação disponíveis</CardDescription>

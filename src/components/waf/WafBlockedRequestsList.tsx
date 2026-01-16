@@ -68,7 +68,7 @@ export function WafBlockedRequestsList({ blockedRequests, isLoading }: WafBlocke
   };
 
   return (
-    <Card className="glass border-primary/20">
+    <Card className="">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Ban className="h-5 w-5 text-red-500" />

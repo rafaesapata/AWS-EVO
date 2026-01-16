@@ -264,25 +264,25 @@ export default function WAFSecurityValidation() {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-muted-foreground mb-1">Total Public</div>
-                <div className="text-2xl font-bold">{validations.length}</div>
+                <div className="text-2xl font-semibold">{validations.length}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-muted-foreground mb-1">Critical Issues</div>
-                <div className="text-2xl font-bold text-red-600">{criticalCount}</div>
+                <div className="text-2xl font-semibold text-red-600">{criticalCount}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-muted-foreground mb-1">High Risk</div>
-                <div className="text-2xl font-bold text-orange-600">{highCount}</div>
+                <div className="text-2xl font-semibold text-orange-600">{highCount}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-muted-foreground mb-1">Protected</div>
-                <div className="text-2xl font-bold text-green-600">{protectedCount}</div>
+                <div className="text-2xl font-semibold text-green-600">{protectedCount}</div>
               </CardContent>
             </Card>
           </div>
