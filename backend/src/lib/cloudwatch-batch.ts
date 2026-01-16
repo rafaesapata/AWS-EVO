@@ -233,20 +233,74 @@ async function fetchBatch(
 }
 
 function getCategoryFromLambdaName(lambdaName: string): string {
-  if (lambdaName.includes('mfa') || lambdaName.includes('webauthn')) return 'auth';
-  if (lambdaName.includes('admin')) return 'admin';
-  if (lambdaName.includes('security') || lambdaName.includes('compliance') || lambdaName.includes('waf')) return 'security';
-  if (lambdaName.includes('cost') || lambdaName.includes('ri-sp') || lambdaName.includes('finops')) return 'cost';
+  // Auth & MFA
+  if (lambdaName.includes('mfa') || lambdaName.includes('webauthn') || lambdaName.includes('verify-tv-token')) return 'auth';
+  
+  // Admin
+  if (lambdaName.includes('admin') || lambdaName.includes('cognito-user') || lambdaName.includes('manage-organizations')) return 'admin';
+  
+  // Security (includes validate-aws-credentials, validate-permissions, etc.)
+  if (lambdaName.includes('security') || lambdaName.includes('compliance') || lambdaName.includes('waf') ||
+      lambdaName.includes('validate-aws') || lambdaName.includes('validate-permission') ||
+      lambdaName.includes('guardduty') || lambdaName.includes('well-architected') ||
+      lambdaName.includes('iam-deep') || lambdaName.includes('lateral-movement') ||
+      lambdaName.includes('drift-detection') || lambdaName.includes('cloudtrail') ||
+      lambdaName.includes('findings') || lambdaName.includes('posture')) return 'security';
+  
+  // Cost & FinOps
+  if (lambdaName.includes('cost') || lambdaName.includes('ri-sp') || lambdaName.includes('finops') ||
+      lambdaName.includes('budget') || lambdaName.includes('forecast') || lambdaName.includes('waste')) return 'cost';
+  
+  // Azure Multi-Cloud
   if (lambdaName.includes('azure')) return 'azure';
-  if (lambdaName.includes('bedrock') || lambdaName.includes('ai') || lambdaName.includes('ml')) return 'ai';
-  if (lambdaName.includes('dashboard') || lambdaName.includes('alert') || lambdaName.includes('monitor')) return 'monitoring';
-  if (lambdaName.includes('license')) return 'license';
-  if (lambdaName.includes('kb-')) return 'knowledge-base';
-  if (lambdaName.includes('report') || lambdaName.includes('pdf') || lambdaName.includes('excel')) return 'reports';
-  if (lambdaName.includes('organization')) return 'organizations';
-  if (lambdaName.includes('email') || lambdaName.includes('notification')) return 'notifications';
-  if (lambdaName.includes('storage')) return 'storage';
-  if (lambdaName.includes('job')) return 'jobs';
+  
+  // AI & ML
+  if (lambdaName.includes('bedrock') || lambdaName.includes('ai-') || lambdaName.includes('-ai') ||
+      lambdaName.includes('predict') || lambdaName.includes('anomal') || lambdaName.includes('intelligent')) return 'ai';
+  
+  // Dashboard & Monitoring (includes platform monitoring lambdas)
+  if (lambdaName.includes('dashboard') || lambdaName.includes('alert') || lambdaName.includes('monitor') ||
+      lambdaName.includes('metric') || lambdaName.includes('error-fix') || lambdaName.includes('recent-errors') ||
+      lambdaName.includes('lambda-health') || lambdaName.includes('platform-metrics') ||
+      lambdaName.includes('edge-services') || lambdaName.includes('endpoint-monitor') ||
+      lambdaName.includes('realtime')) return 'monitoring';
+  
+  // License
+  if (lambdaName.includes('license') || lambdaName.includes('seats')) return 'license';
+  
+  // Knowledge Base
+  if (lambdaName.includes('kb-') || lambdaName.includes('article')) return 'knowledge-base';
+  
+  // Reports
+  if (lambdaName.includes('report') || lambdaName.includes('pdf') || lambdaName.includes('excel') ||
+      lambdaName.includes('remediation')) return 'reports';
+  
+  // Organizations & Profiles
+  if (lambdaName.includes('organization') || lambdaName.includes('profile')) return 'organizations';
+  
+  // Notifications
+  if (lambdaName.includes('email') || lambdaName.includes('notification') || lambdaName.includes('communication')) return 'notifications';
+  
+  // Storage
+  if (lambdaName.includes('storage') || lambdaName.includes('attachment') || lambdaName.includes('upload')) return 'storage';
+  
+  // Jobs
+  if (lambdaName.includes('job') || lambdaName.includes('scheduled')) return 'jobs';
+  
+  // AWS Credentials (onboarding)
+  if (lambdaName.includes('aws-credentials') || lambdaName.includes('save-aws') || 
+      lambdaName.includes('list-aws') || lambdaName.includes('update-aws') ||
+      lambdaName.includes('cloud-credentials')) return 'onboarding';
+  
+  // Data operations
+  if (lambdaName.includes('query-table') || lambdaName.includes('mutate-table')) return 'data';
+  
+  // Integrations
+  if (lambdaName.includes('jira') || lambdaName.includes('integration')) return 'integrations';
+  
+  // Log audit
+  if (lambdaName.includes('log-audit') || lambdaName.includes('audit')) return 'admin';
+  
   return 'other';
 }
 

@@ -36,10 +36,10 @@ export default function FinancialHealthCard({ data }: Props) {
     <div className="h-full bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-base font-semibold text-[#1F2937]">
+        <h3 className="text-xl font-light text-[#1F2937]">
           {t('executiveDashboard.financialHealth', 'Financial Health')}
         </h3>
-        <p className="text-xs text-gray-500 mt-0.5">
+        <p className="text-sm font-light text-gray-500 mt-0.5">
           {t('executiveDashboard.financialHealthDesc', 'Cost overview and savings opportunities')}
         </p>
       </div>
@@ -48,7 +48,7 @@ export default function FinancialHealthCard({ data }: Props) {
         {/* Cost Summary - 2x2 Grid */}
         <div className="grid grid-cols-2 gap-4">
           <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
-            <span className="text-sm font-medium text-gray-500">
+            <span className="text-sm font-light text-gray-500">
               {t('executiveDashboard.mtdCost', 'MTD Cost')}
             </span>
             <div className="text-3xl font-light text-[#1F2937] tabular-nums mt-1">
@@ -61,7 +61,7 @@ export default function FinancialHealthCard({ data }: Props) {
             )}
           </div>
           <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
-            <span className="text-sm font-medium text-gray-500">
+            <span className="text-sm font-light text-gray-500">
               {t('executiveDashboard.ytdCost', 'YTD Cost')}
             </span>
             <div className="text-3xl font-light text-[#1F2937] tabular-nums mt-1">
@@ -73,14 +73,14 @@ export default function FinancialHealthCard({ data }: Props) {
         {/* Budget Utilization */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="font-medium text-gray-500">
+            <span className="text-base font-medium text-[#1F2937]">
               {t('executiveDashboard.budgetUtilization', 'Budget Utilization')}
             </span>
             <span className={cn('font-semibold tabular-nums', getBudgetColor(data.budgetUtilization))}>
               {data.budgetUtilization.toFixed(1)}%
             </span>
           </div>
-          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
             <div 
               className={cn('h-full rounded-full transition-all', getBudgetBarColor(data.budgetUtilization))}
               style={{ width: `${Math.min(100, data.budgetUtilization)}%` }}
@@ -94,8 +94,8 @@ export default function FinancialHealthCard({ data }: Props) {
 
         {/* Top Services */}
         {data.topServices.length > 0 && (
-          <div className="space-y-3">
-            <span className="text-sm font-semibold text-[#1F2937]">
+          <div className="border-t border-gray-100 pt-4 space-y-3">
+            <span className="text-base font-medium text-[#1F2937]">
               {t('executiveDashboard.topServices', 'Top Services')}
             </span>
             <div className="space-y-2.5">
@@ -107,7 +107,7 @@ export default function FinancialHealthCard({ data }: Props) {
                       ${service.cost.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                     </span>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div 
                       className="h-full rounded-full transition-all bg-[#60A5FA]"
                       style={{ width: `${service.percentage}%` }}
@@ -121,7 +121,7 @@ export default function FinancialHealthCard({ data }: Props) {
 
         {/* Savings Breakdown */}
         <div className="border-t border-gray-100 pt-4 space-y-3">
-          <span className="text-sm font-semibold text-[#1F2937]">
+          <span className="text-base font-medium text-[#1F2937]">
             {t('executiveDashboard.savingsOpportunities', 'Savings Opportunities')}
           </span>
           

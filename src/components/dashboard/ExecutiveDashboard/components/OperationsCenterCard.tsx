@@ -35,10 +35,10 @@ export default function OperationsCenterCard({ data }: Props) {
   return (
     <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-base font-semibold text-[#1F2937]">
+        <h3 className="text-xl font-light text-[#1F2937]">
           {t('executiveDashboard.operationsCenter', 'Operations Center')}
         </h3>
-        <p className="text-xs text-gray-500 mt-0.5">
+        <p className="text-sm font-light text-gray-500 mt-0.5">
           {t('executiveDashboard.operationsCenterDesc', 'Endpoint health and operational status')}
         </p>
       </div>
@@ -47,7 +47,7 @@ export default function OperationsCenterCard({ data }: Props) {
         {/* Endpoint Status */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-[#1F2937]">
+            <span className="text-base font-medium text-[#1F2937]">
               {t('executiveDashboard.endpointStatus', 'Endpoint Status')}
             </span>
             <Badge className="text-xs px-2.5 py-1 bg-[#003C7D]/10 text-[#003C7D] border-[#003C7D]/20 rounded-full font-medium">
@@ -56,66 +56,74 @@ export default function OperationsCenterCard({ data }: Props) {
           </div>
 
           <div className="grid grid-cols-4 gap-2">
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
-              <Server className="h-4 w-4 mx-auto mb-1 text-[#003C7D]" />
-              <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.endpoints.total}</div>
-              <span className="text-xs text-gray-500">{t('executiveDashboard.total', 'Total')}</span>
+            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-200 flex items-center gap-2">
+              <Server className="h-5 w-5 text-[#003C7D] flex-shrink-0" />
+              <div>
+                <div className="text-2xl font-medium text-[#1F2937] tabular-nums">{data.endpoints.total}</div>
+                <span className="text-xs text-gray-500">{t('executiveDashboard.total', 'Total')}</span>
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20 text-center">
-              <CheckCircle2 className="h-4 w-4 mx-auto mb-1 text-[#10B981]" />
-              <div className="text-2xl font-light text-[#10B981] tabular-nums">{data.endpoints.healthy}</div>
-              <span className="text-xs text-gray-500">{t('executiveDashboard.healthy', 'Healthy')}</span>
+            <div className="p-3 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20 flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-[#10B981] flex-shrink-0" />
+              <div>
+                <div className="text-2xl font-medium text-[#10B981] tabular-nums">{data.endpoints.healthy}</div>
+                <span className="text-xs text-gray-500">{t('executiveDashboard.healthy', 'Healthy')}</span>
+              </div>
             </div>
             <div className={cn(
-              "p-3 rounded-xl text-center border",
-              data.endpoints.degraded > 0 ? 'bg-amber-50 border-amber-200' : 'bg-[#F9FAFB] border-gray-100'
+              "p-3 rounded-xl flex items-center gap-2 border",
+              data.endpoints.degraded > 0 ? 'bg-amber-50 border-amber-200' : 'bg-[#F9FAFB] border-gray-200'
             )}>
               <AlertTriangle className={cn(
-                "h-4 w-4 mx-auto mb-1",
+                "h-5 w-5 flex-shrink-0",
                 data.endpoints.degraded > 0 ? 'text-amber-500' : 'text-gray-400'
               )} />
-              <div className={cn(
-                "text-2xl font-light tabular-nums",
-                data.endpoints.degraded > 0 ? 'text-amber-600' : 'text-[#1F2937]'
-              )}>{data.endpoints.degraded}</div>
-              <span className="text-xs text-gray-500">{t('executiveDashboard.degraded', 'Degraded')}</span>
+              <div>
+                <div className={cn(
+                  "text-2xl font-medium tabular-nums",
+                  data.endpoints.degraded > 0 ? 'text-amber-600' : 'text-[#1F2937]'
+                )}>{data.endpoints.degraded}</div>
+                <span className="text-xs text-gray-500">{t('executiveDashboard.degraded', 'Degraded')}</span>
+              </div>
             </div>
             <div className={cn(
-              "p-3 rounded-xl text-center border",
-              data.endpoints.down > 0 ? 'bg-red-50 border-red-200' : 'bg-[#F9FAFB] border-gray-100'
+              "p-3 rounded-xl flex items-center gap-2 border",
+              data.endpoints.down > 0 ? 'bg-red-50 border-red-200' : 'bg-[#F9FAFB] border-gray-200'
             )}>
               <AlertTriangle className={cn(
-                "h-4 w-4 mx-auto mb-1",
+                "h-5 w-5 flex-shrink-0",
                 data.endpoints.down > 0 ? 'text-red-600' : 'text-gray-400'
               )} />
-              <div className={cn(
-                "text-2xl font-light tabular-nums",
-                data.endpoints.down > 0 ? 'text-red-600' : 'text-[#1F2937]'
-              )}>
-                {data.endpoints.down}
+              <div>
+                <div className={cn(
+                  "text-2xl font-medium tabular-nums",
+                  data.endpoints.down > 0 ? 'text-red-600' : 'text-[#1F2937]'
+                )}>
+                  {data.endpoints.down}
+                </div>
+                <span className="text-xs text-gray-500">{t('executiveDashboard.down', 'Down')}</span>
               </div>
-              <span className="text-xs text-gray-500">{t('executiveDashboard.down', 'Down')}</span>
             </div>
           </div>
         </div>
 
         {/* Uptime & Response Time */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
+          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-200">
             <span className="text-xs text-gray-500">{t('executiveDashboard.uptime', 'Uptime')}</span>
-            <div className={cn('text-3xl font-light tabular-nums mt-1', getUptimeColor(data.uptime.current))}>
+            <div className={cn('text-3xl font-medium tabular-nums mt-1', getUptimeColor(data.uptime.current))}>
               {data.uptime.current.toFixed(2)}%
             </div>
             <span className="text-xs text-gray-400">
               {t('executiveDashboard.target', 'Target')}: {data.uptime.target}%
             </span>
           </div>
-          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
+          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-200">
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-gray-400" />
               <span className="text-xs text-gray-500">{t('executiveDashboard.avgResponse', 'Avg Response')}</span>
             </div>
-            <div className="text-3xl font-light text-[#1F2937] tabular-nums mt-1">
+            <div className="text-3xl font-medium text-[#1F2937] tabular-nums mt-1">
               {data.responseTime.avg}ms
             </div>
             <span className={cn(
@@ -131,65 +139,75 @@ export default function OperationsCenterCard({ data }: Props) {
         {data.alerts.active.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-[#1F2937]">
+              <span className="text-base font-medium text-[#1F2937]">
                 {t('executiveDashboard.activeAlerts', 'Active Alerts')}
               </span>
               <Badge className="text-xs px-2.5 py-1 bg-red-100 text-red-600 border-red-200 rounded-full font-medium">
                 {data.alerts.active.length}
               </Badge>
             </div>
-            <div className="divide-y divide-gray-100 max-h-28 overflow-y-auto rounded-xl border border-gray-200 bg-white">
-              {data.alerts.active.slice(0, 3).map((alert) => (
-                <div 
-                  key={alert.id} 
-                  className={cn(
-                    "flex items-center gap-2 p-3",
-                    alert.severity.toLowerCase() === 'critical' ? 'bg-red-50' : 'bg-white'
-                  )}
-                >
-                  <AlertTriangle className={cn(
-                    'h-4 w-4 flex-shrink-0',
-                    alert.severity.toLowerCase() === 'critical' ? 'text-red-600' : 'text-amber-500'
-                  )} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[#1F2937] truncate">{alert.title}</div>
-                    <div className="text-xs text-gray-500">
-                      {t('executiveDashboard.since', 'Since')} {new Date(alert.since).toLocaleString()}
-                    </div>
-                  </div>
-                  <Badge 
+            <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+              <div className="max-h-[180px] overflow-y-auto">
+                {data.alerts.active.slice(0, 5).map((alert, index) => (
+                  <div 
+                    key={alert.id} 
                     className={cn(
-                      "text-xs px-2 py-0.5 rounded-full font-medium",
-                      alert.severity.toLowerCase() === 'critical' 
-                        ? 'bg-red-100 text-red-600 border-red-200' 
-                        : 'bg-amber-100 text-amber-600 border-amber-200'
+                      "flex items-center gap-2 p-3",
+                      alert.severity.toLowerCase() === 'critical' ? 'bg-red-50' : 'bg-white',
+                      index > 0 && 'border-t border-gray-100'
                     )}
                   >
-                    {alert.severity}
-                  </Badge>
+                    <AlertTriangle className={cn(
+                      'h-4 w-4 flex-shrink-0',
+                      alert.severity.toLowerCase() === 'critical' ? 'text-red-600' : 'text-amber-500'
+                    )} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-[#1F2937] truncate">{alert.title}</div>
+                      <div className="text-xs text-gray-500">
+                        {t('executiveDashboard.since', 'Since')} {new Date(alert.since).toLocaleString()}
+                      </div>
+                    </div>
+                    <Badge 
+                      className={cn(
+                        "text-xs px-2 py-0.5 rounded-full font-medium",
+                        alert.severity.toLowerCase() === 'critical' 
+                          ? 'bg-red-100 text-red-600 border-red-200' 
+                          : 'bg-amber-100 text-amber-600 border-amber-200'
+                      )}
+                    >
+                      {alert.severity}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+              {data.alerts.active.length > 5 && (
+                <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 text-center">
+                  <span className="text-xs text-gray-500">
+                    +{data.alerts.active.length - 5} {t('executiveDashboard.moreAlerts', 'more alerts')}
+                  </span>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
 
         {/* Remediations */}
         <div className="border-t border-gray-100 pt-4 space-y-3">
-          <span className="text-sm font-semibold text-[#1F2937]">
+          <span className="text-base font-medium text-[#1F2937]">
             {t('executiveDashboard.remediations', 'Remediations')}
           </span>
 
           <div className="grid grid-cols-3 gap-2">
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
-              <div className="text-xl font-light text-[#1F2937] tabular-nums">{data.remediations.pending}</div>
+            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-200 text-center">
+              <div className="text-xl font-medium text-[#1F2937] tabular-nums">{data.remediations.pending}</div>
               <span className="text-xs text-gray-500">{t('executiveDashboard.pending', 'Pending')}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#008CFF]/10 border border-[#008CFF]/20 text-center">
-              <div className="text-xl font-light text-[#008CFF] tabular-nums">{data.remediations.inProgress}</div>
+              <div className="text-xl font-medium text-[#008CFF] tabular-nums">{data.remediations.inProgress}</div>
               <span className="text-xs text-gray-500">{t('executiveDashboard.inProgress', 'In Progress')}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20 text-center">
-              <div className="text-xl font-light text-[#10B981] tabular-nums">{data.remediations.resolved}</div>
+              <div className="text-xl font-medium text-[#10B981] tabular-nums">{data.remediations.resolved}</div>
               <span className="text-xs text-gray-500">{t('executiveDashboard.resolved', 'Resolved')}</span>
             </div>
           </div>

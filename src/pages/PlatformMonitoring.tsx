@@ -97,6 +97,12 @@ export default function PlatformMonitoring() {
  const [generatingPrompt, setGeneratingPrompt] = useState(false);
  const [generatedPrompt, setGeneratedPrompt] = useState('');
  
+ // Performance tab filters
+ const [perfSearchTerm, setPerfSearchTerm] = useState('');
+ const [perfFilterCategory, setPerfFilterCategory] = useState('all');
+ const [perfFilterStatus, setPerfFilterStatus] = useState('all');
+ const [perfSortBy, setPerfSortBy] = useState('invocations');
+ 
  // Use optimized hook for metrics with React Query caching
  const {
    metrics,
@@ -113,6 +119,50 @@ export default function PlatformMonitoring() {
  // Memoized filtered data
  const filteredErrors = useFilteredErrors(recentErrors, searchTerm, filterCategory);
  const filteredPatterns = useFilteredPatterns(errorPatterns, filterSeverity);
+
+ // Memoized filtered and sorted performance metrics
+ const filteredPerformanceMetrics = useMemo(() => {
+   let filtered = performanceMetrics;
+   
+   // Filter by search term
+   if (perfSearchTerm) {
+     const search = perfSearchTerm.toLowerCase();
+     filtered = filtered.filter(m => 
+       m.name.toLowerCase().includes(search) ||
+       m.category.toLowerCase().includes(search)
+     );
+   }
+   
+   // Filter by category
+   if (perfFilterCategory !== 'all') {
+     filtered = filtered.filter(m => m.category === perfFilterCategory);
+   }
+   
+   // Filter by status
+   if (perfFilterStatus !== 'all') {
+     filtered = filtered.filter(m => m.status === perfFilterStatus);
+   }
+   
+   // Sort
+   const sorted = [...filtered].sort((a, b) => {
+     switch (perfSortBy) {
+       case 'invocations':
+         return (b.invocations || 0) - (a.invocations || 0);
+       case 'avgDuration':
+         return (b.avgDuration || 0) - (a.avgDuration || 0);
+       case 'p95':
+         return (b.p95 || 0) - (a.p95 || 0);
+       case 'errors':
+         return ((b as any).errors || 0) - ((a as any).errors || 0);
+       case 'name':
+         return a.name.localeCompare(b.name);
+       default:
+         return 0;
+     }
+   });
+   
+   return sorted;
+ }, [performanceMetrics, perfSearchTerm, perfFilterCategory, perfFilterStatus, perfSortBy]);
 
  // Generate prompt for a specific error
  const generatePromptForSpecificError = useCallback(async (error: RecentError) => {
@@ -791,10 +841,75 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <TabsContent value="performance" className="space-y-6">
  <Card >
  <CardHeader>
+ <div className="flex items-center justify-between flex-wrap gap-4">
+ <div>
  <CardTitle>Performance das Lambdas</CardTitle>
  <CardDescription>
- Tempo médio de execução e percentil 95
+ Tempo médio de execução e percentil 95 - {performanceMetrics.length} Lambdas
  </CardDescription>
+ </div>
+ <div className="flex gap-2 flex-wrap">
+ <div className="relative">
+ <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+ <Input
+ placeholder="Buscar Lambda..."
+ value={perfSearchTerm}
+ onChange={(e) => setPerfSearchTerm(e.target.value)}
+ className="pl-8 w-[200px]"
+ />
+ </div>
+ <Select value={perfFilterCategory} onValueChange={setPerfFilterCategory}>
+ <SelectTrigger className="w-[150px]">
+ <SelectValue placeholder="Categoria" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">Todas</SelectItem>
+ <SelectItem value="auth">Auth</SelectItem>
+ <SelectItem value="security">Security</SelectItem>
+ <SelectItem value="cost">Cost</SelectItem>
+ <SelectItem value="monitoring">Monitoring</SelectItem>
+ <SelectItem value="azure">Azure</SelectItem>
+ <SelectItem value="admin">Admin</SelectItem>
+ <SelectItem value="ai">AI</SelectItem>
+ <SelectItem value="license">License</SelectItem>
+ <SelectItem value="reports">Reports</SelectItem>
+ <SelectItem value="onboarding">Onboarding</SelectItem>
+ <SelectItem value="data">Data</SelectItem>
+ <SelectItem value="organizations">Organizations</SelectItem>
+ <SelectItem value="notifications">Notifications</SelectItem>
+ <SelectItem value="storage">Storage</SelectItem>
+ <SelectItem value="jobs">Jobs</SelectItem>
+ <SelectItem value="knowledge-base">Knowledge Base</SelectItem>
+ <SelectItem value="integrations">Integrations</SelectItem>
+ <SelectItem value="other">Other</SelectItem>
+ </SelectContent>
+ </Select>
+ <Select value={perfFilterStatus} onValueChange={setPerfFilterStatus}>
+ <SelectTrigger className="w-[130px]">
+ <SelectValue placeholder="Status" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">Todos</SelectItem>
+ <SelectItem value="fast">Fast (&lt;1s)</SelectItem>
+ <SelectItem value="normal">Normal (1-5s)</SelectItem>
+ <SelectItem value="slow">Slow (&gt;5s)</SelectItem>
+ <SelectItem value="unknown">Unknown</SelectItem>
+ </SelectContent>
+ </Select>
+ <Select value={perfSortBy} onValueChange={setPerfSortBy}>
+ <SelectTrigger className="w-[150px]">
+ <SelectValue placeholder="Ordenar por" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="invocations">Invocações</SelectItem>
+ <SelectItem value="avgDuration">Duração Média</SelectItem>
+ <SelectItem value="p95">P95</SelectItem>
+ <SelectItem value="errors">Erros</SelectItem>
+ <SelectItem value="name">Nome</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ </div>
  </CardHeader>
  <CardContent>
  {isLoading ? (
@@ -832,17 +947,22 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </div>
  ))}
  </div>
- ) : performanceMetrics.length === 0 ? (
+ ) : filteredPerformanceMetrics.length === 0 ? (
  <div className="flex flex-col items-center justify-center py-12">
  <Activity className="h-12 w-12 text-muted-foreground mb-4" />
  <p className="text-muted-foreground text-center">
- Nenhuma métrica de performance disponível.
+ {performanceMetrics.length === 0 
+ ? 'Nenhuma métrica de performance disponível.'
+ : 'Nenhuma Lambda encontrada com os filtros selecionados.'}
  </p>
  </div>
  ) : (
  <ScrollArea className="h-[600px]">
  <div className="space-y-4">
- {performanceMetrics.map((metric) => (
+ <div className="text-sm text-muted-foreground mb-2">
+ Mostrando {filteredPerformanceMetrics.length} de {performanceMetrics.length} Lambdas
+ </div>
+ {filteredPerformanceMetrics.map((metric) => (
  <div key={metric.name} className="p-4 rounded-lg border border-primary/20 bg-muted/30">
  <div className="flex items-start justify-between mb-3">
  <div className="flex items-center gap-2">
@@ -854,13 +974,13 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </div>
  <div className="flex items-center gap-2">
  <Clock className={`h-4 w-4 ${getStatusColor(metric.status)}`} />
- <Badge variant={metric.status === 'fast' ? 'outline' : metric.status === 'slow' ? 'destructive' : 'default'}>
+ <Badge variant={metric.status === 'fast' ? 'outline' : metric.status === 'slow' ? 'destructive' : metric.status === 'unknown' ? 'secondary' : 'default'}>
  {metric.status}
  </Badge>
  </div>
  </div>
  
- <div className="grid grid-cols-3 gap-4 text-sm">
+ <div className="grid grid-cols-4 gap-4 text-sm">
  <div>
  <div className="text-muted-foreground text-xs">Média</div>
  <div className="font-semibold">{(metric.avgDuration || 0)}ms</div>
@@ -873,6 +993,15 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <div className="text-muted-foreground text-xs">Invocações</div>
  <div className="font-medium">{(metric.invocations || 0).toLocaleString()}</div>
  </div>
+ <div>
+ <div className="text-muted-foreground text-xs">Erros</div>
+ <div className={`font-medium ${(metric.errors || 0) > 0 ? 'text-red-500' : ''}`}>
+ {(metric.errors || 0).toLocaleString()}
+ {metric.errorRate && metric.errorRate > 0 && (
+ <span className="text-xs ml-1">({metric.errorRate.toFixed(1)}%)</span>
+ )}
+ </div>
+ </div>
  </div>
 
  <div className="mt-3">
@@ -881,9 +1010,10 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  className={`h-full ${
  metric.status === 'fast' ? 'bg-green-500' :
  metric.status === 'normal' ? 'bg-yellow-500' :
+ metric.status === 'unknown' ? 'bg-gray-400' :
  'bg-red-500'
  }`}
- style={{ width: `${Math.min(((metric.avgDuration || 0) / (metric.p95 || 1)) * 100, 100)}%` }}
+ style={{ width: `${Math.min(((metric.avgDuration || 0) / Math.max(metric.p95 || 1, 1)) * 100, 100)}%` }}
  />
  </div>
  </div>

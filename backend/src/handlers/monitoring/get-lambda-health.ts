@@ -1,20 +1,95 @@
 /**
  * Get Lambda Health - ALL Lambdas Health Check
  * 
- * Monitora a saúde de TODAS as 114 Lambdas do sistema organizadas por categoria
+ * Monitora a saúde de TODAS as 114+ Lambdas do sistema organizadas por categoria
+ * 
+ * OPTIMIZATIONS:
+ * - Concurrency control (max 5 parallel requests) to avoid rate limiting
+ * - Retry with exponential backoff
+ * - In-memory caching (60s TTL)
+ * - Batch CloudWatch metrics queries
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { logger } from '../../lib/logging.js';
-import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
+import { CloudWatchClient, GetMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
-import { LambdaClient, GetFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
+import { LambdaClient, ListFunctionsCommand, GetFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
 
 const cloudwatch = new CloudWatchClient({ region: 'us-east-1' });
 const cloudwatchLogs = new CloudWatchLogsClient({ region: 'us-east-1' });
 const lambdaClient = new LambdaClient({ region: 'us-east-1' });
+
+// Simple in-memory cache
+const cache = new Map<string, { data: any; expires: number }>();
+const CACHE_TTL = 60000; // 60 seconds
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && entry.expires > Date.now()) {
+    return entry.data as T;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key: string, data: any): void {
+  cache.set(key, { data, expires: Date.now() + CACHE_TTL });
+}
+
+// Concurrency limiter
+class ConcurrencyLimiter {
+  private running = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(private maxConcurrent: number = 5) {}
+
+  async acquire(): Promise<void> {
+    if (this.running < this.maxConcurrent) {
+      this.running++;
+      return;
+    }
+    return new Promise((resolve) => {
+      this.queue.push(() => {
+        this.running++;
+        resolve();
+      });
+    });
+  }
+
+  release(): void {
+    this.running--;
+    const next = this.queue.shift();
+    if (next) next();
+  }
+}
+
+const limiter = new ConcurrencyLimiter(5);
+
+// Retry with exponential backoff
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 100
+): Promise<T> {
+  let lastError: Error | null = null;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      if (err.name === 'TooManyRequestsException' || err.name === 'ThrottlingException') {
+        const delay = baseDelay * Math.pow(2, i) + Math.random() * 100;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw lastError;
+}
 
 // ALL Lambdas by category (114 total)
 const ALL_LAMBDAS = {
@@ -207,30 +282,44 @@ export async function handler(
 
     logger.info('Fetching Lambda health for ALL lambdas', { organizationId });
 
+    // Check cache first
+    const cacheKey = 'lambda-health-all';
+    const cached = getCached<any>(cacheKey);
+    if (cached) {
+      logger.info('Returning cached Lambda health', { total: cached.summary.total });
+      return success(cached);
+    }
+
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-    // Check health for ALL Lambdas in parallel (batched)
+    // First, get all Lambda configurations in one batch call
+    const lambdaConfigs = await getAllLambdaConfigs();
+    
+    // Then, get metrics for all Lambdas in batch
+    const allLambdaNames = Object.values(ALL_LAMBDAS).flat().map(l => l.name);
+    const metricsMap = await getBatchMetrics(allLambdaNames, oneHourAgo, now);
+
+    // Build health data for each Lambda
     const allLambdas: LambdaHealth[] = [];
     const categories = Object.entries(ALL_LAMBDAS) as [CategoryType, { name: string; displayName: string }[]][];
     
-    // Process all categories in parallel
-    const categoryPromises = categories.map(async ([category, lambdas]) => {
-      const lambdaPromises = lambdas.map(lambda => 
-        checkLambdaHealth(
+    for (const [category, lambdas] of categories) {
+      for (const lambda of lambdas) {
+        const fullName = `evo-uds-v3-production-${lambda.name}`;
+        const config = lambdaConfigs.get(fullName);
+        const metrics = metricsMap.get(lambda.name) || { errors: 0, invocations: 0 };
+        
+        const health = buildLambdaHealth(
           lambda.name,
           lambda.displayName,
           category,
-          oneHourAgo,
+          config,
+          metrics,
           now
-        )
-      );
-      return Promise.all(lambdaPromises);
-    });
-
-    const categoryResults = await Promise.all(categoryPromises);
-    for (const results of categoryResults) {
-      allLambdas.push(...results);
+        );
+        allLambdas.push(health);
+      }
     }
 
     // Calculate summary
@@ -258,11 +347,16 @@ export async function handler(
       critical: summary.critical,
     });
 
-    return success({
+    const result = {
       summary,
       lambdas: allLambdas,
       byCategory,
-    });
+    };
+
+    // Cache the result
+    setCache(cacheKey, result);
+
+    return success(result);
 
   } catch (err) {
     logger.error('Error fetching Lambda health', err as Error);
@@ -270,194 +364,220 @@ export async function handler(
   }
 }
 
-async function checkLambdaHealth(
+// Get all Lambda configurations in batch
+async function getAllLambdaConfigs(): Promise<Map<string, any>> {
+  const cacheKey = 'lambda-configs-all';
+  const cached = getCached<Map<string, any>>(cacheKey);
+  if (cached) return cached;
+
+  const configs = new Map<string, any>();
+  let nextMarker: string | undefined;
+
+  try {
+    do {
+      const response = await withRetry(() => 
+        lambdaClient.send(new ListFunctionsCommand({
+          Marker: nextMarker,
+          MaxItems: 50,
+        }))
+      );
+
+      for (const fn of response.Functions || []) {
+        if (fn.FunctionName?.startsWith('evo-uds-v3-production-')) {
+          configs.set(fn.FunctionName, {
+            handler: fn.Handler || 'unknown',
+            runtime: fn.Runtime || 'unknown',
+            memorySize: fn.MemorySize || 0,
+            timeout: fn.Timeout || 0,
+            state: fn.State || 'unknown',
+          });
+        }
+      }
+
+      nextMarker = response.NextMarker;
+    } while (nextMarker);
+
+    setCache(cacheKey, configs);
+    return configs;
+  } catch (err) {
+    logger.error('Error fetching Lambda configs', err as Error);
+    return configs;
+  }
+}
+
+// Get metrics for all Lambdas in batch using GetMetricData
+async function getBatchMetrics(
+  lambdaNames: string[],
+  startTime: Date,
+  endTime: Date
+): Promise<Map<string, { errors: number; invocations: number }>> {
+  const cacheKey = `lambda-metrics-batch:${startTime.getTime()}`;
+  const cached = getCached<Map<string, { errors: number; invocations: number }>>(cacheKey);
+  if (cached) return cached;
+
+  const metricsMap = new Map<string, { errors: number; invocations: number }>();
+  
+  // Split into batches of 100 (CloudWatch limit is 500 queries)
+  const batchSize = 100;
+  const batches: string[][] = [];
+  for (let i = 0; i < lambdaNames.length; i += batchSize) {
+    batches.push(lambdaNames.slice(i, i + batchSize));
+  }
+
+  for (const batch of batches) {
+    await limiter.acquire();
+    try {
+      const queries = batch.flatMap((name, idx) => {
+        const fullName = `evo-uds-v3-production-${name}`;
+        const safeId = name.replace(/-/g, '_');
+        return [
+          {
+            Id: `errors_${safeId}`,
+            MetricStat: {
+              Metric: {
+                Namespace: 'AWS/Lambda',
+                MetricName: 'Errors',
+                Dimensions: [{ Name: 'FunctionName', Value: fullName }],
+              },
+              Period: 3600,
+              Stat: 'Sum',
+            },
+            ReturnData: true,
+          },
+          {
+            Id: `invocations_${safeId}`,
+            MetricStat: {
+              Metric: {
+                Namespace: 'AWS/Lambda',
+                MetricName: 'Invocations',
+                Dimensions: [{ Name: 'FunctionName', Value: fullName }],
+              },
+              Period: 3600,
+              Stat: 'Sum',
+            },
+            ReturnData: true,
+          },
+        ];
+      });
+
+      const response = await withRetry(() =>
+        cloudwatch.send(new GetMetricDataCommand({
+          MetricDataQueries: queries,
+          StartTime: startTime,
+          EndTime: endTime,
+        }))
+      );
+
+      for (const result of response.MetricDataResults || []) {
+        if (!result.Id || !result.Values) continue;
+        
+        const [metricType, ...nameParts] = result.Id.split('_');
+        const lambdaName = nameParts.join('-');
+        
+        if (!metricsMap.has(lambdaName)) {
+          metricsMap.set(lambdaName, { errors: 0, invocations: 0 });
+        }
+        
+        const metrics = metricsMap.get(lambdaName)!;
+        const sum = result.Values.reduce((a, b) => a + b, 0);
+        
+        if (metricType === 'errors') {
+          metrics.errors = sum;
+        } else if (metricType === 'invocations') {
+          metrics.invocations = sum;
+        }
+      }
+    } catch (err) {
+      logger.error('Error fetching batch metrics', err as Error);
+    } finally {
+      limiter.release();
+    }
+  }
+
+  setCache(cacheKey, metricsMap);
+  return metricsMap;
+}
+
+// Build health data for a single Lambda
+function buildLambdaHealth(
   lambdaName: string,
   displayName: string,
   category: CategoryType,
-  startTime: Date,
-  endTime: Date
-): Promise<LambdaHealth> {
+  config: any | undefined,
+  metrics: { errors: number; invocations: number },
+  now: Date
+): LambdaHealth {
   const fullName = `evo-uds-v3-production-${lambdaName}`;
   const issues: string[] = [];
+
+  // Default configuration if not found
+  const configuration = config || {
+    handler: 'unknown',
+    runtime: 'unknown',
+    memorySize: 0,
+    timeout: 0,
+  };
+
+  // Calculate error rate
+  const errorRate = metrics.invocations > 0 
+    ? (metrics.errors / metrics.invocations) * 100 
+    : 0;
+
+  // Detect issues
+  if (metrics.errors > 10) {
+    issues.push(`${metrics.errors} erros na última hora`);
+  }
   
-  try {
-    // Get Lambda configuration
-    const configResponse = await lambdaClient.send(
-      new GetFunctionConfigurationCommand({
-        FunctionName: fullName,
-      })
-    );
+  if (errorRate > 5) {
+    issues.push(`Taxa de erro alta: ${errorRate.toFixed(1)}%`);
+  }
 
-    const configuration = {
-      handler: configResponse.Handler || 'unknown',
-      runtime: configResponse.Runtime || 'unknown',
-      memorySize: configResponse.MemorySize || 0,
-      timeout: configResponse.Timeout || 0,
-    };
+  if (configuration.handler.includes('handlers/')) {
+    issues.push('Handler path incorreto - pode causar erro 502');
+  }
 
-    // Get error metrics
-    const [errorsResponse, invocationsResponse] = await Promise.all([
-      cloudwatch.send(new GetMetricStatisticsCommand({
-        Namespace: 'AWS/Lambda',
-        MetricName: 'Errors',
-        Dimensions: [{ Name: 'FunctionName', Value: fullName }],
-        StartTime: startTime,
-        EndTime: endTime,
-        Period: 3600,
-        Statistics: ['Sum'],
-      })),
-      cloudwatch.send(new GetMetricStatisticsCommand({
-        Namespace: 'AWS/Lambda',
-        MetricName: 'Invocations',
-        Dimensions: [{ Name: 'FunctionName', Value: fullName }],
-        StartTime: startTime,
-        EndTime: endTime,
-        Period: 3600,
-        Statistics: ['Sum'],
-      })),
-    ]);
+  if (!config) {
+    issues.push('Não foi possível verificar a saúde desta Lambda');
+  }
 
-    const totalErrors = errorsResponse.Datapoints?.reduce((sum, dp) => sum + (dp.Sum || 0), 0) || 0;
-    const totalInvocations = invocationsResponse.Datapoints?.reduce((sum, dp) => sum + (dp.Sum || 0), 0) || 0;
-    const errorRate = totalInvocations > 0 ? (totalErrors / totalInvocations) * 100 : 0;
-
-    // Check for recent errors in logs
-    let recentErrors = 0;
-    try {
-      const logsResponse = await cloudwatchLogs.send(
-        new FilterLogEventsCommand({
-          logGroupName: `/aws/lambda/${fullName}`,
-          startTime: startTime.getTime(),
-          endTime: endTime.getTime(),
-          filterPattern: '"ERROR"',
-          limit: 100,
-        })
-      );
-      recentErrors = logsResponse.events?.length || 0;
-    } catch (err) {
-      // Log group may not exist or no permissions
-    }
-
-    // Detect issues
-    if (totalErrors > 10) {
-      issues.push(`${totalErrors} erros na última hora`);
-    }
-    
-    if (errorRate > 5) {
-      issues.push(`Taxa de erro alta: ${errorRate.toFixed(1)}%`);
-    }
-
-    if (configuration.handler.includes('handlers/')) {
-      issues.push('Handler path incorreto - pode causar erro 502');
-    }
-
-    if (recentErrors > 0) {
-      const errorTypes = await detectErrorTypes(fullName, startTime, endTime);
-      if (errorTypes.includes('Cannot find module')) {
-        issues.push('Deploy incorreto - faltam dependências');
-      }
-      if (errorTypes.includes('PrismaClientInitializationError')) {
-        issues.push('DATABASE_URL incorreta');
-      }
-      if (errorTypes.includes('AuthValidationError')) {
-        issues.push('Erro de autenticação');
-      }
-    }
-
-    // Calculate health score (0-1)
-    let health = 1.0;
+  // Calculate health score (0-1)
+  let health = 1.0;
+  if (!config) health = 0;
+  else {
     if (errorRate > 0) health -= errorRate / 100;
-    if (totalErrors > 0) health -= Math.min(totalErrors / 100, 0.3);
-    if (issues.length > 0) health -= issues.length * 0.1;
+    if (metrics.errors > 0) health -= Math.min(metrics.errors / 100, 0.3);
+    if (issues.length > 0) health -= issues.length * 0.05;
     health = Math.max(0, Math.min(1, health));
-
-    // Determine status
-    let status: 'healthy' | 'degraded' | 'critical' | 'unknown';
-    if (health >= 0.9) {
-      status = 'healthy';
-    } else if (health >= 0.7) {
-      status = 'degraded';
-    } else if (health > 0) {
-      status = 'critical';
-    } else {
-      status = 'unknown';
-    }
-
-    return {
-      name: fullName,
-      displayName,
-      category,
-      status,
-      health,
-      metrics: {
-        errorRate,
-        recentErrors: totalErrors,
-        lastCheck: endTime.toISOString(),
-      },
-      configuration,
-      issues,
-    };
-
-  } catch (err) {
-    logger.error(`Failed to check health for ${fullName}`, err as Error);
-    
-    return {
-      name: fullName,
-      displayName,
-      category,
-      status: 'unknown',
-      health: 0,
-      metrics: {
-        errorRate: 0,
-        recentErrors: 0,
-        lastCheck: endTime.toISOString(),
-      },
-      configuration: {
-        handler: 'unknown',
-        runtime: 'unknown',
-        memorySize: 0,
-        timeout: 0,
-      },
-      issues: ['Não foi possível verificar a saúde desta Lambda'],
-    };
-  }
-}
-
-async function detectErrorTypes(
-  functionName: string,
-  startTime: Date,
-  endTime: Date
-): Promise<string[]> {
-  const errorTypes: string[] = [];
-  
-  try {
-    const response = await cloudwatchLogs.send(
-      new FilterLogEventsCommand({
-        logGroupName: `/aws/lambda/${functionName}`,
-        startTime: startTime.getTime(),
-        endTime: endTime.getTime(),
-        filterPattern: '"ERROR"',
-        limit: 50,
-      })
-    );
-
-    const messages = response.events?.map(e => e.message || '') || [];
-    
-    if (messages.some(m => m.includes('Cannot find module'))) {
-      errorTypes.push('Cannot find module');
-    }
-    if (messages.some(m => m.includes('PrismaClientInitializationError'))) {
-      errorTypes.push('PrismaClientInitializationError');
-    }
-    if (messages.some(m => m.includes('AuthValidationError'))) {
-      errorTypes.push('AuthValidationError');
-    }
-    if (messages.some(m => m.includes('timeout') || m.includes('Task timed out'))) {
-      errorTypes.push('Timeout');
-    }
-  } catch (err) {
-    // Ignore errors
   }
 
-  return errorTypes;
+  // Determine status
+  let status: 'healthy' | 'degraded' | 'critical' | 'unknown';
+  if (!config) {
+    status = 'unknown';
+  } else if (health >= 0.9) {
+    status = 'healthy';
+  } else if (health >= 0.7) {
+    status = 'degraded';
+  } else if (health > 0.3) {
+    status = 'critical';
+  } else {
+    status = 'unknown';
+  }
+
+  return {
+    name: fullName,
+    displayName,
+    category,
+    status,
+    health,
+    metrics: {
+      errorRate,
+      recentErrors: metrics.errors,
+      lastCheck: now.toISOString(),
+    },
+    configuration,
+    issues,
+  };
 }
+
+// Old functions removed - now using batch approach with getAllLambdaConfigs, getBatchMetrics, and buildLambdaHealth

@@ -28,9 +28,12 @@ export interface PerformanceMetric {
   name: string;
   avgDuration: number;
   p95: number;
+  maxDuration?: number;
   invocations: number;
+  errors?: number;
+  errorRate?: number;
   category: string;
-  status: 'fast' | 'normal' | 'slow';
+  status: 'fast' | 'normal' | 'slow' | 'unknown';
 }
 
 export interface RecentError {

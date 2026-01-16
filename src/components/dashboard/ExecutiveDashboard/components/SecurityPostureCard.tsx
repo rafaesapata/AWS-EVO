@@ -65,10 +65,10 @@ export default function SecurityPostureCard({ data }: Props) {
     return (
       <div className="h-full bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-base font-semibold text-[#1F2937]">
+          <h3 className="text-xl font-light text-[#1F2937]">
             {t('executiveDashboard.securityPosture', 'Security Posture')}
           </h3>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-sm font-light text-gray-500 mt-0.5">
             {t('executiveDashboard.securityPostureDesc', 'Security score and vulnerability status')}
           </p>
         </div>
@@ -99,10 +99,10 @@ export default function SecurityPostureCard({ data }: Props) {
   return (
     <div className="h-full bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-base font-semibold text-[#1F2937]">
+        <h3 className="text-xl font-light text-[#1F2937]">
           {t('executiveDashboard.securityPosture', 'Security Posture')}
         </h3>
-        <p className="text-xs text-gray-500 mt-0.5">
+        <p className="text-sm font-light text-gray-500 mt-0.5">
           {t('executiveDashboard.securityPostureDesc', 'Security score and vulnerability status')}
         </p>
       </div>
@@ -135,7 +135,7 @@ export default function SecurityPostureCard({ data }: Props) {
 
         {/* Findings by Severity - 2x2 Grid */}
         <div className="space-y-3">
-          <span className="text-sm font-semibold text-[#1F2937]">
+          <span className="text-base font-light text-[#1F2937]">
             {t('executiveDashboard.findingsBySeverity', 'Findings by Severity')}
           </span>
           
@@ -170,7 +170,7 @@ export default function SecurityPostureCard({ data }: Props) {
         {/* 7-Day Trend */}
         <div className="border-t border-gray-100 pt-4 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-[#1F2937]">
+            <span className="text-base font-light text-[#1F2937]">
               {t('executiveDashboard.last7Days', 'Last 7 Days')}
             </span>
             <div className="flex items-center gap-1.5">

@@ -48,8 +48,8 @@ function SectionHeader({
         </div>
       )}
       <div>
-        <h2 className="text-lg font-semibold text-[#1F2937]">{title}</h2>
-        <p className="text-sm font-normal text-gray-500">{description}</p>
+        <h2 className="text-2xl font-light text-[#1F2937]">{title}</h2>
+        <p className="text-sm font-light text-gray-500">{description}</p>
       </div>
     </div>
   );
@@ -315,7 +315,7 @@ function QuickActionsSummary({
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-      <h3 className="text-sm font-semibold text-[#1F2937] mb-3">
+      <h3 className="text-base font-light text-[#1F2937] mb-3">
         {t('executiveDashboard.priorityActions', 'Ações Prioritárias')}
       </h3>
       <div className="space-y-2">

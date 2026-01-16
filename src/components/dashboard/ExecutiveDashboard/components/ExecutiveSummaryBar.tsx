@@ -47,7 +47,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
-      <h2 className="text-base font-semibold text-[#1F2937] mb-5">
+      <h2 className="text-xl font-light text-[#1F2937] mb-5">
         {t('executiveDashboard.summary', 'Resumo Executivo')}
       </h2>
       
@@ -55,7 +55,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Overall Health Score */}
         <div className={cn('p-4 rounded-2xl border', getScoreBg(data.overallScore))}>
-          <p className="text-sm font-medium text-gray-500 mb-2">
+          <p className="text-base font-medium text-gray-600 mb-2">
             {t('executiveDashboard.healthScore', 'Health Score')}
           </p>
           <div className="flex items-baseline gap-1">
@@ -77,7 +77,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
 
         {/* MTD Spend */}
         <div className="p-4 rounded-2xl bg-white border border-gray-200">
-          <p className="text-sm font-medium text-gray-500 mb-2">
+          <p className="text-base font-medium text-gray-600 mb-2">
             {t('executiveDashboard.mtdSpend', 'MTD Spend')}
           </p>
           <p className="text-4xl font-light text-[#1F2937] tabular-nums">
@@ -90,7 +90,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
                 {budgetPercentage.toFixed(0)}%
               </span>
             </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
                 className={cn('h-full rounded-full transition-all', getBudgetColor())}
                 style={{ width: `${budgetPercentage}%` }}
@@ -101,7 +101,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
 
         {/* Potential Savings */}
         <div className="p-4 rounded-2xl bg-[#10B981]/10 border border-[#10B981]/20">
-          <p className="text-sm font-medium text-gray-500 mb-2">
+          <p className="text-base font-medium text-gray-600 mb-2">
             {t('executiveDashboard.savingsPotential', 'Savings Potential')}
           </p>
           <p className="text-4xl font-light text-[#10B981] tabular-nums">
@@ -112,7 +112,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
 
         {/* Uptime SLA */}
         <div className="p-4 rounded-2xl bg-white border border-gray-200">
-          <p className="text-sm font-medium text-gray-500 mb-2">
+          <p className="text-base font-medium text-gray-600 mb-2">
             {t('executiveDashboard.uptimeSLA', 'Uptime SLA')}
           </p>
           <p className={cn(

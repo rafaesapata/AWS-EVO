@@ -144,19 +144,20 @@ export async function handler(
     // Aggregate metrics by category
     const metrics = aggregateMetricsByCategory(lambdaMetrics);
 
-    // Get performance metrics (top Lambdas by invocations)
+    // Get performance metrics for ALL Lambdas (not just top 20)
     const performanceMetrics = lambdaMetrics
-      .filter(m => m.invocations > 0)
-      .sort((a, b) => b.invocations - a.invocations)
-      .slice(0, 20)
       .map(m => ({
         name: m.lambdaName.replace('evo-uds-v3-production-', ''),
         avgDuration: m.avgDuration,
         p95: m.p95Duration,
+        maxDuration: m.maxDuration || m.p95Duration,
         invocations: m.invocations,
+        errors: m.errors,
+        errorRate: m.invocations > 0 ? (m.errors / m.invocations) * 100 : 0,
         category: m.category,
-        status: m.avgDuration < 1000 ? 'fast' : m.avgDuration < 5000 ? 'normal' : 'slow',
-      }));
+        status: m.avgDuration === 0 ? 'unknown' : m.avgDuration < 1000 ? 'fast' : m.avgDuration < 5000 ? 'normal' : 'slow',
+      }))
+      .sort((a, b) => b.invocations - a.invocations);
 
     // Get Lambda errors for display
     const lambdaErrors = lambdaMetrics

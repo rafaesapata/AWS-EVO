@@ -6,7 +6,7 @@
  *   - Success: #10B981 (green)
  *   - Background: #FFFFFF / #F9FAFB
  *   - Text: #1F2937 (dark gray)
- * Charts: Gradient blue bars (#005FC5 to #003C7D)
+ * Charts: Dynamic color bars based on cost value (green → yellow → orange → red)
  */
 
 import { useTranslation } from 'react-i18next';
@@ -20,7 +20,8 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Line
+  Line,
+  Cell
 } from 'recharts';
 import type { TrendData } from '../types';
 
@@ -29,6 +30,25 @@ interface Props {
   period: '7d' | '30d' | '90d';
   onPeriodChange: (period: '7d' | '30d' | '90d') => void;
 }
+
+// Get color based on cost value relative to min/max
+const getCostColor = (cost: number, minCost: number, maxCost: number): string => {
+  if (maxCost === minCost) return '#10B981'; // Green if all values are the same
+  
+  const range = maxCost - minCost;
+  const normalizedValue = (cost - minCost) / range;
+  
+  // Green (low) → Yellow → Orange → Red (high)
+  if (normalizedValue <= 0.25) {
+    return '#10B981'; // Green
+  } else if (normalizedValue <= 0.5) {
+    return '#FBBF24'; // Yellow
+  } else if (normalizedValue <= 0.75) {
+    return '#F97316'; // Orange
+  } else {
+    return '#EF4444'; // Red
+  }
+};
 
 export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
   const { t } = useTranslation();
@@ -48,10 +68,15 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Prepare cost chart data
+  // Prepare cost chart data with colors
+  const costValues = data.cost.map(item => item.cost);
+  const minCost = Math.min(...costValues);
+  const maxCost = Math.max(...costValues);
+  
   const costChartData = data.cost.map(item => ({
     ...item,
-    date: formatDate(item.date)
+    date: formatDate(item.date),
+    fill: getCostColor(item.cost, minCost, maxCost)
   }));
 
   // Prepare security chart data
@@ -65,15 +90,15 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
       <div className="px-6 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-[#1F2937]">
+            <h3 className="text-xl font-medium text-[#1F2937]">
               {t('executiveDashboard.trendAnalysis', 'Trend Analysis')}
             </h3>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-sm font-light text-gray-500 mt-0.5">
               {t('executiveDashboard.trendAnalysisDesc', 'Cost and security trends over time')}
             </p>
           </div>
           
-          {/* Pill-style Navigation Tabs */}
+          {/* Pill-style Navigation Tabs - Item 4: White bg, blue border, blue text */}
           <div className="flex gap-1 p-1 bg-[#F9FAFB] rounded-xl">
             {(['7d', '30d', '90d'] as const).map((p) => (
               <button
@@ -81,8 +106,8 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
                 onClick={() => onPeriodChange(p)}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                   period === p 
-                    ? 'bg-[#003C7D] text-white shadow-sm' 
-                    : 'text-gray-600 hover:text-[#003C7D] hover:bg-white'
+                    ? 'bg-white text-[#008CFF] border-2 border-[#008CFF] shadow-sm' 
+                    : 'text-gray-600 hover:text-[#003C7D] hover:bg-white border-2 border-transparent'
                 }`}
               >
                 {periodLabels[p]}
@@ -94,9 +119,9 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
 
       <div className="p-6">
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Cost Trend - Bar Chart */}
+          {/* Cost Trend - Bar Chart with dynamic colors */}
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-[#1F2937]">
+            <h4 className="text-lg font-medium text-[#1F2937]">
               {t('executiveDashboard.costTrend', 'Cost Trend')}
             </h4>
             {costChartData.length > 0 ? (
@@ -131,10 +156,13 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
                   />
                   <Bar 
                     dataKey="cost" 
-                    fill="#60A5FA"
                     radius={[6, 6, 0, 0]}
                     name="Total Cost"
-                  />
+                  >
+                    {costChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -146,7 +174,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
 
           {/* Security Trend - Line Chart */}
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-[#1F2937]">
+            <h4 className="text-lg font-medium text-[#1F2937]">
               {t('executiveDashboard.securityTrend', 'Security Score Trend')}
             </h4>
             {securityChartData.length > 0 ? (
