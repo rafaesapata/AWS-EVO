@@ -156,7 +156,7 @@ export default function SuperAdminOrganizationSwitcher({
           <Button 
             variant="outline" 
             size="sm" 
-            className={`gap-2 !bg-white dark:!bg-gray-950 hover:!bg-gray-100 dark:hover:!bg-gray-800 !text-gray-900 dark:!text-gray-100 border-gray-200 dark:border-gray-700 ${impersonation?.isImpersonating ? '!border-orange-500 !bg-orange-500/10' : ''}`}
+            className={`gap-2 min-w-[195px] !bg-white dark:!bg-gray-950 hover:!bg-gray-100 dark:hover:!bg-gray-800 !text-gray-900 dark:!text-gray-100 border-gray-200 dark:border-gray-700 ${impersonation?.isImpersonating ? '!border-orange-500 !bg-orange-500/10' : ''}`}
           >
             {impersonation?.isImpersonating ? (
               <UserCog className="h-4 w-4 text-orange-500" />
