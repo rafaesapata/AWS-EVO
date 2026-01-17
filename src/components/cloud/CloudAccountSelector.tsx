@@ -163,13 +163,17 @@ export function CloudAccountSelector({
             aria-expanded={open}
             className={cn(
               "justify-between",
-              compact ? "w-[180px]" : "w-[250px]"
+              "!bg-white dark:!bg-gray-950",
+              "hover:!bg-gray-100 dark:hover:!bg-gray-800",
+              "!text-gray-900 dark:!text-gray-100",
+              "border-gray-200 dark:border-gray-700",
+              compact ? "w-[234px]" : "w-[325px]"
             )}
           >
             {selectedAccount ? (
               <div className="flex items-center gap-2 truncate">
                 {renderProviderBadge(selectedAccount.provider)}
-                <span className="truncate">{selectedAccount.accountName}</span>
+                <span className="truncate !text-gray-900 dark:!text-gray-100">{selectedAccount.accountName}</span>
               </div>
             ) : (
               <span className="text-muted-foreground">
