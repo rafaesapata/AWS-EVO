@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { AIInsight } from '../types';
 
 interface Props {
@@ -36,6 +37,7 @@ interface Props {
 
 export default function AICommandCenter({ insights, onRefresh, isLoading }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const getInsightIcon = (type: string) => {
     switch (type) {
@@ -248,6 +250,7 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
             <Button 
               variant="outline" 
               size="sm" 
+              onClick={() => navigate('/security-posture')}
               className="h-12 text-sm justify-start rounded-xl border-gray-200 bg-white text-[#1F2937] hover:bg-[#003C7D]/5 hover:border-[#003C7D]/30 hover:text-[#003C7D] shadow-sm hover:shadow-md transition-all"
             >
               <Play className="h-4 w-4 mr-2 text-[#003C7D]" />
@@ -256,6 +259,7 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
             <Button 
               variant="outline" 
               size="sm" 
+              onClick={() => navigate('/cost-analysis')}
               className="h-12 text-sm justify-start rounded-xl border-gray-200 bg-white text-[#1F2937] hover:bg-[#003C7D]/5 hover:border-[#003C7D]/30 hover:text-[#003C7D] shadow-sm hover:shadow-md transition-all"
             >
               <FileText className="h-4 w-4 mr-2 text-[#003C7D]" />

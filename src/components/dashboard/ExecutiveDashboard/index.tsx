@@ -134,7 +134,7 @@ export default function ExecutiveDashboardV2() {
             <Button 
               onClick={refresh}
               disabled={isFetching}
-              className="bg-[#003C7D] hover:bg-[#002d5c] text-white border-0 rounded-xl font-medium shadow-sm"
+              className="rounded-xl font-medium shadow-sm"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
               {isFetching ? t('executiveDashboard.updating', 'Updating...') : t('executiveDashboard.refresh', 'Refresh')}

@@ -1554,6 +1554,19 @@ async function handleAiAnalysis(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('WAF AI analysis requested', { organizationId });
   
+  // Get language from request body (default to 'pt')
+  let language = 'pt';
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      language = body.language || 'pt';
+    } catch {
+      // Ignore parse errors, use default
+    }
+  }
+  
+  logger.info('Language for AI analysis', { organizationId, language });
+  
   // ALWAYS trigger new analysis when user explicitly requests it
   // This ensures fresh data and prevents confusion with stale cached results
   logger.info('Triggering new AI analysis generation', { organizationId });
@@ -1571,11 +1584,12 @@ async function handleAiAnalysis(
         body: JSON.stringify({ 
           action: 'ai-analysis-background',
           organizationId,
+          language, // Pass language to background worker
         }),
       }),
     }));
     
-    logger.info('Background AI analysis triggered successfully', { organizationId });
+    logger.info('Background AI analysis triggered successfully', { organizationId, language });
   } catch (err) {
     logger.error('Failed to trigger background analysis', err as Error);
     return error('Failed to start AI analysis. Please try again.', 500);
@@ -1603,7 +1617,21 @@ async function handleAiAnalysis(
   const metrics = quickMetrics[0] || { total_events: BigInt(0), blocked_events: BigInt(0), unique_ips: BigInt(0) };
   const blockedCount = Number(metrics.blocked_events);
   
-  const processingMessage = `## 🔄 Análise em Processamento
+  // Localized processing message
+  const processingMessage = language === 'en' 
+    ? `## 🔄 Analysis in Progress
+
+**Status:** Generating complete AI analysis...
+
+**Quick Metrics (last 24h):**
+- Total requests: ${Number(metrics.total_events).toLocaleString()}
+- Blocked requests: ${blockedCount.toLocaleString()}
+- Unique blocked IPs: ${Number(metrics.unique_ips).toLocaleString()}
+
+**Preliminary Risk Level:** ${blockedCount > 1000 ? 'High' : blockedCount > 100 ? 'Medium' : 'Low'}
+
+*⏳ The complete AI analysis is being generated. Wait 30-45 seconds and click "Refresh Analysis" to see detailed results.*`
+    : `## 🔄 Análise em Processamento
 
 **Status:** Gerando análise completa com IA...
 
@@ -1637,7 +1665,18 @@ async function handleAiAnalysisBackground(
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
-  logger.info('Starting background WAF AI analysis', { organizationId });
+  // Get language from request body (default to 'pt')
+  let language = 'pt';
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      language = body.language || 'pt';
+    } catch {
+      // Ignore parse errors, use default
+    }
+  }
+  
+  logger.info('Starting background WAF AI analysis', { organizationId, language });
   
   const since = new Date();
   since.setHours(since.getHours() - 24);
@@ -1821,8 +1860,8 @@ async function handleAiAnalysisBackground(
       })),
     };
     
-    // Build AI prompt
-    const prompt = buildWafAnalysisPrompt(analysisContext);
+    // Build AI prompt with language support
+    const prompt = buildWafAnalysisPrompt(analysisContext, language);
     
     try {
       // Call Bedrock with Claude 3.5 Sonnet
@@ -1876,7 +1915,7 @@ async function handleAiAnalysisBackground(
       logger.error('Bedrock AI analysis failed', bedrockErr as Error, { organizationId });
       
       // Generate fallback analysis
-      const fallbackAnalysis = generateFallbackAnalysis(analysisContext);
+      const fallbackAnalysis = generateFallbackAnalysis(analysisContext, language);
       const riskLevel = analysisContext.metrics.blockedRequests > 1000 ? 'médio' : 'baixo';
       
       // Save fallback analysis to database
@@ -1994,7 +2033,76 @@ async function handleGetAnalysisHistory(
 /**
  * Build the prompt for WAF traffic analysis
  */
-function buildWafAnalysisPrompt(ctx: any): string {
+function buildWafAnalysisPrompt(ctx: any, language: string = 'pt'): string {
+  if (language === 'en') {
+    return `You are a web application security expert and WAF (Web Application Firewall) traffic analyst.
+
+Analyze the following WAF traffic data from the last 24 hours and provide a detailed analysis in English:
+
+## GENERAL METRICS
+- Total requests: ${ctx.metrics.totalRequests}
+- Blocked requests: ${ctx.metrics.blockedRequests} (${ctx.metrics.blockRate})
+- Unique attackers (IPs): ${ctx.metrics.uniqueAttackers}
+
+## DETECTED THREAT TYPES
+${ctx.threatTypes.length > 0 
+  ? ctx.threatTypes.map((t: any) => `- ${t.type}: ${t.count} (${t.percentage})`).join('\n')
+  : '- No classified threats detected'}
+
+## TOP 5 ATTACKERS
+${ctx.topAttackers.map((a: any) => `- ${a.ip} (${a.country}): ${a.blockedRequests} blocks`).join('\n')}
+
+## GEOGRAPHIC DISTRIBUTION
+${ctx.geoDistribution.map((g: any) => `- ${g.country}: ${g.blockedRequests} attacks`).join('\n')}
+
+## MOST TARGETED ENDPOINTS
+${ctx.targetedEndpoints.map((e: any) => `- ${e.uri}: ${e.attacks} attempts`).join('\n')}
+
+## SUSPICIOUS USER-AGENTS
+${ctx.suspiciousUserAgents.map((ua: any) => `- "${ua.userAgent}": ${ua.count} requests`).join('\n')}
+
+## HOURLY PATTERN (attacks per hour)
+${ctx.hourlyPattern.map((h: any) => `- ${h.hour}h: ${h.count} attacks`).join('\n')}
+
+## RECENT ATTACK SAMPLES
+${ctx.sampleAttacks.slice(0, 5).map((s: any) => 
+  `- [${s.time}] ${s.ip} (${s.country}) → ${s.method} ${s.uri} | Rule: ${s.rule} | Type: ${s.threatType}`
+).join('\n')}
+
+---
+
+Please provide a structured analysis including:
+
+1. **📊 EXECUTIVE SUMMARY** (2-3 sentences about the overall security state)
+
+2. **🎯 MAIN IDENTIFIED THREATS**
+   - Most frequent attack types
+   - Suspicious behavior patterns
+   - Possible coordinated campaigns
+
+3. **🌍 GEOGRAPHIC ANALYSIS**
+   - Attack origin countries
+   - Suspicious regional concentrations
+
+4. **⏰ TEMPORAL ANALYSIS**
+   - Attack peak hours
+   - Patterns indicating automation/bots
+
+5. **🔍 ENDPOINTS AT RISK**
+   - Most targeted endpoints
+   - Possible vulnerabilities being exploited
+
+6. **⚠️ ALERTS AND RECOMMENDATIONS**
+   - Immediate recommended actions
+   - IPs that should be permanently blocked
+   - Suggested additional WAF rules
+
+7. **📈 OVERALL RISK LEVEL** (Low/Medium/High/Critical)
+
+Be objective and provide actionable insights. Use emojis to improve readability.`;
+  }
+  
+  // Default: Portuguese
   return `Você é um especialista em segurança de aplicações web e análise de tráfego WAF (Web Application Firewall).
 
 Analise os seguintes dados de tráfego WAF das últimas 24 horas e forneça uma análise detalhada em português:
@@ -2065,7 +2173,46 @@ Seja objetivo e forneça insights acionáveis. Use emojis para melhorar a legibi
 /**
  * Generate fallback analysis when AI is unavailable
  */
-function generateFallbackAnalysis(ctx: any): string {
+function generateFallbackAnalysis(ctx: any, language: string = 'pt'): string {
+  if (language === 'en') {
+    const riskLevel = ctx.metrics.blockedRequests > 1000 ? 'Medium' : 'Low';
+    
+    let analysis = `## 📊 Automated Summary (last 24h)\n\n`;
+    analysis += `**Total requests:** ${ctx.metrics.totalRequests.toLocaleString()}\n`;
+    analysis += `**Blocked requests:** ${ctx.metrics.blockedRequests.toLocaleString()} (${ctx.metrics.blockRate})\n`;
+    analysis += `**Unique attackers:** ${ctx.metrics.uniqueAttackers}\n\n`;
+    
+    if (ctx.threatTypes.length > 0) {
+      analysis += `### 🎯 Threat Types\n`;
+      ctx.threatTypes.forEach((t: any) => {
+        analysis += `- **${t.type}**: ${t.count} occurrences (${t.percentage})\n`;
+      });
+      analysis += '\n';
+    }
+    
+    if (ctx.topAttackers.length > 0) {
+      analysis += `### 🔴 Top Attackers\n`;
+      ctx.topAttackers.forEach((a: any) => {
+        analysis += `- ${a.ip} (${a.country}): ${a.blockedRequests} blocks\n`;
+      });
+      analysis += '\n';
+    }
+    
+    if (ctx.geoDistribution.length > 0) {
+      analysis += `### 🌍 Attack Origins\n`;
+      ctx.geoDistribution.forEach((g: any) => {
+        analysis += `- ${g.country}: ${g.blockedRequests} attacks\n`;
+      });
+      analysis += '\n';
+    }
+    
+    analysis += `### 📈 Risk Level: **${riskLevel}**\n\n`;
+    analysis += `*Automated analysis generated without AI. For detailed analysis, try again in a few minutes.*`;
+    
+    return analysis;
+  }
+  
+  // Default: Portuguese
   const riskLevel = ctx.metrics.blockedRequests > 1000 ? 'Médio' : 'Baixo';
   
   let analysis = `## 📊 Resumo Automático (últimas 24h)\n\n`;

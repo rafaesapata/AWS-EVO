@@ -110,6 +110,9 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  setProgress(0);
  setElapsedTime(0);
  
+ // Get current language from i18n hook
+ const currentLanguage = i18n.language || 'pt';
+ 
  // Start progress animation
  const progressInterval = setInterval(() => {
  setProgress(prev => {
@@ -128,6 +131,7 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  body: {
  action: 'ai-analysis',
  accountId,
+ language: currentLanguage, // Pass language to backend
  }
  });
  
