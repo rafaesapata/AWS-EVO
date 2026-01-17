@@ -436,7 +436,7 @@ export default function SecurityPosture() {
     <Layout 
       title="Postura de Segurança" 
       description="Visão abrangente da segurança e compliance da sua infraestrutura AWS"
-      icon={<Shield className="h-4 w-4 text-white" />}
+      icon={<Shield className="h-4 w-4" />}
     >
       <div className="space-y-6">
       {/* Action Buttons */}

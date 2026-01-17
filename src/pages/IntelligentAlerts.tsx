@@ -321,7 +321,7 @@ export default function IntelligentAlerts() {
     <Layout 
       title="Alertas Inteligentes" 
       description="Sistema avançado de alertas baseado em ML e thresholds personalizados"
-      icon={<Bell className="h-4 w-4 text-white" />}
+      icon={<Bell className="h-4 w-4" />}
     >
       <div className="space-y-6">
       {/* Action Buttons */}

@@ -274,7 +274,7 @@ export default function EndpointMonitoring() {
     <Layout 
       title="Monitoramento de Endpoints" 
       description="Monitoramento em tempo real de APIs, Load Balancers e endpoints críticos"
-      icon={<Activity className="h-4 w-4 text-white" />}
+      icon={<Activity className="h-4 w-4" />}
     >
       <div className="space-y-6">
       {/* Action Buttons */}

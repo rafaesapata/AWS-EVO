@@ -376,7 +376,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <Layout
  title="Platform Monitoring - 100% Coverage"
  description="Dashboard completo: 114 Lambdas, 111 Endpoints, Frontend + Performance"
- icon={<Activity className="h-4 w-4 text-white" />}
+ icon={<Activity className="h-4 w-4" />}
  >
  <div className="space-y-6">
  {/* Header */}

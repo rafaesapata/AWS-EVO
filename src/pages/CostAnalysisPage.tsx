@@ -685,7 +685,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  <Layout
  title={t('costAnalysis.title', 'Análise Detalhada de Custos')}
  description={t('costAnalysis.description', 'Visualize e analise seus custos AWS em detalhes')}
- icon={<DollarSign className="h-4 w-4 text-white" />}
+ icon={<DollarSign className="h-4 w-4" />}
  >
  {loadingContent}
  </Layout>
@@ -1204,7 +1204,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  <Layout
  title={t('costAnalysis.title', 'Análise Detalhada de Custos')}
  description={t('costAnalysis.description', 'Visualize e analise seus custos AWS em detalhes')}
- icon={<DollarSign className="h-4 w-4 text-white" />}
+ icon={<DollarSign className="h-4 w-4" />}
  >
  {content}
  </Layout>

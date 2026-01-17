@@ -770,7 +770,7 @@ export default function ErrorMonitoring() {
  <Layout
  title="Monitoramento de Erros - 100% Coverage"
  description="Dashboard completo: 114 Lambdas, 111 Endpoints, Frontend + Performance"
- icon={<AlertTriangle className="h-4 w-4 text-white" />}
+ icon={<AlertTriangle className="h-4 w-4" />}
  >
  <div className="space-y-6">
  {/* Header */}

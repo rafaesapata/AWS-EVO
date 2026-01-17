@@ -785,7 +785,7 @@ export default function CostOptimization() {
     <Layout 
       title="Otimização de Custos" 
       description="Recomendações inteligentes baseadas em ML para reduzir custos AWS"
-      icon={<Zap className="h-4 w-4 text-white" />}
+      icon={<Zap className="h-4 w-4" />}
     >
       <div className="space-y-6">
       {/* Action Buttons */}

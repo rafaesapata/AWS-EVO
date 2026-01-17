@@ -654,7 +654,7 @@ export default function Compliance() {
     <Layout 
       title={t('compliance.title', 'Compliance & Conformity')}
       description={t('compliance.description', 'Security framework compliance verification')}
-      icon={<FileCheck className="h-4 w-4 text-white" />}
+      icon={<FileCheck className="h-4 w-4" />}
     >
       <div className="space-y-6">
         {/* Action Buttons */}

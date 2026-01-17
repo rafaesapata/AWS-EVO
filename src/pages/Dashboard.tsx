@@ -7,7 +7,7 @@ export default function Dashboard() {
     <Layout
       title="Dashboard Executivo"
       description="Visão consolidada de segurança, custos e compliance"
-      icon={<BarChart3 className="h-4 w-4 text-white" />}
+      icon={<BarChart3 className="h-4 w-4" />}
     >
       <ExecutiveDashboardV2 />
     </Layout>

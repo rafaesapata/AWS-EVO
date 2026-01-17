@@ -269,7 +269,7 @@ export default function WafMonitoring() {
     <Layout
       title={t('waf.title', 'WAF Monitoring')}
       description={t('waf.monitoringDescription', 'Detecte e bloqueie ameaças automaticamente')}
-      icon={<ShieldAlert className="h-4 w-4 text-white" />}
+      icon={<ShieldAlert className="h-4 w-4" />}
     >
       <div className="space-y-6">
         {/* Action Buttons */}

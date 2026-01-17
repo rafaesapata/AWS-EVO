@@ -22,7 +22,7 @@ export default function CloudCredentials() {
     <Layout
       title={t('cloudCredentials.title', 'Cloud Credentials')}
       description={t('cloudCredentials.description', 'Manage your cloud provider connections')}
-      icon={<KeyRound className="h-4 w-4 text-white" />}
+      icon={<KeyRound className="h-4 w-4" />}
     >
       <div className="space-y-6">
         {/* Tabs for AWS and Azure */}

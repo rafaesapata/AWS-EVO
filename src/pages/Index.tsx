@@ -144,7 +144,7 @@ const Index = () => {
       <Layout
         title="Análise Detalhada de Custos"
         description="Custos diários, tendências e previsões AWS"
-        icon={<DollarSign className="h-4 w-4 text-white" />}
+        icon={<DollarSign className="h-4 w-4" />}
       >
         <CostAnalysisPage embedded />
       </Layout>
@@ -156,7 +156,7 @@ const Index = () => {
       <Layout
         title="Log de Auditoria"
         description="Histórico de ações e eventos do sistema"
-        icon={<FileCheck className="h-4 w-4 text-white" />}
+        icon={<FileCheck className="h-4 w-4" />}
       >
         <AuditLog />
       </Layout>
@@ -168,7 +168,7 @@ const Index = () => {
       <Layout
         title="TV Dashboards"
         description="Gerencie links de acesso para exibição em TVs"
-        icon={<Tv className="h-4 w-4 text-white" />}
+        icon={<Tv className="h-4 w-4" />}
       >
         <TVDashboardManagement />
       </Layout>
@@ -180,7 +180,7 @@ const Index = () => {
       <Layout
         title="Análise de Segurança AWS"
         description="Verificação abrangente de vulnerabilidades e configurações"
-        icon={<Shield className="h-4 w-4 text-white" />}
+        icon={<Shield className="h-4 w-4" />}
       >
         <SecurityAnalysisContent />
       </Layout>
@@ -192,7 +192,7 @@ const Index = () => {
     <Layout
       title="Dashboard Executivo"
       description="Visão consolidada de segurança, custos e compliance"
-      icon={<BarChart3 className="h-4 w-4 text-white" />}
+      icon={<BarChart3 className="h-4 w-4" />}
     >
       <ExecutiveDashboardV2 />
     </Layout>

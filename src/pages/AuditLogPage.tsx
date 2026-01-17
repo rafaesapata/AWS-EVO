@@ -7,7 +7,7 @@ export default function AuditLogPage() {
     <Layout
       title="Log de Auditoria"
       description="Histórico de ações e eventos do sistema"
-      icon={<FileCheck className="h-4 w-4 text-white" />}
+      icon={<FileCheck className="h-4 w-4" />}
     >
       <AuditLog />
     </Layout>

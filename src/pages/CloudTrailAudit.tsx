@@ -454,7 +454,7 @@ export default function CloudTrailAudit() {
     <Layout 
       title="Auditoria CloudTrail" 
       description="Análise de eventos AWS com identificação de usuários responsáveis por problemas de segurança"
-      icon={<FileText className="h-4 w-4 text-white" />}
+      icon={<FileText className="h-4 w-4" />}
     >
       {/* Reprocess Confirmation Dialog */}
       <AlertDialog open={showReprocessDialog} onOpenChange={setShowReprocessDialog}>
