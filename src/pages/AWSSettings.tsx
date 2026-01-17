@@ -61,7 +61,7 @@ export default function AWSSettings() {
  <Layout 
  title="Configurações AWS" 
  description="Configure e gerencie suas integrações AWS com ferramentas nativas"
- icon={<Cloud className="h-7 w-7 text-white" />}
+ icon={<Cloud className="h-7 w-7" />}
  >
  <div className="flex items-center justify-center h-64">
  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -76,7 +76,7 @@ export default function AWSSettings() {
  <Layout 
  title="Configurações AWS" 
  description="Configure e gerencie suas integrações AWS com ferramentas nativas"
- icon={<Cloud className="h-7 w-7 text-white" />}
+ icon={<Cloud className="h-7 w-7" />}
  >
  <div className="text-center py-12">
  <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
@@ -96,7 +96,7 @@ export default function AWSSettings() {
  <Layout 
  title="Configurações AWS" 
  description="Configure e gerencie suas integrações AWS com ferramentas nativas"
- icon={<Cloud className="h-7 w-7 text-white" />}
+ icon={<Cloud className="h-7 w-7" />}
  >
  <div className="space-y-6">
  {/* Friendly message when redirected for no AWS accounts */}

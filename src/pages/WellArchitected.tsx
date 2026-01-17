@@ -428,7 +428,7 @@ const WellArchitected = () => {
  <Layout
  title="Well-Architected Framework"
  description="Análise dos 6 pilares da arquitetura AWS"
- icon={<FileCheck className="h-6 w-6 text-white" />}
+ icon={<FileCheck className="h-6 w-6" />}
  userRole={userRole}
  >
  <div className="space-y-8">

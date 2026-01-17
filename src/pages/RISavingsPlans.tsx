@@ -18,7 +18,7 @@ export default function RISavingsPlans() {
     <Layout 
       title="Reserved Instances & Savings Plans" 
       description="Análise avançada e otimização de RI e Savings Plans para maximizar economia"
-      icon={<DollarSign className="h-5 w-5 text-white" />}
+      icon={<DollarSign className="h-5 w-5" />}
     >
       {selectedAccountId ? (
         <AdvancedRISPAnalyzerV2 

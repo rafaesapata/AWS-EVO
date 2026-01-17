@@ -335,7 +335,7 @@ export default function EdgeMonitoring() {
     <Layout 
       title="Monitoramento de Borda" 
       description="CloudFront, WAF e Load Balancers - Serviços de borda AWS"
-      icon={<Globe className="h-5 w-5 text-white" />}
+      icon={<Globe className="h-5 w-5" />}
     >
       <div className="space-y-6">
         {/* Action Buttons */}

@@ -116,7 +116,7 @@ export default function CloudTrailAudit() {
       <Layout 
         title="Logs de Atividade" 
         description="Analise eventos de atividade e identifique problemas de segurança"
-        icon={<FileText className="h-7 w-7 text-white" />}
+        icon={<FileText className="h-7 w-7" />}
       >
         <AzureActivityLogs />
       </Layout>

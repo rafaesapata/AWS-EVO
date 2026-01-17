@@ -454,7 +454,7 @@ export default function MLWasteDetection() {
  <Layout 
  title={t('mlWaste.title', 'ML-Powered Waste Detection 3.0')}
  description={t('mlWaste.description', 'Machine Learning analysis of resource utilization patterns')}
- icon={<Trash2 className="h-5 w-5 text-white" />}
+ icon={<Trash2 className="h-5 w-5" />}
  >
  <Alert>
  <AlertCircle className="h-4 w-4" />
@@ -471,7 +471,7 @@ export default function MLWasteDetection() {
  <Layout 
  title={t('mlWaste.title', 'ML-Powered Waste Detection 3.0')}
  description={t('mlWaste.description', 'Machine Learning analysis of resource utilization patterns')}
- icon={<Trash2 className="h-5 w-5 text-white" />}
+ icon={<Trash2 className="h-5 w-5" />}
  >
  <div className="space-y-6">
  {/* Analysis Progress Banner */}

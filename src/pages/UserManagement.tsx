@@ -484,7 +484,7 @@ export default function UserManagement() {
     <Layout 
       title="Gerenciamento de Usuários" 
       description="Gerencie usuários, permissões e acesso às contas AWS"
-      icon={<Users className="h-5 w-5 text-white" />}
+      icon={<Users className="h-5 w-5" />}
     >
       <div className="space-y-6">
         {/* Stats */}

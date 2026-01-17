@@ -8,7 +8,7 @@ const AttackDetection = () => {
     <Layout
       title="Detecção de Ataques em Tempo Real"
       description="Monitoramento contínuo de logs do AWS WAF para identificação proativa de tentativas de ataque"
-      icon={<ShieldAlert className="h-7 w-7 text-white" />}
+      icon={<ShieldAlert className="h-7 w-7" />}
     >
       <div className="space-y-6">
 

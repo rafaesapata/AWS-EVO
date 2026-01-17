@@ -297,7 +297,7 @@ export default function SecurityScanDetails() {
  <Layout 
  title={`Security Scan - ${scan.scan_type}`}
  description="Detalhes completos do scan de segurança"
- icon={<Shield className="h-7 w-7 text-white" />}
+ icon={<Shield className="h-7 w-7" />}
  >
  <div className="space-y-6">
  {/* Header */}

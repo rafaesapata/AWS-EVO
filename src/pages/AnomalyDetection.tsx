@@ -17,7 +17,7 @@ const AnomalyDetection = () => {
     <Layout 
       title={t('anomalyDetection.title', 'Detecção de Anomalias')}
       description={t('anomalyDetection.description', `Identifique comportamentos anômalos em sua infraestrutura ${providerName}`)}
-      icon={<Activity className="h-7 w-7 text-white" />}
+      icon={<Activity className="h-7 w-7" />}
     >
       <AnomalyDashboard key={refreshTrigger} />
     </Layout>

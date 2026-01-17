@@ -25,7 +25,7 @@ const PredictiveIncidents = () => {
     <Layout 
       title="Incidentes Preditivos" 
       description="Preveja potenciais incidentes usando Machine Learning para análise preditiva de infraestrutura"
-      icon={<Activity className="h-7 w-7 text-white" />}
+      icon={<Activity className="h-7 w-7" />}
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="glass-card-float">

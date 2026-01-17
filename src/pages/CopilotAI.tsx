@@ -222,7 +222,7 @@ Como posso ajudar você hoje?`,
  <Layout 
  title="EVO Copilot AI" 
  description="Assistente inteligente para análise, otimização e segurança AWS"
- icon={<Bot className="h-7 w-7 text-white" />}
+ icon={<Bot className="h-7 w-7" />}
  >
  <div className="h-full flex flex-col space-y-6">
  {/* Header */}

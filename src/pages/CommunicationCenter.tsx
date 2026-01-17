@@ -133,7 +133,7 @@ export default function CommunicationCenter() {
     <Layout
       title={t('communication.title')}
       description={t('communication.description')}
-      icon={<Mail className="h-6 w-6 text-white" />}
+      icon={<Mail className="h-6 w-6" />}
     >
       <div className="space-y-6">
 

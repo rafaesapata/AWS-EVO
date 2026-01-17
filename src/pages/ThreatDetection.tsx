@@ -173,7 +173,7 @@ export default function ThreatDetection() {
  <Layout 
  title="Detecção de Ameaças" 
  description="Detecção avançada de ameaças de segurança com IA"
- icon={<Shield className="h-7 w-7 text-white" />}
+ icon={<Shield className="h-7 w-7" />}
  >
  <div className="space-y-6">
  {/* Azure Notice - GuardDuty is AWS-specific */}

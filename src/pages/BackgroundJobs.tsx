@@ -10,7 +10,7 @@ const BackgroundJobs = () => {
     <Layout 
       title="Background Jobs" 
       description="Monitore e gerencie jobs em segundo plano e filas de processamento"
-      icon={<Clock className="h-7 w-7 text-white" />}
+      icon={<Clock className="h-7 w-7" />}
     >
       <Tabs defaultValue="jobs" className="w-full">
         <TabsList className="glass-card-float grid w-full grid-cols-3">

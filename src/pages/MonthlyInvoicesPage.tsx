@@ -439,7 +439,7 @@ export const MonthlyInvoicesPage = () => {
     <Layout 
       title={`Faturas Mensais ${providerDisplayName}`}
       description={`Visualização e análise detalhada das faturas mensais ${selectedProvider === 'AZURE' ? 'do Azure' : 'da AWS'}`}
-      icon={<FileText className="h-5 w-5 text-white" />}
+      icon={<FileText className="h-5 w-5" />}
     >
       <div className="space-y-6">
       {/* Main Content Card */}

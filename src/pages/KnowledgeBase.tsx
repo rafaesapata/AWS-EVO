@@ -1110,7 +1110,7 @@ export default function KnowledgeBase() {
     <Layout
       title="Base de Conhecimento"
       description="Wiki organizacional e documentação"
-      icon={<Book className="h-6 w-6 text-white" />}
+      icon={<Book className="h-6 w-6" />}
     >
       <KnowledgeBaseContent />
     </Layout>

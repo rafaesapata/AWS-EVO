@@ -293,7 +293,7 @@ export default function RemediationTickets() {
     <Layout 
       title="Tickets de Remediação" 
       description="Sistema de workflow para rastreamento e resolução de problemas"
-      icon={<Ticket className="h-5 w-5 text-white" />}
+      icon={<Ticket className="h-5 w-5" />}
     >
       <div className="space-y-6">
         {/* Summary Cards */}

@@ -234,7 +234,7 @@ export default function Organizations() {
     <Layout 
       title="Gestão de Organizações" 
       description="Gestão multi-tenant de organizações - Acesso Super Admin"
-      icon={<Building2 className="h-5 w-5 text-white" />}
+      icon={<Building2 className="h-5 w-5" />}
       userRole="super_admin"
     >
       <div className="space-y-6">

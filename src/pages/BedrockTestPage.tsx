@@ -11,7 +11,7 @@ export const BedrockTestPage: React.FC = () => {
  <Layout 
  title="Dev Tools - Bedrock AI" 
  description="Teste e validação de funcionalidades AWS Bedrock AI"
- icon={<Brain className="h-7 w-7 text-white" />}
+ icon={<Brain className="h-7 w-7" />}
  >
  <div className="space-y-6">
  <Tabs defaultValue="suite" className="w-full">
