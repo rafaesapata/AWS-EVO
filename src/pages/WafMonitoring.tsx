@@ -19,10 +19,16 @@ import { WafEventsFeed } from "@/components/waf/WafEventsFeed";
 import { WafAttackTypesChart } from "@/components/waf/WafAttackTypesChart";
 import { WafTopAttackers } from "@/components/waf/WafTopAttackers";
 import { WafBlockedRequestsList } from "@/components/waf/WafBlockedRequestsList";
-import { WafGeoDistribution } from "@/components/waf/WafGeoDistribution";
 import { WafConfigPanel } from "@/components/waf/WafConfigPanel";
 import { WafSetupPanel } from "@/components/waf/WafSetupPanel";
 import { WafAiAnalysis } from "@/components/waf/WafAiAnalysis";
+import { WafTimelineChart } from "@/components/waf/WafTimelineChart";
+import { WafStatusIndicator } from "@/components/waf/WafStatusIndicator";
+import { WafFilters } from "@/components/waf/WafFilters";
+import { WafWorldMap } from "@/components/waf/WafWorldMap";
+import { WafGeoDistribution } from "@/components/waf/WafGeoDistribution";
+import { WafAlertConfig } from "@/components/waf/WafAlertConfig";
+import { WafRulesEvaluator } from "@/components/waf/WafRulesEvaluator";
 
 export default function WafMonitoring() {
   const { t } = useTranslation();
@@ -31,6 +37,17 @@ export default function WafMonitoring() {
   const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
   const [activeTab, setActiveTab] = useState("overview");
+  
+  // Filter state for events tab
+  const [filters, setFilters] = useState({
+    period: 'last24h',
+    severity: 'all',
+    threatType: 'all',
+    ipAddress: '',
+    country: 'all',
+    startDate: null as Date | null,
+    endDate: null as Date | null,
+  });
 
   // Check if WAF monitoring is configured
   const { data: monitoringConfigsData, isLoading: configsLoading } = useQuery({
@@ -137,6 +154,21 @@ export default function WafMonitoring() {
     },
   });
 
+  // Fetch timeline data for the new timeline chart
+  const { data: timelineData, isLoading: timelineLoading } = useQuery({
+    queryKey: ['waf-timeline', organizationId],
+    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
+    queryFn: async () => {
+      const response = await apiClient.invoke<{ timeline: any[] }>('waf-dashboard-api', {
+        body: { action: 'timeline', period: 'last24h' }
+      });
+      if (response.error) throw new Error(getErrorMessage(response.error));
+      return response.data;
+    },
+  });
+
   // Block IP mutation
   const blockIpMutation = useMutation({
     mutationFn: async ({ ipAddress, reason }: { ipAddress: string; reason: string }) => {
@@ -186,9 +218,28 @@ export default function WafMonitoring() {
   const topAttackers = attackersData?.topAttackers || [];
   const attackTypes = attackTypesData?.attackTypes || [];
   const geoDistribution = geoData?.geoDistribution || [];
+  const timeline = timelineData?.timeline || [];
   
   // Use dedicated blocked events query for the blocked requests list
   const blockedRequests = blockedEventsData?.events || [];
+
+  // Filter events based on filter state
+  const filteredEvents = events.filter(event => {
+    // Apply filters
+    if (filters.severity !== 'all' && event.severity?.toLowerCase() !== filters.severity) {
+      return false;
+    }
+    if (filters.threatType !== 'all' && event.threatType !== filters.threatType) {
+      return false;
+    }
+    if (filters.ipAddress && !event.sourceIp?.includes(filters.ipAddress)) {
+      return false;
+    }
+    if (filters.country !== 'all' && event.country !== filters.country) {
+      return false;
+    }
+    return true;
+  });
 
 
   return (
@@ -244,17 +295,34 @@ export default function WafMonitoring() {
               </TabsList>
 
               <TabsContent value="overview" className="space-y-6">
+                {/* Status Indicator */}
+                <WafStatusIndicator metrics={metrics} />
+
+                {/* Timeline Chart */}
+                <WafTimelineChart 
+                  data={timeline} 
+                  isLoading={timelineLoading} 
+                />
+
                 {/* AI Analysis Section */}
                 <WafAiAnalysis accountId={selectedAccountId || undefined} />
+
+                {/* Geographic Distribution */}
+                <div className="grid gap-6 md:grid-cols-2">
+                  <WafGeoDistribution 
+                    geoDistribution={geoDistribution} 
+                    isLoading={geoLoading} 
+                  />
+                  <WafWorldMap 
+                    geoDistribution={geoDistribution} 
+                    isLoading={geoLoading} 
+                  />
+                </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
                   <WafAttackTypesChart 
                     attackTypes={attackTypes} 
                     isLoading={attackTypesLoading} 
-                  />
-                  <WafGeoDistribution 
-                    geoDistribution={geoDistribution} 
-                    isLoading={geoLoading} 
                   />
                 </div>
 
@@ -278,17 +346,24 @@ export default function WafMonitoring() {
               </TabsContent>
 
               <TabsContent value="events" className="space-y-4">
+                {/* Advanced Filters */}
+                <WafFilters 
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                />
+                
                 <WafEventsFeed 
-                  events={events} 
+                  events={filteredEvents} 
                   isLoading={eventsLoading}
-                  showFilters
                   showPagination
                 />
               </TabsContent>
 
               <TabsContent value="config" className="space-y-4">
                 <WafSetupPanel />
+                <WafRulesEvaluator accountId={selectedAccountId || undefined} />
                 <WafConfigPanel accountId={selectedAccountId || undefined} />
+                <WafAlertConfig accountId={selectedAccountId || undefined} />
               </TabsContent>
             </Tabs>
           </>

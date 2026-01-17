@@ -135,13 +135,13 @@ export default function SecurityPostureCard({ data }: Props) {
 
         {/* Findings by Severity - 2x2 Grid */}
         <div className="space-y-3">
-          <span className="text-base font-light text-[#1F2937]">
+          <span className="text-lg font-light text-[#1F2937]">
             {t('executiveDashboard.findingsBySeverity', 'Findings by Severity')}
           </span>
           
           <div className="grid grid-cols-4 gap-2">
             <div className={cn(
-              "p-3 rounded-xl text-center border",
+              "p-3 rounded-xl text-center border cursor-default",
               data.findings.critical > 0 ? 'bg-red-50 border-red-200' : 'bg-[#F9FAFB] border-gray-100'
             )}>
               <div className={cn(
@@ -152,15 +152,15 @@ export default function SecurityPostureCard({ data }: Props) {
               </div>
               <span className="text-xs text-gray-500">{t('executiveDashboard.severityCritical', 'Critical')}</span>
             </div>
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
+            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center cursor-default">
               <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.findings.high}</div>
               <span className="text-xs text-gray-500">{t('executiveDashboard.severityHigh', 'High')}</span>
             </div>
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
+            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center cursor-default">
               <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.findings.medium}</div>
               <span className="text-xs text-gray-500">{t('executiveDashboard.severityMedium', 'Medium')}</span>
             </div>
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center">
+            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center cursor-default">
               <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.findings.low}</div>
               <span className="text-xs text-gray-500">{t('executiveDashboard.severityLow', 'Low')}</span>
             </div>
@@ -170,7 +170,7 @@ export default function SecurityPostureCard({ data }: Props) {
         {/* 7-Day Trend */}
         <div className="border-t border-gray-100 pt-4 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-base font-light text-[#1F2937]">
+            <span className="text-lg font-light text-[#1F2937]">
               {t('executiveDashboard.last7Days', 'Last 7 Days')}
             </span>
             <div className="flex items-center gap-1.5">
@@ -186,14 +186,14 @@ export default function SecurityPostureCard({ data }: Props) {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#F9FAFB] border border-gray-100">
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#F9FAFB] border border-gray-200">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               <div>
                 <div className="text-lg font-light text-[#1F2937] tabular-nums">{data.trend.newLast7Days}</div>
                 <span className="text-xs text-gray-500">{t('executiveDashboard.newIssues', 'New Issues')}</span>
               </div>
             </div>
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20">
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#10B981]/10 border border-gray-200">
               <Shield className="h-4 w-4 text-[#10B981]" />
               <div>
                 <div className="text-lg font-light text-[#10B981] tabular-nums">{data.trend.resolvedLast7Days}</div>
@@ -204,7 +204,7 @@ export default function SecurityPostureCard({ data }: Props) {
         </div>
 
         {/* Total Findings */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-[#F9FAFB] border border-gray-100">
+        <div className="flex items-center justify-between p-3 rounded-xl bg-[#F9FAFB] border border-gray-200">
           <span className="text-sm text-gray-600">
             {t('executiveDashboard.totalFindings', 'Total Active Findings')}
           </span>

@@ -17,6 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 export interface ErrorMetric {
   name: string;
   value: number;
+  invocations: number;
+  errorRate: number;
+  lambdaCount: number;
   threshold: number;
   status: 'ok' | 'warning' | 'critical';
   change: number;
@@ -102,6 +105,9 @@ async function fetchPlatformMetrics(): Promise<PlatformMetricsData> {
   const transformedMetrics = (data.metrics || []).map((metric: any) => ({
     name: metric.name,
     value: metric.errors || 0,
+    invocations: metric.invocations || 0,
+    errorRate: metric.errorRate || 0,
+    lambdaCount: metric.lambdaCount || 0,
     threshold: 10,
     status: metric.status,
     change: metric.change || 0,

@@ -25,6 +25,11 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  // Handle OPTIONS first - before any auth checks
+  if (getHttpMethod(event) === 'OPTIONS') {
+    return corsOptions();
+  }
+  
   const user = getUserFromEvent(event);
   const organizationId = getOrganizationIdWithImpersonation(event, user);
   
@@ -33,10 +38,6 @@ export async function handler(
     userId: user.sub,
     requestId: context.awsRequestId 
   });
-  
-  if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
-  }
   
   try {
     const body: ValidateCredentialsRequest = event.body ? JSON.parse(event.body) : {};

@@ -47,7 +47,7 @@ export default function FinancialHealthCard({ data }: Props) {
       <div className="p-6 space-y-5">
         {/* Cost Summary - 2x2 Grid */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
+          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-200">
             <span className="text-sm font-light text-gray-500">
               {t('executiveDashboard.mtdCost', 'MTD Cost')}
             </span>
@@ -60,7 +60,7 @@ export default function FinancialHealthCard({ data }: Props) {
               </span>
             )}
           </div>
-          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-100">
+          <div className="p-4 rounded-xl bg-[#F9FAFB] border border-gray-200">
             <span className="text-sm font-light text-gray-500">
               {t('executiveDashboard.ytdCost', 'YTD Cost')}
             </span>
@@ -73,7 +73,7 @@ export default function FinancialHealthCard({ data }: Props) {
         {/* Budget Utilization */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-base font-medium text-[#1F2937]">
+            <span className="text-lg font-light text-[#1F2937]">
               {t('executiveDashboard.budgetUtilization', 'Budget Utilization')}
             </span>
             <span className={cn('font-semibold tabular-nums', getBudgetColor(data.budgetUtilization))}>
@@ -95,7 +95,7 @@ export default function FinancialHealthCard({ data }: Props) {
         {/* Top Services */}
         {data.topServices.length > 0 && (
           <div className="border-t border-gray-100 pt-4 space-y-3">
-            <span className="text-base font-medium text-[#1F2937]">
+            <span className="text-lg font-light text-[#1F2937]">
               {t('executiveDashboard.topServices', 'Top Services')}
             </span>
             <div className="space-y-2.5">
@@ -121,12 +121,12 @@ export default function FinancialHealthCard({ data }: Props) {
 
         {/* Savings Breakdown */}
         <div className="border-t border-gray-100 pt-4 space-y-3">
-          <span className="text-base font-medium text-[#1F2937]">
+          <span className="text-lg font-light text-[#1F2937]">
             {t('executiveDashboard.savingsOpportunities', 'Savings Opportunities')}
           </span>
           
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100">
+            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-200">
               <div className="text-xl font-light text-[#1F2937] tabular-nums">
                 ${data.savings.costRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
@@ -134,7 +134,7 @@ export default function FinancialHealthCard({ data }: Props) {
                 {t('executiveDashboard.costOptimizations', 'Cost Optimizations')}
               </span>
             </div>
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100">
+            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-200">
               <div className="text-xl font-light text-[#1F2937] tabular-nums">
                 ${data.savings.riSpRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
@@ -144,7 +144,7 @@ export default function FinancialHealthCard({ data }: Props) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-4 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20">
+          <div className="flex items-center justify-between p-4 rounded-xl bg-[#10B981]/10 border border-gray-200">
             <span className="text-sm font-medium text-[#1F2937]">
               {t('executiveDashboard.totalPotential', 'Total Potential')}
             </span>

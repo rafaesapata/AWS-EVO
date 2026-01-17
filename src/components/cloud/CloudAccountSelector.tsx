@@ -101,7 +101,7 @@ export function CloudAccountSelector({
         setSelectedAccountId(account.id);
         setOpen(false);
       }}
-      className="flex items-center justify-between"
+      className="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 data-[selected=true]:bg-gray-100 dark:data-[selected=true]:bg-gray-800"
     >
       <div className="flex items-center gap-2">
         <Check

@@ -47,7 +47,7 @@ export default function OperationsCenterCard({ data }: Props) {
         {/* Endpoint Status */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-base font-medium text-[#1F2937]">
+            <span className="text-lg font-light text-[#1F2937]">
               {t('executiveDashboard.endpointStatus', 'Endpoint Status')}
             </span>
             <Badge className="text-xs px-2.5 py-1 bg-[#003C7D]/10 text-[#003C7D] border-[#003C7D]/20 rounded-full font-medium">
@@ -139,7 +139,7 @@ export default function OperationsCenterCard({ data }: Props) {
         {data.alerts.active.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-base font-medium text-[#1F2937]">
+              <span className="text-lg font-light text-[#1F2937]">
                 {t('executiveDashboard.activeAlerts', 'Active Alerts')}
               </span>
               <Badge className="text-xs px-2.5 py-1 bg-red-100 text-red-600 border-red-200 rounded-full font-medium">
@@ -193,7 +193,7 @@ export default function OperationsCenterCard({ data }: Props) {
 
         {/* Remediations */}
         <div className="border-t border-gray-100 pt-4 space-y-3">
-          <span className="text-base font-medium text-[#1F2937]">
+          <span className="text-lg font-light text-[#1F2937]">
             {t('executiveDashboard.remediations', 'Remediations')}
           </span>
 

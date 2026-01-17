@@ -254,8 +254,8 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
         </Alert>
       )}
 
-      {/* Analysis Results */}
-      {analysis && analysis.executiveSummary && (
+      {/* Analysis Results - Only show if not loading saved data */}
+      {!loadingSavedData && analysis && analysis.executiveSummary && (
         <>
           {/* Check if there are any resources to analyze */}
           {analysis.currentResources?.ec2Instances === 0 && analysis.currentResources?.rdsInstances === 0 ? (
@@ -583,8 +583,8 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
         </>
       )}
 
-      {/* Initial State */}
-      {!analysis && !loading && !errorMessage && (
+      {/* Initial State - Only show if not loading saved data */}
+      {!loadingSavedData && !analysis && !loading && !errorMessage && (
         <div className="space-y-6">
           {/* Educational Section */}
           <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-indigo-50/50">

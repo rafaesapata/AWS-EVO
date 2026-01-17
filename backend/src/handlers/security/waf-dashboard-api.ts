@@ -105,6 +105,8 @@ export async function handler(
           return await handleGetEvents(event, prisma, organizationId);
         case 'metrics':
           return await handleGetMetrics(prisma, organizationId);
+        case 'timeline':
+          return await handleGetTimeline(prisma, organizationId);
         case 'top-attackers':
           return await handleGetTopAttackers(event, prisma, organizationId);
         case 'attack-types':
@@ -136,6 +138,12 @@ export async function handler(
           return await handleGetLatestAnalysis(prisma, organizationId);
         case 'threat-stats':
           return await handleGetThreatStats(prisma, organizationId);
+        case 'get-alert-config':
+          return await handleGetAlertConfig(prisma, organizationId);
+        case 'save-alert-config':
+          return await handleSaveAlertConfig(event, prisma, organizationId);
+        case 'evaluate-rules':
+          return await handleEvaluateRules(event, prisma, organizationId);
         case 'init-ai-analysis-table':
           return await handleInitAiAnalysisTable(prisma);
         default:
@@ -297,13 +305,18 @@ async function handleGetMetrics(
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
-  // Get metrics for last 24 hours
+  // Get metrics for last 24 hours (current period)
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
+  // Get metrics for 24-48 hours ago (previous period for trend calculation)
+  const previousSince = new Date();
+  previousSince.setHours(previousSince.getHours() - 48);
+  const previousUntil = new Date();
+  previousUntil.setHours(previousUntil.getHours() - 24);
+  
   try {
-    // Use a single optimized raw SQL query to get all metrics at once
-    // This reduces connection pool usage from 8 queries to 2
+    // Use a single optimized raw SQL query to get current period metrics
     const metricsResult = await prisma.$queryRaw<Array<{
       total_requests: bigint;
       blocked_requests: bigint;
@@ -332,6 +345,36 @@ async function handleGetMetrics(
         AND timestamp >= ${since}
     `;
     
+    // Get previous period metrics for trend calculation
+    const previousMetricsResult = await prisma.$queryRaw<Array<{
+      total_requests: bigint;
+      blocked_requests: bigint;
+      allowed_requests: bigint;
+      counted_requests: bigint;
+      unique_attackers: bigint;
+      unique_countries: bigint;
+      critical_threats: bigint;
+      high_threats: bigint;
+      medium_threats: bigint;
+      low_threats: bigint;
+    }>>`
+      SELECT 
+        COUNT(*) as total_requests,
+        COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_requests,
+        COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed_requests,
+        COUNT(*) FILTER (WHERE action = 'COUNT') as counted_requests,
+        COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_attackers,
+        COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN country END) as unique_countries,
+        COUNT(*) FILTER (WHERE severity = 'critical') as critical_threats,
+        COUNT(*) FILTER (WHERE severity = 'high') as high_threats,
+        COUNT(*) FILTER (WHERE severity = 'medium') as medium_threats,
+        COUNT(*) FILTER (WHERE severity = 'low') as low_threats
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${previousSince}
+        AND timestamp < ${previousUntil}
+    `;
+    
     // Get active campaigns count separately (different table)
     const activeCampaigns = await prisma.wafAttackCampaign.count({
       where: {
@@ -341,6 +384,19 @@ async function handleGetMetrics(
     });
     
     const row = metricsResult[0] || {
+      total_requests: BigInt(0),
+      blocked_requests: BigInt(0),
+      allowed_requests: BigInt(0),
+      counted_requests: BigInt(0),
+      unique_attackers: BigInt(0),
+      unique_countries: BigInt(0),
+      critical_threats: BigInt(0),
+      high_threats: BigInt(0),
+      medium_threats: BigInt(0),
+      low_threats: BigInt(0),
+    };
+    
+    const previousRow = previousMetricsResult[0] || {
       total_requests: BigInt(0),
       blocked_requests: BigInt(0),
       allowed_requests: BigInt(0),
@@ -367,7 +423,20 @@ async function handleGetMetrics(
       activeCampaigns,
     };
     
-    return success({ metrics, period: '24h' });
+    const previousPeriod = {
+      totalRequests: Number(previousRow.total_requests),
+      blockedRequests: Number(previousRow.blocked_requests),
+      allowedRequests: Number(previousRow.allowed_requests),
+      countedRequests: Number(previousRow.counted_requests),
+      uniqueIps: Number(previousRow.unique_attackers),
+      uniqueCountries: Number(previousRow.unique_countries),
+      criticalThreats: Number(previousRow.critical_threats),
+      highThreats: Number(previousRow.high_threats),
+      mediumThreats: Number(previousRow.medium_threats),
+      lowThreats: Number(previousRow.low_threats),
+    };
+    
+    return success({ metrics, previousPeriod, period: '24h' });
   } catch (err) {
     logger.error('Failed to get WAF metrics', err as Error, { organizationId });
     
@@ -1571,6 +1640,7 @@ async function handleAiAnalysis(
 /**
  * Background AI Analysis Worker
  * Called asynchronously to generate full AI analysis without blocking the API
+ * OPTIMIZED: Uses sequential queries to avoid connection pool exhaustion
  */
 async function handleAiAnalysisBackground(
   event: AuthorizedEvent,
@@ -1582,59 +1652,118 @@ async function handleAiAnalysisBackground(
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
-  // Fetch comprehensive data for AI analysis
-  const [
-    // Metrics summary
-    totalEvents,
-    blockedEvents,
-    uniqueAttackers,
+  try {
+    // OPTIMIZED: Use a single comprehensive SQL query for metrics
+    // This reduces connection pool usage from 10 queries to 3
+    const metricsResult = await prisma.$queryRaw<Array<{
+      total_events: bigint;
+      blocked_events: bigint;
+      unique_attackers: bigint;
+    }>>`
+      SELECT 
+        COUNT(*) as total_events,
+        COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_events,
+        COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_attackers
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+    `;
     
-    // Threat type distribution
-    threatTypes,
+    const metrics = metricsResult[0] || { total_events: BigInt(0), blocked_events: BigInt(0), unique_attackers: BigInt(0) };
+    const totalEvents = Number(metrics.total_events);
+    const blockedEvents = Number(metrics.blocked_events);
+    const uniqueAttackersCount = Number(metrics.unique_attackers);
     
-    // Top attackers with details
-    topAttackers,
+    // Get aggregated data in a single query
+    const aggregatedData = await prisma.$queryRaw<Array<{
+      data_type: string;
+      key1: string | null;
+      key2: string | null;
+      count: bigint;
+    }>>`
+      WITH threat_types AS (
+        SELECT 'threat_type' as data_type, threat_type as key1, NULL as key2, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid AND timestamp >= ${since} AND threat_type IS NOT NULL
+        GROUP BY threat_type
+        ORDER BY count DESC LIMIT 10
+      ),
+      top_attackers AS (
+        SELECT 'top_attacker' as data_type, source_ip as key1, country as key2, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid AND timestamp >= ${since} AND action = 'BLOCK'
+        GROUP BY source_ip, country
+        ORDER BY count DESC LIMIT 10
+      ),
+      geo_dist AS (
+        SELECT 'geo' as data_type, country as key1, NULL as key2, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid AND timestamp >= ${since} AND action = 'BLOCK' AND country IS NOT NULL
+        GROUP BY country
+        ORDER BY count DESC LIMIT 10
+      ),
+      hourly AS (
+        SELECT 'hourly' as data_type, EXTRACT(HOUR FROM timestamp)::text as key1, NULL as key2, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid AND timestamp >= ${since} AND action = 'BLOCK'
+        GROUP BY EXTRACT(HOUR FROM timestamp)
+      ),
+      uris AS (
+        SELECT 'uri' as data_type, LEFT(uri, 100) as key1, NULL as key2, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid AND timestamp >= ${since} AND action = 'BLOCK'
+        GROUP BY LEFT(uri, 100)
+        ORDER BY count DESC LIMIT 10
+      ),
+      user_agents AS (
+        SELECT 'user_agent' as data_type, LEFT(user_agent, 80) as key1, NULL as key2, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid AND timestamp >= ${since} AND action = 'BLOCK'
+        GROUP BY LEFT(user_agent, 80)
+        ORDER BY count DESC LIMIT 10
+      )
+      SELECT * FROM threat_types
+      UNION ALL SELECT * FROM top_attackers
+      UNION ALL SELECT * FROM geo_dist
+      UNION ALL SELECT * FROM hourly
+      UNION ALL SELECT * FROM uris
+      UNION ALL SELECT * FROM user_agents
+    `;
     
-    // Sample of blocked requests (for pattern analysis)
-    blockedSamples,
+    // Parse aggregated data
+    const threatTypes = aggregatedData.filter(d => d.data_type === 'threat_type').map(d => ({
+      threat_type: d.key1,
+      _count: Number(d.count),
+    }));
     
-    // Geographic distribution
-    geoDistribution,
+    const topAttackers = aggregatedData.filter(d => d.data_type === 'top_attacker').map(d => ({
+      source_ip: d.key1 || '',
+      country: d.key2,
+      _count: Number(d.count),
+    }));
     
-    // Hourly distribution (to detect attack patterns)
-    hourlyDistribution,
+    const geoDistribution = aggregatedData.filter(d => d.data_type === 'geo').map(d => ({
+      country: d.key1,
+      _count: Number(d.count),
+    }));
     
-    // Most targeted URIs
-    targetedUris,
+    const hourlyDistribution = aggregatedData.filter(d => d.data_type === 'hourly').map(d => ({
+      hour: parseInt(d.key1 || '0', 10),
+      count: d.count,
+    }));
     
-    // User agent analysis
-    userAgentAnalysis,
-  ] = await Promise.all([
-    prisma.wafEvent.count({
-      where: { organization_id: organizationId, timestamp: { gte: since } },
-    }),
-    prisma.wafEvent.count({
-      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
-    }),
-    prisma.wafEvent.groupBy({
-      by: ['source_ip'],
-      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
-      _count: true,
-    }),
-    prisma.wafEvent.groupBy({
-      by: ['threat_type'],
-      where: { organization_id: organizationId, timestamp: { gte: since }, threat_type: { not: null } },
-      _count: true,
-      orderBy: { _count: { threat_type: 'desc' } },
-    }),
-    prisma.wafEvent.groupBy({
-      by: ['source_ip', 'country'],
-      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
-      _count: true,
-      orderBy: { _count: { source_ip: 'desc' } },
-      take: 10,
-    }),
-    prisma.wafEvent.findMany({
+    const targetedUris = aggregatedData.filter(d => d.data_type === 'uri').map(d => ({
+      uri: d.key1,
+      _count: Number(d.count),
+    }));
+    
+    const userAgentAnalysis = aggregatedData.filter(d => d.data_type === 'user_agent').map(d => ({
+      user_agent: d.key1,
+      _count: Number(d.count),
+    }));
+    
+    // Get sample blocked requests (single query)
+    const blockedSamples = await prisma.wafEvent.findMany({
       where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
       orderBy: { timestamp: 'desc' },
       take: 50,
@@ -1649,175 +1778,147 @@ async function handleAiAnalysisBackground(
         threat_type: true,
         severity: true,
       },
-    }),
-    prisma.wafEvent.groupBy({
-      by: ['country'],
-      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK', country: { not: null } },
-      _count: true,
-      orderBy: { _count: { country: 'desc' } },
-      take: 10,
-    }),
-    prisma.$queryRaw`
-      SELECT 
-        EXTRACT(HOUR FROM timestamp) as hour,
-        COUNT(*) as count
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${since}
-        AND action = 'BLOCK'
-      GROUP BY EXTRACT(HOUR FROM timestamp)
-      ORDER BY hour
-    ` as Promise<Array<{ hour: number; count: bigint }>>,
-    prisma.wafEvent.groupBy({
-      by: ['uri'],
-      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
-      _count: true,
-      orderBy: { _count: { uri: 'desc' } },
-      take: 10,
-    }),
-    prisma.wafEvent.groupBy({
-      by: ['user_agent'],
-      where: { organization_id: organizationId, timestamp: { gte: since }, action: 'BLOCK' },
-      _count: true,
-      orderBy: { _count: { user_agent: 'desc' } },
-      take: 10,
-    }),
-  ]);
+    });
+    
+    // Create uniqueAttackers array for compatibility
+    const uniqueAttackers = topAttackers.map(a => ({ source_ip: a.source_ip, _count: a._count }));
   
-  // Build context for AI
-  const analysisContext = {
-    period: '24 hours',
-    metrics: {
-      totalRequests: totalEvents,
-      blockedRequests: blockedEvents,
-      blockRate: totalEvents > 0 ? ((blockedEvents / totalEvents) * 100).toFixed(2) + '%' : '0%',
-      uniqueAttackers: uniqueAttackers.length,
-    },
-    threatTypes: threatTypes.map(t => ({
-      type: t.threat_type || 'unknown',
-      count: t._count,
-      percentage: blockedEvents > 0 ? ((t._count / blockedEvents) * 100).toFixed(1) + '%' : '0%',
-    })),
-    topAttackers: topAttackers.slice(0, 5).map(a => ({
-      ip: a.source_ip,
-      country: a.country || 'Unknown',
-      blockedRequests: a._count,
-    })),
-    geoDistribution: geoDistribution.slice(0, 5).map(g => ({
-      country: g.country || 'Unknown',
-      blockedRequests: g._count,
-    })),
-    hourlyPattern: (hourlyDistribution as Array<{ hour: number; count: bigint }>).map(h => ({
-      hour: Number(h.hour),
-      count: Number(h.count),
-    })),
-    targetedEndpoints: targetedUris.slice(0, 5).map(u => ({
-      uri: u.uri?.substring(0, 100) || 'Unknown',
-      attacks: u._count,
-    })),
-    suspiciousUserAgents: userAgentAnalysis.slice(0, 5).map(ua => ({
-      userAgent: ua.user_agent?.substring(0, 80) || 'Empty',
-      count: ua._count,
-    })),
-    sampleAttacks: blockedSamples.slice(0, 10).map(s => ({
-      time: s.timestamp.toISOString(),
-      ip: s.source_ip,
-      country: s.country || 'Unknown',
-      method: s.http_method,
-      uri: s.uri?.substring(0, 80) || '/',
-      userAgent: s.user_agent?.substring(0, 50) || 'Unknown',
-      rule: s.rule_matched || 'Unknown',
-      threatType: s.threat_type || 'unclassified',
-      severity: s.severity || 'low',
-    })),
-  };
-  
-  // Build AI prompt
-  const prompt = buildWafAnalysisPrompt(analysisContext);
-  
-  try {
-    // Call Bedrock with Claude 3.5 Sonnet
-    const bedrockResponse = await bedrockClient.send(new InvokeModelCommand({
-      modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-      contentType: 'application/json',
-      accept: 'application/json',
-      body: JSON.stringify({
-        anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: 2048,
-        temperature: 0.3,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      }),
-    }));
+    // Build context for AI
+    const analysisContext = {
+      period: '24 hours',
+      metrics: {
+        totalRequests: totalEvents,
+        blockedRequests: blockedEvents,
+        blockRate: totalEvents > 0 ? ((blockedEvents / totalEvents) * 100).toFixed(2) + '%' : '0%',
+        uniqueAttackers: uniqueAttackersCount,
+      },
+      threatTypes: threatTypes.map(t => ({
+        type: t.threat_type || 'unknown',
+        count: t._count,
+        percentage: blockedEvents > 0 ? ((t._count / blockedEvents) * 100).toFixed(1) + '%' : '0%',
+      })),
+      topAttackers: topAttackers.slice(0, 5).map(a => ({
+        ip: a.source_ip,
+        country: a.country || 'Unknown',
+        blockedRequests: a._count,
+      })),
+      geoDistribution: geoDistribution.slice(0, 5).map(g => ({
+        country: g.country || 'Unknown',
+        blockedRequests: g._count,
+      })),
+      hourlyPattern: hourlyDistribution.map(h => ({
+        hour: Number(h.hour),
+        count: Number(h.count),
+      })),
+      targetedEndpoints: targetedUris.slice(0, 5).map(u => ({
+        uri: u.uri?.substring(0, 100) || 'Unknown',
+        attacks: u._count,
+      })),
+      suspiciousUserAgents: userAgentAnalysis.slice(0, 5).map(ua => ({
+        userAgent: ua.user_agent?.substring(0, 80) || 'Empty',
+        count: ua._count,
+      })),
+      sampleAttacks: blockedSamples.slice(0, 10).map(s => ({
+        time: s.timestamp.toISOString(),
+        ip: s.source_ip,
+        country: s.country || 'Unknown',
+        method: s.http_method,
+        uri: s.uri?.substring(0, 80) || '/',
+        userAgent: s.user_agent?.substring(0, 50) || 'Unknown',
+        rule: s.rule_matched || 'Unknown',
+        threatType: s.threat_type || 'unclassified',
+        severity: s.severity || 'low',
+      })),
+    };
     
-    const responseBody = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
-    const aiAnalysis = responseBody.content?.[0]?.text || 'Unable to generate analysis.';
+    // Build AI prompt
+    const prompt = buildWafAnalysisPrompt(analysisContext);
     
-    logger.info('WAF AI analysis completed', { organizationId });
-    
-    // Extract risk level from analysis
-    const riskLevelMatch = aiAnalysis.match(/Nível de Risco.*?(Baixo|Médio|Alto|Crítico)/i);
-    const riskLevel = riskLevelMatch ? riskLevelMatch[1].toLowerCase() : null;
-    
-    // Save analysis to database
-    const savedAnalysis = await prisma.wafAiAnalysis.create({
-      data: {
-        organization_id: organizationId,
+    try {
+      // Call Bedrock with Claude 3.5 Sonnet
+      const bedrockResponse = await bedrockClient.send(new InvokeModelCommand({
+        modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        contentType: 'application/json',
+        accept: 'application/json',
+        body: JSON.stringify({
+          anthropic_version: 'bedrock-2023-05-31',
+          max_tokens: 2048,
+          temperature: 0.3,
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+        }),
+      }));
+      
+      const responseBody = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
+      const aiAnalysis = responseBody.content?.[0]?.text || 'Unable to generate analysis.';
+      
+      logger.info('WAF AI analysis completed', { organizationId });
+      
+      // Extract risk level from analysis
+      const riskLevelMatch = aiAnalysis.match(/Nível de Risco.*?(Baixo|Médio|Alto|Crítico)/i);
+      const riskLevel = riskLevelMatch ? riskLevelMatch[1].toLowerCase() : null;
+      
+      // Save analysis to database
+      const savedAnalysis = await prisma.wafAiAnalysis.create({
+        data: {
+          organization_id: organizationId,
+          analysis: aiAnalysis,
+          context: analysisContext as any,
+          risk_level: riskLevel,
+          ai_model: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+          is_fallback: false,
+        },
+      });
+      
+      return success({
+        id: savedAnalysis.id,
         analysis: aiAnalysis,
-        context: analysisContext as any,
-        risk_level: riskLevel,
-        ai_model: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-        is_fallback: false,
-      },
-    });
-    
-    return success({
-      id: savedAnalysis.id,
-      analysis: aiAnalysis,
-      context: analysisContext,
-      riskLevel,
-      generatedAt: savedAnalysis.created_at.toISOString(),
-    });
-    
-  } catch (err) {
-    logger.error('Bedrock AI analysis failed', err as Error, { organizationId });
-    
-    // Generate fallback analysis
-    const fallbackAnalysis = generateFallbackAnalysis(analysisContext);
-    const riskLevel = analysisContext.metrics.blockedRequests > 1000 ? 'alto' 
-      : analysisContext.metrics.blockedRequests > 100 ? 'médio' 
-      : 'baixo';
-    
-    // Save fallback analysis to database
-    const savedAnalysis = await prisma.wafAiAnalysis.create({
-      data: {
-        organization_id: organizationId,
+        context: analysisContext,
+        riskLevel,
+        generatedAt: savedAnalysis.created_at.toISOString(),
+      });
+      
+    } catch (bedrockErr) {
+      logger.error('Bedrock AI analysis failed', bedrockErr as Error, { organizationId });
+      
+      // Generate fallback analysis
+      const fallbackAnalysis = generateFallbackAnalysis(analysisContext);
+      const riskLevel = analysisContext.metrics.blockedRequests > 1000 ? 'alto' 
+        : analysisContext.metrics.blockedRequests > 100 ? 'médio' 
+        : 'baixo';
+      
+      // Save fallback analysis to database
+      const savedAnalysis = await prisma.wafAiAnalysis.create({
+        data: {
+          organization_id: organizationId,
+          analysis: fallbackAnalysis,
+          context: analysisContext as any,
+          risk_level: riskLevel,
+          ai_model: null,
+          is_fallback: true,
+        },
+      });
+      
+      return success({
+        id: savedAnalysis.id,
         analysis: fallbackAnalysis,
-        context: analysisContext as any,
-        risk_level: riskLevel,
-        ai_model: null,
-        is_fallback: true,
-      },
-    });
+        context: analysisContext,
+        riskLevel,
+        generatedAt: savedAnalysis.created_at.toISOString(),
+        aiError: 'AI analysis temporarily unavailable, showing automated summary',
+      });
+    }
     
-    return success({
-      id: savedAnalysis.id,
-      analysis: fallbackAnalysis,
-      context: analysisContext,
-      riskLevel,
-      generatedAt: savedAnalysis.created_at.toISOString(),
-      aiError: 'AI analysis temporarily unavailable, showing automated summary',
-    });
+  } catch (dbErr) {
+    // Database connection error - return error response
+    logger.error('Database error in WAF AI analysis', dbErr as Error, { organizationId });
+    return error('Database connection error. Please try again later.', 503);
   }
 }
-
-/**
- * GET /waf-get-latest-analysis - Get the most recent AI analysis
- */
 async function handleGetLatestAnalysis(
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
@@ -1997,5 +2098,452 @@ async function handleInitAiAnalysisTable(
   } catch (err) {
     logger.error('Failed to initialize WAF AI Analysis table', err as Error);
     return error(err instanceof Error ? err.message : 'Failed to create table');
+  }
+}
+
+/**
+ * GET /waf-timeline - Get hourly timeline of blocked/allowed requests for last 24h
+ * Returns data for WafTimelineChart component
+ */
+async function handleGetTimeline(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  const since = new Date();
+  since.setHours(since.getHours() - 24);
+  
+  try {
+    // Get hourly aggregation of blocked and allowed requests
+    const timelineData = await prisma.$queryRaw<Array<{
+      hour: Date;
+      blocked: bigint;
+      allowed: bigint;
+    }>>`
+      SELECT 
+        DATE_TRUNC('hour', timestamp) as hour,
+        COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked,
+        COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed
+      FROM waf_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND timestamp >= ${since}
+      GROUP BY DATE_TRUNC('hour', timestamp)
+      ORDER BY hour ASC
+    `;
+    
+    // Fill in missing hours with zeros
+    const result: Array<{ hour: string; blocked: number; allowed: number }> = [];
+    const now = new Date();
+    
+    for (let i = 23; i >= 0; i--) {
+      const hour = new Date(now);
+      hour.setHours(now.getHours() - i, 0, 0, 0);
+      
+      const dataPoint = timelineData.find(d => {
+        const dHour = new Date(d.hour);
+        return dHour.getTime() === hour.getTime();
+      });
+      
+      result.push({
+        hour: hour.toISOString(),
+        blocked: dataPoint ? Number(dataPoint.blocked) : 0,
+        allowed: dataPoint ? Number(dataPoint.allowed) : 0,
+      });
+    }
+    
+    return success({
+      timeline: result,
+      period: '24h',
+    });
+  } catch (err) {
+    logger.error('Failed to get WAF timeline', err as Error, { organizationId });
+    return error('Failed to load timeline data');
+  }
+}
+
+/**
+ * GET /waf-alert-config - Get alert configuration for organization
+ */
+async function handleGetAlertConfig(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  try {
+    const config = await prisma.wafAlertConfig.findUnique({
+      where: { organization_id: organizationId },
+    });
+    
+    if (!config) {
+      // Return default config if none exists
+      return success({
+        snsEnabled: true,
+        snsTopicArn: '',
+        slackEnabled: false,
+        slackWebhookUrl: '',
+        inAppEnabled: true,
+        campaignThreshold: 10,
+        campaignWindowMins: 5,
+        autoBlockEnabled: false,
+        autoBlockThreshold: 50,
+        blockDurationHours: 24,
+      });
+    }
+    
+    return success({
+      snsEnabled: config.sns_enabled,
+      snsTopicArn: config.sns_topic_arn || '',
+      slackEnabled: config.slack_enabled,
+      slackWebhookUrl: config.slack_webhook_url || '',
+      inAppEnabled: config.in_app_enabled,
+      campaignThreshold: config.campaign_threshold,
+      campaignWindowMins: config.campaign_window_mins,
+      autoBlockEnabled: config.auto_block_enabled,
+      autoBlockThreshold: config.auto_block_threshold,
+      blockDurationHours: config.block_duration_hours,
+    });
+  } catch (err) {
+    logger.error('Failed to get alert config', err as Error, { organizationId });
+    return error('Failed to load alert configuration');
+  }
+}
+
+/**
+ * POST /waf-save-alert-config - Save alert configuration
+ */
+async function handleSaveAlertConfig(
+  event: AuthorizedEvent,
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  const body = JSON.parse(event.body || '{}');
+  const {
+    snsEnabled,
+    snsTopicArn,
+    slackEnabled,
+    slackWebhookUrl,
+    inAppEnabled,
+    campaignThreshold,
+    campaignWindowMins,
+    autoBlockEnabled,
+    autoBlockThreshold,
+    blockDurationHours,
+  } = body;
+  
+  try {
+    // Validate inputs
+    if (typeof snsEnabled !== 'boolean' || typeof slackEnabled !== 'boolean' || typeof inAppEnabled !== 'boolean') {
+      return error('Invalid boolean values', 400);
+    }
+    
+    if (typeof campaignThreshold !== 'number' || campaignThreshold < 1 || campaignThreshold > 1000) {
+      return error('Campaign threshold must be between 1 and 1000', 400);
+    }
+    
+    if (typeof campaignWindowMins !== 'number' || campaignWindowMins < 1 || campaignWindowMins > 60) {
+      return error('Campaign window must be between 1 and 60 minutes', 400);
+    }
+    
+    if (typeof autoBlockEnabled !== 'boolean') {
+      return error('Invalid auto-block enabled value', 400);
+    }
+    
+    if (typeof autoBlockThreshold !== 'number' || autoBlockThreshold < 1 || autoBlockThreshold > 10000) {
+      return error('Auto-block threshold must be between 1 and 10000', 400);
+    }
+    
+    if (typeof blockDurationHours !== 'number' || blockDurationHours < 1 || blockDurationHours > 720) {
+      return error('Block duration must be between 1 and 720 hours', 400);
+    }
+    
+    // Validate SNS Topic ARN format if enabled
+    if (snsEnabled && snsTopicArn) {
+      if (!snsTopicArn.startsWith('arn:aws:sns:')) {
+        return error('Invalid SNS Topic ARN format', 400);
+      }
+    }
+    
+    // Validate Slack webhook URL format if enabled
+    if (slackEnabled && slackWebhookUrl) {
+      if (!slackWebhookUrl.startsWith('https://hooks.slack.com/')) {
+        return error('Invalid Slack webhook URL format', 400);
+      }
+    }
+    
+    // Upsert configuration
+    const config = await prisma.wafAlertConfig.upsert({
+      where: { organization_id: organizationId },
+      create: {
+        organization_id: organizationId,
+        sns_enabled: snsEnabled,
+        sns_topic_arn: snsTopicArn || null,
+        slack_enabled: slackEnabled,
+        slack_webhook_url: slackWebhookUrl || null,
+        in_app_enabled: inAppEnabled,
+        campaign_threshold: campaignThreshold,
+        campaign_window_mins: campaignWindowMins,
+        auto_block_enabled: autoBlockEnabled,
+        auto_block_threshold: autoBlockThreshold,
+        block_duration_hours: blockDurationHours,
+      },
+      update: {
+        sns_enabled: snsEnabled,
+        sns_topic_arn: snsTopicArn || null,
+        slack_enabled: slackEnabled,
+        slack_webhook_url: slackWebhookUrl || null,
+        in_app_enabled: inAppEnabled,
+        campaign_threshold: campaignThreshold,
+        campaign_window_mins: campaignWindowMins,
+        auto_block_enabled: autoBlockEnabled,
+        auto_block_threshold: autoBlockThreshold,
+        block_duration_hours: blockDurationHours,
+        updated_at: new Date(),
+      },
+    });
+    
+    logger.info('WAF alert config saved', { organizationId, configId: config.id });
+    
+    return success({
+      success: true,
+      message: 'Alert configuration saved successfully',
+      config: {
+        snsEnabled: config.sns_enabled,
+        snsTopicArn: config.sns_topic_arn || '',
+        slackEnabled: config.slack_enabled,
+        slackWebhookUrl: config.slack_webhook_url || '',
+        inAppEnabled: config.in_app_enabled,
+        campaignThreshold: config.campaign_threshold,
+        campaignWindowMins: config.campaign_window_mins,
+        autoBlockEnabled: config.auto_block_enabled,
+        autoBlockThreshold: config.auto_block_threshold,
+        blockDurationHours: config.block_duration_hours,
+      },
+    });
+  } catch (err) {
+    logger.error('Failed to save alert config', err as Error, { organizationId });
+    return error('Failed to save alert configuration');
+  }
+}
+
+
+/**
+ * POST /waf-evaluate-rules - Evaluate WAF rules with AI (Military Grade Gold Standard)
+ */
+async function handleEvaluateRules(
+  event: AuthorizedEvent,
+  prisma: any,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  try {
+    const body = JSON.parse(event.body || '{}');
+    const accountId = body.accountId;
+
+    if (!accountId) {
+      return error('accountId is required', 400);
+    }
+
+    logger.info('Evaluating WAF rules with AI', { organizationId, accountId });
+
+    // Get AWS credentials
+    const credential = await prisma.awsCredential.findFirst({
+      where: {
+        organization_id: organizationId,
+        account_id: accountId,
+      },
+    });
+
+    if (!credential) {
+      return error('AWS credentials not found for this account', 404);
+    }
+
+    // Get WAF monitoring configs for this account FIRST (needed for region)
+    const configs = await prisma.wafMonitoringConfig.findMany({
+      where: {
+        organization_id: organizationId,
+        account_id: accountId,
+        is_active: true,
+      },
+    });
+
+    if (configs.length === 0) {
+      return error('No active WAF monitoring configured for this account', 404);
+    }
+
+    // Now resolve credentials with the correct region
+    const resolvedCreds = await resolveAwsCredentials(credential, configs[0].region);
+    const awsCredentials = toAwsCredentials(resolvedCreds);
+
+    // Fetch WAF rules from AWS
+    const wafClient = new WAFV2Client({
+      credentials: awsCredentials,
+      region: configs[0].region,
+    });
+
+    const allRules: any[] = [];
+    
+    for (const config of configs) {
+      try {
+        const { GetWebACLCommand } = await import('@aws-sdk/client-wafv2');
+        const webAclResponse = await wafClient.send(new GetWebACLCommand({
+          Name: config.web_acl_name,
+          Scope: config.scope as 'REGIONAL' | 'CLOUDFRONT',
+          Id: config.web_acl_id,
+        }));
+
+        if (webAclResponse.WebACL?.Rules) {
+          allRules.push(...webAclResponse.WebACL.Rules.map(rule => ({
+            ...rule,
+            webAclName: config.web_acl_name,
+            webAclId: config.web_acl_id,
+            scope: config.scope,
+          })));
+        }
+      } catch (err) {
+        logger.error('Failed to fetch WAF rules', err as Error, { webAclName: config.web_acl_name });
+      }
+    }
+
+    if (allRules.length === 0) {
+      return error('No WAF rules found', 404);
+    }
+
+    // Prepare prompt for AI analysis with Military Grade Gold Standard
+    const rulesJson = JSON.stringify(allRules, null, 2);
+    
+    const prompt = `Você é um especialista em segurança de aplicações web com certificação CISSP e experiência em padrões militares de segurança (NIST 800-53, DoD STIGs).
+
+Analise as seguintes regras do AWS WAF e forneça uma avaliação detalhada seguindo o PADRÃO MILITAR NÍVEL OURO:
+
+REGRAS WAF:
+${rulesJson}
+
+CRITÉRIOS DE AVALIAÇÃO (Padrão Militar Nível Ouro):
+1. Defense in Depth - Múltiplas camadas de proteção
+2. Least Privilege - Bloqueio apenas do necessário
+3. Fail Secure - Comportamento seguro em caso de falha
+4. Complete Mediation - Todas as requisições devem ser verificadas
+5. Separation of Privilege - Regras específicas por tipo de ataque
+6. Psychological Acceptability - Regras não devem impactar usuários legítimos
+7. Auditability - Todas as ações devem ser logadas
+8. Zero Trust - Nunca confie, sempre verifique
+
+Para cada regra, avalie:
+- Score de segurança militar (0-100)
+- Nível de risco (critical/high/medium/low/safe)
+- Problemas identificados
+- Recomendações específicas
+- Instruções detalhadas de teste em modo COUNT
+- Plano de rollback passo a passo
+
+IMPORTANTE - AVISOS DE SEGURANÇA:
+- SEMPRE teste em modo COUNT por 24-48h antes de BLOCK
+- NUNCA aplique mudanças diretamente em produção
+- SEMPRE tenha um plano de rollback documentado
+- Monitore falsos positivos continuamente
+- Regras mal configuradas podem bloquear tráfego legítimo
+
+Retorne APENAS um JSON válido (sem markdown, sem explicações extras) no seguinte formato:
+{
+  "overallScore": 85,
+  "totalRules": 10,
+  "criticalIssues": 2,
+  "highIssues": 3,
+  "mediumIssues": 4,
+  "lowIssues": 1,
+  "rules": [
+    {
+      "ruleId": "rule-id",
+      "ruleName": "Rule Name",
+      "priority": 1,
+      "action": "BLOCK",
+      "riskLevel": "high",
+      "militaryGradeScore": 75,
+      "issues": ["Problema 1", "Problema 2"],
+      "recommendations": ["Recomendação 1", "Recomendação 2"],
+      "testingInstructions": [
+        "1. Acesse AWS WAF Console",
+        "2. Selecione a regra",
+        "3. Mude action para COUNT",
+        "4. Aguarde 24-48h",
+        "5. Analise CloudWatch Metrics",
+        "6. Verifique falsos positivos",
+        "7. Se OK, mude para BLOCK"
+      ],
+      "rollbackPlan": [
+        "1. Acesse AWS WAF Console imediatamente",
+        "2. Selecione a regra problemática",
+        "3. Mude action para COUNT ou desabilite",
+        "4. Verifique se tráfego legítimo voltou",
+        "5. Documente o incidente",
+        "6. Revise a regra antes de reativar"
+      ]
+    }
+  ],
+  "generalRecommendations": [
+    "Recomendação geral 1",
+    "Recomendação geral 2"
+  ],
+  "aiAnalysis": "Análise geral detalhada da postura de segurança WAF seguindo padrões militares..."
+}`;
+
+    // Call Bedrock AI
+    const bedrockCommand = new InvokeModelCommand({
+      modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: JSON.stringify({
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: 8000,
+        temperature: 0.3,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      }),
+    });
+
+    const bedrockResponse = await bedrockClient.send(bedrockCommand);
+    const responseBody = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
+    
+    let aiResponseText = '';
+    if (responseBody.content && Array.isArray(responseBody.content)) {
+      aiResponseText = responseBody.content
+        .filter((item: any) => item.type === 'text')
+        .map((item: any) => item.text)
+        .join('');
+    }
+
+    // Parse AI response
+    let evaluation: any;
+    try {
+      // Remove markdown code blocks if present
+      const cleanedResponse = aiResponseText
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+      
+      evaluation = JSON.parse(cleanedResponse);
+    } catch (parseErr) {
+      logger.error('Failed to parse AI response', parseErr as Error, { response: aiResponseText });
+      return error('Failed to parse AI analysis response', 500);
+    }
+
+    // Add metadata
+    evaluation.generatedAt = new Date().toISOString();
+    evaluation.accountId = accountId;
+    evaluation.organizationId = organizationId;
+
+    logger.info('WAF rules evaluation completed', { 
+      organizationId, 
+      accountId,
+      totalRules: evaluation.totalRules,
+      overallScore: evaluation.overallScore 
+    });
+
+    return success(evaluation);
+
+  } catch (err) {
+    logger.error('Failed to evaluate WAF rules', err as Error, { organizationId });
+    return error('Failed to evaluate WAF rules');
   }
 }

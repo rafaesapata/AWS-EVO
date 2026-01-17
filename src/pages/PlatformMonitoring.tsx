@@ -532,23 +532,40 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-2">
  {getCategoryIcon(metric.category)}
- <CardTitle className="text-sm font-medium">{metric.name}</CardTitle>
+ <CardTitle className="text-sm font-medium capitalize">{metric.name}</CardTitle>
  </div>
  {getStatusIcon(metric.status)}
  </div>
  </CardHeader>
  <CardContent>
- <div className="space-y-2">
+ <div className="space-y-3">
+ {/* Invocations - Main metric */}
+ <div>
+ <div className="text-xs text-muted-foreground mb-1">Invocações (última hora)</div>
  <div className="flex items-baseline gap-2">
- <span className="text-3xl font-semibold">{metric.value}</span>
- <span className="text-sm text-muted-foreground">/ {metric.threshold}</span>
+ <span className="text-3xl font-semibold">{(metric as any).invocations?.toLocaleString() || 0}</span>
  </div>
- <div className="flex items-center gap-2 text-xs">
- {getTrendIcon(metric.trend)}
- <span className={metric.change > 0 ? 'text-red-500' : metric.change < 0 ? 'text-green-500' : 'text-gray-500'}>
- {metric.change > 0 ? '+' : ''}{metric.change}
- </span>
- <span className="text-muted-foreground">vs última hora</span>
+ </div>
+ 
+ {/* Errors and Error Rate */}
+ <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+ <div>
+ <div className="text-xs text-muted-foreground">Erros</div>
+ <div className={`text-lg font-medium ${metric.value > 0 ? 'text-red-500' : 'text-green-500'}`}>
+ {metric.value}
+ </div>
+ </div>
+ <div>
+ <div className="text-xs text-muted-foreground">Taxa de Erro</div>
+ <div className={`text-lg font-medium ${(metric as any).errorRate > 5 ? 'text-red-500' : (metric as any).errorRate > 0 ? 'text-yellow-500' : 'text-green-500'}`}>
+ {((metric as any).errorRate || 0).toFixed(1)}%
+ </div>
+ </div>
+ </div>
+ 
+ {/* Lambda count */}
+ <div className="text-xs text-muted-foreground">
+ {(metric as any).lambdaCount || 0} Lambdas nesta categoria
  </div>
  </div>
  </CardContent>

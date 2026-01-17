@@ -158,18 +158,33 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
           </div>
         ) : (
           <div className="space-y-3">
-            {/* AI Summary Section - Improved layout with appropriate icons */}
-            <div className="p-4 rounded-2xl bg-[#F9FAFB] border border-gray-200">
-              <span className="text-base font-medium text-[#1F2937] mb-3 block">
+            {/* AI Summary Section - Same design as Executive Summary cards */}
+            <div className="space-y-3">
+              <span className="text-lg font-light text-[#1F2937] block">
                 {t('executiveDashboard.aiSummary', 'AI Summary')}
               </span>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {insights.slice(0, 3).map((insight, idx) => {
                   const style = getSummaryItemStyle(insight);
+                  const isNegative = style.textColor === 'text-red-700';
+                  const isCost = insight.type === 'optimization' || insight.type === 'cost_anomaly';
+                  const isSecurity = insight.type === 'security_risk';
+                  
                   return (
-                    <div key={idx} className="flex items-start gap-2 p-3 bg-white rounded-xl border border-gray-100">
-                      {style.icon}
-                      <span className={cn("text-sm font-medium", style.textColor)}>{insight.title}</span>
+                    <div 
+                      key={idx} 
+                      className={cn(
+                        "p-4 rounded-2xl border cursor-default",
+                        isNegative ? 'bg-red-50 border-red-200' :
+                        isCost ? 'bg-[#10B981]/10 border-[#10B981]/20' :
+                        isSecurity ? 'bg-amber-50 border-amber-200' :
+                        'bg-white border-gray-200'
+                      )}
+                    >
+                      <div className="flex items-start gap-2">
+                        {style.icon}
+                        <span className={cn("text-sm font-medium", style.textColor)}>{insight.title}</span>
+                      </div>
                     </div>
                   );
                 })}
@@ -229,7 +244,7 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
 
         {/* Quick Actions - Styled as buttons with shadow and action icons */}
         <div className="border-t border-gray-100 pt-4">
-          <span className="text-base font-medium text-[#1F2937] mb-3 block">
+          <span className="text-lg font-light text-[#1F2937] mb-3 block">
             {t('executiveDashboard.quickActions', 'Quick Actions')}
           </span>
           <div className="grid grid-cols-2 gap-3">

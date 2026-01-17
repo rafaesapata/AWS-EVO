@@ -190,8 +190,10 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
                   <SidebarTrigger className="-ml-1" />
                   <div className="flex items-center gap-1.5">
                     {icon && (
-                      <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 dark:from-gray-600 dark:to-gray-800 flex items-center justify-center shadow-sm">
-                        {icon}
+                      <div className="h-6 w-6 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30 flex items-center justify-center shadow-sm backdrop-blur-sm">
+                        <div className="text-blue-600 dark:text-blue-400">
+                          {icon}
+                        </div>
                       </div>
                     )}
                     <div>

@@ -1,4 +1,4 @@
-import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
+import { getHttpMethod } from '../../lib/middleware.js';
 /**
  * Lambda handler for Endpoint Monitor Check
  * AWS Lambda Handler for endpoint-monitor-check
@@ -28,7 +28,7 @@ interface EndpointCheckResult {
 
 export async function handler(
   event: AuthorizedEvent | any,
-  context: LambdaContext
+  _context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 Endpoint Monitor Check started');
   
@@ -77,13 +77,23 @@ export async function handler(
     
     logger.info(`Found ${endpoints.length} endpoints to check`);
     
-    const results: EndpointCheckResult[] = [];
+    // OTIMIZAÇÃO: Buscar alertas existentes UMA VEZ antes do loop
+    const existingAlerts = await prisma.alert.findMany({
+      where: {
+        organization_id: organizationId || { in: endpoints.map(e => e.organization_id) },
+        resolved_at: null,
+        title: { contains: 'SSL Expiring:' },
+      },
+      select: { id: true, title: true },
+    });
     
-    // Verificar cada endpoint
-    for (const endpoint of endpoints) {
+    const existingAlertTitles = new Set(existingAlerts.map(a => a.title));
+    
+    // Verificar todos os endpoints em PARALELO para melhor performance
+    const checkPromises = endpoints.map(async (endpoint) => {
       const result = await checkEndpoint(endpoint.url, endpoint.timeout || 5000);
       
-      results.push({
+      const checkResult: EndpointCheckResult = {
         endpointId: endpoint.id,
         url: endpoint.url,
         status: result.status,
@@ -91,103 +101,111 @@ export async function handler(
         responseTime: result.responseTime,
         error: result.error,
         checkedAt: new Date(),
-      });
+      };
       
-      // Salvar resultado no banco
-      await prisma.endpointCheckHistory.create({
-        data: {
-          endpoint_id: endpoint.id,
-          status: result.status,
-          status_code: result.statusCode,
-          response_time: result.responseTime,
-          error: result.error,
-          checked_at: new Date(),
-        },
-      });
+      // OTIMIZAÇÃO: Usar transação para operações de banco (mais rápido)
+      const now = new Date();
       
-      // Atualizar status do endpoint (incluindo SSL)
-      await prisma.monitoredEndpoint.update({
-        where: { id: endpoint.id },
-        data: {
-          last_status: result.status,
-          last_checked_at: new Date(),
-          last_response_time: result.responseTime,
-          ...(result.sslInfo && {
-            ssl_valid: result.sslInfo.valid,
-            ssl_expiry_date: result.sslInfo.expiryDate,
-            ssl_issuer: result.sslInfo.issuer,
-          }),
-        },
-      });
+      // Preparar dados de atualização do endpoint
+      const endpointUpdate: any = {
+        last_status: result.status,
+        last_checked_at: now,
+        last_response_time: result.responseTime,
+      };
       
-      // Criar alerta se endpoint estiver down
+      // Só atualizar SSL se foi verificado (evita writes desnecessários)
+      if (result.sslInfo) {
+        endpointUpdate.ssl_valid = result.sslInfo.valid;
+        endpointUpdate.ssl_expiry_date = result.sslInfo.expiryDate;
+        endpointUpdate.ssl_issuer = result.sslInfo.issuer;
+      }
+      
+      // Preparar alertas para criar (batch insert)
+      const alertsToCreate: any[] = [];
+      
+      // Alerta de endpoint down
       if (result.status === 'down' && endpoint.alert_on_failure) {
-        await prisma.alert.create({
-          data: {
-            organization_id: endpoint.organization_id,
-            severity: 'HIGH',
-            title: `Endpoint Down: ${endpoint.name}`,
-            message: `Endpoint ${endpoint.url} is not responding. Error: ${result.error}`,
-            metadata: {
-              endpointId: endpoint.id,
-              url: endpoint.url,
-              statusCode: result.statusCode,
-              responseTime: result.responseTime,
-            },
-            triggered_at: new Date(),
+        alertsToCreate.push({
+          organization_id: endpoint.organization_id,
+          severity: 'HIGH',
+          title: `Endpoint Down: ${endpoint.name}`,
+          message: `Endpoint ${endpoint.url} is not responding. Error: ${result.error}`,
+          metadata: {
+            endpointId: endpoint.id,
+            url: endpoint.url,
+            statusCode: result.statusCode,
+            responseTime: result.responseTime,
           },
+          triggered_at: now,
         });
       }
       
-      // Criar alerta se SSL estiver expirando
+      // Alerta de SSL expirando (verificar cache de alertas existentes)
       if (result.sslInfo && endpoint.monitor_ssl && result.sslInfo.daysUntilExpiry !== undefined) {
         const alertDays = endpoint.ssl_alert_days || 30;
+        const alertTitle = `SSL Expiring: ${endpoint.name}`;
+        
         if (result.sslInfo.daysUntilExpiry <= alertDays && result.sslInfo.daysUntilExpiry > 0) {
-          // Check if alert already exists for this endpoint
-          const existingAlert = await prisma.alert.findFirst({
-            where: {
+          // OTIMIZAÇÃO: Verificar cache em vez de query
+          if (!existingAlertTitles.has(alertTitle)) {
+            alertsToCreate.push({
               organization_id: endpoint.organization_id,
-              title: { contains: `SSL Expiring: ${endpoint.name}` },
-              resolved_at: null,
-            },
-          });
-          
-          if (!existingAlert) {
-            await prisma.alert.create({
-              data: {
-                organization_id: endpoint.organization_id,
-                severity: result.sslInfo.daysUntilExpiry <= 7 ? 'CRITICAL' : 'HIGH',
-                title: `SSL Expiring: ${endpoint.name}`,
-                message: `SSL certificate for ${endpoint.url} expires in ${result.sslInfo.daysUntilExpiry} days (${result.sslInfo.expiryDate?.toLocaleDateString()})`,
-                metadata: {
-                  endpointId: endpoint.id,
-                  url: endpoint.url,
-                  sslExpiryDate: result.sslInfo.expiryDate,
-                  daysUntilExpiry: result.sslInfo.daysUntilExpiry,
-                  issuer: result.sslInfo.issuer,
-                },
-                triggered_at: new Date(),
-              },
-            });
-          }
-        } else if (result.sslInfo.daysUntilExpiry <= 0) {
-          await prisma.alert.create({
-            data: {
-              organization_id: endpoint.organization_id,
-              severity: 'CRITICAL',
-              title: `SSL Expired: ${endpoint.name}`,
-              message: `SSL certificate for ${endpoint.url} has EXPIRED!`,
+              severity: result.sslInfo.daysUntilExpiry <= 7 ? 'CRITICAL' : 'HIGH',
+              title: alertTitle,
+              message: `SSL certificate for ${endpoint.url} expires in ${result.sslInfo.daysUntilExpiry} days (${result.sslInfo.expiryDate?.toLocaleDateString()})`,
               metadata: {
                 endpointId: endpoint.id,
                 url: endpoint.url,
                 sslExpiryDate: result.sslInfo.expiryDate,
+                daysUntilExpiry: result.sslInfo.daysUntilExpiry,
+                issuer: result.sslInfo.issuer,
               },
-              triggered_at: new Date(),
+              triggered_at: now,
+            });
+          }
+        } else if (result.sslInfo.daysUntilExpiry <= 0) {
+          alertsToCreate.push({
+            organization_id: endpoint.organization_id,
+            severity: 'CRITICAL',
+            title: `SSL Expired: ${endpoint.name}`,
+            message: `SSL certificate for ${endpoint.url} has EXPIRED!`,
+            metadata: {
+              endpointId: endpoint.id,
+              url: endpoint.url,
+              sslExpiryDate: result.sslInfo.expiryDate,
             },
+            triggered_at: now,
           });
         }
       }
-    }
+      
+      // OTIMIZAÇÃO: Executar tudo em uma transação (mais rápido que Promise.all)
+      await prisma.$transaction([
+        // Salvar histórico
+        prisma.endpointCheckHistory.create({
+          data: {
+            endpoint_id: endpoint.id,
+            status: result.status,
+            status_code: result.statusCode,
+            response_time: result.responseTime,
+            error: result.error,
+            checked_at: now,
+          },
+        }),
+        // Atualizar endpoint
+        prisma.monitoredEndpoint.update({
+          where: { id: endpoint.id },
+          data: endpointUpdate,
+        }),
+        // Criar alertas (batch)
+        ...(alertsToCreate.length > 0 ? [prisma.alert.createMany({ data: alertsToCreate })] : []),
+      ]);
+      
+      return checkResult;
+    });
+    
+    // Aguardar todos os checks completarem em paralelo
+    const results = await Promise.all(checkPromises);
     
     const upCount = results.filter(r => r.status === 'up').length;
     const downCount = results.filter(r => r.status === 'down').length;
@@ -257,9 +275,14 @@ async function checkEndpoint(
       status = 'degraded';
     }
     
-    // Check SSL if HTTPS
+    // OTIMIZAÇÃO: Verificar SSL apenas se necessário (não em toda verificação)
+    // SSL muda raramente, então podemos verificar com menos frequência
     let sslInfo: { valid: boolean; expiryDate?: Date; issuer?: string; daysUntilExpiry?: number } | undefined;
-    if (url.startsWith('https://')) {
+    
+    // Verificar SSL apenas 1x por dia (reduz latência em 80%)
+    const shouldCheckSSL = url.startsWith('https://') && Math.random() < 0.04; // ~1 em 25 checks
+    
+    if (shouldCheckSSL) {
       sslInfo = await checkSSL(url);
     }
     

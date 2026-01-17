@@ -126,6 +126,7 @@ const statusConfig = {
 export function LambdaHealthMonitor() {
  const { t } = useTranslation();
  const [activeCategory, setActiveCategory] = useState<string>('all');
+ const [statusFilter, setStatusFilter] = useState<string>('all');
 
  const { data, isLoading, error, refetch } = useQuery<LambdaHealthResponse>({
  queryKey: ['lambda-health'],
@@ -242,10 +243,25 @@ export function LambdaHealthMonitor() {
 
  const { summary, lambdas, byCategory } = data;
 
- // Filtrar lambdas por categoria
- const filteredLambdas = activeCategory === 'all' 
+ // Filtrar lambdas por categoria e status
+ let filteredLambdas = activeCategory === 'all' 
  ? lambdas 
  : (byCategory[activeCategory] || []);
+ 
+ // Aplicar filtro de status
+ if (statusFilter !== 'all') {
+ filteredLambdas = filteredLambdas.filter(l => l.status === statusFilter);
+ }
+
+ // Handler para clicar nos cards de status
+ const handleStatusClick = (status: string) => {
+ if (statusFilter === status) {
+ setStatusFilter('all'); // Toggle off se já está selecionado
+ } else {
+ setStatusFilter(status);
+ setActiveCategory('all'); // Reset categoria ao filtrar por status
+ }
+ };
 
  return (
  <div className="space-y-6">
@@ -276,7 +292,10 @@ export function LambdaHealthMonitor() {
  </Card>
 
  {/* Healthy */}
- <Card className=" border-green-500/20">
+ <Card 
+ className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'healthy' ? 'ring-2 ring-green-500 border-green-500' : 'border-green-500/20'}`}
+ onClick={() => handleStatusClick('healthy')}
+ >
  <CardHeader className="pb-3">
  <CardTitle className="text-sm font-medium flex items-center gap-2">
  <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -288,13 +307,16 @@ export function LambdaHealthMonitor() {
  {summary.healthy}
  </div>
  <p className="text-xs text-muted-foreground mt-2">
- {((summary.healthy / summary.total) * 100).toFixed(0)}% do total
+ {statusFilter === 'healthy' ? 'Clique para limpar filtro' : 'Clique para filtrar'}
  </p>
  </CardContent>
  </Card>
 
  {/* Degraded */}
- <Card className=" border-yellow-500/20">
+ <Card 
+ className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'degraded' ? 'ring-2 ring-yellow-500 border-yellow-500' : 'border-yellow-500/20'}`}
+ onClick={() => handleStatusClick('degraded')}
+ >
  <CardHeader className="pb-3">
  <CardTitle className="text-sm font-medium flex items-center gap-2">
  <AlertTriangle className="h-4 w-4 text-yellow-500" />
@@ -306,13 +328,16 @@ export function LambdaHealthMonitor() {
  {summary.degraded}
  </div>
  <p className="text-xs text-muted-foreground mt-2">
- Requerem atenção
+ {statusFilter === 'degraded' ? 'Clique para limpar filtro' : 'Clique para filtrar'}
  </p>
  </CardContent>
  </Card>
 
  {/* Critical */}
- <Card className=" border-red-500/20">
+ <Card 
+ className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'critical' ? 'ring-2 ring-red-500 border-red-500' : 'border-red-500/20'}`}
+ onClick={() => handleStatusClick('critical')}
+ >
  <CardHeader className="pb-3">
  <CardTitle className="text-sm font-medium flex items-center gap-2">
  <XCircle className="h-4 w-4 text-red-500" />
@@ -324,13 +349,16 @@ export function LambdaHealthMonitor() {
  {summary.critical}
  </div>
  <p className="text-xs text-muted-foreground mt-2">
- Ação imediata necessária
+ {statusFilter === 'critical' ? 'Clique para limpar filtro' : 'Clique para filtrar'}
  </p>
  </CardContent>
  </Card>
 
  {/* Unknown */}
- <Card className=" border-gray-500/20">
+ <Card 
+ className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'unknown' ? 'ring-2 ring-gray-500 border-gray-500' : 'border-gray-500/20'}`}
+ onClick={() => handleStatusClick('unknown')}
+ >
  <CardHeader className="pb-3">
  <CardTitle className="text-sm font-medium flex items-center gap-2">
  <Minus className="h-4 w-4 text-gray-500" />
@@ -342,7 +370,7 @@ export function LambdaHealthMonitor() {
  {summary.unknown}
  </div>
  <p className="text-xs text-muted-foreground mt-2">
- Sem dados recentes
+ {statusFilter === 'unknown' ? 'Clique para limpar filtro' : 'Clique para filtrar'}
  </p>
  </CardContent>
  </Card>
@@ -355,12 +383,34 @@ export function LambdaHealthMonitor() {
  <div>
  <CardTitle className="flex items-center gap-2">
  <Activity className="h-5 w-5" />
- Todas as Lambdas ({summary.total})
+ {statusFilter !== 'all' ? (
+ <>
+ Lambdas {statusConfig[statusFilter as keyof typeof statusConfig].label}s ({filteredLambdas.length})
+ </>
+ ) : (
+ <>Todas as Lambdas ({summary.total})</>
+ )}
  </CardTitle>
  <CardDescription>
- Monitoramento em tempo real de todas as {summary.total} Lambdas do sistema
+ {statusFilter !== 'all' ? (
+ <>Mostrando apenas Lambdas com status "{statusConfig[statusFilter as keyof typeof statusConfig].label}"</>
+ ) : (
+ <>Monitoramento em tempo real de todas as {summary.total} Lambdas do sistema</>
+ )}
  </CardDescription>
  </div>
+ <div className="flex items-center gap-2">
+ {statusFilter !== 'all' && (
+ <Button 
+ onClick={() => setStatusFilter('all')} 
+ variant="outline" 
+ size="sm"
+ className="text-muted-foreground"
+ >
+ <XCircle className="h-4 w-4 mr-2" />
+ Limpar Filtro
+ </Button>
+ )}
  <Button 
  onClick={() => refetch()} 
  variant="outline" 
@@ -370,6 +420,7 @@ export function LambdaHealthMonitor() {
  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
  Atualizar
  </Button>
+ </div>
  </div>
  </CardHeader>
  <CardContent>

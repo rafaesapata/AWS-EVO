@@ -6,10 +6,12 @@
  * - API Gateway
  * - Frontend
  * 
- * OPTIMIZED:
- * - Parallel queries with concurrency control
- * - Better error filtering (excludes warnings, INFO logs)
- * - Proper timestamp sorting
+ * OPTIMIZED v2:
+ * - Reduced batch size to 10 (faster parallel queries)
+ * - Limit 3 events per Lambda (reduces processing time)
+ * - Early exit on limit reached
+ * - Cached error patterns
+ * - Faster message parsing
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -26,38 +28,45 @@ const querySchema = z.object({
   source: z.enum(['all', 'backend', 'frontend', 'api-gateway']).optional().default('all'),
 });
 
-// ALL 121 Lambda functions
-const ALL_LAMBDAS = [
-  // Auth & MFA (11)
-  'mfa-enroll', 'mfa-check', 'mfa-challenge-verify', 'mfa-verify-login', 'mfa-list-factors', 'mfa-unenroll',
-  'webauthn-register', 'webauthn-authenticate', 'webauthn-check', 'delete-webauthn-credential', 'verify-tv-token',
+// OTIMIZAÇÃO: Priorizar Lambdas críticas (verificar primeiro)
+const CRITICAL_LAMBDAS = [
+  'save-aws-credentials', 'validate-aws-credentials', 'security-scan', 'compliance-scan',
+  'mfa-enroll', 'mfa-verify-login', 'webauthn-register', 'bedrock-chat',
+  'get-executive-dashboard', 'fetch-daily-costs', 'query-table',
+];
+
+// ALL 121 Lambda functions (menos críticas verificadas depois)
+const OTHER_LAMBDAS = [
+  // Auth & MFA (restantes)
+  'mfa-check', 'mfa-challenge-verify', 'mfa-list-factors', 'mfa-unenroll',
+  'webauthn-authenticate', 'webauthn-check', 'delete-webauthn-credential', 'verify-tv-token',
   
   // Admin (5)
   'admin-manage-user', 'create-cognito-user', 'disable-cognito-user', 'manage-organizations', 'log-audit',
   
-  // Security (18)
-  'security-scan', 'start-security-scan', 'compliance-scan', 'start-compliance-scan', 'get-compliance-scan-status',
+  // Security (restantes)
+  'start-security-scan', 'start-compliance-scan', 'get-compliance-scan-status',
   'get-compliance-history', 'well-architected-scan', 'guardduty-scan', 'get-findings', 'get-security-posture',
-  'validate-aws-credentials', 'validate-permissions', 'iam-deep-analysis', 'lateral-movement-detection',
+  'validate-permissions', 'iam-deep-analysis', 'lateral-movement-detection',
   'drift-detection', 'analyze-cloudtrail', 'start-cloudtrail-analysis', 'fetch-cloudtrail',
   
   // WAF (2)
   'waf-setup-monitoring', 'waf-dashboard-api',
   
-  // Cost & FinOps (8)
-  'fetch-daily-costs', 'ri-sp-analyzer', 'get-ri-sp-data', 'cost-optimization', 'budget-forecast', 
+  // Cost & FinOps (restantes)
+  'ri-sp-analyzer', 'get-ri-sp-data', 'cost-optimization', 'budget-forecast', 
   'generate-cost-forecast', 'finops-copilot', 'ml-waste-detection',
   
-  // AI & ML (5)
-  'bedrock-chat', 'intelligent-alerts-analyzer', 'predict-incidents', 'detect-anomalies', 'anomaly-detection',
+  // AI & ML (restantes)
+  'intelligent-alerts-analyzer', 'predict-incidents', 'detect-anomalies', 'anomaly-detection',
   
-  // Dashboard & Monitoring (14)
-  'get-executive-dashboard', 'get-executive-dashboard-public', 'manage-tv-tokens', 'alerts', 'auto-alerts',
+  // Dashboard & Monitoring (restantes)
+  'get-executive-dashboard-public', 'manage-tv-tokens', 'alerts', 'auto-alerts',
   'check-alert-rules', 'aws-realtime-metrics', 'fetch-cloudwatch-metrics', 'fetch-edge-services', 'endpoint-monitor-check',
   'generate-error-fix-prompt', 'get-platform-metrics', 'get-recent-errors', 'get-lambda-health',
   
-  // AWS Credentials (3)
-  'list-aws-credentials', 'save-aws-credentials', 'update-aws-credentials',
+  // AWS Credentials (restantes)
+  'list-aws-credentials', 'update-aws-credentials',
   
   // Azure Multi-Cloud (21)
   'azure-oauth-initiate', 'azure-oauth-callback', 'azure-oauth-refresh', 'azure-oauth-revoke',
@@ -77,8 +86,8 @@ const ALL_LAMBDAS = [
   // Reports (5)
   'generate-pdf-report', 'generate-excel-report', 'generate-security-pdf', 'security-scan-pdf-export', 'generate-remediation-script',
   
-  // Data (2)
-  'query-table', 'mutate-table',
+  // Data (restantes)
+  'mutate-table',
   
   // Organizations (5)
   'create-organization-account', 'sync-organization-accounts', 'check-organization', 'create-with-organization', 'get-user-organization',
@@ -98,6 +107,18 @@ const ALL_LAMBDAS = [
   // Frontend Error Logging (1)
   'log-frontend-error',
 ];
+
+// OTIMIZAÇÃO: Cache de padrões de erro (evita recompilar regex)
+const ERROR_PATTERNS = {
+  errorType: [
+    /Error: ([A-Za-z]+Error)/,
+    /ERROR: ([A-Za-z\s]+)/,
+    /Exception: ([A-Za-z]+Exception)/,
+    /"errorType":"([^"]+)"/,
+  ],
+  statusCode: /\b(4\d{2}|5\d{2})\b/,
+  requestId: /RequestId: ([a-f0-9-]+)/i,
+};
 
 export async function handler(
   event: AuthorizedEvent,
@@ -130,12 +151,13 @@ export async function handler(
 
     const { limit, hours, source } = validation.data;
 
-    logger.info('Fetching recent errors from ALL sources', { 
+    logger.info('Fetching recent errors (OPTIMIZED)', { 
       organizationId, 
       limit, 
       hours, 
       source,
-      totalLambdas: ALL_LAMBDAS.length,
+      criticalLambdas: CRITICAL_LAMBDAS.length,
+      otherLambdas: OTHER_LAMBDAS.length,
     });
 
     const now = new Date();
@@ -143,9 +165,9 @@ export async function handler(
 
     const allErrors: any[] = [];
 
-    // Fetch backend errors (Lambda) - query ALL lambdas in parallel batches
+    // Fetch backend errors (Lambda) - priorizar críticas
     if (source === 'all' || source === 'backend') {
-      const lambdaErrors = await getLambdaErrorsParallel(startTime, now);
+      const lambdaErrors = await getLambdaErrorsOptimized(startTime, now, limit);
       allErrors.push(...lambdaErrors);
     }
 
@@ -184,26 +206,36 @@ export async function handler(
 }
 
 /**
- * Fetch Lambda errors in parallel batches for better performance
+ * OTIMIZAÇÃO v2: Fetch Lambda errors com priorização e early exit
  */
-async function getLambdaErrorsParallel(startTime: Date, endTime: Date): Promise<any[]> {
+async function getLambdaErrorsOptimized(startTime: Date, endTime: Date, limit: number): Promise<any[]> {
   const errors: any[] = [];
   const logGroupPrefix = '/aws/lambda/evo-uds-v3-production-';
   
-  // Process in batches of 20 for concurrency control
-  const batchSize = 20;
+  // OTIMIZAÇÃO: Verificar críticas primeiro, depois outras
+  const allLambdas = [...CRITICAL_LAMBDAS, ...OTHER_LAMBDAS];
+  
+  // OTIMIZAÇÃO: Batch size menor = mais paralelismo = mais rápido
+  const batchSize = 10; // Reduzido de 20 para 10
   const batches: string[][] = [];
   
-  for (let i = 0; i < ALL_LAMBDAS.length; i += batchSize) {
-    batches.push(ALL_LAMBDAS.slice(i, i + batchSize));
+  for (let i = 0; i < allLambdas.length; i += batchSize) {
+    batches.push(allLambdas.slice(i, i + batchSize));
   }
 
-  logger.info('Querying Lambda errors in parallel', { 
-    totalLambdas: ALL_LAMBDAS.length, 
-    batches: batches.length 
+  logger.info('Querying Lambda errors (OPTIMIZED)', { 
+    totalLambdas: allLambdas.length, 
+    batches: batches.length,
+    batchSize,
   });
 
   for (const batch of batches) {
+    // OTIMIZAÇÃO: Early exit se já temos erros suficientes
+    if (errors.length >= limit) {
+      logger.info('Early exit - limit reached', { errors: errors.length });
+      break;
+    }
+    
     const batchPromises = batch.map(async (lambdaName) => {
       try {
         const command = new FilterLogEventsCommand({
@@ -212,7 +244,7 @@ async function getLambdaErrorsParallel(startTime: Date, endTime: Date): Promise<
           endTime: endTime.getTime(),
           // Better filter pattern - only real errors, not warnings or info
           filterPattern: '?"[ERROR]" ?"Invoke Error" ?"Runtime.ImportModuleError" ?"PrismaClient" ?"AccessDenied" ?"Task timed out"',
-          limit: 10, // Get more errors per Lambda
+          limit: 3, // OTIMIZAÇÃO: Reduzido de 10 para 3 (menos processamento)
         });
 
         const response = await cloudwatchLogs.send(command);
@@ -227,10 +259,10 @@ async function getLambdaErrorsParallel(startTime: Date, endTime: Date): Promise<
               continue;
             }
             
-            // Parse error details
-            const errorType = extractErrorType(message);
-            const statusCode = extractStatusCode(message);
-            const requestId = extractRequestId(message);
+            // OTIMIZAÇÃO: Parse mais rápido com cache de patterns
+            const errorType = extractErrorTypeFast(message);
+            const statusCode = extractStatusCodeFast(message);
+            const requestId = extractRequestIdFast(message);
 
             lambdaErrors.push({
               id: event.eventId || `${lambdaName}-${event.timestamp}`,
@@ -266,24 +298,27 @@ async function getLambdaErrorsParallel(startTime: Date, endTime: Date): Promise<
  * Check if message is not a real error (warnings, deprecation notices, etc.)
  */
 function isNotRealError(message: string): boolean {
+  // OTIMIZAÇÃO: Checks mais rápidos primeiro (indexOf é mais rápido que includes)
+  
   // Skip INFO logs
-  if (message.includes('[INFO]') && !message.includes('[ERROR]')) {
+  if (message.indexOf('[INFO]') !== -1 && message.indexOf('[ERROR]') === -1) {
     return true;
   }
   
   // Skip deprecation warnings
-  if (message.includes('NodeDeprecationWarning') || message.includes('DeprecationWarning')) {
+  if (message.indexOf('Deprecation') !== -1) {
     return true;
   }
   
   // Skip START/END/REPORT logs unless they contain error info
-  if ((message.startsWith('START ') || message.startsWith('END ') || message.startsWith('REPORT ')) 
-      && !message.includes('Error') && !message.includes('error')) {
+  const firstChar = message[0];
+  if ((firstChar === 'S' || firstChar === 'E' || firstChar === 'R') 
+      && message.indexOf('Error') === -1 && message.indexOf('error') === -1) {
     return true;
   }
   
   // Skip INIT_START logs
-  if (message.includes('INIT_START')) {
+  if (message.indexOf('INIT_START') !== -1) {
     return true;
   }
   
@@ -291,14 +326,21 @@ function isNotRealError(message: string): boolean {
 }
 
 /**
- * Clean error message for display
+ * OTIMIZAÇÃO: Clean error message mais rápido
  */
 function cleanErrorMessage(message: string): string {
-  // Remove timestamp prefix if present
-  let cleaned = message.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\s+[a-f0-9-]+\s+/, '');
+  // Remove timestamp prefix if present (indexOf é mais rápido que regex)
+  let cleaned = message;
+  
+  const timestampEnd = message.indexOf('Z\t');
+  if (timestampEnd !== -1) {
+    cleaned = message.substring(timestampEnd + 2);
+  }
   
   // Remove log level prefix
-  cleaned = cleaned.replace(/^(ERROR|INFO|WARN)\s+/, '');
+  if (cleaned.startsWith('ERROR ')) cleaned = cleaned.substring(6);
+  else if (cleaned.startsWith('INFO ')) cleaned = cleaned.substring(5);
+  else if (cleaned.startsWith('WARN ')) cleaned = cleaned.substring(5);
   
   // Limit length
   if (cleaned.length > 500) {
@@ -317,7 +359,7 @@ async function getFrontendErrors(startTime: Date, endTime: Date, limit: number) 
       startTime: startTime.getTime(),
       endTime: endTime.getTime(),
       filterPattern: '"errorType"',
-      limit,
+      limit: Math.min(limit, 50), // OTIMIZAÇÃO: Limitar frontend errors
     });
 
     const response = await cloudwatchLogs.send(command);
@@ -360,37 +402,40 @@ async function getFrontendErrors(startTime: Date, endTime: Date, limit: number) 
   return errors;
 }
 
-function extractErrorType(message: string): string {
-  // Try to extract error type from message
-  const patterns = [
-    /Error: ([A-Za-z]+Error)/,
-    /ERROR: ([A-Za-z\s]+)/,
-    /Exception: ([A-Za-z]+Exception)/,
-    /"errorType":"([^"]+)"/,
-  ];
-
-  for (const pattern of patterns) {
+/**
+ * OTIMIZAÇÃO: Extract error type usando cache de patterns
+ */
+function extractErrorTypeFast(message: string): string {
+  // Try cached patterns
+  for (const pattern of ERROR_PATTERNS.errorType) {
     const match = message.match(pattern);
     if (match) {
       return match[1];
     }
   }
 
-  if (message.includes('Cannot find module')) return 'Runtime.ImportModuleError';
-  if (message.includes('PrismaClient')) return 'PrismaClientInitializationError';
-  if (message.includes('timeout')) return 'Lambda Timeout';
-  if (message.includes('502')) return 'Bad Gateway';
-  if (message.includes('500')) return 'Internal Server Error';
+  // Fast string checks (indexOf é mais rápido que includes)
+  if (message.indexOf('Cannot find module') !== -1) return 'Runtime.ImportModuleError';
+  if (message.indexOf('PrismaClient') !== -1) return 'PrismaClientInitializationError';
+  if (message.indexOf('timeout') !== -1) return 'Lambda Timeout';
+  if (message.indexOf('502') !== -1) return 'Bad Gateway';
+  if (message.indexOf('500') !== -1) return 'Internal Server Error';
 
   return 'Unknown Error';
 }
 
-function extractStatusCode(message: string): number | undefined {
-  const match = message.match(/\b(4\d{2}|5\d{2})\b/);
+/**
+ * OTIMIZAÇÃO: Extract status code usando cache de pattern
+ */
+function extractStatusCodeFast(message: string): number | undefined {
+  const match = message.match(ERROR_PATTERNS.statusCode);
   return match ? parseInt(match[1]) : undefined;
 }
 
-function extractRequestId(message: string): string | undefined {
-  const match = message.match(/RequestId: ([a-f0-9-]+)/i);
+/**
+ * OTIMIZAÇÃO: Extract request ID usando cache de pattern
+ */
+function extractRequestIdFast(message: string): string | undefined {
+  const match = message.match(ERROR_PATTERNS.requestId);
   return match ? match[1] : undefined;
 }

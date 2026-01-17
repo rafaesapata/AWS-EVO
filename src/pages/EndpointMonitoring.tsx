@@ -230,13 +230,45 @@ export default function EndpointMonitoring() {
     : 0;
 
   // Prepare chart data from check history
-  const responseTimeData = endpoints?.flatMap(e => 
-    (e.check_history || []).map(h => ({
-      time: new Date(h.checked_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      response_time: h.response_time,
-      availability: h.status === 'up' ? 100 : 0
-    }))
-  ).slice(0, 50) || [];
+  // CORREÇÃO: Ordenar por timestamp e agrupar por minuto para evitar dados bagunçados
+  const responseTimeData = (() => {
+    if (!endpoints || endpoints.length === 0) return [];
+    
+    // Coletar todos os checks de todos os endpoints
+    const allChecks = endpoints.flatMap(e => 
+      (e.check_history || []).map(h => ({
+        timestamp: new Date(h.checked_at).getTime(),
+        time: new Date(h.checked_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        response_time: h.response_time,
+        availability: h.status === 'up' ? 100 : 0
+      }))
+    );
+    
+    // Ordenar por timestamp (mais antigo primeiro)
+    allChecks.sort((a, b) => a.timestamp - b.timestamp);
+    
+    // Agrupar por minuto (média de todos os checks no mesmo minuto)
+    const groupedByMinute = new Map<string, { response_times: number[], availabilities: number[] }>();
+    
+    allChecks.forEach(check => {
+      const key = check.time;
+      if (!groupedByMinute.has(key)) {
+        groupedByMinute.set(key, { response_times: [], availabilities: [] });
+      }
+      groupedByMinute.get(key)!.response_times.push(check.response_time);
+      groupedByMinute.get(key)!.availabilities.push(check.availability);
+    });
+    
+    // Calcular médias e criar array final
+    const result = Array.from(groupedByMinute.entries()).map(([time, data]) => ({
+      time,
+      response_time: Math.round(data.response_times.reduce((sum, val) => sum + val, 0) / data.response_times.length),
+      availability: Math.round(data.availabilities.reduce((sum, val) => sum + val, 0) / data.availabilities.length)
+    }));
+    
+    // Pegar últimos 50 pontos (mais recentes)
+    return result.slice(-50);
+  })();
 
   return (
     <Layout 
@@ -345,7 +377,7 @@ export default function EndpointMonitoring() {
             <Card >
               <CardHeader>
                 <CardTitle>Tempo de Resposta</CardTitle>
-                <CardDescription>Histórico recente</CardDescription>
+                <CardDescription>Média agregada de todos os endpoints (últimos 50 pontos)</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -369,6 +401,13 @@ export default function EndpointMonitoring() {
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                         }}
+                        formatter={(value: number, name: string) => {
+                          if (name === 'Tempo de Resposta (ms)') {
+                            return [`${value}ms`, 'Tempo de Resposta'];
+                          }
+                          return [value, name];
+                        }}
+                        labelFormatter={(label) => `Horário: ${label}`}
                       />
                       <Line 
                         type="monotone" 

@@ -240,16 +240,44 @@ export async function handler(
         },
       });
       
+      logger.info('Found active WAF configs for account lookup', {
+        activeConfigsCount: allConfigs.length,
+        configIds: allConfigs.map(c => c.id),
+      });
+      
       // Para cada config, buscar o credential e verificar account ID
       for (const config of allConfigs) {
         const credential = await prisma.awsCredential.findUnique({
           where: { id: config.aws_account_id },
-          select: { role_arn: true },
+          select: { role_arn: true, account_id: true },
         });
         
+        logger.info('Checking credential for WAF config', {
+          configId: config.id,
+          credentialId: config.aws_account_id,
+          credentialFound: !!credential,
+          credentialAccountId: credential?.account_id,
+          roleArn: credential?.role_arn?.substring(0, 50),
+        });
+        
+        // Primeiro, verificar o campo account_id diretamente
+        if (credential?.account_id === logsData.owner) {
+          logger.info('Found matching config by account_id field', { 
+            configId: config.id,
+            accountId: credential.account_id,
+          });
+          monitoringConfig = config;
+          break;
+        }
+        
+        // Fallback: extrair account ID do role_arn
         if (credential?.role_arn) {
           const accountIdFromRole = credential.role_arn.split(':')[4];
           if (accountIdFromRole === logsData.owner) {
+            logger.info('Found matching config by role_arn', { 
+              configId: config.id,
+              accountIdFromRole,
+            });
             monitoringConfig = config;
             break;
           }

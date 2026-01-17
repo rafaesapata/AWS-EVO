@@ -13,7 +13,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, TrendingDown, Shield, Zap, Search, Calendar } from 'lucide-react';
+import { RefreshCw, TrendingDown, Shield, Zap, Search, Calendar, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
@@ -153,6 +153,7 @@ export default function ExecutiveDashboardV2() {
         <SectionHeader 
           title={t('executiveDashboard.sections.currentState', 'Visão Executiva')}
           description={t('executiveDashboard.sections.currentStateDesc', 'Como sua infraestrutura está agora')}
+          icon={BarChart3}
         />
         
         <ExecutiveSummaryBar data={data.summary} />
