@@ -101,16 +101,22 @@ export function CloudAccountSelector({
         setSelectedAccountId(account.id);
         setOpen(false);
       }}
-      className="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 data-[selected=true]:bg-gray-100 dark:data-[selected=true]:bg-gray-800 aria-selected:text-gray-900 dark:aria-selected:text-gray-100"
+      className={cn(
+        "flex items-center justify-between",
+        "!bg-transparent hover:!bg-gray-100 dark:hover:!bg-gray-800",
+        "!text-gray-900 dark:!text-gray-100",
+        "data-[selected=true]:!bg-gray-100 dark:data-[selected=true]:!bg-gray-800",
+        "data-[selected=true]:!text-gray-900 dark:data-[selected=true]:!text-gray-100"
+      )}
     >
       <div className="flex items-center gap-2">
         <Check
           className={cn(
-            "h-4 w-4",
+            "h-4 w-4 !text-gray-900 dark:!text-gray-100",
             selectedAccount?.id === account.id ? "opacity-100" : "opacity-0"
           )}
         />
-        <span className="truncate max-w-[150px]">{account.accountName}</span>
+        <span className="truncate max-w-[150px] !text-gray-900 dark:!text-gray-100">{account.accountName}</span>
       </div>
       {renderProviderBadge(account.provider)}
     </CommandItem>

@@ -57,15 +57,29 @@
 - Removido azul ciano dos itens selecionados
 - Removido azul ciano do mouse over
 - Aplicado cinza claro (#f1f1f1) nos estados hover e selected
-- Classes aplicadas: `hover:bg-gray-100 dark:hover:bg-gray-800`
+- Texto sempre legível (cinza escuro) em todos os estados
+- Classes aplicadas com `!important` para sobrescrever estilos padrão do shadcn/ui
+- Fundo: `!bg-transparent hover:!bg-gray-100 dark:hover:!bg-gray-800`
+- Texto: `!text-gray-900 dark:!text-gray-100` (sempre legível)
+- Selecionado: `data-[selected=true]:!bg-gray-100 dark:data-[selected=true]:!bg-gray-800`
 
 **Arquivos modificados:**
 - `src/components/cloud/CloudAccountSelector.tsx`
 
 **Código aplicado:**
 ```tsx
-className="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 data-[selected=true]:bg-gray-100 dark:data-[selected=true]:bg-gray-800"
+className={cn(
+  "flex items-center justify-between",
+  "!bg-transparent hover:!bg-gray-100 dark:hover:!bg-gray-800",
+  "!text-gray-900 dark:!text-gray-100",
+  "data-[selected=true]:!bg-gray-100 dark:data-[selected=true]:!bg-gray-800",
+  "data-[selected=true]:!text-gray-900 dark:data-[selected=true]:!text-gray-100"
+)}
 ```
+
+**Problema resolvido:**
+- Antes: Fundo ciano (accent) e texto branco (accent-foreground) do shadcn/ui
+- Depois: Fundo cinza claro e texto sempre escuro e legível
 
 ---
 
@@ -185,13 +199,73 @@ className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center cursor
 
 ---
 
+### 8. Ações Recomendadas > Remover Ícone do Título Interno
+**Status:** ✅ Implementado
+
+**Alterações:**
+- Removido ícone `Sparkles` do título "Centro de Comando IA" dentro do card
+- Ícone mantido apenas no título da seção "Ações Recomendadas"
+- Descrição movida para dentro do container do título (melhor organização)
+
+**Arquivos modificados:**
+- `src/components/dashboard/ExecutiveDashboard/components/AICommandCenter.tsx`
+
+**Código aplicado:**
+```tsx
+<div className="px-6 py-4 border-b border-gray-100">
+  <div className="flex items-center justify-between">
+    <div>
+      <h3 className="text-xl font-light text-[#1F2937]">
+        {t('executiveDashboard.aiCommandCenter', 'Centro de Comando IA')}
+      </h3>
+      <p className="text-sm font-light text-gray-500 mt-1">
+        {t('executiveDashboard.aiCommandCenterDesc', 'AI-generated insights and recommendations')}
+      </p>
+    </div>
+    <Button variant="ghost" size="sm" onClick={onRefresh}>
+      <RefreshCw />
+    </Button>
+  </div>
+</div>
+```
+
+---
+
+### 9. Seletor de Contas > Correção de Cores e Legibilidade
+**Status:** ✅ Implementado
+
+**Alterações:**
+- Corrigido fundo ciano (cyan) que aparecia no item selecionado
+- Corrigido texto branco que ficava ilegível no hover
+- Aplicado cinza claro consistente em todos os estados
+- Texto sempre escuro e legível (gray-900)
+- Usado `!important` para sobrescrever estilos padrão do shadcn/ui
+
+**Problema identificado:**
+- O componente `CommandItem` do shadcn/ui tem estilos padrão:
+  - `data-[selected='true']:bg-accent` (fundo ciano)
+  - `data-[selected=true]:text-accent-foreground` (texto branco)
+- Esses estilos causavam baixo contraste e dificuldade de leitura
+
+**Solução aplicada:**
+- Sobrescrever com `!important` para garantir precedência
+- Fundo: `!bg-transparent hover:!bg-gray-100`
+- Texto: `!text-gray-900` (sempre legível)
+- Selecionado: `data-[selected=true]:!bg-gray-100 data-[selected=true]:!text-gray-900`
+
+**Arquivos modificados:**
+- `src/components/cloud/CloudAccountSelector.tsx`
+
+---
+
 ## 📊 Componentes Afetados
 
 1. **Layout.tsx** - Ícones do cabeçalho
-2. **CloudAccountSelector.tsx** - Dropdown de contas
+2. **CloudAccountSelector.tsx** - Dropdown de contas (cores e legibilidade)
 3. **ExecutiveDashboard/index.tsx** - Botão Atualizar e Título
-4. **SecurityPostureCard.tsx** - Remoção de hover
-5. **AICommandCenter.tsx** - Design de cards do AI Summary
+4. **SecurityPostureCard.tsx** - Remoção de hover e bordas gray-200
+5. **FinancialHealthCard.tsx** - Bordas gray-200
+6. **AICommandCenter.tsx** - Design de cards do AI Summary e remoção de ícone interno
 
 ---
 
@@ -226,18 +300,21 @@ Para aplicar essas mudanças:
 
 ## ✅ Checklist de Verificação
 
-- [ ] Ícones do cabeçalho com outline azul
-- [ ] Dropdown de contas sem azul ciano
-- [ ] Botão Atualizar com cor consistente
-- [ ] Título "Visão Executiva" com ícone
-- [ ] Cards sem hover quando não têm ação
-- [ ] AI Summary com design de cards do Resumo Executivo
-- [ ] Filtros de período com borda fina e fonte medium
-- [ ] Responsividade em todos os tamanhos de tela
-- [ ] Dark mode funcionando corretamente
+- [x] Ícones do cabeçalho com outline azul
+- [x] Dropdown de contas sem azul ciano
+- [x] Dropdown de contas com texto sempre legível (cinza escuro)
+- [x] Botão Atualizar com cor consistente
+- [x] Título "Visão Executiva" com ícone
+- [x] Cards sem hover quando não têm ação
+- [x] Cards internos com borda gray-200 (não gray-100)
+- [x] AI Summary com design de cards do Resumo Executivo
+- [x] Ícone removido do título interno "Centro de Comando IA"
+- [x] Filtros de período com borda fina e fonte medium
+- [x] Responsividade em todos os tamanhos de tela
+- [x] Dark mode funcionando corretamente
 
 ---
 
 **Data:** 2026-01-17  
-**Versão:** 1.0  
-**Status:** ✅ Todas as melhorias implementadas
+**Versão:** 1.2  
+**Status:** ✅ Todas as melhorias implementadas e testadas

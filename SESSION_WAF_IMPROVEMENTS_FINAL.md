@@ -225,6 +225,7 @@
    - Deploy 1: Análise de IA assíncrona com polling, histórico, padronização de risk level
    - Deploy 2: Aumento do limite de eventos de 1000 para 10000
    - Arquivo: `backend/src/handlers/security/waf-dashboard-api.ts`
+   - **Nota:** Backend já suportava filtragem server-side, não foi necessário deploy adicional
 
 2. **Lambda Layer v59** (✅ CRIADO)
    - ARN: `arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:59`
@@ -232,18 +233,21 @@
    - Tamanho: 42MB comprimido, 121MB descomprimido
 
 ### Frontend
-1. **Build** (✅ COMPLETO)
-   - `npm run build` - 3.79s
-   - Bundle: 2.4MB (632KB gzipped)
+1. **Build** (✅ COMPLETO 2x)
+   - Build 1: Componentes WAF, histórico, clique para filtrar
+   - Build 2: Filtragem server-side
+   - Bundle final: 2.4MB (634KB gzipped)
 
-2. **Deploy S3** (✅ COMPLETO)
-   - `aws s3 sync dist/ s3://evo-uds-v3-production-frontend-383234048592 --delete`
-   - 17 arquivos atualizados
+2. **Deploy S3** (✅ COMPLETO 2x)
+   - Deploy 1: `aws s3 sync dist/ s3://evo-uds-v3-production-frontend-383234048592 --delete`
+   - Deploy 2: Filtragem server-side
+   - 17 arquivos atualizados em cada deploy
 
-3. **CloudFront Invalidation** (✅ COMPLETO)
+3. **CloudFront Invalidation** (✅ COMPLETO 2x)
    - Distribution ID: `E1PY7U3VNT6P1R`
-   - Invalidation ID: `IADUN89R8BTDJKSBUX0KTU6X6B`
-   - Status: InProgress
+   - Invalidation 1: `IADUN89R8BTDJKSBUX0KTU6X6B`
+   - Invalidation 2: `I1YW8OKABESQ8E76CD4R7MDY6Z`
+   - Status: Completed
 
 ---
 
@@ -274,7 +278,7 @@
 6. ✅ Remoção de loading feio
 7. ✅ Correção de timestamp de análise
 8. ✅ Restauração de componente geográfico
-9. ✅ Aumento do limite de eventos (1000 → 10000)
+9. ✅ Filtragem server-side de eventos WAF (solução definitiva)
 
 ---
 
@@ -290,7 +294,7 @@
 - ❌ Lambda com erro 502
 - ❌ Loading feio antes dos skeletons
 - ❌ Componente geográfico removido
-- ❌ Eventos bloqueados não apareciam (limite de 1000)
+- ❌ Eventos bloqueados não apareciam (filtragem client-side)
 
 ### Depois
 - ✅ Análise de IA sempre dispara nova análise
@@ -302,16 +306,17 @@
 - ✅ Lambda funcionando perfeitamente
 - ✅ Skeletons aparecem imediatamente
 - ✅ Componente geográfico restaurado
-- ✅ Eventos bloqueados aparecem corretamente (limite de 10000)
+- ✅ Eventos bloqueados aparecem corretamente (filtragem server-side)
 
 ---
 
 ## 📝 Documentação Criada
 
 1. ✅ `WAF_CLICK_TO_FILTER_COMPLETE.md` - Documentação completa da funcionalidade de clique para filtrar
-2. ✅ `WAF_EVENT_LIMIT_INCREASED_COMPLETE.md` - Documentação do aumento do limite de eventos
-3. ✅ `SESSION_WAF_IMPROVEMENTS_FINAL.md` - Este documento (resumo da sessão)
-4. ✅ Atualizado `.kiro/steering/aws-infrastructure.md` - Versões do Lambda Layer
+2. ✅ `WAF_EVENT_LIMIT_INCREASED_COMPLETE.md` - Documentação do aumento do limite de eventos (1000 → 10000)
+3. ✅ `WAF_SERVER_SIDE_FILTERING_COMPLETE.md` - Documentação da filtragem server-side (solução definitiva)
+4. ✅ `SESSION_WAF_IMPROVEMENTS_FINAL.md` - Este documento (resumo da sessão)
+5. ✅ Atualizado `.kiro/steering/aws-infrastructure.md` - Versões do Lambda Layer
 
 ---
 
@@ -349,8 +354,8 @@
 - 9 tarefas executadas
 - 9 funcionalidades implementadas
 - 3 deploys backend (Lambda 2x + Layer)
-- 1 deploy frontend (S3 + CloudFront)
-- 3 documentações criadas
+- 2 deploys frontend (S3 + CloudFront 2x)
+- 4 documentações criadas
 - 0 bugs conhecidos
 
 **URL de Produção:** https://evo.ai.udstec.io/waf-monitoring
