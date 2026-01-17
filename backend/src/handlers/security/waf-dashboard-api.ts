@@ -231,7 +231,7 @@ async function handleGetEvents(
   }
   
   const page = parseInt(params.page || bodyParams.page || '1', 10);
-  const limit = Math.min(parseInt(params.limit || bodyParams.limit || '50', 10), 1000);
+  const limit = Math.min(parseInt(params.limit || bodyParams.limit || '50', 10), 10000); // Increased from 1000 to 10000 to capture historical blocked events
   const skip = (page - 1) * limit;
   
   // Build where clause
@@ -437,6 +437,18 @@ async function handleGetMetrics(
       mediumThreats: Number(previousRow.medium_threats),
       lowThreats: Number(previousRow.low_threats),
     };
+    
+    // Debug logging to track metrics vs events discrepancy
+    logger.info('WAF Metrics calculated', {
+      organizationId,
+      since: since.toISOString(),
+      metrics: {
+        totalRequests: metrics.totalRequests,
+        blockedRequests: metrics.blockedRequests,
+        allowedRequests: metrics.allowedRequests,
+        uniqueIps: metrics.uniqueIps,
+      }
+    });
     
     return success({ metrics, previousPeriod, period: '24h' });
   } catch (err) {

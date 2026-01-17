@@ -80,12 +80,28 @@ export function WafEventsFeed({
 
   // Update internal filters when external filters change
   useEffect(() => {
-    if (externalSeverityFilter) {
+    console.log('🔄 External filters changed:', {
+      externalSeverityFilter,
+      externalActionFilter,
+      externalCampaignFilter
+    });
+    
+    if (externalSeverityFilter !== undefined) {
       setSeverityFilter(externalSeverityFilter);
+    } else {
+      setSeverityFilter("all"); // Reset if not provided
     }
-    if (externalActionFilter) {
+    
+    if (externalActionFilter !== undefined) {
       setActionFilter(externalActionFilter);
+    } else {
+      setActionFilter("all"); // Reset if not provided
     }
+    
+    console.log('✅ Filters set to:', {
+      severityFilter: externalSeverityFilter || "all",
+      actionFilter: externalActionFilter || "all"
+    });
   }, [externalSeverityFilter, externalActionFilter]);
 
   const filteredEvents = events.filter(event => {
@@ -94,9 +110,32 @@ export function WafEventsFeed({
       event.uri.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.threat_type?.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesSeverity = severityFilter === "all" || event.severity === severityFilter;
-    const matchesAction = actionFilter === "all" || event.action === actionFilter;
+    const matchesSeverity = severityFilter === "all" || event.severity?.toLowerCase() === severityFilter.toLowerCase();
+    const matchesAction = actionFilter === "all" || event.action?.toUpperCase() === actionFilter.toUpperCase();
     const matchesCampaign = externalCampaignFilter === undefined || event.is_campaign === externalCampaignFilter;
+    
+    // Debug logging for first event to understand filtering
+    if (event === events[0]) {
+      console.log('🔍 Filtering first event:', {
+        event: {
+          severity: event.severity,
+          action: event.action,
+          is_campaign: event.is_campaign
+        },
+        filters: {
+          severityFilter,
+          actionFilter,
+          externalCampaignFilter
+        },
+        matches: {
+          matchesSearch,
+          matchesSeverity,
+          matchesAction,
+          matchesCampaign
+        },
+        willShow: matchesSearch && matchesSeverity && matchesAction && matchesCampaign
+      });
+    }
     
     return matchesSearch && matchesSeverity && matchesAction && matchesCampaign;
   });

@@ -1716,7 +1716,20 @@
       "processingInBackgroundDesc": "A análise completa com IA está sendo gerada em segundo plano. Aguarde 30 segundos e atualize para ver os resultados detalhados.",
       "quickAnalysis": "Análise Rápida",
       "fullAnalysisProcessing": "Análise completa em processamento...",
-      "currentAnalysis": "Análise Atual"
+      "currentAnalysis": "Análise Atual",
+      "inProgress": "Análise em Progresso",
+      "processingTraffic": "Processando CloudWatch Metrics",
+      "estimatedTime": "Tempo estimado: 30-45 segundos",
+      "step1": "Coletando Métricas WAF",
+      "step1Desc": "Requisições, bloqueios, IPs únicos",
+      "step2": "Analisando Padrões de Ataque",
+      "step2Desc": "Tipos de ameaças, distribuição geográfica",
+      "step3": "Gerando Insights com IA",
+      "step3Desc": "Claude 3.5 Sonnet via AWS Bedrock",
+      "step4": "Salvando Análise",
+      "step4Desc": "Armazenando resultados no banco de dados",
+      "aiPowered": "Análise Powered by AI",
+      "aiPoweredDesc": "Utilizamos Claude 3.5 Sonnet via AWS Bedrock para análise avançada de padrões de tráfego e identificação de ameaças em tempo real."
     },
     "analysisHistory": {
       "title": "Histórico de Análises",

@@ -1565,7 +1565,20 @@
       "errorMessage": "Error running AI analysis",
       "processingInBackground": "Analysis in Progress",
       "processingInBackgroundDesc": "The AI analysis is being generated in the background. This may take 30-45 seconds. Click 'Update Analysis' to check the results.",
-      "currentAnalysis": "Current Analysis"
+      "currentAnalysis": "Current Analysis",
+      "inProgress": "Analysis in Progress",
+      "processingTraffic": "Processing CloudWatch Metrics",
+      "estimatedTime": "Estimated time: 30-45 seconds",
+      "step1": "Collecting WAF Metrics",
+      "step1Desc": "Requests, blocks, unique IPs",
+      "step2": "Analyzing Attack Patterns",
+      "step2Desc": "Threat types, geographic distribution",
+      "step3": "Generating AI Insights",
+      "step3Desc": "Claude 3.5 Sonnet via AWS Bedrock",
+      "step4": "Saving Analysis",
+      "step4Desc": "Storing results in database",
+      "aiPowered": "AI-Powered Analysis",
+      "aiPoweredDesc": "We use Claude 3.5 Sonnet via AWS Bedrock for advanced traffic pattern analysis and real-time threat identification."
     },
     "analysisHistory": {
       "title": "Analysis History",

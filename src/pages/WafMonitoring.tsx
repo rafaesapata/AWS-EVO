@@ -58,18 +58,45 @@ export default function WafMonitoring() {
 
   // Handle metric card click to filter events
   const handleMetricCardClick = (filter: { severity?: string; type?: string }) => {
+    console.log('🎯 Card clicked with filter:', filter);
+    console.log('📊 Current events data:', {
+      totalEvents: events.length,
+      actionCounts: {
+        BLOCK: events.filter(e => e.action === 'BLOCK').length,
+        ALLOW: events.filter(e => e.action === 'ALLOW').length,
+        COUNT: events.filter(e => e.action === 'COUNT').length,
+      },
+      severityCounts: {
+        critical: events.filter(e => e.severity === 'critical').length,
+        high: events.filter(e => e.severity === 'high').length,
+        medium: events.filter(e => e.severity === 'medium').length,
+        low: events.filter(e => e.severity === 'low').length,
+      }
+    });
+    
     // Switch to events tab
     setActiveTab('events');
     
-    // Apply filter based on card clicked
+    // Apply filter based on card clicked - ONLY ONE FILTER AT A TIME
     if (filter.severity) {
+      // Filter ONLY by severity
+      console.log('📊 Setting severity filter:', filter.severity);
       setExternalEventFilters({ severity: filter.severity });
-      setFilters(prev => ({ ...prev, severity: filter.severity || 'all' }));
     } else if (filter.type === 'blocked') {
+      // Filter ONLY by action
+      console.log('🚫 Setting action filter: BLOCK');
       setExternalEventFilters({ action: 'BLOCK' });
     } else if (filter.type === 'campaign') {
+      // Filter ONLY by campaign
+      console.log('🎪 Setting campaign filter: true');
       setExternalEventFilters({ campaign: true });
     }
+    
+    console.log('✅ External filters will be set to:', 
+      filter.severity ? { severity: filter.severity } :
+      filter.type === 'blocked' ? { action: 'BLOCK' } :
+      filter.type === 'campaign' ? { campaign: true } : {}
+    );
   };
 
   // Check if WAF monitoring is configured
@@ -96,22 +123,65 @@ export default function WafMonitoring() {
         body: { action: 'metrics' }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
+      
+      console.log('📈 Metrics received from backend:', {
+        totalRequests: response.data?.metrics?.totalRequests,
+        blockedRequests: response.data?.metrics?.blockedRequests,
+        allowedRequests: response.data?.metrics?.allowedRequests,
+        uniqueIps: response.data?.metrics?.uniqueIps,
+        criticalThreats: response.data?.metrics?.criticalThreats,
+        period: response.data?.period
+      });
+      
       return response.data;
     },
   });
 
 
-  // Fetch WAF events
+  // Fetch WAF events (last 24h to match metrics)
+  // NOTE: When filtering by action (e.g., BLOCK), we fetch from backend with filter applied
   const { data: eventsData, isLoading: eventsLoading, refetch: refetchEvents } = useQuery({
-    queryKey: ['waf-events', organizationId],
+    queryKey: ['waf-events-v3', organizationId, externalEventFilters], // Include filters in key
     enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
     staleTime: 15 * 1000,
     refetchInterval: 30 * 1000,
     queryFn: async () => {
+      // Get events from last 24 hours to match metrics period
+      const since = new Date();
+      since.setHours(since.getHours() - 24);
+      
+      console.log('🔄 Fetching events with filters:', externalEventFilters);
+      
       const response = await apiClient.invoke<{ events: any[]; pagination: any }>('waf-dashboard-api', {
-        body: { action: 'events', limit: 100 }
+        body: { 
+          action: 'events', 
+          limit: 5000, // Fetch up to 5000 events
+          startDate: since.toISOString(), // Filter by last 24h
+          // Pass filters to backend for server-side filtering
+          ...(externalEventFilters?.action && { filterAction: externalEventFilters.action }),
+          ...(externalEventFilters?.severity && { severity: externalEventFilters.severity }),
+        }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
+      
+      console.log('📊 Events fetched:', {
+        total: response.data?.events?.length || 0,
+        requestedLimit: 5000,
+        appliedFilters: externalEventFilters,
+        sample: response.data?.events?.[0],
+        actionCounts: {
+          BLOCK: response.data?.events?.filter((e: any) => e.action === 'BLOCK').length || 0,
+          ALLOW: response.data?.events?.filter((e: any) => e.action === 'ALLOW').length || 0,
+          COUNT: response.data?.events?.filter((e: any) => e.action === 'COUNT').length || 0,
+        },
+        severityCounts: {
+          critical: response.data?.events?.filter((e: any) => e.severity === 'critical').length || 0,
+          high: response.data?.events?.filter((e: any) => e.severity === 'high').length || 0,
+          medium: response.data?.events?.filter((e: any) => e.severity === 'medium').length || 0,
+          low: response.data?.events?.filter((e: any) => e.severity === 'low').length || 0,
+        }
+      });
+      
       return response.data;
     },
   });
@@ -373,7 +443,7 @@ export default function WafMonitoring() {
                 />
                 
                 <WafEventsFeed 
-                  events={filteredEvents} 
+                  events={events} 
                   isLoading={eventsLoading}
                   showPagination
                   externalSeverityFilter={externalEventFilters.severity}

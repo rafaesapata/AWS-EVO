@@ -120,14 +120,9 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
     <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-[#003C7D]/10 rounded-xl">
-              <Sparkles className="h-4 w-4 text-[#003C7D]" />
-            </div>
-            <h3 className="text-xl font-light text-[#1F2937]">
-              {t('executiveDashboard.aiCommandCenter', 'AI Command Center')}
-            </h3>
-          </div>
+          <h3 className="text-xl font-light text-[#1F2937]">
+            {t('executiveDashboard.aiCommandCenter', 'AI Command Center')}
+          </h3>
           <Button 
             variant="ghost" 
             size="sm" 
@@ -138,7 +133,7 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
             <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
           </Button>
         </div>
-        <p className="text-sm font-light text-gray-500 mt-1 ml-10">
+        <p className="text-sm font-light text-gray-500 mt-1">
           {t('executiveDashboard.aiCommandCenterDesc', 'AI-generated insights and recommendations')}
         </p>
       </div>
