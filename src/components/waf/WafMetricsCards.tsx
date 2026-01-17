@@ -122,7 +122,7 @@ export function WafMetricsCards({ metrics, isLoading, onCardClick }: WafMetricsC
  color: "text-orange-500",
  bgColor: "bg-orange-500/10",
  inverse: true,
- filter: { type: 'blocked' }, // Show blocked IPs
+ filter: null, // Unique Attackers não deve filtrar eventos (é uma métrica agregada)
  },
  {
  title: t('waf.criticalThreats'),

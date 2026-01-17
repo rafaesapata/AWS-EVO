@@ -156,7 +156,7 @@ export default function SuperAdminOrganizationSwitcher({
           <Button 
             variant="outline" 
             size="sm" 
-            className={`gap-2 ${impersonation?.isImpersonating ? 'border-orange-500 bg-orange-500/10' : ''}`}
+            className={`gap-2 !bg-white dark:!bg-gray-950 hover:!bg-gray-100 dark:hover:!bg-gray-800 !text-gray-900 dark:!text-gray-100 border-gray-200 dark:border-gray-700 ${impersonation?.isImpersonating ? '!border-orange-500 !bg-orange-500/10' : ''}`}
           >
             {impersonation?.isImpersonating ? (
               <UserCog className="h-4 w-4 text-orange-500" />
@@ -184,11 +184,11 @@ export default function SuperAdminOrganizationSwitcher({
             <>
               <DropdownMenuItem
                 onClick={stopImpersonation}
-                className="flex items-center gap-2 text-orange-600 focus:text-orange-600"
+                className="flex items-center gap-2 text-orange-600 focus:text-orange-600 hover:!bg-gray-100 dark:hover:!bg-gray-800 !text-gray-900 dark:!text-gray-100"
               >
                 <X className="h-4 w-4" />
                 <div className="flex flex-col">
-                  <span className="font-medium">{t('impersonate.stop', 'Stop Impersonation')}</span>
+                  <span className="font-medium text-orange-600">{t('impersonate.stop', 'Stop Impersonation')}</span>
                   <span className="text-xs text-muted-foreground">
                     {t('impersonate.returnTo', 'Return to')} {impersonation.originalOrgName}
                   </span>
@@ -212,7 +212,7 @@ export default function SuperAdminOrganizationSwitcher({
                 key={org.id}
                 onClick={() => startImpersonation(org)}
                 disabled={org.id === effectiveOrgId}
-                className="flex items-center justify-between"
+                className="flex items-center justify-between hover:!bg-gray-100 dark:hover:!bg-gray-800 !text-gray-900 dark:!text-gray-100 data-[disabled=true]:opacity-50"
               >
                 <div className="flex flex-col">
                   <span className="font-medium">{org.name}</span>

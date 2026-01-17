@@ -206,19 +206,21 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
                     </div>
                   </div>
                   {user?.organizationId && (
-                    userRole.includes('super_admin') ? (
-                      <SuperAdminOrganizationSwitcher 
-                        currentOrgId={user.organizationId}
-                        currentOrgName={user.organizationName}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/50 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 backdrop-blur-sm">
-                        <Building2 className="h-2.5 w-2.5 text-gray-600 dark:text-gray-400" />
-                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                          {user.organizationName || user.organizationId}
-                        </span>
-                      </div>
-                    )
+                    <div className="flex items-center ml-3">
+                      {userRole.includes('super_admin') ? (
+                        <SuperAdminOrganizationSwitcher 
+                          currentOrgId={user.organizationId}
+                          currentOrgName={user.organizationName}
+                        />
+                      ) : (
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/50 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 backdrop-blur-sm">
+                          <Building2 className="h-2.5 w-2.5 text-gray-600 dark:text-gray-400" />
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                            {user.organizationName || user.organizationId}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">
