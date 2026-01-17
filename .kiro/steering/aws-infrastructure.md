@@ -24,15 +24,26 @@ aws apigateway flush-stage-cache --rest-api-id 3l66kn0eaj --stage-name prod --re
 
 ## Lambda Layers
 
-### Layer Atual (com Azure SDK)
-- **Prisma + Zod + Azure SDK Layer**: `arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:46`
-  - Contém: `@prisma/client`, `.prisma/client` (gerado), `zod`, `@azure/*` (SDK completo), `@typespec/ts-http-runtime` (com internal exports fix), `debug`, `ms`, `tslib`, `events`, `jsonwebtoken`, `http-proxy-agent`, `https-proxy-agent`
+### Layer Atual (com AWS SDK + Azure SDK)
+- **Prisma + Zod + AWS SDK + Azure SDK Layer**: `arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:59`
+  - Contém: 
+    - `@prisma/client`, `.prisma/client` (gerado)
+    - `zod`
+    - AWS SDK: `@aws-sdk/client-lambda`, `@aws-sdk/client-sts`, `@aws-sdk/client-wafv2`, `@aws-sdk/client-bedrock-runtime`, `@aws-sdk/client-sso`, `@aws-sdk/types` + todas dependências transitivas
+    - Smithy: `@smithy/*` (80+ pacotes necessários para AWS SDK v3)
+    - `@aws/lambda-invoke-store` (necessário para recursion detection)
+    - Utilitários: `tslib`, `uuid`, `fast-xml-parser`
   - Binários: `rhel-openssl-1.0.x`, `rhel-openssl-3.0.x` (para Lambda)
-  - Tamanho: ~45MB comprimido, ~172MB descomprimido
+  - Tamanho: ~42MB comprimido, ~121MB descomprimido
+  - **IMPORTANTE**: Layer criado com script de cópia recursiva de dependências para garantir que TODAS as dependências transitivas sejam incluídas
 
 ### Versões do Layer
 | Versão | Descrição | Data |
 |--------|-----------|------|
+| 59 | **ATUAL** - Prisma + Zod + AWS SDK (Lambda, STS, WAFV2, Bedrock, SSO) + Smithy (completo) + @aws/lambda-invoke-store | 2026-01-17 |
+| 58 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock) + Smithy (completo) + @aws/lambda-invoke-store - FALTAVA client-lambda | 2026-01-17 |
+| 57 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock) + Smithy (sem @aws/lambda-invoke-store) | 2026-01-17 |
+| 56 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock) - INCOMPLETO (faltavam dependências Smithy) | 2026-01-17 |
 | 43 | Prisma + Zod + Azure SDK + @typespec + internal exports fix | 2026-01-12 |
 | 42 | Prisma + Zod + Azure SDK + @typespec (sem internal exports) | 2026-01-12 |
 | 41 | Prisma + Zod + Azure SDK (sem @typespec) | 2026-01-12 |
@@ -40,47 +51,121 @@ aws apigateway flush-stage-cache --rest-api-id 3l66kn0eaj --stage-name prod --re
 | 39 | Prisma com AzureCredential model | 2026-01-12 |
 | 2 | Prisma + Zod básico | 2025-xx-xx |
 
-### Atualizar Layer (com Azure SDK)
+### Atualizar Layer (com AWS SDK + Azure SDK)
+
+**⚠️ IMPORTANTE**: Ao adicionar novos pacotes AWS SDK, use o script de cópia recursiva para garantir que TODAS as dependências transitivas sejam incluídas.
+
 ```bash
 # 1. Instalar dependências e gerar Prisma Client
 npm install --prefix backend
 npm run prisma:generate --prefix backend
 
 # 2. Criar estrutura do layer
-rm -rf /tmp/lambda-layer-azure && mkdir -p /tmp/lambda-layer-azure/nodejs/node_modules
-cp -r backend/node_modules/@prisma /tmp/lambda-layer-azure/nodejs/node_modules/
-cp -r backend/node_modules/.prisma /tmp/lambda-layer-azure/nodejs/node_modules/
-cp -r backend/node_modules/zod /tmp/lambda-layer-azure/nodejs/node_modules/
-cp -r backend/node_modules/@azure /tmp/lambda-layer-azure/nodejs/node_modules/
+rm -rf /tmp/lambda-layer-complete && mkdir -p /tmp/lambda-layer-complete/nodejs/node_modules/@aws-sdk && mkdir -p /tmp/lambda-layer-complete/nodejs/node_modules/@smithy
 
-# 3. Copiar dependências do Azure SDK
-for pkg in tslib uuid ms http-proxy-agent https-proxy-agent agent-base debug events fast-xml-parser strnum; do
-  [ -d "backend/node_modules/$pkg" ] && cp -r "backend/node_modules/$pkg" /tmp/lambda-layer-azure/nodejs/node_modules/
+# 3. Copiar Prisma e Zod
+cp -r backend/node_modules/@prisma /tmp/lambda-layer-complete/nodejs/node_modules/
+cp -r backend/node_modules/.prisma /tmp/lambda-layer-complete/nodejs/node_modules/
+cp -r backend/node_modules/zod /tmp/lambda-layer-complete/nodejs/node_modules/
+
+# 4. Criar script de cópia recursiva de dependências AWS SDK
+cat > /tmp/copy-deps.js << 'EOFSCRIPT'
+const fs = require('fs');
+const path = require('path');
+
+const sourceDir = process.argv[2];
+const targetDir = process.argv[3];
+const packages = process.argv.slice(4);
+
+const copied = new Set();
+
+function copyPackageWithDeps(pkgName) {
+  if (copied.has(pkgName)) return;
+  copied.add(pkgName);
+  
+  const sourcePath = path.join(sourceDir, 'node_modules', pkgName);
+  const targetPath = path.join(targetDir, 'nodejs/node_modules', pkgName);
+  
+  if (!fs.existsSync(sourcePath)) {
+    console.log(`⚠️  Package not found: ${pkgName}`);
+    return;
+  }
+  
+  // Copy package
+  fs.cpSync(sourcePath, targetPath, { recursive: true });
+  console.log(`✅ ${pkgName}`);
+  
+  // Read package.json and copy dependencies
+  const pkgJsonPath = path.join(sourcePath, 'package.json');
+  if (fs.existsSync(pkgJsonPath)) {
+    const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+    const deps = Object.keys(pkgJson.dependencies || {});
+    
+    for (const dep of deps) {
+      if (dep.startsWith('@aws-sdk/') || dep.startsWith('@smithy/') || dep.startsWith('@aws-crypto/') || dep.startsWith('@aws/')) {
+        copyPackageWithDeps(dep);
+      }
+    }
+  }
+}
+
+// Copy initial packages
+for (const pkg of packages) {
+  copyPackageWithDeps(pkg);
+}
+
+console.log(`\n📦 Total packages copied: ${copied.size}`);
+EOFSCRIPT
+
+# 5. Executar script para copiar AWS SDK com dependências transitivas
+# Adicione aqui os pacotes AWS SDK que você precisa
+node /tmp/copy-deps.js backend /tmp/lambda-layer-complete @aws-sdk/client-sts @aws-sdk/client-wafv2 @aws-sdk/client-bedrock-runtime
+
+# 6. Copiar utilitários necessários
+for pkg in tslib uuid fast-xml-parser; do
+  [ -d "backend/node_modules/$pkg" ] && cp -r "backend/node_modules/$pkg" /tmp/lambda-layer-complete/nodejs/node_modules/
 done
 
-# 4. Remover arquivos desnecessários para reduzir tamanho
-rm -f /tmp/lambda-layer-azure/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node
-rm -rf /tmp/lambda-layer-azure/nodejs/node_modules/.prisma/client/deno
-find /tmp/lambda-layer-azure/nodejs/node_modules -name "*.ts" -not -name "*.d.ts" -delete
-find /tmp/lambda-layer-azure/nodejs/node_modules -name "*.map" -delete
-find /tmp/lambda-layer-azure/nodejs/node_modules -name "*.md" -delete
-find /tmp/lambda-layer-azure/nodejs/node_modules -type d -name "test" -exec rm -rf {} + 2>/dev/null
-find /tmp/lambda-layer-azure/nodejs/node_modules -type d -name "tests" -exec rm -rf {} + 2>/dev/null
+# 7. Remover arquivos desnecessários para reduzir tamanho
+rm -f /tmp/lambda-layer-complete/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node
+rm -rf /tmp/lambda-layer-complete/nodejs/node_modules/.prisma/client/deno
+find /tmp/lambda-layer-complete/nodejs/node_modules -name "*.ts" -not -name "*.d.ts" -delete
+find /tmp/lambda-layer-complete/nodejs/node_modules -name "*.map" -delete
+find /tmp/lambda-layer-complete/nodejs/node_modules -name "*.md" -delete
+find /tmp/lambda-layer-complete/nodejs/node_modules -type d -name "test" -exec rm -rf {} + 2>/dev/null
+find /tmp/lambda-layer-complete/nodejs/node_modules -type d -name "tests" -exec rm -rf {} + 2>/dev/null
+find /tmp/lambda-layer-complete/nodejs/node_modules -type d -name "samples" -exec rm -rf {} + 2>/dev/null
+find /tmp/lambda-layer-complete/nodejs/node_modules -type d -name "docs" -exec rm -rf {} + 2>/dev/null
+find /tmp/lambda-layer-complete/nodejs/node_modules -type d -name "examples" -exec rm -rf {} + 2>/dev/null
+find /tmp/lambda-layer-complete/nodejs/node_modules -name "*.spec.js" -delete
+find /tmp/lambda-layer-complete/nodejs/node_modules -name "*.test.js" -delete
+find /tmp/lambda-layer-complete/nodejs/node_modules -name "CHANGELOG*" -delete
+find /tmp/lambda-layer-complete/nodejs/node_modules -name "README*" -delete
+find /tmp/lambda-layer-complete/nodejs/node_modules -name "LICENSE*" -delete
 
-# 5. Criar zip
-pushd /tmp/lambda-layer-azure && zip -r /tmp/prisma-azure-layer.zip nodejs && popd
+# 8. Criar zip
+pushd /tmp/lambda-layer-complete && zip -r /tmp/lambda-layer-complete.zip nodejs && popd
 
-# 6. Upload para S3 (necessário para layers > 50MB)
-aws s3 cp /tmp/prisma-azure-layer.zip s3://evo-uds-v3-production-frontend-383234048592/layers/prisma-azure-layer.zip --region us-east-1
+# 9. Verificar tamanho (DEVE ser < 250MB descomprimido)
+unzip -l /tmp/lambda-layer-complete.zip | tail -1
 
-# 7. Publicar layer
+# 10. Upload para S3 (necessário para layers > 50MB)
+aws s3 cp /tmp/lambda-layer-complete.zip s3://evo-uds-v3-production-frontend-383234048592/layers/lambda-layer-complete.zip --region us-east-1
+
+# 11. Publicar layer
 aws lambda publish-layer-version \
   --layer-name evo-prisma-deps-layer \
-  --description "Prisma client with Azure SDK support" \
-  --content S3Bucket=evo-uds-v3-production-frontend-383234048592,S3Key=layers/prisma-azure-layer.zip \
+  --description "Prisma + Zod + AWS SDK (complete with dependencies)" \
+  --content S3Bucket=evo-uds-v3-production-frontend-383234048592,S3Key=layers/lambda-layer-complete.zip \
   --compatible-runtimes nodejs18.x nodejs20.x \
   --region us-east-1
 ```
+
+**Notas Importantes**:
+- O script `copy-deps.js` copia recursivamente TODAS as dependências transitivas dos pacotes AWS SDK
+- Isso é necessário porque AWS SDK v3 tem muitas dependências `@smithy/*` e `@aws-crypto/*` que não são óbvias
+- Se você tentar copiar apenas os pacotes principais, vai faltar dependências e a Lambda vai dar erro 502
+- O limite de tamanho descomprimido é 250MB - se ultrapassar, remova pacotes AWS SDK desnecessários
 
 ## Lambda Functions (Prefixo: `evo-uds-v3-production-`)
 
@@ -252,6 +337,46 @@ aws apigateway create-deployment --rest-api-id 3l66kn0eaj --stage-name prod --re
 1. Verificar se o layer está anexado à Lambda
 2. Verificar se o módulo está no layer
 3. Verificar o path do handler (ex: `handlers/security/security-scan.handler`)
+
+**⚠️ ERRO COMUM: Faltam dependências AWS SDK no layer**
+
+Se você receber erro "Cannot find module '@aws-sdk/client-xxx'" ou "Cannot find module '@smithy/xxx'":
+
+1. **Causa**: O layer não inclui o pacote AWS SDK ou suas dependências transitivas
+2. **Sintoma**: Lambda retorna 502, logs mostram "Runtime.ImportModuleError"
+3. **Solução**: Atualizar layer usando o script de cópia recursiva (ver seção "Atualizar Layer")
+
+**Exemplo de erro**:
+```
+Runtime.ImportModuleError: Error: Cannot find module '@aws-sdk/client-sts'
+Require stack:
+- /var/task/lib/aws-helpers.js
+- /var/task/waf-dashboard-api.js
+```
+
+**Dependências comuns que faltam**:
+- `@smithy/*` - 80+ pacotes necessários para AWS SDK v3
+- `@aws-crypto/*` - Pacotes de criptografia
+- `@aws/lambda-invoke-store` - Necessário para recursion detection middleware
+
+**Como diagnosticar**:
+```bash
+# Ver logs da Lambda
+aws logs tail /aws/lambda/FUNCTION_NAME --since 5m --region us-east-1
+
+# Verificar layer atual
+aws lambda get-function-configuration \
+  --function-name FUNCTION_NAME \
+  --query 'Layers[0].Arn' \
+  --region us-east-1
+
+# Testar invocação
+aws lambda invoke \
+  --function-name FUNCTION_NAME \
+  --payload '{"requestContext":{"http":{"method":"OPTIONS"}}}' \
+  --region us-east-1 \
+  /tmp/test.json && cat /tmp/test.json
+```
 
 ### Lambda 504 Timeout (VPC)
 Lambdas em VPC precisam de NAT Gateway para acessar APIs AWS (STS, EC2, RDS, S3, etc.)

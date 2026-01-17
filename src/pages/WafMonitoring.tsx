@@ -48,6 +48,29 @@ export default function WafMonitoring() {
     startDate: null as Date | null,
     endDate: null as Date | null,
   });
+  
+  // External filters for WafEventsFeed (set by card clicks)
+  const [externalEventFilters, setExternalEventFilters] = useState<{
+    severity?: string;
+    action?: string;
+    campaign?: boolean;
+  }>({});
+
+  // Handle metric card click to filter events
+  const handleMetricCardClick = (filter: { severity?: string; type?: string }) => {
+    // Switch to events tab
+    setActiveTab('events');
+    
+    // Apply filter based on card clicked
+    if (filter.severity) {
+      setExternalEventFilters({ severity: filter.severity });
+      setFilters(prev => ({ ...prev, severity: filter.severity || 'all' }));
+    } else if (filter.type === 'blocked') {
+      setExternalEventFilters({ action: 'BLOCK' });
+    } else if (filter.type === 'campaign') {
+      setExternalEventFilters({ campaign: true });
+    }
+  };
 
   // Check if WAF monitoring is configured
   const { data: monitoringConfigsData, isLoading: configsLoading } = useQuery({
@@ -265,14 +288,7 @@ export default function WafMonitoring() {
         )}
 
         {/* Show Setup Panel if no active config */}
-        {configsLoading ? (
-          <Card>
-            <CardContent className="flex items-center justify-center py-12">
-              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-              <span>{t('common.loading', 'Carregando...')}</span>
-            </CardContent>
-          </Card>
-        ) : !hasActiveConfig ? (
+        {!configsLoading && !hasActiveConfig ? (
           <WafSetupPanel 
             onSetupComplete={() => {
               queryClient.invalidateQueries({ queryKey: ['waf-monitoring-configs'] });
@@ -281,7 +297,11 @@ export default function WafMonitoring() {
         ) : (
           <>
             {/* Metrics Cards */}
-            <WafMetricsCards metrics={metrics} isLoading={metricsLoading} />
+            <WafMetricsCards 
+              metrics={metrics} 
+              isLoading={metricsLoading}
+              onCardClick={handleMetricCardClick}
+            />
 
             {/* Main Content Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -356,6 +376,9 @@ export default function WafMonitoring() {
                   events={filteredEvents} 
                   isLoading={eventsLoading}
                   showPagination
+                  externalSeverityFilter={externalEventFilters.severity}
+                  externalActionFilter={externalEventFilters.action}
+                  externalCampaignFilter={externalEventFilters.campaign}
                 />
               </TabsContent>
 

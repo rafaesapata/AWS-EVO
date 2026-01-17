@@ -1351,6 +1351,7 @@
     "criticalThreats": "Critical Threats",
     "highThreats": "High Threats",
     "activeCampaigns": "Active Campaigns",
+    "clickToFilter": "Click to filter",
     "recentEvents": "Recent Events",
     "recentEventsDesc": "Latest requests processed by WAF",
     "searchEvents": "Search by IP, URI or threat type...",
@@ -1561,7 +1562,29 @@
       "feature4": "Security Recommendations",
       "analysisComplete": "Analysis complete",
       "analysisError": "Analysis error",
-      "errorMessage": "Error running AI analysis"
+      "errorMessage": "Error running AI analysis",
+      "processingInBackground": "Analysis in Progress",
+      "processingInBackgroundDesc": "The AI analysis is being generated in the background. This may take 30-45 seconds. Click 'Update Analysis' to check the results.",
+      "currentAnalysis": "Current Analysis"
+    },
+    "analysisHistory": {
+      "title": "Analysis History",
+      "description": "View and compare previous AI analyses",
+      "noHistory": "No analysis history",
+      "noHistoryDesc": "Run your first AI analysis to start building history.",
+      "loadMore": "Load More",
+      "loading": "Loading history...",
+      "error": "Error loading history",
+      "viewAnalysis": "View Analysis",
+      "hideAnalysis": "Hide Analysis",
+      "generatedAt": "Generated at",
+      "riskLevel": "Risk Level",
+      "eventsAnalyzed": "Events Analyzed",
+      "blockedRequests": "Blocked Requests",
+      "uniqueAttackers": "Unique Attackers",
+      "analysisContent": "Analysis Content",
+      "page": "Page",
+      "of": "of"
     },
     "timeline": {
       "title": "Request Timeline",

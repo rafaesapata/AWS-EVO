@@ -136,6 +136,8 @@ export async function handler(
           return await handleAiAnalysis(event, prisma, organizationId);
         case 'get-latest-analysis':
           return await handleGetLatestAnalysis(prisma, organizationId);
+        case 'get-analysis-history':
+          return await handleGetAnalysisHistory(event, prisma, organizationId);
         case 'threat-stats':
           return await handleGetThreatStats(prisma, organizationId);
         case 'get-alert-config':
@@ -1540,34 +1542,9 @@ async function handleAiAnalysis(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('WAF AI analysis requested', { organizationId });
   
-  // 1. Check if there's a recent analysis (< 5 minutes old)
-  const recentAnalysis = await prisma.wafAiAnalysis.findFirst({
-    where: { organization_id: organizationId },
-    orderBy: { created_at: 'desc' },
-  });
-  
-  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-  const hasRecentAnalysis = recentAnalysis && recentAnalysis.created_at > fiveMinutesAgo;
-  
-  if (hasRecentAnalysis) {
-    logger.info('Returning cached AI analysis', { 
-      organizationId, 
-      age: Math.round((Date.now() - recentAnalysis.created_at.getTime()) / 1000) + 's' 
-    });
-    
-    return success({
-      id: recentAnalysis.id,
-      analysis: recentAnalysis.analysis,
-      context: recentAnalysis.context,
-      riskLevel: recentAnalysis.risk_level,
-      generatedAt: recentAnalysis.created_at.toISOString(),
-      cached: true,
-      cacheAge: Math.round((Date.now() - recentAnalysis.created_at.getTime()) / 1000),
-    });
-  }
-  
-  // 2. No recent analysis - trigger background processing and return fallback
-  logger.info('No recent analysis, triggering background generation', { organizationId });
+  // ALWAYS trigger new analysis when user explicitly requests it
+  // This ensures fresh data and prevents confusion with stale cached results
+  logger.info('Triggering new AI analysis generation', { organizationId });
   
   // Trigger async Lambda invocation (fire-and-forget)
   try {
@@ -1586,12 +1563,13 @@ async function handleAiAnalysis(
       }),
     }));
     
-    logger.info('Background AI analysis triggered', { organizationId });
+    logger.info('Background AI analysis triggered successfully', { organizationId });
   } catch (err) {
-    logger.warn('Failed to trigger background analysis', err as Error);
+    logger.error('Failed to trigger background analysis', err as Error);
+    return error('Failed to start AI analysis. Please try again.', 500);
   }
   
-  // 3. Return immediate fallback response
+  // Return immediate response indicating processing has started
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
@@ -1613,27 +1591,27 @@ async function handleAiAnalysis(
   const metrics = quickMetrics[0] || { total_events: BigInt(0), blocked_events: BigInt(0), unique_ips: BigInt(0) };
   const blockedCount = Number(metrics.blocked_events);
   
-  const fallbackAnalysis = `## 📊 Análise Rápida (últimas 24h)
+  const processingMessage = `## 🔄 Análise em Processamento
 
-**Status:** Análise detalhada em processamento...
+**Status:** Gerando análise completa com IA...
 
-**Métricas Rápidas:**
+**Métricas Rápidas (últimas 24h):**
 - Total de requisições: ${Number(metrics.total_events).toLocaleString()}
 - Requisições bloqueadas: ${blockedCount.toLocaleString()}
 - IPs únicos bloqueados: ${Number(metrics.unique_ips).toLocaleString()}
 
-**Nível de Risco:** ${blockedCount > 1000 ? 'Alto' : blockedCount > 100 ? 'Médio' : 'Baixo'}
+**Nível de Risco Preliminar:** ${blockedCount > 1000 ? 'Alto' : blockedCount > 100 ? 'Médio' : 'Baixo'}
 
-*Uma análise completa com IA está sendo gerada em segundo plano. Recarregue a página em 30 segundos para ver a análise detalhada.*`;
+*⏳ A análise completa com IA está sendo gerada. Aguarde 30-45 segundos e clique em "Atualizar Análise" para ver os resultados detalhados.*`;
 
-  const riskLevel = blockedCount > 1000 ? 'alto' : blockedCount > 100 ? 'médio' : 'baixo';
+  const riskLevel = blockedCount > 1000 ? 'médio' : 'baixo';
   
   return success({
-    analysis: fallbackAnalysis,
+    analysis: processingMessage,
     riskLevel,
     generatedAt: new Date().toISOString(),
     processing: true,
-    message: 'Quick analysis returned. Detailed AI analysis is being generated in background.',
+    message: 'AI analysis started. Check back in 30-45 seconds for complete results.',
   });
 }
 
@@ -1887,9 +1865,7 @@ async function handleAiAnalysisBackground(
       
       // Generate fallback analysis
       const fallbackAnalysis = generateFallbackAnalysis(analysisContext);
-      const riskLevel = analysisContext.metrics.blockedRequests > 1000 ? 'alto' 
-        : analysisContext.metrics.blockedRequests > 100 ? 'médio' 
-        : 'baixo';
+      const riskLevel = analysisContext.metrics.blockedRequests > 1000 ? 'médio' : 'baixo';
       
       // Save fallback analysis to database
       const savedAnalysis = await prisma.wafAiAnalysis.create({
@@ -1944,6 +1920,63 @@ async function handleGetLatestAnalysis(
     isFallback: latestAnalysis.is_fallback,
     generatedAt: latestAnalysis.created_at.toISOString(),
   });
+}
+
+/**
+ * Get analysis history
+ */
+async function handleGetAnalysisHistory(
+  event: AuthorizedEvent,
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string
+): Promise<APIGatewayProxyResultV2> {
+  try {
+    // Parse query parameters
+    const body = event.body ? JSON.parse(event.body) : {};
+    const limit = parseInt(body.limit || '10', 10);
+    const offset = parseInt(body.offset || '0', 10);
+    
+    // Get total count
+    const totalCount = await prisma.wafAiAnalysis.count({
+      where: { organization_id: organizationId },
+    });
+    
+    // Get analyses with pagination
+    const analyses = await prisma.wafAiAnalysis.findMany({
+      where: { organization_id: organizationId },
+      orderBy: { created_at: 'desc' },
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        analysis: true,
+        context: true,
+        risk_level: true,
+        is_fallback: true,
+        created_at: true,
+      },
+    });
+    
+    return success({
+      analyses: analyses.map(a => ({
+        id: a.id,
+        analysis: a.analysis,
+        context: a.context,
+        riskLevel: a.risk_level,
+        isFallback: a.is_fallback,
+        generatedAt: a.created_at.toISOString(),
+      })),
+      pagination: {
+        total: totalCount,
+        limit,
+        offset,
+        hasMore: offset + limit < totalCount,
+      },
+    });
+  } catch (err) {
+    logger.error('Error getting analysis history', err as Error);
+    return error('Failed to get analysis history', 500);
+  }
 }
 
 /**
@@ -2021,9 +2054,7 @@ Seja objetivo e forneça insights acionáveis. Use emojis para melhorar a legibi
  * Generate fallback analysis when AI is unavailable
  */
 function generateFallbackAnalysis(ctx: any): string {
-  const riskLevel = ctx.metrics.blockedRequests > 1000 ? 'Alto' 
-    : ctx.metrics.blockedRequests > 100 ? 'Médio' 
-    : 'Baixo';
+  const riskLevel = ctx.metrics.blockedRequests > 1000 ? 'Médio' : 'Baixo';
   
   let analysis = `## 📊 Resumo Automático (últimas 24h)\n\n`;
   analysis += `**Total de requisições:** ${ctx.metrics.totalRequests.toLocaleString()}\n`;

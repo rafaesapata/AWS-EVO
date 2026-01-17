@@ -4,10 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Brain, RefreshCw, AlertTriangle, Shield, Globe, Clock, Target, Sparkles, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import ReactMarkdown from "react-markdown";
+import { WafAnalysisHistory } from "./WafAnalysisHistory";
 
 interface WafAiAnalysisProps {
  accountId?: string;
@@ -66,6 +68,7 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  const [isLoadingLatest, setIsLoadingLatest] = useState(true);
  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
  const [error, setError] = useState<string | null>(null);
+ const [activeTab, setActiveTab] = useState<string>("current");
 
  // Load latest analysis on mount
  useEffect(() => {
@@ -115,7 +118,62 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  }
  
  const data = response.data;
+ 
+ if (data?.processing) {
+ // Analysis is being generated in background
+ toast({
+ title: t('waf.aiAnalysis.processingInBackground', 'Análise em Processamento'),
+ description: t('waf.aiAnalysis.processingInBackgroundDesc', 'A análise completa com IA está sendo gerada. Aguarde 30-45 segundos.'),
+ variant: 'default',
+ });
+ 
+ // Set the processing message
  setAnalysis(data);
+ 
+ // Start polling for completion (check every 10 seconds for up to 60 seconds)
+ let pollCount = 0;
+ const maxPolls = 6; // 60 seconds total
+ 
+ const pollInterval = setInterval(async () => {
+ pollCount++;
+ 
+ try {
+ const pollResponse = await apiClient.invoke<AnalysisResponse>('waf-dashboard-api', {
+ body: {
+ action: 'get-latest-analysis',
+ accountId,
+ }
+ });
+ 
+ if (pollResponse.data?.hasAnalysis && !pollResponse.data.processing) {
+ // Analysis completed!
+ clearInterval(pollInterval);
+ setAnalysis(pollResponse.data);
+ setIsLoading(false);
+ 
+ toast({
+ title: t('waf.aiAnalysis.success', 'Análise Concluída'),
+ description: t('waf.aiAnalysis.successDesc', 'A análise de IA foi gerada e salva com sucesso.'),
+ });
+ } else if (pollCount >= maxPolls) {
+ // Timeout - stop polling
+ clearInterval(pollInterval);
+ setIsLoading(false);
+ 
+ toast({
+ title: t('common.info', 'Informação'),
+ description: 'A análise está demorando mais que o esperado. Clique em "Atualizar Análise" em alguns instantes.',
+ variant: 'default',
+ });
+ }
+ } catch (pollErr) {
+ // Ignore polling errors, keep trying
+ console.warn('Polling error:', pollErr);
+ }
+ }, 10000); // Poll every 10 seconds
+ 
+ return;
+ }
  
  if (data?.aiError) {
  toast({
@@ -129,6 +187,9 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  description: t('waf.aiAnalysis.successDesc', 'A análise de IA foi gerada e salva com sucesso.'),
  });
  }
+ 
+ // Set analysis data
+ setAnalysis(data);
  } catch (err) {
  const message = err instanceof Error ? err.message : 'Failed to run analysis';
  setError(message);
@@ -180,6 +241,19 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  </CardDescription>
  </CardHeader>
  <CardContent>
+ <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+ <TabsList className="grid w-full grid-cols-2 mb-6">
+ <TabsTrigger value="current" className="gap-2">
+ <Brain className="h-4 w-4" />
+ {t('waf.aiAnalysis.currentAnalysis', 'Análise Atual')}
+ </TabsTrigger>
+ <TabsTrigger value="history" className="gap-2">
+ <History className="h-4 w-4" />
+ {t('waf.analysisHistory.title', 'Histórico')}
+ </TabsTrigger>
+ </TabsList>
+
+ <TabsContent value="current" className="mt-0">
  {isLoading ? (
  <div className="space-y-4">
  <div className="flex items-center gap-2 text-muted-foreground">
@@ -343,6 +417,12 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  </div>
  </div>
  )}
+ </TabsContent>
+
+ <TabsContent value="history" className="mt-0">
+ <WafAnalysisHistory accountId={accountId} />
+ </TabsContent>
+ </Tabs>
  </CardContent>
  </Card>
  );

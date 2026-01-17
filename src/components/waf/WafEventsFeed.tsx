@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,16 +56,37 @@ interface WafEventsFeedProps {
   isLoading: boolean;
   showFilters?: boolean;
   showPagination?: boolean;
+  externalSeverityFilter?: string;
+  externalActionFilter?: string;
+  externalCampaignFilter?: boolean;
 }
 
-export function WafEventsFeed({ events, isLoading, showFilters, showPagination }: WafEventsFeedProps) {
+export function WafEventsFeed({ 
+  events, 
+  isLoading, 
+  showFilters, 
+  showPagination,
+  externalSeverityFilter,
+  externalActionFilter,
+  externalCampaignFilter
+}: WafEventsFeedProps) {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [severityFilter, setSeverityFilter] = useState("all");
-  const [actionFilter, setActionFilter] = useState("all");
+  const [severityFilter, setSeverityFilter] = useState(externalSeverityFilter || "all");
+  const [actionFilter, setActionFilter] = useState(externalActionFilter || "all");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedEvent, setSelectedEvent] = useState<WafEvent | null>(null);
   const itemsPerPage = 20;
+
+  // Update internal filters when external filters change
+  useEffect(() => {
+    if (externalSeverityFilter) {
+      setSeverityFilter(externalSeverityFilter);
+    }
+    if (externalActionFilter) {
+      setActionFilter(externalActionFilter);
+    }
+  }, [externalSeverityFilter, externalActionFilter]);
 
   const filteredEvents = events.filter(event => {
     const matchesSearch = !searchQuery || 
@@ -75,8 +96,9 @@ export function WafEventsFeed({ events, isLoading, showFilters, showPagination }
     
     const matchesSeverity = severityFilter === "all" || event.severity === severityFilter;
     const matchesAction = actionFilter === "all" || event.action === actionFilter;
+    const matchesCampaign = externalCampaignFilter === undefined || event.is_campaign === externalCampaignFilter;
     
-    return matchesSearch && matchesSeverity && matchesAction;
+    return matchesSearch && matchesSeverity && matchesAction && matchesCampaign;
   });
 
   const totalPages = Math.ceil(filteredEvents.length / itemsPerPage);

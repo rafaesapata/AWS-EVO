@@ -39,6 +39,7 @@ interface WafMetrics {
 interface WafMetricsCardsProps {
  metrics?: WafMetrics;
  isLoading: boolean;
+ onCardClick?: (filter: { severity?: string; type?: string }) => void;
 }
 
 function calculateTrend(current: number, previous: number): { value: number; direction: 'up' | 'down' | 'neutral' } {
@@ -89,7 +90,7 @@ function TrendIndicator({ trend, inverse = false }: { trend: { value: number; di
   );
 }
 
-export function WafMetricsCards({ metrics, isLoading }: WafMetricsCardsProps) {
+export function WafMetricsCards({ metrics, isLoading, onCardClick }: WafMetricsCardsProps) {
  const { t } = useTranslation();
 
  const cards = [
@@ -101,6 +102,7 @@ export function WafMetricsCards({ metrics, isLoading }: WafMetricsCardsProps) {
  color: "text-blue-500",
  bgColor: "bg-blue-500/10",
  inverse: false,
+ filter: null, // No filter for total requests
  },
  {
  title: t('waf.blockedRequests'),
@@ -109,7 +111,8 @@ export function WafMetricsCards({ metrics, isLoading }: WafMetricsCardsProps) {
  icon: Ban,
  color: "text-red-500",
  bgColor: "bg-red-500/10",
- inverse: true, // Increase in blocked requests is bad
+ inverse: true,
+ filter: { type: 'blocked' }, // Filter by blocked action
  },
  {
  title: t('waf.uniqueAttackers'),
@@ -119,6 +122,7 @@ export function WafMetricsCards({ metrics, isLoading }: WafMetricsCardsProps) {
  color: "text-orange-500",
  bgColor: "bg-orange-500/10",
  inverse: true,
+ filter: { type: 'blocked' }, // Show blocked IPs
  },
  {
  title: t('waf.criticalThreats'),
@@ -128,6 +132,7 @@ export function WafMetricsCards({ metrics, isLoading }: WafMetricsCardsProps) {
  color: "text-red-600",
  bgColor: "bg-red-600/10",
  inverse: true,
+ filter: { severity: 'critical' },
  },
  {
  title: t('waf.highThreats'),
@@ -137,6 +142,7 @@ export function WafMetricsCards({ metrics, isLoading }: WafMetricsCardsProps) {
  color: "text-orange-500",
  bgColor: "bg-orange-500/10",
  inverse: true,
+ filter: { severity: 'high' },
  },
  {
  title: t('waf.activeCampaigns'),
@@ -146,6 +152,7 @@ export function WafMetricsCards({ metrics, isLoading }: WafMetricsCardsProps) {
  color: "text-purple-500",
  bgColor: "bg-purple-500/10",
  inverse: true,
+ filter: { type: 'campaign' }, // Show campaigns
  },
  ];
 
@@ -153,9 +160,18 @@ export function WafMetricsCards({ metrics, isLoading }: WafMetricsCardsProps) {
  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
  {cards.map((card, index) => {
    const trend = calculateTrend(card.value, card.previousValue);
+   const isClickable = card.filter !== null && card.value > 0;
    
    return (
-     <Card key={index} className="transition-all duration-300 hover:shadow-lg">
+     <Card 
+       key={index} 
+       className={`transition-all duration-300 ${isClickable ? 'cursor-pointer hover:shadow-lg hover:scale-105' : 'hover:shadow-lg'}`}
+       onClick={() => {
+         if (isClickable && onCardClick && card.filter) {
+           onCardClick(card.filter);
+         }
+       }}
+     >
        <CardHeader className="pb-2">
          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
            <div className={`p-1.5 rounded-md ${card.bgColor}`}>
@@ -174,6 +190,11 @@ export function WafMetricsCards({ metrics, isLoading }: WafMetricsCardsProps) {
              </div>
              {card.previousValue > 0 && (
                <TrendIndicator trend={trend} inverse={card.inverse} />
+             )}
+             {isClickable && (
+               <p className="text-xs text-muted-foreground mt-1">
+                 {t('waf.clickToFilter', 'Clique para filtrar')}
+               </p>
              )}
            </div>
          )}

@@ -25,8 +25,10 @@ export function WafStatusIndicator({ metrics }: WafStatusIndicatorProps) {
     
     const criticalCount = metrics.criticalThreats || 0;
     const highCount = metrics.highThreats || 0;
+    const blockedCount = metrics.blockedRequests || 0;
 
-    if (criticalCount > 10 || blockRate > 50) {
+    // Priority 1: Critical threats
+    if (criticalCount > 10) {
       return { 
         level: 'critical', 
         color: 'red', 
@@ -37,7 +39,8 @@ export function WafStatusIndicator({ metrics }: WafStatusIndicatorProps) {
       };
     }
     
-    if (criticalCount > 0 || highCount > 20 || blockRate > 20) {
+    // Priority 2: High block rate or many high threats
+    if (blockRate > 50 || highCount > 50) {
       return { 
         level: 'high', 
         color: 'orange', 
@@ -48,7 +51,8 @@ export function WafStatusIndicator({ metrics }: WafStatusIndicatorProps) {
       };
     }
     
-    if (highCount > 0 || blockRate > 5) {
+    // Priority 3: Moderate threats - aligned with AI analysis logic
+    if (blockedCount > 1000 || blockRate > 10 || highCount > 10) {
       return { 
         level: 'medium', 
         color: 'yellow', 
@@ -59,6 +63,7 @@ export function WafStatusIndicator({ metrics }: WafStatusIndicatorProps) {
       };
     }
     
+    // Priority 4: Low risk
     return { 
       level: 'low', 
       color: 'green', 
