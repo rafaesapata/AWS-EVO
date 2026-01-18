@@ -13,7 +13,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, TrendingDown, Shield, Zap, Search, BarChart3 } from 'lucide-react';
+import { RefreshCw, TrendingDown, Shield, Zap, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
@@ -123,19 +123,9 @@ export default function ExecutiveDashboardV2() {
         <p className="text-sm text-gray-500">{formattedDate}</p>
       </div>
 
-      {/* Header with Search and Refresh */}
+      {/* Header with Refresh Button */}
       {!isTVMode && (
-        <div className="flex items-center justify-between">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input 
-              type="text"
-              placeholder={t('executiveDashboard.searchPlaceholder', 'Search dashboard...')}
-              className="pl-10 pr-4 py-2.5 w-80 bg-white border border-gray-200 rounded-xl text-sm text-[#1F2937] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#003C7D]/20 focus:border-[#003C7D] shadow-sm"
-            />
-          </div>
-          
+        <div className="flex items-center justify-end">
           {/* Refresh Button */}
           <Button 
             onClick={refresh}
