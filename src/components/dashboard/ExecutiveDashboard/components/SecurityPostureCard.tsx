@@ -108,18 +108,48 @@ export default function SecurityPostureCard({ data }: Props) {
       </div>
 
       <div className="p-6 space-y-5">
-        {/* Security Score */}
-        <div className={cn('relative p-5 rounded-2xl border', getScoreBgColor(data.score))}>
-          <div className="text-center">
-            <div className={cn('text-5xl font-light tabular-nums', getScoreColor(data.score))}>
-              {data.score}
-            </div>
-            <div className="text-xs text-gray-500 mt-1">
-              {t('executiveDashboard.securityScore', 'Security Score')}
+        {/* Security Score - Circular Progress */}
+        <div className="flex flex-col items-center justify-center py-4">
+          <div className="relative w-48 h-48">
+            {/* Background Circle */}
+            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 200 200">
+              {/* Background track */}
+              <circle
+                cx="100"
+                cy="100"
+                r="85"
+                fill="none"
+                stroke="#E5E7EB"
+                strokeWidth="16"
+              />
+              {/* Progress arc */}
+              <circle
+                cx="100"
+                cy="100"
+                r="85"
+                fill="none"
+                stroke={data.score >= 80 ? '#10B981' : data.score >= 60 ? '#60A5FA' : '#EF4444'}
+                strokeWidth="16"
+                strokeLinecap="round"
+                strokeDasharray={`${(data.score / 100) * 534.07} 534.07`}
+                className="transition-all duration-1000 ease-out"
+              />
+            </svg>
+            
+            {/* Center Content */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="text-sm text-gray-500 mb-1">
+                {t('executiveDashboard.securityScore', 'Score de Saúde')}
+              </div>
+              <div className={cn('text-5xl font-light tabular-nums', getScoreColor(data.score))}>
+                {data.score}
+              </div>
+              <div className="text-lg text-gray-400 font-light">/100</div>
             </div>
           </div>
           
-          <div className="mt-3 text-center">
+          {/* Status Badge */}
+          <div className="mt-4">
             <Badge 
               className={cn(
                 'text-xs font-medium px-3 py-1 rounded-full',
