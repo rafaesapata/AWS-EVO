@@ -883,7 +883,7 @@ export default function Auth() {
                     Esqueceu sua senha?
                   </Button>
 
-                  <Button type="submit" className="w-full bg-gradient-primary h-8 text-xs" disabled={isLoading}>
+                  <Button type="submit" className="w-full bg-gradient-primary h-8 text-xs disabled:opacity-50 disabled:cursor-not-allowed" disabled={isLoading}>
                     {isLoading ? "Entrando..." : "Entrar"}
                   </Button>
                 </form>
