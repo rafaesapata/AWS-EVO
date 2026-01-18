@@ -41,15 +41,15 @@ function SectionHeader({
   icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="flex items-start gap-3 mb-4">
+    <div className="flex items-start gap-3 mb-3">
       {Icon && (
-        <div className="p-2.5 bg-[#003C7D]/10 rounded-xl">
-          <Icon className="h-5 w-5 text-[#003C7D]" />
+        <div className="p-2 bg-[#003C7D]/10 rounded-xl">
+          <Icon className="h-4 w-4 text-[#003C7D]" />
         </div>
       )}
       <div>
-        <h2 className="text-2xl font-light text-[#1F2937]">{title}</h2>
-        <p className="text-sm font-light text-gray-500">{description}</p>
+        <h2 className="text-xl font-light text-[#1F2937]">{title}</h2>
+        <p className="text-xs font-light text-gray-500">{description}</p>
       </div>
     </div>
   );
@@ -114,7 +114,7 @@ export default function ExecutiveDashboardV2() {
   const formattedDate = currentDate.charAt(0).toUpperCase() + currentDate.slice(1);
 
   return (
-    <div className="min-h-screen bg-mesh-subtle -m-6 p-6 space-y-8">
+    <div className="min-h-screen bg-[#F1F3F7] -m-6 p-6 space-y-8">
       {/* Greeting Header */}
       <div className="space-y-1">
         <h1 className="text-3xl font-light text-[#1F2937]">
@@ -345,7 +345,7 @@ function QuickActionsSummary({
 // Skeleton Loading - Clean Light Design
 function DashboardSkeleton() {
   return (
-    <div className="min-h-screen bg-mesh-subtle -m-6 p-6 space-y-8">
+    <div className="min-h-screen bg-[#F1F3F7] -m-6 p-6 space-y-8">
       <section className="space-y-4">
         <div className="flex items-start gap-3 mb-4">
           <Skeleton className="h-10 w-10 rounded-xl" />
