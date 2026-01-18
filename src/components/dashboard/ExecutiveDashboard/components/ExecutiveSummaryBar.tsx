@@ -116,13 +116,15 @@ export default function ExecutiveSummaryBar({ data }: Props) {
             {t('executiveDashboard.uptimeSLA', 'Uptime SLA')}
           </p>
           
-          {/* Value - 35px Extra Light */}
-          <p className={cn(
-            'font-extralight tabular-nums mb-1.5',
-            data.uptimeSLA >= 99.9 ? 'text-[#5EB10B]' : 
-            data.uptimeSLA >= 99 ? 'text-[#393939]' : 'text-red-600'
-          )}
-          style={{ fontSize: '35px', lineHeight: '1.2' }}>
+          {/* Value - 35px Extra Light - IMPORTANT: inline style to ensure exact size */}
+          <p 
+            className={cn(
+              'font-extralight tabular-nums mb-1.5',
+              data.uptimeSLA >= 99.9 ? 'text-[#5EB10B]' : 
+              data.uptimeSLA >= 99 ? 'text-[#393939]' : 'text-red-600'
+            )}
+            style={{ fontSize: '35px', lineHeight: '1.2', fontWeight: '200' }}
+          >
             {data.uptimeSLA.toFixed(2)}%
           </p>
           
@@ -146,7 +148,10 @@ export default function ExecutiveSummaryBar({ data }: Props) {
           
           {/* Value with Budget Percentage - 35px Extra Light */}
           <div className="flex items-baseline justify-between mb-1.5">
-            <p className="font-extralight text-[#00B2FF] tabular-nums" style={{ fontSize: '35px', lineHeight: '1.2' }}>
+            <p 
+              className="font-extralight text-[#00B2FF] tabular-nums" 
+              style={{ fontSize: '35px', lineHeight: '1.2', fontWeight: '200' }}
+            >
               ${data.mtdSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </p>
             <span className={cn(
@@ -192,7 +197,10 @@ export default function ExecutiveSummaryBar({ data }: Props) {
           
           {/* Annual Value (highlighted) - 35px Extra Light */}
           <div className="flex items-baseline gap-1 mb-0.5">
-            <p className="font-extralight text-[#5EB10B] tabular-nums" style={{ fontSize: '35px', lineHeight: '1.2' }}>
+            <p 
+              className="font-extralight text-[#5EB10B] tabular-nums" 
+              style={{ fontSize: '35px', lineHeight: '1.2', fontWeight: '200' }}
+            >
               ${(data.potentialSavings * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </p>
             <span className="text-xl font-extralight text-[#5EB10B]">/ano</span>

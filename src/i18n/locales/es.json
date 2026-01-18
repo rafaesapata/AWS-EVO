@@ -165,12 +165,12 @@
     "optimizeHealth": "Optimizar salud →",
     "increaseEconomy": "Aumentar ahorro →",
     "viewAlerts": "Ver alertas →",
-    "healthScoreTooltip": "Score general de salud basado en seguridad, compliance y métricas operacionales",
+    "healthScoreTooltip": "Score de 0-100 que evalúa la salud general de su infraestructura AWS. Considera seguridad (findings críticos), compliance (frameworks CIS, LGPD, PCI-DSS), rendimiento (uptime, latencia) y costos (optimización, desperdicio). Actualizado en tiempo real.",
     "healthScoreDescription": "Análisis completo de seguridad y conformidad",
-    "uptimeSLATooltip": "Porcentaje de uptime del Service Level Agreement",
-    "mtdSpendTooltip": "Gastos del mes hasta la fecha y utilización del presupuesto",
-    "savingsPotentialTooltip": "Oportunidades estimadas de ahorro mensual y anual",
-    "activeAlertsTooltip": "Alertas críticas y de alta prioridad que requieren atención"
+    "uptimeSLATooltip": "Porcentaje de disponibilidad de sus endpoints monitoreados en los últimos 30 días. Meta recomendada: 99.9% (menos de 43 minutos de downtime por mes). Incluye APIs, sitios web y servicios críticos.",
+    "mtdSpendTooltip": "Gastos acumulados del mes actual (Month-to-Date) comparados con el presupuesto planificado. Incluye todos los servicios AWS: EC2, RDS, S3, Lambda, CloudFront, etc. Actualizado diariamente vía Cost Explorer.",
+    "savingsPotentialTooltip": "Ahorro estimado identificado por análisis de RI/SP, recursos ociosos, instancias oversized, snapshots antiguos, IPs elásticas no utilizadas y otras oportunidades. Basado en datos reales de los últimos 30 días.",
+    "activeAlertsTooltip": "Alertas activas que requieren atención inmediata. CRÍTICO: problemas que afectan producción (endpoints offline, findings de seguridad críticos). ALTO: riesgos significativos que deben resolverse en 24h. MEDIO: mejoras recomendadas para optimización."
   },
   "aiInsights": {
     "title": "Insights de IA",

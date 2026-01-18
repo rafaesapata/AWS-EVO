@@ -298,12 +298,12 @@
     "optimizeHealth": "Optimize health →",
     "increaseEconomy": "Increase savings →",
     "viewAlerts": "View alerts →",
-    "healthScoreTooltip": "Overall health score based on security, compliance, and operational metrics",
+    "healthScoreTooltip": "Score from 0-100 that evaluates your AWS infrastructure's overall health. Considers security (critical findings), compliance (CIS, LGPD, PCI-DSS frameworks), performance (uptime, latency), and costs (optimization, waste). Updated in real-time.",
     "healthScoreDescription": "Complete security and compliance analysis",
-    "uptimeSLATooltip": "Service Level Agreement uptime percentage",
-    "mtdSpendTooltip": "Month-to-date spending and budget utilization",
-    "savingsPotentialTooltip": "Estimated monthly and annual savings opportunities",
-    "activeAlertsTooltip": "Critical and high priority alerts requiring attention"
+    "uptimeSLATooltip": "Availability percentage of your monitored endpoints over the last 30 days. Recommended target: 99.9% (less than 43 minutes of downtime per month). Includes APIs, websites, and critical services.",
+    "mtdSpendTooltip": "Month-to-Date accumulated spending compared to planned budget. Includes all AWS services: EC2, RDS, S3, Lambda, CloudFront, etc. Updated daily via Cost Explorer.",
+    "savingsPotentialTooltip": "Estimated savings identified by RI/SP analysis, idle resources, oversized instances, old snapshots, unused elastic IPs, and other opportunities. Based on real data from the last 30 days.",
+    "activeAlertsTooltip": "Active alerts requiring immediate attention. CRITICAL: issues affecting production (offline endpoints, critical security findings). HIGH: significant risks that should be resolved within 24h. MEDIUM: recommended improvements for optimization."
   },
   "aiInsights": {
     "title": "AI Insights",
