@@ -13,7 +13,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, TrendingDown, Shield, Zap, Search, Calendar, BarChart3 } from 'lucide-react';
+import { RefreshCw, TrendingDown, Shield, Zap, Search, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
@@ -123,7 +123,7 @@ export default function ExecutiveDashboardV2() {
         <p className="text-sm text-gray-500">{formattedDate}</p>
       </div>
 
-      {/* Header with Search and Date */}
+      {/* Header with Search and Refresh */}
       {!isTVMode && (
         <div className="flex items-center justify-between">
           {/* Search Bar */}
@@ -136,21 +136,15 @@ export default function ExecutiveDashboardV2() {
             />
           </div>
           
-          {/* Date and Refresh */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Calendar className="h-4 w-4" />
-              <span>{currentDate}</span>
-            </div>
-            <Button 
-              onClick={refresh}
-              disabled={isFetching}
-              className="rounded-xl font-medium shadow-sm"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
-              {isFetching ? t('executiveDashboard.updating', 'Updating...') : t('executiveDashboard.refresh', 'Refresh')}
-            </Button>
-          </div>
+          {/* Refresh Button */}
+          <Button 
+            onClick={refresh}
+            disabled={isFetching}
+            className="rounded-xl font-medium shadow-sm"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+            {isFetching ? t('executiveDashboard.updating', 'Updating...') : t('executiveDashboard.refresh', 'Refresh')}
+          </Button>
         </div>
       )}
 
