@@ -161,7 +161,16 @@
     "highPriorityIssues": "Issues Alta Prioridad",
     "priorityAction": "Acción prioritaria",
     "totalPending": "Total Pendiente",
-    "awaitingAnalysis": "Esperando análisis"
+    "awaitingAnalysis": "Esperando análisis",
+    "optimizeHealth": "Optimizar salud →",
+    "increaseEconomy": "Aumentar ahorro →",
+    "viewAlerts": "Ver alertas →",
+    "healthScoreTooltip": "Score general de salud basado en seguridad, compliance y métricas operacionales",
+    "healthScoreDescription": "Análisis completo de seguridad y conformidad",
+    "uptimeSLATooltip": "Porcentaje de uptime del Service Level Agreement",
+    "mtdSpendTooltip": "Gastos del mes hasta la fecha y utilización del presupuesto",
+    "savingsPotentialTooltip": "Oportunidades estimadas de ahorro mensual y anual",
+    "activeAlertsTooltip": "Alertas críticas y de alta prioridad que requieren atención"
   },
   "aiInsights": {
     "title": "Insights de IA",

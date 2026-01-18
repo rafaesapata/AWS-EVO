@@ -294,7 +294,16 @@
     "periodActivity": "Period Activity",
     "avgUtilization": "avg utilization",
     "issuesResolved": "issues resolved",
-    "noChange": "No change"
+    "noChange": "No change",
+    "optimizeHealth": "Optimize health →",
+    "increaseEconomy": "Increase savings →",
+    "viewAlerts": "View alerts →",
+    "healthScoreTooltip": "Overall health score based on security, compliance, and operational metrics",
+    "healthScoreDescription": "Complete security and compliance analysis",
+    "uptimeSLATooltip": "Service Level Agreement uptime percentage",
+    "mtdSpendTooltip": "Month-to-date spending and budget utilization",
+    "savingsPotentialTooltip": "Estimated monthly and annual savings opportunities",
+    "activeAlertsTooltip": "Critical and high priority alerts requiring attention"
   },
   "aiInsights": {
     "title": "AI Insights",

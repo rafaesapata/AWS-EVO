@@ -443,7 +443,16 @@
     "periodActivity": "Atividade do Período",
     "avgUtilization": "utilização média",
     "issuesResolved": "issues resolvidos",
-    "noChange": "Sem alteração"
+    "noChange": "Sem alteração",
+    "optimizeHealth": "Otimizar saúde →",
+    "increaseEconomy": "Aumentar economia →",
+    "viewAlerts": "Ver alertas →",
+    "healthScoreTooltip": "Score geral de saúde baseado em segurança, compliance e métricas operacionais",
+    "healthScoreDescription": "Análise completa de segurança e conformidade",
+    "uptimeSLATooltip": "Porcentagem de uptime do Service Level Agreement",
+    "mtdSpendTooltip": "Gastos do mês até a data e utilização do orçamento",
+    "savingsPotentialTooltip": "Oportunidades estimadas de economia mensal e anual",
+    "activeAlertsTooltip": "Alertas críticos e de alta prioridade que requerem atenção"
   },
   "aiInsights": {
     "title": "Insights de IA",
