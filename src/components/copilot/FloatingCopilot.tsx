@@ -60,7 +60,8 @@ export function FloatingCopilot() {
           message,
           history: recentMessages,
           accountId: selectedAccountId,
-          organizationId
+          organizationId,
+          language: i18n.language || 'pt' // Pass current language
         }
       });
 

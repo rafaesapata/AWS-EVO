@@ -103,7 +103,8 @@ export default function CopilotAI() {
  message,
  context: contextData,
  accountId: selectedAccountId,
- organizationId
+ organizationId,
+ language: i18n.language || 'pt' // Pass current language
  }
  });
 

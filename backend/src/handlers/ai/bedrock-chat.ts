@@ -17,6 +17,7 @@ interface RequestBody {
   context?: any;
   accountId?: string;
   organizationId?: string;
+  language?: string; // 'pt' or 'en'
 }
 
 interface PlatformContext {
@@ -79,7 +80,7 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const body: RequestBody = event.body ? JSON.parse(event.body) : {};
-    const { message, history, accountId } = body;
+    const { message, history, accountId, language = 'pt' } = body;
     
     if (!message) {
       return badRequest('Message is required');
@@ -93,11 +94,12 @@ export async function handler(
     logger.info('📊 Platform context fetched', { 
       organizationId,
       costs: platformContext.costs.total7Days,
-      findings: platformContext.security.totalFindings
+      findings: platformContext.security.totalFindings,
+      language
     });
 
-    // Construir prompt compacto COM histórico
-    const compactPrompt = buildCompactPrompt(platformContext, user, message, history);
+    // Construir prompt compacto COM histórico e idioma
+    const compactPrompt = buildCompactPrompt(platformContext, user, message, history, language);
 
     // Call Bedrock with Claude 3.5 Sonnet v1 (on-demand compatible)
     const bedrockResponse = await bedrockClient.send(new InvokeModelCommand({
@@ -119,11 +121,22 @@ export async function handler(
     }));
 
     const responseBody = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
-    let aiResponse = responseBody.content?.[0]?.text || 'Desculpe, não consegui processar sua solicitação.';
+    let aiResponse = responseBody.content?.[0]?.text || (language === 'en' 
+      ? 'Sorry, I could not process your request.' 
+      : 'Desculpe, não consegui processar sua solicitação.');
     
     // Limpeza agressiva: cortar qualquer conversa inventada
     // Corta no primeiro sinal de pergunta/resposta inventada
-    const cutPatterns = [
+    const cutPatterns = language === 'en' ? [
+      /\n\s*Question[:\s]/i,
+      /\n\s*Answer[:\s]/i,
+      /\n\s*User[:\s]/i,
+      /\n\s*Human[:\s]/i,
+      /\n\s*Assistant[:\s]/i,
+      /\n\s*How can I/i,
+      /\n\s*What would you/i,
+      /\n\s*Can you tell me/i
+    ] : [
       /\n\s*Pergunta[:\s]/i,
       /\n\s*Resposta[:\s]/i,
       /\n\s*User[:\s]/i,
@@ -145,7 +158,7 @@ export async function handler(
     aiResponse = aiResponse.trim();
 
     // Generate contextual suggestions
-    const suggestions = generateContextualSuggestions(message, platformContext);
+    const suggestions = generateContextualSuggestions(message, platformContext, language);
 
     // Log conversation for audit (async, don't wait)
     prisma.auditLog.create({
@@ -516,13 +529,28 @@ async function fetchPlatformContextFast(
 /**
  * Constrói prompt COMPACTO mas INTELIGENTE com histórico de conversa
  */
-function buildCompactPrompt(ctx: PlatformContext, user: any, message: string, history?: Array<{ role: string; content: string }>): string {
+function buildCompactPrompt(ctx: PlatformContext, user: any, message: string, history?: Array<{ role: string; content: string }>, language: string = 'pt'): string {
   // Construir histórico de conversa se existir
   let conversationHistory = '';
   if (history && history.length > 0) {
-    conversationHistory = '\nHistórico da conversa:\n' + 
-      history.slice(-4).map(h => `${h.role === 'user' ? 'Usuário' : 'Assistente'}: ${h.content.substring(0, 150)}`).join('\n') +
+    const userLabel = language === 'en' ? 'User' : 'Usuário';
+    const assistantLabel = language === 'en' ? 'Assistant' : 'Assistente';
+    conversationHistory = (language === 'en' ? '\nConversation history:\n' : '\nHistórico da conversa:\n') + 
+      history.slice(-4).map(h => `${h.role === 'user' ? userLabel : assistantLabel}: ${h.content.substring(0, 150)}`).join('\n') +
       '\n';
+  }
+
+  if (language === 'en') {
+    return `User's AWS context:
+Costs 7d: ${ctx.costs.total7Days.toFixed(2)} | Avg/day: ${ctx.costs.dailyAverage.toFixed(2)}
+Security: ${ctx.security.criticalFindings} critical, ${ctx.security.highFindings} high (${ctx.security.totalFindings} total) | Score: ${ctx.security.securityScore}/100
+Potential savings: ${ctx.resources.estimatedSavings.toFixed(2)} | Accounts: ${ctx.accounts.total}
+${conversationHistory}
+Task: Answer ONLY the question below in English. Use the history to understand context. DO NOT invent questions. Give ONE direct and useful answer based on real data.
+
+Current question: ${message}
+
+Answer:`;
   }
 
   return `Contexto AWS do usuário:
@@ -609,12 +637,13 @@ ${ctx.recentActivity.lastScan ? `- Último Scan: ${new Date(ctx.recentActivity.l
 /**
  * Gera sugestões contextuais baseadas na mensagem e contexto
  */
-function generateContextualSuggestions(message: string, ctx: PlatformContext): string[] {
+function generateContextualSuggestions(message: string, ctx: PlatformContext, language: string = 'pt'): string[] {
   const lowerMessage = message.toLowerCase();
   const suggestions: string[] = [];
   
   // Sugestões baseadas em custos
-  if (lowerMessage.includes('custo') || lowerMessage.includes('gasto') || lowerMessage.includes('economia')) {
+  if (lowerMessage.includes('custo') || lowerMessage.includes('gasto') || lowerMessage.includes('economia') || 
+      lowerMessage.includes('cost') || lowerMessage.includes('spend') || lowerMessage.includes('saving')) {
     if (ctx.costs.trend === 'increasing') {
       suggestions.push('Por que meus custos estão aumentando?');
     }

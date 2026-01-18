@@ -297,6 +297,7 @@
     "nameRequired": "Nome é obrigatório"
   },
   "executiveDashboard": {
+    "greeting": "Olá, confira a visão geral da sua infraestrutura",
     "title": "Dashboard Executivo",
     "description": "Visão unificada de custos, segurança e operações",
     "sections": {

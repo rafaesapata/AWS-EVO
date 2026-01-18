@@ -110,8 +110,19 @@ export default function ExecutiveDashboardV2() {
     day: 'numeric' 
   });
 
+  // Capitalize first letter
+  const formattedDate = currentDate.charAt(0).toUpperCase() + currentDate.slice(1);
+
   return (
     <div className="min-h-screen bg-mesh-subtle -m-6 p-6 space-y-8">
+      {/* Greeting Header */}
+      <div className="space-y-1">
+        <h1 className="text-3xl font-light text-[#1F2937]">
+          {t('executiveDashboard.greeting', 'Olá, confira a visão geral da sua infraestrutura')}
+        </h1>
+        <p className="text-sm text-gray-500">{formattedDate}</p>
+      </div>
+
       {/* Header with Search and Date */}
       {!isTVMode && (
         <div className="flex items-center justify-between">

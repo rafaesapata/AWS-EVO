@@ -148,6 +148,7 @@
     "nameRequired": "Name is required"
   },
   "executiveDashboard": {
+    "greeting": "Hello, check your infrastructure overview",
     "title": "Executive Dashboard",
     "description": "Unified view of costs, security, and operations",
     "sections": {
