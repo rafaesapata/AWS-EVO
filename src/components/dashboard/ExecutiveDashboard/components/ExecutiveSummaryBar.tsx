@@ -225,66 +225,65 @@ export default function ExecutiveSummaryBar({ data }: Props) {
       {/* Active Alerts Banner - Only shown when there are alerts */}
       {totalAlerts > 0 && (
         <div className={cn(
-          'relative rounded-2xl border p-4 transition-all shadow-sm',
+          'relative rounded-2xl border p-3 transition-all shadow-sm',
           data.activeAlerts.critical > 0 
             ? 'bg-white border-red-100' 
             : 'bg-white border-amber-100'
         )}>
           {/* Info Icon */}
-          <div className="absolute top-4 right-4">
+          <div className="absolute top-3 right-3">
             <InfoIcon tooltip={t('executiveDashboard.activeAlertsTooltip', 'Critical and high priority alerts requiring attention')} />
           </div>
           
-          <div className="flex items-center justify-between">
-            {/* Title - 16px Light, centered */}
-            <div className="flex-1 text-center">
-              <p className="text-base font-light text-[#393939]">
-                {t('executiveDashboard.activeAlerts', 'Alertas Ativos')}
-              </p>
+          {/* Title and Alert Counts in single row */}
+          <div className="flex items-center justify-between gap-6">
+            {/* Title - 16px Light */}
+            <p className="text-base font-light text-[#393939]">
+              {t('executiveDashboard.activeAlerts', 'Alertas Ativos')}
+            </p>
+            
+            {/* Alert Counts - Horizontal, compact */}
+            <div className="flex items-center gap-8">
+              {data.activeAlerts.medium > 0 && (
+                <div className="text-center">
+                  <p className="font-extralight text-gray-600 tabular-nums" style={{ fontSize: '20px', lineHeight: '1.2' }}>
+                    {data.activeAlerts.medium}
+                  </p>
+                  <span className="font-light text-gray-600 uppercase tracking-wide" style={{ fontSize: '10px' }}>
+                    {t('executiveDashboard.alertMedium', 'MÉDIO')}
+                  </span>
+                </div>
+              )}
+              {data.activeAlerts.high > 0 && (
+                <div className="text-center">
+                  <p className="font-extralight text-amber-600 tabular-nums" style={{ fontSize: '20px', lineHeight: '1.2' }}>
+                    {data.activeAlerts.high}
+                  </p>
+                  <span className="font-light text-amber-600 uppercase tracking-wide" style={{ fontSize: '10px' }}>
+                    {t('executiveDashboard.alertHigh', 'ALTO')}
+                  </span>
+                </div>
+              )}
+              {data.activeAlerts.critical > 0 && (
+                <div className="text-center">
+                  <p className="font-extralight text-red-600 tabular-nums" style={{ fontSize: '20px', lineHeight: '1.2' }}>
+                    {data.activeAlerts.critical}
+                  </p>
+                  <span className="font-light text-red-600 uppercase tracking-wide" style={{ fontSize: '10px' }}>
+                    {t('executiveDashboard.alertCritical', 'CRÍTICO')}
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-          
-          {/* Alert Counts - Horizontal Grid, centered */}
-          <div className="flex items-center justify-center gap-12 mt-3 mb-2">
-            {data.activeAlerts.medium > 0 && (
-              <div className="text-center">
-                <p className="font-extralight text-gray-600 tabular-nums mb-0.5" style={{ fontSize: '25px', lineHeight: '1.2' }}>
-                  {data.activeAlerts.medium}
-                </p>
-                <span className="font-light text-gray-600 uppercase tracking-wide" style={{ fontSize: '11px' }}>
-                  {t('executiveDashboard.alertMedium', 'MÉDIO')}
-                </span>
-              </div>
-            )}
-            {data.activeAlerts.high > 0 && (
-              <div className="text-center">
-                <p className="font-extralight text-amber-600 tabular-nums mb-0.5" style={{ fontSize: '25px', lineHeight: '1.2' }}>
-                  {data.activeAlerts.high}
-                </p>
-                <span className="font-light text-amber-600 uppercase tracking-wide" style={{ fontSize: '11px' }}>
-                  {t('executiveDashboard.alertHigh', 'ALTO')}
-                </span>
-              </div>
-            )}
-            {data.activeAlerts.critical > 0 && (
-              <div className="text-center">
-                <p className="font-extralight text-red-600 tabular-nums mb-0.5" style={{ fontSize: '25px', lineHeight: '1.2' }}>
-                  {data.activeAlerts.critical}
-                </p>
-                <span className="font-light text-red-600 uppercase tracking-wide" style={{ fontSize: '11px' }}>
-                  {t('executiveDashboard.alertCritical', 'CRÍTICO')}
-                </span>
-              </div>
-            )}
-          </div>
-          
-          {/* CTA - 12px Light, right aligned */}
-          <div className="text-right">
-            <CardCTA 
-              text={t('executiveDashboard.viewAlerts', 'Ver alertas →')}
-              href="/intelligent-alerts"
-              align="right"
-            />
+            
+            {/* CTA - 12px Light */}
+            <div>
+              <CardCTA 
+                text={t('executiveDashboard.viewAlerts', 'Ver alertas →')}
+                href="/intelligent-alerts"
+                align="right"
+              />
+            </div>
           </div>
         </div>
       )}
