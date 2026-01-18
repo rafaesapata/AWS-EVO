@@ -426,8 +426,8 @@ const WellArchitected = () => {
 
  return (
  <Layout
- title="Well-Architected Framework"
- description="Análise dos 6 pilares da arquitetura AWS"
+ title={t('sidebar.wellArchitected', 'Well-Architected Framework')}
+ description={t('wellArchitected.description', 'Análise dos 6 pilares da arquitetura AWS')}
  icon={<FileCheck className="h-6 w-6" />}
  userRole={userRole}
  >

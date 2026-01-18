@@ -319,8 +319,8 @@ export default function IntelligentAlerts() {
 
   return (
     <Layout 
-      title="Alertas Inteligentes" 
-      description="Sistema avançado de alertas baseado em ML e thresholds personalizados"
+      title={t('sidebar.intelligentAlerts', 'Alertas Inteligentes')} 
+      description={t('intelligentAlerts.description', 'Sistema avançado de alertas baseado em ML e thresholds personalizados')}
       icon={<Bell className="h-4 w-4" />}
     >
       <div className="space-y-6">

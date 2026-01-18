@@ -24,16 +24,21 @@ interface AlertConfig {
   blockDurationHours: number;
 }
 
-export function WafAlertConfig() {
+interface WafAlertConfigProps {
+  accountId?: string;
+}
+
+export function WafAlertConfig({ accountId }: WafAlertConfigProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: configData, isLoading } = useQuery({
-    queryKey: ['waf-alert-config'],
+    queryKey: ['waf-alert-config', accountId],
+    enabled: !!accountId,
     queryFn: async () => {
       const response = await apiClient.invoke<{ config: AlertConfig }>('waf-dashboard-api', {
-        body: { action: 'config' }
+        body: { action: 'config', accountId }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data.config;
@@ -54,7 +59,7 @@ export function WafAlertConfig() {
   const updateConfigMutation = useMutation({
     mutationFn: async (newConfig: AlertConfig) => {
       const response = await apiClient.invoke('waf-dashboard-api', {
-        body: { action: 'update-config', ...newConfig }
+        body: { action: 'update-config', accountId, ...newConfig }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
@@ -64,7 +69,7 @@ export function WafAlertConfig() {
         title: t('common.success'), 
         description: t('waf.configUpdated', 'Configuração atualizada com sucesso') 
       });
-      queryClient.invalidateQueries({ queryKey: ['waf-alert-config'] });
+      queryClient.invalidateQueries({ queryKey: ['waf-alert-config', accountId] });
     },
     onError: (error) => {
       toast({ 

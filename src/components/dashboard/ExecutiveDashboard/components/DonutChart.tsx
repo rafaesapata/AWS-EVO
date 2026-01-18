@@ -2,9 +2,9 @@
  * Donut Chart Component
  * Circular progress indicator for Health Score
  * Based on Figma design specifications
- * - Size: 110px diameter
- * - Stroke: 6px
- * - Center value: 35px Extra Light
+ * - Size: 160px diameter (configurable)
+ * - Stroke: 8px
+ * - Center value: Large font with /100
  */
 
 interface DonutChartProps {
@@ -18,14 +18,18 @@ interface DonutChartProps {
 export default function DonutChart({
   value,
   max = 100,
-  size = 110,
-  strokeWidth = 6,
+  size = 160,
+  strokeWidth = 8,
   color = '#00B2FF'
 }: DonutChartProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const percentage = (value / max) * 100;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+  // Calculate font size based on donut size
+  const valueFontSize = Math.round(size * 0.28); // ~45px for 160px donut
+  const maxFontSize = Math.round(size * 0.15); // ~24px for 160px donut
 
   return (
     <div className="relative inline-flex items-center justify-center">
@@ -34,13 +38,13 @@ export default function DonutChart({
         height={size}
         className="transform -rotate-90"
       >
-        {/* Background circle */}
+        {/* Background circle - light gray */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={`${color}1A`} // 10% opacity
+          stroke="#E5E5E5"
           strokeWidth={strokeWidth}
         />
         
@@ -59,18 +63,18 @@ export default function DonutChart({
         />
       </svg>
       
-      {/* Center value - 35px Extra Light */}
+      {/* Center value */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className="flex items-baseline gap-0.5">
+        <div className="flex items-baseline">
           <span 
-            className="font-extralight tabular-nums" 
-            style={{ fontSize: '35px', lineHeight: '1', color }}
+            className="tabular-nums text-[#393939]" 
+            style={{ fontSize: `${valueFontSize}px`, lineHeight: '1', fontWeight: '300' }}
           >
             {value}
           </span>
           <span 
-            className="font-normal text-gray-400"
-            style={{ fontSize: '35px', lineHeight: '1' }}
+            className="text-[#9CA3AF]"
+            style={{ fontSize: `${maxFontSize}px`, lineHeight: '1', fontWeight: '300' }}
           >
             /{max}
           </span>

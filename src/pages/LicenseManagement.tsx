@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { RefreshCw, CheckCircle2, XCircle, AlertTriangle, Key, Calendar, Users, Shield, CreditCard } from "lucide-react";
 import { SeatManagement } from "@/components/license/SeatManagement";
-import { PageLayout } from "@/components/layout/PageLayout";
+import { Layout } from "@/components/Layout";
 
 interface License {
  license_key: string;
@@ -46,6 +47,7 @@ interface LicenseValidationResponse {
 export default function LicenseManagement() {
  const navigate = useNavigate();
  const { toast } = useToast();
+ const { t } = useTranslation();
  const [customerId, setCustomerId] = useState("");
 
  // Get organization data
@@ -281,28 +283,24 @@ export default function LicenseManagement() {
 
  if (orgLoading) {
  return (
- <PageLayout
- activeTab="license"
- title="Gerenciamento de Licença"
- subtitle="Visualize e gerencie sua licença da plataforma EVO"
- icon={CreditCard}
- showCloudAccountSelector={false}
+ <Layout
+ title={t('sidebar.licenseManagement', 'License Management')}
+ description={t('licenseManagement.description', 'View and manage your EVO platform license')}
+ icon={<CreditCard className="h-4 w-4 text-white" />}
  >
  <div className="max-w-4xl mx-auto space-y-6">
  <Skeleton className="h-12 w-64" />
  <Skeleton className="h-96 w-full" />
  </div>
- </PageLayout>
+ </Layout>
  );
  }
 
  return (
- <PageLayout
- activeTab="license"
- title="Gerenciamento de Licença"
- subtitle="Visualize e gerencie sua licença da plataforma EVO"
- icon={CreditCard}
- showCloudAccountSelector={false}
+ <Layout
+ title={t('sidebar.licenseManagement', 'License Management')}
+ description={t('licenseManagement.description', 'View and manage your EVO platform license')}
+ icon={<CreditCard className="h-4 w-4 text-white" />}
  >
  <div className="max-w-4xl mx-auto space-y-6">
 
@@ -523,6 +521,6 @@ export default function LicenseManagement() {
  </div>
  ) : null}
  </div>
- </PageLayout>
+ </Layout>
  );
 }

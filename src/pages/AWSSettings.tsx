@@ -59,8 +59,8 @@ export default function AWSSettings() {
  if (isLoading) {
  return (
  <Layout 
- title="Configurações AWS" 
- description="Configure e gerencie suas integrações AWS com ferramentas nativas"
+ title={t('sidebar.awsSettings', 'Configurações AWS')} 
+ description={t('awsSettings.description', 'Configure e gerencie suas integrações AWS com ferramentas nativas')}
  icon={<Cloud className="h-7 w-7" />}
  >
  <div className="flex items-center justify-center h-64">
@@ -74,8 +74,8 @@ export default function AWSSettings() {
  if (hasError || accountsError) {
  return (
  <Layout 
- title="Configurações AWS" 
- description="Configure e gerencie suas integrações AWS com ferramentas nativas"
+ title={t('sidebar.awsSettings', 'Configurações AWS')} 
+ description={t('awsSettings.description', 'Configure e gerencie suas integrações AWS com ferramentas nativas')}
  icon={<Cloud className="h-7 w-7" />}
  >
  <div className="text-center py-12">
@@ -94,8 +94,8 @@ export default function AWSSettings() {
 
  return (
  <Layout 
- title="Configurações AWS" 
- description="Configure e gerencie suas integrações AWS com ferramentas nativas"
+ title={t('sidebar.awsSettings', 'Configurações AWS')} 
+ description={t('awsSettings.description', 'Configure e gerencie suas integrações AWS com ferramentas nativas')}
  icon={<Cloud className="h-7 w-7" />}
  >
  <div className="space-y-6">

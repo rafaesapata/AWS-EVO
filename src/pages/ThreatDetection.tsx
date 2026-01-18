@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -169,10 +170,12 @@ export default function ThreatDetection() {
  const highRiskUsers = iamBehavior?.filter(u => u.risk_score >= 70).length || 0;
  const activeLateralMovements = lateralMovement?.length || 0;
 
+ const { t } = useTranslation();
+
  return (
  <Layout 
- title="Detecção de Ameaças" 
- description="Detecção avançada de ameaças de segurança com IA"
+ title={t('sidebar.threatDetection', 'Detecção de Ameaças')} 
+ description={t('threatDetection.description', 'Detecção avançada de ameaças de segurança com IA')}
  icon={<Shield className="h-7 w-7" />}
  >
  <div className="space-y-6">

@@ -692,8 +692,8 @@ export default function SecurityScans() {
 
  return (
  <Layout 
- title="Security Scan" 
- description="Análise completa de segurança AWS com 23 scanners de serviços, 170+ verificações e suporte a 6 frameworks de compliance"
+ title={t('sidebar.securityScan', 'Security Scan')} 
+ description={t('securityScan.fullDescription', 'Análise completa de segurança AWS com 23 scanners de serviços, 170+ verificações e suporte a 6 frameworks de compliance')}
  icon={<Shield className="h-4 w-4" />}
  >
  <div className="space-y-6">

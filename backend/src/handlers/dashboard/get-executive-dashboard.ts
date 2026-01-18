@@ -213,10 +213,10 @@ export async function handler(
       trendsData
     ] = await Promise.all([
       getFinancialData(prisma, organizationId, params.accountId || undefined, startOfMonth, startOfYear),
-      getSecurityData(prisma, organizationId),
+      getSecurityData(prisma, organizationId, params.accountId || undefined),
       getOperationsData(prisma, organizationId),
-      params.includeInsights ? getInsightsData(prisma, organizationId) : Promise.resolve([]),
-      params.includeTrends ? getTrendsData(prisma, organizationId, params.trendPeriod) : Promise.resolve(null)
+      params.includeInsights ? getInsightsData(prisma, organizationId, params.accountId || undefined) : Promise.resolve([]),
+      params.includeTrends ? getTrendsData(prisma, organizationId, params.trendPeriod, params.accountId || undefined) : Promise.resolve(null)
     ]);
 
     // 4. Calculate aggregated scores
@@ -280,13 +280,18 @@ export async function handler(
 async function getFinancialData(
   prisma: any,
   organizationId: string,
-  _accountId: string | undefined, // Not used - daily_costs doesn't filter by account
+  accountId: string | undefined,
   startOfMonth: Date,
   startOfYear: Date
 ): Promise<FinancialHealth> {
   
-  // Base filter - only by organization_id (account_id filter not supported in daily_costs)
+  // Base filter - by organization_id and optionally by aws_account_id
   const baseFilter: any = { organization_id: organizationId };
+  
+  // Filter by specific account if provided
+  if (accountId) {
+    baseFilter.aws_account_id = accountId;
+  }
 
   // Get the most recent cost date first
   const latestCost = await prisma.dailyCost.findFirst({
@@ -336,33 +341,49 @@ async function getFinancialData(
   });
 
   // Cost optimizations from cost_optimizations table
-  let costOptimizations = { _sum: { potential_savings: 0 }, _count: 0 };
+  let costOptimizationsSum = 0;
+  let costOptimizationsCount = 0;
   try {
-    costOptimizations = await prisma.costOptimization.aggregate({
+    const costOptResult = await prisma.costOptimization.aggregate({
       where: { 
-        organization_id: organizationId,
+        ...baseFilter,
         status: { in: ['pending', 'active'] }
       },
       _sum: { potential_savings: true },
-      _count: true
+      _count: { _all: true }
     });
-  } catch {
-    // Table might not exist
+    costOptimizationsSum = Number(costOptResult._sum?.potential_savings || 0);
+    costOptimizationsCount = costOptResult._count?._all || 0;
+    logger.info('Cost optimizations aggregated', { 
+      sum: costOptimizationsSum, 
+      count: costOptimizationsCount,
+      accountId: accountId || 'all'
+    });
+  } catch (err) {
+    logger.warn('Could not aggregate cost_optimizations', { error: (err as Error).message });
   }
 
   // RI/SP recommendations from ri_sp_recommendations table
-  let riSpRecommendations = { _sum: { estimated_monthly_savings: 0 }, _count: 0 };
+  let riSpRecommendationsSum = 0;
+  let riSpRecommendationsCount = 0;
   try {
-    riSpRecommendations = await prisma.riSpRecommendation.aggregate({
+    const riSpResult = await prisma.riSpRecommendation.aggregate({
       where: { 
-        organization_id: organizationId,
+        ...baseFilter,
         status: { in: ['active', 'pending'] }
       },
       _sum: { estimated_monthly_savings: true },
-      _count: true
+      _count: { _all: true }
     });
-  } catch {
-    // Table might not exist
+    riSpRecommendationsSum = Number(riSpResult._sum?.estimated_monthly_savings || 0);
+    riSpRecommendationsCount = riSpResult._count?._all || 0;
+    logger.info('RI/SP recommendations aggregated', { 
+      sum: riSpRecommendationsSum, 
+      count: riSpRecommendationsCount,
+      accountId: accountId || 'all'
+    });
+  } catch (err) {
+    logger.warn('Could not aggregate ri_sp_recommendations', { error: (err as Error).message });
   }
 
   const mtdTotal = Number(mtdCosts._sum.cost || 0);
@@ -387,11 +408,10 @@ async function getFinancialData(
     budgetUtilization: budgetAmount > 0 ? (mtdTotal / budgetAmount) * 100 : 0,
     topServices: sortedServices,
     savings: {
-      potential: Number(costOptimizations._sum?.potential_savings || 0) +
-                 Number(riSpRecommendations._sum?.estimated_monthly_savings || 0),
-      costRecommendations: Number(costOptimizations._sum?.potential_savings || 0),
-      riSpRecommendations: Number(riSpRecommendations._sum?.estimated_monthly_savings || 0),
-      recommendationsCount: (costOptimizations._count || 0) + (riSpRecommendations._count || 0)
+      potential: costOptimizationsSum + riSpRecommendationsSum,
+      costRecommendations: costOptimizationsSum,
+      riSpRecommendations: riSpRecommendationsSum,
+      recommendationsCount: costOptimizationsCount + riSpRecommendationsCount
     },
     lastCostUpdate: lastCostDate ? lastCostDate.toISOString() : null
   };
@@ -399,12 +419,19 @@ async function getFinancialData(
 
 async function getSecurityData(
   prisma: any,
-  organizationId: string
+  organizationId: string,
+  accountId?: string
 ): Promise<SecurityPosture> {
+  
+  // Base filter - by organization and optionally by account
+  const baseFilter: any = { organization_id: organizationId };
+  if (accountId) {
+    baseFilter.aws_account_id = accountId;
+  }
   
   // Check if any security scans have been performed
   const lastScan = await prisma.securityScan.findFirst({
-    where: { organization_id: organizationId },
+    where: baseFilter,
     orderBy: { started_at: 'desc' },
     select: { completed_at: true }
   });
@@ -440,7 +467,7 @@ async function getSecurityData(
   const findingsBySeverity = await prisma.finding.groupBy({
     by: ['severity'],
     where: {
-      organization_id: organizationId,
+      ...baseFilter,
       status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
     },
     _count: true
@@ -479,13 +506,13 @@ async function getSecurityData(
   const [newFindings, resolvedFindings] = await Promise.all([
     prisma.finding.count({
       where: {
-        organization_id: organizationId,
+        ...baseFilter,
         created_at: { gte: sevenDaysAgo }
       }
     }),
     prisma.finding.count({
       where: {
-        organization_id: organizationId,
+        ...baseFilter,
         status: { in: ['resolved', 'RESOLVED'] },
         updated_at: { gte: sevenDaysAgo }
       }
@@ -652,16 +679,23 @@ async function getOperationsData(
 
 async function getInsightsData(
   prisma: any,
-  organizationId: string
+  organizationId: string,
+  accountId?: string
 ): Promise<AIInsight[]> {
   const insights: AIInsight[] = [];
   const now = new Date();
+  
+  // Base filter - by organization and optionally by account
+  const baseFilter: any = { organization_id: organizationId };
+  if (accountId) {
+    baseFilter.aws_account_id = accountId;
+  }
 
   try {
     // 1. Check for critical security findings
     const criticalFindings = await prisma.finding.count({
       where: {
-        organization_id: organizationId,
+        ...baseFilter,
         severity: { in: ['critical', 'CRITICAL'] },
         status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
       }
@@ -683,7 +717,7 @@ async function getInsightsData(
     // 2. Check for high findings
     const highFindings = await prisma.finding.count({
       where: {
-        organization_id: organizationId,
+        ...baseFilter,
         severity: { in: ['high', 'HIGH'] },
         status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
       }
@@ -709,14 +743,14 @@ async function getInsightsData(
     const [recentCosts, previousCosts] = await Promise.all([
       prisma.dailyCost.aggregate({
         where: {
-          organization_id: organizationId,
+          ...baseFilter,
           date: { gte: sevenDaysAgo }
         },
         _sum: { cost: true }
       }),
       prisma.dailyCost.aggregate({
         where: {
-          organization_id: organizationId,
+          ...baseFilter,
           date: { gte: fourteenDaysAgo, lt: sevenDaysAgo }
         },
         _sum: { cost: true }
@@ -825,7 +859,8 @@ async function getInsightsData(
 async function getTrendsData(
   prisma: any,
   organizationId: string,
-  period: '7d' | '30d' | '90d'
+  period: '7d' | '30d' | '90d',
+  accountId?: string
 ): Promise<TrendData> {
   
   const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
@@ -835,24 +870,43 @@ async function getTrendsData(
   // Use raw query to avoid Prisma groupBy issues
   let costTrend: any[] = [];
   try {
-    costTrend = await prisma.$queryRaw`
-      SELECT 
-        date,
-        SUM(cost) as total_cost
-      FROM daily_costs
-      WHERE organization_id = ${organizationId}::uuid
-        AND date >= ${startDate}
-      GROUP BY date
-      ORDER BY date ASC
-    `;
+    if (accountId) {
+      costTrend = await prisma.$queryRaw`
+        SELECT 
+          date,
+          SUM(cost) as total_cost
+        FROM daily_costs
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND date >= ${startDate}
+        GROUP BY date
+        ORDER BY date ASC
+      `;
+    } else {
+      costTrend = await prisma.$queryRaw`
+        SELECT 
+          date,
+          SUM(cost) as total_cost
+        FROM daily_costs
+        WHERE organization_id = ${organizationId}::uuid
+          AND date >= ${startDate}
+        GROUP BY date
+        ORDER BY date ASC
+      `;
+    }
   } catch (err) {
     // Fallback: try with findMany and aggregate in memory
     try {
+      const baseFilter: any = {
+        organization_id: organizationId,
+        date: { gte: startDate }
+      };
+      if (accountId) {
+        baseFilter.aws_account_id = accountId;
+      }
+      
       const rawCosts = await prisma.dailyCost.findMany({
-        where: {
-          organization_id: organizationId,
-          date: { gte: startDate }
-        },
+        where: baseFilter,
         select: {
           date: true,
           cost: true
@@ -879,11 +933,14 @@ async function getTrendsData(
   // Security posture history - try from security_posture table first
   let securityTrend: any[] = [];
   try {
+    const securityFilter: any = {
+      organization_id: organizationId,
+      calculated_at: { gte: startDate }
+    };
+    // Note: security_posture table may not have aws_account_id
+    
     securityTrend = await prisma.securityPosture.findMany({
-      where: {
-        organization_id: organizationId,
-        calculated_at: { gte: startDate }
-      },
+      where: securityFilter,
       orderBy: { calculated_at: 'asc' },
       select: {
         calculated_at: true,

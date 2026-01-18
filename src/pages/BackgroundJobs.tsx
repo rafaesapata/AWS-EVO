@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import BackgroundJobsMonitor from "@/components/admin/BackgroundJobsMonitor";
 import DeadLetterQueueMonitor from "@/components/admin/DeadLetterQueueMonitor";
 import { IntelligentAlerts } from "@/components/dashboard/IntelligentAlerts";
@@ -6,10 +7,12 @@ import { Layout } from "@/components/Layout";
 import { Clock } from "lucide-react";
 
 const BackgroundJobs = () => {
+  const { t } = useTranslation();
+
   return (
     <Layout 
-      title="Background Jobs" 
-      description="Monitore e gerencie jobs em segundo plano e filas de processamento"
+      title={t('sidebar.backgroundJobs', 'Background Jobs')} 
+      description={t('backgroundJobs.description', 'Monitore e gerencie jobs em segundo plano e filas de processamento')}
       icon={<Clock className="h-7 w-7" />}
     >
       <Tabs defaultValue="jobs" className="w-full">

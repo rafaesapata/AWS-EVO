@@ -46,6 +46,7 @@ export class CacheInvalidationManager {
         'metrics',
         'compliance',
         'resource-inventory',
+        'executive-dashboard', // Dashboard executivo
       ],
     });
 
@@ -378,7 +379,7 @@ export const CACHE_INVALIDATION_PATTERNS = {
   // AWS account changes
   AWS_ACCOUNT_CHANGE: {
     trigger: ['aws-accounts'],
-    invalidates: ['security-scans', 'findings', 'cost-data', 'metrics'],
+    invalidates: ['security-scans', 'findings', 'cost-data', 'metrics', 'executive-dashboard'],
   },
   
   // User/organization changes

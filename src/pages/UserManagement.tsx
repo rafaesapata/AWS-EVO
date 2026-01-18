@@ -482,8 +482,8 @@ export default function UserManagement() {
 
   return (
     <Layout 
-      title="Gerenciamento de Usuários" 
-      description="Gerencie usuários, permissões e acesso às contas AWS"
+      title={t('sidebar.userManagement', 'Gerenciamento de Usuários')} 
+      description={t('userManagement.description', 'Gerencie usuários, permissões e acesso às contas AWS')}
       icon={<Users className="h-5 w-5" />}
     >
       <div className="space-y-6">

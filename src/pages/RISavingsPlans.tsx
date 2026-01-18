@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { Layout } from "@/components/Layout";
@@ -9,6 +10,7 @@ import {
 } from "lucide-react";
 
 export default function RISavingsPlans() {
+  const { t } = useTranslation();
   const { selectedAccountId, selectedAccount } = useCloudAccount();
   
   // Get regions from selected account (default to us-east-1 if not set)
@@ -16,8 +18,8 @@ export default function RISavingsPlans() {
 
   return (
     <Layout 
-      title="Reserved Instances & Savings Plans" 
-      description="Análise avançada e otimização de RI e Savings Plans para maximizar economia"
+      title={t('sidebar.riSavingsPlans', 'Reserved Instances & Savings Plans')} 
+      description={t('riSavingsPlans.description', 'Análise avançada e otimização de RI e Savings Plans para maximizar economia')}
       icon={<DollarSign className="h-5 w-5" />}
     >
       {selectedAccountId ? (

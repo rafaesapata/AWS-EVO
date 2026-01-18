@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +95,7 @@ const RISK_COLORS = {
 };
 
 export default function CloudTrailAudit() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider } = useCloudAccount();
@@ -114,8 +116,8 @@ export default function CloudTrailAudit() {
   if (isAzure) {
     return (
       <Layout 
-        title="Logs de Atividade" 
-        description="Analise eventos de atividade e identifique problemas de segurança"
+        title={t('sidebar.cloudTrailAudit', 'Logs de Atividade')} 
+        description={t('cloudTrailAudit.azureDescription', 'Analise eventos de atividade e identifique problemas de segurança')}
         icon={<FileText className="h-7 w-7" />}
       >
         <AzureActivityLogs />
@@ -452,8 +454,8 @@ export default function CloudTrailAudit() {
 
   return (
     <Layout 
-      title="Auditoria CloudTrail" 
-      description="Análise de eventos AWS com identificação de usuários responsáveis por problemas de segurança"
+      title={t('sidebar.cloudTrailAudit', 'Auditoria CloudTrail')} 
+      description={t('cloudTrailAudit.description', 'Análise de eventos AWS com identificação de usuários responsáveis por problemas de segurança')}
       icon={<FileText className="h-4 w-4" />}
     >
       {/* Reprocess Confirmation Dialog */}

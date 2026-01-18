@@ -104,9 +104,9 @@ export async function handler(
         case 'events':
           return await handleGetEvents(event, prisma, organizationId);
         case 'metrics':
-          return await handleGetMetrics(prisma, organizationId);
+          return await handleGetMetrics(event, prisma, organizationId);
         case 'timeline':
-          return await handleGetTimeline(prisma, organizationId);
+          return await handleGetTimeline(event, prisma, organizationId);
         case 'top-attackers':
           return await handleGetTopAttackers(event, prisma, organizationId);
         case 'attack-types':
@@ -118,7 +118,7 @@ export async function handler(
         case 'unblock-ip':
           return await handleUnblockIp(event, prisma, organizationId);
         case 'blocked-ips':
-          return await handleGetBlockedIps(prisma, organizationId);
+          return await handleGetBlockedIps(event, prisma, organizationId);
         case 'campaigns':
           return await handleGetCampaigns(event, prisma, organizationId);
         case 'config':
@@ -127,7 +127,7 @@ export async function handler(
           return await handleUpdateConfig(event, prisma, organizationId);
         case 'get-monitoring-configs':
         case 'get-configs': // Alias for backwards compatibility
-          return await handleGetMonitoringConfigs(prisma, organizationId);
+          return await handleGetMonitoringConfigs(event, prisma, organizationId);
         case 'diagnose':
           return await handleDiagnose(event, prisma, organizationId);
         case 'fix-subscription':
@@ -135,13 +135,13 @@ export async function handler(
         case 'ai-analysis':
           return await handleAiAnalysis(event, prisma, organizationId);
         case 'get-latest-analysis':
-          return await handleGetLatestAnalysis(prisma, organizationId);
+          return await handleGetLatestAnalysis(event, prisma, organizationId);
         case 'get-analysis-history':
           return await handleGetAnalysisHistory(event, prisma, organizationId);
         case 'threat-stats':
-          return await handleGetThreatStats(prisma, organizationId);
+          return await handleGetThreatStats(event, prisma, organizationId);
         case 'get-alert-config':
-          return await handleGetAlertConfig(prisma, organizationId);
+          return await handleGetAlertConfig(event, prisma, organizationId);
         case 'save-alert-config':
           return await handleSaveAlertConfig(event, prisma, organizationId);
         case 'evaluate-rules':
@@ -159,7 +159,7 @@ export async function handler(
     }
     
     if (path.includes('waf-metrics')) {
-      return await handleGetMetrics(prisma, organizationId);
+      return await handleGetMetrics(event, prisma, organizationId);
     }
     
     if (path.includes('waf-top-attackers')) {
@@ -183,7 +183,7 @@ export async function handler(
     }
     
     if (path.includes('waf-blocked-ips')) {
-      return await handleGetBlockedIps(prisma, organizationId);
+      return await handleGetBlockedIps(event, prisma, organizationId);
     }
     
     if (path.includes('waf-campaigns')) {
@@ -236,6 +236,12 @@ async function handleGetEvents(
   
   // Build where clause
   const where: any = { organization_id: organizationId };
+  
+  // Filter by AWS account if provided
+  const accountId = bodyParams.accountId;
+  if (accountId) {
+    where.aws_account_id = accountId;
+  }
   
   const startDate = params.startDate || bodyParams.startDate;
   const endDate = params.endDate || bodyParams.endDate;
@@ -304,9 +310,21 @@ async function handleGetEvents(
  * OPTIMIZED: Uses raw SQL for better performance and reduced connection pool usage
  */
 async function handleGetMetrics(
+  event: AuthorizedEvent,
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  // Parse body for accountId filter
+  let accountId: string | undefined;
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      accountId = body.accountId;
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  
   // Get metrics for last 24 hours (current period)
   const since = new Date();
   since.setHours(since.getHours() - 24);
@@ -318,66 +336,135 @@ async function handleGetMetrics(
   previousUntil.setHours(previousUntil.getHours() - 24);
   
   try {
-    // Use a single optimized raw SQL query to get current period metrics
-    const metricsResult = await prisma.$queryRaw<Array<{
-      total_requests: bigint;
-      blocked_requests: bigint;
-      allowed_requests: bigint;
-      counted_requests: bigint;
-      unique_attackers: bigint;
-      unique_countries: bigint;
-      critical_threats: bigint;
-      high_threats: bigint;
-      medium_threats: bigint;
-      low_threats: bigint;
-    }>>`
-      SELECT 
-        COUNT(*) as total_requests,
-        COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_requests,
-        COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed_requests,
-        COUNT(*) FILTER (WHERE action = 'COUNT') as counted_requests,
-        COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_attackers,
-        COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN country END) as unique_countries,
-        COUNT(*) FILTER (WHERE severity = 'critical') as critical_threats,
-        COUNT(*) FILTER (WHERE severity = 'high') as high_threats,
-        COUNT(*) FILTER (WHERE severity = 'medium') as medium_threats,
-        COUNT(*) FILTER (WHERE severity = 'low') as low_threats
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${since}
-    `;
+    // Build SQL with optional accountId filter
+    let metricsResult;
+    let previousMetricsResult;
     
-    // Get previous period metrics for trend calculation
-    const previousMetricsResult = await prisma.$queryRaw<Array<{
-      total_requests: bigint;
-      blocked_requests: bigint;
-      allowed_requests: bigint;
-      counted_requests: bigint;
-      unique_attackers: bigint;
-      unique_countries: bigint;
-      critical_threats: bigint;
-      high_threats: bigint;
-      medium_threats: bigint;
-      low_threats: bigint;
-    }>>`
-      SELECT 
-        COUNT(*) as total_requests,
-        COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_requests,
-        COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed_requests,
-        COUNT(*) FILTER (WHERE action = 'COUNT') as counted_requests,
-        COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_attackers,
-        COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN country END) as unique_countries,
-        COUNT(*) FILTER (WHERE severity = 'critical') as critical_threats,
-        COUNT(*) FILTER (WHERE severity = 'high') as high_threats,
-        COUNT(*) FILTER (WHERE severity = 'medium') as medium_threats,
-        COUNT(*) FILTER (WHERE severity = 'low') as low_threats
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${previousSince}
-        AND timestamp < ${previousUntil}
-    `;
+    if (accountId) {
+      // Use a single optimized raw SQL query to get current period metrics with accountId filter
+      metricsResult = await prisma.$queryRaw<Array<{
+        total_requests: bigint;
+        blocked_requests: bigint;
+        allowed_requests: bigint;
+        counted_requests: bigint;
+        unique_attackers: bigint;
+        unique_countries: bigint;
+        critical_threats: bigint;
+        high_threats: bigint;
+        medium_threats: bigint;
+        low_threats: bigint;
+      }>>`
+        SELECT 
+          COUNT(*) as total_requests,
+          COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_requests,
+          COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed_requests,
+          COUNT(*) FILTER (WHERE action = 'COUNT') as counted_requests,
+          COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_attackers,
+          COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN country END) as unique_countries,
+          COUNT(*) FILTER (WHERE severity = 'critical') as critical_threats,
+          COUNT(*) FILTER (WHERE severity = 'high') as high_threats,
+          COUNT(*) FILTER (WHERE severity = 'medium') as medium_threats,
+          COUNT(*) FILTER (WHERE severity = 'low') as low_threats
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND timestamp >= ${since}
+      `;
+      
+      // Get previous period metrics for trend calculation with accountId filter
+      previousMetricsResult = await prisma.$queryRaw<Array<{
+        total_requests: bigint;
+        blocked_requests: bigint;
+        allowed_requests: bigint;
+        counted_requests: bigint;
+        unique_attackers: bigint;
+        unique_countries: bigint;
+        critical_threats: bigint;
+        high_threats: bigint;
+        medium_threats: bigint;
+        low_threats: bigint;
+      }>>`
+        SELECT 
+          COUNT(*) as total_requests,
+          COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_requests,
+          COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed_requests,
+          COUNT(*) FILTER (WHERE action = 'COUNT') as counted_requests,
+          COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_attackers,
+          COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN country END) as unique_countries,
+          COUNT(*) FILTER (WHERE severity = 'critical') as critical_threats,
+          COUNT(*) FILTER (WHERE severity = 'high') as high_threats,
+          COUNT(*) FILTER (WHERE severity = 'medium') as medium_threats,
+          COUNT(*) FILTER (WHERE severity = 'low') as low_threats
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND timestamp >= ${previousSince}
+          AND timestamp < ${previousUntil}
+      `;
+    } else {
+      // Use a single optimized raw SQL query to get current period metrics (all accounts)
+      metricsResult = await prisma.$queryRaw<Array<{
+        total_requests: bigint;
+        blocked_requests: bigint;
+        allowed_requests: bigint;
+        counted_requests: bigint;
+        unique_attackers: bigint;
+        unique_countries: bigint;
+        critical_threats: bigint;
+        high_threats: bigint;
+        medium_threats: bigint;
+        low_threats: bigint;
+      }>>`
+        SELECT 
+          COUNT(*) as total_requests,
+          COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_requests,
+          COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed_requests,
+          COUNT(*) FILTER (WHERE action = 'COUNT') as counted_requests,
+          COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_attackers,
+          COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN country END) as unique_countries,
+          COUNT(*) FILTER (WHERE severity = 'critical') as critical_threats,
+          COUNT(*) FILTER (WHERE severity = 'high') as high_threats,
+          COUNT(*) FILTER (WHERE severity = 'medium') as medium_threats,
+          COUNT(*) FILTER (WHERE severity = 'low') as low_threats
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND timestamp >= ${since}
+      `;
+      
+      // Get previous period metrics for trend calculation (all accounts)
+      previousMetricsResult = await prisma.$queryRaw<Array<{
+        total_requests: bigint;
+        blocked_requests: bigint;
+        allowed_requests: bigint;
+        counted_requests: bigint;
+        unique_attackers: bigint;
+        unique_countries: bigint;
+        critical_threats: bigint;
+        high_threats: bigint;
+        medium_threats: bigint;
+        low_threats: bigint;
+      }>>`
+        SELECT 
+          COUNT(*) as total_requests,
+          COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_requests,
+          COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed_requests,
+          COUNT(*) FILTER (WHERE action = 'COUNT') as counted_requests,
+          COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN source_ip END) as unique_attackers,
+          COUNT(DISTINCT CASE WHEN action = 'BLOCK' THEN country END) as unique_countries,
+          COUNT(*) FILTER (WHERE severity = 'critical') as critical_threats,
+          COUNT(*) FILTER (WHERE severity = 'high') as high_threats,
+          COUNT(*) FILTER (WHERE severity = 'medium') as medium_threats,
+          COUNT(*) FILTER (WHERE severity = 'low') as low_threats
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND timestamp >= ${previousSince}
+          AND timestamp < ${previousUntil}
+      `;
+    }
     
     // Get active campaigns count separately (different table)
+    // Note: WafAttackCampaign does NOT have aws_account_id field
+    // Campaigns are per-organization, not per-account
     const activeCampaigns = await prisma.wafAttackCampaign.count({
       where: {
         organization_id: organizationId,
@@ -492,29 +579,53 @@ async function handleGetTopAttackers(
     }
   }
   const limit = Math.min(parseInt(params.limit || bodyParams.limit || '10', 10), 100);
+  const accountId = bodyParams.accountId;
   
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
   try {
-    // Use raw SQL for better performance
-    const topAttackers = await prisma.$queryRaw<Array<{
-      source_ip: string;
-      country: string | null;
-      blocked_count: bigint;
-    }>>`
-      SELECT 
-        source_ip,
-        country,
-        COUNT(*) as blocked_count
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${since}
-        AND action = 'BLOCK'
-      GROUP BY source_ip, country
-      ORDER BY blocked_count DESC
-      LIMIT ${limit}
-    `;
+    // Use raw SQL for better performance with optional accountId filter
+    let topAttackers;
+    
+    if (accountId) {
+      topAttackers = await prisma.$queryRaw<Array<{
+        source_ip: string;
+        country: string | null;
+        blocked_count: bigint;
+      }>>`
+        SELECT 
+          source_ip,
+          country,
+          COUNT(*) as blocked_count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND timestamp >= ${since}
+          AND action = 'BLOCK'
+        GROUP BY source_ip, country
+        ORDER BY blocked_count DESC
+        LIMIT ${limit}
+      `;
+    } else {
+      topAttackers = await prisma.$queryRaw<Array<{
+        source_ip: string;
+        country: string | null;
+        blocked_count: bigint;
+      }>>`
+        SELECT 
+          source_ip,
+          country,
+          COUNT(*) as blocked_count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND timestamp >= ${since}
+          AND action = 'BLOCK'
+        GROUP BY source_ip, country
+        ORDER BY blocked_count DESC
+        LIMIT ${limit}
+      `;
+    }
     
     return success({
       topAttackers: topAttackers.map(item => ({
@@ -539,24 +650,55 @@ async function handleGetAttackTypes(
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  // Parse body for accountId filter
+  let accountId: string | undefined;
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      accountId = body.accountId;
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
   try {
-    const attackTypes = await prisma.$queryRaw<Array<{
-      threat_type: string;
-      count: bigint;
-    }>>`
-      SELECT 
-        threat_type,
-        COUNT(*) as count
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${since}
-        AND threat_type IS NOT NULL
-      GROUP BY threat_type
-      ORDER BY count DESC
-    `;
+    let attackTypes;
+    
+    if (accountId) {
+      attackTypes = await prisma.$queryRaw<Array<{
+        threat_type: string;
+        count: bigint;
+      }>>`
+        SELECT 
+          threat_type,
+          COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND timestamp >= ${since}
+          AND threat_type IS NOT NULL
+        GROUP BY threat_type
+        ORDER BY count DESC
+      `;
+    } else {
+      attackTypes = await prisma.$queryRaw<Array<{
+        threat_type: string;
+        count: bigint;
+      }>>`
+        SELECT 
+          threat_type,
+          COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND timestamp >= ${since}
+          AND threat_type IS NOT NULL
+        GROUP BY threat_type
+        ORDER BY count DESC
+      `;
+    }
     
     return success({
       attackTypes: attackTypes.map(item => ({
@@ -580,25 +722,57 @@ async function handleGetGeoDistribution(
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  // Parse body for accountId filter
+  let accountId: string | undefined;
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      accountId = body.accountId;
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
   try {
-    const geoDistribution = await prisma.$queryRaw<Array<{
-      country: string;
-      blocked_count: bigint;
-    }>>`
-      SELECT 
-        country,
-        COUNT(*) as blocked_count
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${since}
-        AND action = 'BLOCK'
-        AND country IS NOT NULL
-      GROUP BY country
-      ORDER BY blocked_count DESC
-    `;
+    let geoDistribution;
+    
+    if (accountId) {
+      geoDistribution = await prisma.$queryRaw<Array<{
+        country: string;
+        blocked_count: bigint;
+      }>>`
+        SELECT 
+          country,
+          COUNT(*) as blocked_count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND timestamp >= ${since}
+          AND action = 'BLOCK'
+          AND country IS NOT NULL
+        GROUP BY country
+        ORDER BY blocked_count DESC
+      `;
+    } else {
+      geoDistribution = await prisma.$queryRaw<Array<{
+        country: string;
+        blocked_count: bigint;
+      }>>`
+        SELECT 
+          country,
+          COUNT(*) as blocked_count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND timestamp >= ${since}
+          AND action = 'BLOCK'
+          AND country IS NOT NULL
+        GROUP BY country
+        ORDER BY blocked_count DESC
+      `;
+    }
     
     return success({
       geoDistribution: geoDistribution.map(item => ({
@@ -715,11 +889,16 @@ async function handleUnblockIp(
 
 /**
  * GET /waf-blocked-ips - List blocked IPs
+ * Note: WafBlockedIp does NOT have aws_account_id field
+ * Blocked IPs are per-organization, not per-account
  */
 async function handleGetBlockedIps(
+  event: AuthorizedEvent,
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  // Note: accountId is not used because WafBlockedIp doesn't have aws_account_id field
+  
   const blockedIps = await prisma.wafBlockedIp.findMany({
     where: {
       organization_id: organizationId,
@@ -862,18 +1041,36 @@ async function handleUpdateConfig(
  * GET /waf-monitoring-configs - Get WAF monitoring configurations
  */
 async function handleGetMonitoringConfigs(
+  event: AuthorizedEvent,
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
-  logger.info('Fetching WAF monitoring configs', { organizationId });
+  // Parse body for accountId filter
+  let accountId: string | undefined;
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      accountId = body.accountId;
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  
+  logger.info('Fetching WAF monitoring configs', { organizationId, accountId });
+  
+  const where: any = { organization_id: organizationId };
+  if (accountId) {
+    where.aws_account_id = accountId;
+  }
   
   const configs = await prisma.wafMonitoringConfig.findMany({
-    where: { organization_id: organizationId },
+    where,
     orderBy: { created_at: 'desc' },
   });
   
   logger.info('WAF monitoring configs fetched', { 
     organizationId, 
+    accountId,
     count: configs.length,
     activeCount: configs.filter(c => c.is_active).length 
   });
@@ -1444,55 +1641,119 @@ async function handleFixSubscription(
  * OPTIMIZED: Uses single raw SQL query for better performance
  */
 async function handleGetThreatStats(
+  event: AuthorizedEvent,
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  // Parse body for accountId filter
+  let accountId: string | undefined;
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      accountId = body.accountId;
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
   try {
-    // Get all stats in a single query
-    const statsResult = await prisma.$queryRaw<Array<{
-      total_events: bigint;
-      events_with_threat_type: bigint;
-      events_without_threat_type: bigint;
-      blocked_events: bigint;
-    }>>`
-      SELECT 
-        COUNT(*) as total_events,
-        COUNT(*) FILTER (WHERE threat_type IS NOT NULL) as events_with_threat_type,
-        COUNT(*) FILTER (WHERE threat_type IS NULL) as events_without_threat_type,
-        COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_events
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${since}
-    `;
+    let statsResult;
+    let threatTypeDistribution;
+    let severityDistribution;
     
-    // Get threat type distribution
-    const threatTypeDistribution = await prisma.$queryRaw<Array<{
-      threat_type: string;
-      count: bigint;
-    }>>`
-      SELECT threat_type, COUNT(*) as count
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${since}
-        AND threat_type IS NOT NULL
-      GROUP BY threat_type
-      ORDER BY count DESC
-    `;
-    
-    // Get severity distribution
-    const severityDistribution = await prisma.$queryRaw<Array<{
-      severity: string | null;
-      count: bigint;
-    }>>`
-      SELECT severity, COUNT(*) as count
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${since}
-      GROUP BY severity
-    `;
+    if (accountId) {
+      // Get all stats in a single query with accountId filter
+      statsResult = await prisma.$queryRaw<Array<{
+        total_events: bigint;
+        events_with_threat_type: bigint;
+        events_without_threat_type: bigint;
+        blocked_events: bigint;
+      }>>`
+        SELECT 
+          COUNT(*) as total_events,
+          COUNT(*) FILTER (WHERE threat_type IS NOT NULL) as events_with_threat_type,
+          COUNT(*) FILTER (WHERE threat_type IS NULL) as events_without_threat_type,
+          COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_events
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND timestamp >= ${since}
+      `;
+      
+      // Get threat type distribution with accountId filter
+      threatTypeDistribution = await prisma.$queryRaw<Array<{
+        threat_type: string;
+        count: bigint;
+      }>>`
+        SELECT threat_type, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND timestamp >= ${since}
+          AND threat_type IS NOT NULL
+        GROUP BY threat_type
+        ORDER BY count DESC
+      `;
+      
+      // Get severity distribution with accountId filter
+      severityDistribution = await prisma.$queryRaw<Array<{
+        severity: string | null;
+        count: bigint;
+      }>>`
+        SELECT severity, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND timestamp >= ${since}
+        GROUP BY severity
+      `;
+    } else {
+      // Get all stats in a single query (all accounts)
+      statsResult = await prisma.$queryRaw<Array<{
+        total_events: bigint;
+        events_with_threat_type: bigint;
+        events_without_threat_type: bigint;
+        blocked_events: bigint;
+      }>>`
+        SELECT 
+          COUNT(*) as total_events,
+          COUNT(*) FILTER (WHERE threat_type IS NOT NULL) as events_with_threat_type,
+          COUNT(*) FILTER (WHERE threat_type IS NULL) as events_without_threat_type,
+          COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked_events
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND timestamp >= ${since}
+      `;
+      
+      // Get threat type distribution (all accounts)
+      threatTypeDistribution = await prisma.$queryRaw<Array<{
+        threat_type: string;
+        count: bigint;
+      }>>`
+        SELECT threat_type, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND timestamp >= ${since}
+          AND threat_type IS NOT NULL
+        GROUP BY threat_type
+        ORDER BY count DESC
+      `;
+      
+      // Get severity distribution (all accounts)
+      severityDistribution = await prisma.$queryRaw<Array<{
+        severity: string | null;
+        count: bigint;
+      }>>`
+        SELECT severity, COUNT(*) as count
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND timestamp >= ${since}
+        GROUP BY severity
+      `;
+    }
     
     const row = statsResult[0] || {
       total_events: BigInt(0),
@@ -1947,9 +2208,14 @@ async function handleAiAnalysisBackground(
   }
 }
 async function handleGetLatestAnalysis(
+  event: AuthorizedEvent,
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  // Note: WafAiAnalysis model does NOT have aws_account_id field
+  // Analysis is per-organization, not per-account
+  // accountId is parsed but not used for filtering this model
+  
   const latestAnalysis = await prisma.wafAiAnalysis.findFirst({
     where: { organization_id: organizationId },
     orderBy: { created_at: 'desc' },
@@ -1975,6 +2241,8 @@ async function handleGetLatestAnalysis(
 
 /**
  * Get analysis history
+ * Note: WafAiAnalysis model does NOT have aws_account_id field
+ * Analysis is per-organization, not per-account
  */
 async function handleGetAnalysisHistory(
   event: AuthorizedEvent,
@@ -1986,15 +2254,16 @@ async function handleGetAnalysisHistory(
     const body = event.body ? JSON.parse(event.body) : {};
     const limit = parseInt(body.limit || '10', 10);
     const offset = parseInt(body.offset || '0', 10);
+    // Note: accountId is not used because WafAiAnalysis doesn't have aws_account_id field
+    
+    const where = { organization_id: organizationId };
     
     // Get total count
-    const totalCount = await prisma.wafAiAnalysis.count({
-      where: { organization_id: organizationId },
-    });
+    const totalCount = await prisma.wafAiAnalysis.count({ where });
     
     // Get analyses with pagination
     const analyses = await prisma.wafAiAnalysis.findMany({
-      where: { organization_id: organizationId },
+      where,
       orderBy: { created_at: 'desc' },
       take: limit,
       skip: offset,
@@ -2296,29 +2565,62 @@ async function handleInitAiAnalysisTable(
  * Returns data for WafTimelineChart component
  */
 async function handleGetTimeline(
+  event: AuthorizedEvent,
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  // Parse body for accountId filter
+  let accountId: string | undefined;
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      accountId = body.accountId;
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  
   const since = new Date();
   since.setHours(since.getHours() - 24);
   
   try {
-    // Get hourly aggregation of blocked and allowed requests
-    const timelineData = await prisma.$queryRaw<Array<{
-      hour: Date;
-      blocked: bigint;
-      allowed: bigint;
-    }>>`
-      SELECT 
-        DATE_TRUNC('hour', timestamp) as hour,
-        COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked,
-        COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed
-      FROM waf_events
-      WHERE organization_id = ${organizationId}::uuid
-        AND timestamp >= ${since}
-      GROUP BY DATE_TRUNC('hour', timestamp)
-      ORDER BY hour ASC
-    `;
+    // Get hourly aggregation of blocked and allowed requests with optional accountId filter
+    let timelineData;
+    
+    if (accountId) {
+      timelineData = await prisma.$queryRaw<Array<{
+        hour: Date;
+        blocked: bigint;
+        allowed: bigint;
+      }>>`
+        SELECT 
+          DATE_TRUNC('hour', timestamp) as hour,
+          COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked,
+          COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND aws_account_id = ${accountId}::uuid
+          AND timestamp >= ${since}
+        GROUP BY DATE_TRUNC('hour', timestamp)
+        ORDER BY hour ASC
+      `;
+    } else {
+      timelineData = await prisma.$queryRaw<Array<{
+        hour: Date;
+        blocked: bigint;
+        allowed: bigint;
+      }>>`
+        SELECT 
+          DATE_TRUNC('hour', timestamp) as hour,
+          COUNT(*) FILTER (WHERE action = 'BLOCK') as blocked,
+          COUNT(*) FILTER (WHERE action = 'ALLOW') as allowed
+        FROM waf_events
+        WHERE organization_id = ${organizationId}::uuid
+          AND timestamp >= ${since}
+        GROUP BY DATE_TRUNC('hour', timestamp)
+        ORDER BY hour ASC
+      `;
+    }
     
     // Fill in missing hours with zeros
     const result: Array<{ hour: string; blocked: number; allowed: number }> = [];
@@ -2354,9 +2656,21 @@ async function handleGetTimeline(
  * GET /waf-alert-config - Get alert configuration for organization
  */
 async function handleGetAlertConfig(
+  event: AuthorizedEvent,
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  // Parse body for accountId filter (alert config is per-organization, but we may want per-account in future)
+  let accountId: string | undefined;
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      accountId = body.accountId;
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  
   try {
     const config = await prisma.wafAlertConfig.findUnique({
       where: { organization_id: organizationId },

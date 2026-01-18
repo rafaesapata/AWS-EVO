@@ -1,15 +1,15 @@
 /**
  * Info Icon Component
- * Displays a help icon with optional tooltip
+ * Displays a help icon with popover on click
  * Based on Figma design specifications
  */
 
 import { HelpCircle } from 'lucide-react';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 interface InfoIconProps {
   tooltip?: string;
@@ -26,19 +26,19 @@ export default function InfoIcon({ tooltip, className = '' }: InfoIconProps) {
   }
 
   return (
-    <Tooltip delayDuration={200}>
-      <TooltipTrigger asChild>
+    <Popover>
+      <PopoverTrigger asChild>
         <button 
           type="button"
-          className={`p-1 cursor-help focus:outline-none ${className}`}
+          className={`p-1 cursor-pointer focus:outline-none ${className}`}
         >
           <HelpCircle className="h-4 w-4 text-gray-400 hover:text-gray-600 transition-colors" />
         </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
+      </PopoverTrigger>
+      <PopoverContent side="top" className="max-w-xs">
         <p className="text-sm">{tooltip}</p>
-      </TooltipContent>
-    </Tooltip>
+      </PopoverContent>
+    </Popover>
   );
 }
 

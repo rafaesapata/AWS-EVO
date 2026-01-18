@@ -5,12 +5,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Brain, TestTube, Settings } from 'lucide-react';
 import { Layout } from '@/components/Layout';
+import { useTranslation } from 'react-i18next';
 
 export const BedrockTestPage: React.FC = () => {
+ const { t } = useTranslation();
+ 
  return (
  <Layout 
- title="Dev Tools - Bedrock AI" 
- description="Teste e validação de funcionalidades AWS Bedrock AI"
+ title={t('sidebar.bedrockTest', 'Dev Tools - Bedrock AI')} 
+ description={t('bedrockTest.description', 'Teste e validação de funcionalidades AWS Bedrock AI')}
  icon={<Brain className="h-7 w-7" />}
  >
  <div className="space-y-6">

@@ -768,8 +768,8 @@ export default function ErrorMonitoring() {
 
  return (
  <Layout
- title="Monitoramento de Erros - 100% Coverage"
- description="Dashboard completo: 114 Lambdas, 111 Endpoints, Frontend + Performance"
+ title={t('sidebar.errorMonitoring', 'Monitoramento de Erros')}
+ description={t('errorMonitoring.description', 'Dashboard completo: 114 Lambdas, 111 Endpoints, Frontend + Performance')}
  icon={<AlertTriangle className="h-4 w-4" />}
  >
  <div className="space-y-6">

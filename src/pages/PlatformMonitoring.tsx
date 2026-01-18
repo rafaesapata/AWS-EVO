@@ -374,8 +374,8 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
 
  return (
  <Layout
- title="Platform Monitoring - 100% Coverage"
- description="Dashboard completo: 114 Lambdas, 111 Endpoints, Frontend + Performance"
+ title={t('sidebar.platformMonitoring', 'Platform Monitoring - 100% Coverage')}
+ description={t('platformMonitoring.description', 'Dashboard completo: 114 Lambdas, 111 Endpoints, Frontend + Performance')}
  icon={<Activity className="h-4 w-4" />}
  >
  <div className="space-y-6">

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +72,7 @@ interface Alert {
 
 export default function EndpointMonitoring() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const { data: organizationId } = useOrganization();
   const queryClient = useQueryClient();
 
@@ -272,8 +274,8 @@ export default function EndpointMonitoring() {
 
   return (
     <Layout 
-      title="Monitoramento de Endpoints" 
-      description="Monitoramento em tempo real de APIs, Load Balancers e endpoints críticos"
+      title={t('sidebar.endpoints', 'Monitoramento de Endpoints')} 
+      description={t('endpointMonitoring.description', 'Monitoramento em tempo real de APIs, Load Balancers e endpoints críticos')}
       icon={<Activity className="h-4 w-4" />}
     >
       <div className="space-y-6">

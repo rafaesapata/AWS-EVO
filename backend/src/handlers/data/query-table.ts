@@ -66,6 +66,11 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'license_seat_assignments': 'licenseSeatAssignment',
   'organization_license_configs': 'organizationLicenseConfig',
   
+  // RI/SP Analysis tables
+  'ri_sp_recommendations': 'riSpRecommendation',
+  'reserved_instances': 'reservedInstance',
+  'savings_plans': 'savingsPlan',
+  
   // Aliases do frontend para tabelas reais
   'security_alerts': 'alert',
   'alert_history': 'alert',
@@ -160,6 +165,8 @@ const TABLES_WITH_ORG_ID = new Set([
   'edge_services', 'edge_metrics',
   // Predictive Incidents (ML)
   'predictive_incidents', 'predictive_incidents_history',
+  // RI/SP Analysis
+  'ri_sp_recommendations', 'reserved_instances', 'savings_plans',
 ]);
 
 interface QueryRequest {

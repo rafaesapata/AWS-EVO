@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +58,7 @@ interface Finding {
 }
 
 export default function SecurityScanDetails() {
+ const { t } = useTranslation();
  const { scanId } = useParams<{ scanId: string }>();
  const navigate = useNavigate();
  const { toast } = useToast();
@@ -267,7 +269,7 @@ export default function SecurityScanDetails() {
 
  if (scanLoading) {
  return (
- <Layout title="Carregando..." description="Carregando detalhes do scan...">
+ <Layout title={t('common.loading', 'Carregando...')} description={t('securityScanDetails.loadingDescription', 'Carregando detalhes do scan...')}>
  <div className="flex items-center justify-center h-64">
  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
  </div>
@@ -277,16 +279,16 @@ export default function SecurityScanDetails() {
 
  if (!scan) {
  return (
- <Layout title="Scan não encontrado" description="O scan solicitado não foi encontrado.">
+ <Layout title={t('securityScanDetails.notFound', 'Scan não encontrado')} description={t('securityScanDetails.notFoundDescription', 'O scan solicitado não foi encontrado.')}>
  <div className="text-center py-12">
  <XCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
- <h3 className="text-xl font-semibold mb-2">Scan não encontrado</h3>
+ <h3 className="text-xl font-semibold mb-2">{t('securityScanDetails.notFound', 'Scan não encontrado')}</h3>
  <p className="text-muted-foreground mb-4">
- O scan solicitado não foi encontrado ou você não tem permissão para visualizá-lo.
+ {t('securityScanDetails.notFoundMessage', 'O scan solicitado não foi encontrado ou você não tem permissão para visualizá-lo.')}
  </p>
  <Button onClick={() => navigate('/security-scans')} className=" transition-all duration-300 hover:scale-105">
  <ArrowLeft className="h-4 w-4 mr-2" />
- Voltar aos Scans
+ {t('securityScanDetails.backToScans', 'Voltar aos Scans')}
  </Button>
  </div>
  </Layout>
@@ -295,8 +297,8 @@ export default function SecurityScanDetails() {
 
  return (
  <Layout 
- title={`Security Scan - ${scan.scan_type}`}
- description="Detalhes completos do scan de segurança"
+ title={`${t('sidebar.securityScans', 'Security Scan')} - ${scan.scan_type}`}
+ description={t('securityScanDetails.description', 'Detalhes completos do scan de segurança')}
  icon={<Shield className="h-7 w-7" />}
  >
  <div className="space-y-6">

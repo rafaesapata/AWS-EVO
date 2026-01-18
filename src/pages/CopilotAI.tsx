@@ -221,8 +221,8 @@ Como posso ajudar você hoje?`,
 
  return (
  <Layout 
- title="EVO Copilot AI" 
- description="Assistente inteligente para análise, otimização e segurança AWS"
+ title={t('sidebar.copilotAI', 'EVO Copilot AI')} 
+ description={t('copilotAI.description', 'Assistente inteligente para análise, otimização e segurança AWS')}
  icon={<Bot className="h-7 w-7" />}
  >
  <div className="h-full flex flex-col space-y-6">

@@ -783,8 +783,8 @@ export default function CostOptimization() {
 
   return (
     <Layout 
-      title="Otimização de Custos" 
-      description="Recomendações inteligentes baseadas em ML para reduzir custos AWS"
+      title={t('sidebar.costOptimization', 'Otimização de Custos')} 
+      description={t('costOptimization.description', 'Recomendações inteligentes baseadas em ML para reduzir custos AWS')}
       icon={<Zap className="h-4 w-4" />}
     >
       <div className="space-y-6">

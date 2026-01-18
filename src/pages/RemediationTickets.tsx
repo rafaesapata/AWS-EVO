@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +62,7 @@ interface TicketComment {
 }
 
 export default function RemediationTickets() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedAccountId } = useCloudAccount();
@@ -291,8 +293,8 @@ export default function RemediationTickets() {
 
   return (
     <Layout 
-      title="Tickets de Remediação" 
-      description="Sistema de workflow para rastreamento e resolução de problemas"
+      title={t('sidebar.remediationTickets', 'Tickets de Remediação')} 
+      description={t('remediationTickets.description', 'Sistema de workflow para rastreamento e resolução de problemas')}
       icon={<Ticket className="h-5 w-5" />}
     >
       <div className="space-y-6">

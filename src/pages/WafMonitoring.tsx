@@ -105,7 +105,7 @@ export default function WafMonitoring() {
     enabled: !!selectedAccountId,
     queryFn: async () => {
       const response = await apiClient.invoke<{ configs: any[]; hasActiveConfig: boolean }>('waf-dashboard-api', {
-        body: { action: 'get-monitoring-configs' }
+        body: { action: 'get-monitoring-configs', accountId: selectedAccountId }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
@@ -114,13 +114,13 @@ export default function WafMonitoring() {
 
   // Fetch WAF metrics
   const { data: metricsData, isLoading: metricsLoading, refetch: refetchMetrics } = useQuery({
-    queryKey: ['waf-metrics', organizationId],
-    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
+    queryKey: ['waf-metrics', organizationId, selectedAccountId],
+    enabled: !!organizationId && !!selectedAccountId && monitoringConfigsData?.hasActiveConfig,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
     queryFn: async () => {
       const response = await apiClient.invoke<{ metrics: any; period: string }>('waf-dashboard-api', {
-        body: { action: 'metrics' }
+        body: { action: 'metrics', accountId: selectedAccountId }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       
@@ -141,8 +141,8 @@ export default function WafMonitoring() {
   // Fetch WAF events (last 24h to match metrics)
   // NOTE: When filtering by action (e.g., BLOCK), we fetch from backend with filter applied
   const { data: eventsData, isLoading: eventsLoading, refetch: refetchEvents } = useQuery({
-    queryKey: ['waf-events-v3', organizationId, externalEventFilters], // Include filters in key
-    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
+    queryKey: ['waf-events-v3', organizationId, selectedAccountId, externalEventFilters], // Include filters in key
+    enabled: !!organizationId && !!selectedAccountId && monitoringConfigsData?.hasActiveConfig,
     staleTime: 15 * 1000,
     refetchInterval: 30 * 1000,
     queryFn: async () => {
@@ -155,6 +155,7 @@ export default function WafMonitoring() {
       const response = await apiClient.invoke<{ events: any[]; pagination: any }>('waf-dashboard-api', {
         body: { 
           action: 'events', 
+          accountId: selectedAccountId,
           limit: 5000, // Fetch up to 5000 events
           startDate: since.toISOString(), // Filter by last 24h
           // Pass filters to backend for server-side filtering
@@ -188,14 +189,14 @@ export default function WafMonitoring() {
 
   // Fetch blocked events specifically for the blocked requests list
   const { data: blockedEventsData, isLoading: blockedEventsLoading } = useQuery({
-    queryKey: ['waf-blocked-events', organizationId],
-    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
+    queryKey: ['waf-blocked-events', organizationId, selectedAccountId],
+    enabled: !!organizationId && !!selectedAccountId && monitoringConfigsData?.hasActiveConfig,
     staleTime: 15 * 1000,
     refetchInterval: 30 * 1000,
     queryFn: async () => {
       // Note: 'action' in body is the API action, we need to pass filter separately
       const response = await apiClient.invoke<{ events: any[]; pagination: any }>('waf-dashboard-api', {
-        body: { action: 'events', filterAction: 'BLOCK', limit: 50 }
+        body: { action: 'events', accountId: selectedAccountId, filterAction: 'BLOCK', limit: 50 }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
@@ -204,13 +205,13 @@ export default function WafMonitoring() {
 
   // Fetch top attackers
   const { data: attackersData, isLoading: attackersLoading } = useQuery({
-    queryKey: ['waf-top-attackers', organizationId],
-    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
+    queryKey: ['waf-top-attackers', organizationId, selectedAccountId],
+    enabled: !!organizationId && !!selectedAccountId && monitoringConfigsData?.hasActiveConfig,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000, // Auto-refresh every 60 seconds
     queryFn: async () => {
       const response = await apiClient.invoke<{ topAttackers: any[]; period: string }>('waf-dashboard-api', {
-        body: { action: 'top-attackers', limit: 10 }
+        body: { action: 'top-attackers', accountId: selectedAccountId, limit: 10 }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
@@ -219,13 +220,13 @@ export default function WafMonitoring() {
 
   // Fetch attack types distribution
   const { data: attackTypesData, isLoading: attackTypesLoading } = useQuery({
-    queryKey: ['waf-attack-types', organizationId],
-    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
+    queryKey: ['waf-attack-types', organizationId, selectedAccountId],
+    enabled: !!organizationId && !!selectedAccountId && monitoringConfigsData?.hasActiveConfig,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000, // Auto-refresh every 60 seconds
     queryFn: async () => {
       const response = await apiClient.invoke<{ attackTypes: any[]; period: string }>('waf-dashboard-api', {
-        body: { action: 'attack-types' }
+        body: { action: 'attack-types', accountId: selectedAccountId }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
@@ -234,13 +235,13 @@ export default function WafMonitoring() {
 
   // Fetch geo distribution
   const { data: geoData, isLoading: geoLoading } = useQuery({
-    queryKey: ['waf-geo-distribution', organizationId],
-    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
+    queryKey: ['waf-geo-distribution', organizationId, selectedAccountId],
+    enabled: !!organizationId && !!selectedAccountId && monitoringConfigsData?.hasActiveConfig,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000, // Auto-refresh every 60 seconds
     queryFn: async () => {
       const response = await apiClient.invoke<{ geoDistribution: any[]; period: string }>('waf-dashboard-api', {
-        body: { action: 'geo-distribution' }
+        body: { action: 'geo-distribution', accountId: selectedAccountId }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
@@ -249,13 +250,13 @@ export default function WafMonitoring() {
 
   // Fetch timeline data for the new timeline chart
   const { data: timelineData, isLoading: timelineLoading } = useQuery({
-    queryKey: ['waf-timeline', organizationId],
-    enabled: !!organizationId && monitoringConfigsData?.hasActiveConfig,
+    queryKey: ['waf-timeline', organizationId, selectedAccountId],
+    enabled: !!organizationId && !!selectedAccountId && monitoringConfigsData?.hasActiveConfig,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
     queryFn: async () => {
       const response = await apiClient.invoke<{ timeline: any[] }>('waf-dashboard-api', {
-        body: { action: 'timeline', period: 'last24h' }
+        body: { action: 'timeline', accountId: selectedAccountId, period: 'last24h' }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
@@ -420,6 +421,7 @@ export default function WafMonitoring() {
                   <WafTopAttackers 
                     topAttackers={topAttackers} 
                     isLoading={attackersLoading}
+                    accountId={selectedAccountId || undefined}
                     onBlockIp={(ip) => blockIpMutation.mutate({ ipAddress: ip, reason: 'Manual block from dashboard' })}
                   />
                   <WafEventsFeed 

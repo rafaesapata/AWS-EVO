@@ -434,8 +434,8 @@ export default function SecurityPosture() {
 
   return (
     <Layout 
-      title="Postura de Segurança" 
-      description="Visão abrangente da segurança e compliance da sua infraestrutura AWS"
+      title={t('sidebar.securityPosture', 'Postura de Segurança')} 
+      description={t('securityPosture.description', 'Visão abrangente da segurança e compliance da sua infraestrutura AWS')}
       icon={<Shield className="h-4 w-4" />}
     >
       <div className="space-y-6">

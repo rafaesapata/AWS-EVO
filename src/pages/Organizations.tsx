@@ -232,8 +232,8 @@ export default function Organizations() {
 
   return (
     <Layout 
-      title="Gestão de Organizações" 
-      description="Gestão multi-tenant de organizações - Acesso Super Admin"
+      title={t('sidebar.organizations', 'Gestão de Organizações')} 
+      description={t('organizations.description', 'Gestão multi-tenant de organizações - Acesso Super Admin')}
       icon={<Building2 className="h-5 w-5" />}
       userRole="super_admin"
     >

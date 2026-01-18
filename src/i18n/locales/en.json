@@ -77,6 +77,7 @@
     "endpoints": "Endpoints",
     "awsResources": "Resources",
     "edgeLbCfWaf": "Edge (LB/CF/WAF)",
+    "edgeMonitoring": "Edge Monitoring",
     "attackDetection": "Attack Detection",
     "wafMonitoring": "WAF Monitoring",
     "analysisScans": "Analysis & Scans",
@@ -96,6 +97,7 @@
     "audit": "Audit",
     "communicationCenter": "Communication Center",
     "license": "License",
+    "licenseManagement": "License Management",
     "awsSettings": "AWS Settings",
     "cloudCredentials": "Cloud Credentials",
     "manageUsers": "Manage Users",
@@ -223,6 +225,7 @@
     "savingsPotential": "Savings Potential",
     "uptimeSLA": "Uptime SLA",
     "target": "Target",
+    "alertTarget": "Target",
     "activeAlerts": "Active Alerts",
     "alertCritical": "CRITICAL",
     "alertHigh": "HIGH",
@@ -295,15 +298,38 @@
     "avgUtilization": "avg utilization",
     "issuesResolved": "issues resolved",
     "noChange": "No change",
-    "optimizeHealth": "Optimize health →",
-    "increaseEconomy": "Increase savings →",
-    "viewAlerts": "View alerts →",
+    "optimizeHealth": "Optimize health",
+    "optimizeHealthCTA": "See how to optimize health",
+    "increaseEconomy": "Increase savings",
+    "optimizeCostCTA": "See how to optimize cost",
+    "viewAlerts": "View alerts",
     "healthScoreTooltip": "Score from 0-100 that evaluates your AWS infrastructure's overall health. Considers security (critical findings), compliance (CIS, LGPD, PCI-DSS frameworks), performance (uptime, latency), and costs (optimization, waste). Updated in real-time.",
     "healthScoreDescription": "Complete security and compliance analysis",
     "uptimeSLATooltip": "Availability percentage of your monitored endpoints over the last 30 days. Recommended target: 99.9% (less than 43 minutes of downtime per month). Includes APIs, websites, and critical services.",
     "mtdSpendTooltip": "Month-to-Date accumulated spending compared to planned budget. Includes all AWS services: EC2, RDS, S3, Lambda, CloudFront, etc. Updated daily via Cost Explorer.",
     "savingsPotentialTooltip": "Estimated savings identified by RI/SP analysis, idle resources, oversized instances, old snapshots, unused elastic IPs, and other opportunities. Based on real data from the last 30 days.",
-    "activeAlertsTooltip": "Active alerts requiring immediate attention. CRITICAL: issues affecting production (offline endpoints, critical security findings). HIGH: significant risks that should be resolved within 24h. MEDIUM: recommended improvements for optimization."
+    "activeAlertsTooltip": "Active alerts requiring immediate attention. CRITICAL: issues affecting production (offline endpoints, critical security findings). HIGH: significant risks that should be resolved within 24h. MEDIUM: recommended improvements for optimization.",
+    "operationsCenterTooltipTitle": "About Operations Center",
+    "operationsCenterTooltipDesc": "Monitors the health and availability of your endpoints and services.",
+    "operationsCenterTooltipEndpoints": "Endpoint availability monitoring",
+    "operationsCenterTooltipResponse": "Response time tracking",
+    "operationsCenterTooltipAlerts": "Active alerts and incidents",
+    "operationsCenterTooltipRemediation": "Remediation tracking",
+    "operationsCenterTooltipNote": "This data is organization-wide and does not filter by cloud account.",
+    "financialHealthTooltipTitle": "About Financial Health",
+    "financialHealthTooltipDesc": "Overview of your cloud spending and savings opportunities.",
+    "financialHealthTooltipMTD": "MTD/YTD cost tracking",
+    "financialHealthTooltipBudget": "Budget utilization monitoring",
+    "financialHealthTooltipServices": "Top spending services breakdown",
+    "financialHealthTooltipSavings": "RI/SP and optimization recommendations",
+    "financialHealthTooltipNote": "Data is updated daily via AWS Cost Explorer.",
+    "securityPostureTooltipTitle": "About Security Posture",
+    "securityPostureTooltipDesc": "Security analysis based on AWS best practices and compliance frameworks.",
+    "securityPostureTooltipScore": "Security score (0-100) based on findings",
+    "securityPostureTooltipFindings": "Findings categorized by severity",
+    "securityPostureTooltipTrend": "7-day trend analysis",
+    "securityPostureTooltipFrameworks": "CIS, LGPD, PCI-DSS, HIPAA compliance",
+    "securityPostureTooltipNote": "Run regular scans to keep your security posture up to date."
   },
   "aiInsights": {
     "title": "AI Insights",
@@ -986,12 +1012,21 @@
   },
   "knowledgeBase": {
     "title": "Knowledge Base",
+    "description": "Organizational wiki and documentation",
     "approved": "Approved",
     "rejected": "Rejected",
     "pendingReview": "Pending Review",
     "articleApproved": "This article has been approved and is published",
     "articleRejected": "This article was rejected",
     "articlePending": "This article is awaiting review"
+  },
+  "edgeMonitoring": {
+    "title": "Edge Monitoring",
+    "description": "CloudFront, WAF and Load Balancers - AWS edge services"
+  },
+  "licenseManagement": {
+    "title": "License Management",
+    "description": "View and manage your EVO platform license"
   },
   "awsSettings": {
     "title": "AWS Settings",
@@ -1588,7 +1623,8 @@
       "step4": "Saving Analysis",
       "step4Desc": "Storing results in database",
       "aiPowered": "AI-Powered Analysis",
-      "aiPoweredDesc": "We use Claude 3.5 Sonnet via AWS Bedrock for advanced traffic pattern analysis and real-time threat identification."
+      "aiPoweredDesc": "We use Claude 3.5 Sonnet via AWS Bedrock for advanced traffic pattern analysis and real-time threat identification.",
+      "organizationWide": "This analysis considers data from all AWS accounts in the organization. For account-specific analysis, run a new analysis with the selected account."
     },
     "analysisHistory": {
       "title": "Analysis History",

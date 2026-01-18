@@ -1,11 +1,11 @@
 /**
  * Security Posture Card - Security score and findings
- * Clean Light Design with color palette:
- *   - Primary: #003C7D (dark blue)
- *   - Secondary: #008CFF (light blue)
- *   - Success: #10B981 (green)
- *   - Background: #FFFFFF / #F9FAFB
- *   - Text: #1F2937 (dark gray)
+ * Design aligned with Executive Summary Bar:
+ *   - Primary: #00B2FF (light blue)
+ *   - Text: #393939 (dark gray)
+ *   - Labels: #5F5F5F (medium gray)
+ *   - Background: #FFFFFF
+ *   - Border: border-gray-200
  */
 
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import { TrendingUp, TrendingDown, Minus, AlertTriangle, Play, Shield } from 'lu
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import InfoIcon from './InfoIcon';
 import type { SecurityPosture } from '../types';
 
 interface Props {
@@ -27,22 +28,16 @@ export default function SecurityPostureCard({ data }: Props) {
   const hasNoData = data.score === -1 || data.lastScanDate === null;
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-[#10B981]';
-    if (score >= 60) return 'text-[#1F2937]';
-    return 'text-red-600';
-  };
-
-  const getScoreBgColor = (score: number) => {
-    if (score >= 80) return 'bg-[#10B981]/10 border-[#10B981]/20';
-    if (score >= 60) return 'bg-[#F9FAFB] border-gray-200';
-    return 'bg-red-50 border-red-200';
+    if (score >= 80) return 'text-[#00B2FF]';
+    if (score >= 60) return 'text-[#393939]';
+    return 'text-red-500';
   };
 
   const getTrendIcon = () => {
     if (data.trend.netChange > 0) {
-      return <TrendingUp className="h-4 w-4 text-red-600" />;
+      return <TrendingUp className="h-4 w-4 text-red-500" />;
     } else if (data.trend.netChange < 0) {
-      return <TrendingDown className="h-4 w-4 text-[#10B981]" />;
+      return <TrendingDown className="h-4 w-4 text-[#00B2FF]" />;
     }
     return <Minus className="h-4 w-4 text-gray-400" />;
   };
@@ -63,28 +58,28 @@ export default function SecurityPostureCard({ data }: Props) {
   // Render "no data" state
   if (hasNoData) {
     return (
-      <div className="h-full bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+      <div className="h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-xl font-light text-[#1F2937]">
-            {t('executiveDashboard.securityPosture', 'Security Posture')}
-          </h3>
-          <p className="text-sm font-light text-gray-500 mt-0.5">
-            {t('executiveDashboard.securityPostureDesc', 'Security score and vulnerability status')}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-base font-light text-[#5F5F5F]">
+              {t('executiveDashboard.securityPosture', 'Security Posture')}
+            </p>
+            <InfoIcon tooltip={t('executiveDashboard.securityPostureTooltip', 'Security analysis based on AWS best practices and compliance frameworks. Run regular scans to keep your security posture up to date.')} />
+          </div>
         </div>
         <div className="p-6">
           <div className="text-center py-8 space-y-4">
-            <div className="p-6 rounded-2xl bg-[#F9FAFB] border border-gray-200">
+            <div className="p-6 rounded-2xl bg-white border border-gray-200">
               <Shield className="h-14 w-14 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-sm font-semibold text-[#1F2937] mb-2">
+              <h3 className="text-sm font-light text-[#393939] mb-2">
                 {t('executiveDashboard.noSecurityData', 'No Security Analysis Yet')}
               </h3>
-              <p className="text-xs text-gray-500 mb-4 max-w-xs mx-auto">
+              <p className="text-xs font-light text-[#5F5F5F] mb-4 max-w-xs mx-auto">
                 {t('executiveDashboard.noSecurityDataDesc', 'Run your first security scan to see your security posture and identify potential vulnerabilities.')}
               </p>
               <Button 
                 onClick={handleRunFirstScan}
-                className="bg-[#003C7D] hover:bg-[#002d5c] text-white rounded-xl font-medium"
+                className="bg-[#00B2FF] hover:bg-[#0090CC] text-white rounded-xl font-light"
               >
                 <Play className="h-4 w-4 mr-2" />
                 {t('executiveDashboard.runFirstScan', 'Run First Security Scan')}
@@ -97,14 +92,14 @@ export default function SecurityPostureCard({ data }: Props) {
   }
 
   return (
-    <div className="h-full bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+    <div className="h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-xl font-light text-[#1F2937]">
-          {t('executiveDashboard.securityPosture', 'Security Posture')}
-        </h3>
-        <p className="text-sm font-light text-gray-500 mt-0.5">
-          {t('executiveDashboard.securityPostureDesc', 'Security score and vulnerability status')}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-base font-light text-[#5F5F5F]">
+            {t('executiveDashboard.securityPosture', 'Security Posture')}
+          </p>
+          <InfoIcon tooltip={t('executiveDashboard.securityPostureTooltip', 'Security analysis based on AWS best practices and compliance frameworks. Run regular scans to keep your security posture up to date.')} />
+        </div>
       </div>
 
       <div className="p-6 space-y-5">
@@ -119,7 +114,7 @@ export default function SecurityPostureCard({ data }: Props) {
                 cy="100"
                 r="85"
                 fill="none"
-                stroke="#E5E7EB"
+                stroke="#E5E5E5"
                 strokeWidth="16"
               />
               {/* Progress arc */}
@@ -128,7 +123,7 @@ export default function SecurityPostureCard({ data }: Props) {
                 cy="100"
                 r="85"
                 fill="none"
-                stroke={data.score >= 80 ? '#10B981' : data.score >= 60 ? '#60A5FA' : '#EF4444'}
+                stroke={data.score >= 80 ? '#00B2FF' : data.score >= 60 ? '#393939' : '#EF4444'}
                 strokeWidth="16"
                 strokeLinecap="round"
                 strokeDasharray={`${(data.score / 100) * 534.07} 534.07`}
@@ -138,13 +133,13 @@ export default function SecurityPostureCard({ data }: Props) {
             
             {/* Center Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-sm text-gray-500 mb-1">
+              <div className="text-sm font-light text-[#5F5F5F] mb-1">
                 {t('executiveDashboard.securityScore', 'Score de Saúde')}
               </div>
-              <div className={cn('text-5xl font-light tabular-nums', getScoreColor(data.score))}>
+              <div className={cn('tabular-nums', getScoreColor(data.score))} style={{ fontSize: '48px', lineHeight: '1', fontWeight: '300' }}>
                 {data.score}
               </div>
-              <div className="text-lg text-gray-400 font-light">/100</div>
+              <div className="text-lg font-light text-[#5F5F5F]">/100</div>
             </div>
           </div>
           
@@ -152,10 +147,10 @@ export default function SecurityPostureCard({ data }: Props) {
           <div className="mt-4">
             <Badge 
               className={cn(
-                'text-xs font-medium px-3 py-1 rounded-full',
-                data.score >= 80 ? 'bg-[#10B981]/20 text-[#10B981] border-[#10B981]/30' : 
-                data.score >= 60 ? 'bg-gray-100 text-gray-600 border-gray-200' : 
-                'bg-red-100 text-red-600 border-red-200'
+                'text-xs font-light px-3 py-1 rounded-full',
+                data.score >= 80 ? 'bg-[#00B2FF]/20 text-[#00B2FF] border-[#00B2FF]/30' : 
+                data.score >= 60 ? 'bg-gray-100 text-[#5F5F5F] border-gray-200' : 
+                'bg-red-100 text-red-500 border-red-200'
               )}
             >
               {data.score >= 80 ? t('executiveDashboard.statusGood', 'Good') : data.score >= 60 ? t('executiveDashboard.statusNeedsAttention', 'Needs Attention') : t('executiveDashboard.statusCritical', 'Critical')}
@@ -165,34 +160,34 @@ export default function SecurityPostureCard({ data }: Props) {
 
         {/* Findings by Severity - 2x2 Grid */}
         <div className="space-y-3">
-          <span className="text-lg font-light text-[#1F2937]">
+          <span className="text-base font-light text-[#5F5F5F]">
             {t('executiveDashboard.findingsBySeverity', 'Findings by Severity')}
           </span>
           
           <div className="grid grid-cols-4 gap-2">
             <div className={cn(
               "p-3 rounded-xl text-center border cursor-default",
-              data.findings.critical > 0 ? 'bg-red-50 border-red-200' : 'bg-[#F9FAFB] border-gray-100'
+              data.findings.critical > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
             )}>
               <div className={cn(
                 "text-2xl font-light tabular-nums",
-                data.findings.critical > 0 ? 'text-red-600' : 'text-[#1F2937]'
+                data.findings.critical > 0 ? 'text-red-500' : 'text-[#393939]'
               )}>
                 {data.findings.critical}
               </div>
-              <span className="text-xs text-gray-500">{t('executiveDashboard.severityCritical', 'Critical')}</span>
+              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.severityCritical', 'Critical')}</span>
             </div>
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center cursor-default">
-              <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.findings.high}</div>
-              <span className="text-xs text-gray-500">{t('executiveDashboard.severityHigh', 'High')}</span>
+            <div className="p-3 rounded-xl bg-white border border-gray-200 text-center cursor-default">
+              <div className="text-2xl font-light text-[#393939] tabular-nums">{data.findings.high}</div>
+              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.severityHigh', 'High')}</span>
             </div>
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center cursor-default">
-              <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.findings.medium}</div>
-              <span className="text-xs text-gray-500">{t('executiveDashboard.severityMedium', 'Medium')}</span>
+            <div className="p-3 rounded-xl bg-white border border-gray-200 text-center cursor-default">
+              <div className="text-2xl font-light text-[#393939] tabular-nums">{data.findings.medium}</div>
+              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.severityMedium', 'Medium')}</span>
             </div>
-            <div className="p-3 rounded-xl bg-[#F9FAFB] border border-gray-100 text-center cursor-default">
-              <div className="text-2xl font-light text-[#1F2937] tabular-nums">{data.findings.low}</div>
-              <span className="text-xs text-gray-500">{t('executiveDashboard.severityLow', 'Low')}</span>
+            <div className="p-3 rounded-xl bg-white border border-gray-200 text-center cursor-default">
+              <div className="text-2xl font-light text-[#393939] tabular-nums">{data.findings.low}</div>
+              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.severityLow', 'Low')}</span>
             </div>
           </div>
         </div>
@@ -200,15 +195,15 @@ export default function SecurityPostureCard({ data }: Props) {
         {/* 7-Day Trend */}
         <div className="border-t border-gray-100 pt-4 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-lg font-light text-[#1F2937]">
+            <span className="text-base font-light text-[#5F5F5F]">
               {t('executiveDashboard.last7Days', 'Last 7 Days')}
             </span>
             <div className="flex items-center gap-1.5">
               {getTrendIcon()}
               <span className={cn(
-                'text-xs font-medium tabular-nums',
-                data.trend.netChange > 0 ? 'text-red-600' : 
-                data.trend.netChange < 0 ? 'text-[#10B981]' : 'text-gray-500'
+                'text-xs font-light tabular-nums',
+                data.trend.netChange > 0 ? 'text-red-500' : 
+                data.trend.netChange < 0 ? 'text-[#00B2FF]' : 'text-[#5F5F5F]'
               )}>
                 {getTrendText()}
               </span>
@@ -216,34 +211,34 @@ export default function SecurityPostureCard({ data }: Props) {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#F9FAFB] border border-gray-200">
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-white border border-gray-200">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               <div>
-                <div className="text-lg font-light text-[#1F2937] tabular-nums">{data.trend.newLast7Days}</div>
-                <span className="text-xs text-gray-500">{t('executiveDashboard.newIssues', 'New Issues')}</span>
+                <div className="text-lg font-light text-[#393939] tabular-nums">{data.trend.newLast7Days}</div>
+                <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.newIssues', 'New Issues')}</span>
               </div>
             </div>
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#10B981]/10 border border-gray-200">
-              <Shield className="h-4 w-4 text-[#10B981]" />
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#00B2FF]/10 border border-[#00B2FF]/20">
+              <Shield className="h-4 w-4 text-[#00B2FF]" />
               <div>
-                <div className="text-lg font-light text-[#10B981] tabular-nums">{data.trend.resolvedLast7Days}</div>
-                <span className="text-xs text-gray-500">{t('executiveDashboard.resolved', 'Resolved')}</span>
+                <div className="text-lg font-light text-[#00B2FF] tabular-nums">{data.trend.resolvedLast7Days}</div>
+                <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.resolved', 'Resolved')}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Total Findings */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-[#F9FAFB] border border-gray-200">
-          <span className="text-sm text-gray-600">
+        <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
+          <span className="text-sm font-light text-[#5F5F5F]">
             {t('executiveDashboard.totalFindings', 'Total Active Findings')}
           </span>
-          <span className="text-lg font-semibold text-[#1F2937] tabular-nums">{data.findings.total}</span>
+          <span className="text-lg font-light text-[#393939] tabular-nums">{data.findings.total}</span>
         </div>
 
         {/* Last Scan */}
         {data.lastScanDate && (
-          <div className="text-xs text-gray-400 text-center">
+          <div className="text-xs font-light text-[#5F5F5F] text-center">
             {t('executiveDashboard.lastScan', 'Last scan')}: {new Date(data.lastScanDate).toLocaleString()}
           </div>
         )}

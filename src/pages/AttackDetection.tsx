@@ -2,12 +2,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Shield, Activity, Bell, TrendingUp, Lock, ShieldAlert } from "lucide-react";
 import { Layout } from "@/components/Layout";
+import { useTranslation } from "react-i18next";
 
 const AttackDetection = () => {
+  const { t } = useTranslation();
+  
   return (
     <Layout
-      title="Detecção de Ataques em Tempo Real"
-      description="Monitoramento contínuo de logs do AWS WAF para identificação proativa de tentativas de ataque"
+      title={t('sidebar.attackDetection', 'Detecção de Ataques em Tempo Real')}
+      description={t('attackDetection.description', 'Monitoramento contínuo de logs do AWS WAF para identificação proativa de tentativas de ataque')}
       icon={<ShieldAlert className="h-7 w-7" />}
     >
       <div className="space-y-6">

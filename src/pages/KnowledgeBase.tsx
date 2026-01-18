@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1106,10 +1107,12 @@ function KnowledgeBaseContent() {
 export { KnowledgeBaseContent };
 
 export default function KnowledgeBase() {
+  const { t } = useTranslation();
+  
   return (
     <Layout
-      title="Base de Conhecimento"
-      description="Wiki organizacional e documentação"
+      title={t('sidebar.knowledgeBase', 'Knowledge Base')}
+      description={t('knowledgeBase.description', 'Organizational wiki and documentation')}
       icon={<Book className="h-6 w-6" />}
     >
       <KnowledgeBaseContent />

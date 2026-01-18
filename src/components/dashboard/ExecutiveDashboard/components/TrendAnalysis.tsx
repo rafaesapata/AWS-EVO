@@ -1,15 +1,16 @@
 /**
  * Trend Analysis - Cost and security trends over time
- * Clean Light Design with color palette:
- *   - Primary: #003C7D (dark blue)
- *   - Secondary: #008CFF (light blue)
- *   - Success: #10B981 (green)
- *   - Background: #FFFFFF / #F9FAFB
- *   - Text: #1F2937 (dark gray)
- * Charts: Dynamic color bars based on cost value (green → yellow → orange → red)
+ * Design aligned with Executive Summary Bar:
+ *   - Primary: #00B2FF (light blue)
+ *   - Text: #393939 (dark gray)
+ *   - Labels: #5F5F5F (medium gray)
+ *   - Background: #FFFFFF
+ *   - Border: border-gray-200
+ * Charts: Dynamic color bars based on cost value (blue → yellow → orange → red)
  */
 
 import { useTranslation } from 'react-i18next';
+import { CalendarSearch } from 'lucide-react';
 import { 
   AreaChart, 
   Area, 
@@ -33,14 +34,14 @@ interface Props {
 
 // Get color based on cost value relative to min/max
 const getCostColor = (cost: number, minCost: number, maxCost: number): string => {
-  if (maxCost === minCost) return '#10B981'; // Green if all values are the same
+  if (maxCost === minCost) return '#00B2FF'; // Blue if all values are the same
   
   const range = maxCost - minCost;
   const normalizedValue = (cost - minCost) / range;
   
-  // Green (low) → Yellow → Orange → Red (high)
+  // Blue (low) → Yellow → Orange → Red (high)
   if (normalizedValue <= 0.25) {
-    return '#10B981'; // Green
+    return '#00B2FF'; // Blue
   } else if (normalizedValue <= 0.5) {
     return '#FBBF24'; // Yellow
   } else if (normalizedValue <= 0.75) {
@@ -54,9 +55,9 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
   const { t } = useTranslation();
 
   const periodLabels = {
-    '7d': t('executiveDashboard.period7d', '7 Days'),
-    '30d': t('executiveDashboard.period30d', '30 Days'),
-    '90d': t('executiveDashboard.period90d', '90 Days')
+    '7d': t('executiveDashboard.period7d', '7 dias'),
+    '30d': t('executiveDashboard.period30d', '30 dias'),
+    '90d': t('executiveDashboard.period90d', '90 dias')
   };
 
   // Format date for display (MON, TUE, WED style for 7d)
@@ -86,28 +87,27 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
   }));
 
   return (
-    <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xl font-medium text-[#1F2937]">
-              {t('executiveDashboard.trendAnalysis', 'Trend Analysis')}
-            </h3>
-            <p className="text-sm font-light text-gray-500 mt-0.5">
-              {t('executiveDashboard.trendAnalysisDesc', 'Cost and security trends over time')}
-            </p>
-          </div>
+          <p className="text-base font-light text-[#5F5F5F]">
+            {t('executiveDashboard.trendAnalysis', 'Trend Analysis')}
+          </p>
           
-          {/* Pill-style Navigation Tabs - Item 4: White bg, blue border, blue text */}
-          <div className="flex gap-1 p-1 bg-[#F9FAFB] rounded-xl">
+          {/* Pill-style Navigation Tabs */}
+          <div className="flex items-center gap-1 p-1 bg-white border border-gray-200 rounded-xl">
+            {/* Calendar Icon */}
+            <div className="px-3 py-2">
+              <CalendarSearch className="h-5 w-5 text-[#5F5F5F]" />
+            </div>
             {(['7d', '30d', '90d'] as const).map((p) => (
               <button
                 key={p}
                 onClick={() => onPeriodChange(p)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                className={`px-4 py-2 text-sm font-light rounded-lg transition-all ${
                   period === p 
-                    ? 'bg-white text-[#008CFF] border-2 border-[#008CFF] shadow-sm' 
-                    : 'text-gray-600 hover:text-[#003C7D] hover:bg-white border-2 border-transparent'
+                    ? 'bg-white text-[#00B2FF] border-2 border-[#00B2FF] shadow-sm' 
+                    : 'text-[#5F5F5F] hover:text-[#00B2FF] hover:bg-white border-2 border-transparent'
                 }`}
               >
                 {periodLabels[p]}
@@ -121,38 +121,38 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Cost Trend - Bar Chart with dynamic colors */}
           <div className="space-y-4">
-            <h4 className="text-lg font-medium text-[#1F2937]">
+            <p className="text-base font-light text-[#5F5F5F]">
               {t('executiveDashboard.costTrend', 'Cost Trend')}
-            </h4>
+            </p>
             {costChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={costChartData} barCategoryGap="20%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" vertical={false} />
                   <XAxis 
                     dataKey="date" 
-                    stroke="#9CA3AF"
+                    stroke="#5F5F5F"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis 
-                    stroke="#9CA3AF"
+                    stroke="#5F5F5F"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(value) => `$${value}`}
+                    tickFormatter={(value) => `${value}`}
                   />
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#FFFFFF',
-                      border: '1px solid #E5E7EB',
+                      border: '1px solid #E5E5E5',
                       borderRadius: '12px',
                       fontSize: '12px',
-                      color: '#1F2937',
+                      color: '#393939',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
-                    formatter={(value: number | undefined) => value !== undefined ? [`$${value.toFixed(2)}`, 'Cost'] : ['N/A', 'Cost']}
-                    labelStyle={{ color: '#6B7280', fontWeight: 500 }}
+                    formatter={(value: number | undefined) => value !== undefined ? [`${value.toFixed(2)}`, 'Cost'] : ['N/A', 'Cost']}
+                    labelStyle={{ color: '#5F5F5F', fontWeight: 300 }}
                   />
                   <Bar 
                     dataKey="cost" 
@@ -166,7 +166,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm bg-[#F9FAFB] rounded-xl">
+              <div className="h-[220px] flex items-center justify-center text-[#5F5F5F] text-sm font-light bg-white border border-gray-200 rounded-xl">
                 {t('executiveDashboard.noCostData', 'No cost data available')}
               </div>
             )}
@@ -174,32 +174,32 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
 
           {/* Security Trend - Line Chart */}
           <div className="space-y-4">
-            <h4 className="text-lg font-medium text-[#1F2937]">
+            <p className="text-base font-light text-[#5F5F5F]">
               {t('executiveDashboard.securityTrend', 'Security Score Trend')}
-            </h4>
+            </p>
             {securityChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
                 <AreaChart data={securityChartData}>
                   <defs>
                     <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#003C7D" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#003C7D" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#00B2FF" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#00B2FF" stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="findingsGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#EF4444" stopOpacity={0.2}/>
                       <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" vertical={false} />
                   <XAxis 
                     dataKey="date" 
-                    stroke="#9CA3AF"
+                    stroke="#5F5F5F"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis 
-                    stroke="#9CA3AF"
+                    stroke="#5F5F5F"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
@@ -208,21 +208,21 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#FFFFFF',
-                      border: '1px solid #E5E7EB',
+                      border: '1px solid #E5E5E5',
                       borderRadius: '12px',
                       fontSize: '12px',
-                      color: '#1F2937',
+                      color: '#393939',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
-                    labelStyle={{ color: '#6B7280', fontWeight: 500 }}
+                    labelStyle={{ color: '#5F5F5F', fontWeight: 300 }}
                   />
                   <Area 
                     type="monotone" 
                     dataKey="score" 
-                    stroke="#003C7D" 
+                    stroke="#00B2FF" 
                     fill="url(#scoreGradient)"
                     strokeWidth={2}
-                    dot={{ fill: '#003C7D', strokeWidth: 2, r: 4 }}
+                    dot={{ fill: '#00B2FF', strokeWidth: 2, r: 4 }}
                     name="Security Score"
                   />
                   <Line 
@@ -237,7 +237,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm bg-[#F9FAFB] rounded-xl">
+              <div className="h-[220px] flex items-center justify-center text-[#5F5F5F] text-sm font-light bg-white border border-gray-200 rounded-xl">
                 {t('executiveDashboard.noSecurityTrendData', 'No security trend data available')}
               </div>
             )}
@@ -246,21 +246,21 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
 
         {/* Activity Highlight - Large Percentage */}
         {data.cost.length > 0 && (
-          <div className="mt-6 p-5 rounded-2xl bg-gradient-to-r from-[#003C7D]/5 to-[#008CFF]/5 border border-[#003C7D]/10">
+          <div className="mt-6 p-5 rounded-2xl bg-[#00B2FF]/5 border border-[#00B2FF]/20">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-sm text-gray-500">{t('executiveDashboard.periodActivity', 'Period Activity')}</span>
+                <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.periodActivity', 'Period Activity')}</span>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-5xl font-light text-[#003C7D] tabular-nums">
+                  <span className="text-[#00B2FF] tabular-nums" style={{ fontSize: '48px', lineHeight: '1', fontWeight: '300' }}>
                     {Math.round((data.cost.reduce((sum, d) => sum + d.cost, 0) / data.cost.length) * 10) / 10}%
                   </span>
-                  <span className="text-sm text-gray-500">{t('executiveDashboard.avgUtilization', 'avg utilization')}</span>
+                  <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.avgUtilization', 'avg utilization')}</span>
                 </div>
               </div>
               <div className="text-right">
-                <div className="flex items-center gap-1 text-[#10B981]">
-                  <span className="text-sm font-medium">↑ 3.5%</span>
-                  <span className="text-xs text-gray-500">{t('executiveDashboard.vsLastPeriod', 'vs last period')}</span>
+                <div className="flex items-center gap-1 text-[#00B2FF]">
+                  <span className="text-sm font-light">↑ 3.5%</span>
+                  <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.vsLastPeriod', 'vs last period')}</span>
                 </div>
               </div>
             </div>

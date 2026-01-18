@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n/config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,9 +73,17 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  const [progress, setProgress] = useState(0);
  const [estimatedTime, setEstimatedTime] = useState(45);
  const [elapsedTime, setElapsedTime] = useState(0);
+ const [analysisStartTime, setAnalysisStartTime] = useState<number>(0);
 
- // Load latest analysis on mount
+ // Track the current accountId for reference
+ const [loadedForAccount, setLoadedForAccount] = useState<string | undefined>(undefined);
+
+ // Load latest analysis on mount and when accountId changes
  useEffect(() => {
+ // Clear previous analysis when account changes
+ setAnalysis(null);
+ setError(null);
+ setLoadedForAccount(accountId);
  loadLatestAnalysis();
  }, [accountId]);
 
@@ -109,6 +118,10 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  setError(null);
  setProgress(0);
  setElapsedTime(0);
+ 
+ // Record when we started the analysis to compare with results
+ const startTime = Date.now();
+ setAnalysisStartTime(startTime);
  
  // Get current language from i18n hook
  const currentLanguage = i18n.language || 'pt';
@@ -170,6 +183,11 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  });
  
  if (pollResponse.data?.hasAnalysis && !pollResponse.data.processing) {
+ // Check if this is actually a NEW analysis (generated after we started)
+ const newAnalysisTime = new Date(pollResponse.data.generatedAt).getTime();
+ 
+ // Only update if the new analysis was generated AFTER we started the request
+ if (newAnalysisTime > startTime) {
  // Analysis completed!
  clearInterval(pollInterval);
  clearInterval(progressInterval);
@@ -186,6 +204,10 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  description: t('waf.aiAnalysis.successDesc', 'A análise de IA foi gerada e salva com sucesso.'),
  });
  }, 500);
+ } else {
+ // Still waiting for new analysis, continue polling
+ console.log('Polling: analysis not yet updated (old timestamp), continuing...');
+ }
  } else if (pollCount >= maxPolls) {
  // Timeout - stop polling
  clearInterval(pollInterval);
@@ -479,6 +501,14 @@ export function WafAiAnalysis({ accountId }: WafAiAnalysisProps) {
  {t('waf.aiAnalysis.staleWarning', 'Recomendamos atualizar a análise')}
  </span>
  )}
+ </div>
+
+ {/* Organization-wide analysis notice */}
+ <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+ <Globe className="h-4 w-4 text-blue-500" />
+ <span className="text-sm text-blue-600 dark:text-blue-400">
+ {t('waf.aiAnalysis.organizationWide', 'Esta análise considera dados de todas as contas AWS da organização. Para análise específica de uma conta, execute uma nova análise com a conta selecionada.')}
+ </span>
  </div>
 
  {/* Quick Stats */}

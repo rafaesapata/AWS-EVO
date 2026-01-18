@@ -46,11 +46,11 @@ export function WafConfigPanel({ accountId }: WafConfigPanelProps) {
 
   // Fetch current config
   const { data: configData, isLoading } = useQuery({
-    queryKey: ['waf-config', organizationId],
-    enabled: !!organizationId,
+    queryKey: ['waf-config', organizationId, accountId],
+    enabled: !!organizationId && !!accountId,
     queryFn: async () => {
       const response = await apiClient.invoke<{ config: WafConfig }>('waf-dashboard-api', {
-        body: { action: 'config' }
+        body: { action: 'config', accountId }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data?.config;
@@ -68,14 +68,14 @@ export function WafConfigPanel({ accountId }: WafConfigPanelProps) {
   const updateConfigMutation = useMutation({
     mutationFn: async (newConfig: WafConfig) => {
       const response = await apiClient.invoke('waf-dashboard-api', {
-        body: { action: 'update-config', ...newConfig }
+        body: { action: 'update-config', accountId, ...newConfig }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;
     },
     onSuccess: () => {
       toast({ title: t('waf.configSaved'), description: t('waf.configSavedDesc') });
-      queryClient.invalidateQueries({ queryKey: ['waf-config'] });
+      queryClient.invalidateQueries({ queryKey: ['waf-config', organizationId, accountId] });
     },
     onError: (error) => {
       toast({ title: t('common.error'), description: error.message, variant: "destructive" });

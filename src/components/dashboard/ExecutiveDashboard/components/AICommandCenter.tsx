@@ -1,11 +1,11 @@
 /**
  * AI Command Center - AI-generated insights with checkmarks
- * Clean Light Design with color palette:
- *   - Primary: #003C7D (dark blue)
- *   - Secondary: #008CFF (light blue)
- *   - Success: #10B981 (green)
- *   - Background: #FFFFFF / #F9FAFB
- *   - Text: #1F2937 (dark gray)
+ * Design aligned with Executive Summary Bar:
+ *   - Primary: #00B2FF (light blue)
+ *   - Text: #393939 (dark gray)
+ *   - Labels: #5F5F5F (medium gray)
+ *   - Background: #FFFFFF
+ *   - Border: border-gray-200
  */
 
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { AIInsight } from '../types';
+import InfoIcon from './InfoIcon';
 
 interface Props {
   insights: AIInsight[];
@@ -81,108 +82,100 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
     if (isNegative) {
       return {
         icon: <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />,
-        textColor: 'text-red-700'
+        textColor: 'text-red-500',
+        bgColor: 'bg-red-50 border-red-200'
       };
     }
     if (isCost) {
       return {
-        icon: <DollarSign className="h-4 w-4 text-[#10B981] mt-0.5 flex-shrink-0" />,
-        textColor: 'text-gray-700'
+        icon: <DollarSign className="h-4 w-4 text-[#00B2FF] mt-0.5 flex-shrink-0" />,
+        textColor: 'text-[#393939]',
+        bgColor: 'bg-[#00B2FF]/5 border-[#00B2FF]/20'
       };
     }
     if (isSecurity) {
       return {
         icon: <Shield className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />,
-        textColor: 'text-gray-700'
+        textColor: 'text-[#393939]',
+        bgColor: 'bg-amber-50 border-amber-200'
       };
     }
     return {
-      icon: <AlertCircle className="h-4 w-4 text-[#008CFF] mt-0.5 flex-shrink-0" />,
-      textColor: 'text-gray-700'
+      icon: <AlertCircle className="h-4 w-4 text-[#00B2FF] mt-0.5 flex-shrink-0" />,
+      textColor: 'text-[#393939]',
+      bgColor: 'bg-white border-gray-200'
     };
-  };
-
-  const getSeverityStyles = () => {
-    // All cards use neutral background - no colored backgrounds
-    return 'bg-[#F9FAFB] border-gray-100';
   };
 
   const getSeverityBadgeStyles = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return 'bg-red-100 text-red-600 border-red-200';
+        return 'bg-red-100 text-red-500 border-red-200';
       case 'warning':
-        return 'bg-amber-100 text-amber-600 border-amber-200';
+        return 'bg-amber-100 text-amber-500 border-amber-200';
       default:
-        return 'bg-gray-100 text-gray-600 border-gray-200';
+        return 'bg-gray-100 text-[#5F5F5F] border-gray-200';
     }
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden h-full flex flex-col">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xl font-light text-[#1F2937]">
-              {t('executiveDashboard.aiCommandCenter', 'Centro de Comando IA')}
-            </h3>
-            <p className="text-sm font-light text-gray-500 mt-1">
-              {t('executiveDashboard.aiCommandCenterDesc', 'AI-generated insights and recommendations')}
-            </p>
+          <p className="text-base font-light text-[#5F5F5F]">
+            {t('executiveDashboard.aiCommandCenter', 'Ações Recomendadas')}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onRefresh}
+              disabled={isLoading}
+              className="h-7 w-7 p-0 text-[#5F5F5F] hover:text-[#00B2FF] hover:bg-[#00B2FF]/10 rounded-lg"
+            >
+              <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+            </Button>
+            <InfoIcon tooltip={t('executiveDashboard.aiCommandCenterTooltip', 'AI-powered recommendations based on your infrastructure analysis.')} />
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={onRefresh}
-            disabled={isLoading}
-            className="h-8 w-8 p-0 text-gray-500 hover:text-[#003C7D] hover:bg-[#003C7D]/10 rounded-xl"
-          >
-            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
-          </Button>
         </div>
       </div>
 
-      <div className="p-6 space-y-4">
+      <div className="p-5 space-y-4 flex-1">
         {insights.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="p-4 bg-[#F9FAFB] rounded-2xl mb-4">
-              <Sparkles className="h-12 w-12 text-gray-300" />
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="p-3 bg-white border border-gray-200 rounded-xl mb-3">
+              <Sparkles className="h-8 w-8 text-gray-300" />
             </div>
-            <p className="text-sm font-medium text-[#1F2937]">
+            <p className="text-sm font-light text-[#393939]">
               {t('executiveDashboard.noInsights', 'No insights available yet')}
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs font-light text-[#5F5F5F] mt-1">
               {t('executiveDashboard.insightsWillAppear', 'AI insights will appear as data is analyzed')}
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {/* AI Summary Section - Same design as Executive Summary cards */}
-            <div className="space-y-3">
-              <span className="text-lg font-light text-[#1F2937] block">
+          <div className="space-y-4">
+            {/* AI Summary Section */}
+            <div className="space-y-2">
+              <span className="text-sm font-light text-[#5F5F5F] block">
                 {t('executiveDashboard.aiSummary', 'AI Summary')}
               </span>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {insights.slice(0, 3).map((insight, idx) => {
                   const style = getSummaryItemStyle(insight);
-                  const isNegative = style.textColor === 'text-red-700';
-                  const isCost = insight.type === 'optimization' || insight.type === 'cost_anomaly';
-                  const isSecurity = insight.type === 'security_risk';
                   
                   return (
                     <div 
                       key={idx} 
                       className={cn(
-                        "p-4 rounded-2xl border cursor-default",
-                        isNegative ? 'bg-red-50 border-red-200' :
-                        isCost ? 'bg-[#10B981]/10 border-[#10B981]/20' :
-                        isSecurity ? 'bg-amber-50 border-amber-200' :
-                        'bg-white border-gray-200'
+                        "p-3 rounded-xl border cursor-default",
+                        style.bgColor
                       )}
                     >
                       <div className="flex items-start gap-2">
                         {style.icon}
-                        <span className={cn("text-sm font-medium", style.textColor)}>{insight.title}</span>
+                        <span className={cn("text-sm font-light", style.textColor)}>{insight.title}</span>
                       </div>
                     </div>
                   );
@@ -191,79 +184,69 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
             </div>
 
             {/* Detailed Insights */}
-            {insights.map((insight) => (
-              <div 
-                key={insight.id}
-                className={cn(
-                  'p-4 rounded-2xl border transition-all hover:shadow-sm cursor-pointer',
-                  getSeverityStyles()
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={cn(
-                    'p-2 rounded-xl',
-                    insight.type === 'optimization' ? 'bg-[#10B981]/10 text-[#10B981]' :
-                    'bg-[#003C7D]/10 text-[#003C7D]'
-                  )}>
-                    {getInsightIcon(insight.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-sm text-[#1F2937]">{insight.title}</span>
-                      <Badge 
-                        className={cn(
-                          "text-xs px-2 py-0.5 rounded-full font-medium",
-                          getSeverityBadgeStyles(insight.severity)
-                        )}
-                      >
-                        {insight.severity}
-                      </Badge>
+            <div className="space-y-2">
+              {insights.slice(0, 2).map((insight) => (
+                <div 
+                  key={insight.id}
+                  className="p-3 rounded-xl border border-gray-200 bg-white transition-all hover:border-[#00B2FF]/30 cursor-pointer"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-[#00B2FF]/10 text-[#00B2FF]">
+                      {getInsightIcon(insight.type)}
                     </div>
-                    <p className="text-xs text-gray-500 line-clamp-2">
-                      {insight.description}
-                    </p>
-                    {insight.recommendation && (
-                      <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
-                        <Lightbulb className="h-3.5 w-3.5 text-gray-400" />
-                        <span className="truncate font-medium">{insight.recommendation}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="font-light text-sm text-[#393939]">{insight.title}</span>
+                        <Badge 
+                          className={cn(
+                            "text-xs px-1.5 py-0 rounded-full font-light",
+                            getSeverityBadgeStyles(insight.severity)
+                          )}
+                        >
+                          {insight.severity}
+                        </Badge>
                       </div>
-                    )}
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-xs text-gray-400 tabular-nums">
-                        {t('executiveDashboard.confidence', 'Confidence')}: {(insight.confidence * 100).toFixed(0)}%
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                      <p className="text-xs font-light text-[#5F5F5F] line-clamp-1">
+                        {insight.description}
+                      </p>
+                      {insight.recommendation && (
+                        <div className="mt-1.5 flex items-center gap-1 text-xs text-[#5F5F5F]">
+                          <Lightbulb className="h-3 w-3 text-[#00B2FF]" />
+                          <span className="truncate font-light">{insight.recommendation}</span>
+                        </div>
+                      )}
                     </div>
+                    <ChevronRight className="h-4 w-4 text-[#5F5F5F] flex-shrink-0" />
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Quick Actions - Styled as buttons with shadow and action icons */}
-        <div className="border-t border-gray-100 pt-4">
-          <span className="text-lg font-light text-[#1F2937] mb-3 block">
+        {/* Quick Actions */}
+        <div className="border-t border-gray-100 pt-4 mt-auto">
+          <span className="text-sm font-light text-[#5F5F5F] mb-2 block">
             {t('executiveDashboard.quickActions', 'Quick Actions')}
           </span>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => navigate('/security-posture')}
-              className="h-12 text-sm justify-start rounded-xl border-gray-200 bg-white text-[#1F2937] hover:bg-[#003C7D]/5 hover:border-[#003C7D]/30 hover:text-[#003C7D] shadow-sm hover:shadow-md transition-all"
+              className="h-10 text-sm font-light justify-start rounded-xl border-gray-200 bg-white text-[#393939] hover:bg-[#00B2FF]/5 hover:border-[#00B2FF]/30 hover:text-[#00B2FF] shadow-sm transition-all"
             >
-              <Play className="h-4 w-4 mr-2 text-[#003C7D]" />
-              {t('executiveDashboard.runSecurityScanFull', 'Executar Security Scan')}
+              <Play className="h-4 w-4 mr-2 text-[#00B2FF]" />
+              {t('executiveDashboard.runSecurityScan', 'Security Scan')}
             </Button>
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => navigate('/cost-analysis')}
-              className="h-12 text-sm justify-start rounded-xl border-gray-200 bg-white text-[#1F2937] hover:bg-[#003C7D]/5 hover:border-[#003C7D]/30 hover:text-[#003C7D] shadow-sm hover:shadow-md transition-all"
+              className="h-10 text-sm font-light justify-start rounded-xl border-gray-200 bg-white text-[#393939] hover:bg-[#00B2FF]/5 hover:border-[#00B2FF]/30 hover:text-[#00B2FF] shadow-sm transition-all"
             >
-              <FileText className="h-4 w-4 mr-2 text-[#003C7D]" />
-              {t('executiveDashboard.viewCostReport', 'Ver Relatório de Custos')}
+              <FileText className="h-4 w-4 mr-2 text-[#00B2FF]" />
+              {t('executiveDashboard.costReport', 'Cost Report')}
             </Button>
           </div>
         </div>

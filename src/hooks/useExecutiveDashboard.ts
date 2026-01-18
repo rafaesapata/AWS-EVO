@@ -5,7 +5,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/integrations/aws/api-client';
 import { useOrganization } from './useOrganization';
-import { useAwsAccount } from '@/contexts/AwsAccountContext';
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { useTVDashboard } from '@/contexts/TVDashboardContext';
 import type { ExecutiveDashboardData } from '@/components/dashboard/ExecutiveDashboard/types';
 
@@ -21,7 +21,7 @@ interface UseExecutiveDashboardOptions {
 
 export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}) {
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId, isLoading: accountLoading } = useAwsAccount();
+  const { selectedAccountId, isLoading: accountLoading } = useCloudAccount();
   const { isTVMode, organizationId: tvOrgId } = useTVDashboard();
   const queryClient = useQueryClient();
 
@@ -85,7 +85,7 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
 
       return response.data as ExecutiveDashboardData;
     },
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 0, // Always refetch when account changes (queryKey includes selectedAccountId)
     gcTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval,
     refetchIntervalInBackground: isTVMode,
@@ -93,7 +93,10 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
 
   const refresh = () => {
     queryClient.invalidateQueries({ 
-      queryKey: ['executive-dashboard-v2', effectiveOrgId] 
+      queryKey: ['executive-dashboard-v2']
+    });
+    queryClient.refetchQueries({
+      queryKey: ['executive-dashboard-v2', effectiveOrgId, selectedAccountId]
     });
   };
 

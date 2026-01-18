@@ -69,9 +69,10 @@ interface WafTopAttackersProps {
   topAttackers: TopAttacker[];
   isLoading: boolean;
   onBlockIp?: (ip: string) => void;
+  accountId?: string;
 }
 
-export function WafTopAttackers({ topAttackers, isLoading, onBlockIp }: WafTopAttackersProps) {
+export function WafTopAttackers({ topAttackers, isLoading, onBlockIp, accountId }: WafTopAttackersProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [selectedIp, setSelectedIp] = useState<string | null>(null);
@@ -118,12 +119,12 @@ export function WafTopAttackers({ topAttackers, isLoading, onBlockIp }: WafTopAt
 
   // Fetch recent events for the selected IP
   const { data: ipEventsData, isLoading: ipEventsLoading } = useQuery({
-    queryKey: ['ip-events', selectedIp],
-    enabled: !!selectedIp,
+    queryKey: ['ip-events', selectedIp, accountId],
+    enabled: !!selectedIp && !!accountId,
     staleTime: 30 * 1000,
     queryFn: async () => {
       const response = await apiClient.invoke<{ events: IpEvent[] }>('waf-dashboard-api', {
-        body: { action: 'events', sourceIp: selectedIp, limit: 10 }
+        body: { action: 'events', accountId, sourceIp: selectedIp, limit: 10 }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
       return response.data;

@@ -6,8 +6,10 @@ import { PredictiveIncidentsHistory } from "@/components/dashboard/PredictiveInc
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/Layout";
+import { useTranslation } from "react-i18next";
 
 const PredictiveIncidents = () => {
+  const { t } = useTranslation();
   const { data: organizationId } = useOrganization();
   const [activeTab, setActiveTab] = useState("prediction");
   const { toast } = useToast();
@@ -23,8 +25,8 @@ const PredictiveIncidents = () => {
 
   return (
     <Layout 
-      title="Incidentes Preditivos" 
-      description="Preveja potenciais incidentes usando Machine Learning para análise preditiva de infraestrutura"
+      title={t('sidebar.predictiveIncidents', 'Incidentes Preditivos')} 
+      description={t('predictiveIncidents.description', 'Preveja potenciais incidentes usando Machine Learning para análise preditiva de infraestrutura')}
       icon={<Activity className="h-7 w-7" />}
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

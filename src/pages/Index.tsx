@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { Layout } from "@/components/Layout";
 import { CostAnalysisPage } from "@/pages/CostAnalysisPage";
@@ -31,6 +32,7 @@ import {
 const Index = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(() => {
     return searchParams.get('tab') || "overview";
@@ -142,8 +144,8 @@ const Index = () => {
   if (activeTab === "cost-analysis") {
     return (
       <Layout
-        title="Análise Detalhada de Custos"
-        description="Custos diários, tendências e previsões AWS"
+        title={t('sidebar.detailedAnalysis', 'Análise Detalhada de Custos')}
+        description={t('costAnalysis.description', 'Custos diários, tendências e previsões AWS')}
         icon={<DollarSign className="h-4 w-4" />}
       >
         <CostAnalysisPage embedded />
@@ -154,8 +156,8 @@ const Index = () => {
   if (activeTab === "audit") {
     return (
       <Layout
-        title="Log de Auditoria"
-        description="Histórico de ações e eventos do sistema"
+        title={t('sidebar.audit', 'Log de Auditoria')}
+        description={t('auditLog.description', 'Histórico de ações e eventos do sistema')}
         icon={<FileCheck className="h-4 w-4" />}
       >
         <AuditLog />
@@ -166,8 +168,8 @@ const Index = () => {
   if (activeTab === "tv-dashboards") {
     return (
       <Layout
-        title="TV Dashboards"
-        description="Gerencie links de acesso para exibição em TVs"
+        title={t('sidebar.tvDashboards', 'TV Dashboards')}
+        description={t('tvDashboard.managementDesc', 'Gerencie links de acesso para exibição em TVs')}
         icon={<Tv className="h-4 w-4" />}
       >
         <TVDashboardManagement />
@@ -178,8 +180,8 @@ const Index = () => {
   if (activeTab === "security-analysis") {
     return (
       <Layout
-        title="Análise de Segurança AWS"
-        description="Verificação abrangente de vulnerabilidades e configurações"
+        title={t('sidebar.securityScan', 'Análise de Segurança AWS')}
+        description={t('securityScan.description', 'Verificação abrangente de vulnerabilidades e configurações')}
         icon={<Shield className="h-4 w-4" />}
       >
         <SecurityAnalysisContent />
@@ -190,8 +192,8 @@ const Index = () => {
   // Executive Dashboard - Default view
   return (
     <Layout
-      title="Dashboard Executivo"
-      description="Visão consolidada de segurança, custos e compliance"
+      title={t('executiveDashboard.title', 'Dashboard Executivo')}
+      description={t('executiveDashboard.description', 'Visão consolidada de segurança, custos e compliance')}
       icon={<BarChart3 className="h-4 w-4" />}
     >
       <ExecutiveDashboardV2 />

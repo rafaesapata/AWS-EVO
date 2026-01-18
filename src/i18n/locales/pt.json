@@ -226,6 +226,7 @@
     "endpoints": "Endpoints",
     "awsResources": "Recursos",
     "edgeLbCfWaf": "Borda (LB/CF/WAF)",
+    "edgeMonitoring": "Monitoramento de Borda",
     "attackDetection": "Detecção de Ataques",
     "wafMonitoring": "Monitoramento WAF",
     "analysisScans": "Análises & Scans",
@@ -245,6 +246,7 @@
     "audit": "Auditoria",
     "communicationCenter": "Central de Comunicação",
     "license": "Licença",
+    "licenseManagement": "Gerenciamento de Licença",
     "awsSettings": "Configurações AWS",
     "cloudCredentials": "Credenciais Cloud",
     "manageUsers": "Gerenciar Usuários",
@@ -372,6 +374,7 @@
     "savingsPotential": "Potencial de Economia",
     "uptimeSLA": "SLA de Uptime",
     "target": "Meta",
+    "alertTarget": "Meta",
     "activeAlerts": "Alertas Ativos",
     "alertCritical": "CRÍTICO",
     "alertHigh": "ALTO",
@@ -444,15 +447,38 @@
     "avgUtilization": "utilização média",
     "issuesResolved": "issues resolvidos",
     "noChange": "Sem alteração",
-    "optimizeHealth": "Otimizar saúde →",
-    "increaseEconomy": "Aumentar economia →",
-    "viewAlerts": "Ver alertas →",
+    "optimizeHealth": "Otimizar saúde",
+    "optimizeHealthCTA": "Ver como otimizar saúde",
+    "increaseEconomy": "Aumentar economia",
+    "optimizeCostCTA": "Ver como otimizar custo",
+    "viewAlerts": "Ver alertas",
     "healthScoreTooltip": "Score de 0-100 que avalia a saúde geral da sua infraestrutura AWS. Considera segurança (findings críticos), compliance (frameworks CIS, LGPD, PCI-DSS), performance (uptime, latência) e custos (otimização, desperdício). Atualizado em tempo real.",
     "healthScoreDescription": "Análise completa de segurança e conformidade",
     "uptimeSLATooltip": "Porcentagem de disponibilidade dos seus endpoints monitorados nos últimos 30 dias. Meta recomendada: 99.9% (menos de 43 minutos de downtime por mês). Inclui APIs, websites e serviços críticos.",
     "mtdSpendTooltip": "Gastos acumulados do mês atual (Month-to-Date) comparados com o orçamento planejado. Inclui todos os serviços AWS: EC2, RDS, S3, Lambda, CloudFront, etc. Atualizado diariamente via Cost Explorer.",
     "savingsPotentialTooltip": "Economia estimada identificada pela análise de RI/SP, recursos ociosos, instâncias oversized, snapshots antigos, IPs elásticos não utilizados e outras oportunidades. Baseado em dados reais dos últimos 30 dias.",
-    "activeAlertsTooltip": "Alertas ativos que requerem atenção imediata. CRÍTICO: problemas que afetam produção (endpoints offline, findings de segurança críticos). ALTO: riscos significativos que devem ser resolvidos em 24h. MÉDIO: melhorias recomendadas para otimização."
+    "activeAlertsTooltip": "Alertas ativos que requerem atenção imediata. CRÍTICO: problemas que afetam produção (endpoints offline, findings de segurança críticos). ALTO: riscos significativos que devem ser resolvidos em 24h. MÉDIO: melhorias recomendadas para otimização.",
+    "operationsCenterTooltipTitle": "Sobre o Operations Center",
+    "operationsCenterTooltipDesc": "Monitora a saúde e disponibilidade dos seus endpoints e serviços.",
+    "operationsCenterTooltipEndpoints": "Monitoramento de disponibilidade de endpoints",
+    "operationsCenterTooltipResponse": "Rastreamento de tempo de resposta",
+    "operationsCenterTooltipAlerts": "Alertas ativos e incidentes",
+    "operationsCenterTooltipRemediation": "Acompanhamento de remediações",
+    "operationsCenterTooltipNote": "Estes dados são da organização como um todo e não filtram por conta cloud.",
+    "financialHealthTooltipTitle": "Sobre Saúde Financeira",
+    "financialHealthTooltipDesc": "Visão geral dos seus gastos em nuvem e oportunidades de economia.",
+    "financialHealthTooltipMTD": "Acompanhamento de custos MTD/YTD",
+    "financialHealthTooltipBudget": "Monitoramento de utilização do orçamento",
+    "financialHealthTooltipServices": "Detalhamento dos serviços com maior gasto",
+    "financialHealthTooltipSavings": "Recomendações de RI/SP e otimização",
+    "financialHealthTooltipNote": "Dados atualizados diariamente via AWS Cost Explorer.",
+    "securityPostureTooltipTitle": "Sobre Postura de Segurança",
+    "securityPostureTooltipDesc": "Análise de segurança baseada em melhores práticas AWS e frameworks de compliance.",
+    "securityPostureTooltipScore": "Score de segurança (0-100) baseado em findings",
+    "securityPostureTooltipFindings": "Findings categorizados por severidade",
+    "securityPostureTooltipTrend": "Análise de tendência dos últimos 7 dias",
+    "securityPostureTooltipFrameworks": "Compliance CIS, LGPD, PCI-DSS, HIPAA",
+    "securityPostureTooltipNote": "Execute scans regulares para manter sua postura de segurança atualizada."
   },
   "aiInsights": {
     "title": "Insights de IA",
@@ -1135,12 +1161,21 @@
   },
   "knowledgeBase": {
     "title": "Base de Conhecimento",
+    "description": "Wiki organizacional e documentação",
     "approved": "Aprovado",
     "rejected": "Rejeitado",
     "pendingReview": "Pendente",
     "articleApproved": "Este artigo foi aprovado e está publicado",
     "articleRejected": "Este artigo foi rejeitado",
     "articlePending": "Este artigo está aguardando revisão"
+  },
+  "edgeMonitoring": {
+    "title": "Monitoramento de Borda",
+    "description": "CloudFront, WAF e Load Balancers - Serviços de borda AWS"
+  },
+  "licenseManagement": {
+    "title": "Gerenciamento de Licença",
+    "description": "Visualize e gerencie sua licença da plataforma EVO"
   },
   "awsSettings": {
     "title": "Configurações AWS",
@@ -1739,7 +1774,8 @@
       "step4": "Salvando Análise",
       "step4Desc": "Armazenando resultados no banco de dados",
       "aiPowered": "Análise Powered by AI",
-      "aiPoweredDesc": "Utilizamos Claude 3.5 Sonnet via AWS Bedrock para análise avançada de padrões de tráfego e identificação de ameaças em tempo real."
+      "aiPoweredDesc": "Utilizamos Claude 3.5 Sonnet via AWS Bedrock para análise avançada de padrões de tráfego e identificação de ameaças em tempo real.",
+      "organizationWide": "Esta análise considera dados de todas as contas AWS da organização. Para análise específica de uma conta, execute uma nova análise com a conta selecionada."
     },
     "analysisHistory": {
       "title": "Histórico de Análises",

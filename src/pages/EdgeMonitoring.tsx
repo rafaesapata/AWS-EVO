@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,7 @@ interface EdgeMetrics {
 }
 
 export default function EdgeMonitoring() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { selectedAccountId } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
@@ -333,8 +335,8 @@ export default function EdgeMonitoring() {
 
   return (
     <Layout 
-      title="Monitoramento de Borda" 
-      description="CloudFront, WAF e Load Balancers - Serviços de borda AWS"
+      title={t('sidebar.edgeMonitoring', 'Edge Monitoring')} 
+      description={t('edgeMonitoring.description', 'CloudFront, WAF and Load Balancers - AWS edge services')}
       icon={<Globe className="h-5 w-5" />}
     >
       <div className="space-y-6">

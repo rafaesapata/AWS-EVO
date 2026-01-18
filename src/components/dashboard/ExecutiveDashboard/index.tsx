@@ -114,7 +114,7 @@ export default function ExecutiveDashboardV2() {
   const formattedDate = currentDate.charAt(0).toUpperCase() + currentDate.slice(1);
 
   return (
-    <div className="min-h-screen bg-[#F1F3F7] -m-6 p-6 space-y-6">
+    <div data-executive-dashboard className="min-h-screen bg-[#F1F3F7] -m-6 p-6 space-y-6">
       {/* Greeting Header with Refresh Button */}
       <div className="flex items-start justify-between">
         <div className="space-y-0.5">
@@ -191,32 +191,36 @@ export default function ExecutiveDashboardV2() {
             <SecurityPostureCard data={data.security} />
           </div>
         </div>
-
-        <div className="relative">
-          {hasOperationalIssues && (
-            <div className="absolute -top-2 right-4 z-10">
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
-                {(data.operations?.endpoints?.down || 0) + (data.operations?.alerts?.count?.critical || 0)} {t('executiveDashboard.issues', 'Problemas')}
-              </span>
-            </div>
-          )}
-          <OperationsCenterCard data={data.operations} />
-        </div>
       </section>
 
-      {/* SECTION 3: Recommended Actions */}
+      {/* SECTION 3: Operations & Recommended Actions - Side by Side */}
       <section className="space-y-4">
         <SectionHeader 
-          title={t('executiveDashboard.sections.actions', 'Ações Recomendadas')}
-          description={t('executiveDashboard.sections.actionsDesc', 'O que pode ser feito agora para melhorar')}
+          title={t('executiveDashboard.sections.actions', 'Operações e Ações Recomendadas')}
+          description={t('executiveDashboard.sections.actionsDesc', 'Status operacional e o que pode ser feito agora')}
           icon={Zap}
         />
 
-        <AICommandCenter 
-          insights={data.insights}
-          onRefresh={refresh}
-          isLoading={isFetching}
-        />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="relative h-full">
+            {hasOperationalIssues && (
+              <div className="absolute -top-2 -right-2 z-10">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                  {(data.operations?.endpoints?.down || 0) + (data.operations?.alerts?.count?.critical || 0)} {t('executiveDashboard.issues', 'Problemas')}
+                </span>
+              </div>
+            )}
+            <OperationsCenterCard data={data.operations} />
+          </div>
+
+          <div className="h-full">
+            <AICommandCenter 
+              insights={data.insights}
+              onRefresh={refresh}
+              isLoading={isFetching}
+            />
+          </div>
+        </div>
 
         <QuickActionsSummary 
           data={data}
