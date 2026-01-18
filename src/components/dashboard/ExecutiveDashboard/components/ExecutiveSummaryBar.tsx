@@ -29,6 +29,7 @@ import type { ExecutiveSummary } from '../types';
 import DonutChart from './DonutChart';
 import InfoIcon from './InfoIcon';
 import CardCTA from './CardCTA';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 interface Props {
   data: ExecutiveSummary;
@@ -41,9 +42,10 @@ export default function ExecutiveSummaryBar({ data }: Props) {
   const totalAlerts = data.activeAlerts.critical + data.activeAlerts.high + data.activeAlerts.medium;
 
   return (
-    <div className="space-y-4">
-      {/* 4 Cards in a single row - exactly as Figma */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <TooltipProvider>
+      <div className="space-y-4">
+        {/* 4 Cards in a single row - exactly as Figma */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Health Score */}
         <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-4 transition-all hover:shadow-md shadow-sm">
           <div className="absolute top-4 right-4">
@@ -190,17 +192,15 @@ export default function ExecutiveSummaryBar({ data }: Props) {
             ? 'bg-white border-red-100' 
             : 'bg-white border-amber-100'
         )}>
-          {/* Info Icon */}
-          <div className="absolute top-3 right-3">
-            <InfoIcon tooltip={t('executiveDashboard.activeAlertsTooltip', 'Critical and high priority alerts requiring attention')} />
-          </div>
-          
-          {/* Title and Alert Counts in single row */}
+          {/* Title, Alert Counts and CTA in single row */}
           <div className="flex items-center justify-between gap-6">
             {/* Title - 16px Light */}
-            <p className="text-base font-light text-[#393939]">
-              {t('executiveDashboard.activeAlerts', 'Alertas Ativos')}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-base font-light text-[#393939]">
+                {t('executiveDashboard.activeAlerts', 'Alertas Ativos')}
+              </p>
+              <InfoIcon tooltip={t('executiveDashboard.activeAlertsTooltip')} />
+            </div>
             
             {/* Alert Counts - Horizontal, compact */}
             <div className="flex items-center gap-8">
@@ -248,5 +248,6 @@ export default function ExecutiveSummaryBar({ data }: Props) {
         </div>
       )}
     </div>
+    </TooltipProvider>
   );
 }

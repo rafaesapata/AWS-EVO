@@ -8,7 +8,6 @@ import { HelpCircle } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
@@ -27,17 +26,19 @@ export default function InfoIcon({ tooltip, className = '' }: InfoIconProps) {
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className={`p-1 cursor-help ${className}`}>
-            <HelpCircle className="h-4 w-4 text-gray-400 hover:text-gray-600 transition-colors" />
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p className="max-w-xs text-sm">{tooltip}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <button 
+          type="button"
+          className={`p-1 cursor-help focus:outline-none ${className}`}
+        >
+          <HelpCircle className="h-4 w-4 text-gray-400 hover:text-gray-600 transition-colors" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-sm">{tooltip}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
+
