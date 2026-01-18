@@ -2,6 +2,9 @@
  * Donut Chart Component
  * Circular progress indicator for Health Score
  * Based on Figma design specifications
+ * - Size: 110px diameter
+ * - Stroke: 6px
+ * - Center value: 35px Extra Light
  */
 
 interface DonutChartProps {
@@ -15,7 +18,7 @@ interface DonutChartProps {
 export default function DonutChart({
   value,
   max = 100,
-  size = 120,
+  size = 110,
   strokeWidth = 6,
   color = '#00B2FF'
 }: DonutChartProps) {
@@ -56,13 +59,19 @@ export default function DonutChart({
         />
       </svg>
       
-      {/* Center value */}
+      {/* Center value - 35px Extra Light */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className="flex items-baseline gap-0.5">
-          <span className="text-3xl font-extralight tabular-nums" style={{ color }}>
+          <span 
+            className="font-extralight tabular-nums" 
+            style={{ fontSize: '35px', lineHeight: '1', color }}
+          >
             {value}
           </span>
-          <span className="text-base font-normal text-gray-400">
+          <span 
+            className="font-normal text-gray-400"
+            style={{ fontSize: '35px', lineHeight: '1' }}
+          >
             /{max}
           </span>
         </div>

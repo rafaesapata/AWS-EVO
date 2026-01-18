@@ -2,6 +2,9 @@
  * Card CTA Component
  * Call-to-action link for dashboard cards
  * Based on Figma design specifications
+ * - Text: 12px Light (300)
+ * - Color: #484848 (gray-700)
+ * - Arrow: → with hover animation
  */
 
 import { ArrowRight } from 'lucide-react';
@@ -21,18 +24,21 @@ export default function CardCTA({
   className = '' 
 }: CardCTAProps) {
   const alignmentClass = {
-    left: 'text-left',
-    center: 'text-center',
-    right: 'text-right'
+    left: 'justify-start',
+    center: 'justify-center',
+    right: 'justify-end'
   }[align];
 
   return (
-    <Link
-      to={href}
-      className={`inline-flex items-center gap-1 text-xs font-light text-gray-700 hover:text-gray-900 transition-colors group ${alignmentClass} ${className}`}
-    >
-      <span>{text}</span>
-      <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
-    </Link>
+    <div className={`flex ${alignmentClass} ${className}`}>
+      <Link
+        to={href}
+        className="inline-flex items-center gap-1 font-light text-[#484848] hover:text-[#393939] transition-colors group"
+        style={{ fontSize: '12px' }}
+      >
+        <span>{text}</span>
+        <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+      </Link>
+    </div>
   );
 }
