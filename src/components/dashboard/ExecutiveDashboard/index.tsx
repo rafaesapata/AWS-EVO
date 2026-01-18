@@ -144,11 +144,10 @@ export default function ExecutiveDashboardV2() {
 
       {/* SECTION 1: Current Infrastructure State */}
       <section className="space-y-4">
-        <SectionHeader 
-          title={t('executiveDashboard.sections.currentState', 'Visão Executiva')}
-          description={t('executiveDashboard.sections.currentStateDesc', 'Como sua infraestrutura está agora')}
-          icon={BarChart3}
-        />
+        {/* Simple title without icon - matching Figma */}
+        <h2 className="text-xl font-light text-[#393939]">
+          {t('executiveDashboard.sections.currentState', 'Visão Executiva')}
+        </h2>
         
         <ExecutiveSummaryBar data={data.summary} />
 

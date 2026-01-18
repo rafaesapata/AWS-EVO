@@ -37,48 +37,23 @@ interface Props {
 export default function ExecutiveSummaryBar({ data }: Props) {
   const { t } = useTranslation();
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-[#10B981]';
-    if (score >= 60) return 'text-[#1F2937]';
-    return 'text-red-600';
-  };
-
-  const getScoreBg = (score: number) => {
-    if (score >= 80) return 'bg-[#10B981]/10 border-[#10B981]/20';
-    if (score >= 60) return 'bg-white border-gray-200';
-    return 'bg-red-50 border-red-200';
-  };
-
   const budgetPercentage = Math.min(100, data.budgetUtilization);
-  const getBudgetColor = () => {
-    if (budgetPercentage >= 90) return 'bg-red-500';
-    if (budgetPercentage >= 75) return 'bg-amber-500';
-    return 'bg-[#003C7D]';
-  };
-
   const totalAlerts = data.activeAlerts.critical + data.activeAlerts.high + data.activeAlerts.medium;
 
   return (
-    <div className="space-y-6">
-      {/* Performance Metrics - 2x2 Grid matching Figma exactly */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Health Score Card - with Donut Chart */}
-        <div className={cn(
-          'relative overflow-hidden rounded-2xl border p-4 transition-all hover:shadow-md',
-          data.overallScore >= 80 ? 'bg-white border-[#10B981]/10 shadow-sm' : 
-          data.overallScore >= 60 ? 'bg-white border-gray-100 shadow-sm' : 'bg-white border-red-100 shadow-sm'
-        )}>
-          {/* Info Icon */}
+    <div className="space-y-4">
+      {/* 4 Cards in a single row - exactly as Figma */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Health Score */}
+        <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-4 transition-all hover:shadow-md shadow-sm">
           <div className="absolute top-4 right-4">
-            <InfoIcon tooltip={t('executiveDashboard.healthScoreTooltip', 'Overall health score based on security, compliance, and operational metrics')} />
+            <InfoIcon tooltip={t('executiveDashboard.healthScoreTooltip')} />
           </div>
           
-          {/* Label - 16px Light */}
           <p className="text-base font-light text-[#5F5F5F] mb-2">
-            {t('executiveDashboard.healthScore', 'Health Score')}
+            {t('executiveDashboard.healthScore', 'Score de Saúde')}
           </p>
           
-          {/* Donut Chart - centered */}
           <div className="flex justify-center my-3">
             <DonutChart 
               value={data.overallScore} 
@@ -89,12 +64,10 @@ export default function ExecutiveSummaryBar({ data }: Props) {
             />
           </div>
           
-          {/* Description Text - 12px Light */}
           <p className="text-xs font-light text-[#5F5F5F] text-center mb-1.5">
             {t('executiveDashboard.healthScoreDescription', 'Análise completa de segurança e conformidade')}
           </p>
           
-          {/* CTA - 12px Light */}
           <div className="text-center mt-1.5">
             <CardCTA 
               text={t('executiveDashboard.optimizeHealth', 'Otimizar saúde →')}
@@ -104,19 +77,16 @@ export default function ExecutiveSummaryBar({ data }: Props) {
           </div>
         </div>
 
-        {/* Uptime SLA Card */}
+        {/* Card 2: Uptime SLA */}
         <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-4 transition-all hover:shadow-md shadow-sm">
-          {/* Info Icon */}
           <div className="absolute top-4 right-4">
-            <InfoIcon tooltip={t('executiveDashboard.uptimeSLATooltip', 'Service Level Agreement uptime percentage')} />
+            <InfoIcon tooltip={t('executiveDashboard.uptimeSLATooltip')} />
           </div>
           
-          {/* Label - 16px Light */}
           <p className="text-base font-light text-[#5F5F5F] mb-2">
-            {t('executiveDashboard.uptimeSLA', 'Uptime SLA')}
+            {t('executiveDashboard.uptimeSLA', 'SLA de Uptime')}
           </p>
           
-          {/* Value - 35px Extra Light - IMPORTANT: inline style to ensure exact size */}
           <p 
             className={cn(
               'font-extralight tabular-nums mb-1.5',
@@ -128,25 +98,21 @@ export default function ExecutiveSummaryBar({ data }: Props) {
             {data.uptimeSLA.toFixed(2)}%
           </p>
           
-          {/* Target - 14px Light */}
           <span className="text-sm font-light text-[#5F5F5F]">
             {t('executiveDashboard.target', 'Meta')}: 99.9%
           </span>
         </div>
 
-        {/* MTD Spend Card */}
+        {/* Card 3: MTD Spend */}
         <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-4 transition-all hover:shadow-md shadow-sm">
-          {/* Info Icon */}
           <div className="absolute top-4 right-4">
-            <InfoIcon tooltip={t('executiveDashboard.mtdSpendTooltip', 'Month-to-date spending and budget utilization')} />
+            <InfoIcon tooltip={t('executiveDashboard.mtdSpendTooltip')} />
           </div>
           
-          {/* Label - 16px Light */}
           <p className="text-base font-light text-[#5F5F5F] mb-2">
-            {t('executiveDashboard.mtdSpend', 'MTD Spend')}
+            {t('executiveDashboard.mtdSpend', 'Gasto MTD')}
           </p>
           
-          {/* Value with Budget Percentage - 35px Extra Light */}
           <div className="flex items-baseline justify-between mb-1.5">
             <p 
               className="font-extralight text-[#00B2FF] tabular-nums" 
@@ -163,7 +129,6 @@ export default function ExecutiveSummaryBar({ data }: Props) {
             </span>
           </div>
           
-          {/* Budget Progress - 8px height, 15px radius */}
           <div className="space-y-1.5 mt-3">
             <div className="h-2 bg-[#E9E9E9] rounded-full overflow-hidden">
               <div 
@@ -183,19 +148,16 @@ export default function ExecutiveSummaryBar({ data }: Props) {
           </div>
         </div>
 
-        {/* Savings Potential Card */}
-        <div className="relative overflow-hidden rounded-2xl border border-[#5EB10B]/10 bg-white p-4 transition-all hover:shadow-md shadow-sm">
-          {/* Info Icon */}
+        {/* Card 4: Savings Potential */}
+        <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-4 transition-all hover:shadow-md shadow-sm">
           <div className="absolute top-4 right-4">
-            <InfoIcon tooltip={t('executiveDashboard.savingsPotentialTooltip', 'Estimated monthly and annual savings opportunities')} />
+            <InfoIcon tooltip={t('executiveDashboard.savingsPotentialTooltip')} />
           </div>
           
-          {/* Label - 16px Light */}
           <p className="text-base font-light text-[#5F5F5F] mb-2">
-            {t('executiveDashboard.savingsPotential', 'Savings Potential')}
+            {t('executiveDashboard.savingsPotential', 'Potencial de Economia')}
           </p>
           
-          {/* Annual Value (highlighted) - 35px Extra Light */}
           <div className="flex items-baseline gap-1 mb-0.5">
             <p 
               className="font-extralight text-[#5EB10B] tabular-nums" 
@@ -206,12 +168,10 @@ export default function ExecutiveSummaryBar({ data }: Props) {
             <span className="text-xl font-extralight text-[#5EB10B]">/ano</span>
           </div>
           
-          {/* Monthly Value - 16px Extra Light */}
           <p className="text-base font-extralight text-[#5F5F5F] mb-3">
             ${data.potentialSavings.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mês
           </p>
           
-          {/* CTA - 12px Light, right aligned */}
           <div className="text-right">
             <CardCTA 
               text={t('executiveDashboard.increaseEconomy', 'Aumentar economia →')}
