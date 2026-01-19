@@ -36,7 +36,24 @@ export class CacheInvalidationManager {
    * Setup default invalidation rules for common patterns
    */
   private setupDefaultRules(): void {
-    // AWS Account changes invalidate related data
+    // Cloud Account changes invalidate related data (AWS + Azure)
+    this.addRule('cloud-account-change', {
+      pattern: /^(cloud-accounts|aws-accounts)/,
+      dependencies: [
+        'security-scans',
+        'findings',
+        'cost-data',
+        'metrics',
+        'compliance',
+        'resource-inventory',
+        'executive-dashboard',
+        'executive-dashboard-v2', // Dashboard executivo v2
+        'security-posture',
+        'daily-costs',
+      ],
+    });
+
+    // AWS Account changes invalidate related data (legacy support)
     this.addRule('aws-account-change', {
       pattern: /^aws-accounts/,
       dependencies: [
@@ -46,7 +63,8 @@ export class CacheInvalidationManager {
         'metrics',
         'compliance',
         'resource-inventory',
-        'executive-dashboard', // Dashboard executivo
+        'executive-dashboard',
+        'executive-dashboard-v2',
       ],
     });
 
@@ -367,19 +385,25 @@ export const CACHE_INVALIDATION_PATTERNS = {
   // Security-related invalidations
   SECURITY_SCAN_COMPLETE: {
     trigger: ['security-scans'],
-    invalidates: ['findings', 'security-posture', 'compliance-status'],
+    invalidates: ['findings', 'security-posture', 'compliance-status', 'executive-dashboard-v2'],
   },
   
   // Cost-related invalidations
   COST_DATA_UPDATE: {
     trigger: ['cost-data'],
-    invalidates: ['cost-forecast', 'budget-status', 'waste-detection'],
+    invalidates: ['cost-forecast', 'budget-status', 'waste-detection', 'executive-dashboard-v2'],
   },
   
-  // AWS account changes
+  // Cloud account changes (AWS + Azure)
+  CLOUD_ACCOUNT_CHANGE: {
+    trigger: ['cloud-accounts', 'aws-accounts'],
+    invalidates: ['security-scans', 'findings', 'cost-data', 'metrics', 'executive-dashboard', 'executive-dashboard-v2', 'security-posture'],
+  },
+  
+  // AWS account changes (legacy)
   AWS_ACCOUNT_CHANGE: {
     trigger: ['aws-accounts'],
-    invalidates: ['security-scans', 'findings', 'cost-data', 'metrics', 'executive-dashboard'],
+    invalidates: ['security-scans', 'findings', 'cost-data', 'metrics', 'executive-dashboard', 'executive-dashboard-v2'],
   },
   
   // User/organization changes

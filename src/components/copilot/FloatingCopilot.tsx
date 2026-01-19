@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ interface ChatMessage {
 
 export function FloatingCopilot() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
   
@@ -128,17 +130,17 @@ export function FloatingCopilot() {
       const welcomeMessage: ChatMessage = {
         id: 'welcome',
         type: 'assistant',
-        content: `Olá! Sou o EVO Copilot AI 🤖\n\nPosso ajudar com:\n• Análise de custos AWS\n• Segurança e vulnerabilidades\n• Otimização de recursos\n\nComo posso ajudar?`,
+        content: t('copilot.welcomeMessage', "Hello! I'm EVO Copilot AI 🤖\n\nI can help with:\n• AWS cost analysis\n• Security and vulnerabilities\n• Resource optimization\n\nHow can I help?"),
         timestamp: new Date(),
         suggestions: [
-          "Analise meus custos",
-          "Verifique segurança",
-          "Otimize recursos"
+          t('copilot.suggestions.analyzeCosts', 'Analyze my costs'),
+          t('copilot.suggestions.checkSecurity', 'Check security'),
+          t('copilot.suggestions.optimizeResources', 'Optimize resources')
         ]
       };
       setMessages([welcomeMessage]);
     }
-  }, [isOpen]);
+  }, [isOpen, t]);
 
   const chatWidth = isExpanded ? 'w-[500px]' : 'w-[380px]';
   const chatHeight = isExpanded ? 'h-[600px]' : 'h-[480px]';
@@ -163,7 +165,7 @@ export function FloatingCopilot() {
               </div>
               <div>
                 <h3 className="font-semibold text-sm">EVO Copilot AI</h3>
-                <p className="text-xs text-muted-foreground">Online</p>
+                <p className="text-xs text-muted-foreground">{t('copilot.online', 'Online')}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">

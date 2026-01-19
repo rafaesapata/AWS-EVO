@@ -315,8 +315,9 @@ export default function SecurityAnalysisContent() {
  try {
  if (action === 'resolve') {
  // SECURITY: Filter by organization_id to prevent cross-org updates
+ // apiClient.update expects (table, data, where)
  const updates = Array.from(selectedFindings).map(id =>
- apiClient.update('findings', id, { status: newStatus })
+ apiClient.update('findings', { status: newStatus }, { id })
  );
  
  await Promise.all(updates);

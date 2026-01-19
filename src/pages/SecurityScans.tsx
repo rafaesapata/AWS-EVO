@@ -15,6 +15,7 @@ import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuthSafe } from "@/hooks/useAuthSafe";
+import { ScheduleTab } from "@/components/security/ScheduleTab";
 import { 
  Scan, 
  Shield, 
@@ -493,9 +494,8 @@ export default function SecurityScans() {
  const ticketId = response.data?.id;
  if (ticketId) {
  // Update the finding with the ticket ID to create the bidirectional link
- await apiClient.update('findings', finding.id, {
- remediation_ticket_id: ticketId
- });
+ // apiClient.update expects (table, data, where)
+ await apiClient.update('findings', { remediation_ticket_id: ticketId }, { id: finding.id });
  }
 
  toast({ 
@@ -505,7 +505,7 @@ export default function SecurityScans() {
  
  // Invalidate queries to refresh the data
  queryClient.invalidateQueries({ queryKey: ['remediation-tickets'] });
- queryClient.invalidateQueries({ queryKey: ['security-findings'] });
+ queryClient.invalidateQueries({ queryKey: ['scan-findings'] });
  } catch (err) {
  console.error('Error creating ticket:', err);
  toast({ 
@@ -615,7 +615,8 @@ export default function SecurityScans() {
  const stuckScanIds = stuckScans.map(s => s.id);
  
  for (const scanId of stuckScanIds) {
- await apiClient.update('security_scans', scanId, {
+ // apiClient.update expects (table, data, where)
+ await apiClient.update('security_scans', {
  status: 'failed',
  completed_at: new Date().toISOString(),
  results: {
@@ -623,7 +624,7 @@ export default function SecurityScans() {
  cleanup_reason: 'stuck_scan_auto_cleanup',
  cleanup_timestamp: new Date().toISOString()
  }
- });
+ }, { id: scanId });
  }
  
  return { cleaned: stuckScanIds.length };
@@ -1602,21 +1603,10 @@ export default function SecurityScans() {
  </TabsContent>
 
  <TabsContent value="schedule" className="space-y-4">
- <Card>
- <CardHeader>
- <CardTitle>Agendamento de Scans</CardTitle>
- <CardDescription>Configure scans automáticos recorrentes</CardDescription>
- </CardHeader>
- <CardContent>
- <div className="h-[400px] flex items-center justify-center text-muted-foreground">
- <div className="text-center">
- <Clock className="h-12 w-12 mx-auto mb-4" />
- <h3 className="text-lg font-semibold mb-2">Agendamento em desenvolvimento</h3>
- <p>Sistema de agendamento automático será implementado em breve.</p>
- </div>
- </div>
- </CardContent>
- </Card>
+ <ScheduleTab 
+ organizationId={organizationId}
+ selectedAccountId={selectedAccountId}
+ />
  </TabsContent>
  </Tabs>
  </div>

@@ -21,8 +21,18 @@ export async function handler(
   const user = getUserFromEvent(event);
   const organizationId = getOrganizationIdWithImpersonation(event, user);
   
+  // Parse request body for accountId
+  let accountId: string | undefined;
+  try {
+    const body = event.body ? JSON.parse(event.body) : {};
+    accountId = body.accountId;
+  } catch {
+    // Ignore parse errors
+  }
+  
   logger.info('Get Security Posture started', { 
     organizationId,
+    accountId: accountId || 'all',
     userId: user.sub,
     requestId: context.awsRequestId 
   });
@@ -30,36 +40,43 @@ export async function handler(
   try {
     const prisma = getPrismaClient();
     
+    // Base filter - by organization and optionally by account
+    const baseFilter: any = { 
+      organization_id: organizationId,
+      status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+    };
+    
+    // Filter by specific account if provided
+    if (accountId) {
+      baseFilter.aws_account_id = accountId;
+    }
+    
     // Contar findings por severidade (case-insensitive, incluindo pending e active)
     const criticalFindings = await prisma.finding.count({
       where: { 
-        organization_id: organizationId, 
+        ...baseFilter,
         severity: { in: ['critical', 'CRITICAL'] },
-        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
       },
     });
     
     const highFindings = await prisma.finding.count({
       where: { 
-        organization_id: organizationId, 
+        ...baseFilter,
         severity: { in: ['high', 'HIGH'] },
-        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
       },
     });
     
     const mediumFindings = await prisma.finding.count({
       where: { 
-        organization_id: organizationId, 
+        ...baseFilter,
         severity: { in: ['medium', 'MEDIUM'] },
-        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
       },
     });
     
     const lowFindings = await prisma.finding.count({
       where: { 
-        organization_id: organizationId, 
+        ...baseFilter,
         severity: { in: ['low', 'LOW'] },
-        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
       },
     });
     
@@ -76,22 +93,25 @@ export async function handler(
     else if (overallScore >= 40) riskLevel = 'high';
     else riskLevel = 'critical';
     
-    // Salvar postura
-    await prisma.securityPosture.create({
-      data: {
-        organization_id: organizationId,
-        overall_score: overallScore,
-        critical_findings: criticalFindings,
-        high_findings: highFindings,
-        medium_findings: mediumFindings,
-        low_findings: lowFindings,
-        risk_level: riskLevel,
-        calculated_at: new Date(),
-      },
-    });
+    // Salvar postura (only if not filtering by account - save aggregate)
+    if (!accountId) {
+      await prisma.securityPosture.create({
+        data: {
+          organization_id: organizationId,
+          overall_score: overallScore,
+          critical_findings: criticalFindings,
+          high_findings: highFindings,
+          medium_findings: mediumFindings,
+          low_findings: lowFindings,
+          risk_level: riskLevel,
+          calculated_at: new Date(),
+        },
+      });
+    }
     
     logger.info('Security posture calculated', { 
       organizationId,
+      accountId: accountId || 'all',
       overallScore: parseFloat(overallScore.toFixed(1)),
       riskLevel,
       totalFindings
@@ -110,12 +130,14 @@ export async function handler(
           total: totalFindings,
         },
         calculatedAt: new Date().toISOString(),
+        accountId: accountId || 'all',
       },
     });
     
   } catch (err) {
     logger.error('Get Security Posture error', err as Error, { 
       organizationId,
+      accountId: accountId || 'all',
       userId: user.sub,
       requestId: context.awsRequestId 
     });

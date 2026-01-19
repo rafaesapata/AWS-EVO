@@ -8,12 +8,15 @@
  *   - Border: border-gray-200
  */
 
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { 
   CheckCircle2, 
   AlertTriangle, 
   Clock,
-  Server
+  Server,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +29,8 @@ interface Props {
 
 export default function OperationsCenterCard({ data }: Props) {
   const { t } = useTranslation();
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
+  const INITIAL_ALERTS_COUNT = 3;
 
   const getUptimeColor = (uptime: number) => {
     if (uptime >= 99.9) return 'text-[#00B2FF]';
@@ -141,8 +146,11 @@ export default function OperationsCenterCard({ data }: Props) {
               </Badge>
             </div>
             <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-              <div className="max-h-[140px] overflow-y-auto">
-                {data.alerts.active.slice(0, 3).map((alert, index) => (
+              <div className={cn(
+                "overflow-y-auto transition-all duration-300",
+                alertsExpanded ? 'max-h-[300px]' : 'max-h-[140px]'
+              )}>
+                {data.alerts.active.slice(0, alertsExpanded ? undefined : INITIAL_ALERTS_COUNT).map((alert, index) => (
                   <div 
                     key={alert.id} 
                     className={cn(
@@ -171,12 +179,27 @@ export default function OperationsCenterCard({ data }: Props) {
                   </div>
                 ))}
               </div>
-              {data.alerts.active.length > 3 && (
-                <div className="px-2.5 py-1.5 bg-gray-50 border-t border-gray-100 text-center">
-                  <span className="text-xs font-light text-[#5F5F5F]">
-                    +{data.alerts.active.length - 3} {t('executiveDashboard.moreAlerts', 'more alerts')}
-                  </span>
-                </div>
+              {data.alerts.active.length > INITIAL_ALERTS_COUNT && (
+                <button 
+                  onClick={() => setAlertsExpanded(!alertsExpanded)}
+                  className="w-full px-2.5 py-1.5 bg-gray-50 border-t border-gray-100 text-center hover:bg-gray-100 transition-colors flex items-center justify-center gap-1"
+                >
+                  {alertsExpanded ? (
+                    <>
+                      <ChevronUp className="h-3.5 w-3.5 text-[#5F5F5F]" />
+                      <span className="text-xs font-light text-[#5F5F5F]">
+                        {t('executiveDashboard.showLess', 'Show less')}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3.5 w-3.5 text-[#5F5F5F]" />
+                      <span className="text-xs font-light text-[#5F5F5F]">
+                        +{data.alerts.active.length - INITIAL_ALERTS_COUNT} {t('executiveDashboard.moreAlerts', 'more alerts')}
+                      </span>
+                    </>
+                  )}
+                </button>
               )}
             </div>
           </div>

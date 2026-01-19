@@ -172,50 +172,43 @@ export default function CopilotAI() {
  const welcomeMessage: ChatMessage = {
  id: 'welcome',
  type: 'assistant',
- content: `Olá! Sou o EVO Copilot AI, seu assistente inteligente para AWS. Posso ajudar você com:
-
-• **Análise de Custos**: Identificar oportunidades de economia
-• **Segurança**: Avaliar riscos e vulnerabilidades 
-• **Otimização**: Sugerir melhorias de performance
-• **Compliance**: Verificar conformidade com best practices
-
-Como posso ajudar você hoje?`,
+ content: t('copilot.welcomeMessageFull', "Hello! I'm EVO Copilot AI, your intelligent AWS assistant. I can help you with:\n\n• **Cost Analysis**: Identify savings opportunities\n• **Security**: Assess risks and vulnerabilities\n• **Optimization**: Suggest performance improvements\n• **Compliance**: Verify best practices compliance\n\nHow can I help you today?"),
  timestamp: new Date(),
  suggestions: [
- "Analise meus custos da última semana",
- "Quais são os principais riscos de segurança?",
- "Como posso otimizar minha infraestrutura?",
- "Verifique compliance Well-Architected"
+ t('copilot.suggestions.analyzeWeeklyCosts', 'Analyze my costs from last week'),
+ t('copilot.suggestions.securityRisks', 'What are the main security risks?'),
+ t('copilot.suggestions.optimizeInfra', 'How can I optimize my infrastructure?'),
+ t('copilot.suggestions.checkCompliance', 'Check Well-Architected compliance')
  ]
  };
  setMessages([welcomeMessage]);
  }
- }, []);
+ }, [t]);
 
  const quickActions = [
  {
  icon: DollarSign,
- title: "Análise de Custos",
- description: "Analise gastos e identifique economias",
- action: "Faça uma análise detalhada dos meus custos AWS"
+ title: t('copilot.quickActions.costAnalysis.title', 'Cost Analysis'),
+ description: t('copilot.quickActions.costAnalysis.description', 'Analyze spending and identify savings'),
+ action: t('copilot.quickActions.costAnalysis.action', 'Do a detailed analysis of my AWS costs')
  },
  {
  icon: Shield,
- title: "Security Review",
- description: "Avalie a postura de segurança",
- action: "Analise os riscos de segurança da minha conta"
+ title: t('copilot.quickActions.securityReview.title', 'Security Review'),
+ description: t('copilot.quickActions.securityReview.description', 'Assess security posture'),
+ action: t('copilot.quickActions.securityReview.action', "Analyze my account's security risks")
  },
  {
  icon: Zap,
- title: "Otimização",
- description: "Sugestões de performance e economia",
- action: "Quais otimizações você recomenda?"
+ title: t('copilot.quickActions.optimization.title', 'Optimization'),
+ description: t('copilot.quickActions.optimization.description', 'Performance and savings suggestions'),
+ action: t('copilot.quickActions.optimization.action', 'What optimizations do you recommend?')
  },
  {
  icon: CheckCircle,
- title: "Compliance",
- description: "Verificação de best practices",
- action: "Verifique compliance com AWS Well-Architected"
+ title: t('copilot.quickActions.compliance.title', 'Compliance'),
+ description: t('copilot.quickActions.compliance.description', 'Best practices verification'),
+ action: t('copilot.quickActions.compliance.action', 'Check compliance with AWS Well-Architected')
  }
  ];
 

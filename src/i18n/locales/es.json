@@ -1346,5 +1346,42 @@
     "labels": "Etiquetas",
     "recentRequestsFromIp": "Últimas Solicitudes de esta IP",
     "noRecentRequests": "No hay solicitudes recientes"
+  },
+  "copilot": {
+    "welcomeMessage": "¡Hola! Soy EVO Copilot AI 🤖\n\nPuedo ayudarte con:\n• Análisis de costos AWS\n• Seguridad y vulnerabilidades\n• Optimización de recursos\n\n¿Cómo puedo ayudarte?",
+    "welcomeMessageFull": "¡Hola! Soy EVO Copilot AI, tu asistente inteligente para AWS. Puedo ayudarte con:\n\n• **Análisis de Costos**: Identificar oportunidades de ahorro\n• **Seguridad**: Evaluar riesgos y vulnerabilidades\n• **Optimización**: Sugerir mejoras de rendimiento\n• **Compliance**: Verificar conformidad con mejores prácticas\n\n¿Cómo puedo ayudarte hoy?",
+    "suggestions": {
+      "analyzeCosts": "Analiza mis costos",
+      "checkSecurity": "Verifica seguridad",
+      "optimizeResources": "Optimiza recursos",
+      "analyzeWeeklyCosts": "Analiza mis costos de la última semana",
+      "securityRisks": "¿Cuáles son los principales riesgos de seguridad?",
+      "optimizeInfra": "¿Cómo puedo optimizar mi infraestructura?",
+      "checkCompliance": "Verifica compliance Well-Architected"
+    },
+    "quickActions": {
+      "costAnalysis": {
+        "title": "Análisis de Costos",
+        "description": "Analiza gastos e identifica ahorros",
+        "action": "Haz un análisis detallado de mis costos AWS"
+      },
+      "securityReview": {
+        "title": "Security Review",
+        "description": "Evalúa la postura de seguridad",
+        "action": "Analiza los riesgos de seguridad de mi cuenta"
+      },
+      "optimization": {
+        "title": "Optimización",
+        "description": "Sugerencias de rendimiento y ahorro",
+        "action": "¿Qué optimizaciones recomiendas?"
+      },
+      "compliance": {
+        "title": "Compliance",
+        "description": "Verificación de mejores prácticas",
+        "action": "Verifica compliance con AWS Well-Architected"
+      }
+    },
+    "online": "En línea",
+    "typing": "Escribiendo..."
   }
 }

@@ -85,7 +85,7 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
 
       return response.data as ExecutiveDashboardData;
     },
-    staleTime: 0, // Always refetch when account changes (queryKey includes selectedAccountId)
+    staleTime: 0, // Always consider data stale - will refetch when queryKey changes
     gcTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval,
     refetchIntervalInBackground: isTVMode,

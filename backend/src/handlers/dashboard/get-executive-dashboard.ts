@@ -617,16 +617,29 @@ async function getOperationsData(
     activeAlerts = [];
   }
 
-  // Remediation stats - use SecurityAlert as proxy
+  // Remediation stats - use RemediationTicket table
   let remediationStats: any[] = [];
   try {
-    remediationStats = await prisma.securityAlert.groupBy({
-      by: ['is_resolved'],
+    remediationStats = await prisma.remediationTicket.groupBy({
+      by: ['status'],
       where: { organization_id: organizationId },
       _count: true
     });
   } catch {
-    remediationStats = [];
+    // Fallback to SecurityAlert if RemediationTicket table doesn't exist
+    try {
+      const alertStats = await prisma.securityAlert.groupBy({
+        by: ['is_resolved'],
+        where: { organization_id: organizationId },
+        _count: true
+      });
+      remediationStats = alertStats.map((r: any) => ({
+        status: r.is_resolved ? 'resolved' : 'open',
+        _count: r._count
+      }));
+    } catch {
+      remediationStats = [];
+    }
   }
 
   const remediations = {
@@ -637,12 +650,23 @@ async function getOperationsData(
   };
 
   remediationStats.forEach((r: any) => {
-    if (r.is_resolved) {
-      remediations.resolved = r._count;
-    } else {
-      remediations.pending = r._count;
+    const count = r._count?._all || r._count || 0;
+    switch (r.status) {
+      case 'open':
+        remediations.pending += count;
+        break;
+      case 'in_progress':
+        remediations.inProgress += count;
+        break;
+      case 'resolved':
+      case 'closed':
+        remediations.resolved += count;
+        break;
+      // cancelled tickets are not counted
     }
-    remediations.total += r._count;
+    if (r.status !== 'cancelled') {
+      remediations.total += count;
+    }
   });
 
   const lastCheckDate = monitors.length > 0 

@@ -121,9 +121,9 @@ async function analyzeAlert(prisma: any, alert: any): Promise<{
   
   const similarAlerts = await prisma.alert.count({
     where: {
-      organizationId: alert.organizationId,
+      organization_id: alert.organization_id,
       title: alert.title,
-      triggeredAt: { gte: oneDayAgo },
+      triggered_at: { gte: oneDayAgo },
     },
   });
   

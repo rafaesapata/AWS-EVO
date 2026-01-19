@@ -79,8 +79,8 @@ export default function SecurityPosture() {
 
   // Get security posture data
   const { data: securityData, isLoading, refetch } = useQuery({
-    queryKey: ['security-posture-page', organizationId],
-    enabled: !!organizationId,
+    queryKey: ['security-posture-page', organizationId, selectedAccountId],
+    enabled: !!organizationId && !!selectedAccountId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       // Chamar o endpoint que calcula a postura de segurança
@@ -98,7 +98,7 @@ export default function SecurityPosture() {
           };
           calculatedAt: string;
         };
-      }>('get-security-posture', {});
+      }>('get-security-posture', { accountId: selectedAccountId });
 
       if ('error' in postureResponse && postureResponse.error) {
         throw new Error(postureResponse.error.message);
@@ -111,7 +111,7 @@ export default function SecurityPosture() {
         // Buscar findings da tabela Finding para exibir detalhes
         const findingsResponse = await apiClient.select('findings', {
           select: '*',
-          eq: { organization_id: organizationId },
+          eq: { organization_id: organizationId, aws_account_id: selectedAccountId },
           order: { column: 'created_at', ascending: false },
           limit: 50
         });
@@ -142,7 +142,7 @@ export default function SecurityPosture() {
       // Buscar findings da tabela Finding para exibir detalhes
       const findingsResponse = await apiClient.select('findings', {
         select: '*',
-        eq: { organization_id: organizationId },
+        eq: { organization_id: organizationId, aws_account_id: selectedAccountId },
         order: { column: 'created_at', ascending: false },
         limit: 50
       });
@@ -169,7 +169,7 @@ export default function SecurityPosture() {
     setIsRefreshing(true);
     try {
       // Chamar o endpoint que recalcula a postura de segurança
-      const response = await apiClient.invoke('get-security-posture', {});
+      const response = await apiClient.invoke('get-security-posture', { accountId: selectedAccountId });
       
       if ('error' in response && response.error) {
         throw new Error(response.error.message);
@@ -348,9 +348,8 @@ export default function SecurityPosture() {
       const ticketId = response.data?.id;
       if (ticketId) {
         // Update the finding with the ticket ID to create the bidirectional link
-        await apiClient.update('findings', finding.id, {
-          remediation_ticket_id: ticketId
-        });
+        // apiClient.update expects (table, data, where)
+        await apiClient.update('findings', { remediation_ticket_id: ticketId }, { id: finding.id });
       }
 
       toast({ 
