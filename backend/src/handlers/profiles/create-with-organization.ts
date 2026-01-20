@@ -22,16 +22,17 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  // Handle CORS preflight FIRST
+  if (getHttpMethod(event) === 'OPTIONS') {
+    return corsOptions();
+  }
+  
   const user = getUserFromEvent(event);
   
   logger.info('Create profile with organization started', { 
     userId: user.sub,
     requestId: context.awsRequestId 
   });
-
-  if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
-  }
 
   try {
     const body: CreateProfileWithOrgRequest = event.body ? JSON.parse(event.body) : {};

@@ -61,6 +61,7 @@ Access-Control-Allow-Origin: *
 | `5kwfqx` | `/api/functions/webauthn-check` | `evo-uds-v3-production-webauthn-check` |
 | `bxc2jy` | `/api/functions/delete-webauthn-credential` | `evo-uds-v3-production-delete-webauthn-credential` |
 | `6ijcy6` | `/api/functions/verify-tv-token` | `evo-uds-v3-production-verify-tv-token` |
+| `3sucf6` | `/api/functions/self-register` | `evo-uds-v3-production-self-register` (PUBLIC - no auth) |
 
 ### 👤 Administração
 

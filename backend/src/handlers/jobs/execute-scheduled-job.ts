@@ -19,6 +19,11 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  // Handle CORS preflight FIRST
+  if (getHttpMethod(event) === 'OPTIONS') {
+    return corsOptions();
+  }
+  
   const user = getUserFromEvent(event);
   const organizationId = getOrganizationIdWithImpersonation(event, user);
   
@@ -27,10 +32,6 @@ export async function handler(
     userId: user.sub,
     requestId: context.awsRequestId 
   });
-  
-  if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
-  }
   
   try {
     const body: ExecuteJobRequest = event.body ? JSON.parse(event.body) : {};

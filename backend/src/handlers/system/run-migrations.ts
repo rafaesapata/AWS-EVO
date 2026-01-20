@@ -667,6 +667,39 @@ const MIGRATION_COMMANDS = [
   )`,
   `CREATE INDEX IF NOT EXISTS "waf_ai_analyses_organization_id_idx" ON "waf_ai_analyses"("organization_id")`,
   `CREATE INDEX IF NOT EXISTS "waf_ai_analyses_org_created_idx" ON "waf_ai_analyses"("organization_id", "created_at" DESC)`,
+  
+  // ==================== SCAN SCHEDULES TABLE (2026-01-19) ====================
+  
+  // Scan Schedules table for automated security scan scheduling
+  `CREATE TABLE IF NOT EXISTS "scan_schedules" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "aws_account_id" UUID NOT NULL,
+    "scan_type" TEXT NOT NULL,
+    "schedule_type" TEXT NOT NULL,
+    "schedule_config" JSONB,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "last_run_at" TIMESTAMPTZ(6),
+    "next_run_at" TIMESTAMPTZ(6),
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "scan_schedules_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "scan_schedules_organization_id_idx" ON "scan_schedules"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "scan_schedules_is_active_idx" ON "scan_schedules"("is_active")`,
+  `CREATE INDEX IF NOT EXISTS "scan_schedules_next_run_at_idx" ON "scan_schedules"("next_run_at")`,
+  `DO $ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scan_schedules_organization_id_fkey') THEN
+      ALTER TABLE "scan_schedules" ADD CONSTRAINT "scan_schedules_organization_id_fkey" 
+        FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $`,
+  `DO $ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scan_schedules_aws_account_id_fkey') THEN
+      ALTER TABLE "scan_schedules" ADD CONSTRAINT "scan_schedules_aws_account_id_fkey" 
+        FOREIGN KEY ("aws_account_id") REFERENCES "aws_credentials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

@@ -93,6 +93,8 @@ const TABLE_TO_MODEL: Record<string, string> = {
   // 'user_roles': 'userRole',  // REMOVIDO - tabela não existe
   'knowledge_base_favorites': 'knowledgeBaseFavorite',
   'knowledge_base_comments': 'knowledgeBaseComment',
+  'scan_schedules': 'scanSchedule',
+  'scheduled_scans': 'scanSchedule',
 };
 
 // Mapeamento de campos do frontend para campos do Prisma
@@ -167,6 +169,8 @@ const TABLES_WITH_ORG_ID = new Set([
   'predictive_incidents', 'predictive_incidents_history',
   // RI/SP Analysis
   'ri_sp_recommendations', 'reserved_instances', 'savings_plans',
+  // Scan Schedules
+  'scan_schedules', 'scheduled_scans',
 ]);
 
 interface QueryRequest {

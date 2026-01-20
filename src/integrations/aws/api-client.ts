@@ -301,6 +301,84 @@ class ApiClient {
   }
 
   /**
+   * Invoke a public Lambda function (no authentication required)
+   * Used for self-registration and other public endpoints
+   */
+  async invokePublic<T>(functionName: string, options: {
+    body?: any;
+    headers?: Record<string, string>;
+  } = {}): Promise<ApiResponse<T> | ApiError> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    
+    try {
+      const requestId = crypto.randomUUID();
+      const correlationId = sessionStorage.getItem('sessionId') || SESSION_ID;
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Request-ID': requestId,
+        'X-Correlation-ID': correlationId,
+        ...getCSRFHeader(),
+        ...options.headers,
+      };
+      
+      const response = await fetch(`${API_BASE_URL}/api/functions/${functionName}`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+      
+      clearTimeout(timeoutId);
+      const responseRequestId = response.headers.get('X-Request-ID') || requestId;
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return {
+          data: null,
+          error: {
+            message: errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+            code: errorData.code,
+            status: response.status,
+            requestId: responseRequestId,
+          },
+        };
+      }
+
+      const responseData = await response.json();
+      
+      if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+        return { 
+          data: responseData.data ?? [], 
+          error: null, 
+          requestId: responseRequestId 
+        };
+      }
+      
+      return { 
+        data: responseData ?? [], 
+        error: null, 
+        requestId: responseRequestId 
+      };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        return {
+          data: null,
+          error: { message: 'Request timeout', code: 'TIMEOUT' },
+        };
+      }
+      
+      return {
+        data: null,
+        error: { message: error instanceof Error ? error.message : 'Network error' },
+      };
+    }
+  }
+
+  /**
    * Invoca uma Lambda function via API Gateway
    * @param functionName - Nome da função Lambda
    * @param payload - Dados a enviar para a função (será enviado como body)

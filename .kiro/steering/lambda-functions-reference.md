@@ -43,6 +43,7 @@ Ao criar uma nova Lambda ou endpoint:
 | `webauthn-check` | `/api/functions/webauthn-check` | Verifica se usuário tem WebAuthn | `auth/webauthn-check-standalone.ts` |
 | `delete-webauthn-credential` | `/api/functions/delete-webauthn-credential` | Remove credencial WebAuthn | `auth/delete-webauthn-credential.ts` |
 | `verify-tv-token` | `/api/functions/verify-tv-token` | Verifica token para TV Dashboard | `auth/verify-tv-token.ts` |
+| `self-register` | `/api/functions/self-register` | Auto-registro de novos clientes (público, sem auth) - Cria Org, User, Profile e Trial License | `auth/self-register.ts` |
 
 ### 👤 Administração (admin/)
 

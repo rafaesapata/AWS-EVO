@@ -9,6 +9,7 @@ import { TVDashboardProvider } from "@/contexts/TVDashboardContext";
 import { ErrorBoundary as GlobalErrorBoundary } from "@/components/ErrorBoundary";
 import { FloatingCopilot } from "@/components/copilot/FloatingCopilot";
 import AuthSimple from "./pages/Auth-simple";
+import Register from "./pages/Register";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
@@ -96,6 +97,7 @@ createRoot(document.getElementById("root")!).render(
             <Routes>
               <Route path="/" element={<AuthSimple />} />
               <Route path="/auth" element={<AuthSimple />} />
+              <Route path="/register" element={<Register />} />
               <Route 
                 path="/app" 
                 element={

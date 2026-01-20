@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -530,6 +530,19 @@ export default function AuthSimple() {
                 >
                   Esqueci minha senha
                 </button>
+              </div>
+
+              {/* Registration Link */}
+              <div className="text-center pt-4 border-t border-gray-200">
+                <p className="text-sm text-gray-600">
+                  Não tem uma conta?{' '}
+                  <Link 
+                    to="/register" 
+                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors duration-200"
+                  >
+                    Criar conta trial
+                  </Link>
+                </p>
               </div>
             </form>
           </CardContent>

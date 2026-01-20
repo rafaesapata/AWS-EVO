@@ -22,18 +22,29 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
-  const user = getUserFromEvent(event);
-  const organizationId = getOrganizationIdWithImpersonation(event, user);
+  if (getHttpMethod(event) === 'OPTIONS') {
+    return corsOptions();
+  }
+  
+  // Wrap auth in try-catch to return proper 401 response
+  let user;
+  let organizationId;
+  try {
+    user = getUserFromEvent(event);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
+  } catch (authError) {
+    logger.warn('Authentication failed', { 
+      error: authError instanceof Error ? authError.message : 'Unknown auth error',
+      requestId: context.awsRequestId 
+    });
+    return error('Authentication required', 401);
+  }
   
   logger.info('Lateral Movement Detection started', { 
     organizationId,
     userId: user.sub,
     requestId: context.awsRequestId 
   });
-  
-  if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
-  }
   
   try {
     const body: LateralMovementRequest = event.body ? JSON.parse(event.body) : {};

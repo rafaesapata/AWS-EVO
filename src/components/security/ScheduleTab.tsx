@@ -141,8 +141,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
     queryFn: async () => {
       const response = await apiClient.lambda<{ data: ScanSchedule[] }>('query-table', {
         table: 'scan_schedules',
-        filters: { organization_id: organizationId },
-        orderBy: { column: 'created_at', direction: 'desc' }
+        order: { column: 'created_at', ascending: false }
       });
       return response.data?.data || [];
     }
@@ -199,7 +198,6 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
         table: 'scan_schedules',
         operation: 'insert',
         data: {
-          organization_id: organizationId,
           aws_account_id: selectedAwsAccount,
           scan_type: newSchedule.scan_type,
           schedule_type: newSchedule.schedule_type,
@@ -230,7 +228,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
       const response = await apiClient.lambda('mutate-table', {
         table: 'scan_schedules',
         operation: 'update',
-        id,
+        where: { id },
         data: { 
           is_active,
           next_run_at: is_active ? calculateNextRun('daily', { hour: 2 }) : null
@@ -260,7 +258,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
       const response = await apiClient.lambda('mutate-table', {
         table: 'scan_schedules',
         operation: 'delete',
-        id
+        where: { id }
       });
       if (response.error) throw new Error(response.error);
     },
@@ -292,7 +290,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
       await apiClient.lambda('mutate-table', {
         table: 'scan_schedules',
         operation: 'update',
-        id: schedule.id,
+        where: { id: schedule.id },
         data: { 
           last_run_at: new Date().toISOString(),
           next_run_at: calculateNextRun(schedule.schedule_type, schedule.schedule_config)

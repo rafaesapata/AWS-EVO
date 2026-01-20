@@ -13,6 +13,7 @@ import { syncOrganizationLicenses, getLicenseSummary } from '../../lib/license-s
 
 interface AdminSyncRequest {
   organization_ids?: string[];
+  customer_id?: string;  // Can sync by customer_id instead of organization_ids
   sync_all?: boolean;
 }
 
@@ -78,10 +79,23 @@ export async function handler(
         select: { organization_id: true },
       });
       organizationIds = configs.map((c: { organization_id: string }) => c.organization_id);
+    } else if (body.customer_id) {
+      // Find organizations by customer_id
+      const configs = await prisma.organizationLicenseConfig.findMany({
+        where: { customer_id: body.customer_id },
+        select: { organization_id: true },
+      });
+      
+      if (configs.length === 0) {
+        return badRequest(`No organizations found with customer_id: ${body.customer_id}`, undefined, origin);
+      }
+      
+      organizationIds = configs.map((c: { organization_id: string }) => c.organization_id);
+      logger.info(`Found ${organizationIds.length} organizations for customer_id: ${body.customer_id}`);
     } else if (body.organization_ids && body.organization_ids.length > 0) {
       organizationIds = body.organization_ids;
     } else {
-      return badRequest('Provide organization_ids array or set sync_all: true', undefined, origin);
+      return badRequest('Provide organization_ids array, customer_id, or set sync_all: true', undefined, origin);
     }
 
     logger.info(`Admin sync triggered for ${organizationIds.length} organizations`);

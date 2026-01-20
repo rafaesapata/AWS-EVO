@@ -63,6 +63,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'edge_services': 'edgeService',
   'edge_metrics': 'edgeMetric',
   'scheduled_scans': 'scheduledScan',
+  'scan_schedules': 'scanSchedule',
   'saved_filters': 'savedFilter',
   'tv_dashboards': 'tvDashboard',
   'dashboard_metrics_targets': 'dashboardMetricTarget',
@@ -90,7 +91,7 @@ const TABLES_WITH_ORG_ID = new Set([
   'cost_optimizations', 'compliance_scans', 'jira_tickets', 'remediation_tickets', 'tickets',
   'monitored_resources', 'resource_metrics', 'resource_utilization_ml',
   'ml_analysis_history', 'edge_services', 'edge_metrics',
-  'scheduled_scans', 'saved_filters', 'tv_dashboards', 'dashboard_metrics_targets',
+  'scheduled_scans', 'scan_schedules', 'saved_filters', 'tv_dashboards', 'dashboard_metrics_targets',
   'resource_comments', 'mention_notifications', 'monitored_endpoints', 'endpoint_monitors',
   // License management
   'licenses',

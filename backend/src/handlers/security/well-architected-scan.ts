@@ -21,10 +21,10 @@ interface PillarScore {
 }
 
 export async function handler(event: AuthorizedEvent, context: LambdaContext): Promise<APIGatewayProxyResultV2> {
+  if (getHttpMethod(event) === 'OPTIONS') return corsOptions();
+  
   const user = getUserFromEvent(event);
   const organizationId = getOrganizationIdWithImpersonation(event, user);
-  
-  if (getHttpMethod(event) === 'OPTIONS') return corsOptions();
   
   const prisma = getPrismaClient();
   
