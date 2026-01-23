@@ -11,6 +11,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { Key, Trash2, Building2, TestTube, Pencil, CloudCog, Copy, AlertTriangle } from "lucide-react";
 import { RegionSelector } from "./RegionSelector";
 import CloudFormationDeploy from "./CloudFormationDeploy";
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +55,7 @@ function toAwsAccountExtended(account: CloudAccount): AwsAccountExtended {
 
 const AwsCredentialsManager = () => {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const { data: organizationId, isLoading: isLoadingOrg, error: orgError } = useOrganization();
   const queryClient = useQueryClient();
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
@@ -95,27 +97,27 @@ const AwsCredentialsManager = () => {
         body: { payerAccountId }
       });
       
-      if (result.error) throw new Error(result.error.message || 'Erro ao sincronizar contas');
+      if (result.error) throw new Error(result.error.message || t('aws.syncError', 'Error syncing accounts'));
       return result.data;
     },
     onSuccess: (data) => {
       toast({
-        title: "Contas sincronizadas!",
-        description: `${data.data.syncedAccounts} contas membros foram sincronizadas.`,
+        title: t('aws.accountsSynced', 'Accounts synced!'),
+        description: t('aws.memberAccountsSynced', '{{count}} member accounts were synced.', { count: data.data.syncedAccounts }),
       });
       queryClient.invalidateQueries({ queryKey: ['aws-credentials-all'] });
     },
     onError: (error: any) => {
       console.error('Error syncing organization:', error);
       
-      let errorMessage = error.message || "Não foi possível sincronizar as contas da organização";
+      let errorMessage = error.message || t('aws.syncError', 'Could not sync organization accounts');
       
       if (errorMessage.includes('AccessDenied') || errorMessage.includes("don't have permissions")) {
-        errorMessage = "Permissão AWS insuficiente. É necessária a permissão 'organizations:ListAccounts' no IAM.";
+        errorMessage = t('aws.syncPermissionError', "Insufficient AWS permission. The 'organizations:ListAccounts' permission is required in IAM.");
       }
       
       toast({
-        title: "Erro ao sincronizar",
+        title: t('aws.syncError', 'Error syncing'),
         description: errorMessage,
         variant: "destructive",
       });
@@ -125,15 +127,15 @@ const AwsCredentialsManager = () => {
   const handleTestCredentials = async (accountId: string) => {
     try {
       toast({
-        title: "Testando credenciais...",
-        description: "Validando conexão e permissões AWS",
+        title: t('aws.testingCredentials', 'Testing credentials...'),
+        description: t('aws.validatingConnection', 'Validating connection and AWS permissions'),
       });
 
       const result = await apiClient.invoke('validate-aws-credentials', {
         body: { accountId }
       });
 
-      if (result.error) throw new Error(result.error.message || 'Erro ao validar credenciais');
+      if (result.error) throw new Error(result.error.message || t('aws.validationFailed', 'Error validating credentials'));
       const data = result.data;
 
       await queryClient.invalidateQueries({ queryKey: ['aws-validation-status'] });
@@ -142,27 +144,27 @@ const AwsCredentialsManager = () => {
       if (data.isValid) {
         if (data.has_all_permissions === false) {
           toast({
-            title: "⚠️ Credenciais válidas com ressalvas",
-            description: "Conexão OK, mas algumas permissões estão faltando",
+            title: t('aws.credentialsValidWithWarnings', '⚠️ Valid credentials with warnings'),
+            description: t('aws.connectionOkMissingPermissions', 'Connection OK, but some permissions are missing'),
             variant: "default",
           });
           window.dispatchEvent(new Event('switchToPermissionsTab'));
         } else {
           toast({
-            title: "✅ Credenciais válidas",
-            description: "Conexão e permissões verificadas com sucesso",
+            title: t('aws.credentialsValid', '✅ Valid credentials'),
+            description: t('aws.connectionAndPermissionsVerified', 'Connection and permissions verified successfully'),
           });
         }
       } else {
-        throw new Error(data.error || 'Falha na validação');
+        throw new Error(data.error || t('aws.validationFailed', 'Validation failed'));
       }
 
       refetch();
     } catch (error) {
       console.error('Error testing credentials:', error);
       toast({
-        title: "❌ Erro ao testar credenciais",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        title: t('aws.testCredentialsError', '❌ Error testing credentials'),
+        description: error instanceof Error ? error.message : t('common.error', 'Unknown error'),
         variant: "destructive",
       });
       await queryClient.invalidateQueries({ queryKey: ['aws-validation-status'] });
@@ -179,11 +181,11 @@ const AwsCredentialsManager = () => {
         body: { id: accountToDelete, is_active: false }
       });
 
-      if (result.error) throw new Error(result.error.message || 'Erro ao desativar conta');
+      if (result.error) throw new Error(result.error.message || t('aws.deactivateError', 'Error deactivating account'));
 
       toast({
-        title: "✅ Conta desativada",
-        description: "A conta AWS foi desativada e não será mais utilizada",
+        title: t('aws.accountDeactivated', '✅ Account deactivated'),
+        description: t('aws.accountDeactivatedDescription', 'The AWS account was deactivated and will no longer be used'),
       });
       
       await queryClient.invalidateQueries({ queryKey: ['aws-credentials-all'] });
@@ -195,8 +197,8 @@ const AwsCredentialsManager = () => {
     } catch (error) {
       console.error('Error deactivating credentials:', error);
       toast({
-        title: "❌ Erro",
-        description: error instanceof Error ? error.message : "Erro ao desativar credenciais",
+        title: t('common.error', '❌ Error'),
+        description: error instanceof Error ? error.message : t('aws.deactivateError', 'Error deactivating credentials'),
         variant: "destructive",
       });
     } finally {
@@ -213,8 +215,8 @@ const AwsCredentialsManager = () => {
   const handleSaveEdit = async () => {
     if (!editingAccount || editRegions.length === 0) {
       toast({
-        title: "Campos obrigatórios",
-        description: "Selecione pelo menos uma região",
+        title: t('aws.requiredFields', 'Required fields'),
+        description: t('aws.selectAtLeastOneRegion', 'Select at least one region'),
         variant: "destructive",
       });
       return;
@@ -230,11 +232,11 @@ const AwsCredentialsManager = () => {
         }
       });
 
-      if (result.error) throw new Error(result.error.message || 'Erro ao atualizar conta');
+      if (result.error) throw new Error(result.error.message || t('aws.updateError', 'Error updating account'));
 
       toast({
-        title: "✅ Conta atualizada",
-        description: "As configurações da conta foram atualizadas com sucesso",
+        title: t('aws.accountUpdated', '✅ Account updated'),
+        description: t('aws.accountUpdatedDescription', 'Account settings were updated successfully'),
       });
 
       await queryClient.invalidateQueries({ queryKey: ['aws-credentials-all'] });
@@ -247,8 +249,8 @@ const AwsCredentialsManager = () => {
     } catch (error) {
       console.error('Error updating account:', error);
       toast({
-        title: "❌ Erro",
-        description: error instanceof Error ? error.message : "Erro ao atualizar conta",
+        title: t('common.error', '❌ Error'),
+        description: error instanceof Error ? error.message : t('aws.updateError', 'Error updating account'),
         variant: "destructive",
       });
     }
@@ -262,11 +264,10 @@ const AwsCredentialsManager = () => {
           <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
           <AlertDescription className="space-y-2">
             <p className="font-semibold text-orange-800 dark:text-orange-200">
-              Você possui {legacyAccounts.length} conta(s) usando Chaves de Acesso (método descontinuado)
+              {t('aws.legacyAccountsWarning', 'You have {{count}} account(s) using Access Keys (deprecated method)', { count: legacyAccounts.length })}
             </p>
             <p className="text-sm text-orange-700 dark:text-orange-300">
-              Por segurança, recomendamos migrar para IAM Role via CloudFormation. 
-              Desative as contas legadas e adicione novamente usando o método recomendado abaixo.
+              {t('aws.legacyAccountsRecommendation', 'For security, we recommend migrating to IAM Role via CloudFormation. Deactivate legacy accounts and add them again using the recommended method below.')}
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
               {legacyAccounts.map(acc => (
@@ -286,7 +287,7 @@ const AwsCredentialsManager = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Key className="w-5 h-5 text-primary" />
-                <CardTitle>Contas AWS Conectadas ({allAccounts.length})</CardTitle>
+                <CardTitle>{t('aws.connectedAccounts', 'Connected AWS Accounts')} ({allAccounts.length})</CardTitle>
               </div>
               {credentials && (
                 <Button
@@ -297,7 +298,7 @@ const AwsCredentialsManager = () => {
                   className="gap-2"
                 >
                   <Building2 className={`w-4 h-4 ${syncOrgMutation.isPending ? 'animate-spin' : ''}`} />
-                  {syncOrgMutation.isPending ? 'Sincronizando...' : 'Sincronizar Organização'}
+                  {syncOrgMutation.isPending ? t('aws.syncing', 'Syncing...') : t('aws.syncOrganization', 'Sync Organization')}
                 </Button>
               )}
             </div>
@@ -316,17 +317,17 @@ const AwsCredentialsManager = () => {
                       {account.access_key_id?.startsWith('ROLE:') ? (
                         <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 rounded-md flex items-center gap-1 font-medium border border-blue-200 dark:border-blue-700">
                           <CloudCog className="w-3 h-3" />
-                          IAM Role
+                          {t('aws.iamRole', 'IAM Role')}
                         </span>
                       ) : (
                         <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/60 text-orange-800 dark:text-orange-200 rounded-md flex items-center gap-1 font-medium border border-orange-200 dark:border-orange-700">
                           <AlertTriangle className="w-3 h-3" />
-                          Legado (migrar)
+                          {t('aws.legacy', 'Legacy (migrate)')}
                         </span>
                       )}
                       {!account.is_active && (
                         <span className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-200 rounded-md font-medium border border-red-200 dark:border-red-700">
-                          Inativa
+                          {t('aws.inactive', 'Inactive')}
                         </span>
                       )}
                     </div>
@@ -339,13 +340,13 @@ const AwsCredentialsManager = () => {
                       {account.access_key_id?.startsWith('ROLE:') ? (
                         <>
                           <p className="text-xs text-foreground">
-                            <span className="font-medium text-muted-foreground">Role ARN:</span>{' '}
+                            <span className="font-medium text-muted-foreground">{t('aws.roleArn', 'Role ARN')}:</span>{' '}
                             <span className="font-mono bg-muted/80 px-1.5 py-0.5 rounded">{account.access_key_id.replace('ROLE:', '')}</span>
                           </p>
                           {account.external_id && (
                             <div className="flex items-center gap-2">
                               <p className="text-xs text-foreground">
-                                <span className="font-medium text-muted-foreground">External ID:</span>{' '}
+                                <span className="font-medium text-muted-foreground">{t('aws.externalId', 'External ID')}:</span>{' '}
                                 <span className="font-mono bg-muted/80 px-1.5 py-0.5 rounded">{account.external_id}</span>
                               </p>
                               <Button
@@ -355,8 +356,8 @@ const AwsCredentialsManager = () => {
                                 onClick={async () => {
                                   await navigator.clipboard.writeText(account.external_id);
                                   toast({
-                                    title: "External ID copiado!",
-                                    description: "O External ID foi copiado para a área de transferência",
+                                    title: t('aws.externalIdCopied', 'External ID copied!'),
+                                    description: t('aws.externalIdCopiedDescription', 'The External ID was copied to clipboard'),
                                   });
                                 }}
                               >
@@ -367,7 +368,7 @@ const AwsCredentialsManager = () => {
                         </>
                       ) : (
                         <p className="text-xs text-orange-800 dark:text-orange-200 font-medium">
-                          ⚠️ Esta conta usa chaves de acesso. Recomendamos migrar para IAM Role.
+                          {t('aws.legacyAccountWarning', '⚠️ This account uses access keys. We recommend migrating to IAM Role.')}
                         </p>
                       )}
                     </div>
@@ -387,7 +388,7 @@ const AwsCredentialsManager = () => {
                       variant="outline"
                       size="icon"
                       onClick={() => handleTestCredentials(account.id)}
-                      title="Testar credenciais"
+                      title={t('aws.testCredentials', 'Test credentials')}
                       disabled={!account.is_active}
                     >
                       <TestTube className="w-4 h-4" />
@@ -396,7 +397,7 @@ const AwsCredentialsManager = () => {
                       variant="outline"
                       size="icon"
                       onClick={() => handleEditAccount(account)}
-                      title="Editar conta"
+                      title={t('aws.editAccount', 'Edit account')}
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
@@ -405,7 +406,7 @@ const AwsCredentialsManager = () => {
                       size="icon"
                       onClick={() => setAccountToDelete(account.id)}
                       className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      title="Desativar conta"
+                      title={t('aws.deactivateAccount', 'Deactivate account')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -422,10 +423,10 @@ const AwsCredentialsManager = () => {
         <CardHeader>
           <div className="flex items-center gap-2">
             <CloudCog className="w-5 h-5 text-primary" />
-            <CardTitle>Conectar Nova Conta AWS</CardTitle>
+            <CardTitle>{t('aws.connectNewAccount', 'Connect New AWS Account')}</CardTitle>
           </div>
           <CardDescription>
-            Use CloudFormation para configurar automaticamente as permissões necessárias com IAM Role
+            {t('aws.connectNewAccountDescription', 'Use CloudFormation to automatically configure the required permissions with IAM Role')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -437,24 +438,23 @@ const AwsCredentialsManager = () => {
       <AlertDialog open={!!accountToDelete} onOpenChange={() => setAccountToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar desativação da conta</AlertDialogTitle>
+            <AlertDialogTitle>{t('aws.confirmDeactivation', 'Confirm account deactivation')}</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <p>
-                Tem certeza que deseja desativar esta conta AWS?
+                {t('aws.confirmDeactivationDescription', 'Are you sure you want to deactivate this AWS account?')}
               </p>
               <p className="text-muted-foreground">
-                A conta será desativada e não aparecerá mais na lista de contas ativas.
-                Os dados históricos serão mantidos e a conta não será mais usada para novas consultas.
+                {t('aws.deactivationExplanation', 'The account will be deactivated and will no longer appear in the active accounts list. Historical data will be kept and the account will no longer be used for new queries.')}
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel', 'Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Desativar Conta
+              {t('aws.deactivate', 'Deactivate Account')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -463,30 +463,30 @@ const AwsCredentialsManager = () => {
       <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
         <DialogContent className="sm:max-w-[525px]">
           <DialogHeader>
-            <DialogTitle>Editar Conta AWS</DialogTitle>
+            <DialogTitle>{t('aws.editAwsAccount', 'Edit AWS Account')}</DialogTitle>
             <DialogDescription>
-              Atualize o nome e as regiões monitoradas para esta conta
+              {t('aws.editAwsAccountDescription', 'Update the name and monitored regions for this account')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-account-name">Nome da Conta</Label>
+              <Label htmlFor="edit-account-name">{t('aws.accountName', 'Account Name')}</Label>
               <Input
                 id="edit-account-name"
                 value={editAccountName}
                 onChange={(e) => setEditAccountName(e.target.value)}
-                placeholder="Nome da conta"
+                placeholder={t('aws.accountName', 'Account Name')}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="edit-regions">Regiões AWS</Label>
+              <Label htmlFor="edit-regions">{t('aws.awsRegions', 'AWS Regions')}</Label>
               <RegionSelector 
                 selectedRegions={editRegions}
                 onChange={setEditRegions}
               />
               <p className="text-xs text-muted-foreground">
-                Selecione as regiões AWS que você deseja monitorar
+                {t('aws.selectRegionsToMonitor', 'Select the AWS regions you want to monitor')}
               </p>
             </div>
 
@@ -494,12 +494,12 @@ const AwsCredentialsManager = () => {
               <div className="bg-muted/80 p-4 rounded-lg space-y-2 border border-border">
                 {editingAccount.access_key_id?.startsWith('ROLE:') ? (
                   <p className="text-sm text-foreground">
-                    <span className="font-medium text-muted-foreground">Role ARN:</span>{' '}
+                    <span className="font-medium text-muted-foreground">{t('aws.roleArn', 'Role ARN')}:</span>{' '}
                     <span className="font-mono text-xs bg-background px-2 py-1 rounded border border-border">{editingAccount.access_key_id.replace('ROLE:', '')}</span>
                   </p>
                 ) : (
                   <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">
-                    ⚠️ Conta usando método legado. Considere migrar para IAM Role.
+                    {t('aws.legacyMethodWarning', '⚠️ Account using legacy method. Consider migrating to IAM Role.')}
                   </p>
                 )}
               </div>
@@ -507,10 +507,10 @@ const AwsCredentialsManager = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingAccount(null)}>
-              Cancelar
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button onClick={handleSaveEdit}>
-              Salvar Alterações
+              {t('aws.saveChanges', 'Save Changes')}
             </Button>
           </DialogFooter>
         </DialogContent>

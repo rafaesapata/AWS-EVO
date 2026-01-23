@@ -268,9 +268,9 @@ export function UnifiedCostDashboard() {
  <Cloud className="h-6 w-6 text-muted-foreground" />
  </div>
  <div>
- <h3 className="font-semibold">Nenhuma conta conectada</h3>
+ <h3 className="font-semibold">{t('common.noAccountConnected', 'No account connected')}</h3>
  <p className="text-sm text-muted-foreground">
- Conecte contas AWS ou Azure para visualizar custos unificados.
+ {t('common.connectAccountsToView', 'Connect AWS or Azure accounts to view')} {t('costs.unifiedCosts', 'unified costs')}.
  </p>
  </div>
  </div>

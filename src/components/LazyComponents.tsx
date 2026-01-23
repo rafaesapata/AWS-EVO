@@ -3,7 +3,7 @@
  * Implements code splitting for better performance
  */
 
-import { lazy, Suspense, ComponentType } from 'react';
+import { lazy, Suspense, ComponentType, useState, useEffect } from 'react';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import ErrorBoundary from '@/components/ErrorBoundary';
 

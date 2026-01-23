@@ -11,6 +11,7 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 
 interface GenerateCostForecastRequest {
   accountId?: string;
@@ -43,6 +44,13 @@ export async function handler(
     const { accountId, forecastDays = 30 } = body;
     
     const prisma = getPrismaClient();
+    
+    // Check if organization is in demo mode
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo) {
+      logger.info('🎭 Returning demo cost forecast data', { organizationId });
+      return success(generateDemoCostForecast(forecastDays));
+    }
     
     // Buscar custos históricos dos últimos 90 dias
     const ninetyDaysAgo = new Date();
@@ -149,4 +157,57 @@ export async function handler(
     logger.error('❌ Generate Cost Forecast error:', err);
     return error(err instanceof Error ? err.message : 'Internal server error');
   }
+}
+
+/**
+ * Generate demo cost forecast data
+ */
+function generateDemoCostForecast(forecastDays: number = 30) {
+  const today = new Date();
+  const forecast: ForecastDataPoint[] = [];
+  
+  // Base cost with slight upward trend
+  const baseCost = 125.50;
+  const dailyIncrease = 0.8;
+  const stdDev = 15.5;
+  
+  for (let i = 1; i <= forecastDays; i++) {
+    const futureDate = new Date(today);
+    futureDate.setDate(futureDate.getDate() + i);
+    
+    const predictedCost = baseCost + (dailyIncrease * i) + (Math.random() - 0.5) * 10;
+    const margin = 1.96 * stdDev;
+    
+    forecast.push({
+      date: futureDate.toISOString().split('T')[0],
+      predictedCost: Math.max(0, parseFloat(predictedCost.toFixed(2))),
+      confidence: Math.min(100, Math.max(0, 100 - (i * 2))),
+      lowerBound: Math.max(0, parseFloat((predictedCost - margin).toFixed(2))),
+      upperBound: parseFloat((predictedCost + margin).toFixed(2)),
+    });
+  }
+  
+  const totalPredicted = forecast.reduce((sum, f) => sum + f.predictedCost, 0);
+  const avgDailyCost = totalPredicted / forecastDays;
+  
+  return {
+    _isDemo: true,
+    success: true,
+    forecast,
+    summary: {
+      forecastDays,
+      totalPredicted: parseFloat(totalPredicted.toFixed(2)),
+      avgDailyCost: parseFloat(avgDailyCost.toFixed(2)),
+      avgHistoricalCost: 118.42,
+      trend: 'increasing' as const,
+      trendPercentage: 8.5,
+      confidence: 'medium',
+    },
+    metadata: {
+      historicalDays: 90,
+      slope: 0.8,
+      intercept: 118.42,
+      stdDev: 15.5,
+    },
+  };
 }

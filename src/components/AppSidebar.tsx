@@ -114,7 +114,7 @@ const menuItems: MenuItem[] = [
     icon: Settings,
     subItems: [
       { titleKey: "sidebar.license", value: "license" },
-      { titleKey: "sidebar.awsSettings", value: "aws-settings" },
+      // { titleKey: "sidebar.awsSettings", value: "aws-settings" }, // Desativado - funcionalidade migrada para Credenciais Cloud
       { titleKey: "sidebar.cloudCredentials", value: "cloud-credentials" },
       { titleKey: "sidebar.manageUsers", value: "users" },
       { titleKey: "sidebar.organizations", value: "organizations", superAdminOnly: true },

@@ -2,6 +2,8 @@
  * Advanced Compliance Scan Handler v2.0
  * Multi-region, async-capable compliance scanning with real AWS API calls
  * Supports: CIS, LGPD, PCI-DSS, HIPAA, GDPR, SOC2, NIST 800-53
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
@@ -11,6 +13,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { complianceScanSchema } from '../../lib/schemas.js';
+import { isOrganizationInDemoMode, generateDemoComplianceData } from '../../lib/demo-data-service.js';
 
 // AWS SDK imports
 import { IAMClient, GetAccountSummaryCommand, GetAccountPasswordPolicyCommand, ListUsersCommand, ListMFADevicesCommand, ListAttachedUserPoliciesCommand, GenerateCredentialReportCommand, GetCredentialReportCommand, ListAccessKeysCommand } from '@aws-sdk/client-iam';
@@ -1287,6 +1290,63 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
+    const prisma = getPrismaClient();
+    
+    // Check for Demo Mode (FAIL-SAFE: returns false on any error)
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    
+    if (isDemo === true) {
+      // Return demo data for organizations in demo mode
+      logger.info('Returning demo compliance scan', {
+        organizationId,
+        isDemo: true
+      });
+      
+      const demoData = generateDemoComplianceData();
+      const duration = Date.now() - startTime;
+      
+      // Calculate totals from demo frameworks
+      const totalPassed = demoData.frameworks.reduce((sum, f) => sum + f.passed, 0);
+      const totalFailed = demoData.frameworks.reduce((sum, f) => sum + f.failed, 0);
+      const totalNA = demoData.frameworks.reduce((sum, f) => sum + f.notApplicable, 0);
+      const avgScore = Math.round(demoData.frameworks.reduce((sum, f) => sum + f.score, 0) / demoData.frameworks.length);
+      
+      return success({
+        _isDemo: true,
+        scan_id: 'demo-compliance-scan-' + Date.now(),
+        status: 'completed',
+        duration_ms: duration,
+        framework: 'all',
+        summary: {
+          total_controls: totalPassed + totalFailed + totalNA,
+          passed: totalPassed,
+          failed: totalFailed,
+          not_applicable: totalNA,
+          compliance_score: avgScore,
+          by_severity: {
+            critical: 2,
+            high: 5,
+            medium: 8,
+            low: 3
+          }
+        },
+        frameworks: demoData.frameworks,
+        violations: demoData.recentViolations,
+        controls: demoData.recentViolations.map(v => ({
+          control_id: v.control,
+          control_name: v.title,
+          description: v.title,
+          status: 'failed',
+          severity: v.severity,
+          evidence: { resource: v.resource },
+          remediation_steps: 'Consulte a documentação do framework para remediação.',
+          affected_resources: [v.resource],
+          framework_reference: `${v.framework} ${v.control}`,
+          region: 'us-east-1'
+        }))
+      }, 200, origin);
+    }
+    
     // Validate input
     const parseResult = complianceScanSchema.safeParse(
       event.body ? JSON.parse(event.body) : {}
@@ -1302,8 +1362,6 @@ export async function handler(
     const { frameworkId, scanId, accountId, jobId } = parseResult.data;
     
     logger.info('Starting compliance scan', { frameworkId, accountId, jobId });
-    
-    const prisma = getPrismaClient();
     
     // If jobId is provided, update job status
     if (jobId) {

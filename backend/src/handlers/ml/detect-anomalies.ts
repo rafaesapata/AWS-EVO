@@ -8,6 +8,7 @@ import { success, error, badRequest, notFound, corsOptions } from '../../lib/res
 import { getOrigin } from '../../lib/middleware.js';
 import { detectAnomaliesSchema } from '../../lib/schemas.js';
 import { resolveAwsCredentials } from '../../lib/aws-helpers.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 
 interface Anomaly {
   id: string;
@@ -50,6 +51,25 @@ export async function handler(
   }
 
   try {
+    const prisma = getPrismaClient();
+    
+    // =========================================================================
+    // DEMO MODE CHECK - Retorna dados de demonstração se ativado
+    // =========================================================================
+    const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemoMode) {
+      const { generateDemoAnomalyDetection } = await import('../../lib/demo-data-service.js');
+      const demoData = generateDemoAnomalyDetection();
+      
+      logger.info('Returning demo anomaly detection data', { 
+        organizationId, 
+        isDemo: true 
+      });
+      
+      return success(demoData, 200, origin);
+    }
+    // =========================================================================
+    
     // Validar input com Zod
     const parseResult = detectAnomaliesSchema.safeParse(
       event.body ? JSON.parse(event.body) : {}
@@ -64,7 +84,6 @@ export async function handler(
     
     const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = parseResult.data;
 
-    const prisma = getPrismaClient();
     const startTime = Date.now();
 
     // Buscar credencial AWS - FILTRAR POR ORGANIZATION_ID

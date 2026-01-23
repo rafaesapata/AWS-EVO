@@ -2,6 +2,8 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para obter findings
  * AWS Lambda Handler for get-findings
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -9,6 +11,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient, withTenantIsolation } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
 
 interface GetFindingsRequest {
   severity?: string;
@@ -40,6 +43,50 @@ export async function handler(
   });
   
   try {
+    const prisma = getPrismaClient();
+    
+    // Check for Demo Mode (FAIL-SAFE: returns false on any error)
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    
+    if (isDemo === true) {
+      // Return demo data for organizations in demo mode
+      logger.info('Returning demo findings', {
+        organizationId,
+        isDemo: true,
+        requestId: context.awsRequestId
+      });
+      
+      const demoFindings = generateDemoSecurityFindings();
+      const critical = demoFindings.filter(f => f.severity === 'critical').length;
+      const high = demoFindings.filter(f => f.severity === 'high').length;
+      const medium = demoFindings.filter(f => f.severity === 'medium').length;
+      const low = demoFindings.filter(f => f.severity === 'low').length;
+      
+      return success({
+        _isDemo: true,
+        findings: demoFindings.map(f => ({
+          ...f,
+          organization_id: organizationId,
+          aws_account_id: 'demo-account',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })),
+        pagination: {
+          total: demoFindings.length,
+          limit: 50,
+          offset: 0,
+          has_more: false,
+        },
+        summary: {
+          total: demoFindings.length,
+          critical,
+          high,
+          medium,
+          low,
+        },
+      });
+    }
+    
     // Parse query parameters - support both REST API (queryStringParameters) and HTTP API (rawQueryString)
     const params = getHttpMethod(event) === 'GET'
       ? (event.queryStringParameters || parseQueryParams(event.rawQueryString || ''))
@@ -56,8 +103,6 @@ export async function handler(
       sort_by = 'created_at',
       sort_order = 'desc',
     } = params as GetFindingsRequest;
-    
-    const prisma = getPrismaClient();
     
     // Build where clause with tenant isolation
     const where = {

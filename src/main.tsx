@@ -6,6 +6,7 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { AwsAccountProvider } from "@/contexts/AwsAccountContext";
 import { CloudAccountProvider } from "@/contexts/CloudAccountContext";
 import { TVDashboardProvider } from "@/contexts/TVDashboardContext";
+import { DemoModeProvider } from "@/contexts/DemoModeContext";
 import { ErrorBoundary as GlobalErrorBoundary } from "@/components/ErrorBoundary";
 import { FloatingCopilot } from "@/components/copilot/FloatingCopilot";
 import AuthSimple from "./pages/Auth-simple";
@@ -93,7 +94,8 @@ createRoot(document.getElementById("root")!).render(
       <DefaultTVProvider>
         <AwsAccountProvider>
           <CloudAccountProvider>
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <DemoModeProvider>
+              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/" element={<AuthSimple />} />
               <Route path="/auth" element={<AuthSimple />} />
@@ -444,6 +446,7 @@ createRoot(document.getElementById("root")!).render(
             <SonnerToaster />
             <FloatingCopilotWrapper />
           </BrowserRouter>
+            </DemoModeProvider>
           </CloudAccountProvider>
         </AwsAccountProvider>
       </DefaultTVProvider>

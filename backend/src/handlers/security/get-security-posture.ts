@@ -2,6 +2,8 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Get Security Posture
  * AWS Lambda Handler for get-security-posture
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -9,6 +11,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -39,6 +42,36 @@ export async function handler(
   
   try {
     const prisma = getPrismaClient();
+    
+    // Check for Demo Mode (FAIL-SAFE: returns false on any error)
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    
+    if (isDemo === true) {
+      // Return demo data for organizations in demo mode
+      logger.info('Returning demo security posture', {
+        organizationId,
+        isDemo: true,
+        requestId: context.awsRequestId
+      });
+      
+      return success({
+        _isDemo: true,
+        success: true,
+        posture: {
+          overallScore: 72.0,
+          riskLevel: 'medium',
+          findings: {
+            critical: 2,
+            high: 5,
+            medium: 8,
+            low: 15,
+            total: 30,
+          },
+          calculatedAt: new Date().toISOString(),
+          accountId: accountId || 'all',
+        },
+      });
+    }
     
     // Base filter - by organization and optionally by account
     const baseFilter: any = { 

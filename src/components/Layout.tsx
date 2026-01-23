@@ -12,6 +12,9 @@ import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
 import UserMenu from "@/components/UserMenu";
 import SuperAdminOrganizationSwitcher, { getImpersonationState, getEffectiveOrganizationId, getEffectiveOrganizationName } from "@/components/SuperAdminOrganizationSwitcher";
+import { DemoBanner } from "@/components/demo/DemoBanner";
+import { DemoWatermark } from "@/components/demo/DemoWatermark";
+import { useDemoMode } from "@/contexts/DemoModeContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -174,16 +177,20 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-mesh-subtle dark:bg-mesh-subtle">
-        <AppSidebar 
-          activeTab={activeTab} 
-          onTabChange={handleTabChange} 
-          userRole={userRole} 
-        />
-        
-        <div className="flex-1 flex flex-col">
-          {/* Header - Glass Effect */}
-          <header className="sticky top-0 z-10 glass-card-float border-b-0 rounded-none">
+      <DemoWatermark>
+        <div className="min-h-screen flex w-full bg-mesh-subtle dark:bg-mesh-subtle">
+          <AppSidebar 
+            activeTab={activeTab} 
+            onTabChange={handleTabChange} 
+            userRole={userRole} 
+          />
+          
+          <div className="flex-1 flex flex-col">
+            {/* Demo Mode Banner - Always on top */}
+            <DemoBanner />
+            
+            {/* Header - Glass Effect */}
+            <header className="sticky top-0 z-10 glass-card-float border-b-0 rounded-none">
             <div className="w-full px-3 py-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -239,8 +246,9 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
           </main>
           
           <Footer variant="minimal" />
+          </div>
         </div>
-      </div>
+      </DemoWatermark>
     </SidebarProvider>
   );
 }

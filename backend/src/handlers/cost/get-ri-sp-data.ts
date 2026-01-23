@@ -9,6 +9,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
+import { isOrganizationInDemoMode, generateDemoRISPAnalysis } from '../../lib/demo-data-service.js';
 
 interface GetRISPDataRequest {
   accountId: string;
@@ -30,6 +31,20 @@ export async function handler(
     
     const body: GetRISPDataRequest = event.body ? JSON.parse(event.body) : {};
     const { accountId } = body;
+    
+    const prisma = getPrismaClient();
+    
+    // Check if organization is in demo mode
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo) {
+      logger.info('🎭 Returning demo RI/SP data', { organizationId });
+      const demoData = generateDemoRISPAnalysis();
+      return success({
+        ...demoData,
+        success: true,
+        hasData: true,
+      });
+    }
     
     if (!accountId) {
       return error('Missing required parameter: accountId');

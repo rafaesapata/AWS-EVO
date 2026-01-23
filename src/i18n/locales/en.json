@@ -795,7 +795,8 @@
     "projectsCurrentSpend": "Projects current month spend to end of month.",
     "formula": "(Accumulated cost ÷ Current day) × Days in month",
     "example": "Ex: Spent ${{spent}} in {{days}} days, projects ${{daily}}/day × {{totalDays}} days = ${{total}}",
-    "methodologyNote": "💡 The \"30-day Cost Forecast\" in Detailed Analysis uses different methodology (regression based on 90-day history), so values may differ."
+    "methodologyNote": "💡 The \"30-day Cost Forecast\" in Detailed Analysis uses different methodology (regression based on 90-day history), so values may differ.",
+    "unifiedCosts": "unified costs"
   },
   "aws": {
     "checking": "Checking...",
@@ -844,7 +845,56 @@
     "permissionIssuesDetected": "{{count}} accounts with missing permissions",
     "accountsDisconnected": "Disconnected accounts: {{accounts}}",
     "accountsMissingPermissions": "Incomplete permissions: {{accounts}}",
-    "viewDetails": "View details"
+    "viewDetails": "View details",
+    "connectedAccounts": "Connected AWS Accounts",
+    "connectNewAccount": "Connect New AWS Account",
+    "connectNewAccountDescription": "Use CloudFormation to automatically configure the required permissions with IAM Role",
+    "syncOrganization": "Sync Organization",
+    "syncing": "Syncing...",
+    "accountsSynced": "Accounts synced!",
+    "memberAccountsSynced": "{{count}} member accounts were synced.",
+    "syncError": "Error syncing",
+    "syncPermissionError": "Insufficient AWS permission. The 'organizations:ListAccounts' permission is required in IAM.",
+    "testingCredentials": "Testing credentials...",
+    "validatingConnection": "Validating connection and AWS permissions",
+    "credentialsValidWithWarnings": "⚠️ Valid credentials with warnings",
+    "connectionOkMissingPermissions": "Connection OK, but some permissions are missing",
+    "credentialsValid": "✅ Valid credentials",
+    "connectionAndPermissionsVerified": "Connection and permissions verified successfully",
+    "validationFailed": "Validation failed",
+    "testCredentialsError": "❌ Error testing credentials",
+    "accountDeactivated": "✅ Account deactivated",
+    "accountDeactivatedDescription": "The AWS account was deactivated and will no longer be used",
+    "deactivateError": "Error deactivating credentials",
+    "accountUpdated": "✅ Account updated",
+    "accountUpdatedDescription": "Account settings were updated successfully",
+    "updateError": "Error updating account",
+    "requiredFields": "Required fields",
+    "selectAtLeastOneRegion": "Select at least one region",
+    "legacyAccountsWarning": "You have {{count}} account(s) using Access Keys (deprecated method)",
+    "legacyAccountsRecommendation": "For security, we recommend migrating to IAM Role via CloudFormation. Deactivate legacy accounts and add them again using the recommended method below.",
+    "iamRole": "IAM Role",
+    "legacy": "Legacy (migrate)",
+    "inactive": "Inactive",
+    "roleArn": "Role ARN",
+    "externalId": "External ID",
+    "externalIdCopied": "External ID copied!",
+    "externalIdCopiedDescription": "The External ID was copied to clipboard",
+    "legacyAccountWarning": "⚠️ This account uses access keys. We recommend migrating to IAM Role.",
+    "testCredentials": "Test credentials",
+    "editAccount": "Edit account",
+    "deactivateAccount": "Deactivate account",
+    "confirmDeactivation": "Confirm account deactivation",
+    "confirmDeactivationDescription": "Are you sure you want to deactivate this AWS account?",
+    "deactivationExplanation": "The account will be deactivated and will no longer appear in the active accounts list. Historical data will be kept and the account will no longer be used for new queries.",
+    "deactivate": "Deactivate Account",
+    "editAwsAccount": "Edit AWS Account",
+    "editAwsAccountDescription": "Update the name and monitored regions for this account",
+    "accountName": "Account Name",
+    "awsRegions": "AWS Regions",
+    "selectRegionsToMonitor": "Select the AWS regions you want to monitor",
+    "legacyMethodWarning": "⚠️ Account using legacy method. Consider migrating to IAM Role.",
+    "saveChanges": "Save Changes"
   },
   "onboarding": {
     "welcome": "Welcome to EVO",
@@ -869,6 +919,18 @@
     "awsConnected": "Your AWS account was successfully connected",
     "setupPostponed": "Setup postponed",
     "setupPostponedDesc": "You can configure AWS anytime in settings"
+  },
+  "awsSelector": {
+    "clickToConfigure": "Click to configure",
+    "configurationRequired": "Configuration Required",
+    "needToConnectAccount": "You need to connect at least one AWS account to use the system.",
+    "clickToGoSettings": "Click here to go to AWS settings.",
+    "costDataFound": "Cost Data Found",
+    "accountConnected": "Account Connected",
+    "costDataNoCredentials": "There is cost data for this account, but AWS credentials are not configured.",
+    "regions": "Regions",
+    "select": "Select",
+    "activeAccount": "Active Account"
   },
   "common": {
     "loading": "Loading...",
@@ -949,7 +1011,82 @@
     "copyFailed": "Failed to copy",
     "errorUpdating": "Error updating",
     "couldNotUpdateData": "Could not update data.",
+    "noAwsAccountConnected": "No AWS account connected",
+    "noAwsAccountSelected": "No AWS account selected",
+    "noAccountConfigured": "No account configured.",
+    "noAccountConnected": "No account connected",
+    "connectAccountsToView": "Connect AWS or Azure accounts to view",
+    "selectAccountInHeader": "Select an account in the header selector.",
+    "or": "or",
     "executing": "Executing..."
+  },
+  "demo": {
+    "banner": {
+      "title": "⚠️ DEMONSTRATION MODE",
+      "description": "The data displayed is fictional and for presentation purposes only",
+      "expires": "Expires in {{days}} days",
+      "tooltip": "Contact us to activate your account with real data",
+      "activateReal": "Activate Real Account"
+    },
+    "watermark": "DEMONSTRATION",
+    "explainer": {
+      "badge": "DEMO",
+      "defaultTitle": "Feature",
+      "defaultDescription": "This is a demonstration of the system's capabilities.",
+      "featuresIntro": "In this section you can explore:",
+      "note": "The data displayed is fictional. Contact us to see your real data.",
+      "dismiss": "Close explanation"
+    },
+    "contact": {
+      "title": "Activate Your Real Account",
+      "description": "Contact our sales team to activate your account with real data and enjoy all platform features.",
+      "organization": "Organization",
+      "email": "Email",
+      "phone": "Phone",
+      "whatsapp": "WhatsApp",
+      "whatsappDesc": "Talk to us now",
+      "note": "Our team will respond within 24 business hours."
+    },
+    "pages": {
+      "dashboard": {
+        "title": "Executive Dashboard",
+        "description": "Consolidated view of costs, security and compliance across all your cloud accounts."
+      },
+      "security": {
+        "title": "Security Engine V3",
+        "description": "Security analysis with 170+ checks across 23 categories."
+      },
+      "compliance": {
+        "title": "Multi-Framework Compliance",
+        "description": "Compliance verification with 7 security frameworks."
+      },
+      "costs": {
+        "title": "Cost Analysis",
+        "description": "Real-time cloud cost monitoring and optimization."
+      },
+      "waf": {
+        "title": "WAF Monitoring",
+        "description": "Web Application Firewall monitoring with threat analysis."
+      }
+    },
+    "admin": {
+      "title": "Manage Demo Mode",
+      "activate": "Activate Demo",
+      "deactivate": "Deactivate Demo",
+      "extend": "Extend Period",
+      "status": "Demo Status",
+      "expiresIn": "Expires in",
+      "activatedAt": "Activated at",
+      "activatedBy": "Activated by",
+      "reason": "Reason",
+      "reasonPlaceholder": "Reason for activation/deactivation...",
+      "daysToExtend": "Days to extend",
+      "confirmActivate": "Are you sure you want to activate demo mode? All displayed data will be fictional.",
+      "confirmDeactivate": "Are you sure you want to deactivate demo mode? Real data will be displayed.",
+      "activated": "Demo mode activated successfully",
+      "deactivated": "Demo mode deactivated successfully",
+      "extended": "Demo period extended successfully"
+    }
   },
   "communication": {
     "title": "Communication Center",

@@ -4,6 +4,8 @@
  * 
  * Busca custos diários da AWS usando Cost Explorer API
  * Suporta busca incremental - busca apenas datas que ainda não estão no banco
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -14,6 +16,7 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { fetchDailyCostsSchema, type FetchDailyCostsInput } from '../../lib/schemas.js';
+import { isOrganizationInDemoMode, generateDemoCostData } from '../../lib/demo-data-service.js';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 
 export async function handler(
@@ -30,6 +33,44 @@ export async function handler(
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
+    
+    const prisma = getPrismaClient();
+    
+    // Check for Demo Mode (FAIL-SAFE: returns false on any error)
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    
+    if (isDemo === true) {
+      // Return demo data for organizations in demo mode
+      logger.info('Returning demo daily costs', {
+        organizationId,
+        isDemo: true,
+        requestId: context.awsRequestId
+      });
+      
+      const demoCosts = generateDemoCostData(30);
+      const totalCost = demoCosts.reduce((sum, c) => sum + c.cost, 0);
+      
+      return success({
+        success: true,
+        _isDemo: true,
+        data: {
+          dailyCosts: demoCosts,
+        },
+        costs: demoCosts,
+        summary: {
+          totalCost: parseFloat(totalCost.toFixed(2)),
+          totalRecords: demoCosts.length,
+          newRecords: 0,
+          skippedDays: 0,
+          dateRange: { start: getDateDaysAgo(30), end: getDateDaysAgo(0) },
+          uniqueDates: 30,
+          uniqueServices: 8,
+          accounts: 1,
+          accountsProcessed: [{ id: 'demo-account', name: 'Demo AWS Account' }],
+          incremental: false,
+        },
+      });
+    }
     
     // Validar input com Zod
     const parseResult = fetchDailyCostsSchema.safeParse(
@@ -53,8 +94,6 @@ export async function handler(
     
     // AWS Cost Explorer limita dados históricos a 14 meses
     const maxHistoricalDate = getDateDaysAgo(420); // ~14 meses
-    
-    const prisma = getPrismaClient();
     
     // Buscar credenciais AWS ativas
     const awsAccounts = await prisma.awsCredential.findMany({

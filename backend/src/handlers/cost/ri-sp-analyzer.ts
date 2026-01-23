@@ -7,6 +7,8 @@ import { getHttpMethod } from '../../lib/middleware.js';
  * - Savings Plans: Uses @aws-sdk/client-savingsplans
  * - Pricing: Uses pricing service from lib/pricing
  * - Metrics: Uses CloudWatch GetMetricStatisticsCommand
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -16,6 +18,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { getEC2Price, getRDSPrice } from '../../lib/pricing/dynamic-pricing-service.js';
+import { isOrganizationInDemoMode, generateDemoRISPAnalysis } from '../../lib/demo-data-service.js';
 import { 
   EC2Client, 
   DescribeReservedInstancesCommand, 
@@ -168,6 +171,29 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
+    const prisma = getPrismaClient();
+    
+    // Check for Demo Mode (FAIL-SAFE: returns false on any error)
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    
+    if (isDemo === true) {
+      // Return demo data for organizations in demo mode
+      logger.info('Returning demo RI/SP analysis', {
+        organizationId,
+        isDemo: true
+      });
+      
+      const demoData = generateDemoRISPAnalysis();
+      
+      return success({
+        ...demoData,
+        _isDemo: true,
+        status: 'completed',
+        regions: ['us-east-1', 'us-west-2'],
+        analysisDepth: 'comprehensive'
+      });
+    }
+    
     const body: RISPAnalyzerRequest = event.body ? JSON.parse(event.body) : {};
     const { accountId, region, regions, analysisDepth = 'comprehensive' } = body;
     
@@ -182,8 +208,6 @@ export async function handler(
     if (!accountId) {
       return error('Missing required parameter: accountId');
     }
-    
-    const prisma = getPrismaClient();
     
     const account = await prisma.awsCredential.findFirst({
       where: { id: accountId, organization_id: organizationId, is_active: true },

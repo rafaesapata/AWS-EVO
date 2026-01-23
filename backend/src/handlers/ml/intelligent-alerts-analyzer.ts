@@ -11,6 +11,7 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { isOrganizationInDemoMode, generateDemoIntelligentAlertsAnalysis } from '../../lib/demo-data-service.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -27,6 +28,13 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const prisma = getPrismaClient();
+    
+    // Check if organization is in demo mode
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo) {
+      logger.info('🎭 Returning demo intelligent alerts analysis', { organizationId });
+      return success(generateDemoIntelligentAlertsAnalysis());
+    }
     
     // Buscar alertas recentes não resolvidos
     const alerts = await prisma.alert.findMany({

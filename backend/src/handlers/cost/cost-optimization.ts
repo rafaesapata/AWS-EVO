@@ -2,6 +2,8 @@ import { getHttpMethod } from '../../lib/middleware.js';
 /**
  * Lambda handler para otimização de custos - Versão Expandida
  * Analisa múltiplos serviços AWS e fornece recomendações detalhadas
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -11,6 +13,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
 import { businessMetrics } from '../../lib/metrics.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 import { 
   EC2Client, 
   DescribeInstancesCommand, 
@@ -68,6 +71,24 @@ export async function handler(
     const { accountId } = body;
     
     const prisma = getPrismaClient();
+    
+    // =========================================================================
+    // DEMO MODE CHECK - Retorna dados de demonstração se ativado
+    // =========================================================================
+    const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemoMode) {
+      const { generateDemoCostOptimizations } = await import('../../lib/demo-data-service.js');
+      const demoData = generateDemoCostOptimizations();
+      
+      logger.info('Returning demo cost optimization data', { 
+        organizationId, 
+        isDemo: true,
+        optimizationsCount: demoData.optimizations.length 
+      });
+      
+      return success(demoData);
+    }
+    // =========================================================================
     
     const credential = await prisma.awsCredential.findFirst({
       where: {

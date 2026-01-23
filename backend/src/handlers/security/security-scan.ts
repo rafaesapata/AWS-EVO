@@ -2,6 +2,8 @@
  * Lambda handler para security scan - Security Engine V3
  * 23 scanners de serviços AWS com 170+ verificações de segurança
  * Suporte a 6 frameworks de compliance: CIS, Well-Architected, PCI-DSS, NIST, LGPD, SOC2
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -16,6 +18,7 @@ import { businessMetrics } from '../../lib/metrics.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { runSecurityScan, type ScanContext, type ScanLevel, resetGlobalCache } from '../../lib/security-engine/index.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
 
 async function securityScanHandler(
   event: AuthorizedEvent,
@@ -74,6 +77,71 @@ async function securityScanHandler(
   const startTime = Date.now();
   
   logger.info('Security scan started', { organizationId, userId: user.sub });
+
+  // Check for Demo Mode (FAIL-SAFE: returns false on any error)
+  const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+  
+  if (isDemo === true) {
+    // Return demo data for organizations in demo mode
+    logger.info('Returning demo security scan', {
+      organizationId,
+      isDemo: true
+    });
+    
+    const demoFindings = generateDemoSecurityFindings();
+    const duration = Date.now() - startTime;
+    
+    // Count by severity
+    const critical = demoFindings.filter(f => f.severity === 'critical').length;
+    const high = demoFindings.filter(f => f.severity === 'high').length;
+    const medium = demoFindings.filter(f => f.severity === 'medium').length;
+    const low = demoFindings.filter(f => f.severity === 'low').length;
+    
+    return success({
+      _isDemo: true,
+      scan_id: 'demo-scan-' + Date.now(),
+      status: 'completed',
+      duration_ms: duration,
+      findings_count: demoFindings.length,
+      critical,
+      high,
+      medium,
+      low,
+      summary: {
+        total: demoFindings.length,
+        critical,
+        high,
+        medium,
+        low,
+        info: 0,
+        by_service: {
+          'S3': 1,
+          'EC2': 2,
+          'RDS': 1,
+          'CloudTrail': 1,
+          'IAM': 1
+        },
+        by_category: {
+          'Data Protection': 2,
+          'Network Security': 1,
+          'Logging & Monitoring': 1,
+          'Identity & Access': 2
+        },
+      },
+      metrics: {
+        services_scanned: 23,
+        regions_scanned: 4,
+        total_duration: duration,
+      },
+      findings: demoFindings.map(f => ({
+        ...f,
+        organization_id: organizationId,
+        aws_account_id: 'demo-account',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })),
+    }, 200, origin);
+  }
 
   try {
     const bodyValidation = parseAndValidateBody(securityScanSchema, event.body || null);

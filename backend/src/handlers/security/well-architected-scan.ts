@@ -5,6 +5,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 import { EC2Client, DescribeInstancesCommand, DescribeSecurityGroupsCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { S3Client, ListBucketsCommand, GetBucketEncryptionCommand } from '@aws-sdk/client-s3';
@@ -27,6 +28,23 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
   const organizationId = getOrganizationIdWithImpersonation(event, user);
   
   const prisma = getPrismaClient();
+  
+  // =========================================================================
+  // DEMO MODE CHECK - Retorna dados de demonstração se ativado
+  // =========================================================================
+  const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
+  if (isDemoMode) {
+    const { generateDemoWellArchitectedData } = await import('../../lib/demo-data-service.js');
+    const demoData = generateDemoWellArchitectedData();
+    
+    logger.info('Returning demo well-architected data', { 
+      organizationId, 
+      isDemo: true 
+    });
+    
+    return success(demoData);
+  }
+  // =========================================================================
   
   try {
     const body = event.body ? JSON.parse(event.body) : {};

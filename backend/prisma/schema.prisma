@@ -28,6 +28,12 @@ model Organization {
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   updated_at        DateTime @updatedAt @db.Timestamptz(6)
   
+  // Demo Mode - Modo de demonstração com dados fictícios
+  demo_mode         Boolean  @default(false)
+  demo_activated_at DateTime? @db.Timestamptz(6)
+  demo_expires_at   DateTime? @db.Timestamptz(6)
+  demo_activated_by String?  @db.Uuid
+  
   // Relações
   profiles          Profile[]
   aws_credentials   AwsCredential[]
@@ -40,7 +46,9 @@ model Organization {
   licenses          License[]
   kb_articles       KnowledgeBaseArticle[]
   remediation_tickets RemediationTicket[]
+  demo_mode_audits  DemoModeAudit[]
   
+  @@index([demo_mode])
   @@map("organizations")
 }
 
@@ -2061,4 +2069,26 @@ model AzureWafEvent {
   @@index([source_ip])
   @@index([severity])
   @@map("azure_waf_events")
+}
+
+// ==================== DEMO MODE AUDIT ====================
+// Auditoria de todas as mudanças no modo de demonstração
+
+model DemoModeAudit {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  action          String   // ACTIVATED, DEACTIVATED, EXTENDED, EXPIRED
+  performed_by    String?  @db.Uuid
+  previous_state  Json?
+  new_state       Json?
+  reason          String?
+  ip_address      String?
+  user_agent      String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  
+  @@index([organization_id])
+  @@index([created_at])
+  @@map("demo_mode_audit")
 }

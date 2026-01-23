@@ -39,7 +39,12 @@ export async function handler(
         name: true,
         slug: true,
         created_at: true,
-        updated_at: true
+        updated_at: true,
+        // Demo Mode fields
+        demo_mode: true,
+        demo_activated_at: true,
+        demo_expires_at: true,
+        demo_activated_by: true
       }
     });
     
@@ -57,7 +62,12 @@ export async function handler(
           name: true,
           slug: true,
           created_at: true,
-          updated_at: true
+          updated_at: true,
+          // Demo Mode fields
+          demo_mode: true,
+          demo_activated_at: true,
+          demo_expires_at: true,
+          demo_activated_by: true
         }
       });
       console.log('✅ Organization created:', organization.name);

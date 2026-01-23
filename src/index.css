@@ -1047,4 +1047,16 @@ All colors MUST be HSL.
   .compact-rounded { border-radius: 0.25rem; } /* 4px */
   .compact-rounded-md { border-radius: 0.3rem; } /* 4.8px */
   .compact-rounded-lg { border-radius: 0.4rem; } /* 6.4px */
+
+  /* ============================================
+     DEMO MODE ANIMATIONS
+     ============================================ */
+  @keyframes pulse-subtle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.92; }
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 3s ease-in-out infinite;
+  }
 }

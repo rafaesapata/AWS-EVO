@@ -2,6 +2,8 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para previsão de orçamento
  * AWS Lambda Handler for budget-forecast
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -10,6 +12,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 import { CostExplorerClient, GetCostForecastCommand, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 
 interface BudgetForecastRequest {
@@ -35,6 +38,23 @@ export async function handler(
     const { accountId, months = 3 } = body;
     
     const prisma = getPrismaClient();
+    
+    // =========================================================================
+    // DEMO MODE CHECK - Retorna dados de demonstração se ativado
+    // =========================================================================
+    const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemoMode) {
+      const { generateDemoBudgetForecast } = await import('../../lib/demo-data-service.js');
+      const demoData = generateDemoBudgetForecast();
+      
+      logger.info('Returning demo budget forecast data', { 
+        organizationId, 
+        isDemo: true 
+      });
+      
+      return success(demoData);
+    }
+    // =========================================================================
     
     const credential = await prisma.awsCredential.findFirst({
       where: {

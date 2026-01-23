@@ -9,6 +9,8 @@
  * - GET /waf-geo-distribution - Geographic distribution
  * - POST /waf-block-ip - Manually block an IP
  * - DELETE /waf-unblock-ip - Unblock an IP
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
@@ -21,6 +23,7 @@ import { logger } from '../../lib/logging.js';
 import { WAFV2Client } from '@aws-sdk/client-wafv2';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { blockIp, unblockIp, DEFAULT_AUTO_BLOCK_CONFIG } from '../../lib/waf/auto-blocker.js';
+import { isOrganizationInDemoMode, generateDemoWafEvents } from '../../lib/demo-data-service.js';
 
 // Bedrock client for AI analysis
 const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -97,6 +100,20 @@ export async function handler(
       path,
       requestId: context.awsRequestId 
     });
+    
+    // Check for Demo Mode (FAIL-SAFE: returns false on any error)
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    
+    if (isDemo === true) {
+      // Return demo data for organizations in demo mode
+      logger.info('Returning demo WAF data', {
+        organizationId,
+        action: body.action,
+        isDemo: true
+      });
+      
+      return handleDemoWafRequest(body.action || 'events');
+    }
     
     // Action-based routing from body (preferred for frontend)
     if (body.action) {
@@ -207,6 +224,175 @@ export async function handler(
       requestId: context.awsRequestId 
     });
     return error(err instanceof Error ? err.message : 'Internal server error');
+  }
+}
+
+/**
+ * Handle demo WAF requests - returns realistic demo data
+ */
+function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
+  const demoEvents = generateDemoWafEvents(50);
+  
+  switch (action) {
+    case 'events':
+      return success({
+        _isDemo: true,
+        events: demoEvents,
+        total: demoEvents.length,
+        page: 1,
+        limit: 50,
+        hasMore: false
+      });
+      
+    case 'metrics':
+      const blocked = demoEvents.filter(e => e.action === 'BLOCK').length;
+      const allowed = demoEvents.filter(e => e.action === 'ALLOW').length;
+      const counted = demoEvents.filter(e => e.action === 'COUNT').length;
+      const uniqueIps = new Set(demoEvents.map(e => e.source_ip)).size;
+      const uniqueCountries = new Set(demoEvents.map(e => e.country)).size;
+      
+      return success({
+        _isDemo: true,
+        totalRequests: demoEvents.length,
+        blockedRequests: blocked,
+        allowedRequests: allowed,
+        countedRequests: counted,
+        uniqueIps,
+        uniqueCountries,
+        criticalThreats: 3,
+        highThreats: 8,
+        mediumThreats: 15,
+        lowThreats: 24,
+        activeCampaigns: 2
+      });
+      
+    case 'timeline':
+      // Generate hourly timeline for last 24 hours
+      const timeline = [];
+      const now = Date.now();
+      for (let i = 23; i >= 0; i--) {
+        const hour = new Date(now - i * 60 * 60 * 1000);
+        timeline.push({
+          timestamp: hour.toISOString(),
+          blocked: Math.floor(Math.random() * 20) + 5,
+          allowed: Math.floor(Math.random() * 100) + 50,
+          counted: Math.floor(Math.random() * 10)
+        });
+      }
+      return success({ _isDemo: true, timeline });
+      
+    case 'top-attackers':
+      const attackerCounts: Record<string, number> = {};
+      demoEvents.filter(e => e.action === 'BLOCK').forEach(e => {
+        attackerCounts[e.source_ip] = (attackerCounts[e.source_ip] || 0) + 1;
+      });
+      const topAttackers = Object.entries(attackerCounts)
+        .map(([ip, count]) => ({ ip, count, country: demoEvents.find(e => e.source_ip === ip)?.country || 'XX' }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+      return success({ _isDemo: true, topAttackers });
+      
+    case 'attack-types':
+      const ruleCounts: Record<string, number> = {};
+      demoEvents.filter(e => e.action === 'BLOCK').forEach(e => {
+        ruleCounts[e.rule_id] = (ruleCounts[e.rule_id] || 0) + 1;
+      });
+      const attackTypes = Object.entries(ruleCounts)
+        .map(([rule, count]) => ({ rule, count, percentage: 0 }));
+      const total = attackTypes.reduce((sum, t) => sum + t.count, 0);
+      attackTypes.forEach(t => t.percentage = Math.round((t.count / total) * 100));
+      return success({ _isDemo: true, attackTypes });
+      
+    case 'geo-distribution':
+      const countryCounts: Record<string, number> = {};
+      demoEvents.forEach(e => {
+        countryCounts[e.country] = (countryCounts[e.country] || 0) + 1;
+      });
+      const geoDistribution = Object.entries(countryCounts)
+        .map(([country, count]) => ({ country, count }))
+        .sort((a, b) => b.count - a.count);
+      return success({ _isDemo: true, geoDistribution });
+      
+    case 'blocked-ips':
+      return success({
+        _isDemo: true,
+        blockedIps: [
+          { ip: '192.168.1.100', reason: 'SQLi Attack', blockedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), expiresAt: new Date(Date.now() + 22 * 60 * 60 * 1000).toISOString() },
+          { ip: '10.0.0.50', reason: 'XSS Attack', blockedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), expiresAt: new Date(Date.now() + 19 * 60 * 60 * 1000).toISOString() },
+          { ip: '172.16.0.25', reason: 'Rate Limit Exceeded', blockedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), expiresAt: new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString() }
+        ]
+      });
+      
+    case 'campaigns':
+      return success({
+        _isDemo: true,
+        campaigns: [
+          { id: 'demo-campaign-1', name: 'SQLi Campaign', status: 'active', startedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), attackCount: 156, uniqueIps: 12 },
+          { id: 'demo-campaign-2', name: 'Bot Network', status: 'active', startedAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(), attackCount: 89, uniqueIps: 45 }
+        ]
+      });
+      
+    case 'config':
+    case 'get-configs':
+    case 'get-monitoring-configs':
+      return success({
+        _isDemo: true,
+        configs: [{
+          id: 'demo-config',
+          webAclArn: 'arn:aws:wafv2:us-east-1:123456789012:regional/webacl/demo-waf/demo-id',
+          webAclName: 'Demo WAF',
+          region: 'us-east-1',
+          isActive: true,
+          autoBlockEnabled: true,
+          blockThreshold: 10,
+          blockDuration: 3600
+        }]
+      });
+      
+    case 'get-latest-analysis':
+      return success({
+        _isDemo: true,
+        analysis: {
+          id: 'demo-analysis-1',
+          createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+          summary: 'Análise de demonstração: Detectadas 3 ameaças críticas e 8 de alta severidade nas últimas 24 horas. Recomenda-se revisar as regras de bloqueio para IPs suspeitos.',
+          threats: [
+            { type: 'SQLi', count: 45, severity: 'critical' },
+            { type: 'XSS', count: 32, severity: 'high' },
+            { type: 'Bot', count: 78, severity: 'medium' }
+          ],
+          recommendations: [
+            'Habilitar bloqueio automático para IPs com mais de 10 tentativas de SQLi',
+            'Revisar regras de rate limiting para endpoints de autenticação',
+            'Considerar geo-blocking para países com alto volume de ataques'
+          ]
+        }
+      });
+      
+    case 'threat-stats':
+      return success({
+        _isDemo: true,
+        stats: {
+          last24h: { total: 250, blocked: 180, critical: 3, high: 8 },
+          last7d: { total: 1580, blocked: 1200, critical: 15, high: 45 },
+          last30d: { total: 6200, blocked: 4800, critical: 52, high: 180 }
+        }
+      });
+      
+    case 'block-ip':
+    case 'unblock-ip':
+      return success({
+        _isDemo: true,
+        message: 'Operação não disponível em modo demonstração',
+        success: false
+      });
+      
+    default:
+      return success({
+        _isDemo: true,
+        message: 'Dados de demonstração',
+        events: demoEvents.slice(0, 10)
+      });
   }
 }
 

@@ -1,5 +1,6 @@
 import { useAwsAccount } from '@/contexts/AwsAccountContext';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Select,
   SelectContent,
@@ -30,6 +31,7 @@ export function AwsAccountSelector({
   compact = false 
 }: AwsAccountSelectorProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { 
     accounts, 
     selectedAccountId, 
@@ -76,10 +78,10 @@ export function AwsAccountSelector({
               {/* Message */}
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-medium text-amber-600">
-                  Nenhuma conta AWS
+                  {t('aws.noAccounts', 'No AWS accounts')}
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  Clique para configurar
+                  {t('awsSelector.clickToConfigure', 'Click to configure')}
                 </span>
               </div>
             </div>
@@ -88,13 +90,13 @@ export function AwsAccountSelector({
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-500" />
-                <span className="font-medium text-sm">Configuração Necessária</span>
+                <span className="font-medium text-sm">{t('awsSelector.configurationRequired', 'Configuration Required')}</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Você precisa conectar pelo menos uma conta AWS para usar o sistema.
+                {t('awsSelector.needToConnectAccount', 'You need to connect at least one AWS account to use the system.')}
               </p>
               <p className="text-xs text-muted-foreground">
-                Clique aqui para ir às configurações AWS.
+                {t('awsSelector.clickToGoSettings', 'Click here to go to AWS settings.')}
               </p>
             </div>
           </TooltipContent>
@@ -143,12 +145,12 @@ export function AwsAccountSelector({
                 {isOrphaned ? (
                   <>
                     <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    <span className="font-medium text-sm">Dados de Custo Encontrados</span>
+                    <span className="font-medium text-sm">{t('awsSelector.costDataFound', 'Cost Data Found')}</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <span className="font-medium text-sm">Conta Conectada</span>
+                    <span className="font-medium text-sm">{t('awsSelector.accountConnected', 'Account Connected')}</span>
                   </>
                 )}
               </div>
@@ -156,7 +158,7 @@ export function AwsAccountSelector({
                 <p className="text-sm">{account.account_name}</p>
                 {isOrphaned ? (
                   <p className="text-xs text-muted-foreground">
-                    Existem dados de custo para esta conta, mas as credenciais AWS não estão configuradas.
+                    {t('awsSelector.costDataNoCredentials', 'There is cost data for this account, but AWS credentials are not configured.')}
                   </p>
                 ) : (
                   account.account_id && (
@@ -167,7 +169,7 @@ export function AwsAccountSelector({
               {account.regions && account.regions.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border/50">
                   <Globe className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Regiões:</span>
+                  <span className="text-xs text-muted-foreground">{t('awsSelector.regions', 'Regions')}:</span>
                   {account.regions.map((region) => (
                     <Badge key={region} variant="secondary" className="text-[10px] py-0 px-1.5 font-mono">
                       {region}
@@ -209,7 +211,7 @@ export function AwsAccountSelector({
                     
                     {/* Account info */}
                     <div className="flex-1 min-w-0">
-                      <SelectValue placeholder="Selecionar">
+                      <SelectValue placeholder={t('awsSelector.select', 'Select')}>
                         {selectedAccount && (
                           <span className="text-[9px] leading-tight font-medium block truncate">
                             {selectedAccount.account_id || selectedAccount.account_name}
@@ -252,7 +254,7 @@ export function AwsAccountSelector({
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span className="font-medium text-sm">Conta Ativa</span>
+                  <span className="font-medium text-sm">{t('awsSelector.activeAccount', 'Active Account')}</span>
                 </div>
                 <div className="pl-6 space-y-1">
                   <p className="text-sm">{selectedAccount.account_name}</p>
@@ -262,7 +264,7 @@ export function AwsAccountSelector({
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border/50">
                   <Globe className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Regiões:</span>
+                  <span className="text-xs text-muted-foreground">{t('awsSelector.regions', 'Regions')}:</span>
                   {selectedAccount.regions.map((region) => (
                     <Badge key={region} variant="secondary" className="text-[10px] py-0 px-1.5 font-mono">
                       {region}

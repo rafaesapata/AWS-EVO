@@ -10,6 +10,7 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { isOrganizationInDemoMode, generateDemoPredictIncidents } from '../../lib/demo-data-service.js';
 
 interface ContributingFactor {
   factor: string;
@@ -51,6 +52,14 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const prisma = getPrismaClient();
+    
+    // Check if organization is in demo mode
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo) {
+      logger.info('🎭 Returning demo predict incidents data', { organizationId });
+      return success(generateDemoPredictIncidents());
+    }
+    
     const predictions: Prediction[] = [];
     
     // Time ranges for analysis

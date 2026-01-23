@@ -5,6 +5,8 @@
  * Analyzes EC2, RDS, Lambda, S3, EBS, NAT Gateway, EIP, and DynamoDB resources.
  * Includes full ARN tracking for all resources.
  * Optimized to execute within API Gateway 29s timeout.
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import { getHttpMethod } from '../../lib/middleware.js';
@@ -15,6 +17,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
 import { businessMetrics } from '../../lib/metrics.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 import { EC2Client, DescribeInstancesCommand, DescribeVolumesCommand, DescribeAddressesCommand, DescribeNatGatewaysCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda';
@@ -111,6 +114,23 @@ export async function handler(
     } = body;
     
     const prisma = getPrismaClient();
+    
+    // =========================================================================
+    // DEMO MODE CHECK - Retorna dados de demonstração se ativado
+    // =========================================================================
+    const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemoMode) {
+      const { generateDemoMLWasteDetection } = await import('../../lib/demo-data-service.js');
+      const demoData = generateDemoMLWasteDetection();
+      
+      logger.info('Returning demo ML waste detection data', { 
+        organizationId, 
+        isDemo: true 
+      });
+      
+      return success(demoData);
+    }
+    // =========================================================================
     
     const awsAccounts = await prisma.awsCredential.findMany({
       where: {

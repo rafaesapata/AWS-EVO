@@ -2,6 +2,8 @@
  * Executive Dashboard - Consolidated API Handler
  * Single endpoint that returns all dashboard data aggregated
  * Reduces frontend queries from 8 to 1
+ * 
+ * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -10,6 +12,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { isOrganizationInDemoMode, generateDemoExecutiveDashboard } from '../../lib/demo-data-service.js';
 import { z } from 'zod';
 
 // ============================================================================
@@ -200,11 +203,40 @@ export async function handler(
     });
 
     const prisma = getPrismaClient();
+
+    // 3. Check for Demo Mode (FAIL-SAFE: returns false on any error)
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    
+    if (isDemo === true) {
+      // Return demo data for organizations in demo mode
+      logger.info('Returning demo executive dashboard', {
+        organizationId,
+        isDemo: true,
+        requestId: context.awsRequestId
+      });
+      
+      const demoData = generateDemoExecutiveDashboard();
+      const executionTime = Date.now() - startTime;
+      
+      logger.info('Demo Executive Dashboard generated', {
+        organizationId,
+        overallScore: demoData.summary.overallScore,
+        executionTime,
+        isDemo: true,
+        requestId: context.awsRequestId
+      });
+      
+      return success({
+        ...demoData,
+        _isDemo: true
+      }, 200, origin);
+    }
+
+    // 4. Real data flow - Execute queries in parallel for performance
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-    // 3. Execute queries in parallel for performance
     const [
       financialData,
       securityData,
@@ -219,10 +251,10 @@ export async function handler(
       params.includeTrends ? getTrendsData(prisma, organizationId, params.trendPeriod, params.accountId || undefined) : Promise.resolve(null)
     ]);
 
-    // 4. Calculate aggregated scores
+    // 5. Calculate aggregated scores
     const summary = calculateExecutiveSummary(financialData, securityData, operationsData);
 
-    // 5. Build response
+    // 6. Build response
     const response: ExecutiveDashboardResponse = {
       summary,
       financial: financialData,
