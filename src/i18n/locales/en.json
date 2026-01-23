@@ -1018,7 +1018,9 @@
     "connectAccountsToView": "Connect AWS or Azure accounts to view",
     "selectAccountInHeader": "Select an account in the header selector.",
     "or": "or",
-    "executing": "Executing..."
+    "executing": "Executing...",
+    "processing": "Processing...",
+    "organization": "Organization"
   },
   "demo": {
     "banner": {

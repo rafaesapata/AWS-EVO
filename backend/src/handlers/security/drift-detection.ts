@@ -14,6 +14,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
 import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
+import { isOrganizationInDemoMode, generateDemoDriftDetection } from '../../lib/demo-data-service.js';
 
 interface DriftDetectionRequest {
   accountId?: string;
@@ -53,10 +54,21 @@ export async function handler(
   });
   
   try {
+    const prisma = getPrismaClient();
+    
+    // ========================================
+    // DEMO MODE CHECK - FAIL-SAFE
+    // ========================================
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Returning demo Drift Detection data', { organizationId, isDemo: true });
+      const demoData = generateDemoDriftDetection();
+      return success(demoData);
+    }
+    // ========================================
+    
     const body: DriftDetectionRequest = event.body ? JSON.parse(event.body) : {};
     const { accountId, regions: requestedRegions } = body;
-    
-    const prisma = getPrismaClient();
     
     // Buscar credenciais AWS ativas
     const awsAccounts = await prisma.awsCredential.findMany({

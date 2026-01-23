@@ -1643,6 +1643,939 @@ export function generateDemoIntelligentAlertsAnalysis() {
   };
 }
 
+/**
+ * Gera dados de análise CloudTrail para demonstração
+ */
+export function generateDemoCloudTrailAnalysis() {
+  const now = new Date();
+  const startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  
+  const events = [
+    {
+      event_name: 'AuthorizeSecurityGroupIngress',
+      event_time: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      user_name: 'demo-developer',
+      user_type: 'IAMUser',
+      risk_level: 'high',
+      risk_reasons: ['Evento de alto risco: AuthorizeSecurityGroupIngress', 'Modificação de Security Group'],
+      error_code: null,
+      source_ip_address: '203.0.113.50',
+      aws_region: 'us-east-1',
+      security_explanation: 'Regra de entrada adicionada ao Security Group, potencialmente expondo recursos.',
+      remediation_suggestion: 'Revise as regras de entrada e remova acessos desnecessários.',
+      _isDemo: true
+    },
+    {
+      event_name: 'ConsoleLogin',
+      event_time: new Date(now.getTime() - 4 * 60 * 60 * 1000),
+      user_name: 'root',
+      user_type: 'Root',
+      risk_level: 'critical',
+      risk_reasons: ['Ação executada pelo usuário root', 'Login do usuário root no console'],
+      error_code: null,
+      source_ip_address: '198.51.100.25',
+      aws_region: 'us-east-1',
+      security_explanation: 'Login do usuário root detectado. O uso do root deve ser evitado.',
+      remediation_suggestion: 'Crie usuários IAM com permissões específicas e habilite MFA no root.',
+      _isDemo: true
+    },
+    {
+      event_name: 'AttachUserPolicy',
+      event_time: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+      user_name: 'demo-admin',
+      user_type: 'IAMUser',
+      risk_level: 'high',
+      risk_reasons: ['Evento de alto risco: AttachUserPolicy', 'Alteração de política IAM'],
+      error_code: null,
+      source_ip_address: '192.0.2.100',
+      aws_region: 'us-east-1',
+      security_explanation: 'Política IAM anexada a usuário, expandindo permissões.',
+      remediation_suggestion: 'Revise a política anexada e aplique princípio de menor privilégio.',
+      _isDemo: true
+    },
+    {
+      event_name: 'PutBucketPolicy',
+      event_time: new Date(now.getTime() - 8 * 60 * 60 * 1000),
+      user_name: 'demo-developer',
+      user_type: 'IAMUser',
+      risk_level: 'high',
+      risk_reasons: ['Evento de alto risco: PutBucketPolicy'],
+      error_code: null,
+      source_ip_address: '203.0.113.50',
+      aws_region: 'us-east-1',
+      security_explanation: 'Política de bucket S3 modificada, pode expor dados.',
+      remediation_suggestion: 'Verifique se a política não permite acesso público indevido.',
+      _isDemo: true
+    },
+    {
+      event_name: 'CreateAccessKey',
+      event_time: new Date(now.getTime() - 10 * 60 * 60 * 1000),
+      user_name: 'demo-service-account',
+      user_type: 'IAMUser',
+      risk_level: 'high',
+      risk_reasons: ['Evento de alto risco: CreateAccessKey'],
+      error_code: null,
+      source_ip_address: '10.0.1.50',
+      aws_region: 'us-east-1',
+      security_explanation: 'Nova access key criada. Monitore o uso desta credencial.',
+      remediation_suggestion: 'Implemente rotação automática de access keys.',
+      _isDemo: true
+    },
+    {
+      event_name: 'ConsoleLogin',
+      event_time: new Date(now.getTime() - 12 * 60 * 60 * 1000),
+      user_name: 'demo-developer',
+      user_type: 'IAMUser',
+      risk_level: 'high',
+      risk_reasons: ['Falha de login no console AWS'],
+      error_code: 'AccessDenied',
+      source_ip_address: '185.220.101.45',
+      aws_region: 'us-east-1',
+      security_explanation: 'Tentativa de login falhou. Pode indicar ataque de força bruta.',
+      remediation_suggestion: 'Verifique se o IP é conhecido e considere bloquear IPs suspeitos.',
+      _isDemo: true
+    },
+    {
+      event_name: 'RunInstances',
+      event_time: new Date(now.getTime() - 14 * 60 * 60 * 1000),
+      user_name: 'demo-developer',
+      user_type: 'IAMUser',
+      risk_level: 'medium',
+      risk_reasons: ['Evento de risco médio: RunInstances'],
+      error_code: null,
+      source_ip_address: '203.0.113.50',
+      aws_region: 'us-east-1',
+      security_explanation: 'Nova instância EC2 criada.',
+      remediation_suggestion: 'Verifique se a instância segue as políticas de segurança.',
+      _isDemo: true
+    },
+    {
+      event_name: 'AssumeRole',
+      event_time: new Date(now.getTime() - 16 * 60 * 60 * 1000),
+      user_name: 'demo-lambda-role',
+      user_type: 'AssumedRole',
+      risk_level: 'medium',
+      risk_reasons: ['Evento de risco médio: AssumeRole'],
+      error_code: null,
+      source_ip_address: null,
+      aws_region: 'us-east-1',
+      security_explanation: 'Role assumida por serviço AWS.',
+      remediation_suggestion: 'Monitore padrões de uso de roles.',
+      _isDemo: true
+    },
+    {
+      event_name: 'DeleteBucket',
+      event_time: new Date(now.getTime() - 18 * 60 * 60 * 1000),
+      user_name: 'demo-admin',
+      user_type: 'IAMUser',
+      risk_level: 'medium',
+      risk_reasons: ['Evento de risco médio: DeleteBucket'],
+      error_code: null,
+      source_ip_address: '192.0.2.100',
+      aws_region: 'us-east-1',
+      security_explanation: 'Bucket S3 deletado. Verifique se foi intencional.',
+      remediation_suggestion: 'Habilite versionamento e MFA Delete em buckets críticos.',
+      _isDemo: true
+    },
+    {
+      event_name: 'DescribeInstances',
+      event_time: new Date(now.getTime() - 20 * 60 * 60 * 1000),
+      user_name: 'demo-readonly',
+      user_type: 'IAMUser',
+      risk_level: 'low',
+      risk_reasons: [],
+      error_code: null,
+      source_ip_address: '10.0.1.100',
+      aws_region: 'us-east-1',
+      security_explanation: null,
+      remediation_suggestion: null,
+      _isDemo: true
+    }
+  ];
+
+  return {
+    _isDemo: true,
+    success: true,
+    events,
+    summary: {
+      total: events.length,
+      critical: events.filter(e => e.risk_level === 'critical').length,
+      high: events.filter(e => e.risk_level === 'high').length,
+      medium: events.filter(e => e.risk_level === 'medium').length,
+      low: events.filter(e => e.risk_level === 'low').length,
+      errors: events.filter(e => e.error_code).length,
+      topUsers: [
+        { user: 'demo-developer', count: 4 },
+        { user: 'demo-admin', count: 2 },
+        { user: 'root', count: 1 },
+        { user: 'demo-service-account', count: 1 },
+        { user: 'demo-lambda-role', count: 1 },
+        { user: 'demo-readonly', count: 1 }
+      ],
+      topEvents: [
+        { event: 'ConsoleLogin', count: 2 },
+        { event: 'AuthorizeSecurityGroupIngress', count: 1 },
+        { event: 'AttachUserPolicy', count: 1 },
+        { event: 'PutBucketPolicy', count: 1 },
+        { event: 'CreateAccessKey', count: 1 },
+        { event: 'RunInstances', count: 1 },
+        { event: 'AssumeRole', count: 1 },
+        { event: 'DeleteBucket', count: 1 },
+        { event: 'DescribeInstances', count: 1 }
+      ],
+      timeRange: {
+        start: startTime.toISOString(),
+        end: now.toISOString(),
+        hoursBack: 24
+      },
+      regionsScanned: ['us-east-1', 'us-west-2', 'eu-west-1']
+    }
+  };
+}
+
+/**
+ * Gera dados de alertas para demonstração
+ */
+export function generateDemoAlerts() {
+  const now = new Date();
+  
+  return [
+    {
+      id: 'demo-alert-001',
+      organization_id: 'demo-org',
+      rule_id: 'demo-rule-001',
+      severity: 'critical',
+      title: 'Security Group aberto para 0.0.0.0/0 na porta 22',
+      message: 'O Security Group sg-demo-web-001 foi modificado para permitir acesso SSH de qualquer IP.',
+      triggered_at: new Date(now.getTime() - 30 * 60 * 1000),
+      acknowledged_at: null,
+      resolved_at: null,
+      metadata: { resource_id: 'sg-demo-web-001', port: 22, cidr: '0.0.0.0/0' },
+      rule: { name: 'Security Group Open Access', type: 'security' },
+      _isDemo: true
+    },
+    {
+      id: 'demo-alert-002',
+      organization_id: 'demo-org',
+      rule_id: 'demo-rule-002',
+      severity: 'high',
+      title: 'Custo diário excedeu limite de $200',
+      message: 'O custo diário atual é de $245.50, excedendo o limite configurado de $200.',
+      triggered_at: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      acknowledged_at: new Date(now.getTime() - 1 * 60 * 60 * 1000),
+      resolved_at: null,
+      metadata: { current_cost: 245.50, threshold: 200, currency: 'USD' },
+      rule: { name: 'Daily Cost Threshold', type: 'cost' },
+      _isDemo: true
+    },
+    {
+      id: 'demo-alert-003',
+      organization_id: 'demo-org',
+      rule_id: 'demo-rule-003',
+      severity: 'high',
+      title: 'Endpoint /api/payments com latência elevada',
+      message: 'O endpoint /api/payments está com latência média de 2.5s (limite: 500ms).',
+      triggered_at: new Date(now.getTime() - 4 * 60 * 60 * 1000),
+      acknowledged_at: null,
+      resolved_at: null,
+      metadata: { endpoint: '/api/payments', latency_ms: 2500, threshold_ms: 500 },
+      rule: { name: 'Endpoint Latency', type: 'performance' },
+      _isDemo: true
+    },
+    {
+      id: 'demo-alert-004',
+      organization_id: 'demo-org',
+      rule_id: 'demo-rule-004',
+      severity: 'medium',
+      title: 'RDS CPU acima de 80%',
+      message: 'A instância RDS demo-database-prod está com CPU em 85% há mais de 15 minutos.',
+      triggered_at: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+      acknowledged_at: new Date(now.getTime() - 5 * 60 * 60 * 1000),
+      resolved_at: new Date(now.getTime() - 3 * 60 * 60 * 1000),
+      metadata: { instance: 'demo-database-prod', cpu_percent: 85, threshold: 80 },
+      rule: { name: 'RDS CPU Utilization', type: 'performance' },
+      _isDemo: true
+    },
+    {
+      id: 'demo-alert-005',
+      organization_id: 'demo-org',
+      rule_id: 'demo-rule-005',
+      severity: 'low',
+      title: 'Certificado SSL expira em 30 dias',
+      message: 'O certificado SSL para api.demo.com expira em 30 dias.',
+      triggered_at: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+      acknowledged_at: null,
+      resolved_at: null,
+      metadata: { domain: 'api.demo.com', expires_in_days: 30 },
+      rule: { name: 'SSL Certificate Expiry', type: 'compliance' },
+      _isDemo: true
+    }
+  ];
+}
+
+/**
+ * Gera dados de GuardDuty para demonstração
+ */
+export function generateDemoGuardDutyFindings() {
+  return {
+    _isDemo: true,
+    findings_count: 8,
+    critical: 1,
+    high: 3,
+    medium: 3,
+    low: 1,
+    regions_scanned: 3,
+    findings: [
+      {
+        id: 'demo-gd-001',
+        type: 'UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS',
+        severity: 8.5,
+        severity_label: 'Critical',
+        title: 'Credentials from EC2 instance used from external IP',
+        description: 'EC2 instance credentials are being used from an IP address outside of AWS.',
+        resource_type: 'Instance',
+        resource_id: 'i-demo-compromised-001',
+        region: 'us-east-1',
+        first_seen: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        last_seen: new Date().toISOString(),
+        count: 15,
+        _isDemo: true
+      },
+      {
+        id: 'demo-gd-002',
+        type: 'Recon:EC2/PortProbeUnprotectedPort',
+        severity: 5.0,
+        severity_label: 'High',
+        title: 'Unprotected port on EC2 instance is being probed',
+        description: 'EC2 instance i-demo-web-001 has an unprotected port which is being probed by a known malicious host.',
+        resource_type: 'Instance',
+        resource_id: 'i-demo-web-001',
+        region: 'us-east-1',
+        first_seen: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        last_seen: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+        count: 342,
+        _isDemo: true
+      },
+      {
+        id: 'demo-gd-003',
+        type: 'UnauthorizedAccess:EC2/SSHBruteForce',
+        severity: 5.0,
+        severity_label: 'High',
+        title: 'SSH brute force attack detected',
+        description: 'EC2 instance i-demo-bastion-001 is being targeted by SSH brute force attacks.',
+        resource_type: 'Instance',
+        resource_id: 'i-demo-bastion-001',
+        region: 'us-west-2',
+        first_seen: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+        last_seen: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        count: 1250,
+        _isDemo: true
+      },
+      {
+        id: 'demo-gd-004',
+        type: 'CryptoCurrency:EC2/BitcoinTool.B!DNS',
+        severity: 5.0,
+        severity_label: 'High',
+        title: 'EC2 instance querying cryptocurrency-related domain',
+        description: 'EC2 instance i-demo-worker-001 is querying a domain associated with Bitcoin mining.',
+        resource_type: 'Instance',
+        resource_id: 'i-demo-worker-001',
+        region: 'us-east-1',
+        first_seen: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+        last_seen: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        count: 45,
+        _isDemo: true
+      },
+      {
+        id: 'demo-gd-005',
+        type: 'Behavior:EC2/NetworkPortUnusual',
+        severity: 3.0,
+        severity_label: 'Medium',
+        title: 'EC2 instance communicating on unusual port',
+        description: 'EC2 instance i-demo-app-001 is communicating on port 6667 which is unusual for this instance.',
+        resource_type: 'Instance',
+        resource_id: 'i-demo-app-001',
+        region: 'us-east-1',
+        first_seen: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+        last_seen: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        count: 28,
+        _isDemo: true
+      },
+      {
+        id: 'demo-gd-006',
+        type: 'Persistence:IAMUser/AnomalousBehavior',
+        severity: 3.0,
+        severity_label: 'Medium',
+        title: 'Anomalous IAM user behavior detected',
+        description: 'IAM user demo-developer performed API calls that are anomalous compared to their baseline.',
+        resource_type: 'AccessKey',
+        resource_id: 'AKIADEMO12345',
+        region: 'us-east-1',
+        first_seen: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        last_seen: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+        count: 12,
+        _isDemo: true
+      },
+      {
+        id: 'demo-gd-007',
+        type: 'Policy:S3/BucketBlockPublicAccessDisabled',
+        severity: 2.0,
+        severity_label: 'Medium',
+        title: 'S3 Block Public Access disabled',
+        description: 'S3 bucket demo-public-assets had Block Public Access settings disabled.',
+        resource_type: 'S3Bucket',
+        resource_id: 'demo-public-assets',
+        region: 'us-east-1',
+        first_seen: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
+        last_seen: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
+        count: 1,
+        _isDemo: true
+      },
+      {
+        id: 'demo-gd-008',
+        type: 'Recon:IAMUser/UserPermissions',
+        severity: 0.5,
+        severity_label: 'Low',
+        title: 'IAM user enumerated permissions',
+        description: 'IAM user demo-auditor performed permission enumeration API calls.',
+        resource_type: 'AccessKey',
+        resource_id: 'AKIADEMO67890',
+        region: 'us-east-1',
+        first_seen: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        last_seen: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        count: 5,
+        _isDemo: true
+      }
+    ]
+  };
+}
+
+/**
+ * Gera dados de Drift Detection para demonstração
+ */
+export function generateDemoDriftDetection() {
+  const now = new Date();
+  
+  const drifts = [
+    {
+      id: 'demo-drift-001',
+      aws_account_id: 'demo-account',
+      resource_id: 'i-demo-web-001',
+      resource_type: 'EC2::Instance',
+      resource_name: 'demo-web-server',
+      drift_type: 'configuration_drift',
+      detected_at: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      severity: 'high',
+      diff: {
+        field: 'instanceType',
+        expected: 't3.medium',
+        actual: 't3.xlarge'
+      },
+      expected_state: { instanceType: 't3.medium', state: 'running' },
+      actual_state: { instanceType: 't3.xlarge', state: 'running' },
+      _isDemo: true
+    },
+    {
+      id: 'demo-drift-002',
+      aws_account_id: 'demo-account',
+      resource_id: 'sg-demo-web-001',
+      resource_type: 'EC2::SecurityGroup',
+      resource_name: 'demo-web-sg',
+      drift_type: 'configuration_drift',
+      detected_at: new Date(now.getTime() - 4 * 60 * 60 * 1000),
+      severity: 'critical',
+      diff: {
+        field: 'ingressRules',
+        expected: [{ port: 443, cidr: '10.0.0.0/8' }],
+        actual: [{ port: 443, cidr: '0.0.0.0/0' }, { port: 22, cidr: '0.0.0.0/0' }]
+      },
+      expected_state: { ingressRules: [{ port: 443, cidr: '10.0.0.0/8' }] },
+      actual_state: { ingressRules: [{ port: 443, cidr: '0.0.0.0/0' }, { port: 22, cidr: '0.0.0.0/0' }] },
+      _isDemo: true
+    },
+    {
+      id: 'demo-drift-003',
+      aws_account_id: 'demo-account',
+      resource_id: 'i-demo-unknown-001',
+      resource_type: 'EC2::Instance',
+      resource_name: 'unknown-instance',
+      drift_type: 'created',
+      detected_at: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+      severity: 'high',
+      diff: {
+        instanceType: 'm5.2xlarge',
+        state: 'running',
+        securityGroups: ['sg-demo-default']
+      },
+      expected_state: null,
+      actual_state: { instanceType: 'm5.2xlarge', state: 'running' },
+      _isDemo: true
+    },
+    {
+      id: 'demo-drift-004',
+      aws_account_id: 'demo-account',
+      resource_id: 'demo-bucket-config',
+      resource_type: 'S3::Bucket',
+      resource_name: 'demo-bucket-config',
+      drift_type: 'configuration_drift',
+      detected_at: new Date(now.getTime() - 12 * 60 * 60 * 1000),
+      severity: 'medium',
+      diff: {
+        field: 'versioningEnabled',
+        expected: true,
+        actual: false
+      },
+      expected_state: { versioningEnabled: true, encryption: 'AES256' },
+      actual_state: { versioningEnabled: false, encryption: 'AES256' },
+      _isDemo: true
+    },
+    {
+      id: 'demo-drift-005',
+      aws_account_id: 'demo-account',
+      resource_id: 'i-demo-deleted-001',
+      resource_type: 'EC2::Instance',
+      resource_name: 'demo-batch-processor',
+      drift_type: 'deleted',
+      detected_at: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+      severity: 'critical',
+      diff: { message: 'Resource no longer exists in AWS' },
+      expected_state: { instanceType: 'c5.xlarge', state: 'running' },
+      actual_state: null,
+      _isDemo: true
+    },
+    {
+      id: 'demo-drift-006',
+      aws_account_id: 'demo-account',
+      resource_id: 'arn:aws:iam::demo:policy/demo-admin-policy',
+      resource_type: 'IAM::Policy',
+      resource_name: 'demo-admin-policy',
+      drift_type: 'configuration_drift',
+      detected_at: new Date(now.getTime() - 48 * 60 * 60 * 1000),
+      severity: 'critical',
+      diff: {
+        field: 'policyDocument',
+        expected: { Effect: 'Allow', Action: ['s3:GetObject'], Resource: '*' },
+        actual: { Effect: 'Allow', Action: ['*'], Resource: '*' }
+      },
+      expected_state: { actions: ['s3:GetObject'] },
+      actual_state: { actions: ['*'] },
+      _isDemo: true
+    }
+  ];
+
+  const createdCount = drifts.filter(d => d.drift_type === 'created').length;
+  const modifiedCount = drifts.filter(d => d.drift_type === 'configuration_drift').length;
+  const deletedCount = drifts.filter(d => d.drift_type === 'deleted').length;
+  const criticalCount = drifts.filter(d => d.severity === 'critical').length;
+  const highCount = drifts.filter(d => d.severity === 'high').length;
+
+  return {
+    _isDemo: true,
+    success: true,
+    drifts_detected: drifts.length,
+    execution_time: '2.35',
+    summary: {
+      created: createdCount,
+      configuration_drift: modifiedCount,
+      deleted: deletedCount,
+      critical: criticalCount,
+      high: highCount,
+    },
+    drifts
+  };
+}
+
+/**
+ * Gera dados de Edge Services para demonstração
+ */
+export function generateDemoEdgeServices() {
+  const now = new Date();
+  
+  return {
+    _isDemo: true,
+    success: true,
+    message: 'Dados de demonstração - 8 serviços de borda',
+    servicesFound: 8,
+    metricsCollected: 8,
+    breakdown: {
+      cloudfront: 3,
+      waf: 2,
+      loadBalancer: 3
+    },
+    regionsScanned: ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1'],
+    fromCache: false,
+    services: [
+      {
+        id: 'demo-edge-cf-001',
+        serviceType: 'cloudfront',
+        serviceName: 'demo-main-distribution',
+        serviceId: 'E1DEMO123456',
+        status: 'active',
+        region: 'global',
+        domainName: 'd1demo123.cloudfront.net',
+        originDomain: 'demo-origin.s3.amazonaws.com',
+        metadata: {
+          aliases: ['demo.example.com', 'www.demo.example.com'],
+          priceClass: 'PriceClass_All',
+          httpVersion: 'http2',
+          isIPV6Enabled: true,
+          webACLId: 'arn:aws:wafv2::demo:webacl/demo-waf-001',
+          enabled: true
+        },
+        metrics: {
+          requests: 125000,
+          cacheHits: 106250,
+          cacheMisses: 18750,
+          bandwidthGb: 45.8,
+          error4xx: 125,
+          error5xx: 12
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-edge-cf-002',
+        serviceType: 'cloudfront',
+        serviceName: 'demo-api-distribution',
+        serviceId: 'E2DEMO789012',
+        status: 'active',
+        region: 'global',
+        domainName: 'd2demo456.cloudfront.net',
+        originDomain: 'api.demo.example.com',
+        metadata: {
+          aliases: ['api.demo.example.com'],
+          priceClass: 'PriceClass_100',
+          httpVersion: 'http2and3',
+          isIPV6Enabled: true,
+          webACLId: 'arn:aws:wafv2::demo:webacl/demo-waf-001',
+          enabled: true
+        },
+        metrics: {
+          requests: 85000,
+          cacheHits: 42500,
+          cacheMisses: 42500,
+          bandwidthGb: 12.3,
+          error4xx: 850,
+          error5xx: 42
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-edge-cf-003',
+        serviceType: 'cloudfront',
+        serviceName: 'demo-static-assets',
+        serviceId: 'E3DEMO345678',
+        status: 'active',
+        region: 'global',
+        domainName: 'd3demo789.cloudfront.net',
+        originDomain: 'demo-assets.s3.amazonaws.com',
+        metadata: {
+          aliases: ['static.demo.example.com'],
+          priceClass: 'PriceClass_200',
+          httpVersion: 'http2',
+          isIPV6Enabled: true,
+          webACLId: null,
+          enabled: true
+        },
+        metrics: {
+          requests: 250000,
+          cacheHits: 237500,
+          cacheMisses: 12500,
+          bandwidthGb: 125.5,
+          error4xx: 25,
+          error5xx: 0
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-edge-waf-001',
+        serviceType: 'waf',
+        serviceName: 'demo-waf-global',
+        serviceId: 'demo-waf-global-001',
+        status: 'active',
+        region: 'global',
+        metadata: {
+          arn: 'arn:aws:wafv2::demo:global/webacl/demo-waf-global/abc123',
+          scope: 'CLOUDFRONT',
+          rulesCount: 12
+        },
+        metrics: {
+          requests: 210000,
+          blockedRequests: 4200,
+          allowedRequests: 205800
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-edge-waf-002',
+        serviceType: 'waf',
+        serviceName: 'demo-waf-regional',
+        serviceId: 'demo-waf-regional-001',
+        status: 'active',
+        region: 'us-east-1',
+        metadata: {
+          arn: 'arn:aws:wafv2:us-east-1:demo:regional/webacl/demo-waf-regional/def456',
+          scope: 'REGIONAL',
+          rulesCount: 8
+        },
+        metrics: {
+          requests: 95000,
+          blockedRequests: 1900,
+          allowedRequests: 93100
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-edge-alb-001',
+        serviceType: 'load_balancer',
+        serviceName: 'demo-web-alb',
+        serviceId: 'arn:aws:elasticloadbalancing:us-east-1:demo:loadbalancer/app/demo-web-alb/abc123',
+        status: 'active',
+        region: 'us-east-1',
+        domainName: 'demo-web-alb-123456.us-east-1.elb.amazonaws.com',
+        metadata: {
+          type: 'application',
+          scheme: 'internet-facing',
+          vpcId: 'vpc-demo-001',
+          availabilityZones: ['us-east-1a', 'us-east-1b'],
+          securityGroups: ['sg-demo-alb-001'],
+          ipAddressType: 'ipv4'
+        },
+        metrics: {
+          requests: 75000,
+          responseTime: 125,
+          error4xx: 375,
+          error5xx: 75
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-edge-alb-002',
+        serviceType: 'load_balancer',
+        serviceName: 'demo-api-alb',
+        serviceId: 'arn:aws:elasticloadbalancing:us-east-1:demo:loadbalancer/app/demo-api-alb/def456',
+        status: 'active',
+        region: 'us-east-1',
+        domainName: 'demo-api-alb-789012.us-east-1.elb.amazonaws.com',
+        metadata: {
+          type: 'application',
+          scheme: 'internet-facing',
+          vpcId: 'vpc-demo-001',
+          availabilityZones: ['us-east-1a', 'us-east-1b', 'us-east-1c'],
+          securityGroups: ['sg-demo-alb-002'],
+          ipAddressType: 'dualstack'
+        },
+        metrics: {
+          requests: 120000,
+          responseTime: 85,
+          error4xx: 1200,
+          error5xx: 120
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-edge-nlb-001',
+        serviceType: 'load_balancer',
+        serviceName: 'demo-tcp-nlb',
+        serviceId: 'arn:aws:elasticloadbalancing:us-west-2:demo:loadbalancer/net/demo-tcp-nlb/ghi789',
+        status: 'active',
+        region: 'us-west-2',
+        domainName: 'demo-tcp-nlb-345678.us-west-2.elb.amazonaws.com',
+        metadata: {
+          type: 'network',
+          scheme: 'internet-facing',
+          vpcId: 'vpc-demo-002',
+          availabilityZones: ['us-west-2a', 'us-west-2b'],
+          securityGroups: [],
+          ipAddressType: 'ipv4'
+        },
+        metrics: {
+          requests: 50000,
+          bandwidthGb: 8.5
+        },
+        _isDemo: true
+      }
+    ]
+  };
+}
+
+/**
+ * Gera dados de métricas em tempo real para demonstração
+ */
+export function generateDemoRealtimeMetrics() {
+  const now = new Date();
+  
+  return {
+    _isDemo: true,
+    success: true,
+    metrics: [
+      {
+        resourceType: 'EC2',
+        resourceId: 'i-demo-web-001',
+        metrics: {
+          cpuUtilization: 45.2 + Math.random() * 10,
+          cpuMax: 78.5 + Math.random() * 5
+        },
+        timestamp: now.toISOString()
+      },
+      {
+        resourceType: 'EC2',
+        resourceId: 'i-demo-api-001',
+        metrics: {
+          cpuUtilization: 32.8 + Math.random() * 8,
+          cpuMax: 65.2 + Math.random() * 10
+        },
+        timestamp: now.toISOString()
+      },
+      {
+        resourceType: 'RDS',
+        resourceId: 'demo-database-prod',
+        metrics: {
+          cpuUtilization: 28.5 + Math.random() * 5
+        },
+        timestamp: now.toISOString()
+      },
+      {
+        resourceType: 'Lambda',
+        resourceId: 'demo-api-handler',
+        metrics: {
+          invocations: Math.floor(150 + Math.random() * 50)
+        },
+        timestamp: now.toISOString()
+      },
+      {
+        resourceType: 'Lambda',
+        resourceId: 'demo-worker-function',
+        metrics: {
+          invocations: Math.floor(80 + Math.random() * 30)
+        },
+        timestamp: now.toISOString()
+      }
+    ],
+    timestamp: now.toISOString()
+  };
+}
+
+/**
+ * Gera dados de métricas CloudWatch para demonstração
+ */
+export function generateDemoCloudWatchMetrics() {
+  const now = new Date();
+  const periodHours = 3;
+  
+  // Gerar recursos demo
+  const resources = [
+    { resourceId: 'i-demo-web-001', resourceName: 'demo-web-server', resourceType: 'ec2', region: 'us-east-1', status: 'running', metadata: { instanceType: 't3.medium' } },
+    { resourceId: 'i-demo-api-001', resourceName: 'demo-api-server', resourceType: 'ec2', region: 'us-east-1', status: 'running', metadata: { instanceType: 't3.large' } },
+    { resourceId: 'i-demo-worker-001', resourceName: 'demo-worker', resourceType: 'ec2', region: 'us-east-1', status: 'running', metadata: { instanceType: 'm5.xlarge' } },
+    { resourceId: 'demo-database-prod', resourceName: 'demo-database-prod', resourceType: 'rds', region: 'us-east-1', status: 'available', metadata: { engine: 'postgres', instanceClass: 'db.r5.large' } },
+    { resourceId: 'demo-database-replica', resourceName: 'demo-database-replica', resourceType: 'rds', region: 'us-east-1', status: 'available', metadata: { engine: 'postgres', instanceClass: 'db.r5.large' } },
+    { resourceId: 'demo-api-handler', resourceName: 'demo-api-handler', resourceType: 'lambda', region: 'us-east-1', status: 'active', metadata: { runtime: 'nodejs18.x', memorySize: 512 } },
+    { resourceId: 'demo-worker-function', resourceName: 'demo-worker-function', resourceType: 'lambda', region: 'us-east-1', status: 'active', metadata: { runtime: 'nodejs18.x', memorySize: 1024 } },
+    { resourceId: 'demo-auth-function', resourceName: 'demo-auth-function', resourceType: 'lambda', region: 'us-east-1', status: 'active', metadata: { runtime: 'nodejs18.x', memorySize: 256 } },
+    { resourceId: 'demo-redis-cluster', resourceName: 'demo-redis-cluster', resourceType: 'elasticache', region: 'us-east-1', status: 'available', metadata: { engine: 'redis', cacheNodeType: 'cache.r5.large' } },
+    { resourceId: 'app/demo-web-alb/abc123', resourceName: 'demo-web-alb', resourceType: 'alb', region: 'us-east-1', status: 'active', metadata: { dnsName: 'demo-web-alb.us-east-1.elb.amazonaws.com', scheme: 'internet-facing' } }
+  ];
+  
+  // Gerar métricas demo
+  const metrics: any[] = [];
+  const metricConfigs: Record<string, string[]> = {
+    ec2: ['CPUUtilization', 'NetworkIn', 'NetworkOut'],
+    rds: ['CPUUtilization', 'DatabaseConnections', 'FreeStorageSpace'],
+    lambda: ['Invocations', 'Errors', 'Duration'],
+    elasticache: ['CPUUtilization', 'CurrConnections'],
+    alb: ['RequestCount', 'TargetResponseTime']
+  };
+  
+  // Gerar datapoints para cada recurso e métrica
+  for (const resource of resources) {
+    const resourceMetrics = metricConfigs[resource.resourceType] || [];
+    
+    for (const metricName of resourceMetrics) {
+      // Gerar 12 datapoints (5 min intervals for 1 hour)
+      for (let i = 11; i >= 0; i--) {
+        const timestamp = new Date(now.getTime() - i * 5 * 60 * 1000);
+        let value = 0;
+        
+        // Gerar valores realistas baseados no tipo de métrica
+        switch (metricName) {
+          case 'CPUUtilization':
+            value = 25 + Math.random() * 40 + Math.sin(i / 3) * 10;
+            break;
+          case 'NetworkIn':
+          case 'NetworkOut':
+            value = (500000 + Math.random() * 1000000) * (1 + Math.sin(i / 4) * 0.3);
+            break;
+          case 'DatabaseConnections':
+            value = Math.floor(15 + Math.random() * 30);
+            break;
+          case 'FreeStorageSpace':
+            value = 50000000000 - i * 100000000; // ~50GB diminuindo
+            break;
+          case 'Invocations':
+            value = Math.floor(100 + Math.random() * 200);
+            break;
+          case 'Errors':
+            value = Math.floor(Math.random() * 5);
+            break;
+          case 'Duration':
+            value = 150 + Math.random() * 100;
+            break;
+          case 'CurrConnections':
+            value = Math.floor(50 + Math.random() * 100);
+            break;
+          case 'RequestCount':
+            value = Math.floor(500 + Math.random() * 1000);
+            break;
+          case 'TargetResponseTime':
+            value = 0.05 + Math.random() * 0.15;
+            break;
+        }
+        
+        metrics.push({
+          resourceId: resource.resourceId,
+          resourceName: resource.resourceName,
+          resourceType: resource.resourceType,
+          metricName,
+          value: parseFloat(value.toFixed(2)),
+          timestamp,
+          unit: getMetricUnit(metricName),
+          _isDemo: true
+        });
+      }
+    }
+  }
+  
+  return {
+    _isDemo: true,
+    success: true,
+    message: `Dados de demonstração - ${metrics.length} métricas de ${resources.length} recursos`,
+    resourcesFound: resources.length,
+    metricsCollected: metrics.length,
+    regionsScanned: ['us-east-1'],
+    resources: resources.map(r => ({ ...r, _isDemo: true })),
+    metrics,
+    duration: 1250
+  };
+}
+
+// Helper para unidades de métricas
+function getMetricUnit(metricName: string): string {
+  const units: Record<string, string> = {
+    CPUUtilization: 'Percent',
+    NetworkIn: 'Bytes',
+    NetworkOut: 'Bytes',
+    DatabaseConnections: 'Count',
+    FreeStorageSpace: 'Bytes',
+    Invocations: 'Count',
+    Errors: 'Count',
+    Duration: 'Milliseconds',
+    CurrConnections: 'Count',
+    RequestCount: 'Count',
+    TargetResponseTime: 'Seconds'
+  };
+  return units[metricName] || 'None';
+}
+
 export default {
   isOrganizationInDemoMode,
   generateDemoSecurityFindings,
@@ -1658,5 +2591,12 @@ export default {
   generateDemoBudgetForecast,
   generateDemoPredictIncidents,
   generateDemoIntelligentAlertsAnalysis,
+  generateDemoGuardDutyFindings,
+  generateDemoDriftDetection,
+  generateDemoCloudTrailAnalysis,
+  generateDemoAlerts,
+  generateDemoEdgeServices,
+  generateDemoRealtimeMetrics,
+  generateDemoCloudWatchMetrics,
   getDemoOrRealData
 };

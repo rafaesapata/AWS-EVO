@@ -11,6 +11,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
+import { isOrganizationInDemoMode, generateDemoRealtimeMetrics } from '../../lib/demo-data-service.js';
 
 interface RealtimeMetricsRequest {
   accountId: string;
@@ -44,6 +45,16 @@ export async function handler(
     }
     
     const prisma = getPrismaClient();
+    
+    // ============================================
+    // DEMO MODE CHECK - Return demo data if enabled
+    // ============================================
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Returning demo realtime metrics data', { organizationId, isDemo: true });
+      const demoData = generateDemoRealtimeMetrics();
+      return success(demoData);
+    }
     
     const account = await prisma.awsCredential.findFirst({
       where: { id: accountId, organization_id: organizationId, is_active: true },

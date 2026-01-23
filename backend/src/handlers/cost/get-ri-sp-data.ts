@@ -50,8 +50,6 @@ export async function handler(
       return error('Missing required parameter: accountId');
     }
     
-    const prisma = getPrismaClient();
-    
     // Verify account belongs to organization
     const account = await prisma.awsCredential.findFirst({
       where: { id: accountId, organization_id: organizationId, is_active: true },

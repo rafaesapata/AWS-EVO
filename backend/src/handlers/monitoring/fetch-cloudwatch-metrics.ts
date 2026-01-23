@@ -13,6 +13,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { withAwsCircuitBreaker } from '../../lib/circuit-breaker.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { isOrganizationInDemoMode, generateDemoCloudWatchMetrics } from '../../lib/demo-data-service.js';
 import { CloudWatchClient, GetMetricStatisticsCommand, Statistic } from '@aws-sdk/client-cloudwatch';
 import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
@@ -161,6 +162,16 @@ async function fetchCloudwatchMetricsHandler(
   logger.info('Fetch CloudWatch Metrics started', { organizationId, userId: user.sub });
 
   try {
+    // ============================================
+    // DEMO MODE CHECK - Return demo data if enabled
+    // ============================================
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Returning demo CloudWatch metrics data', { organizationId, isDemo: true });
+      const demoData = generateDemoCloudWatchMetrics();
+      return success(demoData, 200, origin);
+    }
+    
     // Parse request body
     let body: FetchMetricsRequest;
     try {

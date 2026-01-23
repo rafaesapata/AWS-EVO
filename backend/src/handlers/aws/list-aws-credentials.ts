@@ -62,6 +62,7 @@ export async function handler(
         account_id: true,
         account_name: true,
         access_key_id: true,
+        role_arn: true,  // Include role_arn to identify CloudFormation-connected accounts
         external_id: true,
         regions: true,
         is_active: true,

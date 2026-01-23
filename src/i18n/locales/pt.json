@@ -1167,7 +1167,9 @@
     "noAccountConnected": "Nenhuma conta conectada",
     "connectAccountsToView": "Conecte contas AWS ou Azure para visualizar",
     "selectAccountInHeader": "Selecione uma conta no seletor do cabeçalho.",
-    "or": "ou"
+    "or": "ou",
+    "processing": "Processando...",
+    "organization": "Organização"
   },
   "demo": {
     "banner": {

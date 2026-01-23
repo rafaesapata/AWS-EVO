@@ -18,6 +18,7 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logging.js';
 import { getContextualExplanation, getSecurityExplanation } from '../../lib/security-explanations.js';
 import { CloudTrailClient, LookupEventsCommand, LookupEventsCommandInput } from '@aws-sdk/client-cloudtrail';
+import { isOrganizationInDemoMode, generateDemoCloudTrailAnalysis } from '../../lib/demo-data-service.js';
 
 interface AnalyzeCloudTrailRequest {
   accountId: string;
@@ -450,6 +451,19 @@ export async function handler(
   });
   
   try {
+    const prisma = getPrismaClient();
+    
+    // ========================================
+    // DEMO MODE CHECK - FAIL-SAFE
+    // ========================================
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Returning demo CloudTrail analysis data', { organizationId, isDemo: true });
+      const demoData = generateDemoCloudTrailAnalysis();
+      return success(demoData);
+    }
+    // ========================================
+    
     const body: AnalyzeCloudTrailRequest = event.body ? JSON.parse(event.body) : {};
     const {
       accountId,
@@ -462,8 +476,6 @@ export async function handler(
     if (!accountId) {
       return error('Missing required parameter: accountId');
     }
-    
-    const prisma = getPrismaClient();
     
     const account = await prisma.awsCredential.findFirst({
       where: { id: accountId, organization_id: organizationId, is_active: true },

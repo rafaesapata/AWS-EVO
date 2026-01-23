@@ -20,6 +20,7 @@ import { CloudFrontClient, ListDistributionsCommand } from '@aws-sdk/client-clou
 import { WAFV2Client, ListWebACLsCommand, GetWebACLCommand } from '@aws-sdk/client-wafv2';
 import { ElasticLoadBalancingV2Client, DescribeLoadBalancersCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { randomUUID } from 'crypto';
+import { isOrganizationInDemoMode, generateDemoEdgeServices } from '../../lib/demo-data-service.js';
 
 interface FetchEdgeServicesRequest {
   accountId: string;
@@ -66,6 +67,16 @@ export async function handler(
     }
     
     const prisma = getPrismaClient();
+    
+    // ============================================
+    // DEMO MODE CHECK - Return demo data if enabled
+    // ============================================
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Returning demo edge services data', { organizationId, isDemo: true });
+      const demoData = generateDemoEdgeServices();
+      return success(demoData);
+    }
     
     // Buscar credenciais AWS
     const account = await prisma.awsCredential.findFirst({

@@ -11,6 +11,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { GuardDutyClient, ListDetectorsCommand, ListFindingsCommand, GetFindingsCommand } from '@aws-sdk/client-guardduty';
 import { logger } from '../../lib/logging.js';
+import { isOrganizationInDemoMode, generateDemoGuardDutyFindings } from '../../lib/demo-data-service.js';
 
 interface GuardDutyScanRequest {
   accountId?: string;
@@ -50,10 +51,21 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
+    const prisma = getPrismaClient();
+    
+    // ========================================
+    // DEMO MODE CHECK - FAIL-SAFE
+    // ========================================
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Returning demo GuardDuty data', { organizationId, isDemo: true });
+      const demoData = generateDemoGuardDutyFindings();
+      return success(demoData);
+    }
+    // ========================================
+    
     const body: GuardDutyScanRequest = event.body ? JSON.parse(event.body) : {};
     const { accountId } = body;
-    
-    const prisma = getPrismaClient();
     
     // Get AWS credentials
     const credential = await prisma.awsCredential.findFirst({
