@@ -25,7 +25,7 @@ aws apigateway flush-stage-cache --rest-api-id 3l66kn0eaj --stage-name prod --re
 ## Lambda Layers
 
 ### Layer Atual (com AWS SDK + Azure SDK)
-- **Prisma + Zod + AWS SDK + Azure SDK Layer**: `arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:59`
+- **Prisma + Zod + AWS SDK + Azure SDK Layer**: `arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:64`
   - Contém: 
     - `@prisma/client`, `.prisma/client` (gerado)
     - `zod`
@@ -40,16 +40,107 @@ aws apigateway flush-stage-cache --rest-api-id 3l66kn0eaj --stage-name prod --re
 ### Versões do Layer
 | Versão | Descrição | Data |
 |--------|-----------|------|
-| 59 | **ATUAL** - Prisma + Zod + AWS SDK (Lambda, STS, WAFV2, Bedrock, SSO) + Smithy (completo) + @aws/lambda-invoke-store | 2026-01-17 |
-| 58 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock) + Smithy (completo) + @aws/lambda-invoke-store - FALTAVA client-lambda | 2026-01-17 |
-| 57 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock) + Smithy (sem @aws/lambda-invoke-store) | 2026-01-17 |
-| 56 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock) - INCOMPLETO (faltavam dependências Smithy) | 2026-01-17 |
-| 43 | Prisma + Zod + Azure SDK + @typespec + internal exports fix | 2026-01-12 |
-| 42 | Prisma + Zod + Azure SDK + @typespec (sem internal exports) | 2026-01-12 |
-| 41 | Prisma + Zod + Azure SDK (sem @typespec) | 2026-01-12 |
-| 40 | Prisma + Zod + Azure SDK inicial | 2026-01-12 |
-| 39 | Prisma com AzureCredential model | 2026-01-12 |
-| 2 | Prisma + Zod básico | 2025-xx-xx |
+| 64 | **ATUAL** - Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock, Lambda, Cognito) + Smithy (completo) | 2026-01-26 |
+| 63 | ⚠️ QUEBRADO - Apenas Prisma + Zod (sem AWS SDK) - NÃO USAR | 2026-01-25 |
+| 62 | Prisma + Zod with demo_mode fields | 2026-01-25 |
+| 61 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock, Cognito, Lambda) + Smithy | 2026-01-17 |
+| 59 | Prisma + Zod + AWS SDK (Lambda, STS, WAFV2, Bedrock, SSO) + Smithy (completo) + @aws/lambda-invoke-store | 2026-01-17 |
+
+---
+
+## 🚨 REGRAS OBRIGATÓRIAS PARA PUBLICAÇÃO DE LAYERS
+
+### ⛔ NUNCA publique um layer sem seguir estas regras
+
+Após o incidente de 2026-01-26 onde o layer versão 63 foi publicado sem AWS SDK, causando erro 502 em todas as Lambdas que usam `aws-helpers.js`, as seguintes regras são **OBRIGATÓRIAS**:
+
+### 1. Checklist OBRIGATÓRIO antes de publicar novo layer
+
+Antes de executar `aws lambda publish-layer-version`, verificar se o layer contém:
+
+- [ ] `@prisma/client` e `.prisma/client` (gerado com `npm run prisma:generate`)
+- [ ] `zod`
+- [ ] `@aws-sdk/client-sts` (**OBRIGATÓRIO** - usado por `aws-helpers.js` para assume role)
+- [ ] `@aws-sdk/client-wafv2` (para WAF monitoring)
+- [ ] `@aws-sdk/client-bedrock-runtime` (para IA/Copilot)
+- [ ] `@aws-sdk/client-lambda` (para invocações entre Lambdas)
+- [ ] `@aws-sdk/client-cognito-identity-provider` (para auth)
+- [ ] Todas as dependências `@smithy/*` (80+ pacotes)
+- [ ] `@aws/lambda-invoke-store` (para recursion detection)
+- [ ] `tslib`, `uuid`, `fast-xml-parser`
+
+### 2. SEMPRE usar o script de cópia recursiva
+
+**NUNCA** copie pacotes AWS SDK manualmente. Use o script `scripts/copy-deps.cjs`:
+
+```bash
+node scripts/copy-deps.cjs backend /tmp/lambda-layer-complete \
+  @aws-sdk/client-sts \
+  @aws-sdk/client-wafv2 \
+  @aws-sdk/client-bedrock-runtime \
+  @aws-sdk/client-lambda \
+  @aws-sdk/client-cognito-identity-provider \
+  @aws-sdk/types
+```
+
+Este script copia recursivamente TODAS as dependências transitivas, incluindo `@smithy/*` e `@aws-crypto/*`.
+
+### 3. Teste OBRIGATÓRIO pós-publicação
+
+Após publicar um novo layer, **OBRIGATORIAMENTE** testar uma Lambda crítica:
+
+```bash
+# 1. Atualizar uma Lambda de teste
+aws lambda update-function-configuration \
+  --function-name evo-uds-v3-production-waf-dashboard-api \
+  --layers "arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:NOVA_VERSAO" \
+  --region us-east-1
+
+# 2. Aguardar atualização
+aws lambda wait function-updated \
+  --function-name evo-uds-v3-production-waf-dashboard-api \
+  --region us-east-1
+
+# 3. Testar invocação
+aws lambda invoke \
+  --function-name evo-uds-v3-production-waf-dashboard-api \
+  --payload '{"requestContext":{"http":{"method":"OPTIONS"}}}' \
+  --region us-east-1 \
+  /tmp/test.json
+
+# 4. Verificar se retornou statusCode 200
+cat /tmp/test.json | grep -o '"statusCode":200'
+
+# Se NÃO retornar "statusCode":200, NÃO atualize as outras Lambdas!
+```
+
+### 4. Descrição do layer DEVE listar os pacotes incluídos
+
+Ao publicar, use uma descrição clara:
+
+```bash
+aws lambda publish-layer-version \
+  --layer-name evo-prisma-deps-layer \
+  --description "Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock, Lambda, Cognito) + Smithy - YYYY-MM-DD" \
+  ...
+```
+
+### 5. Se o teste falhar, NÃO atualize as outras Lambdas
+
+Se o teste pós-publicação falhar:
+1. **NÃO** execute o script de atualização em massa
+2. Verifique os logs: `aws logs tail /aws/lambda/evo-uds-v3-production-waf-dashboard-api --since 5m`
+3. Identifique o módulo faltante
+4. Recrie o layer com o módulo faltante
+5. Repita o teste
+
+### 6. Histórico de Incidentes de Layer
+
+| Data | Versão | Problema | Impacto | Causa |
+|------|--------|----------|---------|-------|
+| 2026-01-26 | 63 | Sem AWS SDK | Erro 502 em todas Lambdas que usam aws-helpers.js | Layer publicado apenas com Prisma + Zod |
+
+---
 
 ### Atualizar Layer (com AWS SDK + Azure SDK)
 
@@ -199,11 +290,29 @@ Todas as Lambdas usam o layer `evo-prisma-deps-layer:40`.
 - `list-cloud-credentials` - Listar credenciais unificadas (AWS + Azure)
 
 ### Atualizar Layer em Todas as Lambdas
+
+**⚠️ ATENÇÃO**: Só execute este comando APÓS testar o layer em uma Lambda (ver seção "REGRAS OBRIGATÓRIAS PARA PUBLICAÇÃO DE LAYERS")
+
 ```bash
-LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:43"
-for func in $(aws lambda list-functions --region us-east-1 --query 'Functions[?starts_with(FunctionName, `evo-uds-v3-production`)].FunctionName' --output text); do
-  aws lambda update-function-configuration --function-name "$func" --layers "$LAYER_ARN" --region us-east-1
-done
+LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:64"
+
+# Listar todas as Lambdas e atualizar
+aws lambda list-functions --region us-east-1 \
+  --query 'Functions[?starts_with(FunctionName, `evo-uds-v3-production`)].FunctionName' \
+  --output text | tr '\t' '\n' > /tmp/lambdas.txt
+
+while read func; do
+  if [ -n "$func" ]; then
+    echo "Updating $func..."
+    aws lambda update-function-configuration \
+      --function-name "$func" \
+      --layers "$LAYER_ARN" \
+      --region us-east-1 \
+      --no-cli-pager > /dev/null 2>&1
+  fi
+done < /tmp/lambdas.txt
+
+echo "✅ All Lambdas updated"
 ```
 
 ## Cognito
@@ -421,6 +530,48 @@ for func in validate-azure-credentials save-azure-credentials list-azure-credent
 done
 ```
 
+### Security Scan Falha com "sts:AssumeRole not authorized"
+
+**Sintoma:** Scan de segurança falha imediatamente com erro:
+```
+User: arn:aws:sts::383234048592:assumed-role/evo-uds-v3-production-lambda-nodejs-role/evo-uds-v3-production-security-scan 
+is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME
+```
+
+**Causa mais comum:** Inconsistência entre `access_key_id` e `role_arn` na tabela `aws_credentials`.
+
+A função `resolveAwsCredentials` em `backend/src/lib/aws-helpers.ts` prioriza `role_arn` quando disponível. Se o `access_key_id` contém um role ARN desatualizado (com prefixo `ROLE:`), mas o `role_arn` está correto, o sistema usará o `role_arn`.
+
+**Diagnóstico:**
+```bash
+# 1. Verificar logs do security-scan
+aws logs filter-log-events \
+  --log-group-name "/aws/lambda/evo-uds-v3-production-security-scan" \
+  --start-time $(date -v-1H +%s000) \
+  --filter-pattern "Assuming role" \
+  --region us-east-1 \
+  --query 'events[*].message' \
+  --output text
+
+# 2. Verificar credenciais no banco
+# Use run-sql para verificar os campos access_key_id e role_arn
+# Se access_key_id começa com "ROLE:" e role_arn é diferente, há inconsistência
+```
+
+**Solução:**
+1. A função `resolveAwsCredentials` já prioriza `role_arn` sobre `access_key_id` com prefixo `ROLE:`
+2. Se o problema persistir, verifique se a role existe na conta do cliente
+3. Verifique se a trust policy da role permite a Lambda assumir
+
+**Ordem de prioridade em `resolveAwsCredentials`:**
+1. `role_arn` + `external_id` (mais confiável, atualizado pelo Quick Connect)
+2. `access_key_id` com prefixo `ROLE:` (legado, pode estar desatualizado)
+3. `access_key_id` + `secret_access_key` (credenciais diretas)
+
+**⚠️ IMPORTANTE:** Nunca edite manualmente o campo `access_key_id` com prefixo `ROLE:`. Use o Quick Connect para atualizar as credenciais, que atualiza corretamente o campo `role_arn`.
+
+---
+
 ### API Gateway 500 "Cannot read properties of undefined (reading 'authorizer')"
 A Lambda não está recebendo o contexto de autorização do Cognito.
 
@@ -447,3 +598,63 @@ aws lambda add-permission \
   --source-arn "arn:aws:execute-api:us-east-1:383234048592:3l66kn0eaj/*/POST/api/functions/ENDPOINT-NAME" \
   --region us-east-1
 ```
+
+
+---
+
+## 📜 Histórico de Incidentes de Infraestrutura
+
+### 2026-01-26 - Security Scan falhando com erro sts:AssumeRole
+
+**Duração:** ~2 horas (16:45 - 18:41 UTC)
+
+**Impacto:** ALTO - Scans de segurança falhando para organização específica
+
+**Sintoma:** 
+- Scans completavam em menos de 1 segundo com status `failed`
+- Erro nos logs: `sts:AssumeRole not authorized on resource: arn:aws:iam::081337268589:role/EVO-Platform-Role-evo-platform`
+
+**Causa raiz:**
+Inconsistência nos dados da tabela `aws_credentials`:
+- `access_key_id`: `ROLE:arn:aws:iam::081337268589:role/EVO-Platform-Role-evo-platform` (nome genérico/antigo)
+- `role_arn`: `arn:aws:iam::081337268589:role/EVO-Platform-Role-EVO-Platform-mkve2ulb` (nome real com sufixo)
+
+A função `resolveAwsCredentials` priorizava `access_key_id` com prefixo `ROLE:` sobre `role_arn`, usando o role ARN desatualizado.
+
+**Correção aplicada:**
+Alterada a lógica em `backend/src/lib/aws-helpers.ts` para priorizar `role_arn` quando disponível:
+
+```typescript
+// ANTES (problemático):
+if (credential.access_key_id?.startsWith('ROLE:')) {
+  // Usava access_key_id primeiro
+}
+if (credential.role_arn && credential.external_id) {
+  // role_arn era segunda opção
+}
+
+// DEPOIS (corrigido):
+if (credential.role_arn && credential.external_id) {
+  // role_arn é prioridade (mais confiável)
+}
+if (credential.access_key_id?.startsWith('ROLE:')) {
+  // ROLE: prefix é fallback
+}
+```
+
+**Lambdas afetadas:**
+- `evo-uds-v3-production-security-scan`
+
+**Lição aprendida:**
+- O campo `role_arn` é mais confiável pois é atualizado pelo Quick Connect
+- O campo `access_key_id` com prefixo `ROLE:` é legado e pode ficar desatualizado
+- Sempre priorizar dados mais recentes/confiáveis na lógica de resolução de credenciais
+
+**Prevenção futura:**
+- Documentado em steering para evitar regressão
+- Considerar migração para usar apenas `role_arn` e deprecar o padrão `ROLE:` prefix
+
+---
+
+**Última atualização:** 2026-01-26
+**Versão:** 1.5

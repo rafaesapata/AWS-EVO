@@ -68,7 +68,14 @@ export async function resolveAwsCredentials(
   },
   region: string
 ): Promise<AWSCredentials> {
-  // Check if access_key_id contains ROLE: prefix (CloudFormation deployment pattern)
+  // PRIORITY 1: Se tem role_arn explícito, usa ele (mais confiável)
+  // Isso corrige o problema onde access_key_id com ROLE: prefix pode estar desatualizado
+  if (credential.role_arn && credential.external_id) {
+    console.log('🔐 Assuming role (from role_arn):', credential.role_arn);
+    return assumeRole(credential.role_arn, credential.external_id, region);
+  }
+  
+  // PRIORITY 2: Check if access_key_id contains ROLE: prefix (CloudFormation deployment pattern)
   // In this case, the role ARN is stored in access_key_id with ROLE: prefix
   // and external_id is stored in secret_access_key with EXTERNAL_ID: prefix
   if (credential.access_key_id?.startsWith('ROLE:')) {
@@ -79,15 +86,7 @@ export async function resolveAwsCredentials(
     // MILITARY GRADE: Log only non-sensitive information
     console.log('🔐 Assuming role (from ROLE: prefix):', roleArn);
     console.log('🔐 External ID:', externalId ? '[REDACTED]' : 'EMPTY');
-    console.log('🔐 credential.external_id:', credential.external_id ? 'SET' : 'NULL');
-    console.log('🔐 credential.secret_access_key format:', credential.secret_access_key?.startsWith('EXTERNAL_ID:') ? 'EXTERNAL_ID_FORMAT' : 'STANDARD');
     return assumeRole(roleArn, externalId, region);
-  }
-  
-  // Se tem role_arn, usa AssumeRole
-  if (credential.role_arn && credential.external_id) {
-    console.log('🔐 Assuming role:', credential.role_arn);
-    return assumeRole(credential.role_arn, credential.external_id, region);
   }
   
   // Senão, usa credenciais diretas
