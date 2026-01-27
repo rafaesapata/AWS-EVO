@@ -147,6 +147,12 @@ demo_mode_audit (
 - `extend` - Estende período do demo
 - `status` - Retorna status atual
 
+#### 4. Handler de Auto-Ativação (`backend/src/handlers/admin/deactivate-demo-mode.ts`)
+- Permite que o próprio usuário desative o modo demo da sua organização
+- Não requer super_admin - qualquer usuário da organização pode usar
+- Requer confirmação explícita (`confirm: true`)
+- Registra auditoria com ação `SELF_DEACTIVATED`
+
 ### Frontend
 
 #### 1. Context (`src/contexts/DemoModeContext.tsx`)
@@ -155,7 +161,7 @@ demo_mode_audit (
 - Descrições das páginas para o explainer
 
 #### 2. Componentes (`src/components/demo/`)
-- `DemoBanner.tsx` - Banner persistente no topo
+- `DemoBanner.tsx` - Banner persistente no topo com botão "Ativar Conta Real"
 - `DemoWatermark.tsx` - Marca d'água sobre o conteúdo
 - `DemoPageExplainer.tsx` - Card explicativo por página
 
@@ -238,6 +244,28 @@ curl -X POST https://api-evo.ai.udstec.io/api/functions/manage-demo-mode \
     "action": "status",
     "organizationId": "uuid-da-org"
   }'
+```
+
+### Auto-Ativação pelo Usuário (Desativar Demo)
+
+O próprio usuário pode desativar o modo demo da sua organização sem precisar de super_admin:
+
+```bash
+curl -X POST https://api-evo.ai.udstec.io/api/functions/deactivate-demo-mode \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "confirm": true
+  }'
+```
+
+**Resposta de sucesso:**
+```json
+{
+  "message": "Account activated successfully! Demo mode has been deactivated.",
+  "demo_mode": false,
+  "organization_name": "Nome da Organização"
+}
 ```
 
 ## Integração em Handlers Existentes

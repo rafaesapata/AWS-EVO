@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Shield, DollarSign, AlertTriangle, Zap, Cloud, Lock, TrendingUp, Network, Server, Database, FileText, Users, Bell, CheckCircle, BarChart, Target, Globe, Cpu, Activity, Eye, GitBranch, Workflow, Settings, PieChart, LineChart, Gamepad2, MessageSquare, Sparkles, Timer, ShieldAlert, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -5,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
 const Features = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const featureCategories = [

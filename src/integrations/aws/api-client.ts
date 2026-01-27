@@ -11,6 +11,10 @@ sessionStorage.setItem('sessionId', SESSION_ID);
 // Impersonation storage key
 const IMPERSONATION_KEY = 'evo-impersonation';
 
+// Token refresh state to prevent multiple simultaneous refresh attempts
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
 export interface ApiResponse<T = any> {
   data: T;
   error: null;
@@ -88,6 +92,80 @@ export function throwApiError(response: ApiError): never {
 }
 
 class ApiClient {
+  /**
+   * Attempt to refresh the authentication token
+   * Returns true if refresh was successful, false otherwise
+   */
+  private async tryRefreshToken(): Promise<boolean> {
+    // If already refreshing, wait for the existing refresh to complete
+    if (isRefreshing && refreshPromise) {
+      return refreshPromise;
+    }
+
+    isRefreshing = true;
+    refreshPromise = (async () => {
+      try {
+        console.log('🔄 Attempting to refresh authentication token...');
+        const newSession = await cognitoAuth.refreshSession();
+        
+        if (newSession) {
+          console.log('✅ Token refreshed successfully');
+          return true;
+        }
+        
+        console.log('❌ Token refresh failed - no new session');
+        return false;
+      } catch (error) {
+        console.error('❌ Token refresh error:', error);
+        return false;
+      } finally {
+        isRefreshing = false;
+        refreshPromise = null;
+      }
+    })();
+
+    return refreshPromise;
+  }
+
+  /**
+   * Handle authentication errors (401/403)
+   * Attempts to refresh token and retry the request once
+   */
+  private async handleAuthError<T>(
+    endpoint: string,
+    options: RequestInit,
+    timeoutMs: number,
+    status: number
+  ): Promise<ApiResponse<T> | ApiError | null> {
+    // Only attempt refresh for 401 Unauthorized or 403 Forbidden
+    if (status !== 401 && status !== 403) {
+      return null;
+    }
+
+    console.log(`🔐 Received ${status} error, attempting token refresh...`);
+    
+    const refreshed = await this.tryRefreshToken();
+    
+    if (!refreshed) {
+      // Refresh failed - redirect to login
+      console.log('🔐 Token refresh failed, redirecting to login...');
+      await cognitoAuth.signOut();
+      window.location.href = '/login?reason=session_expired';
+      return {
+        data: null,
+        error: {
+          message: 'Session expired. Please login again.',
+          code: 'SESSION_EXPIRED',
+          status: 401,
+        },
+      };
+    }
+
+    // Retry the original request with new token
+    console.log('🔄 Retrying request with refreshed token...');
+    return this.requestInternal<T>(endpoint, options, timeoutMs, false);
+  }
+
   private async getAuthHeaders(): Promise<Record<string, string>> {
     const session = await cognitoAuth.getCurrentSession();
     
@@ -135,6 +213,15 @@ class ApiClient {
     options: RequestInit = {},
     timeoutMs: number = DEFAULT_TIMEOUT_MS
   ): Promise<ApiResponse<T> | ApiError> {
+    return this.requestInternal<T>(endpoint, options, timeoutMs, true);
+  }
+
+  private async requestInternal<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    allowRetry: boolean = true
+  ): Promise<ApiResponse<T> | ApiError> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
@@ -157,6 +244,14 @@ class ApiClient {
       const responseRequestId = response.headers.get('X-Request-ID') || requestId;
 
       if (!response.ok) {
+        // Check if this is an auth error that we should retry
+        if (allowRetry && (response.status === 401 || response.status === 403)) {
+          const retryResult = await this.handleAuthError<T>(endpoint, options, timeoutMs, response.status);
+          if (retryResult) {
+            return retryResult;
+          }
+        }
+
         const errorData = await response.json().catch(() => ({}));
         return {
           data: null,

@@ -1338,6 +1338,18 @@
       "whatsappDesc": "Fale conosco agora",
       "note": "Nossa equipe responderá em até 24 horas úteis."
     },
+    "activate": {
+      "title": "Ativar Sua Conta Real",
+      "description": "Ao ativar sua conta, o modo de demonstração será desativado e você poderá conectar suas contas cloud reais para ver seus dados.",
+      "benefit1": "Conecte suas contas AWS e Azure reais",
+      "benefit2": "Veja seus dados de custos e segurança reais",
+      "benefit3": "Acesse todos os recursos da plataforma",
+      "note": "Após a ativação, você será redirecionado para conectar suas contas cloud.",
+      "confirm": "Ativar Minha Conta",
+      "activating": "Ativando...",
+      "success": "Conta ativada com sucesso! Recarregando...",
+      "error": "Erro ao ativar conta. Tente novamente."
+    },
     "pages": {
       "dashboard": {
         "title": "Dashboard Executivo",

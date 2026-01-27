@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Shield, AlertCircle, RefreshCw } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -24,6 +25,7 @@ interface DashboardConfig {
 }
 
 export default function TVDashboard() {
+  const { t } = useTranslation();
   const { token } = useParams<{ token: string }>();
   const [dashboard, setDashboard] = useState<DashboardConfig | null>(null);
   const [loading, setLoading] = useState(true);

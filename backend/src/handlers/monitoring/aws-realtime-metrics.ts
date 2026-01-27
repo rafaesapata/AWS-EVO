@@ -37,23 +37,24 @@ export async function handler(
   });
   
   try {
-    const body: RealtimeMetricsRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, region: requestedRegion, resources = [] } = body;
-    
-    if (!accountId) {
-      return error('Missing required parameter: accountId');
-    }
-    
     const prisma = getPrismaClient();
     
     // ============================================
     // DEMO MODE CHECK - Return demo data if enabled
+    // Check BEFORE accountId validation for demo mode
     // ============================================
     const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
     if (isDemo === true) {
       logger.info('Returning demo realtime metrics data', { organizationId, isDemo: true });
       const demoData = generateDemoRealtimeMetrics();
       return success(demoData);
+    }
+    
+    const body: RealtimeMetricsRequest = event.body ? JSON.parse(event.body) : {};
+    const { accountId, region: requestedRegion, resources = [] } = body;
+    
+    if (!accountId) {
+      return error('Missing required parameter: accountId');
     }
     
     const account = await prisma.awsCredential.findFirst({

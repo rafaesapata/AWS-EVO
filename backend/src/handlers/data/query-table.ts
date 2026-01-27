@@ -11,7 +11,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
-import { isOrganizationInDemoMode, generateDemoMonitoredResources, generateDemoResourceMetrics } from '../../lib/demo-data-service.js';
+import { isOrganizationInDemoMode, generateDemoMonitoredResources, generateDemoResourceMetrics, generateDemoEdgeServicesTable, generateDemoEdgeMetricsTable } from '../../lib/demo-data-service.js';
 
 // Mapeamento de nomes de tabela do frontend para modelos Prisma
 // Baseado nas tabelas reais do schema.prisma
@@ -257,7 +257,7 @@ export async function handler(
     // ============================================
     // DEMO MODE CHECK - Return demo data for monitoring tables
     // ============================================
-    const DEMO_SUPPORTED_TABLES = new Set(['monitored_resources', 'resource_metrics']);
+    const DEMO_SUPPORTED_TABLES = new Set(['monitored_resources', 'resource_metrics', 'edge_services', 'edge_metrics']);
     if (DEMO_SUPPORTED_TABLES.has(body.table)) {
       const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
       if (isDemo === true) {
@@ -270,6 +270,16 @@ export async function handler(
         
         if (body.table === 'resource_metrics') {
           const demoData = generateDemoResourceMetrics();
+          return success(demoData, 200, origin);
+        }
+        
+        if (body.table === 'edge_services') {
+          const demoData = generateDemoEdgeServicesTable();
+          return success(demoData, 200, origin);
+        }
+        
+        if (body.table === 'edge_metrics') {
+          const demoData = generateDemoEdgeMetricsTable();
           return success(demoData, 200, origin);
         }
       }

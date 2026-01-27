@@ -17,6 +17,7 @@ import { MetricsPeriodSelector, MetricsPeriod, PERIOD_CONFIG } from "./resource-
 import { ResourceMetricsChart } from "./resource-monitoring/ResourceMetricsChart";
 import { useOrganizationQuery } from "@/hooks/useOrganizationQuery";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { CACHE_CONFIGS } from "@/hooks/useQueryCache";
 import { AWSPermissionError } from "./AWSPermissionError";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
@@ -257,6 +258,7 @@ export const ResourceMonitoringDashboard = () => {
   // CRITICAL: Use global account selector instead of local state
   const { selectedAccountId, selectedProvider, accounts, isLoading: accountsLoading } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
+  const { isInDemoMode } = useDemoAwareQuery();
   
   // Multi-cloud support
   const isAzure = selectedProvider === 'AZURE';
@@ -323,10 +325,18 @@ export const ResourceMonitoringDashboard = () => {
     return () => clearInterval(interval);
   }, [autoRefreshInterval, selectedAccountId]);
 
-  // Buscar recursos monitorados - FILTERED BY GLOBAL ACCOUNT
+  // Buscar recursos monitorados - FILTERED BY GLOBAL ACCOUNT (supports Demo Mode)
   const { data: resources, isLoading: loadingResources } = useOrganizationQuery<MonitoredResource[]>(
-    ['monitored-resources', selectedAccountId],
+    ['monitored-resources', selectedAccountId, isInDemoMode],
     async (organizationId) => {
+      // In demo mode, query-table returns demo data from backend
+      if (isInDemoMode) {
+        const resourceResponse = await apiClient.select('monitored_resources', { 
+          eq: { organization_id: organizationId } 
+        });
+        return (resourceResponse.data || []) as MonitoredResource[];
+      }
+      
       if (!selectedAccountId) return [];
       
       // Verificar se a conta pertence à organização (usando aws_credentials, não aws_accounts)
@@ -342,22 +352,23 @@ export const ResourceMonitoringDashboard = () => {
     },
     {
       ...CACHE_CONFIGS.FREQUENT,
-      enabled: !!selectedAccountId,
+      enabled: isInDemoMode || !!selectedAccountId,
     }
   );
 
   // PERFORMANCE: Load metrics using intelligent cache
   // Only fetches from backend if period not already cached
   const loadMetricsWithCache = useCallback(async (forceRefresh: boolean = false) => {
-    if (!selectedAccountId) return;
+    if (!selectedAccountId && !isInDemoMode) return;
     
     // Check if we already have this period cached
-    if (!forceRefresh && isPeriodCached(selectedAccountId, metricsPeriod)) {
-      const cachedMetrics = getMetricsFromCache(selectedAccountId, metricsPeriod);
+    const cacheKey = isInDemoMode ? 'demo-account' : selectedAccountId;
+    if (!forceRefresh && cacheKey && isPeriodCached(cacheKey, metricsPeriod)) {
+      const cachedMetrics = getMetricsFromCache(cacheKey, metricsPeriod);
       if (cachedMetrics) {
         setMetrics(cachedMetrics as ResourceMetric[]);
         // Show cache hit indicator
-        const stats = getCacheStats(selectedAccountId);
+        const stats = getCacheStats(cacheKey);
         console.log(`[MetricsCache] Cache hit for ${metricsPeriod}:`, stats);
         return;
       }
@@ -365,6 +376,16 @@ export const ResourceMonitoringDashboard = () => {
     
     setLoadingMetrics(true);
     try {
+      // In demo mode, fetch demo metrics from backend
+      if (isInDemoMode) {
+        const metricsResponse = await apiClient.select('resource_metrics', { 
+          eq: { organization_id: 'demo' } 
+        });
+        setMetrics((metricsResponse.data || []) as ResourceMetric[]);
+        console.log(`[MetricsCache] Loaded ${(metricsResponse.data || []).length} demo metrics`);
+        return;
+      }
+      
       // Get organization ID from aws_credentials table (where selectedAccountId comes from)
       const orgResponse = await apiClient.select('aws_credentials', { 
         eq: { id: selectedAccountId } 
@@ -378,7 +399,7 @@ export const ResourceMonitoringDashboard = () => {
       }
       
       const fetchedMetrics = await fetchMetrics(
-        selectedAccountId, 
+        selectedAccountId!, 
         organizationId, 
         metricsPeriod, 
         forceRefresh
@@ -387,7 +408,7 @@ export const ResourceMonitoringDashboard = () => {
       setMetrics(fetchedMetrics as ResourceMetric[]);
       
       // Log cache stats for debugging
-      const stats = getCacheStats(selectedAccountId);
+      const stats = getCacheStats(selectedAccountId!);
       console.log(`[MetricsCache] Loaded ${fetchedMetrics.length} metrics:`, stats);
       
     } catch (err) {
@@ -395,22 +416,33 @@ export const ResourceMonitoringDashboard = () => {
     } finally {
       setLoadingMetrics(false);
     }
-  }, [selectedAccountId, metricsPeriod, isPeriodCached, getMetricsFromCache, fetchMetrics, getCacheStats]);
+  }, [selectedAccountId, metricsPeriod, isPeriodCached, getMetricsFromCache, fetchMetrics, getCacheStats, isInDemoMode]);
 
   // Load metrics when account or period changes
   useEffect(() => {
-    if (selectedAccountId) {
+    if (selectedAccountId || isInDemoMode) {
       loadMetricsWithCache(false);
     }
-  }, [selectedAccountId, metricsPeriod, loadMetricsWithCache]);
+  }, [selectedAccountId, metricsPeriod, loadMetricsWithCache, isInDemoMode]);
 
   const handleRefresh = useCallback(async (forceRefresh: boolean = true) => {
-    if (!selectedAccountId) {
+    if (!selectedAccountId && !isInDemoMode) {
       toast({
         title: t('resourceMonitoring.selectAccount', 'Select an account'),
         description: t('resourceMonitoring.selectAccountDescription', 'Please select an {{provider}} account to update metrics.', { provider: isAzure ? 'Azure' : 'AWS' }),
         variant: "destructive"
       });
+      return;
+    }
+    
+    // In demo mode, show a toast that this is demo data
+    if (isInDemoMode) {
+      toast({
+        title: t('common.demoMode', 'Demo Mode'),
+        description: t('resourceMonitoring.demoModeDesc', 'In demo mode, data is simulated. Connect a cloud account to see real resources.'),
+      });
+      // Refresh demo data
+      queryClient.invalidateQueries({ queryKey: ['monitored-resources'] });
       return;
     }
 

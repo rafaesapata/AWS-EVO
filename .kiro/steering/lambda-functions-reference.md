@@ -53,6 +53,7 @@ Ao criar uma nova Lambda ou endpoint:
 | `create-cognito-user` | `/api/functions/create-cognito-user` | Cria usuário no Cognito | `admin/create-cognito-user.ts` |
 | `disable-cognito-user` | `/api/functions/disable-cognito-user` | Desabilita usuário no Cognito | `admin/disable-cognito-user.ts` |
 | `manage-organizations` | `/api/functions/manage-organizations` | CRUD de organizações (super admin) | `admin/manage-organizations.ts` |
+| `deactivate-demo-mode` | `/api/functions/deactivate-demo-mode` | Permite usuário desativar modo demo da própria organização | `admin/deactivate-demo-mode.ts` |
 | `log-audit` | `/api/functions/log-audit` | Registra ações de auditoria | `admin/log-audit.ts` |
 | `run-sql` | N/A (interno) | Executa SQL direto (admin) | `admin/run-sql.ts` |
 | `cleanup-stuck-scans` | N/A (interno) | Limpa scans travados | `admin/cleanup-stuck-scans.ts` |

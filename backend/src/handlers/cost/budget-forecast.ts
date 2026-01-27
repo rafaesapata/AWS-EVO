@@ -12,7 +12,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
+import { isOrganizationInDemoMode, generateDemoBudgetForecast } from '../../lib/demo-data-service.js';
 import { CostExplorerClient, GetCostForecastCommand, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 
 interface BudgetForecastRequest {
@@ -45,7 +45,6 @@ export async function handler(
     // =========================================================================
     const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
     if (isDemoMode === true) {
-      const { generateDemoBudgetForecast } = await import('../../lib/demo-data-service.js');
       const demoData = generateDemoBudgetForecast();
       
       logger.info('Returning demo budget forecast data', { 

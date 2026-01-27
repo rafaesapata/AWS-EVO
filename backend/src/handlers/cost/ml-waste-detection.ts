@@ -17,7 +17,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
 import { businessMetrics } from '../../lib/metrics.js';
-import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
+import { isOrganizationInDemoMode, generateDemoMLWasteDetection } from '../../lib/demo-data-service.js';
 import { EC2Client, DescribeInstancesCommand, DescribeVolumesCommand, DescribeAddressesCommand, DescribeNatGatewaysCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda';
@@ -121,7 +121,6 @@ export async function handler(
     // =========================================================================
     const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
     if (isDemoMode === true) {
-      const { generateDemoMLWasteDetection } = await import('../../lib/demo-data-service.js');
       const demoData = generateDemoMLWasteDetection();
       
       logger.info('Returning demo ML waste detection data', { 

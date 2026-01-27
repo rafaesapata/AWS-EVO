@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ interface PerformanceMetric {
 }
 
 export default function DevTools() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { selectedAccountId } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();

@@ -1189,6 +1189,18 @@
       "whatsappDesc": "Talk to us now",
       "note": "Our team will respond within 24 business hours."
     },
+    "activate": {
+      "title": "Activate Your Real Account",
+      "description": "By activating your account, demo mode will be disabled and you can connect your real cloud accounts to see your data.",
+      "benefit1": "Connect your real AWS and Azure accounts",
+      "benefit2": "See your real cost and security data",
+      "benefit3": "Access all platform features",
+      "note": "After activation, you will be redirected to connect your cloud accounts.",
+      "confirm": "Activate My Account",
+      "activating": "Activating...",
+      "success": "Account activated successfully! Reloading...",
+      "error": "Error activating account. Please try again."
+    },
     "pages": {
       "dashboard": {
         "title": "Executive Dashboard",

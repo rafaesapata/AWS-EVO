@@ -3070,6 +3070,234 @@ export function generateDemoResourceMetrics() {
   return metrics;
 }
 
+/**
+ * Gera dados de Edge Services para tabela (formato banco de dados)
+ * Usado pelo query-table quando a organização está em modo demo
+ */
+export function generateDemoEdgeServicesTable() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+  const DEMO_ACCOUNT_ID = 'demo-aws-account';
+  
+  return [
+    {
+      id: 'demo-edge-cf-001',
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      service_type: 'cloudfront',
+      service_name: 'demo-main-distribution',
+      service_id: 'E1DEMO123456',
+      status: 'active',
+      region: 'global',
+      domain_name: 'd1demo123.cloudfront.net',
+      origin_domain: 'demo-origin.s3.amazonaws.com',
+      requests_per_minute: 2083,
+      cache_hit_rate: 85.0,
+      error_rate: 0.11,
+      blocked_requests: 0,
+      metadata: { aliases: ['demo.example.com'], priceClass: 'PriceClass_All', httpVersion: 'http2' },
+      last_updated: now.toISOString(),
+      created_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: 'demo-edge-cf-002',
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      service_type: 'cloudfront',
+      service_name: 'demo-api-distribution',
+      service_id: 'E2DEMO789012',
+      status: 'active',
+      region: 'global',
+      domain_name: 'd2demo456.cloudfront.net',
+      origin_domain: 'api.demo.example.com',
+      requests_per_minute: 1417,
+      cache_hit_rate: 50.0,
+      error_rate: 1.05,
+      blocked_requests: 0,
+      metadata: { aliases: ['api.demo.example.com'], priceClass: 'PriceClass_100', httpVersion: 'http2and3' },
+      last_updated: now.toISOString(),
+      created_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: 'demo-edge-cf-003',
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      service_type: 'cloudfront',
+      service_name: 'demo-static-assets',
+      service_id: 'E3DEMO345678',
+      status: 'active',
+      region: 'global',
+      domain_name: 'd3demo789.cloudfront.net',
+      origin_domain: 'demo-assets.s3.amazonaws.com',
+      requests_per_minute: 4167,
+      cache_hit_rate: 95.0,
+      error_rate: 0.01,
+      blocked_requests: 0,
+      metadata: { aliases: ['static.demo.example.com'], priceClass: 'PriceClass_200', httpVersion: 'http2' },
+      last_updated: now.toISOString(),
+      created_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: 'demo-edge-waf-001',
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      service_type: 'waf',
+      service_name: 'demo-waf-global',
+      service_id: 'demo-waf-global-001',
+      status: 'active',
+      region: 'global',
+      domain_name: null,
+      origin_domain: null,
+      requests_per_minute: 3500,
+      cache_hit_rate: 0,
+      error_rate: 0,
+      blocked_requests: 4200,
+      metadata: { scope: 'CLOUDFRONT', rulesCount: 12 },
+      last_updated: now.toISOString(),
+      created_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: 'demo-edge-waf-002',
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      service_type: 'waf',
+      service_name: 'demo-waf-regional',
+      service_id: 'demo-waf-regional-001',
+      status: 'active',
+      region: 'us-east-1',
+      domain_name: null,
+      origin_domain: null,
+      requests_per_minute: 1583,
+      cache_hit_rate: 0,
+      error_rate: 0,
+      blocked_requests: 1900,
+      metadata: { scope: 'REGIONAL', rulesCount: 8 },
+      last_updated: now.toISOString(),
+      created_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: 'demo-edge-alb-001',
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      service_type: 'load_balancer',
+      service_name: 'demo-web-alb',
+      service_id: 'arn:aws:elasticloadbalancing:us-east-1:demo:loadbalancer/app/demo-web-alb/abc123',
+      status: 'active',
+      region: 'us-east-1',
+      domain_name: 'demo-web-alb-123456.us-east-1.elb.amazonaws.com',
+      origin_domain: null,
+      requests_per_minute: 1250,
+      cache_hit_rate: 0,
+      error_rate: 0.6,
+      blocked_requests: 0,
+      metadata: { type: 'application', scheme: 'internet-facing', vpcId: 'vpc-demo-001' },
+      last_updated: now.toISOString(),
+      created_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: 'demo-edge-alb-002',
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      service_type: 'load_balancer',
+      service_name: 'demo-api-alb',
+      service_id: 'arn:aws:elasticloadbalancing:us-east-1:demo:loadbalancer/app/demo-api-alb/def456',
+      status: 'active',
+      region: 'us-east-1',
+      domain_name: 'demo-api-alb-789012.us-east-1.elb.amazonaws.com',
+      origin_domain: null,
+      requests_per_minute: 2100,
+      cache_hit_rate: 0,
+      error_rate: 0.3,
+      blocked_requests: 0,
+      metadata: { type: 'application', scheme: 'internet-facing', vpcId: 'vpc-demo-001' },
+      last_updated: now.toISOString(),
+      created_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: 'demo-edge-nlb-001',
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      service_type: 'load_balancer',
+      service_name: 'demo-tcp-nlb',
+      service_id: 'arn:aws:elasticloadbalancing:us-east-1:demo:loadbalancer/net/demo-tcp-nlb/ghi789',
+      status: 'active',
+      region: 'us-east-1',
+      domain_name: 'demo-tcp-nlb-345678.us-east-1.elb.amazonaws.com',
+      origin_domain: null,
+      requests_per_minute: 850,
+      cache_hit_rate: 0,
+      error_rate: 0.1,
+      blocked_requests: 0,
+      metadata: { type: 'network', scheme: 'internet-facing', vpcId: 'vpc-demo-001' },
+      last_updated: now.toISOString(),
+      created_at: now.toISOString(),
+      _isDemo: true
+    }
+  ];
+}
+
+/**
+ * Gera dados de Edge Metrics para tabela (formato banco de dados)
+ * Usado pelo query-table quando a organização está em modo demo
+ */
+export function generateDemoEdgeMetricsTable() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+  const DEMO_ACCOUNT_ID = 'demo-aws-account';
+  
+  const metrics: any[] = [];
+  let metricId = 1;
+  
+  // Serviços e suas métricas base
+  const services = [
+    { serviceId: 'demo-edge-cf-001', requests: 125000, cacheHits: 106250, cacheMisses: 18750, blocked: 0, responseTime: 45, bandwidth: 45.8, error4xx: 125, error5xx: 12 },
+    { serviceId: 'demo-edge-cf-002', requests: 85000, cacheHits: 42500, cacheMisses: 42500, blocked: 0, responseTime: 120, bandwidth: 12.3, error4xx: 850, error5xx: 42 },
+    { serviceId: 'demo-edge-cf-003', requests: 250000, cacheHits: 237500, cacheMisses: 12500, blocked: 0, responseTime: 25, bandwidth: 125.5, error4xx: 25, error5xx: 0 },
+    { serviceId: 'demo-edge-waf-001', requests: 210000, cacheHits: 0, cacheMisses: 0, blocked: 4200, responseTime: 0, bandwidth: 0, error4xx: 0, error5xx: 0 },
+    { serviceId: 'demo-edge-waf-002', requests: 95000, cacheHits: 0, cacheMisses: 0, blocked: 1900, responseTime: 0, bandwidth: 0, error4xx: 0, error5xx: 0 },
+    { serviceId: 'demo-edge-alb-001', requests: 75000, cacheHits: 0, cacheMisses: 0, blocked: 0, responseTime: 125, bandwidth: 8.5, error4xx: 375, error5xx: 75 },
+    { serviceId: 'demo-edge-alb-002', requests: 126000, cacheHits: 0, cacheMisses: 0, blocked: 0, responseTime: 95, bandwidth: 15.2, error4xx: 252, error5xx: 63 },
+    { serviceId: 'demo-edge-nlb-001', requests: 51000, cacheHits: 0, cacheMisses: 0, blocked: 0, responseTime: 5, bandwidth: 125.0, error4xx: 0, error5xx: 0 }
+  ];
+  
+  // Gerar 24 horas de métricas (1 por hora)
+  for (const service of services) {
+    for (let i = 23; i >= 0; i--) {
+      const timestamp = new Date(now.getTime() - i * 60 * 60 * 1000);
+      timestamp.setMinutes(0, 0, 0);
+      
+      const variation = 0.7 + Math.random() * 0.6; // ±30% variation
+      
+      metrics.push({
+        id: `demo-edge-metric-${metricId++}`,
+        organization_id: DEMO_ORG_ID,
+        aws_account_id: DEMO_ACCOUNT_ID,
+        service_id: service.serviceId,
+        timestamp: timestamp.toISOString(),
+        requests: Math.round(service.requests * variation / 24),
+        cache_hits: Math.round(service.cacheHits * variation / 24),
+        cache_misses: Math.round(service.cacheMisses * variation / 24),
+        blocked_requests: Math.round(service.blocked * variation / 24),
+        response_time: service.responseTime > 0 ? parseFloat((service.responseTime * (0.8 + Math.random() * 0.4)).toFixed(2)) : 0,
+        bandwidth_gb: service.bandwidth > 0 ? parseFloat((service.bandwidth * variation / 24).toFixed(3)) : 0,
+        error_4xx: Math.round(service.error4xx * variation / 24),
+        error_5xx: Math.round(service.error5xx * variation / 24),
+        created_at: timestamp.toISOString(),
+        _isDemo: true
+      });
+    }
+  }
+  
+  return metrics;
+}
+
 export default {
   isOrganizationInDemoMode,
   generateDemoSecurityFindings,

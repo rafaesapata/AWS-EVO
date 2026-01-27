@@ -5,7 +5,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
-import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
+import { isOrganizationInDemoMode, generateDemoWellArchitectedData } from '../../lib/demo-data-service.js';
 import { EC2Client, DescribeInstancesCommand, DescribeSecurityGroupsCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { S3Client, ListBucketsCommand, GetBucketEncryptionCommand } from '@aws-sdk/client-s3';
@@ -35,7 +35,6 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
   // =========================================================================
   const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
   if (isDemoMode === true) {
-    const { generateDemoWellArchitectedData } = await import('../../lib/demo-data-service.js');
     const demoData = generateDemoWellArchitectedData();
     
     logger.info('Returning demo well-architected data', { 

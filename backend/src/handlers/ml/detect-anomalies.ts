@@ -8,7 +8,7 @@ import { success, error, badRequest, notFound, corsOptions } from '../../lib/res
 import { getOrigin } from '../../lib/middleware.js';
 import { detectAnomaliesSchema } from '../../lib/schemas.js';
 import { resolveAwsCredentials } from '../../lib/aws-helpers.js';
-import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
+import { isOrganizationInDemoMode, generateDemoAnomalyDetection } from '../../lib/demo-data-service.js';
 
 interface Anomaly {
   id: string;
@@ -59,7 +59,6 @@ export async function handler(
     // =========================================================================
     const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
     if (isDemoMode === true) {
-      const { generateDemoAnomalyDetection } = await import('../../lib/demo-data-service.js');
       const demoData = generateDemoAnomalyDetection();
       
       logger.info('Returning demo anomaly detection data', { 

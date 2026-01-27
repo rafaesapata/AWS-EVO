@@ -25,7 +25,7 @@ import {
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
 
 interface ManageOrganizationRequest {
-  action: 'list' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users';
+  action: 'list' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'suspend' | 'unsuspend' | 'list_licenses';
   id?: string;
   name?: string;
   slug?: string;
@@ -33,6 +33,7 @@ interface ManageOrganizationRequest {
   domain?: string;
   billing_email?: string;
   status?: 'active' | 'inactive' | 'suspended';
+  reason?: string; // Motivo da suspensão
 }
 
 function getOriginFromEvent(event: AuthorizedEvent): string {
@@ -426,6 +427,200 @@ export async function handler(
         });
 
         return success(usersWithEmail, 200, origin);
+      }
+
+      case 'suspend': {
+        if (!body.id) {
+          return badRequest('Organization ID is required', undefined, origin);
+        }
+
+        const orgToSuspend = await prisma.organization.findUnique({
+          where: { id: body.id },
+          include: {
+            _count: {
+              select: { profiles: true }
+            }
+          }
+        });
+
+        if (!orgToSuspend) {
+          return badRequest('Organization not found', undefined, origin);
+        }
+
+        // Desativar todas as licenças da organização
+        await prisma.license.updateMany({
+          where: { organization_id: body.id },
+          data: { is_active: false }
+        });
+
+        // Registrar no audit log
+        await prisma.auditLog.create({
+          data: {
+            id: randomUUID(),
+            organization_id: body.id,
+            user_id: user.sub || user.id || 'system',
+            action: 'ORGANIZATION_SUSPENDED',
+            resource_type: 'organization',
+            resource_id: body.id,
+            details: {
+              reason: body.reason || 'Suspended by super admin',
+              suspended_by: user.email || user.sub,
+              user_count: orgToSuspend._count.profiles
+            },
+            ip_address: event.requestContext?.identity?.sourceIp || 'unknown',
+            user_agent: event.headers?.['user-agent'] || 'unknown'
+          }
+        });
+
+        logger.info('Organization suspended', {
+          organizationId: body.id,
+          organizationName: orgToSuspend.name,
+          reason: body.reason,
+          suspendedBy: user.sub || user.id,
+          affectedUsers: orgToSuspend._count.profiles
+        });
+
+        return success({
+          message: 'Organization suspended successfully',
+          organizationId: body.id,
+          organizationName: orgToSuspend.name,
+          licensesDeactivated: true,
+          affectedUsers: orgToSuspend._count.profiles
+        }, 200, origin);
+      }
+
+      case 'unsuspend': {
+        if (!body.id) {
+          return badRequest('Organization ID is required', undefined, origin);
+        }
+
+        const orgToUnsuspend = await prisma.organization.findUnique({
+          where: { id: body.id }
+        });
+
+        if (!orgToUnsuspend) {
+          return badRequest('Organization not found', undefined, origin);
+        }
+
+        // Reativar licenças que não estão expiradas
+        const now = new Date();
+        await prisma.license.updateMany({
+          where: { 
+            organization_id: body.id,
+            valid_until: { gte: now }
+          },
+          data: { is_active: true }
+        });
+
+        // Registrar no audit log
+        await prisma.auditLog.create({
+          data: {
+            id: randomUUID(),
+            organization_id: body.id,
+            user_id: user.sub || user.id || 'system',
+            action: 'ORGANIZATION_UNSUSPENDED',
+            resource_type: 'organization',
+            resource_id: body.id,
+            details: {
+              reason: body.reason || 'Unsuspended by super admin',
+              unsuspended_by: user.email || user.sub
+            },
+            ip_address: event.requestContext?.identity?.sourceIp || 'unknown',
+            user_agent: event.headers?.['user-agent'] || 'unknown'
+          }
+        });
+
+        logger.info('Organization unsuspended', {
+          organizationId: body.id,
+          organizationName: orgToUnsuspend.name,
+          unsuspendedBy: user.sub || user.id,
+        });
+
+        return success({
+          message: 'Organization unsuspended successfully',
+          organizationId: body.id,
+          organizationName: orgToUnsuspend.name,
+          licensesReactivated: true
+        }, 200, origin);
+      }
+
+      case 'list_licenses': {
+        if (!body.id) {
+          return badRequest('Organization ID is required', undefined, origin);
+        }
+
+        const orgForLicenses = await prisma.organization.findUnique({
+          where: { id: body.id }
+        });
+
+        if (!orgForLicenses) {
+          return badRequest('Organization not found', undefined, origin);
+        }
+
+        // Buscar todas as licenças da organização
+        const licenses = await prisma.license.findMany({
+          where: { organization_id: body.id },
+          orderBy: { created_at: 'desc' },
+          include: {
+            _count: {
+              select: { seat_assignments: true }
+            }
+          }
+        });
+
+        // Buscar configuração de licença da organização
+        const licenseConfig = await prisma.organizationLicenseConfig.findUnique({
+          where: { organization_id: body.id }
+        });
+
+        const result = licenses.map(license => ({
+          id: license.id,
+          license_key: license.license_key,
+          customer_id: license.customer_id,
+          plan_type: license.plan_type,
+          product_type: license.product_type,
+          max_accounts: license.max_accounts,
+          max_users: license.max_users,
+          used_seats: license.used_seats,
+          available_seats: license.available_seats,
+          assigned_seats: license._count.seat_assignments,
+          features: license.features,
+          valid_from: license.valid_from,
+          valid_until: license.valid_until,
+          is_active: license.is_active,
+          is_trial: license.is_trial,
+          is_expired: license.is_expired,
+          days_remaining: license.days_remaining,
+          last_sync_at: license.last_sync_at,
+          sync_error: license.sync_error,
+          created_at: license.created_at,
+          updated_at: license.updated_at
+        }));
+
+        logger.info('Listed licenses for organization', {
+          organizationId: body.id,
+          licenseCount: result.length,
+          requestedBy: user.sub || user.id,
+        });
+
+        return success({
+          licenses: result,
+          config: licenseConfig ? {
+            customer_id: licenseConfig.customer_id,
+            auto_sync: licenseConfig.auto_sync,
+            last_sync_at: licenseConfig.last_sync_at,
+            sync_status: licenseConfig.sync_status,
+            sync_error: licenseConfig.sync_error
+          } : null,
+          summary: {
+            total_licenses: result.length,
+            active_licenses: result.filter(l => l.is_active).length,
+            expired_licenses: result.filter(l => l.is_expired).length,
+            trial_licenses: result.filter(l => l.is_trial).length,
+            total_max_users: result.reduce((sum, l) => sum + l.max_users, 0),
+            total_used_seats: result.reduce((sum, l) => sum + l.used_seats, 0)
+          }
+        }, 200, origin);
       }
 
       default:

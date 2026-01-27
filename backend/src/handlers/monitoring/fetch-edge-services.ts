@@ -59,23 +59,24 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: FetchEdgeServicesRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, regions = DEFAULT_REGIONS, forceRefresh = false } = body;
-    
-    if (!accountId) {
-      return error('Missing required parameter: accountId');
-    }
-    
     const prisma = getPrismaClient();
     
     // ============================================
     // DEMO MODE CHECK - Return demo data if enabled
+    // Check BEFORE accountId validation for demo mode
     // ============================================
     const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
     if (isDemo === true) {
       logger.info('Returning demo edge services data', { organizationId, isDemo: true });
       const demoData = generateDemoEdgeServices();
       return success(demoData);
+    }
+    
+    const body: FetchEdgeServicesRequest = event.body ? JSON.parse(event.body) : {};
+    const { accountId, regions = DEFAULT_REGIONS, forceRefresh = false } = body;
+    
+    if (!accountId) {
+      return error('Missing required parameter: accountId');
     }
     
     // Buscar credenciais AWS

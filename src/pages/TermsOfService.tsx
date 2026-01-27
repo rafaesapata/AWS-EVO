@@ -1,10 +1,12 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import evoLogo from "@/assets/evo-logo.png";
 
 export default function TermsOfService() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (

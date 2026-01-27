@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { getVersionString } from "@/lib/version";
 import { z } from "@/lib/zod-config";
 
 export default function Auth() {
+  const { t } = useTranslation();
   // Lista completa de domínios de email gratuitos
   const FREE_EMAIL_DOMAINS = new Set([
     'gmail.com', 'googlemail.com',

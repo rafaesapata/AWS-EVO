@@ -71,6 +71,7 @@ Access-Control-Allow-Origin: *
 | `yudf3q` | `/api/functions/create-cognito-user` | `evo-uds-v3-production-create-cognito-user` |
 | `x0twka` | `/api/functions/disable-cognito-user` | `evo-uds-v3-production-disable-cognito-user` |
 | `2j586k` | `/api/functions/manage-organizations` | `evo-uds-v3-production-manage-organizations` |
+| `bcuyr9` | `/api/functions/deactivate-demo-mode` | `evo-uds-v3-production-deactivate-demo-mode` |
 | `26gu21` | `/api/functions/log-audit` | `evo-uds-v3-production-log-audit` |
 
 ### 🔒 Segurança
