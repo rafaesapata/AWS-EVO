@@ -761,19 +761,19 @@ export const ResourceMonitoringDashboard = () => {
               {selectedAccountId && isPeriodCached(selectedAccountId, metricsPeriod) && (
                 <Badge variant="outline" className="text-xs text-green-600 border-green-300">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Cache
+                  {t('resourceMonitoring.cache', 'Cache')}
                 </Badge>
               )}
             </div>
             <Select value={autoRefreshInterval} onValueChange={setAutoRefreshInterval}>
               <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Auto-refresh" />
+                <SelectValue placeholder={t('resourceMonitoring.autoRefresh', 'Auto-refresh')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="off">Desligado</SelectItem>
-                <SelectItem value="15s">A cada 15s</SelectItem>
-                <SelectItem value="30s">A cada 30s</SelectItem>
-                <SelectItem value="1m">A cada 1 min</SelectItem>
+                <SelectItem value="off">{t('resourceMonitoring.off', 'Off')}</SelectItem>
+                <SelectItem value="15s">{t('resourceMonitoring.every15s', 'Every 15s')}</SelectItem>
+                <SelectItem value="30s">{t('resourceMonitoring.every30s', 'Every 30s')}</SelectItem>
+                <SelectItem value="1m">{t('resourceMonitoring.every1m', 'Every 1 min')}</SelectItem>
               </SelectContent>
             </Select>
             <Button 
@@ -783,7 +783,7 @@ export const ResourceMonitoringDashboard = () => {
               size="sm"
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Atualizar
+              {t('resourceMonitoring.refresh', 'Refresh')}
             </Button>
           </div>
         </div>
@@ -805,7 +805,7 @@ export const ResourceMonitoringDashboard = () => {
           <Card>
             <CardContent className="py-8">
               <p className="text-center text-muted-foreground">
-                Nenhuma métrica disponível para este recurso. Clique em "Atualizar" para coletar dados.
+                {t('resourceMonitoring.noMetricsAvailable', 'No metrics available for this resource. Click "Refresh" to collect data.')}
               </p>
             </CardContent>
           </Card>
