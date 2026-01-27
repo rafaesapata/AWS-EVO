@@ -15,6 +15,7 @@ import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuthSafe } from "@/hooks/useAuthSafe";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { ScheduleTab } from "@/components/security/ScheduleTab";
 import { 
  Scan, 
@@ -84,6 +85,7 @@ export default function SecurityScans() {
  const { getAccountFilter } = useAccountFilter();
  const { data: organizationId } = useOrganization();
  const { user } = useAuthSafe();
+ const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
  const [selectedScanType, setSelectedScanType] = useState<string>('all');
  const [currentPage, setCurrentPage] = useState<number>(1);
  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
@@ -100,19 +102,71 @@ export default function SecurityScans() {
  const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
  const [creatingBatchTickets, setCreatingBatchTickets] = useState(false);
 
- // Get security scans
+ // Get security scans - supports demo mode
  const { data: scanData, isLoading, refetch } = useQuery<{ scans: SecurityScan[], total: number }>({
- queryKey: ['security-scans', organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage],
- enabled: !!organizationId, // Only require organizationId, accountId is optional
+ queryKey: ['security-scans', organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage, isInDemoMode],
+ enabled: shouldEnableAccountQuery(),
  staleTime: 10 * 1000, // 10 seconds - faster updates for running scans
  refetchInterval: (query) => {
- // Auto-refresh every 5 seconds if there are running scans
+ // Auto-refresh every 5 seconds if there are running scans (not in demo mode)
+ if (isInDemoMode) return false;
  const data = query.state.data as { scans: SecurityScan[], total: number } | undefined;
  const hasRunningScans = data?.scans?.some((scan: SecurityScan) => scan.status === 'running');
  return hasRunningScans ? 5000 : false;
  },
  queryFn: async (): Promise<{ scans: SecurityScan[], total: number }> => {
- console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage });
+ console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage, isInDemoMode });
+ 
+ // DEMO MODE: Return demo scans data
+ if (isInDemoMode) {
+ console.log('SecurityScans: Using demo data');
+ const now = new Date();
+ const demoScans: SecurityScan[] = [
+   {
+     id: 'demo-scan-001',
+     scan_type: 'deep',
+     status: 'completed',
+     started_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+     completed_at: new Date(now.getTime() - 1.5 * 60 * 60 * 1000).toISOString(),
+     findings_count: 30,
+     critical_count: 2,
+     high_count: 5,
+     medium_count: 8,
+     low_count: 15,
+     scan_config: { level: 'deep', frameworks: ['CIS', 'LGPD', 'PCI-DSS'] },
+     created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+   },
+   {
+     id: 'demo-scan-002',
+     scan_type: 'standard',
+     status: 'completed',
+     started_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+     completed_at: new Date(now.getTime() - 23.5 * 60 * 60 * 1000).toISOString(),
+     findings_count: 25,
+     critical_count: 1,
+     high_count: 4,
+     medium_count: 10,
+     low_count: 10,
+     scan_config: { level: 'standard', frameworks: ['CIS'] },
+     created_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+   },
+   {
+     id: 'demo-scan-003',
+     scan_type: 'quick',
+     status: 'completed',
+     started_at: new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString(),
+     completed_at: new Date(now.getTime() - 47.9 * 60 * 60 * 1000).toISOString(),
+     findings_count: 18,
+     critical_count: 2,
+     high_count: 3,
+     medium_count: 6,
+     low_count: 7,
+     scan_config: { level: 'quick' },
+     created_at: new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString(),
+   }
+ ];
+ return { scans: demoScans, total: demoScans.length };
+ }
  
  let filters: any = { 
  organization_id: organizationId,
@@ -173,33 +227,35 @@ export default function SecurityScans() {
  setCurrentPage(Math.max(1, Math.min(page, totalPages)));
  };
 
- // Get scan findings for the latest completed scan
+ // Get scan findings - uses Lambda with demo mode support
  const { data: findings, isLoading: findingsLoading } = useQuery<ScanFinding[]>({
- queryKey: ['scan-findings', organizationId, selectedAccountId],
- enabled: !!organizationId && scans && scans.length > 0,
+ queryKey: ['scan-findings', organizationId, selectedAccountId, isInDemoMode],
+ // In demo mode, always enable the query (backend returns demo findings)
+ // In normal mode, only enable if there are scans
+ enabled: shouldEnableAccountQuery() && (isInDemoMode || (scans && scans.length > 0)),
  staleTime: 2 * 60 * 1000,
  queryFn: async (): Promise<ScanFinding[]> => {
- const latestCompletedScan = scans?.find((scan: SecurityScan) => scan.status === 'completed');
- if (!latestCompletedScan) return [];
-
- const filters: any = { 
- organization_id: organizationId
- };
-
- // Buscar todos os findings sem limite para exportação completa
- const response = await apiClient.select('findings', {
- select: '*',
- eq: filters,
- order: { column: 'created_at', ascending: false }
- });
-
- if (response.error) {
- console.error('Error fetching findings:', response.error);
- return [];
+ console.log('SecurityScans: Fetching findings', { organizationId, selectedAccountId, isInDemoMode });
+ 
+ // Use get-findings Lambda which supports demo mode
+ const response = await apiClient.invoke<{
+   _isDemo?: boolean;
+   findings: ScanFinding[];
+   pagination: { total: number };
+   summary: { total: number; critical: number; high: number; medium: number; low: number };
+ }>('get-findings', {});
+ 
+ if ('error' in response && response.error) {
+   console.error('Error fetching findings:', response.error);
+   return [];
  }
-
- // Ensure we always return an array
- return Array.isArray(response.data) ? response.data as ScanFinding[] : [];
+ 
+ const data = response.data;
+ if (data?._isDemo) {
+   console.log('SecurityScans findings: Using demo data from backend', { findingsCount: data.findings?.length });
+ }
+ 
+ return data?.findings || [];
  },
  });
 

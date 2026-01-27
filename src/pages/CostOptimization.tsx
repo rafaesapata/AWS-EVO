@@ -14,6 +14,7 @@ import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
   Zap, 
   TrendingDown, 
@@ -470,14 +471,15 @@ export default function CostOptimization() {
   const queryClient = useQueryClient();
   const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
+  const { shouldEnableAccountQuery } = useDemoAwareQuery();
   const [selectedRecommendation, setSelectedRecommendation] = useState<OptimizationRecommendation | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedConfidence, setSelectedConfidence] = useState<string>('all');
 
-  // Get optimization recommendations
+  // Get optimization recommendations - enabled in demo mode
   const { data: recommendations, isLoading, refetch } = useQuery({
     queryKey: ['cost-optimization', organizationId, selectedAccountId, selectedType, selectedConfidence],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: shouldEnableAccountQuery(),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       let filters: any = { 
@@ -535,10 +537,10 @@ export default function CostOptimization() {
     },
   });
 
-  // Get cost metrics
+  // Get cost metrics - enabled in demo mode
   const { data: metrics, isLoading: metricsLoading, refetch: refetchMetrics } = useQuery({
     queryKey: ['cost-metrics', organizationId, selectedAccountId],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: shouldEnableAccountQuery(),
     staleTime: 30 * 1000, // 30 seconds - refresh more often
     queryFn: async () => {
       // Fetch recommendations directly for metrics calculation

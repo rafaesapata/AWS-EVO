@@ -12,6 +12,7 @@ import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { Layout } from "@/components/Layout";
 import { useTranslation } from "react-i18next";
 import { 
@@ -161,6 +162,7 @@ export default function Compliance() {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { data: organizationId } = useOrganization();
+  const { isInDemoMode } = useDemoAwareQuery();
   
   const [runningJobs, setRunningJobs] = useState<Map<string, ScanJob>>(new Map());
   const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>([]);
@@ -177,11 +179,21 @@ export default function Compliance() {
 
   // Get compliance checks from database
   const { data: complianceChecks = [], isLoading, refetch } = useQuery({
-    queryKey: ['compliance-checks', organizationId, selectedAccountId],
+    queryKey: ['compliance-checks', organizationId, selectedAccountId, 'demo', isInDemoMode],
     staleTime: 0,
     gcTime: 0,
     queryFn: async () => {
       if (!organizationId) throw new Error('Organization not found');
+
+      // In demo mode, call the backend endpoint which will return demo data
+      if (isInDemoMode) {
+        const result = await apiClient.invoke('compliance-scan', {
+          body: { frameworkId: 'all', accountId: 'demo' }
+        });
+        if (result.error) throw new Error(getErrorMessage(result.error));
+        const data = result.data as { checks?: any[] };
+        return data.checks || [];
+      }
 
       let filters: any = {
         'security_scans.organization_id': organizationId
@@ -208,9 +220,21 @@ export default function Compliance() {
 
   // Get compliance history for trends
   const { data: complianceHistory, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['compliance-history', organizationId, selectedAccountId, historyDays],
+    queryKey: ['compliance-history', organizationId, selectedAccountId, historyDays, 'demo', isInDemoMode],
     queryFn: async () => {
       if (!organizationId) throw new Error('Organization not found');
+      
+      // In demo mode, return empty history (demo data doesn't have history)
+      if (isInDemoMode) {
+        return {
+          posture_history: [],
+          framework_stats: {},
+          total_scans: 0,
+          overall_trend: 'stable',
+          summary: { current_score: 75, score_change: 0 },
+          recent_critical_findings: [],
+        };
+      }
       
       const result = await apiClient.invoke('get-compliance-history', {
         body: {
@@ -354,6 +378,18 @@ export default function Compliance() {
   // Start async compliance scan mutation
   const startComplianceScan = useMutation({
     mutationFn: async (frameworkId: string) => {
+      // In demo mode, show a toast that this is demo data
+      if (isInDemoMode) {
+        return {
+          job_id: 'demo-job',
+          framework: frameworkId,
+          status: 'completed',
+          message: t('compliance.demoModeDesc', 'In demo mode, scans show sample data. Connect a cloud account to run real scans.'),
+          already_running: false,
+          is_demo: true,
+        };
+      }
+
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error("User not authenticated");
       if (!organizationId) throw new Error("Organization not found");
@@ -382,6 +418,15 @@ export default function Compliance() {
       };
     },
     onSuccess: (data) => {
+      // In demo mode, just show a toast
+      if ((data as any).is_demo) {
+        toast({
+          title: t('compliance.demoMode', 'Demo Mode'),
+          description: data.message,
+        });
+        return;
+      }
+
       if (data.already_running) {
         toast({
           title: t('compliance.scanInProgress', 'Scan Already Running'),

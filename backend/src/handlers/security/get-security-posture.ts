@@ -4,6 +4,9 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
  * AWS Lambda Handler for get-security-posture
  * 
  * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
+ * 
+ * SEGURANÇA: Dados demo são gerados APENAS no backend, nunca no frontend.
+ * O frontend recebe dados completos (incluindo findings) e apenas renderiza.
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -11,7 +14,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
-import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
+import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -48,11 +51,16 @@ export async function handler(
     
     if (isDemo === true) {
       // Return demo data for organizations in demo mode
-      logger.info('Returning demo security posture', {
+      // IMPORTANTE: Todos os dados demo são gerados NO BACKEND
+      // O frontend apenas renderiza, nunca gera dados demo
+      logger.info('Returning demo security posture with findings', {
         organizationId,
         isDemo: true,
         requestId: context.awsRequestId
       });
+      
+      // Gerar findings demo do backend
+      const demoFindings = generateDemoSecurityFindings();
       
       return success({
         _isDemo: true,
@@ -70,6 +78,15 @@ export async function handler(
           calculatedAt: new Date().toISOString(),
           accountId: accountId || 'all',
         },
+        // Incluir findings completos para o frontend renderizar
+        demoFindings: demoFindings,
+        // Compliance scores demo
+        complianceScores: {
+          'CIS AWS': 78,
+          'LGPD': 85,
+          'PCI-DSS': 72,
+          'SOC 2': 88
+        }
       });
     }
     

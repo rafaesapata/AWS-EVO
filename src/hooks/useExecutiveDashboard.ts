@@ -7,6 +7,7 @@ import { apiClient } from '@/integrations/aws/api-client';
 import { useOrganization } from './useOrganization';
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { useTVDashboard } from '@/contexts/TVDashboardContext';
+import { useDemoModeOptional } from '@/contexts/DemoModeContext';
 import type { ExecutiveDashboardData } from '@/components/dashboard/ExecutiveDashboard/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -23,10 +24,14 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
   const { data: organizationId } = useOrganization();
   const { selectedAccountId, isLoading: accountLoading } = useCloudAccount();
   const { isTVMode, organizationId: tvOrgId } = useTVDashboard();
+  const { isDemoMode, isLoading: demoLoading, isVerified: demoVerified } = useDemoModeOptional();
   const queryClient = useQueryClient();
 
   // Use TV org ID in TV mode, otherwise use authenticated org ID
   const effectiveOrgId = isTVMode ? tvOrgId : organizationId;
+  
+  // In demo mode, we don't need a selected account - backend returns demo data
+  const isInDemoMode = isDemoMode && demoVerified && !demoLoading;
 
   const {
     includeForecasts = true,
@@ -42,9 +47,14 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
       effectiveOrgId,
       selectedAccountId,
       trendPeriod,
-      isTVMode
+      isTVMode,
+      isInDemoMode
     ],
-    enabled: !!effectiveOrgId && (isTVMode || (!accountLoading && !!selectedAccountId)),
+    // Enable query if:
+    // 1. TV mode with org ID, OR
+    // 2. Demo mode with org ID (no account needed), OR
+    // 3. Normal mode with org ID and selected account
+    enabled: !!effectiveOrgId && (isTVMode || isInDemoMode || (!accountLoading && !!selectedAccountId)),
     queryFn: async () => {
       // In TV mode, use direct fetch without authentication
       if (isTVMode) {
@@ -103,6 +113,7 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
   return {
     ...query,
     refresh,
-    isReady: !!effectiveOrgId && (isTVMode || !accountLoading)
+    isReady: !!effectiveOrgId && (isTVMode || isInDemoMode || !accountLoading),
+    isInDemoMode
   };
 }

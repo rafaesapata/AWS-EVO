@@ -41,9 +41,10 @@ export async function handler(
     
     // =========================================================================
     // DEMO MODE CHECK - Retorna dados de demonstração se ativado
+    // FAIL-SAFE: isOrganizationInDemoMode retorna false em caso de erro
     // =========================================================================
     const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
-    if (isDemoMode) {
+    if (isDemoMode === true) {
       const { generateDemoBudgetForecast } = await import('../../lib/demo-data-service.js');
       const demoData = generateDemoBudgetForecast();
       

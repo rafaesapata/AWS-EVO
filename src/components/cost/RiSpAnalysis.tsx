@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
   RefreshCw, 
   AlertTriangle, 
@@ -97,6 +98,7 @@ export const RiSpAnalysis = () => {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider, selectedAccount } = useCloudAccount();
   const { data: organizationId } = useOrganization();
+  const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [activeTab, setActiveTab] = useState<'overview' | 'ri' | 'sp' | 'recommendations' | 'history'>('overview');
 
   // Get regions from selected account (default to us-east-1 if not set)
@@ -108,16 +110,32 @@ export const RiSpAnalysis = () => {
   // Fetch RI/SP analysis data from DATABASE - supports both AWS and Azure
   // Data is automatically saved to database by ri-sp-analyzer Lambda
   const { data: analysisData, isLoading, isFetching } = useQuery<RiSpAnalysisData>({
-    queryKey: ['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions],
-    enabled: !!organizationId && !!selectedAccountId,
+    queryKey: ['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions, 'demo', isInDemoMode],
+    enabled: shouldEnableAccountQuery(),
     staleTime: 30 * 60 * 1000, // 30 minutes - data stays fresh
     gcTime: 60 * 60 * 1000, // 1 hour - keep in cache
     queryFn: async () => {
       console.log('🔄 Fetching RI/SP analysis from database...', {
         organizationId,
         selectedAccountId,
-        selectedProvider
+        selectedProvider,
+        isInDemoMode
       });
+      
+      // In demo mode, call the Lambda which returns demo data
+      if (isInDemoMode) {
+        const response = await apiClient.invoke<RiSpAnalysisData>('ri-sp-analyzer', {
+          body: { accountId: 'demo', analysisType: 'all' }
+        });
+        
+        if (response.error) {
+          console.error('❌ Error fetching demo RI/SP analysis:', response.error);
+          throw new Error(response.error.message);
+        }
+        
+        console.log('✅ Demo RI/SP analysis loaded');
+        return response.data;
+      }
       
       // Get saved data from database
       const response = await apiClient.invoke<RiSpAnalysisData>('get-ri-sp-analysis', {
@@ -141,8 +159,18 @@ export const RiSpAnalysis = () => {
   });
 
   // Refresh mutation - runs NEW analysis and saves to database
+  // In demo mode, just show a toast
   const refreshMutation = useMutation<RiSpAnalysisData>({
     mutationFn: async () => {
+      if (isInDemoMode) {
+        // In demo mode, just return the current data
+        toast({
+          title: "Modo Demo",
+          description: "No modo demo, os dados são exemplos. Conecte uma conta cloud para análises reais.",
+        });
+        return analysisData || {} as RiSpAnalysisData;
+      }
+      
       console.log('🔄 Running NEW RI/SP analysis...');
       
       const lambdaName = isAzure ? 'azure-reservations-analyzer' : 'ri-sp-analyzer';
@@ -163,8 +191,10 @@ export const RiSpAnalysis = () => {
       return result.data;
     },
     onSuccess: (data) => {
+      if (isInDemoMode) return; // Don't update cache in demo mode
+      
       // Update the query cache directly with the new data
-      queryClient.setQueryData(['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions], data);
+      queryClient.setQueryData(['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions, 'demo', isInDemoMode], data);
       // Invalidate history to refresh it
       queryClient.invalidateQueries({ queryKey: ['ri-sp-history', organizationId, selectedAccountId] });
       toast({
@@ -181,12 +211,14 @@ export const RiSpAnalysis = () => {
     },
   });
 
-  // Fetch analysis history
+  // Fetch analysis history - not available in demo mode
   const { data: historyData, isLoading: historyLoading } = useQuery({
-    queryKey: ['ri-sp-history', organizationId, selectedAccountId],
-    enabled: !!organizationId && !!selectedAccountId && activeTab === 'history',
+    queryKey: ['ri-sp-history', organizationId, selectedAccountId, 'demo', isInDemoMode],
+    enabled: shouldEnableAccountQuery() && activeTab === 'history' && !isInDemoMode,
     staleTime: 5 * 60 * 1000, // 5 minutes
     queryFn: async () => {
+      if (isInDemoMode) return []; // No history in demo mode
+      
       const response = await apiClient.invoke('list-ri-sp-history', {
         body: { accountId: selectedAccountId, limit: 30 }
       });

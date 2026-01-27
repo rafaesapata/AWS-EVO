@@ -83,6 +83,9 @@ export async function handler(event: ScheduledEvent): Promise<SyncReport> {
     // Check for expiring licenses and send alerts
     await checkExpiringLicenses();
 
+    // Clean up orphan seat assignments
+    await cleanupOrphanSeatAssignments();
+
     return report;
 
   } catch (err) {
@@ -176,5 +179,107 @@ async function checkExpiringLicenses(): Promise<void> {
 
       logger.info(`Created expiration alert for org ${license.organization_id}, ${daysRemaining} days remaining`);
     }
+  }
+}
+
+
+/**
+ * Clean up orphan seat assignments
+ * Removes seat assignments where:
+ * 1. User doesn't have a profile in the license's organization
+ * 2. Updates license seat counts to reflect actual assignments
+ */
+async function cleanupOrphanSeatAssignments(): Promise<void> {
+  const prisma = getPrismaClient();
+
+  logger.info('Starting orphan seat assignment cleanup');
+
+  // Get all licenses with their seat assignments
+  const licenses = await prisma.license.findMany({
+    where: { is_active: true },
+    include: {
+      seat_assignments: true,
+    },
+  });
+
+  let totalOrphansRemoved = 0;
+  let licensesUpdated = 0;
+
+  for (const license of licenses) {
+    // Get all profiles for this organization
+    const orgProfiles = await prisma.profile.findMany({
+      where: { organization_id: license.organization_id },
+      select: { user_id: true },
+    });
+
+    const validUserIds = new Set(orgProfiles.map(p => p.user_id));
+
+    // Find orphan seat assignments (user not in organization)
+    const orphanSeats = license.seat_assignments.filter(
+      (seat: any) => !validUserIds.has(seat.user_id)
+    );
+
+    if (orphanSeats.length > 0) {
+      logger.warn(`Found ${orphanSeats.length} orphan seats for license ${license.id}`, {
+        licenseKey: license.license_key,
+        organizationId: license.organization_id,
+        orphanUserIds: orphanSeats.map((s: any) => s.user_id),
+      });
+
+      // Delete orphan seat assignments
+      await prisma.licenseSeatAssignment.deleteMany({
+        where: {
+          id: { in: orphanSeats.map((s: any) => s.id) },
+        },
+      });
+
+      totalOrphansRemoved += orphanSeats.length;
+    }
+
+    // Recalculate and update seat counts
+    const actualSeatCount = license.seat_assignments.length - orphanSeats.length;
+    const expectedUsedSeats = actualSeatCount;
+    const expectedAvailableSeats = license.max_users - actualSeatCount;
+
+    if (license.used_seats !== expectedUsedSeats || license.available_seats !== expectedAvailableSeats) {
+      await prisma.license.update({
+        where: { id: license.id },
+        data: {
+          used_seats: expectedUsedSeats,
+          available_seats: expectedAvailableSeats,
+        },
+      });
+
+      licensesUpdated++;
+      logger.info(`Updated seat counts for license ${license.id}`, {
+        licenseKey: license.license_key,
+        oldUsedSeats: license.used_seats,
+        newUsedSeats: expectedUsedSeats,
+        oldAvailableSeats: license.available_seats,
+        newAvailableSeats: expectedAvailableSeats,
+      });
+    }
+  }
+
+  logger.info('Orphan seat assignment cleanup completed', {
+    totalOrphansRemoved,
+    licensesUpdated,
+    totalLicensesChecked: licenses.length,
+  });
+
+  // Create system event for audit
+  if (totalOrphansRemoved > 0 || licensesUpdated > 0) {
+    await prisma.systemEvent.create({
+      data: {
+        event_type: 'ORPHAN_SEATS_CLEANUP',
+        payload: {
+          orphans_removed: totalOrphansRemoved,
+          licenses_updated: licensesUpdated,
+          timestamp: new Date().toISOString(),
+        } as any,
+        processed: true,
+        processed_at: new Date(),
+      },
+    });
   }
 }

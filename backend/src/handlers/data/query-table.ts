@@ -11,6 +11,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
+import { isOrganizationInDemoMode, generateDemoMonitoredResources, generateDemoResourceMetrics } from '../../lib/demo-data-service.js';
 
 // Mapeamento de nomes de tabela do frontend para modelos Prisma
 // Baseado nas tabelas reais do schema.prisma
@@ -114,6 +115,11 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   'findings': { },
   'scan_findings': { },
   'cloudtrail_events': { },
+  
+  // Tabelas que TÊM aws_account_id mas frontend pode enviar null - tratar como "todos"
+  // Quando aws_account_id é null, não filtrar por conta (mostrar todas)
+  'cloudtrail_analyses': { },
+  'cost_optimizations': { },
   
   // Alerts - is_resolved não existe, usar resolved_at IS NULL/NOT NULL
   'alerts': { 'aws_account_id': null, 'is_resolved': null },
@@ -248,6 +254,27 @@ export async function handler(
     
     const prisma = getPrismaClient();
     
+    // ============================================
+    // DEMO MODE CHECK - Return demo data for monitoring tables
+    // ============================================
+    const DEMO_SUPPORTED_TABLES = new Set(['monitored_resources', 'resource_metrics']);
+    if (DEMO_SUPPORTED_TABLES.has(body.table)) {
+      const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+      if (isDemo === true) {
+        logger.info('Returning demo data for table', { table: body.table, organizationId, isDemo: true });
+        
+        if (body.table === 'monitored_resources') {
+          const demoData = generateDemoMonitoredResources();
+          return success(demoData, 200, origin);
+        }
+        
+        if (body.table === 'resource_metrics') {
+          const demoData = generateDemoResourceMetrics();
+          return success(demoData, 200, origin);
+        }
+      }
+    }
+    
     // Build where clause
     const where: Record<string, any> = {};
     
@@ -264,6 +291,8 @@ export async function handler(
         const mappedKey = fieldMap[key];
         // If mapped to null, skip this field (doesn't exist in model)
         if (mappedKey === null) continue;
+        // If value is null or undefined, skip this filter (don't filter by this field)
+        if (value === null || value === undefined) continue;
         // If mapped to a string, use that; otherwise use original key
         where[mappedKey || key] = value;
       }

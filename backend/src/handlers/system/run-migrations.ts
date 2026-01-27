@@ -668,6 +668,38 @@ const MIGRATION_COMMANDS = [
   `CREATE INDEX IF NOT EXISTS "waf_ai_analyses_organization_id_idx" ON "waf_ai_analyses"("organization_id")`,
   `CREATE INDEX IF NOT EXISTS "waf_ai_analyses_org_created_idx" ON "waf_ai_analyses"("organization_id", "created_at" DESC)`,
   
+  // ==================== DEMO MODE SUPPORT (2026-01-22) ====================
+  
+  // Add demo mode fields to organizations table
+  `ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "demo_mode" BOOLEAN DEFAULT FALSE`,
+  `ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "demo_activated_at" TIMESTAMPTZ`,
+  `ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "demo_expires_at" TIMESTAMPTZ`,
+  `ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "demo_activated_by" UUID`,
+  `CREATE INDEX IF NOT EXISTS "idx_organizations_demo_mode" ON "organizations"("demo_mode") WHERE demo_mode = TRUE`,
+  
+  // Demo Mode Audit table
+  `CREATE TABLE IF NOT EXISTS "demo_mode_audit" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "organization_id" UUID NOT NULL,
+    "action" VARCHAR(50) NOT NULL,
+    "performed_by" UUID,
+    "previous_state" JSONB,
+    "new_state" JSONB,
+    "reason" TEXT,
+    "ip_address" VARCHAR(45),
+    "user_agent" TEXT,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT "demo_mode_audit_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "idx_demo_mode_audit_org" ON "demo_mode_audit"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "idx_demo_mode_audit_created" ON "demo_mode_audit"("created_at")`,
+  `DO $ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'demo_mode_audit_organization_id_fkey') THEN
+      ALTER TABLE "demo_mode_audit" ADD CONSTRAINT "demo_mode_audit_organization_id_fkey" 
+        FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $`,
+  
   // ==================== SCAN SCHEDULES TABLE (2026-01-19) ====================
   
   // Scan Schedules table for automated security scan scheduling
@@ -700,6 +732,43 @@ const MIGRATION_COMMANDS = [
         FOREIGN KEY ("aws_account_id") REFERENCES "aws_credentials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
     END IF;
   END $`,
+  
+  // ==================== FIX EXPIRED TRIAL LICENSES (2026-01-25) ====================
+  // Generic fix for trial licenses that expired too early (should be 14 days, not 1 day)
+  // This was caused by external API returning incorrect valid_until dates
+  // Only affects organizations where the license expired within 7 days of creation
+  `UPDATE "licenses" 
+   SET 
+     is_active = true,
+     is_expired = false,
+     valid_from = NOW(),
+     valid_until = NOW() + INTERVAL '14 days',
+     days_remaining = 14,
+     max_users = GREATEST(max_users, 3),
+     available_seats = GREATEST(max_users, 3) - used_seats,
+     updated_at = NOW()
+   WHERE is_trial = true 
+     AND is_expired = true 
+     AND created_at > NOW() - INTERVAL '7 days'
+     AND valid_until < NOW()`,
+  
+  // ==================== ACTIVATE DEMO MODE FOR ARTHURTESTE (2026-01-25) ====================
+  // Activate demo mode for organization ArthurTeste to allow navigation without cloud accounts
+  // FIXED: Changed from 7 days to 30 days as per demo mode default configuration
+  `UPDATE "organizations" 
+   SET 
+     demo_mode = true,
+     demo_activated_at = NOW(),
+     demo_expires_at = NOW() + INTERVAL '30 days'
+   WHERE id = '101d2418-cbcf-43e4-bf74-390f71f2e2bd'`,
+
+  // ==================== FIX DEMO EXPIRATION FOR ARTHURTESTE (2026-01-25) ====================
+  // Fix: Update demo_expires_at to 30 days from now (was incorrectly set to 7 days)
+  `UPDATE "organizations" 
+   SET 
+     demo_expires_at = NOW() + INTERVAL '30 days'
+   WHERE id = '101d2418-cbcf-43e4-bf74-390f71f2e2bd' 
+     AND demo_mode = true`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

@@ -124,6 +124,37 @@ export async function syncOrganizationLicenses(organizationId: string): Promise<
 
     for (const extLicense of externalData.licenses) {
       try {
+        // IMPORTANT: Ensure minimum 14 days validity for trial licenses
+        // The external API sometimes returns incorrect/short validity periods
+        let validUntil = new Date(extLicense.valid_until);
+        let daysRemaining = extLicense.days_remaining;
+        let isExpired = extLicense.is_expired;
+        let isActive = extLicense.status === 'active' && !extLicense.is_expired;
+        
+        if (extLicense.is_trial) {
+          const minValidUntil = new Date();
+          minValidUntil.setDate(minValidUntil.getDate() + 14);
+          
+          // If API says trial is expired but was created recently, extend it
+          if (isExpired || validUntil < new Date()) {
+            // Check if license was created within last 7 days
+            const createdAt = new Date(extLicense.valid_from);
+            const daysSinceCreation = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (daysSinceCreation < 7) {
+              logger.warn('External API returned short validity for recent trial, extending to 14 days', {
+                licenseKey: extLicense.license_key,
+                apiValidUntil: extLicense.valid_until,
+                daysSinceCreation
+              });
+              validUntil = minValidUntil;
+              daysRemaining = 14;
+              isExpired = false;
+              isActive = true;
+            }
+          }
+        }
+        
         // IMPORTANT: Update organization_id in the update clause to handle
         // cases where the same license_key exists but belongs to a different org
         await prisma.license.upsert({
@@ -140,11 +171,11 @@ export async function syncOrganizationLicenses(organizationId: string): Promise<
             available_seats: extLicense.available_seats,
             features: getProductFeatures(extLicense.product_type),
             valid_from: new Date(extLicense.valid_from),
-            valid_until: new Date(extLicense.valid_until),
-            is_active: extLicense.status === 'active' && !extLicense.is_expired,
+            valid_until: validUntil,
+            is_active: isActive,
             is_trial: extLicense.is_trial,
-            is_expired: extLicense.is_expired,
-            days_remaining: extLicense.days_remaining,
+            is_expired: isExpired,
+            days_remaining: daysRemaining,
             last_sync_at: new Date(),
           },
           update: {
@@ -157,11 +188,11 @@ export async function syncOrganizationLicenses(organizationId: string): Promise<
             available_seats: extLicense.available_seats,
             features: getProductFeatures(extLicense.product_type),
             valid_from: new Date(extLicense.valid_from),
-            valid_until: new Date(extLicense.valid_until),
-            is_active: extLicense.status === 'active' && !extLicense.is_expired,
+            valid_until: validUntil,
+            is_active: isActive,
             is_trial: extLicense.is_trial,
-            is_expired: extLicense.is_expired,
-            days_remaining: extLicense.days_remaining,
+            is_expired: isExpired,
+            days_remaining: daysRemaining,
             last_sync_at: new Date(),
             sync_error: null,
           },
@@ -269,6 +300,23 @@ export async function assignSeat(
   if (!license) return { success: false, error: 'License not found' };
   if (!license.is_active) return { success: false, error: 'License is not active' };
   if (license.is_expired) return { success: false, error: 'License has expired' };
+
+  // CRITICAL: Verify user belongs to the same organization as the license
+  const userProfile = await prisma.profile.findFirst({
+    where: {
+      user_id: userId,
+      organization_id: license.organization_id
+    }
+  });
+
+  if (!userProfile) {
+    logger.warn('Attempted to assign seat to user not in organization', {
+      userId,
+      licenseId,
+      licenseOrgId: license.organization_id
+    });
+    return { success: false, error: 'User does not belong to the license organization' };
+  }
 
   const currentAssignments = license.seat_assignments.length;
   if (currentAssignments >= license.max_users) {

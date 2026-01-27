@@ -8,6 +8,7 @@ import { Brain, TrendingDown, Zap, BarChart3, Clock, AlertCircle, Trash2, Copy, 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Layout } from "@/components/Layout";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -111,6 +112,7 @@ export default function MLWasteDetection() {
  const { data: organizationId } = useOrganization();
  const { selectedAccountId } = useCloudAccount();
  const { getAccountFilter } = useAccountFilter();
+ const { isInDemoMode } = useDemoAwareQuery();
  
  // Filters and sorting state
  const [sortField, setSortField] = useState<SortField>('savings');
@@ -267,11 +269,23 @@ export default function MLWasteDetection() {
 
  // Query for ML recommendations
  const { data: mlRecommendations, refetch, isLoading: recommendationsLoading } = useQuery<MLRecommendation[]>({
- queryKey: ['ml-waste-detection', 'org', organizationId, 'account', selectedAccountId],
- enabled: !!organizationId && !!selectedAccountId,
+ queryKey: ['ml-waste-detection', 'org', organizationId, 'account', selectedAccountId, 'demo', isInDemoMode],
+ enabled: !!organizationId && (isInDemoMode || !!selectedAccountId),
  staleTime: 0,
  queryFn: async () => {
- if (!organizationId || !selectedAccountId) throw new Error('No organization or account');
+ if (!organizationId) throw new Error('No organization');
+ 
+ // In demo mode, call the backend endpoint which will return demo data
+ if (isInDemoMode) {
+ const result = await apiClient.invoke('ml-waste-detection', {
+ body: { accountId: 'demo' }
+ });
+ if (result.error) throw result.error;
+ const data = result.data as { recommendations?: MLRecommendation[] };
+ return data.recommendations || [];
+ }
+
+ if (!selectedAccountId) throw new Error('No account');
 
  const result = await apiClient.select('resource_utilization_ml', {
  select: '*',
@@ -287,11 +301,18 @@ export default function MLWasteDetection() {
 
  // Query for analysis history
  const { data: analysisHistory, isLoading: historyLoading, refetch: refetchHistory } = useQuery({
- queryKey: ['ml-analysis-history', 'org', organizationId, 'account', selectedAccountId],
- enabled: !!organizationId && !!selectedAccountId,
+ queryKey: ['ml-analysis-history', 'org', organizationId, 'account', selectedAccountId, 'demo', isInDemoMode],
+ enabled: !!organizationId && (isInDemoMode || !!selectedAccountId),
  refetchInterval: analyzing ? 3000 : false,
  queryFn: async () => {
- if (!organizationId || !selectedAccountId) throw new Error('No organization or account');
+ if (!organizationId) throw new Error('No organization');
+ 
+ // In demo mode, return empty history (demo data doesn't have history)
+ if (isInDemoMode) {
+ return [] as MLAnalysisHistoryItem[];
+ }
+
+ if (!selectedAccountId) throw new Error('No account');
 
  const result = await apiClient.select('ml_analysis_history', {
  select: '*',
@@ -308,6 +329,15 @@ export default function MLWasteDetection() {
  const runningAnalysis = analysisHistory?.find(h => h.status === 'running');
 
  const runMLAnalysis = async () => {
+ // In demo mode, show a toast that this is demo data
+ if (isInDemoMode) {
+ toast({
+ title: t('mlWaste.demoMode', 'Demo Mode'),
+ description: t('mlWaste.demoModeDesc', 'In demo mode, analysis shows sample data. Connect a cloud account to analyze real resources.'),
+ });
+ return;
+ }
+
  if (!selectedAccountId) {
  toast({
  title: t('mlWaste.noAccountSelected', 'No account selected'),
@@ -449,7 +479,7 @@ export default function MLWasteDetection() {
  };
  };
 
- if (!selectedAccountId) {
+ if (!selectedAccountId && !isInDemoMode) {
  return (
  <Layout 
  title={t('mlWaste.title', 'ML-Powered Waste Detection 3.0')}

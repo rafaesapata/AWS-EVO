@@ -36,7 +36,11 @@ interface AnomalyFinding {
  created_at: string;
 }
 
-export function AnomalyDashboard() {
+interface AnomalyDashboardProps {
+  isInDemoMode?: boolean;
+}
+
+export function AnomalyDashboard({ isInDemoMode = false }: AnomalyDashboardProps) {
  const { t } = useTranslation();
  const { data: organizationId } = useOrganization();
  const { selectedAccountId, selectedProvider } = useCloudAccount();
@@ -53,10 +57,50 @@ export function AnomalyDashboard() {
  const [isExecuting, setIsExecuting] = useState(false);
 
  // Fetch anomalies from findings table with scan_type = 'anomaly_detection'
+ // In demo mode, we call the API which returns demo data from backend
  const { data: anomalies = [], isLoading, refetch } = useQuery({
- queryKey: ['anomaly-findings', organizationId, selectedAccountId],
+ queryKey: ['anomaly-findings', organizationId, selectedAccountId, isInDemoMode],
  queryFn: async () => {
  if (!organizationId) return [];
+
+ // In demo mode, call the detect-anomalies endpoint to get demo data
+ if (isInDemoMode) {
+   const result = await apiClient.invoke('detect-anomalies', {
+     body: { 
+       awsAccountId: 'demo-account',
+       analysisType: 'all',
+       sensitivity: 'medium',
+       lookbackDays: 30
+     }
+   });
+   
+   if (result.error) {
+     console.error('Error fetching demo anomalies:', result.error);
+     return [];
+   }
+   
+   const data = result.data as any;
+   // Transform demo anomalies to match the expected format
+   return (data?.anomalies || []).map((a: any) => ({
+     id: a.id,
+     severity: a.severity,
+     description: a.description,
+     details: {
+       type: a.type,
+       category: a.category,
+       title: a.title,
+       metric: a.metric,
+       expectedValue: a.expectedValue,
+       actualValue: a.actualValue,
+     },
+     status: 'OPEN',
+     service: 'ML',
+     category: a.category,
+     resource_id: a.resourceId,
+     remediation: a.recommendation,
+     created_at: a.timestamp || new Date().toISOString(),
+   })) as AnomalyFinding[];
+ }
 
  const filters: Record<string, any> = { 
  organization_id: organizationId, 
@@ -73,13 +117,13 @@ export function AnomalyDashboard() {
  
  return (result.data || []) as AnomalyFinding[];
  },
- enabled: !!organizationId,
+ enabled: !!organizationId && (isInDemoMode || !!selectedAccountId),
  });
 
  const runDetection = async () => {
  if (isExecuting) return;
  
- if (!selectedAccountId) {
+ if (!selectedAccountId && !isInDemoMode) {
  toast({
  title: t('common.error'),
  description: t('anomalyDetection.selectAccountFirst'),
@@ -99,13 +143,13 @@ export function AnomalyDashboard() {
  const endpoint = selectedProvider === 'AZURE' ? 'azure-detect-anomalies' : 'detect-anomalies';
  const bodyParams = selectedProvider === 'AZURE' 
  ? {
- azureCredentialId: selectedAccountId,
+ azureCredentialId: selectedAccountId || 'demo-account',
  analysisType: 'all',
  sensitivity: 'medium',
  lookbackDays: 30
  }
  : { 
- awsAccountId: selectedAccountId,
+ awsAccountId: selectedAccountId || 'demo-account',
  analysisType: 'all',
  sensitivity: 'medium',
  lookbackDays: 30
@@ -299,7 +343,7 @@ ${anomaly.remediation || t('anomalyDetection.noRecommendations')}`,
  <Activity className="h-12 w-12 mx-auto mb-4 animate-spin opacity-50" />
  <p className="text-muted-foreground">{t('anomalyDetection.loadingAnomalies')}</p>
  </div>
- ) : !selectedAccountId ? (
+ ) : !selectedAccountId && !isInDemoMode ? (
  <Card>
  <CardContent className="py-12">
  <div className="text-center">

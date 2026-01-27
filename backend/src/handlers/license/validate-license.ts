@@ -151,65 +151,78 @@ export async function handler(
     logger.info(`User ${userId} seat check: has_seat=${!!userSeat}`);
 
     // AUTO-ASSIGNMENT: If user doesn't have a seat, try to assign one automatically
+    // CRITICAL: Only auto-assign if user has a profile in this organization
     if (!userSeat) {
       logger.info(`Attempting auto-assign for user ${userId}`);
       
-      // Find an active EVO license with available seats
-      const availableLicense = await prisma.license.findFirst({
+      // First, verify user has a profile in this organization
+      const userProfile = await prisma.profile.findFirst({
         where: {
-          organization_id: organizationId,
-          is_active: true,
-          is_expired: false,
-          product_type: {
-            contains: 'evo',
-            mode: 'insensitive'
-          }
-        },
-        include: {
-          seat_assignments: true,
-        },
-        orderBy: [
-          { is_trial: 'asc' }, // Prefer non-trial licenses
-          { valid_until: 'desc' }, // Prefer licenses with longer validity
-        ],
+          user_id: userId,
+          organization_id: organizationId
+        }
       });
 
-      if (availableLicense) {
-        const usedSeats = availableLicense.seat_assignments.length;
-        const availableSeats = availableLicense.max_users - usedSeats;
+      if (!userProfile) {
+        logger.warn(`User ${userId} does not have a profile in organization ${organizationId}, skipping auto-assign`);
+      } else {
+        // Find an active EVO license with available seats
+        const availableLicense = await prisma.license.findFirst({
+          where: {
+            organization_id: organizationId,
+            is_active: true,
+            is_expired: false,
+            product_type: {
+              contains: 'evo',
+              mode: 'insensitive'
+            }
+          },
+          include: {
+            seat_assignments: true,
+          },
+          orderBy: [
+            { is_trial: 'asc' }, // Prefer non-trial licenses
+            { valid_until: 'desc' }, // Prefer licenses with longer validity
+          ],
+        });
 
-        logger.info(`Found license ${availableLicense.id}: max_users=${availableLicense.max_users}, used=${usedSeats}, available=${availableSeats}`);
+        if (availableLicense) {
+          const usedSeats = availableLicense.seat_assignments.length;
+          const availableSeats = availableLicense.max_users - usedSeats;
 
-        if (availableSeats > 0) {
-          logger.info(`Auto-assigning seat to user ${userId} on license ${availableLicense.id}`);
-          
-          const assignResult = await assignSeat(availableLicense.id, userId, undefined);
-          
-          if (assignResult.success) {
-            logger.info(`Seat auto-assigned successfully to user ${userId}`);
+          logger.info(`Found license ${availableLicense.id}: max_users=${availableLicense.max_users}, used=${usedSeats}, available=${availableSeats}`);
+
+          if (availableSeats > 0) {
+            logger.info(`Auto-assigning seat to user ${userId} on license ${availableLicense.id}`);
             
-            // Fetch the newly created seat assignment
-            userSeat = await prisma.licenseSeatAssignment.findFirst({
-              where: {
-                user_id: userId,
-                license_id: availableLicense.id,
-              },
-              include: {
-                license: {
-                  select: {
-                    id: true,
-                    license_key: true,
-                    product_type: true,
-                    features: true,
+            const assignResult = await assignSeat(availableLicense.id, userId, undefined);
+            
+            if (assignResult.success) {
+              logger.info(`Seat auto-assigned successfully to user ${userId}`);
+              
+              // Fetch the newly created seat assignment
+              userSeat = await prisma.licenseSeatAssignment.findFirst({
+                where: {
+                  user_id: userId,
+                  license_id: availableLicense.id,
+                },
+                include: {
+                  license: {
+                    select: {
+                      id: true,
+                      license_key: true,
+                      product_type: true,
+                      features: true,
+                    },
                   },
                 },
-              },
-            });
+              });
+            } else {
+              logger.warn(`Failed to auto-assign seat: ${assignResult.error}`);
+            }
           } else {
-            logger.warn(`Failed to auto-assign seat: ${assignResult.error}`);
+            logger.warn(`No available seats for user ${userId} in org ${organizationId}`);
           }
-        } else {
-          logger.warn(`No available seats for user ${userId} in org ${organizationId}`);
         }
       }
     }

@@ -17,7 +17,7 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation, isSuperAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
@@ -66,9 +66,18 @@ export async function handler(
     // Super admin pode gerenciar qualquer org, outros apenas a própria
     const targetOrgId = organizationId || userOrgId;
 
-    // Verificar se usuário é super_admin para gerenciar outras orgs
-    const isSuperAdmin = user.roles?.includes('super_admin');
-    if (organizationId && organizationId !== userOrgId && !isSuperAdmin) {
+    // Verificar se usuário é super_admin usando a função correta
+    const userIsSuperAdmin = isSuperAdmin(user);
+    
+    logger.info('Demo mode request', { 
+      action, 
+      targetOrgId, 
+      userOrgId, 
+      userIsSuperAdmin,
+      userId: user.sub 
+    });
+
+    if (organizationId && organizationId !== userOrgId && !userIsSuperAdmin) {
       return error('Only super_admin can manage other organizations', 403);
     }
 
@@ -106,7 +115,7 @@ export async function handler(
       }
 
       case 'activate': {
-        if (!isSuperAdmin) {
+        if (!userIsSuperAdmin) {
           return error('Only super_admin can activate demo mode', 403);
         }
 
@@ -179,7 +188,7 @@ export async function handler(
       }
 
       case 'deactivate': {
-        if (!isSuperAdmin) {
+        if (!userIsSuperAdmin) {
           return error('Only super_admin can deactivate demo mode', 403);
         }
 
@@ -236,7 +245,7 @@ export async function handler(
       }
 
       case 'extend': {
-        if (!isSuperAdmin) {
+        if (!userIsSuperAdmin) {
           return error('Only super_admin can extend demo mode', 403);
         }
 

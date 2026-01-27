@@ -44,7 +44,8 @@ import {
 } from '@/components/ui/dialog';
 import { getVersionString, getBuildInfo } from '@/lib/version';
 
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || getVersionString();
+// Get version without the 'v' prefix since we add it in the UI
+const APP_VERSION = (import.meta.env.VITE_APP_VERSION || getVersionString()).replace(/^v/, '');
 
 interface FooterProps {
   className?: string;

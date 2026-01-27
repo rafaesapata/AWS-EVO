@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Layout } from "@/components/Layout";
 import { 
@@ -20,15 +22,19 @@ import {
   RefreshCw,
   Users,
   DollarSign,
-  Settings,
   Edit,
-  Trash2,
   Crown,
   Shield,
   Play,
   Square,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Mail,
+  User,
+  Calendar,
+  Eye,
+  X,
+  Settings
 } from "lucide-react";
 
 interface Organization {
@@ -49,6 +55,16 @@ interface Organization {
   demo_expires_at?: string | null;
 }
 
+interface OrganizationUser {
+  id: string;
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: string;
+  created_at: string;
+  email?: string;
+}
+
 export default function Organizations() {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -59,6 +75,7 @@ export default function Organizations() {
   const [demoAction, setDemoAction] = useState<'activate' | 'deactivate' | null>(null);
   const [demoDays, setDemoDays] = useState('30');
   const [demoReason, setDemoReason] = useState('');
+  const [viewingUsersOrg, setViewingUsersOrg] = useState<Organization | null>(null);
   const [newOrg, setNewOrg] = useState({
     name: '',
     description: '',
@@ -73,6 +90,25 @@ export default function Organizations() {
     queryFn: async () => {
       const response = await apiClient.invoke<Organization[]>('manage-organizations', {
         body: { action: 'list' }
+      });
+
+      if (response.error) {
+        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
+      }
+
+      return response.data || [];
+    },
+  });
+
+  // Get users for a specific organization
+  const { data: organizationUsers, isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['organization-users', viewingUsersOrg?.id],
+    enabled: !!viewingUsersOrg,
+    queryFn: async () => {
+      if (!viewingUsersOrg) return [];
+      
+      const response = await apiClient.invoke<OrganizationUser[]>('manage-organizations', {
+        body: { action: 'list_users', id: viewingUsersOrg.id }
       });
 
       if (response.error) {
@@ -460,45 +496,77 @@ export default function Organizations() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* Demo Mode Toggle Button */}
-                      {org.demo_mode ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDemoAction(org, 'deactivate')}
-                          className="text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
-                          title={t('demo.admin.deactivate', 'Desativar Demo')}
-                        >
-                          <Square className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDemoAction(org, 'activate')}
-                          className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
-                          title={t('demo.admin.activate', 'Ativar Demo')}
-                        >
-                          <Play className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingOrg(org)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleStatusMutation.mutate({ 
-                          id: org.id, 
-                          status: org.status === 'active' ? 'inactive' : 'active' 
-                        })}
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Button>
+                      {/* View Users Button with Tooltip */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setViewingUsersOrg(org)}
+                              className="text-blue-600 border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                            >
+                              <Users className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{t('organizations.viewUsers', 'Ver usuários')}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      
+                      {/* Demo Mode Toggle Button with Tooltip */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            {org.demo_mode ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDemoAction(org, 'deactivate')}
+                                className="text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                              >
+                                <Square className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDemoAction(org, 'activate')}
+                                className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                              >
+                                <Play className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              {org.demo_mode 
+                                ? t('demo.admin.tooltipDeactivate', 'Desativar modo demo - Exibir dados reais')
+                                : t('demo.admin.tooltipActivate', 'Ativar modo demo - Exibir dados fictícios')
+                              }
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      
+                      {/* Edit Button with Tooltip */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingOrg(org)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{t('organizations.editOrg', 'Editar organização')}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   </div>
                   
@@ -740,6 +808,89 @@ export default function Organizations() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View Users Dialog */}
+      <Dialog open={!!viewingUsersOrg} onOpenChange={(open) => !open && setViewingUsersOrg(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {t('organizations.usersOf', 'Usuários de')} {viewingUsersOrg?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {t('organizations.usersDescription', 'Lista de usuários cadastrados nesta organização')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-auto">
+            {isLoadingUsers ? (
+              <div className="space-y-3 p-4">
+                {[...Array(3)].map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : organizationUsers && organizationUsers.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('organizations.userName', 'Nome')}</TableHead>
+                    <TableHead>{t('organizations.userEmail', 'Email')}</TableHead>
+                    <TableHead>{t('organizations.userRole', 'Função')}</TableHead>
+                    <TableHead>{t('organizations.userCreatedAt', 'Cadastrado em')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {organizationUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          {user.full_name || t('organizations.noName', 'Sem nome')}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          {user.email || t('organizations.noEmail', 'Não disponível')}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={user.role === 'org_admin' ? 'default' : 'secondary'}>
+                          {user.role === 'org_admin' 
+                            ? t('organizations.roleAdmin', 'Admin') 
+                            : user.role === 'super_admin'
+                              ? t('organizations.roleSuperAdmin', 'Super Admin')
+                              : t('organizations.roleUser', 'Usuário')
+                          }
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="h-4 w-4" />
+                          {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-8">
+                <Users className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  {t('organizations.noUsers', 'Nenhum usuário encontrado nesta organização')}
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setViewingUsersOrg(null)}>
+              {t('common.close', 'Fechar')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </Layout>
   );

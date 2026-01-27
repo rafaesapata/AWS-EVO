@@ -31,9 +31,10 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
   
   // =========================================================================
   // DEMO MODE CHECK - Retorna dados de demonstração se ativado
+  // FAIL-SAFE: isOrganizationInDemoMode retorna false em caso de erro
   // =========================================================================
   const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
-  if (isDemoMode) {
+  if (isDemoMode === true) {
     const { generateDemoWellArchitectedData } = await import('../../lib/demo-data-service.js');
     const demoData = generateDemoWellArchitectedData();
     

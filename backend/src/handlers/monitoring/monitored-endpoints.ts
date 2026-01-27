@@ -9,6 +9,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
+import { isOrganizationInDemoMode, generateDemoMonitoredEndpoints } from '../../lib/demo-data-service.js';
 
 interface CreateEndpointRequest {
   name: string;
@@ -40,6 +41,18 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
+    
+    // ============================================
+    // DEMO MODE CHECK - Return demo data if enabled (GET only)
+    // ============================================
+    if (method === 'GET') {
+      const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+      if (isDemo === true) {
+        logger.info('Returning demo monitored endpoints data', { organizationId, isDemo: true });
+        const demoData = generateDemoMonitoredEndpoints();
+        return success(demoData);
+      }
+    }
     
     // GET - Listar endpoints
     if (method === 'GET') {

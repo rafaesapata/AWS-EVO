@@ -19,6 +19,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { compareDates, getDayOfMonth } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
@@ -60,6 +61,7 @@ export const MonthlyInvoicesPage = () => {
   const { data: organizationId } = useOrganization();
   const { selectedAccountId, selectedAccount, accounts: allAccounts, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
+  const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -68,8 +70,9 @@ export const MonthlyInvoicesPage = () => {
   const currentLocale = i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US';
 
   // Sync costs from cloud provider - supports both AWS and Azure
+  // Skip sync in demo mode
   const syncCostsFromCloud = useCallback(async (accountId: string) => {
-    if (isSyncing || !accountId) return;
+    if (isSyncing || !accountId || isInDemoMode) return;
     
     setIsSyncing(true);
     
@@ -161,15 +164,50 @@ export const MonthlyInvoicesPage = () => {
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing, organizationId, queryClient, toast, selectedProvider]);
+  }, [isSyncing, organizationId, queryClient, toast, selectedProvider, isInDemoMode]);
 
-  // Get all daily costs from organization
+  // Get all daily costs from organization - supports demo mode
   const { data: allCosts, isLoading: isLoadingCosts } = useQuery({
-    queryKey: ['monthly-invoices-data', organizationId, selectedAccountId],
-    enabled: !!organizationId && !!selectedAccountId,
+    queryKey: ['monthly-invoices-data', organizationId, selectedAccountId, 'demo', isInDemoMode],
+    enabled: shouldEnableAccountQuery(),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     queryFn: async () => {
+      // In demo mode, call the Lambda which returns demo data
+      if (isInDemoMode) {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 6); // Last 6 months
+        
+        const lambdaResponse = await apiClient.invoke<any>('fetch-daily-costs', {
+          accountId: 'demo',
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0],
+          granularity: 'DAILY',
+          incremental: false
+        });
+        
+        if (lambdaResponse.error) {
+          console.error('MonthlyInvoicesPage: Lambda error:', lambdaResponse.error);
+          return [];
+        }
+        
+        const lambdaData = lambdaResponse.data;
+        const costs = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
+        
+        // Transform to expected format
+        return costs.map((c: any) => ({
+          id: c.id || `demo-${Math.random()}`,
+          organization_id: organizationId,
+          aws_account_id: 'demo-account',
+          date: c.date || c.cost_date,
+          service: c.service || 'Demo Service',
+          cost: c.cost || c.total_cost || 0,
+          usage: c.usage || 0,
+          currency: c.currency || 'USD',
+        })) as DailyCostRecord[];
+      }
+
       const response = await apiClient.select<DailyCostRecord>('daily_costs', {
         select: '*',
         eq: { 
@@ -189,12 +227,13 @@ export const MonthlyInvoicesPage = () => {
   });
 
   // Auto-sync on page load when account is selected (only once per account)
+  // Skip in demo mode
   useEffect(() => {
-    if (selectedAccountId && organizationId && hasSyncedRef.current !== selectedAccountId) {
+    if (selectedAccountId && organizationId && hasSyncedRef.current !== selectedAccountId && !isInDemoMode) {
       hasSyncedRef.current = selectedAccountId;
       syncCostsFromCloud(selectedAccountId);
     }
-  }, [selectedAccountId, organizationId, syncCostsFromCloud]);
+  }, [selectedAccountId, organizationId, syncCostsFromCloud, isInDemoMode]);
 
   // Process monthly data from daily costs
   // Schema: id, organization_id, aws_account_id, date, service, cost, usage, currency

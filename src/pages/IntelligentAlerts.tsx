@@ -17,6 +17,7 @@ import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
   Bell, 
   Plus, 
@@ -78,6 +79,7 @@ export default function IntelligentAlerts() {
   const { selectedAccountId } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
+  const { shouldEnableAccountQuery } = useDemoAwareQuery();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
   const [newRule, setNewRule] = useState({
@@ -91,50 +93,86 @@ export default function IntelligentAlerts() {
     channels: [] as string[]
   });
 
-  // Get alert rules
+  // Get alert rules - enabled in demo mode
   const { data: alertRules, isLoading: rulesLoading, refetch: refetchRules } = useQuery({
     queryKey: ['alert-rules', organizationId, selectedAccountId],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: shouldEnableAccountQuery(),
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
-      const response = await apiClient.select('alert_rules', {
-        select: '*',
-        eq: { 
-          organization_id: organizationId,
-          ...getAccountFilter() // Multi-cloud compatible
-        },
-        order: { created_at: 'desc' }
-      });
-
-      if (response.error) {
+      // Call Lambda which supports demo mode
+      const response = await apiClient.invoke<any[]>('alerts', {});
+      
+      if ('error' in response && response.error) {
         throw new Error(getErrorMessage(response.error));
       }
+      
+      // Lambda returns alerts array directly
+      const alerts = response.data || [];
+      
+      // Check if demo mode - alerts have _isDemo flag
+      const isDemo = alerts.length > 0 && alerts[0]?._isDemo === true;
+      
+      if (isDemo) {
+        console.log('IntelligentAlerts: Using demo data from backend');
+        // SEGURANÇA: Usar dados demo diretamente do backend, sem transformação local
+        // Os alertas demo já vêm com a estrutura correta do backend
+        return alerts.map((alert: any) => ({
+          id: alert.rule_id || alert.id,
+          name: alert.rule?.name || alert.title || 'Demo Rule',
+          description: alert.message || alert.description || '',
+          type: alert.rule?.type || 'security',
+          condition: alert.metadata || { metric: 'demo', operator: 'gt', threshold: 0 },
+          channels: ['email'],
+          is_active: true,
+          created_at: alert.triggered_at || new Date().toISOString(),
+          updated_at: alert.triggered_at || new Date().toISOString(),
+          last_triggered: alert.triggered_at || null,
+          trigger_count: 1,
+          _isDemo: true
+        }));
+      }
 
-      return response.data || [];
+      return alerts;
     },
   });
 
-  // Get alert history
+  // Get alert history - enabled in demo mode
   const { data: alertHistory, isLoading: historyLoading } = useQuery({
     queryKey: ['alert-history', organizationId, selectedAccountId],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: shouldEnableAccountQuery(),
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
-      const response = await apiClient.select('alert_history', {
-        select: '*',
-        eq: { 
-          organization_id: organizationId,
-          ...getAccountFilter() // Multi-cloud compatible
-        },
-        order: { triggered_at: 'desc' },
-        limit: 50
-      });
-
-      if (response.error) {
+      // Call Lambda which supports demo mode
+      const response = await apiClient.invoke<any[]>('alerts', {});
+      
+      if ('error' in response && response.error) {
         throw new Error(getErrorMessage(response.error));
       }
+      
+      // Lambda returns alerts array directly - use as history
+      const alerts = response.data || [];
+      
+      // Check if demo mode
+      const isDemo = alerts.length > 0 && alerts[0]?._isDemo === true;
+      
+      if (isDemo) {
+        console.log('IntelligentAlerts: Using demo alert history');
+        return alerts.map((alert: any) => ({
+          id: alert.id,
+          rule_id: alert.rule_id,
+          rule_name: alert.rule?.name || 'Demo Rule',
+          severity: alert.severity,
+          title: alert.title,
+          message: alert.message,
+          triggered_at: alert.triggered_at,
+          acknowledged_at: alert.acknowledged_at,
+          resolved_at: alert.resolved_at,
+          metadata: alert.metadata,
+          _isDemo: true
+        }));
+      }
 
-      return response.data || [];
+      return alerts;
     },
   });
 

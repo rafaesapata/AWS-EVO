@@ -62,15 +62,44 @@ export async function handler(
       const medium = demoFindings.filter(f => f.severity === 'medium').length;
       const low = demoFindings.filter(f => f.severity === 'low').length;
       
+      // Map demo findings to match the ScanFinding interface expected by frontend
+      const mappedFindings = demoFindings.map(f => ({
+        id: f.id,
+        organization_id: organizationId,
+        aws_account_id: 'demo-account',
+        severity: f.severity,
+        description: f.description,
+        details: {
+          title: f.title,
+          check_name: f.title,
+          resource_type: f.service,
+          region: 'us-east-1',
+        },
+        status: f.status,
+        source: 'security-scan',
+        resource_id: f.resource_id,
+        resource_arn: `arn:aws:${f.service.toLowerCase()}:us-east-1:demo-account:${f.resource_id}`,
+        scan_type: 'deep',
+        service: f.service,
+        category: getCategoryForService(f.service),
+        compliance: getComplianceForSeverity(f.severity),
+        remediation: JSON.stringify({
+          description: f.remediation,
+          steps: [f.remediation],
+          estimated_effort: f.severity === 'critical' ? 'high' : f.severity === 'high' ? 'medium' : 'low',
+          automation_available: f.service === 'S3' || f.service === 'IAM',
+        }),
+        risk_vector: getRiskVectorForService(f.service),
+        evidence: null,
+        remediation_ticket_id: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        _isDemo: true,
+      }));
+      
       return success({
         _isDemo: true,
-        findings: demoFindings.map(f => ({
-          ...f,
-          organization_id: organizationId,
-          aws_account_id: 'demo-account',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })),
+        findings: mappedFindings,
         pagination: {
           total: demoFindings.length,
           limit: 50,
@@ -202,4 +231,51 @@ function parseQueryParams(queryString: string): Record<string, any> {
   }
   
   return params;
+}
+
+/**
+ * Helper function to get category based on AWS service
+ */
+function getCategoryForService(service: string): string {
+  const categoryMap: Record<string, string> = {
+    'S3': 'Data Protection',
+    'EC2': 'Network Security',
+    'RDS': 'Data Protection',
+    'IAM': 'Identity & Access',
+    'CloudTrail': 'Logging & Monitoring',
+    'Lambda': 'Compute Security',
+    'VPC': 'Network Security',
+    'KMS': 'Encryption',
+  };
+  return categoryMap[service] || 'General Security';
+}
+
+/**
+ * Helper function to get compliance frameworks based on severity
+ */
+function getComplianceForSeverity(severity: string): string[] {
+  const complianceMap: Record<string, string[]> = {
+    'critical': ['CIS AWS Foundations', 'PCI-DSS', 'SOC 2', 'LGPD'],
+    'high': ['CIS AWS Foundations', 'PCI-DSS', 'SOC 2'],
+    'medium': ['CIS AWS Foundations', 'SOC 2'],
+    'low': ['CIS AWS Foundations'],
+  };
+  return complianceMap[severity] || ['CIS AWS Foundations'];
+}
+
+/**
+ * Helper function to get risk vector based on AWS service
+ */
+function getRiskVectorForService(service: string): string {
+  const riskMap: Record<string, string> = {
+    'S3': 'Data Exposure',
+    'EC2': 'Unauthorized Access',
+    'RDS': 'Data Breach',
+    'IAM': 'Privilege Escalation',
+    'CloudTrail': 'Audit Gap',
+    'Lambda': 'Code Injection',
+    'VPC': 'Network Intrusion',
+    'KMS': 'Encryption Weakness',
+  };
+  return riskMap[service] || 'Security Misconfiguration';
 }

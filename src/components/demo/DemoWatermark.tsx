@@ -38,24 +38,46 @@ export function DemoWatermark({ className, children }: DemoWatermarkProps) {
     return <>{children}</>;
   }
 
+  const watermarkText = t('demo.watermark', 'DEMONSTRAÇÃO');
+
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn('relative w-full', className)}>
       {children}
       
       {/* Watermark overlay - só aparece quando demo mode está confirmado */}
       {/* z-40 para ficar abaixo de modais (z-50) mas acima do conteúdo */}
       <div 
-        className="pointer-events-none fixed inset-0 z-40 overflow-hidden select-none"
+        className="pointer-events-none fixed inset-0 z-40 select-none"
         aria-hidden="true"
+        style={{ 
+          overflow: 'hidden',
+          width: '100vw',
+          height: '100vh'
+        }}
       >
-        {/* Padrão repetido de watermarks */}
-        <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-32 -rotate-12 scale-150 opacity-[0.03]">
-          {Array.from({ length: 20 }).map((_, i) => (
+        {/* Padrão repetido de watermarks usando CSS grid para distribuição uniforme */}
+        <div 
+          className="absolute opacity-[0.04]"
+          style={{
+            top: '-50%',
+            left: '-50%',
+            width: '200%',
+            height: '200%',
+            transform: 'rotate(-15deg)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gridTemplateRows: 'repeat(6, 1fr)',
+            gap: '80px',
+            alignItems: 'center',
+            justifyItems: 'center'
+          }}
+        >
+          {Array.from({ length: 24 }).map((_, i) => (
             <span 
               key={i}
-              className="text-4xl font-bold text-foreground whitespace-nowrap"
+              className="text-3xl font-bold text-foreground whitespace-nowrap"
             >
-              {t('demo.watermark', 'DEMONSTRAÇÃO')}
+              {watermarkText}
             </span>
           ))}
         </div>

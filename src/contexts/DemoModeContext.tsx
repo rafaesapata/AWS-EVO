@@ -257,9 +257,10 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
       // O backend verifica organization.demo_mode no banco
       const response = await apiClient.post('/api/functions/get-user-organization', {});
       
-      if (response && typeof response === 'object') {
+      if (response && typeof response === 'object' && 'data' in response && response.data) {
         // Extrair dados da organização da resposta
-        const data = response as {
+        // apiClient.post retorna { data: { organization: {...} }, error: null }
+        const responseData = response.data as {
           organization?: {
             demo_mode?: boolean;
             demo_activated_at?: string;
@@ -268,7 +269,7 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
           };
         };
         
-        const org = data.organization;
+        const org = responseData.organization;
         
         // CRÍTICO: Só ativa demo mode se backend EXPLICITAMENTE retornar true
         // E se o demo não expirou (verificação local adicional)

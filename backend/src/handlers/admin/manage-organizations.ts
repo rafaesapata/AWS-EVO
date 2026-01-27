@@ -25,7 +25,7 @@ import {
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
 
 interface ManageOrganizationRequest {
-  action: 'list' | 'create' | 'update' | 'delete' | 'toggle_status';
+  action: 'list' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users';
   id?: string;
   name?: string;
   slug?: string;
@@ -174,6 +174,11 @@ export async function handler(
           updated_at: org.updated_at,
           user_count: org._count.profiles,
           aws_account_count: org._count.aws_credentials,
+          // Demo mode fields
+          demo_mode: org.demo_mode || false,
+          demo_activated_at: org.demo_activated_at,
+          demo_expires_at: org.demo_expires_at,
+          demo_activated_by: org.demo_activated_by,
           // Default values for fields not in schema
           description: '',
           domain: org.slug,
@@ -357,6 +362,70 @@ export async function handler(
         });
 
         return success({ message: 'Organization deleted successfully' }, 200, origin);
+      }
+
+      case 'list_users': {
+        if (!body.id) {
+          return badRequest('Organization ID is required', undefined, origin);
+        }
+
+        // Get organization to verify it exists
+        const org = await prisma.organization.findUnique({
+          where: { id: body.id }
+        });
+
+        if (!org) {
+          return badRequest('Organization not found', undefined, origin);
+        }
+
+        // Get all profiles for this organization
+        const profiles = await prisma.profile.findMany({
+          where: { organization_id: body.id },
+          orderBy: { created_at: 'desc' }
+        });
+
+        // Try to get email from Cognito for each user
+        const userPoolId = process.env.COGNITO_USER_POOL_ID;
+        const usersWithEmail = await Promise.all(
+          profiles.map(async (profile) => {
+            let email: string | undefined;
+            
+            if (userPoolId) {
+              try {
+                const listResponse = await cognitoClient.send(new ListUsersCommand({
+                  UserPoolId: userPoolId,
+                  Filter: `sub = "${profile.user_id}"`,
+                  Limit: 1
+                }));
+                
+                const cognitoUser = listResponse.Users?.[0];
+                if (cognitoUser) {
+                  email = cognitoUser.Attributes?.find(a => a.Name === 'email')?.Value;
+                }
+              } catch (err) {
+                logger.warn('Failed to get email from Cognito', { userId: profile.user_id, error: err });
+              }
+            }
+
+            return {
+              id: profile.id,
+              user_id: profile.user_id,
+              full_name: profile.full_name,
+              avatar_url: profile.avatar_url,
+              role: profile.role || 'user',
+              created_at: profile.created_at,
+              email
+            };
+          })
+        );
+
+        logger.info('Listed users for organization', {
+          organizationId: body.id,
+          userCount: usersWithEmail.length,
+          requestedBy: user.sub || user.id,
+        });
+
+        return success(usersWithEmail, 200, origin);
       }
 
       default:

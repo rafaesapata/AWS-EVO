@@ -13,6 +13,7 @@ import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { formatDateBR, parseDateString } from "@/lib/utils";
 import { CloudTrailAnalysisHistory } from "@/components/dashboard/CloudTrailAnalysisHistory";
 import { AzureActivityLogs } from "@/components/dashboard/AzureActivityLogs";
@@ -101,6 +102,7 @@ export default function CloudTrailAudit() {
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
+  const { shouldEnableAccountQuery } = useDemoAwareQuery();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
   const [selectedRiskLevel, setSelectedRiskLevel] = useState('all');
@@ -125,10 +127,10 @@ export default function CloudTrailAudit() {
     );
   }
 
-  // Get CloudTrail events from database - defined first so refetch is available
+  // Get CloudTrail events from database - enabled in demo mode
   const { data: events, isLoading, refetch } = useQuery({
     queryKey: ['cloudtrail-events', organizationId, selectedAccountId, selectedTimeRange, selectedRiskLevel],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: shouldEnableAccountQuery(),
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
       const getHoursBack = (range: string) => {
@@ -178,10 +180,10 @@ export default function CloudTrailAudit() {
     },
   });
 
-  // Check for running analysis on page load
+  // Check for running analysis on page load - enabled in demo mode
   const { data: runningAnalysis } = useQuery<CloudTrailAnalysisStatus | undefined>({
     queryKey: ['cloudtrail-running-analysis', organizationId, selectedAccountId],
-    enabled: !!organizationId && !!selectedAccountId && !analysisId,
+    enabled: shouldEnableAccountQuery() && !analysisId,
     staleTime: 5000,
     queryFn: async () => {
       const response = await apiClient.select('cloudtrail_analyses', {

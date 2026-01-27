@@ -223,12 +223,25 @@ async function createTrialLicense(
       hasLicenseKey: !!licenseKey
     });
     
-    // Parse valid_until date if provided
-    let parsedValidUntil = validUntil;
+    // Parse valid_until date if provided by API
+    // IMPORTANT: Always ensure minimum 14 days trial period
+    // The external API sometimes returns incorrect/short validity periods
+    let parsedValidUntil = validUntil; // Default: 14 days from now
     if (apiValidUntil) {
       const parsed = new Date(apiValidUntil);
       if (!isNaN(parsed.getTime())) {
-        parsedValidUntil = parsed;
+        // Only use API date if it's at least 14 days from now
+        const minValidUntil = new Date();
+        minValidUntil.setDate(minValidUntil.getDate() + 14);
+        
+        if (parsed >= minValidUntil) {
+          parsedValidUntil = parsed;
+        } else {
+          logger.warn('External API returned short validity period, using default 14 days', {
+            apiValidUntil: parsed.toISOString(),
+            usingValidUntil: validUntil.toISOString()
+          });
+        }
       }
     }
 
@@ -254,7 +267,7 @@ async function createTrialLicense(
 }
 
 /**
- * Create Cognito user
+ * Create Cognito user and return the actual Cognito sub (user ID)
  */
 async function createCognitoUser(
   email: string,
@@ -263,10 +276,8 @@ async function createCognitoUser(
   organizationId: string,
   organizationName: string
 ): Promise<string> {
-  const userId = randomUUID();
-
   // Create user with temporary password (suppressed email)
-  await cognitoClient.send(new AdminCreateUserCommand({
+  const createResult = await cognitoClient.send(new AdminCreateUserCommand({
     UserPoolId: COGNITO_USER_POOL_ID,
     Username: email,
     UserAttributes: [
@@ -288,7 +299,25 @@ async function createCognitoUser(
     Permanent: true
   }));
 
-  return userId;
+  // Extract the actual Cognito sub (user ID) from the response
+  // This is CRITICAL - we must use the Cognito-generated sub, not a random UUID
+  const cognitoSub = createResult.User?.Attributes?.find(attr => attr.Name === 'sub')?.Value;
+  
+  if (!cognitoSub) {
+    // Fallback: fetch the user to get the sub
+    const getUserResult = await cognitoClient.send(new AdminGetUserCommand({
+      UserPoolId: COGNITO_USER_POOL_ID,
+      Username: email
+    }));
+    
+    const fetchedSub = getUserResult.UserAttributes?.find(attr => attr.Name === 'sub')?.Value;
+    if (!fetchedSub) {
+      throw new Error('Failed to get Cognito user sub after creation');
+    }
+    return fetchedSub;
+  }
+
+  return cognitoSub;
 }
 
 /**

@@ -22,6 +22,7 @@ import { Layout } from "@/components/Layout";
 
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 
 interface CostAnalysisPageProps {
  embedded?: boolean; // When true, doesn't render Layout wrapper (for use inside Index.tsx)
@@ -55,11 +56,12 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const { selectedAccountId, accounts: allAccounts, selectedProvider } = useCloudAccount();
  const { getAccountFilter } = useAccountFilter();
  const { data: organizationId } = useOrganization();
+ const { shouldEnableAccountQuery } = useDemoAwareQuery();
 
  // Get available tags from organization - filtered by selected account
  const { data: availableTags } = useQuery({
  queryKey: ['cost-allocation-tags', organizationId, selectedAccountId],
- enabled: !!organizationId && !!selectedAccountId,
+ enabled: shouldEnableAccountQuery(),
  staleTime: Infinity,
  gcTime: 60 * 60 * 1000,
  queryFn: async () => {
@@ -82,10 +84,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  },
  });
 
- // Get daily costs - FILTERED BY SELECTED ACCOUNT
+ // Get daily costs - FILTERED BY SELECTED ACCOUNT - enabled in demo mode
  const { data: allCosts, isLoading } = useQuery({
  queryKey: ['cost-analysis-raw', 'org', organizationId, 'account', selectedAccountId, dateRange, customStartDate, customEndDate],
- enabled: !!organizationId && !!selectedAccountId,
+ enabled: shouldEnableAccountQuery(),
  staleTime: 5 * 60 * 1000, // 5 minutes - allow refetch on account change
  gcTime: 60 * 60 * 1000,
  refetchOnWindowFocus: false,
@@ -108,26 +110,45 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const startDateStr = startDate.toISOString().split('T')[0];
  const endDateStr = endDate.toISOString().split('T')[0];
 
- // Always filter by selected account - no 'all' option
  console.log('CostAnalysisPage: Query params:', { startDateStr, endDateStr, organizationId, selectedAccountId });
  
- const response = await apiClient.select('daily_costs', { 
- eq: { organization_id: organizationId, ...getAccountFilter() },
- gte: { date: startDateStr },
- lte: { date: endDateStr },
- order: { column: 'date', ascending: false }
+ // In demo mode or when no account selected, call the Lambda which returns demo data
+ // The Lambda checks demo_mode and returns appropriate data
+ const lambdaResponse = await apiClient.invoke<any>('fetch-daily-costs', {
+   accountId: selectedAccountId,
+   startDate: startDateStr,
+   endDate: endDateStr,
+   granularity: 'DAILY',
+   incremental: false
  });
  
- console.log('CostAnalysisPage: API response:', response);
- 
- const data = response.data;
- 
- if (!data || data.length === 0) {
- console.log('CostAnalysisPage: No data returned');
- return [];
+ if (lambdaResponse.error) {
+   console.error('CostAnalysisPage: Lambda error:', lambdaResponse.error);
+   // Fallback to direct DB query if Lambda fails
+   const response = await apiClient.select('daily_costs', { 
+     eq: { organization_id: organizationId, ...getAccountFilter() },
+     gte: { date: startDateStr },
+     lte: { date: endDateStr },
+     order: { column: 'date', ascending: false }
+   });
+   
+   console.log('CostAnalysisPage: Fallback API response:', response);
+   return response.data || [];
  }
  
- console.log('CostAnalysisPage: Received', data.length, 'records');
+ // Lambda returns { costs: [...], summary: {...}, _isDemo: boolean }
+ const lambdaData = lambdaResponse.data;
+ console.log('CostAnalysisPage: Lambda response:', lambdaData);
+ 
+ // Extract costs array from Lambda response
+ const costs = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
+ 
+ if (!costs || costs.length === 0) {
+   console.log('CostAnalysisPage: No data returned');
+   return [];
+ }
+ 
+ console.log('CostAnalysisPage: Received', costs.length, 'records, isDemo:', lambdaData?._isDemo);
  
  // Transform raw data (per service) into aggregated format (per date)
  // Raw schema: { id, organization_id, aws_account_id, date, service, cost, usage, currency }
@@ -143,7 +164,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  id: string;
  }>();
  
- for (const row of data) {
+ for (const row of costs) {
  // Handle both 'date' and 'cost_date' field names
  // Prisma returns Date objects, API might return strings
  const dateValue = row.date || row.cost_date;

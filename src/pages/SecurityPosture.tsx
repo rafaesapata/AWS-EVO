@@ -14,6 +14,7 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuthSafe } from "@/hooks/useAuthSafe";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
   Shield, 
   AlertTriangle, 
@@ -72,20 +73,22 @@ export default function SecurityPosture() {
   const { data: organizationId } = useOrganization();
   const { user } = useAuthSafe();
   const queryClient = useQueryClient();
+  const { shouldEnableAccountQuery } = useDemoAwareQuery();
   const [selectedStandard, setSelectedStandard] = useState<string>('all');
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
   const [creatingBatchTickets, setCreatingBatchTickets] = useState(false);
 
-  // Get security posture data
+  // Get security posture data - enabled in demo mode even without account
   const { data: securityData, isLoading, refetch } = useQuery({
     queryKey: ['security-posture-page', organizationId, selectedAccountId],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: shouldEnableAccountQuery(),
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       // Chamar o endpoint que calcula a postura de segurança
       const postureResponse = await apiClient.invoke<{
         success: boolean;
+        _isDemo?: boolean;
         posture: {
           overallScore: number;
           riskLevel: string;
@@ -104,7 +107,50 @@ export default function SecurityPosture() {
         throw new Error(postureResponse.error.message);
       }
 
-      const posture = postureResponse.data?.posture;
+      const responseData = postureResponse.data;
+      const posture = responseData?.posture;
+      const isDemo = responseData?._isDemo === true;
+      
+      // If demo mode, use demo data FROM THE BACKEND (never generate locally)
+      // SEGURANÇA: Dados demo vêm do backend, frontend apenas renderiza
+      if (isDemo && posture) {
+        console.log('SecurityPosture: Using demo data from backend');
+        
+        // Usar findings demo que vieram do backend
+        const demoFindings = responseData?.demoFindings || [];
+        const complianceScores = responseData?.complianceScores || {};
+        
+        // Transformar findings do backend para o formato esperado pelo frontend
+        const transformedFindings = demoFindings.map((f: any) => ({
+          id: f.id,
+          title: f.title,
+          description: f.description,
+          severity: f.severity,
+          status: f.status || 'active',
+          service: f.service,
+          resource_id: f.resource_id,
+          region: 'us-east-1',
+          remediation: f.remediation,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          _isDemo: true
+        }));
+        
+        return {
+          overall_score: posture.overallScore,
+          risk_level: posture.riskLevel,
+          findings_by_severity: {
+            critical: posture.findings.critical,
+            high: posture.findings.high,
+            medium: posture.findings.medium,
+            low: posture.findings.low
+          },
+          compliance_scores: complianceScores,
+          findings: transformedFindings,
+          hasData: true,
+          _isDemo: true
+        };
+      }
       
       // Se não há findings, retornar null para indicar estado vazio
       if (!posture || posture.findings.total === 0) {

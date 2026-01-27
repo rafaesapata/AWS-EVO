@@ -11,7 +11,7 @@ import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
 
 interface ManageSeatsRequest {
-  action: 'allocate' | 'deallocate' | 'cleanup';
+  action: 'list' | 'allocate' | 'deallocate' | 'cleanup';
   licenseKey?: string;
   userId?: string;
   seatId?: string;
@@ -79,6 +79,88 @@ export async function handler(
     let result: any;
     
     switch (body.action) {
+      case 'list': {
+        // List all seats for the organization's licenses
+        const licenses = await prisma.license.findMany({
+          where: {
+            organization_id: organizationId,
+            is_active: true,
+            product_type: {
+              contains: 'evo',
+              mode: 'insensitive'
+            }
+          },
+          include: {
+            seat_assignments: {
+              include: {
+                // We need to join with profiles to get user info
+              }
+            }
+          }
+        });
+
+        // Get all profiles for the organization to enrich seat data
+        const profiles = await prisma.profile.findMany({
+          where: { organization_id: organizationId }
+        });
+
+        const profileMap = new Map(profiles.map((p: any) => [p.user_id, p]));
+
+        // Build response with enriched seat data
+        const licensesWithSeats = licenses.map((license: any) => ({
+          id: license.id,
+          license_key: license.license_key,
+          product_type: license.product_type,
+          max_users: license.max_users,
+          used_seats: license.seat_assignments.length,
+          available_seats: license.max_users - license.seat_assignments.length,
+          is_trial: license.is_trial,
+          valid_until: license.valid_until,
+          seats: license.seat_assignments.map((seat: any) => {
+            const profile = profileMap.get(seat.user_id);
+            return {
+              id: seat.id,
+              user_id: seat.user_id,
+              user_name: profile?.full_name || 'Unknown User',
+              user_role: profile?.role || 'unknown',
+              assigned_at: seat.assigned_at,
+              assigned_by: seat.assigned_by,
+              // Flag if user doesn't have a profile (orphan seat)
+              is_orphan: !profile
+            };
+          })
+        }));
+
+        // Get users without seats (available for allocation)
+        const usersWithSeats = new Set(
+          licenses.flatMap((l: any) => l.seat_assignments.map((s: any) => s.user_id))
+        );
+        
+        const usersWithoutSeats = profiles
+          .filter((p: any) => !usersWithSeats.has(p.user_id))
+          .map((p: any) => ({
+            user_id: p.user_id,
+            full_name: p.full_name,
+            role: p.role
+          }));
+
+        result = {
+          licenses: licensesWithSeats,
+          users_without_seats: usersWithoutSeats,
+          total_users: profiles.length,
+          total_seats_used: licenses.reduce((sum: number, l: any) => sum + l.seat_assignments.length, 0),
+          total_seats_available: licenses.reduce((sum: number, l: any) => sum + (l.max_users - l.seat_assignments.length), 0)
+        };
+
+        logger.info('Seat list retrieved', { 
+          organizationId,
+          licensesCount: licenses.length,
+          totalSeatsUsed: result.total_seats_used
+        });
+
+        break;
+      }
+
       case 'allocate': {
         if (!body.licenseKey || !body.userId) {
           return badRequest('Missing required fields: licenseKey and userId for allocate action', undefined, origin);
@@ -281,7 +363,7 @@ export async function handler(
       }
       
       default:
-        return badRequest(`Invalid action: ${body.action}. Use allocate, deallocate, or cleanup`, undefined, origin);
+        return badRequest(`Invalid action: ${body.action}. Use list, allocate, deallocate, or cleanup`, undefined, origin);
     }
     
     logger.info('Seat management completed', { 

@@ -13,6 +13,7 @@ import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
  Bot, 
  Send, 
@@ -54,15 +55,16 @@ export default function CopilotAI() {
  const { selectedAccountId } = useCloudAccount();
  const { getAccountFilter } = useAccountFilter();
  const { data: organizationId } = useOrganization();
+ const { shouldEnableAccountQuery } = useDemoAwareQuery();
  const [messages, setMessages] = useState<ChatMessage[]>([]);
  const [inputMessage, setInputMessage] = useState("");
  const [isTyping, setIsTyping] = useState(false);
  const messagesEndRef = useRef<HTMLDivElement>(null);
 
- // Get recent AWS data for context
+ // Get recent AWS data for context - enabled in demo mode
  const { data: contextData, isLoading: contextLoading } = useQuery({
  queryKey: ['copilot-context', organizationId, selectedAccountId],
- enabled: !!organizationId && !!selectedAccountId,
+ enabled: shouldEnableAccountQuery(),
  staleTime: 5 * 60 * 1000,
  queryFn: async () => {
  // Get recent costs

@@ -16,6 +16,7 @@ import { PillarCard } from "@/components/dashboard/well-architected/PillarCard";
 import { WellArchitectedHistory } from "@/components/dashboard/well-architected/WellArchitectedHistory";
 import { Layout } from "@/components/Layout";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 
 const WellArchitected = () => {
  const { t } = useTranslation();
@@ -24,6 +25,7 @@ const WellArchitected = () => {
  const [viewingHistoricalScan, setViewingHistoricalScan] = useState<string | null>(null);
  const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
  const { selectedAccountId, selectedProvider } = useCloudAccount();
+ const { isInDemoMode } = useDemoAwareQuery();
 
  const { data: userProfile } = useQuery({
  queryKey: ['user-profile'],
@@ -72,8 +74,18 @@ const WellArchitected = () => {
  );
 
  const { data: latestScan, refetch, isLoading } = useOrganizationQuery(
- ['well-architected-latest', viewingHistoricalScan],
+ ['well-architected-latest', viewingHistoricalScan, 'demo', isInDemoMode],
  async (organizationId) => {
+ // In demo mode, call the backend endpoint which will return demo data
+ if (isInDemoMode && !viewingHistoricalScan) {
+ const result = await apiClient.invoke('well-architected-scan', {
+ body: { accountId: 'demo' }
+ });
+ if (result.error) throw result.error;
+ const data = result.data as { pillars?: any[] };
+ return data.pillars || [];
+ }
+
  // If viewing historical scan, fetch that specific scan data
  if (viewingHistoricalScan) {
  const historicalData = await apiClient.select('well_architected_scans_history', {
@@ -173,7 +185,15 @@ const WellArchitected = () => {
  );
 
  const runScan = async () => {
- console.log('🔍 runScan called, selectedAccountId:', selectedAccountId);
+ console.log('🔍 runScan called, selectedAccountId:', selectedAccountId, 'isInDemoMode:', isInDemoMode);
+ 
+ // In demo mode, show a toast that this is demo data
+ if (isInDemoMode) {
+ toast.info(t('wellArchitected.demoMode', 'Modo Demo'), {
+ description: t('wellArchitected.demoModeDesc', 'No modo demo, os scans mostram dados de exemplo. Conecte uma conta cloud para executar scans reais.')
+ });
+ return;
+ }
  
  if (!selectedAccountId) {
  toast.error('Selecione uma conta AWS', {
@@ -457,14 +477,16 @@ const WellArchitected = () => {
  <AlertTriangle className="h-16 w-16 text-muted-foreground mb-4 " />
  <h3 className="text-xl font-semibold mb-2">Nenhum scan realizado</h3>
  <p className="text-muted-foreground mb-6 max-w-md">
- {!selectedAccountId 
+ {isInDemoMode
+ ? t('wellArchitected.demoModeNoData', 'No modo demo, os dados de exemplo serão carregados automaticamente. Aguarde um momento...')
+ : !selectedAccountId 
  ? 'Selecione uma conta AWS no seletor acima para executar o scan'
  : 'Execute seu primeiro scan Well-Architected para avaliar sua infraestrutura AWS'
  }
  </p>
- <Button onClick={runScan} disabled={isScanning || !selectedAccountId} className="">
+ <Button onClick={runScan} disabled={isScanning || (!selectedAccountId && !isInDemoMode)} className="">
  <Play className="h-4 w-4 mr-2" />
- {!selectedAccountId ? 'Selecione uma Conta AWS' : 'Executar Primeiro Scan'}
+ {isInDemoMode ? t('wellArchitected.viewDemoData', 'Ver Dados Demo') : !selectedAccountId ? 'Selecione uma Conta AWS' : 'Executar Primeiro Scan'}
  </Button>
  </CardContent>
  </Card>

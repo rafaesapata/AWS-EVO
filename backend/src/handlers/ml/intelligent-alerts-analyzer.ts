@@ -29,9 +29,9 @@ export async function handler(
     
     const prisma = getPrismaClient();
     
-    // Check if organization is in demo mode
+    // Check if organization is in demo mode (FAIL-SAFE: returns false on any error)
     const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
-    if (isDemo) {
+    if (isDemo === true) {
       logger.info('🎭 Returning demo intelligent alerts analysis', { organizationId });
       return success(generateDemoIntelligentAlertsAnalysis());
     }

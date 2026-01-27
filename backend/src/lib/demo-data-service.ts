@@ -2576,6 +2576,500 @@ function getMetricUnit(metricName: string): string {
   return units[metricName] || 'None';
 }
 
+/**
+ * Gera dados de Security Scans para demonstração
+ * 
+ * IMPORTANTE: Esta função gera dados demo completos para a página de Security Scans
+ */
+export function generateDemoSecurityScans() {
+  const now = new Date();
+  
+  const scans = [
+    {
+      id: 'demo-scan-001',
+      organization_id: 'demo-org',
+      aws_account_id: 'demo-account',
+      scan_type: 'deep',
+      status: 'completed',
+      started_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      completed_at: new Date(now.getTime() - 1.5 * 60 * 60 * 1000).toISOString(),
+      findings_count: 30,
+      critical_count: 2,
+      high_count: 5,
+      medium_count: 8,
+      low_count: 15,
+      scan_config: { level: 'deep', frameworks: ['CIS', 'LGPD', 'PCI-DSS'] },
+      created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true
+    },
+    {
+      id: 'demo-scan-002',
+      organization_id: 'demo-org',
+      aws_account_id: 'demo-account',
+      scan_type: 'standard',
+      status: 'completed',
+      started_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+      completed_at: new Date(now.getTime() - 23.5 * 60 * 60 * 1000).toISOString(),
+      findings_count: 25,
+      critical_count: 1,
+      high_count: 4,
+      medium_count: 10,
+      low_count: 10,
+      scan_config: { level: 'standard', frameworks: ['CIS'] },
+      created_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true
+    },
+    {
+      id: 'demo-scan-003',
+      organization_id: 'demo-org',
+      aws_account_id: 'demo-account',
+      scan_type: 'quick',
+      status: 'completed',
+      started_at: new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString(),
+      completed_at: new Date(now.getTime() - 47.9 * 60 * 60 * 1000).toISOString(),
+      findings_count: 18,
+      critical_count: 2,
+      high_count: 3,
+      medium_count: 6,
+      low_count: 7,
+      scan_config: { level: 'quick' },
+      created_at: new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true
+    }
+  ];
+  
+  return {
+    _isDemo: true,
+    scans,
+    total: scans.length,
+    summary: {
+      running: 0,
+      completed: 3,
+      failed: 0,
+      totalFindings: 73,
+      criticalFindings: 5
+    }
+  };
+}
+
+/**
+ * Gera dados de Monitored Endpoints para demonstração
+ */
+export function generateDemoMonitoredEndpoints() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+  
+  // Gerar histórico de checks para cada endpoint
+  const generateCheckHistory = (endpointId: string, status: 'up' | 'down' | 'degraded', avgResponseTime: number) => {
+    const history = [];
+    for (let i = 0; i < 10; i++) {
+      const checkedAt = new Date(now.getTime() - i * 5 * 60 * 1000); // 5 min intervals
+      const isUp = status === 'up' || (status === 'degraded' && Math.random() > 0.3);
+      const responseTime = isUp 
+        ? avgResponseTime + Math.floor((Math.random() - 0.5) * avgResponseTime * 0.4)
+        : 0;
+      
+      history.push({
+        id: `${DEMO_ID_PREFIX}check-${endpointId}-${i}`,
+        endpoint_id: endpointId,
+        status: isUp ? 'up' : 'down',
+        status_code: isUp ? 200 : (status === 'down' ? 503 : 504),
+        response_time: responseTime,
+        error: isUp ? null : (status === 'down' ? 'Connection refused' : 'Gateway timeout'),
+        checked_at: checkedAt.toISOString(),
+        _isDemo: true
+      });
+    }
+    return history;
+  };
+  
+  const endpoints = [
+    {
+      id: `${DEMO_ID_PREFIX}endpoint-001`,
+      organization_id: DEMO_ORG_ID,
+      name: 'API Principal',
+      url: 'https://api.demo-company.com/health',
+      timeout: 5000,
+      is_active: true,
+      alert_on_failure: true,
+      monitor_ssl: true,
+      ssl_alert_days: 30,
+      ssl_expiry_date: new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString(), // 45 days
+      ssl_issuer: 'Let\'s Encrypt',
+      ssl_valid: true,
+      last_status: 'up',
+      last_checked_at: new Date(now.getTime() - 2 * 60 * 1000).toISOString(),
+      last_response_time: 145,
+      created_at: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      check_history: generateCheckHistory('endpoint-001', 'up', 145),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}endpoint-002`,
+      organization_id: DEMO_ORG_ID,
+      name: 'Portal do Cliente',
+      url: 'https://portal.demo-company.com',
+      timeout: 5000,
+      is_active: true,
+      alert_on_failure: true,
+      monitor_ssl: true,
+      ssl_alert_days: 30,
+      ssl_expiry_date: new Date(now.getTime() + 120 * 24 * 60 * 60 * 1000).toISOString(), // 120 days
+      ssl_issuer: 'DigiCert',
+      ssl_valid: true,
+      last_status: 'up',
+      last_checked_at: new Date(now.getTime() - 3 * 60 * 1000).toISOString(),
+      last_response_time: 89,
+      created_at: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+      check_history: generateCheckHistory('endpoint-002', 'up', 89),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}endpoint-003`,
+      organization_id: DEMO_ORG_ID,
+      name: 'API de Pagamentos',
+      url: 'https://payments.demo-company.com/status',
+      timeout: 3000,
+      is_active: true,
+      alert_on_failure: true,
+      monitor_ssl: true,
+      ssl_alert_days: 14,
+      ssl_expiry_date: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString(), // 8 days - expiring soon!
+      ssl_issuer: 'Amazon',
+      ssl_valid: true,
+      last_status: 'degraded',
+      last_checked_at: new Date(now.getTime() - 1 * 60 * 1000).toISOString(),
+      last_response_time: 2850,
+      created_at: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+      check_history: generateCheckHistory('endpoint-003', 'degraded', 2500),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}endpoint-004`,
+      organization_id: DEMO_ORG_ID,
+      name: 'Webhook Service',
+      url: 'https://webhooks.demo-company.com/ping',
+      timeout: 5000,
+      is_active: true,
+      alert_on_failure: true,
+      monitor_ssl: true,
+      ssl_alert_days: 30,
+      ssl_expiry_date: new Date(now.getTime() + 200 * 24 * 60 * 60 * 1000).toISOString(),
+      ssl_issuer: 'Cloudflare',
+      ssl_valid: true,
+      last_status: 'up',
+      last_checked_at: new Date(now.getTime() - 4 * 60 * 1000).toISOString(),
+      last_response_time: 52,
+      created_at: new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+      check_history: generateCheckHistory('endpoint-004', 'up', 52),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}endpoint-005`,
+      organization_id: DEMO_ORG_ID,
+      name: 'CDN Assets',
+      url: 'https://cdn.demo-company.com/health',
+      timeout: 5000,
+      is_active: true,
+      alert_on_failure: false,
+      monitor_ssl: true,
+      ssl_alert_days: 30,
+      ssl_expiry_date: new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+      ssl_issuer: 'Amazon CloudFront',
+      ssl_valid: true,
+      last_status: 'up',
+      last_checked_at: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+      last_response_time: 28,
+      created_at: new Date(now.getTime() - 120 * 24 * 60 * 60 * 1000).toISOString(),
+      check_history: generateCheckHistory('endpoint-005', 'up', 28),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}endpoint-006`,
+      organization_id: DEMO_ORG_ID,
+      name: 'Legacy API (Deprecated)',
+      url: 'https://legacy-api.demo-company.com/v1/status',
+      timeout: 10000,
+      is_active: false,
+      alert_on_failure: false,
+      monitor_ssl: false,
+      ssl_alert_days: 30,
+      ssl_expiry_date: null,
+      ssl_issuer: null,
+      ssl_valid: null,
+      last_status: 'down',
+      last_checked_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+      last_response_time: null,
+      created_at: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+      check_history: generateCheckHistory('endpoint-006', 'down', 0),
+      _isDemo: true
+    }
+  ];
+  
+  return endpoints;
+}
+
+/**
+ * Gera dados de Monitored Resources para demonstração
+ * Retorna recursos no formato esperado pelo frontend
+ */
+export function generateDemoMonitoredResources() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+  const DEMO_ACCOUNT_ID = 'demo-aws-account';
+  
+  const resources = [
+    {
+      id: `${DEMO_ID_PREFIX}resource-001`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'i-demo-web-001',
+      resource_name: 'demo-web-server',
+      resource_type: 'ec2',
+      region: 'us-east-1',
+      status: 'running',
+      metadata: { instanceType: 't3.medium' },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}resource-002`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'i-demo-api-001',
+      resource_name: 'demo-api-server',
+      resource_type: 'ec2',
+      region: 'us-east-1',
+      status: 'running',
+      metadata: { instanceType: 't3.large' },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}resource-003`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'i-demo-worker-001',
+      resource_name: 'demo-worker',
+      resource_type: 'ec2',
+      region: 'us-east-1',
+      status: 'running',
+      metadata: { instanceType: 'm5.xlarge' },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}resource-004`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'demo-database-prod',
+      resource_name: 'demo-database-prod',
+      resource_type: 'rds',
+      region: 'us-east-1',
+      status: 'available',
+      metadata: { engine: 'postgres', instanceClass: 'db.r5.large' },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}resource-005`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'demo-database-replica',
+      resource_name: 'demo-database-replica',
+      resource_type: 'rds',
+      region: 'us-east-1',
+      status: 'available',
+      metadata: { engine: 'postgres', instanceClass: 'db.r5.large' },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}resource-006`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'demo-api-handler',
+      resource_name: 'demo-api-handler',
+      resource_type: 'lambda',
+      region: 'us-east-1',
+      status: 'active',
+      metadata: { runtime: 'nodejs18.x', memorySize: 512 },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}resource-007`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'demo-worker-function',
+      resource_name: 'demo-worker-function',
+      resource_type: 'lambda',
+      region: 'us-east-1',
+      status: 'active',
+      metadata: { runtime: 'nodejs18.x', memorySize: 1024 },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}resource-008`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'demo-auth-function',
+      resource_name: 'demo-auth-function',
+      resource_type: 'lambda',
+      region: 'us-east-1',
+      status: 'active',
+      metadata: { runtime: 'nodejs18.x', memorySize: 256 },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}resource-009`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'demo-redis-cluster',
+      resource_name: 'demo-redis-cluster',
+      resource_type: 'elasticache',
+      region: 'us-east-1',
+      status: 'available',
+      metadata: { engine: 'redis', cacheNodeType: 'cache.r5.large' },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    },
+    {
+      id: `${DEMO_ID_PREFIX}resource-010`,
+      organization_id: DEMO_ORG_ID,
+      aws_account_id: DEMO_ACCOUNT_ID,
+      resource_id: 'app/demo-web-alb/abc123',
+      resource_name: 'demo-web-alb',
+      resource_type: 'alb',
+      region: 'us-east-1',
+      status: 'active',
+      metadata: { dnsName: 'demo-web-alb.us-east-1.elb.amazonaws.com', scheme: 'internet-facing' },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      _isDemo: true
+    }
+  ];
+  
+  return resources;
+}
+
+/**
+ * Gera dados de Resource Metrics para demonstração
+ * Retorna métricas no formato esperado pelo frontend
+ */
+export function generateDemoResourceMetrics() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+  const DEMO_ACCOUNT_ID = 'demo-aws-account';
+  
+  const metrics: any[] = [];
+  
+  // Configuração de métricas por tipo de recurso
+  const resourceMetrics: Record<string, { resourceId: string; resourceName: string; resourceType: string; metrics: { name: string; baseValue: number; unit: string }[] }[]> = {
+    ec2: [
+      { resourceId: 'i-demo-web-001', resourceName: 'demo-web-server', resourceType: 'ec2', metrics: [
+        { name: 'CPUUtilization', baseValue: 35, unit: 'Percent' },
+        { name: 'NetworkIn', baseValue: 500000, unit: 'Bytes' },
+        { name: 'NetworkOut', baseValue: 800000, unit: 'Bytes' }
+      ]},
+      { resourceId: 'i-demo-api-001', resourceName: 'demo-api-server', resourceType: 'ec2', metrics: [
+        { name: 'CPUUtilization', baseValue: 45, unit: 'Percent' },
+        { name: 'NetworkIn', baseValue: 1200000, unit: 'Bytes' },
+        { name: 'NetworkOut', baseValue: 2500000, unit: 'Bytes' }
+      ]},
+      { resourceId: 'i-demo-worker-001', resourceName: 'demo-worker', resourceType: 'ec2', metrics: [
+        { name: 'CPUUtilization', baseValue: 72, unit: 'Percent' },
+        { name: 'NetworkIn', baseValue: 300000, unit: 'Bytes' },
+        { name: 'NetworkOut', baseValue: 150000, unit: 'Bytes' }
+      ]}
+    ],
+    rds: [
+      { resourceId: 'demo-database-prod', resourceName: 'demo-database-prod', resourceType: 'rds', metrics: [
+        { name: 'CPUUtilization', baseValue: 28, unit: 'Percent' },
+        { name: 'DatabaseConnections', baseValue: 45, unit: 'Count' },
+        { name: 'FreeStorageSpace', baseValue: 50000000000, unit: 'Bytes' }
+      ]},
+      { resourceId: 'demo-database-replica', resourceName: 'demo-database-replica', resourceType: 'rds', metrics: [
+        { name: 'CPUUtilization', baseValue: 15, unit: 'Percent' },
+        { name: 'DatabaseConnections', baseValue: 12, unit: 'Count' },
+        { name: 'FreeStorageSpace', baseValue: 48000000000, unit: 'Bytes' }
+      ]}
+    ],
+    lambda: [
+      { resourceId: 'demo-api-handler', resourceName: 'demo-api-handler', resourceType: 'lambda', metrics: [
+        { name: 'Invocations', baseValue: 1500, unit: 'Count' },
+        { name: 'Errors', baseValue: 3, unit: 'Count' },
+        { name: 'Duration', baseValue: 180, unit: 'Milliseconds' }
+      ]},
+      { resourceId: 'demo-worker-function', resourceName: 'demo-worker-function', resourceType: 'lambda', metrics: [
+        { name: 'Invocations', baseValue: 800, unit: 'Count' },
+        { name: 'Errors', baseValue: 1, unit: 'Count' },
+        { name: 'Duration', baseValue: 450, unit: 'Milliseconds' }
+      ]},
+      { resourceId: 'demo-auth-function', resourceName: 'demo-auth-function', resourceType: 'lambda', metrics: [
+        { name: 'Invocations', baseValue: 2200, unit: 'Count' },
+        { name: 'Errors', baseValue: 0, unit: 'Count' },
+        { name: 'Duration', baseValue: 85, unit: 'Milliseconds' }
+      ]}
+    ],
+    elasticache: [
+      { resourceId: 'demo-redis-cluster', resourceName: 'demo-redis-cluster', resourceType: 'elasticache', metrics: [
+        { name: 'CPUUtilization', baseValue: 18, unit: 'Percent' },
+        { name: 'CurrConnections', baseValue: 125, unit: 'Count' }
+      ]}
+    ],
+    alb: [
+      { resourceId: 'app/demo-web-alb/abc123', resourceName: 'demo-web-alb', resourceType: 'alb', metrics: [
+        { name: 'RequestCount', baseValue: 5000, unit: 'Count' },
+        { name: 'TargetResponseTime', baseValue: 0.12, unit: 'Seconds' }
+      ]}
+    ]
+  };
+  
+  // Gerar métricas para cada recurso
+  let metricId = 1;
+  for (const [_type, resources] of Object.entries(resourceMetrics)) {
+    for (const resource of resources) {
+      for (const metric of resource.metrics) {
+        // Gerar 12 datapoints (últimos 60 minutos, 5 min intervals)
+        for (let i = 11; i >= 0; i--) {
+          const timestamp = new Date(now.getTime() - i * 5 * 60 * 1000);
+          const variation = 0.8 + Math.random() * 0.4; // ±20% variation
+          const value = metric.baseValue * variation;
+          
+          metrics.push({
+            id: `${DEMO_ID_PREFIX}metric-${metricId++}`,
+            organization_id: DEMO_ORG_ID,
+            aws_account_id: DEMO_ACCOUNT_ID,
+            resource_id: resource.resourceId,
+            resource_name: resource.resourceName,
+            resource_type: resource.resourceType,
+            metric_name: metric.name,
+            metric_value: parseFloat(value.toFixed(2)),
+            metric_unit: metric.unit,
+            timestamp: timestamp.toISOString(),
+            created_at: timestamp.toISOString(),
+            _isDemo: true
+          });
+        }
+      }
+    }
+  }
+  
+  return metrics;
+}
+
 export default {
   isOrganizationInDemoMode,
   generateDemoSecurityFindings,
@@ -2598,5 +3092,9 @@ export default {
   generateDemoEdgeServices,
   generateDemoRealtimeMetrics,
   generateDemoCloudWatchMetrics,
+  generateDemoSecurityScans,
+  generateDemoMonitoredEndpoints,
+  generateDemoMonitoredResources,
+  generateDemoResourceMetrics,
   getDemoOrRealData
 };

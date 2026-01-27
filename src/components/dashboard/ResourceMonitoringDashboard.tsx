@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -134,15 +135,15 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
 ResourceCard.displayName = 'ResourceCard';
 
 const RESOURCE_TYPES = [
-  { value: 'ec2', label: 'EC2 Instances', icon: Server },
-  { value: 'rds', label: 'RDS Databases', icon: Database },
-  { value: 'elasticache', label: 'ElastiCache (Redis)', icon: Layers },
-  { value: 'lambda', label: 'Lambda Functions', icon: Zap },
-  { value: 'ecs', label: 'ECS Services', icon: Cloud },
-  { value: 'elb', label: 'Classic Load Balancers', icon: Activity },
-  { value: 'alb', label: 'Application LB (ALB)', icon: Activity },
-  { value: 'nlb', label: 'Network LB (NLB)', icon: Activity },
-  { value: 'apigateway', label: 'API Gateway', icon: Link2 }
+  { value: 'ec2', labelKey: 'resourceMonitoring.resourceTypes.ec2', icon: Server },
+  { value: 'rds', labelKey: 'resourceMonitoring.resourceTypes.rds', icon: Database },
+  { value: 'elasticache', labelKey: 'resourceMonitoring.resourceTypes.elasticache', icon: Layers },
+  { value: 'lambda', labelKey: 'resourceMonitoring.resourceTypes.lambda', icon: Zap },
+  { value: 'ecs', labelKey: 'resourceMonitoring.resourceTypes.ecs', icon: Cloud },
+  { value: 'elb', labelKey: 'resourceMonitoring.resourceTypes.elb', icon: Activity },
+  { value: 'alb', labelKey: 'resourceMonitoring.resourceTypes.alb', icon: Activity },
+  { value: 'nlb', labelKey: 'resourceMonitoring.resourceTypes.nlb', icon: Activity },
+  { value: 'apigateway', labelKey: 'resourceMonitoring.resourceTypes.apigateway', icon: Link2 }
 ];
 
 // ============================================
@@ -247,6 +248,7 @@ const formatMetricValue = (metricName: string, value: number): string => {
 };
 
 export const ResourceMonitoringDashboard = () => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const resourcesRef = useRef<HTMLDivElement>(null);
@@ -299,11 +301,12 @@ export const ResourceMonitoringDashboard = () => {
       });
     }, 100);
 
+    const resourceType = RESOURCE_TYPES.find(r => r.value === type);
     toast({
-      title: "Filtro aplicado",
-      description: `Exibindo apenas recursos do tipo ${RESOURCE_TYPES.find(r => r.value === type)?.label || type}`,
+      title: t('resourceMonitoring.filterApplied', 'Filter applied'),
+      description: t('resourceMonitoring.showingResourceType', 'Showing only {{type}} resources', { type: resourceType ? t(resourceType.labelKey) : type }),
     });
-  }, [toast]);
+  }, [toast, t]);
 
   // Auto-refresh effect - USE GLOBAL selectedAccountId
   useEffect(() => {
@@ -403,8 +406,8 @@ export const ResourceMonitoringDashboard = () => {
   const handleRefresh = useCallback(async (forceRefresh: boolean = true) => {
     if (!selectedAccountId) {
       toast({
-        title: "Selecione uma conta",
-        description: `Por favor, selecione uma conta ${isAzure ? 'Azure' : 'AWS'} para atualizar as métricas.`,
+        title: t('resourceMonitoring.selectAccount', 'Select an account'),
+        description: t('resourceMonitoring.selectAccountDescription', 'Please select an {{provider}} account to update metrics.', { provider: isAzure ? 'Azure' : 'AWS' }),
         variant: "destructive"
       });
       return;
@@ -416,8 +419,8 @@ export const ResourceMonitoringDashboard = () => {
     
     // 🚀 Toast otimista mostrando progresso
     toast({
-      title: "🔄 Coletando métricas...",
-      description: `Buscando dados dos recursos ${providerName} em paralelo`,
+      title: `🔄 ${t('resourceMonitoring.collectingMetrics', 'Collecting metrics...')}`,
+      description: t('resourceMonitoring.fetchingData', 'Fetching {{provider}} resource data in parallel', { provider: providerName }),
     });
 
     try {
@@ -463,8 +466,8 @@ export const ResourceMonitoringDashboard = () => {
       queryClient.removeQueries({ queryKey: ['monitored-resources'] });
 
       toast({
-        title: "✅ Métricas atualizadas",
-        description: data.message || `${data.metricsCollected || 0} métricas coletadas de ${data.resourcesFound || 0} recursos`,
+        title: `✅ ${t('resourceMonitoring.metricsUpdated', 'Metrics updated')}`,
+        description: data.message || t('resourceMonitoring.metricsCollected', '{{count}} metrics collected from {{resources}} resources', { count: data.metricsCollected || 0, resources: data.resourcesFound || 0 }),
       });
 
       // Refetch resources and reload metrics with force refresh
@@ -474,14 +477,14 @@ export const ResourceMonitoringDashboard = () => {
       ]);
     } catch (error: any) {
       toast({
-        title: "Erro ao atualizar métricas",
-        description: error.message || 'Erro desconhecido ao atualizar métricas',
+        title: t('resourceMonitoring.errorUpdatingMetrics', 'Error updating metrics'),
+        description: error.message || 'Unknown error',
         variant: "destructive"
       });
     } finally {
       setIsRefreshing(false);
     }
-  }, [selectedAccountId, isAzure, toast, clearMetricsCache, queryClient, loadMetricsWithCache]);
+  }, [selectedAccountId, isAzure, toast, clearMetricsCache, queryClient, loadMetricsWithCache, t]);
 
   // PERFORMANCE: Memoize available regions
   const availableRegions = useMemo(() => {
@@ -629,7 +632,7 @@ export const ResourceMonitoringDashboard = () => {
     if (!resources || !Array.isArray(resources)) {
       return RESOURCE_TYPES.map(type => ({
         type: type.value,
-        label: type.label,
+        labelKey: type.labelKey,
         icon: type.icon,
         count: 0,
         runningCount: 0,
@@ -667,7 +670,7 @@ export const ResourceMonitoringDashboard = () => {
 
       return {
         type: type.value,
-        label: type.label,
+        labelKey: type.labelKey,
         icon: type.icon,
         count,
         runningCount,
@@ -680,11 +683,11 @@ export const ResourceMonitoringDashboard = () => {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Monitoramento de Recursos</CardTitle>
-          <CardDescription>Configure uma conta para começar o monitoramento</CardDescription>
+          <CardTitle>{t('resourceMonitoring.title', 'Resource Monitoring')}</CardTitle>
+          <CardDescription>{t('resourceMonitoring.configureAccount', 'Configure an account to start monitoring')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Nenhuma conta configurada.</p>
+          <p className="text-muted-foreground">{t('resourceMonitoring.noAccountConfigured', 'No account configured.')}</p>
         </CardContent>
       </Card>
     );
@@ -743,7 +746,7 @@ export const ResourceMonitoringDashboard = () => {
               className="gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Voltar
+              {t('resourceMonitoring.back', 'Back')}
             </Button>
             <div>
               <h2 className="text-3xl font-semibold">{selectedResource.resource_name}</h2>
