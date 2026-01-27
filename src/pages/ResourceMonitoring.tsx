@@ -8,8 +8,8 @@ const ResourceMonitoring = () => {
   
   return (
     <Layout 
-      title={t('sidebar.resourceMonitoring', 'Monitoramento de Recursos')} 
-      description={t('resourceMonitoring.description', 'Monitore e gerencie seus recursos em tempo real')}
+      title={t('resourceMonitoring.title', 'Resource Monitoring')} 
+      description={t('resourceMonitoring.description', 'Monitor and manage your resources in real time')}
       icon={<Server className="h-7 w-7" />}
     >
       <ResourceMonitoringDashboard />

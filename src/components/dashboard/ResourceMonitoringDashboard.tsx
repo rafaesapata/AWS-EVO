@@ -43,6 +43,7 @@ interface ResourceCardProps {
 }
 
 const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) => {
+  const { t } = useTranslation();
   const resourceKey = `${resource.resource_type}-${resource.resource_id}`;
   
   // Memoize metrics filtering for this specific resource
@@ -91,7 +92,7 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
             )}
           </div>
           <p className="text-sm text-muted-foreground mb-2">
-            ID: {resource.resource_id} | Região: {resource.region}
+            {t('resourceMonitoring.id', 'ID')}: {resource.resource_id} | {t('resourceMonitoring.region', 'Region')}: {resource.region}
           </p>
 
           {primaryMetric ? (
@@ -106,7 +107,7 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
             </div>
           ) : !hasMetrics ? (
             <p className="text-sm text-muted-foreground mt-2">
-              Clique para ver detalhes ou Atualizar para coletar métricas
+              {t('resourceMonitoring.clickForDetails', 'Click for details or Refresh to collect metrics')}
             </p>
           ) : null}
 
@@ -820,13 +821,13 @@ export const ResourceMonitoringDashboard = () => {
         <div className="flex items-center gap-4">
           <Select value={autoRefreshInterval} onValueChange={setAutoRefreshInterval}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Auto-atualização" />
+              <SelectValue placeholder={t('resourceMonitoring.autoRefresh', 'Auto-refresh')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="off">Desligado</SelectItem>
-              <SelectItem value="15s">A cada 15s</SelectItem>
-              <SelectItem value="30s">A cada 30s</SelectItem>
-              <SelectItem value="1m">A cada 1 minuto</SelectItem>
+              <SelectItem value="off">{t('resourceMonitoring.off', 'Off')}</SelectItem>
+              <SelectItem value="15s">{t('resourceMonitoring.every15s', 'Every 15s')}</SelectItem>
+              <SelectItem value="30s">{t('resourceMonitoring.every30s', 'Every 30s')}</SelectItem>
+              <SelectItem value="1m">{t('resourceMonitoring.every1m', 'Every 1 min')}</SelectItem>
             </SelectContent>
           </Select>
           <Button 
@@ -835,7 +836,7 @@ export const ResourceMonitoringDashboard = () => {
             className="gap-2"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Atualizar
+            {t('resourceMonitoring.refresh', 'Refresh')}
           </Button>
         </div>
       </div>
@@ -876,7 +877,7 @@ export const ResourceMonitoringDashboard = () => {
                     onClick={() => handleResourceTypeFilter(stat.type)}
                   >
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
+                      <CardTitle className="text-sm font-medium">{t(stat.labelKey)}</CardTitle>
                       <Icon className={`h-4 w-4 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
                     </CardHeader>
                     <CardContent>
@@ -892,7 +893,7 @@ export const ResourceMonitoringDashboard = () => {
                       </div>
                       {stat.avgCpu !== null && (
                         <div className="mt-2">
-                          <p className="text-xs text-muted-foreground mb-1">CPU Média</p>
+                          <p className="text-xs text-muted-foreground mb-1">{t('resourceMonitoring.avgCpu', 'Average CPU')}</p>
                           <Progress value={stat.avgCpu} className="h-2" />
                           <p className="text-xs text-muted-foreground mt-1">{stat.avgCpu.toFixed(1)}%</p>
                         </div>
@@ -909,18 +910,18 @@ export const ResourceMonitoringDashboard = () => {
             <CardHeader>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
-                  <CardTitle>Recursos Monitorados</CardTitle>
+                  <CardTitle>{t('resourceMonitoring.monitoredResources', 'Monitored Resources')}</CardTitle>
                   <CardDescription>
-                    {filteredResources?.length || 0} recursos encontrados
+                    {t('resourceMonitoring.resourcesFound', '{{count}} resources found', { count: filteredResources?.length || 0 })}
                     <span className="text-xs text-muted-foreground ml-2">
-                      (🟢 Ativos → 📊 Com mais dados → 🔤 Por tipo)
+                      {t('resourceMonitoring.sortingInfo', '(🟢 Active → 📊 More data → 🔤 By type)')}
                     </span>
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
                     type="text"
-                    placeholder="Buscar recurso..."
+                    placeholder={t('resourceMonitoring.searchResource', 'Search resource...')}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-[200px]"
@@ -930,7 +931,7 @@ export const ResourceMonitoringDashboard = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas as regiões</SelectItem>
+                      <SelectItem value="all">{t('resourceMonitoring.allRegions', 'All regions')}</SelectItem>
                       {availableRegions.map(region => (
                         <SelectItem key={region} value={region}>
                           {region}
@@ -943,10 +944,10 @@ export const ResourceMonitoringDashboard = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os tipos</SelectItem>
+                      <SelectItem value="all">{t('resourceMonitoring.allTypes', 'All types')}</SelectItem>
                       {RESOURCE_TYPES.map(type => (
                         <SelectItem key={type.value} value={type.value}>
-                          {type.label}
+                          {t(type.labelKey)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1025,7 +1026,7 @@ export const ResourceMonitoringDashboard = () => {
                               )}
                             </div>
                             <p className="text-sm text-muted-foreground mb-2">
-                              ID: {resource.resource_id} | Região: {resource.region}
+                              {t('resourceMonitoring.id', 'ID')}: {resource.resource_id} | {t('resourceMonitoring.region', 'Region')}: {resource.region}
                             </p>
 
                             {primaryMetric ? (
@@ -1040,7 +1041,7 @@ export const ResourceMonitoringDashboard = () => {
                               </div>
                             ) : !hasMetrics ? (
                               <p className="text-sm text-muted-foreground mt-2">
-                                Clique para ver detalhes ou Atualizar para coletar métricas
+                                {t('resourceMonitoring.clickForDetails', 'Click for details or Refresh to collect metrics')}
                               </p>
                             ) : null}
 
@@ -1070,12 +1071,12 @@ export const ResourceMonitoringDashboard = () => {
                 <div className="text-center py-8">
                   <p className="text-muted-foreground mb-2">
                     {selectedResourceType === 'all' 
-                      ? '⚠️ Nenhum recurso encontrado nesta conta'
-                      : `⚠️ Nenhum recurso do tipo ${RESOURCE_TYPES.find(t => t.value === selectedResourceType)?.label} encontrado`
+                      ? `⚠️ ${t('resourceMonitoring.noResourcesFound', 'No resources found in this account')}`
+                      : `⚠️ ${t('resourceMonitoring.noResourcesOfType', 'No {{type}} resources found', { type: t(RESOURCE_TYPES.find(rt => rt.value === selectedResourceType)?.labelKey || '') })}`
                     }
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Clique em "Atualizar" para buscar recursos
+                    {t('resourceMonitoring.clickRefreshToFetch', 'Click "Refresh" to fetch resources')}
                   </p>
                 </div>
               )}
@@ -1084,7 +1085,7 @@ export const ResourceMonitoringDashboard = () => {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-2 py-4 border-t">
                   <div className="text-sm text-muted-foreground">
-                    Mostrando {startIndex + 1}-{Math.min(endIndex, allFilteredResources.length)} de {allFilteredResources.length} recursos
+                    {t('resourceMonitoring.showing', 'Showing {{start}}-{{end}} of {{total}} resources', { start: startIndex + 1, end: Math.min(endIndex, allFilteredResources.length), total: allFilteredResources.length })}
                   </div>
                   <Pagination>
                     <PaginationContent>

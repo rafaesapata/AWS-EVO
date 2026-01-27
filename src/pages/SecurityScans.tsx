@@ -287,8 +287,8 @@ export default function SecurityScans() {
  onSuccess: () => {
  const providerName = selectedProvider === 'AZURE' ? 'Azure' : 'AWS';
  toast({
- title: "Security Scan Iniciado",
- description: `O scan de segurança ${providerName} foi iniciado com sucesso usando o Security Engine V3.`,
+ title: t('securityScans.scanStarted', 'Security Scan Started'),
+ description: t('securityScans.scanStartedDesc', 'The {{provider}} security scan was started successfully using Security Engine V3.', { provider: providerName }),
  });
  
  // Invalidate and refetch immediately
@@ -308,10 +308,10 @@ export default function SecurityScans() {
  // Mensagens de erro mais amigáveis
  if (errorMessage.includes('No AWS credentials') || errorMessage.includes('No Azure credentials')) {
  errorMessage = isAzure 
- ? "Nenhuma credencial Azure ativa encontrada. Por favor, adicione uma credencial Azure antes de iniciar o scan."
- : "Nenhuma credencial AWS ativa encontrada. Por favor, adicione uma credencial AWS antes de iniciar o scan.";
+ ? t('securityScans.noAzureCredentials', 'No active Azure credentials found. Please add Azure credentials before starting the scan.')
+ : t('securityScans.noAwsCredentials', 'No active AWS credentials found. Please add AWS credentials before starting the scan.');
  } else if (errorMessage.includes('Já existe um scan') || errorMessage.includes('already running')) {
- errorMessage = "Já existe um scan de segurança em execução. Aguarde a conclusão antes de iniciar um novo.";
+ errorMessage = t('securityScans.scanAlreadyRunning', 'A security scan is already running. Wait for it to complete before starting a new one.');
  }
  
  toast({
@@ -330,8 +330,8 @@ export default function SecurityScans() {
  try {
  await refetch();
  toast({
- title: "Dados atualizados",
- description: "Os scans de segurança foram atualizados.",
+ title: t('securityScans.dataUpdated', 'Data updated'),
+ description: t('securityScans.scansUpdated', 'Security scans have been updated.'),
  });
  } catch (error) {
  toast({
@@ -441,8 +441,8 @@ export default function SecurityScans() {
  link.click();
 
  toast({
- title: "Relatório exportado",
- description: `${findings.length} achados de segurança foram exportados com sucesso.`,
+ title: t('securityScans.reportExported', 'Report exported'),
+ description: t('securityScans.findingsExportedSuccess', '{{count}} security findings were exported successfully.', { count: findings.length }),
  });
  };
 
@@ -458,10 +458,10 @@ export default function SecurityScans() {
 
  const getStatusBadge = (status: string) => {
  switch (status) {
- case 'running': return <Badge className="bg-blue-500">Executando</Badge>;
- case 'completed': return <Badge className="bg-green-500">Concluído</Badge>;
- case 'failed': return <Badge variant="destructive">Falhou</Badge>;
- case 'scheduled': return <Badge variant="secondary">Agendado</Badge>;
+ case 'running': return <Badge className="bg-blue-500">{t('securityScans.statusRunning', 'Running')}</Badge>;
+ case 'completed': return <Badge className="bg-green-500">{t('securityScans.statusCompleted', 'Completed')}</Badge>;
+ case 'failed': return <Badge variant="destructive">{t('securityScans.statusFailed', 'Failed')}</Badge>;
+ case 'scheduled': return <Badge variant="secondary">{t('securityScans.statusScheduled', 'Scheduled')}</Badge>;
  default: return <Badge variant="outline">{status}</Badge>;
  }
  };
@@ -622,10 +622,10 @@ export default function SecurityScans() {
 
  const getSeverityBadge = (severity: string) => {
  switch (severity) {
- case 'critical': return <Badge variant="destructive">Crítico</Badge>;
- case 'high': return <Badge variant="destructive">Alto</Badge>;
- case 'medium': return <Badge variant="secondary">Médio</Badge>;
- case 'low': return <Badge variant="outline">Baixo</Badge>;
+ case 'critical': return <Badge variant="destructive">{t('securityScans.severityCritical', 'Critical')}</Badge>;
+ case 'high': return <Badge variant="destructive">{t('securityScans.severityHigh', 'High')}</Badge>;
+ case 'medium': return <Badge variant="secondary">{t('securityScans.severityMedium', 'Medium')}</Badge>;
+ case 'low': return <Badge variant="outline">{t('securityScans.severityLow', 'Low')}</Badge>;
  default: return <Badge variant="outline">{severity}</Badge>;
  }
  };
@@ -687,16 +687,16 @@ export default function SecurityScans() {
  },
  onSuccess: (data) => {
  toast({
- title: "Scans travados limpos",
- description: `${data.cleaned} scan(s) foram marcados como falhos e você pode iniciar um novo scan.`,
+ title: t('securityScans.stuckScansCleared', 'Stuck scans cleared'),
+ description: t('securityScans.stuckScansClearedDesc', '{{count}} scan(s) were marked as failed and you can start a new scan.', { count: data.cleaned }),
  });
  queryClient.invalidateQueries({ queryKey: ['security-scans'] });
  refetch();
  },
  onError: (error) => {
  toast({
- title: "Erro ao limpar scans",
- description: error instanceof Error ? error.message : 'Erro desconhecido',
+ title: t('securityScans.errorClearingScans', 'Error clearing scans'),
+ description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
  variant: "destructive"
  });
  }
@@ -705,8 +705,8 @@ export default function SecurityScans() {
  const scanLevels = [
  { 
  value: 'quick', 
- label: 'Quick Scan', 
- description: 'Verificações essenciais de segurança',
+ label: t('securityScans.quickScan', 'Quick Scan'), 
+ description: t('securityScans.quickScanDesc', 'Essential security checks'),
  icon: <Zap className="h-6 w-6" />,
  checks: '50+',
  time: '5-10 min',
@@ -719,8 +719,8 @@ export default function SecurityScans() {
  },
  { 
  value: 'standard', 
- label: 'Standard Scan', 
- description: 'Análise completa de segurança AWS',
+ label: t('securityScans.standardScan', 'Standard Scan'), 
+ description: t('securityScans.standardScanDesc', 'Complete AWS security analysis'),
  icon: <Shield className="h-6 w-6" />,
  checks: '120+',
  time: '15-30 min',
@@ -733,8 +733,8 @@ export default function SecurityScans() {
  },
  { 
  value: 'deep', 
- label: 'Deep Scan', 
- description: 'Análise profunda com compliance frameworks',
+ label: t('securityScans.deepScan', 'Deep Scan'), 
+ description: t('securityScans.deepScanDesc', 'Deep analysis with compliance frameworks'),
  icon: <Activity className="h-6 w-6" />,
  checks: '170+',
  time: '30-60 min',
@@ -763,7 +763,7 @@ export default function SecurityScans() {
  disabled={isLoading}
  >
  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
- {isLoading ? 'Atualizando...' : 'Atualizar'}
+ {isLoading ? t('common.updating', 'Updating...') : t('common.refresh', 'Refresh')}
  </Button>
  <Button 
  variant="outline" 
@@ -772,7 +772,7 @@ export default function SecurityScans() {
  disabled={!findings || findings.length === 0}
  >
  <Download className="h-4 w-4 mr-2" />
- Exportar Achados
+ {t('securityScans.exportFindings', 'Export Findings')}
  </Button>
  </div>
 
@@ -785,11 +785,10 @@ export default function SecurityScans() {
  <AlertTriangle className="h-6 w-6 text-orange-500" />
  <div>
  <h4 className="font-semibold text-orange-600 dark:text-orange-400">
- {stuckScans.length} scan(s) travado(s) detectado(s)
+ {t('securityScans.stuckScansDetected', '{{count}} stuck scan(s) detected', { count: stuckScans.length })}
  </h4>
  <p className="text-sm text-muted-foreground">
- Estes scans estão em execução há mais de 60 minutos e provavelmente falharam silenciosamente.
- Limpe-os para poder iniciar novos scans.
+ {t('securityScans.stuckScansDescription', 'These scans have been running for more than 60 minutes and probably failed silently. Clear them to start new scans.')}
  </p>
  </div>
  </div>
@@ -803,12 +802,12 @@ export default function SecurityScans() {
  {cleanupStuckScansMutation.isPending ? (
  <>
  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
- Limpando...
+ {t('securityScans.clearing', 'Clearing...')}
  </>
  ) : (
  <>
  <XCircle className="h-4 w-4 mr-2" />
- Limpar Scans Travados
+ {t('securityScans.clearStuckScans', 'Clear Stuck Scans')}
  </>
  )}
  </Button>
@@ -821,7 +820,7 @@ export default function SecurityScans() {
  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
  <Card className="transition-all duration-300">
  <CardHeader className="pb-2">
- <CardTitle className="text-sm font-medium text-muted-foreground">Scans Executando</CardTitle>
+ <CardTitle className="text-sm font-medium text-muted-foreground">{t('securityScans.scansRunning', 'Scans Running')}</CardTitle>
  </CardHeader>
  <CardContent>
  {isLoading ? (
@@ -834,7 +833,7 @@ export default function SecurityScans() {
 
  <Card className="transition-all duration-300">
  <CardHeader className="pb-2">
- <CardTitle className="text-sm font-medium text-muted-foreground">Scans Concluídos</CardTitle>
+ <CardTitle className="text-sm font-medium text-muted-foreground">{t('securityScans.scansCompleted', 'Scans Completed')}</CardTitle>
  </CardHeader>
  <CardContent>
  {isLoading ? (
@@ -847,7 +846,7 @@ export default function SecurityScans() {
 
  <Card className="transition-all duration-300">
  <CardHeader className="pb-2">
- <CardTitle className="text-sm font-medium text-muted-foreground">Total de Achados</CardTitle>
+ <CardTitle className="text-sm font-medium text-muted-foreground">{t('securityScans.totalFindings', 'Total Findings')}</CardTitle>
  </CardHeader>
  <CardContent>
  {isLoading ? (
@@ -860,7 +859,7 @@ export default function SecurityScans() {
 
  <Card className="transition-all duration-300">
  <CardHeader className="pb-2">
- <CardTitle className="text-sm font-medium text-muted-foreground">Achados Críticos</CardTitle>
+ <CardTitle className="text-sm font-medium text-muted-foreground">{t('securityScans.criticalFindings', 'Critical Findings')}</CardTitle>
  </CardHeader>
  <CardContent>
  {isLoading ? (
@@ -877,10 +876,10 @@ export default function SecurityScans() {
  <CardHeader>
  <CardTitle className="flex items-center gap-2">
  <Play className="h-5 w-5 text-primary" />
- Iniciar Security Scan
+ {t('securityScans.startSecurityScan', 'Start Security Scan')}
  </CardTitle>
  <CardDescription>
- Clique em um dos cards abaixo para iniciar o scan. O Security Engine V3 suporta CIS, Well-Architected, PCI-DSS, NIST, LGPD e SOC2.
+ {t('securityScans.startScanDescription', 'Click on one of the cards below to start the scan. Security Engine V3 supports CIS, Well-Architected, PCI-DSS, NIST, LGPD and SOC2.')}
  </CardDescription>
  </CardHeader>
  <CardContent>
@@ -933,11 +932,11 @@ export default function SecurityScans() {
  {/* Title and Description */}
  <div className="space-y-2">
  <h3 className="font-semibold text-lg">
- {hasRunningScan ? 'Scan em Execução' : scanLevel.label}
+ {hasRunningScan ? t('securityScans.scanInExecution', 'Scan in Execution') : scanLevel.label}
  </h3>
  <p className="text-sm text-muted-foreground leading-relaxed">
  {hasRunningScan 
- ? 'Aguarde a conclusão do scan atual antes de iniciar um novo.'
+ ? t('securityScans.waitForCompletion', 'Wait for the current scan to complete before starting a new one.')
  : scanLevel.description
  }
  </p>
@@ -951,7 +950,7 @@ export default function SecurityScans() {
  <span>{scanLevel.time}</span>
  </div>
  <div className={`flex items-center gap-1.5 text-sm font-medium ${scanLevel.iconColor}`}>
- <span>Iniciar</span>
+ <span>{t('securityScans.start', 'Start')}</span>
  <Play className="h-4 w-4" />
  </div>
  </div>
@@ -965,20 +964,20 @@ export default function SecurityScans() {
  <div className="mt-6 p-4 bg-muted/30 rounded-lg hover:bg-gray-50">
  <h4 className="font-semibold mb-2 flex items-center gap-2 text-sm">
  <Shield className="h-4 w-4" />
- Security Engine V3 Features
+ {t('securityScans.securityEngineFeatures', 'Security Engine V3 Features')}
  </h4>
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
  <div>
- <strong>23 AWS Services:</strong> EC2, S3, IAM, RDS, Lambda, CloudTrail, GuardDuty, Config, CloudFormation, e mais
+ <strong>{t('securityScans.awsServices', '23 AWS Services')}:</strong> EC2, S3, IAM, RDS, Lambda, CloudTrail, GuardDuty, Config, CloudFormation, {t('securityScans.andMore', 'and more')}
  </div>
  <div>
- <strong>6 Compliance Frameworks:</strong> CIS, Well-Architected, PCI-DSS, NIST, LGPD, SOC2
+ <strong>{t('securityScans.complianceFrameworks', '6 Compliance Frameworks')}:</strong> CIS, Well-Architected, PCI-DSS, NIST, LGPD, SOC2
  </div>
  <div>
- <strong>170+ Security Checks:</strong> Configurações, permissões, criptografia, rede, logging
+ <strong>{t('securityScans.securityChecks', '170+ Security Checks')}:</strong> {t('securityScans.checksDescription', 'Configurations, permissions, encryption, network, logging')}
  </div>
  <div>
- <strong>Multi-Region:</strong> Análise automática em todas as regiões configuradas
+ <strong>{t('securityScans.multiRegion', 'Multi-Region')}:</strong> {t('securityScans.multiRegionDesc', 'Automatic analysis in all configured regions')}
  </div>
  </div>
  </div>
@@ -988,9 +987,9 @@ export default function SecurityScans() {
  {/* Main Content */}
  <Tabs defaultValue="scans" className="w-full">
  <TabsList className="glass-card-float">
- <TabsTrigger value="scans">Histórico de Scans</TabsTrigger>
- <TabsTrigger value="findings">Achados</TabsTrigger>
- <TabsTrigger value="schedule">Agendamento</TabsTrigger>
+ <TabsTrigger value="scans">{t('securityScans.scanHistory', 'Scan History')}</TabsTrigger>
+ <TabsTrigger value="findings">{t('securityScans.findings', 'Findings')}</TabsTrigger>
+ <TabsTrigger value="schedule">{t('securityScans.schedule', 'Schedule')}</TabsTrigger>
  </TabsList>
 
  <TabsContent value="scans" className="space-y-4">
@@ -1001,13 +1000,13 @@ export default function SecurityScans() {
  <div className="flex-1">
  <Select value={selectedScanType} onValueChange={handleScanTypeChange}>
  <SelectTrigger className="glass-card-float">
- <SelectValue placeholder="Filtrar por tipo de scan" />
+ <SelectValue placeholder={t('securityScans.filterByScanType', 'Filter by scan type')} />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="all">Todos os Níveis</SelectItem>
- <SelectItem value="quick">Quick Scan</SelectItem>
- <SelectItem value="standard">Standard Scan</SelectItem>
- <SelectItem value="deep">Deep Scan</SelectItem>
+ <SelectItem value="all">{t('securityScans.allLevels', 'All Levels')}</SelectItem>
+ <SelectItem value="quick">{t('securityScans.quickScan', 'Quick Scan')}</SelectItem>
+ <SelectItem value="standard">{t('securityScans.standardScan', 'Standard Scan')}</SelectItem>
+ <SelectItem value="deep">{t('securityScans.deepScan', 'Deep Scan')}</SelectItem>
  </SelectContent>
  </Select>
  </div>
@@ -1018,8 +1017,8 @@ export default function SecurityScans() {
  {/* Scans List */}
  <Card>
  <CardHeader>
- <CardTitle>Histórico de Scans</CardTitle>
- <CardDescription>Lista de todos os scans executados</CardDescription>
+ <CardTitle>{t('securityScans.scanHistory', 'Scan History')}</CardTitle>
+ <CardDescription>{t('securityScans.scanHistoryDesc', 'List of all executed scans')}</CardDescription>
  </CardHeader>
  <CardContent>
  {isLoading ? (
@@ -1050,11 +1049,11 @@ export default function SecurityScans() {
  Security Engine V3 - {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
  </p>
  <div className="flex items-center gap-2 text-xs text-muted-foreground">
- <span>Iniciado: {new Date(scan.started_at).toLocaleString('pt-BR')}</span>
+ <span>{t('securityScans.started', 'Started')}: {new Date(scan.started_at).toLocaleString('pt-BR')}</span>
  {scan.completed_at && (
  <>
  <span>•</span>
- <span>Concluído: {new Date(scan.completed_at).toLocaleString('pt-BR')}</span>
+ <span>{t('securityScans.completed', 'Completed')}: {new Date(scan.completed_at).toLocaleString('pt-BR')}</span>
  </>
  )}
  </div>
@@ -1071,23 +1070,23 @@ export default function SecurityScans() {
  {scan.status === 'completed' && (
  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm animate-fade-in">
  <div className="text-center p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
- <span className="text-muted-foreground">Total:</span>
+ <span className="text-muted-foreground">{t('securityScans.total', 'Total')}:</span>
  <div className="font-medium text-lg">{scan.findings_count || 0}</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">
- <span className="text-muted-foreground">Críticos:</span>
+ <span className="text-muted-foreground">{t('securityScans.criticals', 'Critical')}:</span>
  <div className="font-medium text-lg text-red-600">{scan.critical_count || 0}</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors">
- <span className="text-muted-foreground">Altos:</span>
+ <span className="text-muted-foreground">{t('securityScans.highs', 'High')}:</span>
  <div className="font-medium text-lg text-orange-500">{scan.high_count || 0}</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-yellow-50 hover:bg-yellow-100 transition-colors">
- <span className="text-muted-foreground">Médios:</span>
+ <span className="text-muted-foreground">{t('securityScans.mediums', 'Medium')}:</span>
  <div className="font-medium text-lg text-yellow-500">{scan.medium_count || 0}</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-green-50 hover:bg-green-100 transition-colors">
- <span className="text-muted-foreground">Baixos:</span>
+ <span className="text-muted-foreground">{t('securityScans.lows', 'Low')}:</span>
  <div className="font-medium text-lg text-green-500">{scan.low_count || 0}</div>
  </div>
  </div>
@@ -1108,7 +1107,7 @@ export default function SecurityScans() {
  className=" transition-all duration-300 hover:scale-105"
  >
  <Eye className="h-4 w-4 mr-2" />
- Ver Detalhes
+ {t('securityScans.viewDetails', 'View Details')}
  </Button>
  </div>
  )}
@@ -1119,13 +1118,13 @@ export default function SecurityScans() {
  ) : (
  <div className="text-center py-12">
  <Scan className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
- <h3 className="text-xl font-semibold mb-2">Nenhum scan executado</h3>
+ <h3 className="text-xl font-semibold mb-2">{t('securityScans.noScansExecuted', 'No scans executed')}</h3>
  <p className="text-muted-foreground mb-4">
- Execute seu primeiro scan de segurança para começar.
+ {t('securityScans.runFirstScanDesc', 'Run your first security scan to get started.')}
  </p>
  <Button onClick={() => handleStartScan('standard')}>
  <Play className="h-4 w-4 mr-2" />
- Executar Primeiro Scan
+ {t('securityScans.runFirstScan', 'Run First Scan')}
  </Button>
  </div>
  )}
@@ -1135,10 +1134,10 @@ export default function SecurityScans() {
  <div className="flex items-center justify-between pt-6 border-t mt-6">
  <div className="flex items-center gap-4">
  <div className="text-sm text-muted-foreground">
- Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalScans)} de {totalScans} scans
+ {t('securityScans.showingScans', 'Showing {{from}} to {{to}} of {{total}} scans', { from: ((currentPage - 1) * itemsPerPage) + 1, to: Math.min(currentPage * itemsPerPage, totalScans), total: totalScans })}
  </div>
  <div className="flex items-center gap-2">
- <span className="text-sm text-muted-foreground">Itens por página:</span>
+ <span className="text-sm text-muted-foreground">{t('securityScans.itemsPerPage', 'Items per page')}:</span>
  <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
  <SelectTrigger className="w-20">
  <SelectValue />
@@ -1227,7 +1226,7 @@ export default function SecurityScans() {
  <div className="flex-1 min-w-[200px]">
  <input
  type="text"
- placeholder="Buscar achados..."
+ placeholder={t('securityScans.searchFindings', 'Search findings...')}
  value={searchQuery}
  onChange={(e) => {
  setSearchQuery(e.target.value);
@@ -1241,14 +1240,14 @@ export default function SecurityScans() {
  setFindingsPage(1);
  }}>
  <SelectTrigger className="w-[150px] glass-card-float">
- <SelectValue placeholder="Severidade" />
+ <SelectValue placeholder={t('securityScans.severity', 'Severity')} />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="all">Todas Severidades</SelectItem>
- <SelectItem value="critical">Crítico</SelectItem>
- <SelectItem value="high">Alto</SelectItem>
- <SelectItem value="medium">Médio</SelectItem>
- <SelectItem value="low">Baixo</SelectItem>
+ <SelectItem value="all">{t('securityScans.allSeverities', 'All Severities')}</SelectItem>
+ <SelectItem value="critical">{t('securityScans.severityCritical', 'Critical')}</SelectItem>
+ <SelectItem value="high">{t('securityScans.severityHigh', 'High')}</SelectItem>
+ <SelectItem value="medium">{t('securityScans.severityMedium', 'Medium')}</SelectItem>
+ <SelectItem value="low">{t('securityScans.severityLow', 'Low')}</SelectItem>
  </SelectContent>
  </Select>
  <Select value={serviceFilter} onValueChange={(value) => {
@@ -1256,10 +1255,10 @@ export default function SecurityScans() {
  setFindingsPage(1);
  }}>
  <SelectTrigger className="w-[150px] glass-card-float">
- <SelectValue placeholder="Serviço" />
+ <SelectValue placeholder={t('securityScans.service', 'Service')} />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="all">Todos Serviços</SelectItem>
+ <SelectItem value="all">{t('securityScans.allServices', 'All Services')}</SelectItem>
  {Array.from(new Set(findings?.map(f => f.service).filter(Boolean) || [])).map(service => (
  <SelectItem key={service} value={service!}>{service}</SelectItem>
  ))}
@@ -1270,10 +1269,10 @@ export default function SecurityScans() {
  setFindingsPage(1);
  }}>
  <SelectTrigger className="w-[150px] glass-card-float">
- <SelectValue placeholder="Categoria" />
+ <SelectValue placeholder={t('securityScans.category', 'Category')} />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="all">Todas Categorias</SelectItem>
+ <SelectItem value="all">{t('securityScans.allCategories', 'All Categories')}</SelectItem>
  {Array.from(new Set(findings?.map(f => f.category).filter(Boolean) || [])).map(category => (
  <SelectItem key={category} value={category!}>{category}</SelectItem>
  ))}
@@ -1287,8 +1286,8 @@ export default function SecurityScans() {
  <CardHeader>
  <div className="flex items-center justify-between flex-wrap gap-4">
  <div>
- <CardTitle>Achados de Segurança</CardTitle>
- <CardDescription>Vulnerabilidades e problemas identificados no último scan</CardDescription>
+ <CardTitle>{t('securityScans.securityFindings', 'Security Findings')}</CardTitle>
+ <CardDescription>{t('securityScans.securityFindingsDesc', 'Vulnerabilities and issues identified in the last scan')}</CardDescription>
  </div>
  {findings && findings.length > 0 && (
  <div className="flex items-center gap-2">
@@ -1301,8 +1300,8 @@ export default function SecurityScans() {
  >
  <Ticket className="h-4 w-4" />
  {creatingBatchTickets 
- ? 'Criando...' 
- : `Criar ${selectedFindings.length} Ticket(s)`}
+ ? t('securityScans.creating', 'Creating...') 
+ : t('securityScans.createTickets', 'Create {{count}} Ticket(s)', { count: selectedFindings.length })}
  </Button>
  )}
  </div>
@@ -1362,18 +1361,18 @@ export default function SecurityScans() {
  className="gap-2"
  >
  <CheckSquare className="h-4 w-4" />
- {allFilteredSelected ? 'Desmarcar Todos' : 'Selecionar Todos'}
+ {allFilteredSelected ? t('securityScans.deselectAll', 'Deselect All') : t('securityScans.selectAll', 'Select All')}
  </Button>
  <span>
- Mostrando {paginatedFindings.length} de {filteredFindings.length} achados
- {filteredFindings.length !== findings.length && ` (${findings.length} total)`}
+ {t('securityScans.showingFindings', 'Showing {{count}} of {{filtered}} findings', { count: paginatedFindings.length, filtered: filteredFindings.length })}
+ {filteredFindings.length !== findings.length && ` (${findings.length} ${t('securityScans.total', 'total')})`}
  </span>
  </div>
  <div className="flex gap-2">
- <Badge variant="destructive">{filteredFindings.filter(f => f.severity === 'critical').length} Críticos</Badge>
- <Badge className="bg-orange-500">{filteredFindings.filter(f => f.severity === 'high').length} Altos</Badge>
- <Badge variant="secondary">{filteredFindings.filter(f => f.severity === 'medium').length} Médios</Badge>
- <Badge variant="outline">{filteredFindings.filter(f => f.severity === 'low').length} Baixos</Badge>
+ <Badge variant="destructive">{filteredFindings.filter(f => f.severity === 'critical').length} {t('securityScans.criticals', 'Critical')}</Badge>
+ <Badge className="bg-orange-500">{filteredFindings.filter(f => f.severity === 'high').length} {t('securityScans.highs', 'High')}</Badge>
+ <Badge variant="secondary">{filteredFindings.filter(f => f.severity === 'medium').length} {t('securityScans.mediums', 'Medium')}</Badge>
+ <Badge variant="outline">{filteredFindings.filter(f => f.severity === 'low').length} {t('securityScans.lows', 'Low')}</Badge>
  </div>
  </div>
 
@@ -1516,7 +1515,7 @@ export default function SecurityScans() {
  
  {finding.remediation && (
  <div className="bg-muted/30 rounded p-3 space-y-2">
- <p className="text-sm font-medium mb-2">Remediação:</p>
+ <p className="text-sm font-medium mb-2">{t('securityScans.remediation', 'Remediation')}:</p>
  {(() => {
  try {
  const remediation = typeof finding.remediation === 'string' 
@@ -1531,7 +1530,7 @@ export default function SecurityScans() {
  
  {remediation.steps && remediation.steps.length > 0 && (
  <div>
- <p className="text-sm font-medium mb-1">Passos:</p>
+ <p className="text-sm font-medium mb-1">{t('securityScans.steps', 'Steps')}:</p>
  <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
  {remediation.steps.map((step: string, idx: number) => (
  <li key={idx}>{step}</li>
@@ -1543,19 +1542,19 @@ export default function SecurityScans() {
  <div className="flex gap-4 text-xs">
  {remediation.estimated_effort && (
  <Badge variant="outline" className="capitalize">
- Esforço: {remediation.estimated_effort}
+ {t('securityScans.effort', 'Effort')}: {remediation.estimated_effort}
  </Badge>
  )}
  {remediation.automation_available && (
  <Badge variant="secondary">
- Automação Disponível
+ {t('securityScans.automationAvailable', 'Automation Available')}
  </Badge>
  )}
  </div>
  
  {remediation.cli_command && (
  <div className="mt-2">
- <p className="text-xs font-medium mb-1">Comando CLI:</p>
+ <p className="text-xs font-medium mb-1">{t('securityScans.cliCommand', 'CLI Command')}:</p>
  <code className="block text-xs bg-muted p-2 rounded overflow-x-auto">
  {remediation.cli_command}
  </code>
@@ -1578,7 +1577,7 @@ export default function SecurityScans() {
  {totalFindingsPages > 1 && (
  <div className="flex items-center justify-between pt-6 border-t mt-6">
  <div className="text-sm text-muted-foreground">
- Página {findingsPage} de {totalFindingsPages}
+ {t('securityScans.pageOf', 'Page {{current}} of {{total}}', { current: findingsPage, total: totalFindingsPages })}
  </div>
  <div className="flex items-center gap-2">
  <Button
@@ -1648,9 +1647,9 @@ export default function SecurityScans() {
  ) : (
  <div className="text-center py-12">
  <CheckCircle className="h-16 w-16 mx-auto mb-4 text-success" />
- <h3 className="text-xl font-semibold mb-2">Nenhum achado encontrado</h3>
+ <h3 className="text-xl font-semibold mb-2">{t('securityScans.noFindingsFound', 'No findings found')}</h3>
  <p className="text-muted-foreground">
- Nenhuma vulnerabilidade ou problema foi identificado no último scan.
+ {t('securityScans.noFindingsFoundDesc', 'No vulnerabilities or issues were identified in the last scan.')}
  </p>
  </div>
  )}

@@ -147,8 +147,8 @@ export default function RemediationTickets() {
     },
     onSuccess: () => {
       toast({
-        title: "Ticket criado",
-        description: "O ticket de remediação foi criado com sucesso.",
+        title: t('remediationTickets.ticketCreated', 'Ticket created successfully'),
+        description: t('remediationTickets.ticketCreatedDesc', 'The remediation ticket was created successfully.'),
       });
       setIsCreateDialogOpen(false);
       setNewTicket({
@@ -166,8 +166,8 @@ export default function RemediationTickets() {
     },
     onError: (error) => {
       toast({
-        title: "Erro ao criar ticket",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        title: t('remediationTickets.ticketCreateError', 'Error creating ticket'),
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
         variant: "destructive"
       });
     }
@@ -189,15 +189,15 @@ export default function RemediationTickets() {
     },
     onSuccess: () => {
       toast({
-        title: "Status atualizado",
-        description: "O status do ticket foi atualizado com sucesso.",
+        title: t('remediationTickets.statusUpdated', 'Status updated'),
+        description: t('remediationTickets.statusUpdatedDesc', 'The ticket status was updated successfully.'),
       });
       refetch();
     },
     onError: (error) => {
       toast({
-        title: "Erro ao atualizar",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        title: t('remediationTickets.updateError', 'Error updating'),
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
         variant: "destructive"
       });
     }
@@ -206,8 +206,8 @@ export default function RemediationTickets() {
   const handleCreateTicket = () => {
     if (!newTicket.title || !newTicket.description) {
       toast({
-        title: "Campos obrigatórios",
-        description: "Título e descrição são obrigatórios.",
+        title: t('remediationTickets.requiredFields', 'Required fields'),
+        description: t('remediationTickets.requiredFieldsDesc', 'Title and description are required.'),
         variant: "destructive"
       });
       return;
@@ -220,13 +220,13 @@ export default function RemediationTickets() {
     try {
       await refetch();
       toast({
-        title: "Dados atualizados",
-        description: "Os tickets foram atualizados.",
+        title: t('remediationTickets.dataUpdated', 'Data updated'),
+        description: t('remediationTickets.dataUpdatedDesc', 'The tickets were updated.'),
       });
     } catch (error) {
       toast({
-        title: "Erro ao atualizar",
-        description: "Não foi possível atualizar os dados.",
+        title: t('remediationTickets.updateError', 'Error updating'),
+        description: t('remediationTickets.updateErrorDesc', 'Could not update the data.'),
         variant: "destructive"
       });
     }
@@ -234,31 +234,31 @@ export default function RemediationTickets() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'open': return <Badge variant="outline">Aberto</Badge>;
-      case 'in_progress': return <Badge className="bg-blue-500">Em Progresso</Badge>;
-      case 'resolved': return <Badge className="bg-green-500">Resolvido</Badge>;
-      case 'closed': return <Badge variant="secondary">Fechado</Badge>;
-      case 'cancelled': return <Badge variant="destructive">Cancelado</Badge>;
+      case 'open': return <Badge variant="outline">{t('remediationTickets.statusOpen', 'Open')}</Badge>;
+      case 'in_progress': return <Badge className="bg-blue-500">{t('remediationTickets.inProgress', 'In Progress')}</Badge>;
+      case 'resolved': return <Badge className="bg-green-500">{t('remediationTickets.resolved', 'Resolved')}</Badge>;
+      case 'closed': return <Badge variant="secondary">{t('remediationTickets.statusClosed', 'Closed')}</Badge>;
+      case 'cancelled': return <Badge variant="destructive">{t('remediationTickets.statusCancelled', 'Cancelled')}</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
   };
 
   const getSeverityBadge = (severity: string) => {
     switch (severity) {
-      case 'critical': return <Badge variant="destructive">Crítico</Badge>;
-      case 'high': return <Badge variant="destructive">Alto</Badge>;
-      case 'medium': return <Badge variant="secondary">Médio</Badge>;
-      case 'low': return <Badge variant="outline">Baixo</Badge>;
+      case 'critical': return <Badge variant="destructive">{t('remediationTickets.severityCritical', 'Critical')}</Badge>;
+      case 'high': return <Badge variant="destructive">{t('remediationTickets.severityHigh', 'High')}</Badge>;
+      case 'medium': return <Badge variant="secondary">{t('remediationTickets.severityMedium', 'Medium')}</Badge>;
+      case 'low': return <Badge variant="outline">{t('remediationTickets.severityLow', 'Low')}</Badge>;
       default: return <Badge variant="outline">{severity}</Badge>;
     }
   };
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
-      case 'urgent': return <Badge variant="destructive">Urgente</Badge>;
-      case 'high': return <Badge className="bg-orange-500">Alta</Badge>;
-      case 'medium': return <Badge variant="secondary">Média</Badge>;
-      case 'low': return <Badge variant="outline">Baixa</Badge>;
+      case 'urgent': return <Badge variant="destructive">{t('remediationTickets.priorityUrgent', 'Urgent')}</Badge>;
+      case 'high': return <Badge className="bg-orange-500">{t('remediationTickets.priorityHigh', 'High')}</Badge>;
+      case 'medium': return <Badge variant="secondary">{t('remediationTickets.priorityMedium', 'Medium')}</Badge>;
+      case 'low': return <Badge variant="outline">{t('remediationTickets.priorityLow', 'Low')}</Badge>;
       default: return <Badge variant="outline">{priority}</Badge>;
     }
   };
@@ -284,11 +284,11 @@ export default function RemediationTickets() {
   ).length || 0;
 
   const categories = [
-    { value: 'security', label: 'Segurança' },
-    { value: 'compliance', label: 'Compliance' },
-    { value: 'cost_optimization', label: 'Otimização de Custos' },
-    { value: 'performance', label: 'Performance' },
-    { value: 'configuration', label: 'Configuração' }
+    { value: 'security', label: t('remediationTickets.categorySecurity', 'Security') },
+    { value: 'compliance', label: t('remediationTickets.categoryCompliance', 'Compliance') },
+    { value: 'cost_optimization', label: t('remediationTickets.categoryCostOptimization', 'Cost Optimization') },
+    { value: 'performance', label: t('remediationTickets.categoryPerformance', 'Performance') },
+    { value: 'configuration', label: t('remediationTickets.categoryConfiguration', 'Configuration') }
   ];
 
   return (
@@ -302,7 +302,7 @@ export default function RemediationTickets() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card >
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total de Tickets</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.totalTickets', 'Total Tickets')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -315,7 +315,7 @@ export default function RemediationTickets() {
 
         <Card >
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Abertos</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.statusOpen', 'Open')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -328,7 +328,7 @@ export default function RemediationTickets() {
 
         <Card >
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Em Progresso</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.inProgress', 'In Progress')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -341,7 +341,7 @@ export default function RemediationTickets() {
 
         <Card >
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Críticos</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.criticals', 'Critical')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -354,7 +354,7 @@ export default function RemediationTickets() {
 
         <Card >
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Atrasados</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.overdue', 'Overdue')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -372,27 +372,27 @@ export default function RemediationTickets() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
               <SelectTrigger >
-                <SelectValue placeholder="Filtrar por status" />
+                <SelectValue placeholder={t('remediationTickets.filterByStatus', 'Filter by status')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os Status</SelectItem>
-                <SelectItem value="open">Aberto</SelectItem>
-                <SelectItem value="in_progress">Em Progresso</SelectItem>
-                <SelectItem value="resolved">Resolvido</SelectItem>
-                <SelectItem value="closed">Fechado</SelectItem>
-                <SelectItem value="cancelled">Cancelado</SelectItem>
+                <SelectItem value="all">{t('remediationTickets.allStatuses', 'All Statuses')}</SelectItem>
+                <SelectItem value="open">{t('remediationTickets.statusOpen', 'Open')}</SelectItem>
+                <SelectItem value="in_progress">{t('remediationTickets.inProgress', 'In Progress')}</SelectItem>
+                <SelectItem value="resolved">{t('remediationTickets.resolved', 'Resolved')}</SelectItem>
+                <SelectItem value="closed">{t('remediationTickets.statusClosed', 'Closed')}</SelectItem>
+                <SelectItem value="cancelled">{t('remediationTickets.statusCancelled', 'Cancelled')}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
               <SelectTrigger >
-                <SelectValue placeholder="Filtrar por severidade" />
+                <SelectValue placeholder={t('remediationTickets.filterBySeverity', 'Filter by severity')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas as Severidades</SelectItem>
-                <SelectItem value="critical">Crítica</SelectItem>
-                <SelectItem value="high">Alta</SelectItem>
-                <SelectItem value="medium">Média</SelectItem>
-                <SelectItem value="low">Baixa</SelectItem>
+                <SelectItem value="all">{t('remediationTickets.allSeverities', 'All Severities')}</SelectItem>
+                <SelectItem value="critical">{t('remediationTickets.severityCritical', 'Critical')}</SelectItem>
+                <SelectItem value="high">{t('remediationTickets.severityHigh', 'High')}</SelectItem>
+                <SelectItem value="medium">{t('remediationTickets.severityMedium', 'Medium')}</SelectItem>
+                <SelectItem value="low">{t('remediationTickets.severityLow', 'Low')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -402,8 +402,8 @@ export default function RemediationTickets() {
       {/* Tickets List */}
       <Card >
         <CardHeader>
-          <CardTitle>Lista de Tickets</CardTitle>
-          <CardDescription>Todos os tickets de remediação</CardDescription>
+          <CardTitle>{t('remediationTickets.ticketsList', 'Tickets List')}</CardTitle>
+          <CardDescription>{t('remediationTickets.ticketsListDesc', 'All remediation tickets')}</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -429,7 +429,7 @@ export default function RemediationTickets() {
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <User className="h-3 w-3" />
-                            <span>Criado por: {ticket.created_by}</span>
+                            <span>{t('remediationTickets.createdBy', 'Created by')}: {ticket.created_by}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
@@ -438,7 +438,7 @@ export default function RemediationTickets() {
                           {ticket.due_date && (
                             <div className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              <span>Vence: {new Date(ticket.due_date).toLocaleDateString('pt-BR')}</span>
+                              <span>{t('remediationTickets.dueDate', 'Due')}: {new Date(ticket.due_date).toLocaleDateString('pt-BR')}</span>
                             </div>
                           )}
                         </div>
@@ -454,14 +454,14 @@ export default function RemediationTickets() {
                   
                   {ticket.business_impact && (
                     <div className="bg-muted/30 rounded p-3">
-                      <p className="text-sm font-medium mb-1">Impacto no Negócio:</p>
+                      <p className="text-sm font-medium mb-1">{t('remediationTickets.businessImpact', 'Business Impact')}:</p>
                       <p className="text-sm text-muted-foreground">{ticket.business_impact}</p>
                     </div>
                   )}
                   
                   {ticket.affected_resources && ticket.affected_resources.length > 0 && (
                     <div className="space-y-1">
-                      <p className="text-sm font-medium">Recursos Afetados:</p>
+                      <p className="text-sm font-medium">{t('remediationTickets.affectedResources', 'Affected Resources')}:</p>
                       <div className="flex gap-2 flex-wrap">
                         {ticket.affected_resources.map((resource, idx) => (
                           <Badge key={idx} variant="outline" className="text-xs">
@@ -476,13 +476,13 @@ export default function RemediationTickets() {
                     <div className="flex items-center gap-4 text-sm">
                       {ticket.estimated_effort_hours > 0 && (
                         <span className="text-muted-foreground">
-                          Esforço: {ticket.estimated_effort_hours}h
+                          {t('remediationTickets.effort', 'Effort')}: {ticket.estimated_effort_hours}h
                         </span>
                       )}
                       {ticket.automation_available && (
                         <Badge variant="outline" className="gap-1">
                           <Settings className="h-3 w-3" />
-                          Automação Disponível
+                          {t('remediationTickets.automationAvailable', 'Automation Available')}
                         </Badge>
                       )}
                     </div>
@@ -494,7 +494,7 @@ export default function RemediationTickets() {
                           onClick={() => updateStatusMutation.mutate({ id: ticket.id, status: 'in_progress' })}
                         >
                           <Play className="h-4 w-4 mr-1" />
-                          Iniciar
+                          {t('remediationTickets.start', 'Start')}
                         </Button>
                       )}
                       {ticket.status === 'in_progress' && (
@@ -503,7 +503,7 @@ export default function RemediationTickets() {
                           onClick={() => updateStatusMutation.mutate({ id: ticket.id, status: 'resolved' })}
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
-                          Resolver
+                          {t('remediationTickets.resolve', 'Resolve')}
                         </Button>
                       )}
                     </div>
@@ -514,17 +514,17 @@ export default function RemediationTickets() {
           ) : (
             <div className="text-center py-12">
               <Ticket className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-xl font-semibold mb-2">Nenhum ticket encontrado</h3>
+              <h3 className="text-xl font-semibold mb-2">{t('remediationTickets.noTicketsFound', 'No tickets found')}</h3>
               <p className="text-muted-foreground mb-4">
                 {selectedStatus !== 'all' || selectedSeverity !== 'all' 
-                  ? 'Nenhum ticket corresponde aos filtros aplicados.'
-                  : 'Crie seu primeiro ticket de remediação.'
+                  ? t('remediationTickets.noTicketsWithFilters', 'No tickets match the applied filters.')
+                  : t('remediationTickets.createFirstTicketDesc', 'Create your first remediation ticket.')
                 }
               </p>
               {selectedStatus === 'all' && selectedSeverity === 'all' && (
                 <Button onClick={() => setIsCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Criar Primeiro Ticket
+                  {t('remediationTickets.createFirstTicket', 'Create First Ticket')}
                 </Button>
               )}
             </div>
@@ -536,64 +536,64 @@ export default function RemediationTickets() {
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Criar Novo Ticket</DialogTitle>
+            <DialogTitle>{t('remediationTickets.createNewTicket', 'Create New Ticket')}</DialogTitle>
             <DialogDescription>
-              Crie um novo ticket de remediação para rastrear problemas
+              {t('remediationTickets.createNewTicketDesc', 'Create a new remediation ticket to track issues')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Título</Label>
+              <Label htmlFor="title">{t('remediationTickets.ticketTitle', 'Title')}</Label>
               <Input
                 id="title"
                 value={newTicket.title}
                 onChange={(e) => setNewTicket(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Título do problema"
+                placeholder={t('remediationTickets.ticketTitlePlaceholder', 'Problem title')}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
+              <Label htmlFor="description">{t('remediationTickets.ticketDescription', 'Description')}</Label>
               <Textarea
                 id="description"
                 value={newTicket.description}
                 onChange={(e) => setNewTicket(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Descreva o problema detalhadamente"
+                placeholder={t('remediationTickets.ticketDescriptionPlaceholder', 'Describe the problem in detail')}
                 rows={4}
               />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="severity">Severidade</Label>
+                <Label htmlFor="severity">{t('remediationTickets.severity', 'Severity')}</Label>
                 <Select value={newTicket.severity} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, severity: value }))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Baixa</SelectItem>
-                    <SelectItem value="medium">Média</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="critical">Crítica</SelectItem>
+                    <SelectItem value="low">{t('remediationTickets.severityLow', 'Low')}</SelectItem>
+                    <SelectItem value="medium">{t('remediationTickets.severityMedium', 'Medium')}</SelectItem>
+                    <SelectItem value="high">{t('remediationTickets.severityHigh', 'High')}</SelectItem>
+                    <SelectItem value="critical">{t('remediationTickets.severityCritical', 'Critical')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="priority">Prioridade</Label>
+                <Label htmlFor="priority">{t('remediationTickets.priority', 'Priority')}</Label>
                 <Select value={newTicket.priority} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, priority: value }))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Baixa</SelectItem>
-                    <SelectItem value="medium">Média</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="urgent">Urgente</SelectItem>
+                    <SelectItem value="low">{t('remediationTickets.priorityLow', 'Low')}</SelectItem>
+                    <SelectItem value="medium">{t('remediationTickets.priorityMedium', 'Medium')}</SelectItem>
+                    <SelectItem value="high">{t('remediationTickets.priorityHigh', 'High')}</SelectItem>
+                    <SelectItem value="urgent">{t('remediationTickets.priorityUrgent', 'Urgent')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="category">Categoria</Label>
+                <Label htmlFor="category">{t('remediationTickets.category', 'Category')}</Label>
                 <Select value={newTicket.category} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, category: value }))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -611,7 +611,7 @@ export default function RemediationTickets() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="due_date">Data de Vencimento</Label>
+                <Label htmlFor="due_date">{t('remediationTickets.dueDateLabel', 'Due Date')}</Label>
                 <Input
                   id="due_date"
                   type="date"
@@ -620,7 +620,7 @@ export default function RemediationTickets() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="effort">Esforço Estimado (horas)</Label>
+                <Label htmlFor="effort">{t('remediationTickets.estimatedEffort', 'Estimated Effort (hours)')}</Label>
                 <Input
                   id="effort"
                   type="number"
@@ -632,22 +632,22 @@ export default function RemediationTickets() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="business_impact">Impacto no Negócio</Label>
+              <Label htmlFor="business_impact">{t('remediationTickets.businessImpact', 'Business Impact')}</Label>
               <Textarea
                 id="business_impact"
                 value={newTicket.business_impact}
                 onChange={(e) => setNewTicket(prev => ({ ...prev, business_impact: e.target.value }))}
-                placeholder="Descreva o impacto no negócio"
+                placeholder={t('remediationTickets.businessImpactPlaceholder', 'Describe the business impact')}
                 rows={2}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-              Cancelar
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button onClick={handleCreateTicket} disabled={createTicketMutation.isPending}>
-              {createTicketMutation.isPending ? 'Criando...' : 'Criar Ticket'}
+              {createTicketMutation.isPending ? t('remediationTickets.creating', 'Creating...') : t('remediationTickets.createTicket', 'Create Ticket')}
             </Button>
           </DialogFooter>
         </DialogContent>

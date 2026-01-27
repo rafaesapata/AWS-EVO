@@ -207,11 +207,11 @@ export default function CloudTrailAudit() {
       setAnalysisId(runningAnalysis.id);
       setIsAnalyzing(true);
       toast({
-        title: "Análise em andamento",
-        description: "Detectada análise em execução. Acompanhando progresso...",
+        title: t('cloudtrail.analysisInProgress', 'Analysis in progress'),
+        description: t('cloudtrail.detectedRunningAnalysis', 'Detected running analysis. Tracking progress...'),
       });
     }
-  }, [runningAnalysis, analysisId, isAnalyzing, toast]);
+  }, [runningAnalysis, analysisId, isAnalyzing, toast, t]);
 
   // Poll for analysis status when running
   const { data: analysisStatus } = useQuery<CloudTrailAnalysisStatus | undefined>({
@@ -235,15 +235,15 @@ export default function CloudTrailAudit() {
       setIsAnalyzing(false);
       if (analysisStatus.status === 'completed') {
         toast({
-          title: "Análise concluída",
-          description: `${analysisStatus.events_processed || 0} eventos analisados. ${analysisStatus.critical_count || 0} críticos, ${analysisStatus.high_count || 0} altos.`,
+          title: t('cloudtrail.analysisCompleted', 'Analysis completed'),
+          description: t('cloudtrail.eventsAnalyzed', '{{events}} events analyzed. {{critical}} critical, {{high}} high.', { events: analysisStatus.events_processed || 0, critical: analysisStatus.critical_count || 0, high: analysisStatus.high_count || 0 }),
         });
         refetch(); // Refresh the events list
         queryClient.invalidateQueries({ queryKey: ['cloudtrail-analysis-history'] });
       } else if (analysisStatus.status === 'failed') {
         toast({
-          title: "Erro na análise",
-          description: analysisStatus.error_message || "Erro desconhecido",
+          title: t('cloudtrail.analysisError', 'Analysis error'),
+          description: analysisStatus.error_message || t('cloudtrail.unknownError', 'Unknown error'),
           variant: "destructive"
         });
       }
@@ -291,7 +291,7 @@ export default function CloudTrailAudit() {
       // Check if analysis is already running
       if (data.alreadyRunning) {
         toast({
-          title: "Análise em andamento",
+          title: t('cloudtrail.alreadyRunning', 'Analysis already running'),
           description: data.message,
           variant: "default"
         });
@@ -307,15 +307,15 @@ export default function CloudTrailAudit() {
         setAnalysisId(data.analysisId);
         setIsAnalyzing(true);
         toast({
-          title: "Análise iniciada",
-          description: data.message || "Os eventos estão sendo buscados em background.",
+          title: t('cloudtrail.analysisStarted', 'Analysis started'),
+          description: data.message || t('cloudtrail.eventsBeingFetched', 'Events are being fetched in background.'),
         });
       }
     },
     onError: (error) => {
       toast({
-        title: "Erro ao iniciar análise",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        title: t('cloudtrail.errorStartingAnalysis', 'Error starting analysis'),
+        description: error instanceof Error ? error.message : t('cloudtrail.unknownError', 'Unknown error'),
         variant: "destructive"
       });
     }
@@ -389,10 +389,10 @@ export default function CloudTrailAudit() {
       .slice(0, 10);
 
     const byRisk = [
-      { name: 'Crítico', value: riskCounts.critical, color: RISK_COLORS.critical },
-      { name: 'Alto', value: riskCounts.high, color: RISK_COLORS.high },
-      { name: 'Médio', value: riskCounts.medium, color: RISK_COLORS.medium },
-      { name: 'Baixo', value: riskCounts.low, color: RISK_COLORS.low },
+      { name: t('cloudtrail.critical', 'Critical'), value: riskCounts.critical, color: RISK_COLORS.critical },
+      { name: t('cloudtrail.high', 'High'), value: riskCounts.high, color: RISK_COLORS.high },
+      { name: t('cloudtrail.medium', 'Medium'), value: riskCounts.medium, color: RISK_COLORS.medium },
+      { name: t('cloudtrail.low', 'Low'), value: riskCounts.low, color: RISK_COLORS.low },
     ].filter(r => r.value > 0);
 
     const byEvent = Array.from(eventCounts.entries())
@@ -420,10 +420,10 @@ export default function CloudTrailAudit() {
 
   const getRiskBadge = (level: string) => {
     const variants: Record<string, any> = {
-      critical: { variant: 'destructive', label: 'Crítico' },
-      high: { variant: 'destructive', label: 'Alto' },
-      medium: { variant: 'secondary', label: 'Médio' },
-      low: { variant: 'outline', label: 'Baixo' },
+      critical: { variant: 'destructive', label: t('cloudtrail.critical', 'Critical') },
+      high: { variant: 'destructive', label: t('cloudtrail.high', 'High') },
+      medium: { variant: 'secondary', label: t('cloudtrail.medium', 'Medium') },
+      low: { variant: 'outline', label: t('cloudtrail.low', 'Low') },
     };
     const config = variants[level] || { variant: 'outline', label: level };
     return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -451,7 +451,7 @@ export default function CloudTrailAudit() {
     link.href = URL.createObjectURL(blob);
     link.download = `cloudtrail_audit_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    toast({ title: "Exportado", description: "Relatório CSV gerado com sucesso." });
+    toast({ title: t('cloudtrail.exported', 'Exported'), description: t('cloudtrail.csvReportGenerated', 'CSV report generated successfully.') });
   };
 
   return (
@@ -466,36 +466,36 @@ export default function CloudTrailAudit() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-500" />
-              Período Já Processado
+              {t('cloudtrail.periodAlreadyProcessed', 'Period Already Processed')}
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               <p>
-                Este período já foi analisado anteriormente ({periodOverlapInfo?.coveragePercent}% coberto).
+                {t('cloudtrail.periodAlreadyProcessedDesc', 'This period has already been analyzed ({{percent}}% covered).', { percent: periodOverlapInfo?.coveragePercent })}
               </p>
               {periodOverlapInfo?.overlappingAnalyses && periodOverlapInfo.overlappingAnalyses.length > 0 && (
                 <div className="bg-muted rounded-lg p-3 text-sm">
-                  <p className="font-medium mb-2">Análises anteriores:</p>
+                  <p className="font-medium mb-2">{t('cloudtrail.previousAnalyses', 'Previous analyses')}:</p>
                   <ul className="space-y-1">
                     {periodOverlapInfo.overlappingAnalyses.slice(0, 3).map((a, idx) => (
                       <li key={idx} className="flex items-center gap-2">
                         <Clock className="h-3 w-3" />
                         {formatDateBR(a.periodStart)} - {formatDateBR(a.periodEnd)}
-                        <Badge variant="outline" className="text-xs">{a.eventsProcessed} eventos</Badge>
+                        <Badge variant="outline" className="text-xs">{a.eventsProcessed} {t('cloudtrail.events', 'events')}</Badge>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
               <p className="text-muted-foreground">
-                Deseja reprocessar este período? Os eventos serão atualizados com as análises mais recentes.
+                {t('cloudtrail.reprocessQuestion', 'Do you want to reprocess this period? Events will be updated with the latest analyses.')}
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('cloudtrail.cancel', 'Cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleForceReprocess}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Reprocessar
+              {t('cloudtrail.reprocess', 'Reprocess')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -514,21 +514,21 @@ export default function CloudTrailAudit() {
             ) : (
               <Play className="h-4 w-4" />
             )}
-            {startAnalysisMutation.isPending ? 'Iniciando...' : isAnalyzing ? 'Analisando...' : 'Buscar Eventos'}
+            {startAnalysisMutation.isPending ? t('cloudtrail.starting', 'Starting...') : isAnalyzing ? t('cloudtrail.analyzing', 'Analyzing...') : t('cloudtrail.fetchEvents', 'Fetch Events')}
           </Button>
           {(['60d', '90d', '120d'].includes(selectedTimeRange)) && (
             <div className="flex items-center gap-1 text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded">
               <Clock className="h-3 w-3" />
-              Período extenso - pode levar vários minutos
+              {t('cloudtrail.extendedPeriodWarning', 'Extended period - may take several minutes')}
             </div>
           )}
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Atualizar
+            {t('cloudtrail.refresh', 'Refresh')}
           </Button>
           <Button variant="outline" size="sm" onClick={exportEvents} disabled={!events?.length}>
             <Download className="h-4 w-4 mr-2" />
-            Exportar
+            {t('cloudtrail.export', 'Export')}
           </Button>
         </div>
 
@@ -536,7 +536,7 @@ export default function CloudTrailAudit() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card >
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total de Eventos</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('cloudtrail.totalEvents', 'Total Events')}</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -547,14 +547,14 @@ export default function CloudTrailAudit() {
               ) : (
                 <>
                   <div className="text-2xl font-semibold">{summary.total.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">{summary.securityEvents} eventos de segurança</p>
+                  <p className="text-xs text-muted-foreground">{t('cloudtrail.securityEventsCount', '{{count}} security events', { count: summary.securityEvents })}</p>
                 </>
               )}
             </CardContent>
           </Card>
           <Card >
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Eventos Críticos</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('cloudtrail.criticalEvents', 'Critical Events')}</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -565,14 +565,14 @@ export default function CloudTrailAudit() {
               ) : (
                 <>
                   <div className="text-2xl font-semibold text-red-500">{summary.critical}</div>
-                  <p className="text-xs text-muted-foreground">{summary.high} de alto risco</p>
+                  <p className="text-xs text-muted-foreground">{summary.high} {t('cloudtrail.highRisk', 'high risk')}</p>
                 </>
               )}
             </CardContent>
           </Card>
           <Card >
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Erros/Falhas</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('cloudtrail.errorsFailed', 'Errors/Failures')}</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -583,14 +583,14 @@ export default function CloudTrailAudit() {
               ) : (
                 <>
                   <div className="text-2xl font-semibold text-orange-500">{summary.errors}</div>
-                  <p className="text-xs text-muted-foreground">Tentativas negadas</p>
+                  <p className="text-xs text-muted-foreground">{t('cloudtrail.deniedAttempts', 'Denied attempts')}</p>
                 </>
               )}
             </CardContent>
           </Card>
           <Card >
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Usuários Únicos</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('cloudtrail.uniqueUsers', 'Unique Users')}</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -601,7 +601,7 @@ export default function CloudTrailAudit() {
               ) : (
                 <>
                   <div className="text-2xl font-semibold">{summary.users}</div>
-                  <p className="text-xs text-muted-foreground">Identidades ativas</p>
+                  <p className="text-xs text-muted-foreground">{t('cloudtrail.activeIdentities', 'Active identities')}</p>
                 </>
               )}
             </CardContent>
@@ -615,7 +615,7 @@ export default function CloudTrailAudit() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar eventos, usuários, IPs..."
+                  placeholder={t('cloudtrail.searchPlaceholder', 'Search events, users, IPs...')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -624,22 +624,22 @@ export default function CloudTrailAudit() {
               <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="24h">Últimas 24 horas</SelectItem>
-                  <SelectItem value="7d">Últimos 7 dias</SelectItem>
-                  <SelectItem value="30d">Últimos 30 dias</SelectItem>
-                  <SelectItem value="60d">Últimos 60 dias</SelectItem>
-                  <SelectItem value="90d">Últimos 90 dias</SelectItem>
-                  <SelectItem value="120d">Últimos 120 dias</SelectItem>
+                  <SelectItem value="24h">{t('cloudtrail.last24h', 'Last 24 hours')}</SelectItem>
+                  <SelectItem value="7d">{t('cloudtrail.last7d', 'Last 7 days')}</SelectItem>
+                  <SelectItem value="30d">{t('cloudtrail.last30d', 'Last 30 days')}</SelectItem>
+                  <SelectItem value="60d">{t('cloudtrail.last60d', 'Last 60 days')}</SelectItem>
+                  <SelectItem value="90d">{t('cloudtrail.last90d', 'Last 90 days')}</SelectItem>
+                  <SelectItem value="120d">{t('cloudtrail.last120d', 'Last 120 days')}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={selectedRiskLevel} onValueChange={setSelectedRiskLevel}>
-                <SelectTrigger><SelectValue placeholder="Nível de Risco" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('cloudtrail.riskLevel', 'Risk Level')} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os Níveis</SelectItem>
-                  <SelectItem value="critical">Crítico</SelectItem>
-                  <SelectItem value="high">Alto</SelectItem>
-                  <SelectItem value="medium">Médio</SelectItem>
-                  <SelectItem value="low">Baixo</SelectItem>
+                  <SelectItem value="all">{t('cloudtrail.allLevels', 'All Levels')}</SelectItem>
+                  <SelectItem value="critical">{t('cloudtrail.critical', 'Critical')}</SelectItem>
+                  <SelectItem value="high">{t('cloudtrail.high', 'High')}</SelectItem>
+                  <SelectItem value="medium">{t('cloudtrail.medium', 'Medium')}</SelectItem>
+                  <SelectItem value="low">{t('cloudtrail.low', 'Low')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -675,9 +675,9 @@ export default function CloudTrailAudit() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
-                  Evolução de Problemas de Segurança
+                  {t('cloudtrail.securityIssuesEvolution', 'Security Issues Evolution')}
                 </CardTitle>
-                <CardDescription>Eventos por nível de risco ao longo do tempo</CardDescription>
+                <CardDescription>{t('cloudtrail.eventsByRiskOverTime', 'Events by risk level over time')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -687,10 +687,10 @@ export default function CloudTrailAudit() {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Area type="monotone" dataKey="critical" stackId="1" stroke={RISK_COLORS.critical} fill={RISK_COLORS.critical} name="Crítico" />
-                    <Area type="monotone" dataKey="high" stackId="1" stroke={RISK_COLORS.high} fill={RISK_COLORS.high} name="Alto" />
-                    <Area type="monotone" dataKey="medium" stackId="1" stroke={RISK_COLORS.medium} fill={RISK_COLORS.medium} name="Médio" />
-                    <Area type="monotone" dataKey="low" stackId="1" stroke={RISK_COLORS.low} fill={RISK_COLORS.low} name="Baixo" />
+                    <Area type="monotone" dataKey="critical" stackId="1" stroke={RISK_COLORS.critical} fill={RISK_COLORS.critical} name={t('cloudtrail.critical', 'Critical')} />
+                    <Area type="monotone" dataKey="high" stackId="1" stroke={RISK_COLORS.high} fill={RISK_COLORS.high} name={t('cloudtrail.high', 'High')} />
+                    <Area type="monotone" dataKey="medium" stackId="1" stroke={RISK_COLORS.medium} fill={RISK_COLORS.medium} name={t('cloudtrail.medium', 'Medium')} />
+                    <Area type="monotone" dataKey="low" stackId="1" stroke={RISK_COLORS.low} fill={RISK_COLORS.low} name={t('cloudtrail.low', 'Low')} />
                   </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -701,9 +701,9 @@ export default function CloudTrailAudit() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5" />
-                  Distribuição por Risco
+                  {t('cloudtrail.riskDistribution', 'Risk Distribution')}
                 </CardTitle>
-                <CardDescription>Proporção de eventos por nível de severidade</CardDescription>
+                <CardDescription>{t('cloudtrail.eventsBySeverity', 'Proportion of events by severity level')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -732,9 +732,9 @@ export default function CloudTrailAudit() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="h-5 w-5" />
-                  Usuários com Problemas de Segurança
+                  {t('cloudtrail.usersWithSecurityIssues', 'Users with Security Issues')}
                 </CardTitle>
-                <CardDescription>Top 10 usuários que executaram ações de risco</CardDescription>
+                <CardDescription>{t('cloudtrail.top10UsersRisk', 'Top 10 users who performed risky actions')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -744,10 +744,10 @@ export default function CloudTrailAudit() {
                     <YAxis dataKey="user" type="category" width={150} />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="critical" stackId="a" fill={RISK_COLORS.critical} name="Crítico" />
-                    <Bar dataKey="high" stackId="a" fill={RISK_COLORS.high} name="Alto" />
-                    <Bar dataKey="medium" stackId="a" fill={RISK_COLORS.medium} name="Médio" />
-                    <Bar dataKey="low" stackId="a" fill={RISK_COLORS.low} name="Baixo" />
+                    <Bar dataKey="critical" stackId="a" fill={RISK_COLORS.critical} name={t('cloudtrail.critical', 'Critical')} />
+                    <Bar dataKey="high" stackId="a" fill={RISK_COLORS.high} name={t('cloudtrail.high', 'High')} />
+                    <Bar dataKey="medium" stackId="a" fill={RISK_COLORS.medium} name={t('cloudtrail.medium', 'Medium')} />
+                    <Bar dataKey="low" stackId="a" fill={RISK_COLORS.low} name={t('cloudtrail.low', 'Low')} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -758,20 +758,20 @@ export default function CloudTrailAudit() {
         {/* Main Content Tabs */}
         <Tabs defaultValue="events" className="w-full">
           <TabsList>
-            <TabsTrigger value="events">Eventos</TabsTrigger>
-            <TabsTrigger value="security">Eventos de Segurança</TabsTrigger>
-            <TabsTrigger value="users">Por Usuário</TabsTrigger>
+            <TabsTrigger value="events">{t('cloudtrail.events', 'Events')}</TabsTrigger>
+            <TabsTrigger value="security">{t('cloudtrail.securityEvents', 'Security Events')}</TabsTrigger>
+            <TabsTrigger value="users">{t('cloudtrail.byUser', 'By User')}</TabsTrigger>
             <TabsTrigger value="history">
               <History className="h-4 w-4 mr-1" />
-              Histórico
+              {t('cloudtrail.history', 'History')}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="events" className="space-y-4">
             <Card >
               <CardHeader>
-                <CardTitle>Todos os Eventos</CardTitle>
-                <CardDescription>Lista completa de eventos do CloudTrail</CardDescription>
+                <CardTitle>{t('cloudtrail.allEventsList', 'All Events')}</CardTitle>
+                <CardDescription>{t('cloudtrail.completeEventsList', 'Complete list of CloudTrail events')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -788,8 +788,8 @@ export default function CloudTrailAudit() {
                               <h4 className="font-semibold text-sm">{event.event_name}</h4>
                               {getRiskBadge(event.risk_level)}
                               {event.event_category && <Badge variant="outline" className="text-xs">{event.event_category}</Badge>}
-                              {event.is_security_event && <Badge variant="outline" className="border-orange-500/50 text-orange-600">Segurança</Badge>}
-                              {event.error_code && <Badge variant="destructive">Erro</Badge>}
+                              {event.is_security_event && <Badge variant="outline" className="border-orange-500/50 text-orange-600">{t('cloudtrail.security', 'Security')}</Badge>}
+                              {event.error_code && <Badge variant="destructive">{t('cloudtrail.error', 'Error')}</Badge>}
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                               <span className="flex items-center gap-1"><User className="h-3 w-3" />{event.user_name}</span>
@@ -826,7 +826,7 @@ export default function CloudTrailAudit() {
                         )}
                         {event.error_code && (
                           <div className="bg-destructive/10 border border-destructive/20 rounded p-2 text-sm">
-                            <span className="font-medium text-destructive">Erro: {event.error_code}</span>
+                            <span className="font-medium text-destructive">{t('cloudtrail.error', 'Error')}: {event.error_code}</span>
                             {event.error_message && <p className="text-muted-foreground">{event.error_message}</p>}
                           </div>
                         )}
@@ -836,11 +836,11 @@ export default function CloudTrailAudit() {
                 ) : (
                   <div className="text-center py-12">
                     <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-xl font-semibold mb-2">Nenhum evento encontrado</h3>
-                    <p className="text-muted-foreground mb-4">Clique em "Buscar Eventos" para analisar o CloudTrail.</p>
+                    <h3 className="text-xl font-semibold mb-2">{t('cloudtrail.noEventsFound', 'No events found')}</h3>
+                    <p className="text-muted-foreground mb-4">{t('cloudtrail.clickToAnalyze', 'Click "Fetch Events" to analyze CloudTrail.')}</p>
                     <Button onClick={() => startAnalysisMutation.mutate(false)} disabled={startAnalysisMutation.isPending || isAnalyzing || !selectedAccountId}>
                       <Play className="h-4 w-4 mr-2" />
-                      Buscar Eventos
+                      {t('cloudtrail.fetchEvents', 'Fetch Events')}
                     </Button>
                   </div>
                 )}
@@ -853,9 +853,9 @@ export default function CloudTrailAudit() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-orange-500" />
-                  Eventos de Segurança
+                  {t('cloudtrail.securityEvents', 'Security Events')}
                 </CardTitle>
-                <CardDescription>Apenas eventos que representam riscos de segurança</CardDescription>
+                <CardDescription>{t('cloudtrail.onlySecurityRisks', 'Only events that represent security risks')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -893,7 +893,7 @@ export default function CloudTrailAudit() {
                             <div className="flex items-start gap-2">
                               <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
                               <div>
-                                <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">Por que isso é um problema?</p>
+                                <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">{t('cloudtrail.whyProblem', 'Why is this a problem?')}</p>
                                 <p className="text-sm text-muted-foreground">{event.security_explanation}</p>
                               </div>
                             </div>
@@ -906,7 +906,7 @@ export default function CloudTrailAudit() {
                             <div className="flex items-start gap-2">
                               <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                               <div>
-                                <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">Recomendação</p>
+                                <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">{t('cloudtrail.recommendation', 'Recommendation')}</p>
                                 <p className="text-sm text-muted-foreground">{event.remediation_suggestion}</p>
                               </div>
                             </div>
@@ -915,7 +915,7 @@ export default function CloudTrailAudit() {
                         
                         {event.risk_reasons && event.risk_reasons.length > 0 && (
                           <div className="bg-muted/50 rounded p-2">
-                            <p className="text-sm font-medium mb-1">Motivos do Risco:</p>
+                            <p className="text-sm font-medium mb-1">{t('cloudtrail.riskReasons', 'Risk Reasons')}:</p>
                             <ul className="text-sm text-muted-foreground space-y-1">
                               {event.risk_reasons.map((reason, idx) => (
                                 <li key={idx} className="flex items-center gap-2">
@@ -932,8 +932,8 @@ export default function CloudTrailAudit() {
                 ) : (
                   <div className="text-center py-12">
                     <Shield className="h-16 w-16 mx-auto mb-4 text-green-500" />
-                    <h3 className="text-xl font-semibold mb-2">Nenhum evento de segurança</h3>
-                    <p className="text-muted-foreground">Não foram encontrados eventos de risco no período selecionado.</p>
+                    <h3 className="text-xl font-semibold mb-2">{t('cloudtrail.noSecurityEvents', 'No security events')}</h3>
+                    <p className="text-muted-foreground">{t('cloudtrail.noRiskEventsFound', 'No risk events found in the selected period.')}</p>
                   </div>
                 )}
               </CardContent>
@@ -945,9 +945,9 @@ export default function CloudTrailAudit() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="h-5 w-5" />
-                  Atividade por Usuário
+                  {t('cloudtrail.userActivity', 'User Activity')}
                 </CardTitle>
-                <CardDescription>Usuários que executaram ações de segurança</CardDescription>
+                <CardDescription>{t('cloudtrail.usersPerformedSecurityActions', 'Users who performed security actions')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {chartData.byUser.length > 0 ? (
@@ -959,13 +959,13 @@ export default function CloudTrailAudit() {
                             <User className="h-5 w-5" />
                             <span className="font-semibold">{userData.user}</span>
                           </div>
-                          <span className="text-sm text-muted-foreground">{userData.total} eventos</span>
+                          <span className="text-sm text-muted-foreground">{userData.total} {t('cloudtrail.events', 'events')}</span>
                         </div>
                         <div className="flex gap-2">
-                          {userData.critical > 0 && <Badge variant="destructive">{userData.critical} Críticos</Badge>}
-                          {userData.high > 0 && <Badge variant="destructive">{userData.high} Altos</Badge>}
-                          {userData.medium > 0 && <Badge variant="secondary">{userData.medium} Médios</Badge>}
-                          {userData.low > 0 && <Badge variant="outline">{userData.low} Baixos</Badge>}
+                          {userData.critical > 0 && <Badge variant="destructive">{userData.critical} {t('cloudtrail.criticals', 'Critical')}</Badge>}
+                          {userData.high > 0 && <Badge variant="destructive">{userData.high} {t('cloudtrail.highs', 'High')}</Badge>}
+                          {userData.medium > 0 && <Badge variant="secondary">{userData.medium} {t('cloudtrail.mediums', 'Medium')}</Badge>}
+                          {userData.low > 0 && <Badge variant="outline">{userData.low} {t('cloudtrail.lows', 'Low')}</Badge>}
                         </div>
                       </div>
                     ))}
@@ -973,8 +973,8 @@ export default function CloudTrailAudit() {
                 ) : (
                   <div className="text-center py-12">
                     <User className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-xl font-semibold mb-2">Sem dados de usuários</h3>
-                    <p className="text-muted-foreground">Busque eventos do CloudTrail para ver a atividade por usuário.</p>
+                    <h3 className="text-xl font-semibold mb-2">{t('cloudtrail.noUserData', 'No user data')}</h3>
+                    <p className="text-muted-foreground">{t('cloudtrail.fetchEventsToSeeActivity', 'Fetch CloudTrail events to see activity by user.')}</p>
                   </div>
                 )}
               </CardContent>
@@ -997,10 +997,10 @@ export default function CloudTrailAudit() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
-                Análise em Andamento
+                {t('cloudtrail.analysisRunning', 'Analysis Running')}
               </CardTitle>
               <CardDescription>
-                Os eventos do CloudTrail estão sendo buscados e analisados em background
+                {t('cloudtrail.eventsBeingAnalyzed', 'CloudTrail events are being fetched and analyzed in background')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1011,24 +1011,24 @@ export default function CloudTrailAudit() {
                       <div className="h-full bg-blue-500 rounded-full animate-pulse" style={{ width: '100%' }} />
                     </div>
                   </div>
-                  <span className="text-sm text-muted-foreground">Processando...</span>
+                  <span className="text-sm text-muted-foreground">{t('cloudtrail.processing', 'Processing...')}</span>
                 </div>
                 {analysisStatus && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="text-muted-foreground">Status:</span>
+                      <span className="text-muted-foreground">{t('cloudtrail.status', 'Status')}:</span>
                       <span className="ml-2 font-medium capitalize">{analysisStatus.status}</span>
                     </div>
                     {analysisStatus.events_processed !== undefined && (
                       <div>
-                        <span className="text-muted-foreground">Eventos:</span>
+                        <span className="text-muted-foreground">{t('cloudtrail.eventsCount', 'Events')}:</span>
                         <span className="ml-2 font-medium">{analysisStatus.events_processed}</span>
                       </div>
                     )}
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  A página será atualizada automaticamente quando a análise for concluída.
+                  {t('cloudtrail.pageAutoRefresh', 'The page will be automatically refreshed when the analysis is completed.')}
                 </p>
               </div>
             </CardContent>

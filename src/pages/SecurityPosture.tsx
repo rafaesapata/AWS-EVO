@@ -225,13 +225,13 @@ export default function SecurityPosture() {
       await refetch();
       
       toast({
-        title: "Dados atualizados",
-        description: "A postura de segurança foi recalculada com sucesso.",
+        title: t('securityPosture.dataUpdated', 'Data updated'),
+        description: t('securityPosture.postureRecalculated', 'Security posture was recalculated successfully.'),
       });
     } catch (error) {
       toast({
-        title: "Erro ao atualizar",
-        description: error instanceof Error ? error.message : "Não foi possível atualizar os dados de segurança.",
+        title: t('securityPosture.errorUpdating', 'Error updating'),
+        description: error instanceof Error ? error.message : t('securityPosture.couldNotUpdate', 'Could not update security data.'),
         variant: "destructive"
       });
     } finally {
@@ -258,8 +258,8 @@ export default function SecurityPosture() {
     link.click();
 
     toast({
-      title: "Relatório exportado",
-      description: "O relatório de segurança foi exportado com sucesso.",
+      title: t('securityPosture.reportExported', 'Report exported'),
+      description: t('securityPosture.reportExportedDesc', 'Security report was exported successfully.'),
     });
   };
 
@@ -523,7 +523,7 @@ export default function SecurityPosture() {
                 <Progress value={0} className="h-2" />
                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Eye className="h-4 w-4" />
-                  <span>Sem dados</span>
+                  <span>{t('securityPosture.noData', 'No data')}</span>
                 </div>
               </div>
             ) : (
@@ -536,17 +536,17 @@ export default function SecurityPosture() {
                   {securityData.overall_score >= 80 ? (
                     <>
                       <TrendingUp className="h-4 w-4 text-success" />
-                      <span className="text-success">Excelente</span>
+                      <span className="text-success">{t('securityPosture.excellent', 'Excellent')}</span>
                     </>
                   ) : securityData.overall_score >= 60 ? (
                     <>
                       <Eye className="h-4 w-4 text-warning" />
-                      <span className="text-warning">Atenção</span>
+                      <span className="text-warning">{t('securityPosture.attention', 'Attention')}</span>
                     </>
                   ) : (
                     <>
                       <TrendingDown className="h-4 w-4 text-destructive" />
-                      <span className="text-destructive">Crítico</span>
+                      <span className="text-destructive">{t('securityPosture.critical', 'Critical')}</span>
                     </>
                   )}
                 </div>
@@ -557,7 +557,7 @@ export default function SecurityPosture() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Findings Críticos</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('securityPosture.criticalFindings', 'Critical Findings')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -574,7 +574,7 @@ export default function SecurityPosture() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Findings Altos</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('securityPosture.highFindings', 'High Findings')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -591,7 +591,7 @@ export default function SecurityPosture() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total de Findings</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('securityPosture.totalFindings', 'Total Findings')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -610,10 +610,10 @@ export default function SecurityPosture() {
       {/* Charts and Details */}
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="glass-card-float">
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-          <TabsTrigger value="findings">Findings</TabsTrigger>
-          <TabsTrigger value="compliance">Compliance</TabsTrigger>
-          <TabsTrigger value="trends">Tendências</TabsTrigger>
+          <TabsTrigger value="overview">{t('securityPosture.overview', 'Overview')}</TabsTrigger>
+          <TabsTrigger value="findings">{t('securityPosture.findings', 'Findings')}</TabsTrigger>
+          <TabsTrigger value="compliance">{t('securityPosture.compliance', 'Compliance')}</TabsTrigger>
+          <TabsTrigger value="trends">{t('securityPosture.trends', 'Trends')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -621,8 +621,8 @@ export default function SecurityPosture() {
             {/* Findings by Severity */}
             <Card>
               <CardHeader>
-                <CardTitle>Findings por Severidade</CardTitle>
-                <CardDescription>Distribuição dos achados de segurança</CardDescription>
+                <CardTitle>{t('securityPosture.findingsBySeverity', 'Findings by Severity')}</CardTitle>
+                <CardDescription>{t('securityPosture.findingsDistribution', 'Distribution of security findings')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (

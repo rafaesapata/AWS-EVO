@@ -318,13 +318,40 @@ export async function handler(
       }
     }
     
-    // Calcular totais
-    const totalCost = allCosts.reduce((sum, c) => sum + c.cost, 0);
-    const uniqueDates = [...new Set(allCosts.map(c => c.date))].length;
-    const uniqueServices = [...new Set(allCosts.map(c => c.service))].length;
+    // IMPORTANT: Always return existing data from database, not just newly fetched data
+    // This ensures the frontend always has data to display
+    const requestedStart = requestedStartDate || getDateDaysAgo(365);
+    
+    // Fetch all existing costs from database for the requested period
+    const existingCosts = await prisma.dailyCost.findMany({
+      where: {
+        organization_id: organizationId,
+        ...(accountId && { aws_account_id: accountId }),
+        date: {
+          gte: new Date(requestedStart),
+          lte: new Date(endDate),
+        },
+      },
+      orderBy: { date: 'desc' },
+    });
+    
+    // Transform database records to the expected format
+    const dbCosts = existingCosts.map(c => ({
+      accountId: c.aws_account_id,
+      accountName: awsAccounts.find(a => a.id === c.aws_account_id)?.account_name || c.aws_account_id,
+      date: c.date.toISOString().split('T')[0],
+      service: c.service,
+      cost: typeof c.cost === 'number' ? c.cost : parseFloat(String(c.cost)),
+      currency: c.currency || 'USD',
+    }));
+    
+    // Calcular totais from database (not just newly fetched)
+    const totalCost = dbCosts.reduce((sum, c) => sum + c.cost, 0);
+    const uniqueDates = [...new Set(dbCosts.map(c => c.date))].length;
+    const uniqueServices = [...new Set(dbCosts.map(c => c.service))].length;
     
     logger.info('Daily costs fetch completed', { 
-      recordsCount: allCosts.length,
+      recordsCount: dbCosts.length,
       newRecords: totalNewRecords,
       skippedDays: totalSkippedDays,
       totalCost: parseFloat(totalCost.toFixed(2)) 
@@ -333,15 +360,15 @@ export async function handler(
     return success({
       success: true,
       data: {
-        dailyCosts: allCosts,
+        dailyCosts: dbCosts,
       },
-      costs: allCosts,
+      costs: dbCosts,
       summary: {
         totalCost: parseFloat(totalCost.toFixed(2)),
-        totalRecords: allCosts.length,
+        totalRecords: dbCosts.length,
         newRecords: totalNewRecords,
         skippedDays: totalSkippedDays,
-        dateRange: { start: requestedStartDate || getDateDaysAgo(365), end: endDate },
+        dateRange: { start: requestedStart, end: endDate },
         uniqueDates,
         uniqueServices,
         accounts: awsAccounts.length,

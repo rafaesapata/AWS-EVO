@@ -715,8 +715,8 @@ export default function CostOptimization() {
     link.click();
 
     toast({
-      title: "Relatório exportado",
-      description: "As recomendações foram exportadas com sucesso.",
+      title: t('costOptimization.reportExported', 'Report exported'),
+      description: t('costOptimization.recommendationsExported', 'Recommendations were exported successfully.'),
     });
   };
 
@@ -744,27 +744,27 @@ export default function CostOptimization() {
 
   const getConfidenceBadge = (confidence: string) => {
     switch (confidence) {
-      case 'high': return <Badge className="bg-green-500">Alta</Badge>;
-      case 'medium': return <Badge variant="secondary">Média</Badge>;
-      case 'low': return <Badge variant="outline">Baixa</Badge>;
+      case 'high': return <Badge className="bg-green-500">{t('costOptimization.confidenceHigh', 'High')}</Badge>;
+      case 'medium': return <Badge variant="secondary">{t('costOptimization.confidenceMedium', 'Medium')}</Badge>;
+      case 'low': return <Badge variant="outline">{t('costOptimization.confidenceLow', 'Low')}</Badge>;
       default: return <Badge variant="outline">{confidence}</Badge>;
     }
   };
 
   const getEffortBadge = (effort: string) => {
     switch (effort) {
-      case 'low': return <Badge className="bg-green-500">Baixo</Badge>;
-      case 'medium': return <Badge variant="secondary">Médio</Badge>;
-      case 'high': return <Badge variant="destructive">Alto</Badge>;
+      case 'low': return <Badge className="bg-green-500">{t('costOptimization.effortLow', 'Low')}</Badge>;
+      case 'medium': return <Badge variant="secondary">{t('costOptimization.effortMedium', 'Medium')}</Badge>;
+      case 'high': return <Badge variant="destructive">{t('costOptimization.effortHigh', 'High')}</Badge>;
       default: return <Badge variant="outline">{effort}</Badge>;
     }
   };
 
   const getImpactBadge = (impact: string) => {
     switch (impact) {
-      case 'high': return <Badge className="bg-blue-500">Alto</Badge>;
-      case 'medium': return <Badge variant="secondary">Médio</Badge>;
-      case 'low': return <Badge variant="outline">Baixo</Badge>;
+      case 'high': return <Badge className="bg-blue-500">{t('costOptimization.impactHigh', 'High')}</Badge>;
+      case 'medium': return <Badge variant="secondary">{t('costOptimization.impactMedium', 'Medium')}</Badge>;
+      case 'low': return <Badge variant="outline">{t('costOptimization.impactLow', 'Low')}</Badge>;
       default: return <Badge variant="outline">{impact}</Badge>;
     }
   };
@@ -800,7 +800,7 @@ export default function CostOptimization() {
           className="glass hover-glow"
         >
           <Target className={`h-4 w-4 mr-2 ${runOptimizationMutation.isPending ? 'animate-spin' : ''}`} />
-          {runOptimizationMutation.isPending ? 'Analisando...' : 'Executar Análise'}
+          {runOptimizationMutation.isPending ? t('costOptimization.analyzing', 'Analyzing...') : t('costOptimization.runAnalysis', 'Run Analysis')}
         </Button>
         <Button 
           variant="outline" 
@@ -810,7 +810,7 @@ export default function CostOptimization() {
           className="glass hover-glow"
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Atualizar
+          {t('common.refresh', 'Refresh')}
         </Button>
         <Button 
           variant="outline" 
@@ -820,7 +820,7 @@ export default function CostOptimization() {
           disabled={!recommendations || recommendations.length === 0}
         >
           <Download className="h-4 w-4 mr-2" />
-          Exportar
+          {t('common.export', 'Export')}
         </Button>
       </div>
 
@@ -828,7 +828,7 @@ export default function CostOptimization() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Custo Mensal</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('costOptimization.monthlyCost', 'Monthly Cost')}</CardTitle>
           </CardHeader>
           <CardContent>
             {metricsLoading ? (
@@ -843,7 +843,7 @@ export default function CostOptimization() {
 
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Economia Potencial</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('costOptimization.potentialSavings', 'Potential Savings')}</CardTitle>
           </CardHeader>
           <CardContent>
             {metricsLoading ? (
@@ -855,8 +855,8 @@ export default function CostOptimization() {
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {metrics?.total_monthly_cost && metrics.total_monthly_cost > 0 && metrics?.total_potential_savings 
-                    ? `${((metrics.total_potential_savings / metrics.total_monthly_cost) * 100).toFixed(1)}% do total`
-                    : '0% do total'
+                    ? `${((metrics.total_potential_savings / metrics.total_monthly_cost) * 100).toFixed(1)}% ${t('costOptimization.ofTotal', 'of total')}`
+                    : `0% ${t('costOptimization.ofTotal', 'of total')}`
                   }
                 </div>
               </div>
@@ -866,7 +866,7 @@ export default function CostOptimization() {
 
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Score de Otimização</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('costOptimization.optimizationScore', 'Optimization Score')}</CardTitle>
           </CardHeader>
           <CardContent>
             {metricsLoading ? (
@@ -886,7 +886,7 @@ export default function CostOptimization() {
                       N/A
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Execute uma análise primeiro
+                      {t('costOptimization.runAnalysisFirst', 'Run an analysis first')}
                     </div>
                   </>
                 )}
@@ -897,7 +897,7 @@ export default function CostOptimization() {
 
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Recomendações</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('costOptimization.recommendations', 'Recommendations')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -1444,10 +1444,10 @@ export default function CostOptimization() {
                 <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
                   <h4 className="font-semibold flex items-center gap-2 text-blue-800">
                     <MessageSquare className="h-4 w-4" />
-                    Precisa de Ajuda? Use o FinOps Copilot
+                    {t('costOptimization.needHelp', 'Need Help? Use FinOps Copilot')}
                   </h4>
                   <p className="text-sm text-blue-700">
-                    Copie o prompt abaixo e cole no FinOps Copilot para obter orientação personalizada sobre esta otimização.
+                    {t('costOptimization.copyPromptDesc', 'Copy the prompt below and paste it in FinOps Copilot to get personalized guidance on this optimization.')}
                   </p>
                   <div className="bg-white/80 rounded p-3 border border-blue-200">
                     <p className="text-sm text-slate-700 italic">"{selectedRecommendation.copilot_prompt}"</p>
@@ -1460,13 +1460,13 @@ export default function CostOptimization() {
                       onClick={() => {
                         navigator.clipboard.writeText(selectedRecommendation.copilot_prompt || '');
                         toast({
-                          title: "Prompt copiado!",
-                          description: "Agora vá para o FinOps Copilot e cole o prompt.",
+                          title: t('costOptimization.promptCopied', 'Prompt copied!'),
+                          description: t('costOptimization.goToCopilot', 'Now go to FinOps Copilot and paste the prompt.'),
                         });
                       }}
                     >
                       <Copy className="h-4 w-4 mr-2" />
-                      Copiar Prompt
+                      {t('costOptimization.copyPrompt', 'Copy Prompt')}
                     </Button>
                     <Button
                       variant="outline"
