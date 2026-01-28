@@ -112,7 +112,7 @@ const notificationTypes = [
 ];
 
 const actionTypes = [
-  { value: '', label: 'Nenhuma ação' },
+  { value: 'none', label: 'Nenhuma ação' },
   { value: 'security_scan', label: 'Iniciar Scan de Segurança' },
   { value: 'compliance_scan', label: 'Iniciar Scan de Compliance' },
   { value: 'cost_analysis', label: 'Atualizar Análise de Custos' },
@@ -422,8 +422,8 @@ export default function AINotificationsAdmin() {
                         {t('admin.actionType', 'Tipo de Ação')}
                       </label>
                       <Select
-                        value={formData.action_type}
-                        onValueChange={v => setFormData(prev => ({ ...prev, action_type: v }))}
+                        value={formData.action_type || 'none'}
+                        onValueChange={v => setFormData(prev => ({ ...prev, action_type: v === 'none' ? '' : v }))}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder={t('admin.selectAction', 'Selecione uma ação')} />

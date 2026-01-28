@@ -223,7 +223,7 @@ export function AwsAccountSelector({
                 </SelectTrigger>
                 
                 <SelectContent className="z-50 bg-popover/95 backdrop-blur-sm border-border/50 rounded-lg p-1 w-[200px]">
-                  {accounts.map((account) => (
+                  {accounts.filter(account => account.id).map((account) => (
                     <SelectItem 
                       key={account.id} 
                       value={account.id}
