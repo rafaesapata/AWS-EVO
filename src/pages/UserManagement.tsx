@@ -883,7 +883,7 @@ export default function UserManagement() {
                   Organização
                 </Label>
                 <Select 
-                  value={newUser.organizationId || organizationId || ''} 
+                  value={newUser.organizationId || organizationId || undefined} 
                   onValueChange={(value) => setNewUser(prev => ({ ...prev, organizationId: value }))}
                 >
                   <SelectTrigger>

@@ -681,7 +681,7 @@ export const RemediationTickets = () => {
                 <div>
                   <label className="text-sm font-medium block mb-2">Responsável</label>
                   <Select
-                    value={selectedTicket.assigned_to || ''}
+                    value={selectedTicket.assigned_to || undefined}
                     onValueChange={(value) => {
                       updateAssignedMutation.mutate({
                         id: selectedTicket.id,
