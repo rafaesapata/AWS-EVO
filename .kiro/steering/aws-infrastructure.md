@@ -317,18 +317,22 @@ echo "✅ All Lambdas updated"
 
 ## Cognito
 
-### Development Environment
+### Production Environment (ÚNICO User Pool em uso)
 - **User Pool ID**: `us-east-1_cnesJ48lR`
+- **User Pool Name**: `evo-uds-v3-production-final`
 - **User Pool Client ID**: `4p0okvsr983v2f8rrvgpls76d6`
 - **Region**: `us-east-1`
 - **Custom Attributes**: `organization_id`, `organization_name`, `roles`, `tenant_id`
 - **Admin User**: `admin@udstec.io` / `AdminPass123!`
 - **MFA**: Optional (usuários podem configurar se desejarem)
+- **Total de Usuários**: 21+
 
-### Production Environment
-- **Status**: ⏳ A ser configurado
-- **User Pool ID**: TBD
-- **User Pool Client ID**: TBD
+### ⚠️ IMPORTANTE: User Pool Único
+Em 2026-01-27, foi identificado que existiam dois User Pools:
+- `us-east-1_cnesJ48lR` (21 usuários) - **CORRETO** - Usado pelo frontend
+- `us-east-1_qGmGkvmpL` (4 usuários) - **DELETADO** - Estava configurado incorretamente nas Lambdas
+
+Todas as 149 Lambdas foram atualizadas para usar `us-east-1_cnesJ48lR` e o pool errado foi deletado.
 
 ### Criar Usuário com Atributos Customizados
 ```bash
@@ -654,7 +658,36 @@ if (credential.access_key_id?.startsWith('ROLE:')) {
 - Documentado em steering para evitar regressão
 - Considerar migração para usar apenas `role_arn` e deprecar o padrão `ROLE:` prefix
 
+### 2026-01-27 - Cognito User Pool Duplicado
+
+**Duração:** Desconhecida (problema existia há semanas)
+
+**Impacto:** MÉDIO - Usuários não conseguiam ver dados de demo corretamente
+
+**Sintoma:**
+- Usuário `comercial+evo@uds.com.br` não via dados de demo
+- Lambdas estavam configuradas com User Pool diferente do frontend
+
+**Causa raiz:**
+Existiam dois User Pools:
+- `us-east-1_cnesJ48lR` (21 usuários) - Usado pelo frontend
+- `us-east-1_qGmGkvmpL` (4 usuários) - Configurado nas Lambdas (ERRADO)
+
+As Lambdas não conseguiam validar os tokens JWT dos usuários do frontend porque estavam apontando para o pool errado.
+
+**Correção aplicada:**
+1. Atualizadas todas as 149 Lambdas para usar `COGNITO_USER_POOL_ID=us-east-1_cnesJ48lR`
+2. Deletado o User Pool errado `us-east-1_qGmGkvmpL`
+
+**Lambdas afetadas:**
+- Todas as 149 Lambdas `evo-uds-v3-production-*`
+
+**Lição aprendida:**
+- Manter apenas UM User Pool para evitar confusão
+- Verificar se frontend e backend usam o mesmo User Pool
+- Documentar claramente qual User Pool está em uso
+
 ---
 
-**Última atualização:** 2026-01-26
-**Versão:** 1.5
+**Última atualização:** 2026-01-27
+**Versão:** 1.6

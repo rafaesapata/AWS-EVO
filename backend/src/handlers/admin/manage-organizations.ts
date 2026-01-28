@@ -25,7 +25,7 @@ import {
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
 
 interface ManageOrganizationRequest {
-  action: 'list' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'suspend' | 'unsuspend' | 'list_licenses';
+  action: 'list' | 'get' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'suspend' | 'unsuspend' | 'list_licenses';
   id?: string;
   name?: string;
   slug?: string;
@@ -153,6 +153,180 @@ export async function handler(
     });
 
     switch (body.action) {
+      case 'get': {
+        if (!body.id) {
+          return badRequest('Organization ID is required', undefined, origin);
+        }
+
+        const org = await prisma.organization.findUnique({
+          where: { id: body.id },
+          include: {
+            _count: {
+              select: {
+                profiles: true,
+                aws_credentials: true,
+                azure_credentials: true,
+                security_scans: true,
+                licenses: true,
+              }
+            },
+            licenses: {
+              orderBy: { created_at: 'desc' },
+              take: 1,
+              include: {
+                _count: {
+                  select: { seat_assignments: true }
+                }
+              }
+            }
+          }
+        });
+
+        if (!org) {
+          return badRequest('Organization not found', undefined, origin);
+        }
+
+        // Buscar configuração de licença
+        const licenseConfig = await prisma.organizationLicenseConfig.findUnique({
+          where: { organization_id: body.id }
+        });
+
+        // Buscar admins da organização
+        const adminProfiles = await prisma.profile.findMany({
+          where: { 
+            organization_id: body.id,
+            role: { in: ['org_admin', 'super_admin'] }
+          },
+          select: {
+            user_id: true,
+            full_name: true,
+            role: true
+          }
+        });
+
+        // Buscar emails dos admins do Cognito
+        const userPoolId = process.env.COGNITO_USER_POOL_ID;
+        const adminUsers: { user_id: string; full_name: string | null; email?: string; role: string | null }[] = [];
+        
+        for (const admin of adminProfiles) {
+          let email: string | undefined;
+          if (userPoolId) {
+            try {
+              const listResponse = await cognitoClient.send(new ListUsersCommand({
+                UserPoolId: userPoolId,
+                Filter: `sub = "${admin.user_id}"`,
+                Limit: 1
+              }));
+              const cognitoUser = listResponse.Users?.[0];
+              if (cognitoUser) {
+                email = cognitoUser.Attributes?.find(a => a.Name === 'email')?.Value;
+              }
+            } catch (err) {
+              logger.warn('Failed to get admin email from Cognito', { userId: admin.user_id });
+            }
+          }
+          adminUsers.push({
+            user_id: admin.user_id,
+            full_name: admin.full_name,
+            email,
+            role: admin.role
+          });
+        }
+
+        // Calcular custo mensal (soma dos custos das credenciais AWS)
+        const awsCredentials = await prisma.awsCredential.findMany({
+          where: { organization_id: body.id },
+          select: {
+            id: true,
+            account_id: true,
+            account_name: true,
+            is_active: true,
+            created_at: true
+          }
+        });
+
+        // Buscar credenciais Azure
+        const azureCredentials = await prisma.azureCredential.findMany({
+          where: { organization_id: body.id },
+          select: {
+            id: true,
+            subscription_id: true,
+            subscription_name: true,
+            tenant_id: true,
+            is_active: true,
+            created_at: true
+          }
+        });
+
+        // Licença primária
+        const primaryLicense = org.licenses[0];
+
+        const result = {
+          // Dados básicos
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          created_at: org.created_at,
+          updated_at: org.updated_at,
+          
+          // Demo mode
+          demo_mode: org.demo_mode || false,
+          demo_activated_at: org.demo_activated_at,
+          demo_expires_at: org.demo_expires_at,
+          demo_activated_by: org.demo_activated_by,
+          
+          // Contagens
+          user_count: org._count.profiles,
+          aws_account_count: org._count.aws_credentials,
+          azure_account_count: org._count.azure_credentials,
+          security_scan_count: org._count.security_scans,
+          license_count: org._count.licenses,
+          
+          // Admins
+          admin_users: adminUsers,
+          
+          // Credenciais AWS
+          aws_credentials: awsCredentials,
+          
+          // Credenciais Azure
+          azure_credentials: azureCredentials,
+          
+          // Licença primária
+          primary_license: primaryLicense ? {
+            id: primaryLicense.id,
+            license_key: primaryLicense.license_key,
+            customer_id: primaryLicense.customer_id,
+            plan_type: primaryLicense.plan_type,
+            product_type: primaryLicense.product_type,
+            max_users: primaryLicense.max_users,
+            used_seats: primaryLicense.used_seats,
+            assigned_seats: primaryLicense._count.seat_assignments,
+            is_active: primaryLicense.is_active,
+            is_trial: primaryLicense.is_trial,
+            is_expired: primaryLicense.is_expired,
+            days_remaining: primaryLicense.days_remaining,
+            valid_from: primaryLicense.valid_from,
+            valid_until: primaryLicense.valid_until,
+          } : null,
+          
+          // Configuração de licença
+          license_config: licenseConfig ? {
+            customer_id: licenseConfig.customer_id,
+            auto_sync: licenseConfig.auto_sync,
+            last_sync_at: licenseConfig.last_sync_at,
+            sync_status: licenseConfig.sync_status,
+            sync_error: licenseConfig.sync_error
+          } : null,
+        };
+
+        logger.info('Organization details retrieved', {
+          organizationId: body.id,
+          requestedBy: user.sub || user.id,
+        });
+
+        return success(result, 200, origin);
+      }
+
       case 'list': {
         const organizations = await prisma.organization.findMany({
           orderBy: { created_at: 'desc' },

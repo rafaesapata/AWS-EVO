@@ -769,6 +769,53 @@ const MIGRATION_COMMANDS = [
      demo_expires_at = NOW() + INTERVAL '30 days'
    WHERE id = '101d2418-cbcf-43e4-bf74-390f71f2e2bd' 
      AND demo_mode = true`,
+  
+  // ==================== AI NOTIFICATION RULES TABLE (2026-01-28) ====================
+  // Table for configurable proactive notification rules
+  `CREATE TABLE IF NOT EXISTS "ai_notification_rules" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "rule_type" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
+    "priority" TEXT NOT NULL DEFAULT 'medium',
+    "parameters" JSONB,
+    "title_template" TEXT NOT NULL,
+    "message_template" TEXT NOT NULL,
+    "suggested_action_template" TEXT,
+    "action_type" TEXT,
+    "last_executed_at" TIMESTAMPTZ(6),
+    "execution_count" INTEGER NOT NULL DEFAULT 0,
+    "created_by" UUID,
+    "updated_by" UUID,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ai_notification_rules_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ai_notification_rules_rule_type_key" ON "ai_notification_rules"("rule_type")`,
+  `CREATE INDEX IF NOT EXISTS "ai_notification_rules_is_enabled_idx" ON "ai_notification_rules"("is_enabled")`,
+  `CREATE INDEX IF NOT EXISTS "ai_notification_rules_rule_type_idx" ON "ai_notification_rules"("rule_type")`,
+  
+  // Insert default notification rules
+  `INSERT INTO "ai_notification_rules" ("rule_type", "name", "description", "is_enabled", "priority", "parameters", "title_template", "message_template", "suggested_action_template", "action_type") 
+   SELECT 'security_scan_needed', 'Scan de Segurança Necessário', 'Notifica quando o último scan de segurança foi há mais de X dias', true, 'medium', '{"days_threshold": 7, "critical_threshold": 14}'::jsonb, 'Scan de Segurança Recomendado', 'Faz {days_since_last_scan} dias desde o último scan de segurança. Recomendo executar um novo scan para garantir que sua infraestrutura está protegida.', 'Posso iniciar o scan de segurança agora?', 'security_scan'
+   WHERE NOT EXISTS (SELECT 1 FROM "ai_notification_rules" WHERE "rule_type" = 'security_scan_needed')`,
+  
+  `INSERT INTO "ai_notification_rules" ("rule_type", "name", "description", "is_enabled", "priority", "parameters", "title_template", "message_template", "suggested_action_template", "action_type") 
+   SELECT 'compliance_scan_needed', 'Verificação de Compliance Pendente', 'Notifica quando a última verificação de compliance foi há mais de X dias', true, 'medium', '{"days_threshold": 30}'::jsonb, 'Verificação de Compliance Pendente', 'Sua última verificação de compliance foi há {days_since_last_scan} dias. Manter a conformidade atualizada é essencial para auditorias.', 'Deseja que eu inicie uma verificação de compliance?', 'compliance_scan'
+   WHERE NOT EXISTS (SELECT 1 FROM "ai_notification_rules" WHERE "rule_type" = 'compliance_scan_needed')`,
+  
+  `INSERT INTO "ai_notification_rules" ("rule_type", "name", "description", "is_enabled", "priority", "parameters", "title_template", "message_template", "suggested_action_template", "action_type") 
+   SELECT 'high_severity_findings', 'Achados de Alta Severidade', 'Notifica quando há muitos achados críticos/altos pendentes', true, 'high', '{"findings_threshold": 5, "critical_threshold": 10}'::jsonb, 'Achados de Segurança Críticos', 'Você tem {critical_findings_count} achados de segurança de alta severidade pendentes. Recomendo revisar e remediar esses problemas o mais rápido possível.', 'Quer que eu mostre os achados mais críticos?', 'navigate'
+   WHERE NOT EXISTS (SELECT 1 FROM "ai_notification_rules" WHERE "rule_type" = 'high_severity_findings')`,
+  
+  `INSERT INTO "ai_notification_rules" ("rule_type", "name", "description", "is_enabled", "priority", "parameters", "title_template", "message_template", "suggested_action_template", "action_type") 
+   SELECT 'cost_optimization_available', 'Oportunidades de Economia', 'Notifica quando há recomendações de economia significativas', true, 'medium', '{"recommendations_threshold": 3, "savings_threshold": 1000}'::jsonb, 'Oportunidades de Economia Disponíveis', 'Identifiquei {recommendations_count} oportunidades de economia que podem reduzir seus custos em até {potential_savings}/ano.', 'Ver recomendações de economia', 'navigate'
+   WHERE NOT EXISTS (SELECT 1 FROM "ai_notification_rules" WHERE "rule_type" = 'cost_optimization_available')`,
+  
+  `INSERT INTO "ai_notification_rules" ("rule_type", "name", "description", "is_enabled", "priority", "parameters", "title_template", "message_template", "suggested_action_template", "action_type") 
+   SELECT 'aws_credentials_expiring', 'Rotação de Credenciais', 'Notifica quando credenciais AWS não foram rotacionadas há muito tempo', true, 'medium', '{"days_threshold": 80}'::jsonb, 'Rotação de Credenciais Recomendada', 'Você tem {credentials_count} credencial(is) AWS que não foram rotacionadas há mais de 80 dias. A AWS recomenda rotação a cada 90 dias para maior segurança.', 'Ver credenciais que precisam de atenção', 'navigate'
+   WHERE NOT EXISTS (SELECT 1 FROM "ai_notification_rules" WHERE "rule_type" = 'aws_credentials_expiring')`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

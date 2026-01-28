@@ -47,7 +47,11 @@ export type AuditAction =
   | 'CLOUDTRAIL_ANALYSIS'
   | 'WAF_SETUP'
   | 'WAF_BLOCK_IP'
-  | 'WAF_UNBLOCK_IP';
+  | 'WAF_UNBLOCK_IP'
+  | 'AI_NOTIFICATION_SENT'
+  | 'AI_NOTIFICATION_READ'
+  | 'AI_NOTIFICATION_ACTIONED'
+  | 'AI_NOTIFICATION_DISMISSED';
 
 export type AuditResourceType =
   | 'user'
@@ -67,7 +71,8 @@ export type AuditResourceType =
   | 'waf'
   | 'report'
   | 'mfa'
-  | 'session';
+  | 'session'
+  | 'ai_notification';
 
 export interface AuditLogParams {
   organizationId: string;

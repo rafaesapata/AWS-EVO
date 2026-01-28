@@ -471,17 +471,58 @@ export default function CostOptimization() {
   const queryClient = useQueryClient();
   const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
-  const { shouldEnableAccountQuery } = useDemoAwareQuery();
+  const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [selectedRecommendation, setSelectedRecommendation] = useState<OptimizationRecommendation | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedConfidence, setSelectedConfidence] = useState<string>('all');
 
   // Get optimization recommendations - enabled in demo mode
   const { data: recommendations, isLoading, refetch } = useQuery({
-    queryKey: ['cost-optimization', organizationId, selectedAccountId, selectedType, selectedConfidence],
+    queryKey: ['cost-optimization', organizationId, selectedAccountId, selectedType, selectedConfidence, isInDemoMode],
     enabled: shouldEnableAccountQuery(),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
+      // In demo mode, call the Lambda handler which returns demo data
+      if (isInDemoMode) {
+        const response = await apiClient.invoke<any>('cost-optimization', {
+          body: { accountId: 'demo' }
+        });
+        
+        if (response.data?.optimizations) {
+          return response.data.optimizations.map((opt: any) => {
+            const implementation = getSpecificImplementation(
+              opt.type || opt.optimization_type || 'rightsizing',
+              opt.resource_type || 'EC2',
+              opt.resource_id || 'demo-resource'
+            );
+            
+            return {
+              id: opt.id || `demo-${Math.random().toString(36).substr(2, 9)}`,
+              type: opt.type || opt.optimization_type || 'rightsizing',
+              resource_type: opt.resource_type || 'EC2',
+              resource_id: opt.resource_id || 'demo-resource',
+              resource_name: opt.resource_name || opt.resource_id || 'Demo Resource',
+              current_cost: opt.current_cost || 100,
+              optimized_cost: opt.optimized_cost || 50,
+              potential_savings: opt.savings || opt.potential_savings || 50,
+              savings_percentage: opt.savings_percentage || 50,
+              confidence: (opt.confidence || 'high') as 'high' | 'medium' | 'low',
+              effort: (opt.effort || 'medium') as 'low' | 'medium' | 'high',
+              impact: (opt.impact || 'high') as 'low' | 'medium' | 'high',
+              description: opt.details || opt.description || `Optimize ${opt.resource_type || 'resource'}`,
+              recommendation: opt.recommendation || `Consider optimizing this resource to reduce costs`,
+              implementation_steps: implementation.steps,
+              implementation_scripts: implementation.scripts,
+              copilot_prompt: implementation.copilotPrompt,
+              risk_level: (opt.risk_level || 'low') as 'low' | 'medium' | 'high',
+              created_at: opt.created_at || new Date().toISOString(),
+              status: (opt.status || 'pending') as 'pending' | 'implemented' | 'dismissed'
+            };
+          });
+        }
+        return [];
+      }
+      
       let filters: any = { 
         organization_id: organizationId,
         aws_account_id: selectedAccountId
@@ -539,10 +580,36 @@ export default function CostOptimization() {
 
   // Get cost metrics - enabled in demo mode
   const { data: metrics, isLoading: metricsLoading, refetch: refetchMetrics } = useQuery({
-    queryKey: ['cost-metrics', organizationId, selectedAccountId],
+    queryKey: ['cost-metrics', organizationId, selectedAccountId, isInDemoMode],
     enabled: shouldEnableAccountQuery(),
     staleTime: 30 * 1000, // 30 seconds - refresh more often
     queryFn: async () => {
+      // In demo mode, return demo metrics
+      if (isInDemoMode) {
+        const response = await apiClient.invoke<any>('cost-optimization', {
+          body: { accountId: 'demo' }
+        });
+        
+        if (response.data?.summary) {
+          return {
+            total_monthly_cost: response.data.summary.total_monthly_cost || 15000,
+            total_potential_savings: response.data.summary.monthly_savings || 3500,
+            optimization_score: response.data.summary.optimization_score || 72,
+            recommendations_count: response.data.optimizations?.length || 12,
+            implemented_savings: 0
+          };
+        }
+        
+        // Fallback demo metrics
+        return {
+          total_monthly_cost: 15000,
+          total_potential_savings: 3500,
+          optimization_score: 72,
+          recommendations_count: 12,
+          implemented_savings: 0
+        };
+      }
+      
       // Fetch recommendations directly for metrics calculation
       const recsResponse = await apiClient.select('cost_optimizations', {
         select: '*',

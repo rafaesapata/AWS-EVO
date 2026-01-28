@@ -99,40 +99,16 @@ export default function IntelligentAlerts() {
     enabled: shouldEnableAccountQuery(),
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
-      // Call Lambda which supports demo mode
-      const response = await apiClient.invoke<any[]>('alerts', {});
+      // Use query-table which supports demo mode for alert_rules
+      const response = await apiClient.select<AlertRule[]>('alert_rules', {
+        order: { column: 'created_at', ascending: false }
+      });
       
       if ('error' in response && response.error) {
         throw new Error(getErrorMessage(response.error));
       }
       
-      // Lambda returns alerts array directly
-      const alerts = response.data || [];
-      
-      // Check if demo mode - alerts have _isDemo flag
-      const isDemo = alerts.length > 0 && alerts[0]?._isDemo === true;
-      
-      if (isDemo) {
-        console.log('IntelligentAlerts: Using demo data from backend');
-        // SEGURANÇA: Usar dados demo diretamente do backend, sem transformação local
-        // Os alertas demo já vêm com a estrutura correta do backend
-        return alerts.map((alert: any) => ({
-          id: alert.rule_id || alert.id,
-          name: alert.rule?.name || alert.title || 'Demo Rule',
-          description: alert.message || alert.description || '',
-          type: alert.rule?.type || 'security',
-          condition: alert.metadata || { metric: 'demo', operator: 'gt', threshold: 0 },
-          channels: ['email'],
-          is_active: true,
-          created_at: alert.triggered_at || new Date().toISOString(),
-          updated_at: alert.triggered_at || new Date().toISOString(),
-          last_triggered: alert.triggered_at || null,
-          trigger_count: 1,
-          _isDemo: true
-        }));
-      }
-
-      return alerts;
+      return response.data || [];
     },
   });
 
@@ -142,8 +118,8 @@ export default function IntelligentAlerts() {
     enabled: shouldEnableAccountQuery(),
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
-      // Call Lambda which supports demo mode
-      const response = await apiClient.invoke<any[]>('alerts', {});
+      // Call Lambda which supports demo mode - use GET method
+      const response = await apiClient.get<any[]>('/api/functions/alerts');
       
       if ('error' in response && response.error) {
         throw new Error(getErrorMessage(response.error));
@@ -611,7 +587,7 @@ export default function IntelligentAlerts() {
                               </div>
                               <p className="text-sm text-muted-foreground">{rule.description}</p>
                               <div className="text-xs text-muted-foreground">
-                                {rule.condition.metric} {rule.condition.operator} {rule.condition.threshold}
+                                {rule.condition?.metric || 'N/A'} {rule.condition?.operator || '>'} {rule.condition?.threshold || 0}
                                 {rule.last_triggered && (
                                   <span className="ml-2">• Último disparo: {new Date(rule.last_triggered).toLocaleString('pt-BR')}</span>
                                 )}
@@ -638,7 +614,7 @@ export default function IntelligentAlerts() {
                         
                         <div className="flex items-center gap-2 text-sm">
                           <span className="text-muted-foreground">Canais:</span>
-                          {rule.channels.map((channel) => {
+                          {(rule.channels || []).map((channel) => {
                             const channelInfo = availableChannels.find(c => c.value === channel);
                             return channelInfo ? (
                               <Badge key={channel} variant="outline" className="gap-1">

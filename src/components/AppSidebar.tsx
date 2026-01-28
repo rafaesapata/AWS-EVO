@@ -123,6 +123,7 @@ const menuItems: MenuItem[] = [
   },
   { titleKey: "sidebar.devTools", value: "devtools", icon: Activity, superAdminOnly: true },
   { titleKey: "sidebar.platformMonitoring", value: "platform-monitoring", icon: Activity, superAdminOnly: true },
+  { titleKey: "sidebar.aiNotifications", value: "ai-notifications", icon: Bell, superAdminOnly: true },
 ];
 
 interface AppSidebarProps {
@@ -177,6 +178,8 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/bedrock-test');
     } else if (value === 'platform-monitoring') {
       navigate('/platform-monitoring');
+    } else if (value === 'ai-notifications') {
+      navigate('/admin/ai-notifications');
     } else if (value === 'well-architected') {
       navigate('/well-architected');
     } else if (value === 'copilot') {

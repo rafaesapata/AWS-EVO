@@ -59,6 +59,13 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
       return;
     }
 
+    // IMPORTANTE: Se demo mode ainda não foi verificado, aguardar
+    // Isso evita redirecionamento prematuro durante login demo
+    if (!demoVerified) {
+      console.log('⏳ Aguardando verificação do modo demo...');
+      return;
+    }
+
     // Se tem licença válida e NÃO está em demo, verificar se tem contas cloud
     const hasActiveAccounts = Array.isArray(accounts) && accounts.length > 0;
 
@@ -89,14 +96,14 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
   ]);
 
   // Mostrar loading enquanto verifica licença, contas e demo mode
-  if (shouldCheck && (licenseLoading || accountsLoading || demoLoading)) {
+  if (shouldCheck && (licenseLoading || accountsLoading || demoLoading || !demoVerified)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
         <div className="text-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="text-slate-300">
             {licenseLoading ? 'Verificando licença...' : 
-             demoLoading ? 'Verificando modo de demonstração...' :
+             demoLoading || !demoVerified ? 'Verificando modo de demonstração...' :
              'Verificando contas cloud...'}
           </p>
         </div>
@@ -115,7 +122,7 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
 
   // Se chegou aqui, está redirecionando
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       <div className="text-center space-y-4">
         <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
         <p className="text-slate-300">Redirecionando para configuração de contas...</p>

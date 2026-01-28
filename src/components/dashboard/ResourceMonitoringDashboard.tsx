@@ -329,12 +329,27 @@ export const ResourceMonitoringDashboard = () => {
   const { data: resources, isLoading: loadingResources } = useOrganizationQuery<MonitoredResource[]>(
     ['monitored-resources', selectedAccountId, isInDemoMode],
     async (organizationId) => {
-      // In demo mode, query-table returns demo data from backend
+      // In demo mode, call the Lambda handler which returns demo data
       if (isInDemoMode) {
-        const resourceResponse = await apiClient.select('monitored_resources', { 
-          eq: { organization_id: organizationId } 
+        const response = await apiClient.invoke<any>('fetch-cloudwatch-metrics', {
+          body: { accountId: 'demo', period: '3h' }
         });
-        return (resourceResponse.data || []) as MonitoredResource[];
+        
+        if (response.data?.resources) {
+          // Transform resources to match MonitoredResource interface
+          return response.data.resources.map((r: any) => ({
+            id: `demo-${r.resourceId}`,
+            resource_id: r.resourceId,
+            resource_name: r.resourceName,
+            resource_type: r.resourceType,
+            region: r.region,
+            status: r.status,
+            aws_account_id: 'demo-account',
+            organization_id: 'demo-org',
+            metadata: r.metadata
+          })) as MonitoredResource[];
+        }
+        return [];
       }
       
       if (!selectedAccountId) return [];
@@ -376,13 +391,29 @@ export const ResourceMonitoringDashboard = () => {
     
     setLoadingMetrics(true);
     try {
-      // In demo mode, fetch demo metrics from backend
+      // In demo mode, call the Lambda handler which returns demo data
       if (isInDemoMode) {
-        const metricsResponse = await apiClient.select('resource_metrics', { 
-          eq: { organization_id: 'demo' } 
+        const response = await apiClient.invoke<any>('fetch-cloudwatch-metrics', {
+          body: { accountId: 'demo', period: metricsPeriod }
         });
-        setMetrics((metricsResponse.data || []) as ResourceMetric[]);
-        console.log(`[MetricsCache] Loaded ${(metricsResponse.data || []).length} demo metrics`);
+        
+        if (response.data?.metrics) {
+          // Transform metrics to match ResourceMetric interface
+          const demoMetrics = response.data.metrics.map((m: any) => ({
+            id: `demo-${m.resourceId}-${m.metricName}-${Date.now()}`,
+            resource_id: m.resourceId,
+            resource_type: m.resourceType,
+            resource_name: m.resourceName,
+            metric_name: m.metricName,
+            metric_value: m.value,
+            metric_unit: m.unit,
+            timestamp: m.timestamp,
+            aws_account_id: 'demo-account',
+            organization_id: 'demo-org'
+          }));
+          setMetrics(demoMetrics as ResourceMetric[]);
+          console.log(`[MetricsCache] Loaded ${demoMetrics.length} demo metrics from Lambda`);
+        }
         return;
       }
       

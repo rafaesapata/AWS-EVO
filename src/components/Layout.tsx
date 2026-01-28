@@ -13,6 +13,7 @@ import LanguageToggle from "@/components/LanguageToggle";
 import UserMenu from "@/components/UserMenu";
 import SuperAdminOrganizationSwitcher, { getImpersonationState, getEffectiveOrganizationId, getEffectiveOrganizationName } from "@/components/SuperAdminOrganizationSwitcher";
 import { DemoBanner } from "@/components/demo/DemoBanner";
+import { TrialBanner } from "@/components/trial/TrialBanner";
 import { DemoWatermark } from "@/components/demo/DemoWatermark";
 import { useDemoMode } from "@/contexts/DemoModeContext";
 
@@ -188,6 +189,9 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
           <div className="flex-1 flex flex-col">
             {/* Demo Mode Banner - Always on top */}
             <DemoBanner />
+            
+            {/* Trial License Banner - Shows when not in demo mode */}
+            <TrialBanner />
             
             {/* Header - Glass Effect */}
             <header className="sticky top-0 z-10 glass-card-float border-b-0 rounded-none">

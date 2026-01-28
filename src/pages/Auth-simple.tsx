@@ -9,10 +9,12 @@ import { useAuthSafe } from "@/hooks/useAuthSafe";
 import { apiClient } from "@/integrations/aws/api-client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Shield, Key, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import evoLogo from "@/assets/logo.png";
 import ForgotPassword from "@/components/auth/ForgotPassword";
 import NewPasswordRequired from "@/components/auth/NewPasswordRequired";
 import MFAVerify from "@/components/auth/MFAVerify";
+import { getVersionString } from "@/lib/version";
 
 // Types for MFA check response
 interface MFACheckResponse {
@@ -52,8 +54,9 @@ interface WebAuthnFinishResponse {
 }
 
 export default function AuthSimple() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -346,12 +349,12 @@ export default function AuthSimple() {
 
   if (showWebAuthn) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
         </div>
 
         <div className="w-full max-w-md relative z-10">
@@ -364,7 +367,7 @@ export default function AuthSimple() {
                 className="h-28 drop-shadow-2xl"
               />
             </div>
-            <p className="text-purple-200/80 text-sm font-medium tracking-wide">
+            <p className="text-blue-200/80 text-sm font-medium tracking-wide">
               FinOps & Security Intelligence Platform
             </p>
           </div>
@@ -374,17 +377,17 @@ export default function AuthSimple() {
             <CardHeader className="space-y-1 pb-4">
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-primary" />
-                <CardTitle className="text-2xl font-semibold text-gray-800">Autenticação Segura</CardTitle>
+                <CardTitle className="text-2xl font-semibold text-gray-800">{t('loginPage.secureAuth', 'Autenticação Segura')}</CardTitle>
               </div>
               <CardDescription className="text-gray-500">
-                Use sua chave de segurança para continuar
+                {t('loginPage.useSecurityKeyToContinue', 'Use sua chave de segurança para continuar')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              <Alert className="border-purple-500/50 bg-purple-500/10">
-                <Key className="h-4 w-4 text-purple-500" />
-                <AlertDescription className="text-purple-500">
-                  <strong>Autenticação obrigatória:</strong> Você possui uma chave de segurança WebAuthn registrada. Por motivos de segurança, é obrigatório usá-la para fazer login.
+              <Alert className="border-blue-500/50 bg-blue-500/10">
+                <Key className="h-4 w-4 text-blue-500" />
+                <AlertDescription className="text-blue-600">
+                  <strong>{t('loginPage.requiredAuth', 'Autenticação obrigatória:')}</strong> {t('loginPage.webauthnRequired', 'Você possui uma chave de segurança WebAuthn registrada. Por motivos de segurança, é obrigatório usá-la para fazer login.')}
                 </AlertDescription>
               </Alert>
 
@@ -399,13 +402,13 @@ export default function AuthSimple() {
 
               <div className="text-center space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Usuário: <strong>{email}</strong>
+                  {t('loginPage.user', 'Usuário')}: <strong>{email}</strong>
                 </p>
                 
                 <Button 
                   onClick={handleWebAuthnLogin}
                   disabled={webAuthnLoading}
-                  className="w-full h-11 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-medium shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-300 transform hover:scale-[1.02]"
+                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 transform hover:scale-[1.02]"
                 >
                   {webAuthnLoading ? (
                     <span className="flex items-center gap-2">
@@ -413,12 +416,12 @@ export default function AuthSimple() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Aguardando dispositivo...
+                      {t('loginPage.waitingDevice', 'Aguardando dispositivo...')}
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
                       <Key className="h-4 w-4" />
-                      Usar Chave de Segurança
+                      {t('loginPage.useSecurityKeyBtn', 'Usar Chave de Segurança')}
                     </span>
                   )}
                 </Button>
@@ -429,7 +432,7 @@ export default function AuthSimple() {
                   disabled={webAuthnLoading}
                   className="w-full"
                 >
-                  Voltar e Trocar Usuário
+                  {t('loginPage.backAndChangeUser', 'Voltar e Trocar Usuário')}
                 </Button>
               </div>
             </CardContent>
@@ -439,13 +442,42 @@ export default function AuthSimple() {
     );
   }
 
+  const changeLanguage = (lang: string) => {
+    i18n.changeLanguage(lang);
+    localStorage.setItem('evo-language', lang);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Language Selector - Top Right */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-1 text-sm">
+        <button
+          onClick={() => changeLanguage('pt')}
+          className={`px-2 py-1 rounded transition-colors ${i18n.language === 'pt' ? 'text-white font-medium' : 'text-blue-300/60 hover:text-white'}`}
+        >
+          PT
+        </button>
+        <span className="text-blue-300/40">|</span>
+        <button
+          onClick={() => changeLanguage('en')}
+          className={`px-2 py-1 rounded transition-colors ${i18n.language === 'en' ? 'text-white font-medium' : 'text-blue-300/60 hover:text-white'}`}
+        >
+          EN
+        </button>
+        <span className="text-blue-300/40">|</span>
+        <button
+          onClick={() => changeLanguage('es')}
+          className={`px-2 py-1 rounded transition-colors ${i18n.language === 'es' ? 'text-white font-medium' : 'text-blue-300/60 hover:text-white'}`}
+        >
+          ES
+        </button>
+      </div>
+
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
 
       <div className={`w-full max-w-md relative z-10 transition-all duration-700 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -466,9 +498,9 @@ export default function AuthSimple() {
         {/* Login Card */}
         <Card className={`shadow-2xl border-0 bg-white/95 backdrop-blur-sm transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-2xl font-semibold text-gray-800">Bem-vindo</CardTitle>
+            <CardTitle className="text-2xl font-semibold text-gray-800">{t('loginPage.welcome', 'Bem-vindo')}</CardTitle>
             <CardDescription className="text-gray-500">
-              Entre com suas credenciais para continuar
+              {t('loginPage.enterCredentials', 'Entre com suas credenciais para continuar')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -480,11 +512,11 @@ export default function AuthSimple() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-700 font-medium">Usuário</Label>
+                <Label htmlFor="email" className="text-gray-700 font-medium">{t('loginPage.username', 'Usuário')}</Label>
                 <Input
                   id="email"
                   type="text"
-                  placeholder="seu.email@empresa.com"
+                  placeholder={t('loginPage.emailPlaceholder', 'seu.email@empresa.com')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -494,7 +526,7 @@ export default function AuthSimple() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-700 font-medium">Senha</Label>
+                <Label htmlFor="password" className="text-gray-700 font-medium">{t('loginPage.passwordLabel', 'Senha')}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -518,9 +550,9 @@ export default function AuthSimple() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Entrando...
+                    {t('loginPage.loggingIn', 'Entrando...')}
                   </span>
-                ) : "Entrar"}
+                ) : t('loginPage.login', 'Entrar')}
               </Button>
 
               <div className="text-center">
@@ -530,19 +562,19 @@ export default function AuthSimple() {
                   disabled={isLoading}
                   className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors duration-200 disabled:opacity-50"
                 >
-                  Esqueci minha senha
+                  {t('loginPage.forgotPasswordLink', 'Esqueci minha senha')}
                 </button>
               </div>
 
               {/* Registration Link */}
               <div className="text-center pt-4 border-t border-gray-200">
                 <p className="text-sm text-gray-600">
-                  Não tem uma conta?{' '}
+                  {t('loginPage.noAccount', 'Não tem uma conta?')}{' '}
                   <Link 
                     to="/register" 
                     className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors duration-200"
                   >
-                    Criar conta trial
+                    {t('loginPage.createTrialAccount', 'Criar conta trial')}
                   </Link>
                 </p>
               </div>
@@ -553,7 +585,7 @@ export default function AuthSimple() {
         {/* Footer */}
         <div className={`text-center mt-6 transition-all duration-700 delay-300 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
           <p className="text-sm text-blue-200/60">
-            v2.5.3
+            EVO {getVersionString()}
           </p>
         </div>
       </div>

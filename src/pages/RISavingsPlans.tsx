@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { Layout } from "@/components/Layout";
 import { AdvancedRISPAnalyzerV2 } from "@/components/cost-analysis/AdvancedRISPAnalyzerV2";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
   DollarSign, 
   AlertTriangle,
@@ -12,9 +13,14 @@ import {
 export default function RISavingsPlans() {
   const { t } = useTranslation();
   const { selectedAccountId, selectedAccount } = useCloudAccount();
+  const { isInDemoMode } = useDemoAwareQuery();
   
   // Get regions from selected account (default to us-east-1 if not set)
   const accountRegions = selectedAccount?.regions?.length ? selectedAccount.regions : ['us-east-1'];
+  
+  // In demo mode, use 'demo' as accountId to trigger demo data from backend
+  const effectiveAccountId = isInDemoMode ? 'demo' : selectedAccountId;
+  const shouldShowAnalyzer = isInDemoMode || !!selectedAccountId;
 
   return (
     <Layout 
@@ -22,9 +28,9 @@ export default function RISavingsPlans() {
       description={t('riSavingsPlans.description', 'Análise avançada e otimização de RI e Savings Plans para maximizar economia')}
       icon={<DollarSign className="h-5 w-5" />}
     >
-      {selectedAccountId ? (
+      {shouldShowAnalyzer && effectiveAccountId ? (
         <AdvancedRISPAnalyzerV2 
-          accountId={selectedAccountId} 
+          accountId={effectiveAccountId} 
           regions={accountRegions}
         />
       ) : (

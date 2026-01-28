@@ -3298,6 +3298,157 @@ export function generateDemoEdgeMetricsTable() {
   return metrics;
 }
 
+/**
+ * Gera dados de regras de alerta para demonstração
+ * Usado pela página IntelligentAlerts para mostrar regras configuradas
+ */
+export function generateDemoAlertRules() {
+  const now = new Date();
+  
+  return [
+    {
+      id: 'demo-rule-001',
+      organization_id: 'demo-org',
+      name: 'Security Group Open Access',
+      description: 'Alerta quando um Security Group é configurado com acesso público (0.0.0.0/0) em portas sensíveis',
+      type: 'security',
+      condition: {
+        metric: 'security_group_open',
+        operator: 'eq',
+        threshold: 1,
+        period: 300
+      },
+      channels: ['email', 'slack'],
+      is_active: true,
+      created_at: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      last_triggered: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+      trigger_count: 5,
+      _isDemo: true
+    },
+    {
+      id: 'demo-rule-002',
+      organization_id: 'demo-org',
+      name: 'Daily Cost Threshold',
+      description: 'Alerta quando o custo diário excede o limite configurado',
+      type: 'cost',
+      condition: {
+        metric: 'daily_cost',
+        operator: 'gt',
+        threshold: 200,
+        period: 86400
+      },
+      channels: ['email'],
+      is_active: true,
+      created_at: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+      last_triggered: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      trigger_count: 12,
+      _isDemo: true
+    },
+    {
+      id: 'demo-rule-003',
+      organization_id: 'demo-org',
+      name: 'Endpoint Latency',
+      description: 'Alerta quando a latência de um endpoint excede o limite',
+      type: 'performance',
+      condition: {
+        metric: 'response_time',
+        operator: 'gt',
+        threshold: 500,
+        period: 300
+      },
+      channels: ['email', 'slack', 'webhook'],
+      is_active: true,
+      created_at: new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      last_triggered: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(),
+      trigger_count: 8,
+      _isDemo: true
+    },
+    {
+      id: 'demo-rule-004',
+      organization_id: 'demo-org',
+      name: 'RDS CPU Utilization',
+      description: 'Alerta quando a utilização de CPU do RDS excede 80%',
+      type: 'performance',
+      condition: {
+        metric: 'cpu_utilization',
+        operator: 'gt',
+        threshold: 80,
+        period: 900
+      },
+      channels: ['email'],
+      is_active: true,
+      created_at: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      last_triggered: new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString(),
+      trigger_count: 3,
+      _isDemo: true
+    },
+    {
+      id: 'demo-rule-005',
+      organization_id: 'demo-org',
+      name: 'SSL Certificate Expiry',
+      description: 'Alerta quando um certificado SSL está próximo de expirar',
+      type: 'compliance',
+      condition: {
+        metric: 'ssl_expiry_days',
+        operator: 'lt',
+        threshold: 30,
+        period: 86400
+      },
+      channels: ['email'],
+      is_active: true,
+      created_at: new Date(now.getTime() - 120 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+      last_triggered: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+      trigger_count: 2,
+      _isDemo: true
+    },
+    {
+      id: 'demo-rule-006',
+      organization_id: 'demo-org',
+      name: 'Critical Security Findings',
+      description: 'Alerta quando novos findings críticos de segurança são detectados',
+      type: 'security',
+      condition: {
+        metric: 'critical_findings',
+        operator: 'gt',
+        threshold: 0,
+        period: 3600
+      },
+      channels: ['email', 'slack', 'sms'],
+      is_active: false,
+      created_at: new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      last_triggered: null,
+      trigger_count: 0,
+      _isDemo: true
+    },
+    {
+      id: 'demo-rule-007',
+      organization_id: 'demo-org',
+      name: 'Monthly Budget Alert',
+      description: 'Alerta quando o gasto mensal atinge 80% do orçamento',
+      type: 'cost',
+      condition: {
+        metric: 'monthly_cost',
+        operator: 'gt',
+        threshold: 4000,
+        period: 86400
+      },
+      channels: ['email'],
+      is_active: true,
+      created_at: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+      last_triggered: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      trigger_count: 6,
+      _isDemo: true
+    }
+  ];
+}
+
 export default {
   isOrganizationInDemoMode,
   generateDemoSecurityFindings,
@@ -3317,6 +3468,7 @@ export default {
   generateDemoDriftDetection,
   generateDemoCloudTrailAnalysis,
   generateDemoAlerts,
+  generateDemoAlertRules,
   generateDemoEdgeServices,
   generateDemoRealtimeMetrics,
   generateDemoCloudWatchMetrics,

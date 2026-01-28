@@ -7,8 +7,9 @@ import { AwsAccountProvider } from "@/contexts/AwsAccountContext";
 import { CloudAccountProvider } from "@/contexts/CloudAccountContext";
 import { TVDashboardProvider } from "@/contexts/TVDashboardContext";
 import { DemoModeProvider } from "@/contexts/DemoModeContext";
+import { TrialLicenseProvider } from "@/contexts/TrialLicenseContext";
 import { ErrorBoundary as GlobalErrorBoundary } from "@/components/ErrorBoundary";
-import { FloatingCopilot } from "@/components/copilot/FloatingCopilot";
+import { UnifiedCopilot } from "@/components/ai/UnifiedCopilot";
 import AuthSimple from "./pages/Auth-simple";
 import Register from "./pages/Register";
 import Index from "./pages/Index";
@@ -54,18 +55,19 @@ import { MonthlyInvoicesPage } from "./pages/MonthlyInvoicesPage";
 import TVDashboardManagement from "./pages/TVDashboardManagement";
 import UserManagement from "./pages/UserManagement";
 import AuditLogPage from "./pages/AuditLogPage";
+import AINotificationsAdmin from "./pages/admin/AINotificationsAdmin";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./i18n/config";
 import "./index.css";
 
-// Floating Copilot wrapper - only shows on protected routes
-function FloatingCopilotWrapper() {
+// Unified Copilot wrapper - only shows on protected routes
+function UnifiedCopilotWrapper() {
   const location = useLocation();
   const publicPaths = ['/', '/auth', '/tv', '/features', '/terms', '/404'];
   const isPublicPage = publicPaths.some(path => location.pathname === path || location.pathname.startsWith('/tv'));
   
   if (isPublicPage) return null;
-  return <FloatingCopilot />;
+  return <UnifiedCopilot />;
 }
 
 // Wrapper for non-TV mode (default context)
@@ -95,6 +97,7 @@ createRoot(document.getElementById("root")!).render(
         <AwsAccountProvider>
           <CloudAccountProvider>
             <DemoModeProvider>
+              <TrialLicenseProvider>
               <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/" element={<AuthSimple />} />
@@ -413,6 +416,14 @@ createRoot(document.getElementById("root")!).render(
                 } 
               />
               <Route 
+                path="/admin/ai-notifications" 
+                element={
+                  <ProtectedRoute>
+                    <AINotificationsAdmin />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
                 path="/azure/callback" 
                 element={
                   <ProtectedRoute>
@@ -444,8 +455,9 @@ createRoot(document.getElementById("root")!).render(
             </Routes>
             <Toaster />
             <SonnerToaster />
-            <FloatingCopilotWrapper />
+            <UnifiedCopilotWrapper />
           </BrowserRouter>
+              </TrialLicenseProvider>
             </DemoModeProvider>
           </CloudAccountProvider>
         </AwsAccountProvider>

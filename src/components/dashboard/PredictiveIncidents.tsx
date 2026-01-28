@@ -16,12 +16,14 @@ import { format } from "date-fns";
 import { PredictiveIncidentsHistory } from "./PredictiveIncidentsHistory";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 import { InfoTooltip, tooltipContent } from "@/components/ui/info-tooltip";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 
 export default function PredictiveIncidents() {
  const queryClient = useQueryClient();
  const { isTVMode } = useTVDashboard();
  const { data: organizationId } = useOrganization();
  const { selectedAccountId } = useCloudAccount();
+ const { isInDemoMode } = useDemoAwareQuery();
  const [activeTab, setActiveTab] = useState<'predictions' | 'history'>('predictions');
  const [searchTerm, setSearchTerm] = useState('');
  const [severityFilter, setSeverityFilter] = useState<string>('all');
@@ -30,8 +32,18 @@ export default function PredictiveIncidents() {
  const itemsPerPage = 25;
 
  const { data: incidents, isLoading } = useQuery({
- queryKey: ['predictive-incidents', organizationId, selectedAccountId],
+ queryKey: ['predictive-incidents', organizationId, selectedAccountId, isInDemoMode],
  queryFn: async () => {
+ // In demo mode, call the Lambda handler which returns demo data
+ if (isInDemoMode) {
+ const result = await apiClient.invoke('predict-incidents', {
+ body: { accountId: 'demo' }
+ });
+ if (result.error) throw result.error;
+ const data = result.data as { predictions?: any[] };
+ return data.predictions || [];
+ }
+ 
  const response = await apiClient.select('predictive_incidents', { 
  eq: { organization_id: organizationId, status: 'active' },
  order: { column: 'probability', ascending: false }
@@ -45,14 +57,19 @@ export default function PredictiveIncidents() {
  
  return data;
  },
- enabled: !!organizationId,
+ enabled: !!organizationId || isInDemoMode,
  staleTime: 2 * 60 * 1000,
  gcTime: 5 * 60 * 1000,
  });
 
  const { data: scanHistory } = useQuery({
- queryKey: ['predictive-incidents-history', organizationId, selectedAccountId],
+ queryKey: ['predictive-incidents-history', organizationId, selectedAccountId, isInDemoMode],
  queryFn: async () => {
+ // In demo mode, return empty history (demo data doesn't have history)
+ if (isInDemoMode) {
+ return [];
+ }
+ 
  const response = await apiClient.select('predictive_incidents_history', { 
  eq: { organization_id: organizationId },
  order: { column: 'scan_date', ascending: false },
@@ -67,7 +84,7 @@ export default function PredictiveIncidents() {
  
  return data || [];
  },
- enabled: !!organizationId,
+ enabled: !!organizationId || isInDemoMode,
  staleTime: 2 * 60 * 1000,
  gcTime: 5 * 60 * 1000,
  });

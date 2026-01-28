@@ -125,6 +125,11 @@ Access-Control-Allow-Origin: *
 | `u73ju4` | `/api/functions/predict-incidents` | `evo-uds-v3-production-predict-incidents` |
 | `styfgh` | `/api/functions/detect-anomalies` | `evo-uds-v3-production-detect-anomalies` |
 | `5bki5e` | `/api/functions/anomaly-detection` | `evo-uds-v3-production-anomaly-detection` |
+| `ys2qlt` | `/api/functions/get-ai-notifications` | `evo-uds-v3-production-get-ai-notifications` |
+| `b9yzhq` | `/api/functions/update-ai-notification` | `evo-uds-v3-production-update-ai-notification` |
+| `q21nab` | `/api/functions/send-ai-notification` | `evo-uds-v3-production-send-ai-notification` |
+| `icdeav` | `/api/functions/list-ai-notifications-admin` | `evo-uds-v3-production-list-ai-notifications-admin` |
+| `fm3jcg` | `/api/functions/manage-notification-rules` | `evo-uds-v3-production-manage-notification-rules` |
 
 ### 📊 Dashboard & Monitoramento
 

@@ -115,6 +115,12 @@ Ao criar uma nova Lambda ou endpoint:
 | `predict-incidents` | `/api/functions/predict-incidents` | Predição de incidentes com ML | `ml/predict-incidents.ts` |
 | `detect-anomalies` | `/api/functions/detect-anomalies` | Detecção de anomalias | `ml/detect-anomalies.ts` |
 | `anomaly-detection` | `/api/functions/anomaly-detection` | Alias para detect-anomalies | `ml/detect-anomalies.ts` |
+| `get-ai-notifications` | `/api/functions/get-ai-notifications` | Busca notificações proativas da IA para o usuário | `ai/get-ai-notifications.ts` |
+| `update-ai-notification` | `/api/functions/update-ai-notification` | Atualiza status de notificação (read/actioned/dismissed) | `ai/update-ai-notification.ts` |
+| `send-ai-notification` | `/api/functions/send-ai-notification` | Envia notificação manual (super admin) | `ai/send-ai-notification.ts` |
+| `list-ai-notifications-admin` | `/api/functions/list-ai-notifications-admin` | Lista notificações com estatísticas (super admin) | `ai/list-ai-notifications-admin.ts` |
+| `manage-notification-rules` | `/api/functions/manage-notification-rules` | CRUD de regras de notificação proativa (super admin) | `ai/manage-notification-rules.ts` |
+| `check-proactive-notifications` | N/A (scheduled - EventBridge hourly) | Job para criar notificações proativas automaticamente | `ai/check-proactive-notifications.ts` |
 
 ### 📊 Dashboard & Monitoramento (dashboard/, monitoring/)
 

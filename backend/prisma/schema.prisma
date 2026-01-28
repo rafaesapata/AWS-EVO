@@ -2092,3 +2092,87 @@ model DemoModeAudit {
   @@index([created_at])
   @@map("demo_mode_audit")
 }
+
+
+// ==================== AI PROACTIVE NOTIFICATIONS ====================
+// Sistema de notificações proativas da IA para usuários
+
+model AiNotificationRule {
+  id              String   @id @default(uuid()) @db.Uuid
+  
+  // Identificação da regra
+  rule_type       String   @unique // 'security_scan_needed', 'compliance_scan_needed', etc.
+  name            String   // Nome amigável da regra
+  description     String?  // Descrição do que a regra faz
+  
+  // Configuração
+  is_enabled      Boolean  @default(true)
+  priority        String   @default("medium") // 'low', 'medium', 'high', 'critical'
+  
+  // Parâmetros da regra (JSON)
+  // Ex: { "days_threshold": 7, "critical_threshold": 14 }
+  parameters      Json?
+  
+  // Template da notificação
+  title_template  String   // Ex: "Scan de Segurança Recomendado"
+  message_template String  // Ex: "Faz {days} dias desde o último scan..."
+  suggested_action_template String? // Ex: "Posso iniciar o scan agora?"
+  action_type     String?  // 'security_scan', 'compliance_scan', etc.
+  
+  // Controle de execução
+  last_executed_at DateTime? @db.Timestamptz(6)
+  execution_count Int      @default(0)
+  
+  // Auditoria
+  created_by      String?  @db.Uuid
+  updated_by      String?  @db.Uuid
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([is_enabled])
+  @@index([rule_type])
+  @@map("ai_notification_rules")
+}
+
+model AiNotification {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  user_id         String?  @db.Uuid  // null = todos os usuários da org
+  
+  // Tipo e prioridade
+  type            String   // 'security_scan_needed', 'cost_alert', 'compliance_due', 'custom', etc.
+  priority        String   @default("medium") // 'low', 'medium', 'high', 'critical'
+  
+  // Conteúdo da mensagem
+  title           String
+  message         String   // Mensagem que a IA vai "falar"
+  suggested_action String? // Ex: "Posso iniciar o scan de segurança para você?"
+  action_type     String?  // 'security_scan', 'compliance_scan', 'cost_analysis', 'navigate', etc.
+  action_params   Json?    // Parâmetros para a ação
+  
+  // Contexto
+  context         Json?    // Dados adicionais (ex: dias desde último scan)
+  
+  // Status
+  status          String   @default("pending") // 'pending', 'delivered', 'read', 'actioned', 'dismissed'
+  delivered_at    DateTime? @db.Timestamptz(6)
+  read_at         DateTime? @db.Timestamptz(6)
+  actioned_at     DateTime? @db.Timestamptz(6)
+  dismissed_at    DateTime? @db.Timestamptz(6)
+  
+  // Controle de expiração
+  expires_at      DateTime? @db.Timestamptz(6)
+  
+  // Quem criou (para notificações manuais do admin)
+  created_by      String?  @db.Uuid
+  
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([organization_id, status])
+  @@index([organization_id, user_id, status])
+  @@index([expires_at])
+  @@index([type])
+  @@index([priority])
+  @@map("ai_notifications")
+}

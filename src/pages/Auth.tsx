@@ -8,11 +8,21 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Mail, Lock, User, Building2, ArrowLeft, Eye, EyeOff, Key } from "lucide-react";
+import { Shield, Mail, Lock, User, Building2, ArrowLeft, Eye, EyeOff, Key, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import evoLogo from "@/assets/evo-logo.png";
 import { getVersionString } from "@/lib/version";
 import { z } from "@/lib/zod-config";
+
+// Demo mode credentials - hardcoded to prevent tree-shaking
+// These are intentionally public demo credentials
+// Using string concatenation to prevent dead code elimination
+const DEMO_EMAIL_PARTS = ["comercial", "+", "evo", "@", "uds", ".", "com", ".", "br"];
+const DEMO_PASS_PARTS = ["Demo", "evo", "uds", "@", "00", "!"];
+const getDemoCredentials = () => ({
+  email: DEMO_EMAIL_PARTS.join(""),
+  password: DEMO_PASS_PARTS.join("")
+});
 
 export default function Auth() {
   const { t } = useTranslation();
@@ -47,34 +57,34 @@ export default function Auth() {
 
   // Schemas definidos dentro do componente para evitar problemas de hoisting
   const loginSchema = z.object({
-    email: z.string().email("Email inválido"),
-    password: z.string().min(8, "Senha deve ter no mínimo 8 caracteres"),
+    email: z.string().email(t('loginPage.errors.invalidEmail', 'Email inválido')),
+    password: z.string().min(8, t('loginPage.errors.passwordMinLength', 'Senha deve ter no mínimo 8 caracteres')),
   });
 
   const signupSchema = z.object({
-    fullName: z.string().min(3, "Nome completo deve ter no mínimo 3 caracteres"),
-    email: z.string().email("Email inválido").refine(
+    fullName: z.string().min(3, t('loginPage.errors.fullNameMinLength', 'Nome completo deve ter no mínimo 3 caracteres')),
+    email: z.string().email(t('loginPage.errors.invalidEmail', 'Email inválido')).refine(
       (email) => {
         const domain = email.split('@')[1]?.toLowerCase();
         return !FREE_EMAIL_DOMAINS.has(domain);
       },
-      "Apenas emails corporativos são permitidos. Emails gratuitos (Gmail, Hotmail, etc.) não são aceitos."
+      t('loginPage.errors.corporateEmailOnly', 'Apenas emails corporativos são permitidos. Emails gratuitos (Gmail, Hotmail, etc.) não são aceitos.')
     ),
     companyName: z.string().optional(),
     password: z.string()
-      .min(12, "Senha deve ter no mínimo 12 caracteres")
-      .regex(/[A-Z]/, "Deve conter pelo menos uma letra maiúscula")
-      .regex(/[a-z]/, "Deve conter pelo menos uma letra minúscula")
-      .regex(/[0-9]/, "Deve conter pelo menos um número")
-      .regex(/[^A-Za-z0-9]/, "Deve conter pelo menos um caractere especial"),
+      .min(12, t('loginPage.errors.passwordMinLength12', 'Senha deve ter no mínimo 12 caracteres'))
+      .regex(/[A-Z]/, t('loginPage.errors.passwordUppercase', 'Deve conter pelo menos uma letra maiúscula'))
+      .regex(/[a-z]/, t('loginPage.errors.passwordLowercase', 'Deve conter pelo menos uma letra minúscula'))
+      .regex(/[0-9]/, t('loginPage.errors.passwordNumber', 'Deve conter pelo menos um número'))
+      .regex(/[^A-Za-z0-9]/, t('loginPage.errors.passwordSpecial', 'Deve conter pelo menos um caractere especial')),
     confirmPassword: z.string(),
   }).refine((data) => data.password === data.confirmPassword, {
-    message: "As senhas não coincidem",
+    message: t('loginPage.errors.passwordsMismatch', 'As senhas não coincidem'),
     path: ["confirmPassword"],
   });
 
   const resetSchema = z.object({
-    email: z.string().email("Email inválido"),
+    email: z.string().email(t('loginPage.errors.invalidEmail', 'Email inválido')),
   });
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -109,6 +119,43 @@ export default function Auth() {
 
   // Reset form
   const [resetEmail, setResetEmail] = useState("");
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
+
+  // Demo mode login handler - uses hardcoded credentials
+  const handleDemoLogin = async () => {
+    setIsDemoLoading(true);
+    try {
+      // Get demo credentials from function to prevent tree-shaking
+      const demoCredentials = getDemoCredentials();
+      const session = await cognitoAuth.signIn(demoCredentials.email, demoCredentials.password);
+      
+      if (!session) {
+        toast({
+          variant: "destructive",
+          title: t('loginPage.toasts.demoError', 'Erro no modo demonstração'),
+          description: t('loginPage.toasts.demoErrorDesc', 'Não foi possível acessar a conta de demonstração. Tente novamente.'),
+        });
+        return;
+      }
+      
+      if ('user' in session && session.user) {
+        toast({
+          title: t('loginPage.toasts.demoWelcome', 'Bem-vindo ao modo demonstração!'),
+          description: t('loginPage.toasts.demoWelcomeDesc', 'Explore todas as funcionalidades da plataforma EVO.'),
+        });
+        setTimeout(() => navigate("/app"), 100);
+      }
+    } catch (error: any) {
+      console.error('Demo login error:', error);
+      toast({
+        variant: "destructive",
+        title: t('loginPage.toasts.demoError', 'Erro no modo demonstração'),
+        description: t('loginPage.toasts.demoErrorLater', 'Não foi possível acessar. Tente novamente mais tarde.'),
+      });
+    } finally {
+      setIsDemoLoading(false);
+    }
+  };
 
   const base64ToArrayBuffer = (base64: string): ArrayBuffer => {
     const binaryString = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
@@ -211,12 +258,12 @@ export default function Auth() {
       let errorMessage = error.message || "Falha ao autenticar com chave de segurança.";
       
       if (error.message?.includes("iframe") || error.message?.includes("origin")) {
-        errorMessage = "WebAuthn não funciona em preview/iframe. Por favor, configure e use TOTP como alternativa ou acesse a URL direta do aplicativo.";
+        errorMessage = t('loginPage.toasts.webauthnIframeError', 'WebAuthn não funciona em preview/iframe. Por favor, configure e use TOTP como alternativa ou acesse a URL direta do aplicativo.');
       }
       
       toast({
         variant: "destructive",
-        title: "Erro na autenticação WebAuthn",
+        title: t('loginPage.toasts.webauthnError', 'Erro na autenticação WebAuthn'),
         description: errorMessage
       });
       
@@ -239,8 +286,8 @@ export default function Auth() {
       if (!session) {
         toast({
           variant: "destructive",
-          title: "Erro ao fazer login",
-          description: "Email ou senha incorretos. Verifique suas credenciais e tente novamente.",
+          title: t('loginPage.toasts.loginError', 'Erro ao fazer login'),
+          description: t('loginPage.toasts.invalidCredentials', 'Email ou senha incorretos. Verifique suas credenciais e tente novamente.'),
         });
         return;
       }
@@ -272,8 +319,8 @@ export default function Auth() {
           setShowMFAChallenge(true);
           
           toast({
-            title: "MFA Obrigatório",
-            description: "Digite o código do seu autenticador ou use sua chave de segurança.",
+            title: t('loginPage.toasts.mfaRequired', 'MFA Obrigatório'),
+            description: t('loginPage.toasts.mfaRequiredDesc', 'Digite o código do seu autenticador ou use sua chave de segurança.'),
           });
           
           setIsLoading(false);
@@ -290,15 +337,15 @@ export default function Auth() {
             setShowMFASetup(true);
             
             toast({
-              title: "Configuração MFA Obrigatória",
-              description: "Configure seu autenticador para continuar.",
+              title: t('loginPage.toasts.mfaSetupRequired', 'Configuração MFA Obrigatória'),
+              description: t('loginPage.toasts.mfaSetupRequiredDesc', 'Configure seu autenticador para continuar.'),
             });
           } catch (error: any) {
             console.error('🔐 Auth: MFA setup error:', error);
             toast({
               variant: "destructive",
-              title: "Erro ao configurar MFA",
-              description: error.message || "Falha ao obter código de configuração.",
+              title: t('loginPage.toasts.mfaSetupError', 'Erro ao configurar MFA'),
+              description: error.message || t('loginPage.toasts.mfaSetupErrorDesc', 'Falha ao obter código de configuração.'),
             });
           }
           
@@ -312,8 +359,8 @@ export default function Auth() {
           setShowWebAuthnChallenge(true);
           
           toast({
-            title: "Autenticação WebAuthn",
-            description: "Use sua chave de segurança para continuar.",
+            title: t('loginPage.toasts.webauthnAuth', 'Autenticação WebAuthn'),
+            description: t('loginPage.toasts.webauthnAuthDesc', 'Use sua chave de segurança para continuar.'),
           });
           
           // Trigger WebAuthn immediately
@@ -329,8 +376,8 @@ export default function Auth() {
         console.error('🔐 Auth: Unknown challenge:', session.challengeName);
         toast({
           variant: "destructive",
-          title: "MFA ou desafio adicional necessário",
-          description: `Tipo de desafio: ${session.challengeName}. Entre em contato com o suporte.`,
+          title: t('loginPage.toasts.mfaOrChallengeRequired', 'MFA ou desafio adicional necessário'),
+          description: `${t('loginPage.toasts.contactSupport', 'Entre em contato com o suporte.')} (${session.challengeName})`,
         });
         setIsLoading(false);
         return;
@@ -339,8 +386,8 @@ export default function Auth() {
       // Successful login - session is AuthSession with user
       if ('user' in session && session.user) {
         toast({
-          title: "Login realizado com sucesso!",
-          description: "Redirecionando para o dashboard...",
+          title: t('loginPage.toasts.loginSuccess', 'Login realizado com sucesso!'),
+          description: t('loginPage.toasts.redirecting', 'Redirecionando para o dashboard...'),
         });
         // Delay navigation to prevent DOM reconciliation errors with toast portal
         setTimeout(() => navigate("/app"), 100);
@@ -350,37 +397,37 @@ export default function Auth() {
       // Fallback - something unexpected
       toast({
         variant: "destructive",
-        title: "Erro ao fazer login",
-        description: "Resposta inesperada do servidor.",
+        title: t('loginPage.toasts.loginError', 'Erro ao fazer login'),
+        description: t('loginPage.toasts.unexpectedResponse', 'Resposta inesperada do servidor.'),
       });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
           variant: "destructive",
-          title: "Erro de validação",
+          title: t('loginPage.toasts.validationError', 'Erro de validação'),
           description: error.errors[0].message,
         });
       } else {
-        let errorMessage = "Ocorreu um erro inesperado. Tente novamente.";
-        let errorTitle = "Erro ao fazer login";
+        let errorMessage = t('loginPage.toasts.unexpectedError', 'Ocorreu um erro inesperado. Tente novamente.');
+        let errorTitle = t('loginPage.toasts.loginError', 'Erro ao fazer login');
         
         if (error.code === 'NotAuthorizedException') {
           // Check for specific message about expired temporary password
           if (error.message?.includes('Temporary password has expired')) {
-            errorTitle = "Senha temporária expirada";
-            errorMessage = "Sua senha temporária expirou. Entre em contato com o administrador para receber uma nova senha temporária.";
+            errorTitle = t('loginPage.toasts.tempPasswordExpired', 'Senha temporária expirada');
+            errorMessage = t('loginPage.toasts.tempPasswordExpiredDesc', 'Sua senha temporária expirou. Entre em contato com o administrador para receber uma nova senha temporária.');
           } else {
-            errorMessage = "Email ou senha incorretos. Verifique suas credenciais e tente novamente.";
+            errorMessage = t('loginPage.toasts.invalidCredentials', 'Email ou senha incorretos. Verifique suas credenciais e tente novamente.');
           }
         } else if (error.code === 'UserNotConfirmedException') {
-          errorMessage = "Conta não confirmada. Verifique seu email para confirmar a conta.";
+          errorMessage = t('loginPage.toasts.accountNotConfirmed', 'Conta não confirmada. Verifique seu email para confirmar a conta.');
         } else if (error.code === 'UserNotFoundException') {
-          errorMessage = "Usuário não encontrado. Verifique o email ou crie uma nova conta.";
+          errorMessage = t('loginPage.toasts.userNotFound', 'Usuário não encontrado. Verifique o email ou crie uma nova conta.');
         } else if (error.code === 'TooManyRequestsException') {
-          errorMessage = "Muitas tentativas de login. Tente novamente em alguns minutos.";
+          errorMessage = t('loginPage.toasts.tooManyRequests', 'Muitas tentativas de login. Tente novamente em alguns minutos.');
         } else if (error.code === 'PasswordResetRequiredException') {
-          errorTitle = "Redefinição de senha necessária";
-          errorMessage = "Você precisa redefinir sua senha. Use a opção 'Esqueci minha senha' para criar uma nova.";
+          errorTitle = t('loginPage.toasts.passwordResetRequired', 'Redefinição de senha necessária');
+          errorMessage = t('loginPage.toasts.passwordResetRequiredDesc', 'Você precisa redefinir sua senha. Use a opção \'Esqueci minha senha\' para criar uma nova.');
         }
         
         toast({
@@ -404,30 +451,30 @@ export default function Auth() {
       if (!result) {
         toast({
           variant: "destructive",
-          title: "Código inválido",
-          description: "Verifique o código e tente novamente.",
+          title: t('loginPage.toasts.invalidCode', 'Código inválido'),
+          description: t('loginPage.toasts.invalidCodeDesc', 'Verifique o código e tente novamente.'),
         });
         return;
       }
 
       toast({
-        title: "Login realizado com sucesso!",
-        description: "Redirecionando para o dashboard...",
+        title: t('loginPage.toasts.loginSuccess', 'Login realizado com sucesso!'),
+        description: t('loginPage.toasts.loginSuccessDesc', 'Redirecionando para o dashboard...'),
       });
       // Delay navigation to prevent DOM reconciliation errors with toast portal
       setTimeout(() => navigate("/app"), 100);
     } catch (error: any) {
-      let errorMessage = "Tente novamente.";
+      let errorMessage = t('loginPage.toasts.tryAgain', 'Tente novamente.');
       
       if (error.code === 'CodeMismatchException') {
-        errorMessage = "Código inválido. Verifique o código e tente novamente.";
+        errorMessage = t('loginPage.toasts.codeMismatch', 'Código inválido. Verifique o código e tente novamente.');
       } else if (error.code === 'ExpiredCodeException') {
-        errorMessage = "Código expirado. Faça login novamente.";
+        errorMessage = t('loginPage.toasts.codeExpired', 'Código expirado. Faça login novamente.');
       }
       
       toast({
         variant: "destructive",
-        title: "Erro na verificação MFA",
+        title: t('loginPage.toasts.mfaVerifyError', 'Erro na verificação MFA'),
         description: errorMessage,
       });
     } finally {
@@ -489,8 +536,8 @@ export default function Auth() {
       // Since we verified WebAuthn, we can complete the Cognito session
       // For now, we'll use the TOTP flow but in production you'd want a custom Lambda
       toast({
-        title: "WebAuthn verificado!",
-        description: "Autenticação com chave de segurança bem-sucedida.",
+        title: t('loginPage.toasts.webauthnVerified', 'WebAuthn verificado!'),
+        description: t('loginPage.toasts.webauthnVerifiedDesc', 'Autenticação com chave de segurança bem-sucedida.'),
       });
 
       // Store WebAuthn session and redirect
@@ -508,8 +555,8 @@ export default function Auth() {
       console.error('WebAuthn MFA error:', error);
       toast({
         variant: "destructive",
-        title: "Erro na autenticação WebAuthn",
-        description: error.message || "Falha ao verificar chave de segurança."
+        title: t('loginPage.toasts.webauthnError', 'Erro na autenticação WebAuthn'),
+        description: error.message || t('loginPage.toasts.webauthnErrorDesc', 'Falha ao verificar chave de segurança.')
       });
     } finally {
       setIsLoading(false);
@@ -526,22 +573,22 @@ export default function Auth() {
       if (!result) {
         toast({
           variant: "destructive",
-          title: "Código inválido",
-          description: "Verifique o código e tente novamente.",
+          title: t('loginPage.toasts.invalidCode', 'Código inválido'),
+          description: t('loginPage.toasts.invalidCodeDesc', 'Verifique o código e tente novamente.'),
         });
         return;
       }
 
       toast({
-        title: "MFA configurado com sucesso!",
-        description: "Redirecionando para o dashboard...",
+        title: t('loginPage.toasts.mfaConfigured', 'MFA configurado com sucesso!'),
+        description: t('loginPage.toasts.mfaConfiguredDesc', 'Redirecionando para o dashboard...'),
       });
       setTimeout(() => navigate("/app"), 100);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Erro na configuração MFA",
-        description: error.message || "Código inválido. Verifique e tente novamente.",
+        title: t('loginPage.toasts.mfaConfigError', 'Erro na configuração MFA'),
+        description: error.message || t('loginPage.toasts.mfaConfigErrorDesc', 'Código inválido. Verifique e tente novamente.'),
       });
     } finally {
       setIsLoading(false);
@@ -572,8 +619,8 @@ export default function Auth() {
 
       if (result) {
         toast({
-          title: "Conta criada com sucesso!",
-          description: "Verifique seu email para confirmar a conta e depois faça login.",
+          title: t('loginPage.toasts.accountCreated', 'Conta criada com sucesso!'),
+          description: t('loginPage.toasts.accountCreatedDesc', 'Verifique seu email para confirmar a conta e depois faça login.'),
         });
         setActiveTab("login");
         setLoginEmail(validation.email);
@@ -582,23 +629,23 @@ export default function Auth() {
       if (error instanceof z.ZodError) {
         toast({
           variant: "destructive",
-          title: "Erro de validação",
+          title: t('loginPage.toasts.validationError', 'Erro de validação'),
           description: error.errors[0].message,
         });
       } else {
-        let errorMessage = "Ocorreu um erro inesperado. Tente novamente.";
+        let errorMessage = t('loginPage.toasts.unexpectedError', 'Ocorreu um erro inesperado. Tente novamente.');
         
         if (error.code === 'UsernameExistsException') {
-          errorMessage = "Este email já está cadastrado. Faça login ou recupere sua senha.";
+          errorMessage = t('loginPage.toasts.emailExists', 'Este email já está cadastrado. Faça login ou recupere sua senha.');
         } else if (error.code === 'InvalidPasswordException') {
-          errorMessage = "Senha não atende aos critérios de segurança. Use pelo menos 8 caracteres com letras e números.";
+          errorMessage = t('loginPage.toasts.invalidPassword', 'Senha não atende aos critérios de segurança. Use pelo menos 8 caracteres com letras e números.');
         } else if (error.code === 'InvalidParameterException') {
-          errorMessage = "Email inválido ou não permitido. Use apenas emails corporativos.";
+          errorMessage = t('loginPage.toasts.invalidEmail', 'Email inválido ou não permitido. Use apenas emails corporativos.');
         }
         
         toast({
           variant: "destructive",
-          title: "Erro ao criar conta",
+          title: t('loginPage.toasts.signupError', 'Erro ao criar conta'),
           description: errorMessage,
         });
       }
@@ -617,29 +664,29 @@ export default function Auth() {
       await cognitoAuth.forgotPassword(validation.email);
 
       toast({
-        title: "Email enviado!",
-        description: "Verifique sua caixa de entrada para redefinir sua senha.",
+        title: t('loginPage.toasts.emailSent', 'Email enviado!'),
+        description: t('loginPage.toasts.emailSentDesc', 'Verifique sua caixa de entrada para redefinir sua senha.'),
       });
       setActiveTab("login");
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
           variant: "destructive",
-          title: "Erro de validação",
+          title: t('loginPage.toasts.validationError', 'Erro de validação'),
           description: error.errors[0].message,
         });
       } else {
-        let errorMessage = "Ocorreu um erro inesperado. Tente novamente.";
+        let errorMessage = t('loginPage.toasts.unexpectedError', 'Ocorreu um erro inesperado. Tente novamente.');
         
         if (error.code === 'UserNotFoundException') {
-          errorMessage = "Email não encontrado. Verifique o email ou crie uma nova conta.";
+          errorMessage = t('loginPage.toasts.emailNotFound', 'Email não encontrado. Verifique o email ou crie uma nova conta.');
         } else if (error.code === 'LimitExceededException') {
-          errorMessage = "Muitas tentativas. Tente novamente em alguns minutos.";
+          errorMessage = t('loginPage.toasts.limitExceeded', 'Muitas tentativas. Tente novamente em alguns minutos.');
         }
         
         toast({
           variant: "destructive",
-          title: "Erro ao recuperar senha",
+          title: t('loginPage.toasts.resetError', 'Erro ao recuperar senha'),
           description: errorMessage,
         });
       }
@@ -663,18 +710,18 @@ export default function Auth() {
           <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-blue-500/20 to-primary/20 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-1000 animate-pulse" />
           <CardHeader className="pb-3 space-y-0.5 relative z-10">
             <CardTitle className="text-lg">
-              {showMFASetup && "Configurar MFA"}
-              {showMFAChallenge && "Verificação MFA"}
-              {showWebAuthnChallenge && "Verificação WebAuthn"}
-              {!showMFAChallenge && !showWebAuthnChallenge && !showMFASetup && "Bem-vindo"}
+              {showMFASetup && t('loginPage.setupMfa', 'Configurar MFA')}
+              {showMFAChallenge && t('loginPage.mfaVerification', 'Verificação MFA')}
+              {showWebAuthnChallenge && t('loginPage.webauthnVerification', 'Verificação WebAuthn')}
+              {!showMFAChallenge && !showWebAuthnChallenge && !showMFASetup && t('loginPage.welcome', 'Bem-vindo')}
             </CardTitle>
             <CardDescription className="text-xs">
-              {showMFASetup && "Configure seu aplicativo autenticador"}
-              {showMFAChallenge && "Digite o código de autenticação"}
-              {showWebAuthnChallenge && "Aguardando autenticação com chave de segurança..."}
-              {!showMFAChallenge && !showWebAuthnChallenge && !showMFASetup && activeTab === "login" && "Entre com suas credenciais"}
-              {!showMFAChallenge && !showWebAuthnChallenge && activeTab === "signup" && "Crie sua conta corporativa"}
-              {!showMFAChallenge && !showWebAuthnChallenge && activeTab === "reset" && "Recupere sua senha"}
+              {showMFASetup && t('loginPage.setupAuthenticator', 'Configure seu aplicativo autenticador')}
+              {showMFAChallenge && t('loginPage.enterAuthCode', 'Digite o código de autenticação')}
+              {showWebAuthnChallenge && t('loginPage.waitingWebauthn', 'Aguardando autenticação com chave de segurança...')}
+              {!showMFAChallenge && !showWebAuthnChallenge && !showMFASetup && activeTab === "login" && t('loginPage.enterCredentials', 'Entre com suas credenciais')}
+              {!showMFAChallenge && !showWebAuthnChallenge && activeTab === "signup" && t('loginPage.createCorporateAccount', 'Crie sua conta corporativa')}
+              {!showMFAChallenge && !showWebAuthnChallenge && activeTab === "reset" && t('loginPage.recoverPassword', 'Recupere sua senha')}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0 relative z-10">
@@ -686,9 +733,9 @@ export default function Auth() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-2">Autenticação em andamento</h3>
+                  <h3 className="font-semibold mb-2">{t('loginPage.authInProgress', 'Autenticação em andamento')}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Use sua chave de segurança, Touch ID, Face ID ou Windows Hello para continuar
+                    {t('loginPage.useSecurityKey', 'Use sua chave de segurança, Touch ID, Face ID ou Windows Hello para continuar')}
                   </p>
                 </div>
                 <Button
@@ -698,14 +745,14 @@ export default function Auth() {
                     setIsLoading(false);
                   }}
                 >
-                  Cancelar
+                  {t('loginPage.cancel', 'Cancelar')}
                 </Button>
               </div>
             ) : showMFASetup ? (
               <form onSubmit={handleMFASetupVerify} className="space-y-4">
                 <div className="space-y-4">
                   <div className="p-4 bg-muted rounded-lg">
-                    <p className="text-sm font-medium mb-2">1. Escaneie o QR Code ou copie o código:</p>
+                    <p className="text-sm font-medium mb-2">{t('loginPage.scanQrCode', '1. Escaneie o QR Code ou copie o código:')}</p>
                     <div className="flex justify-center mb-3">
                       <img 
                         src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=otpauth://totp/EVO:${loginEmail}?secret=${mfaSecretCode}&issuer=EVO`}
@@ -723,16 +770,16 @@ export default function Auth() {
                         size="sm"
                         onClick={() => {
                           navigator.clipboard.writeText(mfaSecretCode);
-                          toast({ title: "Código copiado!" });
+                          toast({ title: t('loginPage.codeCopied', 'Código copiado!') });
                         }}
                       >
-                        Copiar
+                        {t('loginPage.copy', 'Copiar')}
                       </Button>
                     </div>
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="mfa-setup-code">2. Digite o código do autenticador:</Label>
+                    <Label htmlFor="mfa-setup-code">{t('loginPage.enterAuthenticatorCode', '2. Digite o código do autenticador:')}</Label>
                     <Input
                       id="mfa-setup-code"
                       type="text"
@@ -749,7 +796,7 @@ export default function Auth() {
                 </div>
 
                 <Button type="submit" className="w-full bg-gradient-primary" disabled={isLoading || mfaCode.length !== 6}>
-                  {isLoading ? "Verificando..." : "Ativar MFA"}
+                  {isLoading ? t('loginPage.verifying', 'Verificando...') : t('loginPage.activateMfa', 'Ativar MFA')}
                 </Button>
 
                 <Button
@@ -762,7 +809,7 @@ export default function Auth() {
                     setMfaSecretCode("");
                   }}
                 >
-                  Cancelar
+                  {t('loginPage.cancel', 'Cancelar')}
                 </Button>
               </form>
             ) : showMFAChallenge ? (
@@ -776,14 +823,14 @@ export default function Auth() {
                       disabled={isLoading}
                     >
                       <Key className="h-4 w-4 mr-2" />
-                      {isLoading ? "Verificando..." : "Usar Chave de Segurança"}
+                      {isLoading ? t('loginPage.verifying', 'Verificando...') : t('loginPage.useSecurityKeyBtn', 'Usar Chave de Segurança')}
                     </Button>
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">
                         <span className="w-full border-t" />
                       </div>
                       <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">ou</span>
+                        <span className="bg-background px-2 text-muted-foreground">{t('loginPage.or', 'ou')}</span>
                       </div>
                     </div>
                   </div>
@@ -791,7 +838,7 @@ export default function Auth() {
                 
                 <form onSubmit={handleMFAVerify} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="mfa-code">Código de Autenticação</Label>
+                    <Label htmlFor="mfa-code">{t('loginPage.authenticationCode', 'Código de Autenticação')}</Label>
                     <Input
                       id="mfa-code"
                       type="text"
@@ -805,36 +852,36 @@ export default function Auth() {
                       autoFocus={!hasWebAuthn}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Digite o código do seu aplicativo autenticador
+                      {t('loginPage.enterAppCode', 'Digite o código do seu aplicativo autenticador')}
                     </p>
                   </div>
 
                   <Button type="submit" className="w-full" variant={hasWebAuthn ? "outline" : "default"} disabled={isLoading || mfaCode.length !== 6}>
-                    {isLoading ? "Verificando..." : "Verificar Código"}
+                    {isLoading ? t('loginPage.verifying', 'Verificando...') : t('loginPage.verifyCode', 'Verificar Código')}
                   </Button>
                 </form>
 
                 <p className="text-xs text-center text-muted-foreground">
-                  MFA está ativo na sua conta. Para gerenciar, acesse as configurações após fazer login.
+                  {t('loginPage.mfaActiveInfo', 'MFA está ativo na sua conta. Para gerenciar, acesse as configurações após fazer login.')}
                 </p>
               </div>
             ) : (
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
                 <TabsList className="glass-card-float grid w-full grid-cols-2 mb-3">
-                  <TabsTrigger value="login" className="text-xs py-1.5">Login</TabsTrigger>
-                  <TabsTrigger value="signup" className="text-xs py-1.5">Cadastro</TabsTrigger>
+                  <TabsTrigger value="login" className="text-xs py-1.5">{t('loginPage.loginTab', 'Login')}</TabsTrigger>
+                  <TabsTrigger value="signup" className="text-xs py-1.5">{t('loginPage.signupTab', 'Cadastro')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="login" className="space-y-2.5">
                 <form onSubmit={handleLogin} className="space-y-2.5">
                   <div className="space-y-1">
-                    <Label htmlFor="login-email" className="text-xs">Usuário</Label>
+                    <Label htmlFor="login-email" className="text-xs">{t('loginPage.username', 'Usuário')}</Label>
                     <div className="relative">
                       <Mail className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                       <Input
                         id="login-email"
                         type="email"
-                        placeholder="seu.email@empresa.com"
+                        placeholder={t('loginPage.emailPlaceholder', 'seu.email@empresa.com')}
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
                         className="pl-9 h-8 text-xs"
@@ -846,13 +893,13 @@ export default function Auth() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label htmlFor="login-password" className="text-xs">Senha</Label>
+                    <Label htmlFor="login-password" className="text-xs">{t('loginPage.passwordLabel', 'Senha')}</Label>
                     <div className="relative">
                       <Lock className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                       <Input
                         id="login-password"
                         type={showLoginPassword ? "text" : "password"}
-                        placeholder="••••••••"
+                        placeholder={t('loginPage.passwordPlaceholder', '••••••••')}
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
                         className="pl-9 pr-9 h-8 text-xs"
@@ -882,11 +929,32 @@ export default function Auth() {
                     className="p-0 h-auto text-[10px]"
                     onClick={() => setActiveTab("reset")}
                   >
-                    Esqueceu sua senha?
+                    {t('loginPage.forgotPasswordLink', 'Esqueceu sua senha?')}
                   </Button>
 
                   <Button type="submit" className="w-full bg-gradient-primary h-8 text-xs disabled:opacity-50 disabled:cursor-not-allowed" disabled={isLoading}>
-                    {isLoading ? "Entrando..." : "Entrar"}
+                    {isLoading ? t('loginPage.loggingIn', 'Entrando...') : t('loginPage.login', 'Entrar')}
+                  </Button>
+
+                  {/* Demo Mode Button */}
+                  <div className="relative my-2">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-dashed border-primary/20" />
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-card px-2 text-[10px] text-muted-foreground">{t('loginPage.or', 'ou')}</span>
+                    </div>
+                  </div>
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-8 text-xs border-primary/30 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 group"
+                    disabled={isDemoLoading || isLoading}
+                    onClick={handleDemoLogin}
+                  >
+                    <Play className="h-3 w-3 mr-1.5 text-primary group-hover:text-primary/80 transition-colors" />
+                    {isDemoLoading ? t('loginPage.loading', 'Carregando...') : t('loginPage.accessDemoMode', 'Acessar modo demonstração')}
                   </Button>
                 </form>
               </TabsContent>
@@ -894,13 +962,13 @@ export default function Auth() {
               <TabsContent value="signup" className="space-y-2.5">
                 <form onSubmit={handleSignup} className="space-y-2.5">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name">Nome Completo *</Label>
+                    <Label htmlFor="signup-name">{t('loginPage.fullName', 'Nome Completo *')}</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="signup-name"
                         type="text"
-                        placeholder="João Silva"
+                        placeholder={t('loginPage.fullNamePlaceholder', 'João Silva')}
                         value={signupFullName}
                         onChange={(e) => setSignupFullName(e.target.value)}
                         className="pl-10"
@@ -912,13 +980,13 @@ export default function Auth() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email Corporativo *</Label>
+                    <Label htmlFor="signup-email">{t('loginPage.corporateEmail', 'Email Corporativo *')}</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="signup-email"
                         type="email"
-                        placeholder="seu.email@empresa.com"
+                        placeholder={t('loginPage.emailPlaceholder', 'seu.email@empresa.com')}
                         value={signupEmail}
                         onChange={(e) => setSignupEmail(e.target.value)}
                         className="pl-10"
@@ -928,18 +996,18 @@ export default function Auth() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Emails gratuitos (Gmail, Hotmail, etc.) não são aceitos
+                      {t('loginPage.freeEmailsNotAccepted', 'Emails gratuitos (Gmail, Hotmail, etc.) não são aceitos')}
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="signup-company">Nome da Empresa (opcional)</Label>
+                    <Label htmlFor="signup-company">{t('loginPage.companyName', 'Nome da Empresa (opcional)')}</Label>
                     <div className="relative">
                       <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="signup-company"
                         type="text"
-                        placeholder="Minha Empresa Ltda"
+                        placeholder={t('loginPage.companyPlaceholder', 'Minha Empresa Ltda')}
                         value={signupCompanyName}
                         onChange={(e) => setSignupCompanyName(e.target.value)}
                         className="pl-10"
@@ -950,13 +1018,13 @@ export default function Auth() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Senha *</Label>
+                    <Label htmlFor="signup-password">{t('loginPage.passwordRequired', 'Senha *')}</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="signup-password"
                         type={showSignupPassword ? "text" : "password"}
-                        placeholder="••••••••"
+                        placeholder={t('loginPage.passwordPlaceholder', '••••••••')}
                         value={signupPassword}
                         onChange={(e) => setSignupPassword(e.target.value)}
                         className="pl-10 pr-10"
@@ -981,13 +1049,13 @@ export default function Auth() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="signup-confirm">Confirmar Senha *</Label>
+                    <Label htmlFor="signup-confirm">{t('loginPage.confirmPasswordRequired', 'Confirmar Senha *')}</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="signup-confirm"
                         type={showSignupConfirmPassword ? "text" : "password"}
-                        placeholder="••••••••"
+                        placeholder={t('loginPage.passwordPlaceholder', '••••••••')}
                         value={signupConfirmPassword}
                         onChange={(e) => setSignupConfirmPassword(e.target.value)}
                         className="pl-10 pr-10"
@@ -1012,7 +1080,7 @@ export default function Auth() {
                   </div>
 
                   <Button type="submit" className="w-full bg-gradient-primary" disabled={isLoading}>
-                    {isLoading ? "Criando conta..." : "Criar Conta"}
+                    {isLoading ? t('loginPage.creatingAccount', 'Criando conta...') : t('loginPage.createAccount', 'Criar Conta')}
                   </Button>
                 </form>
               </TabsContent>
@@ -1026,18 +1094,18 @@ export default function Auth() {
                   className="mb-2"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
-                  Voltar para login
+                  {t('loginPage.backToLoginBtn', 'Voltar para login')}
                 </Button>
 
                 <form onSubmit={handleReset} className="space-y-3">
                   <div className="space-y-2">
-                    <Label htmlFor="reset-email">Email Corporativo</Label>
+                    <Label htmlFor="reset-email">{t('loginPage.corporateEmailLabel', 'Email Corporativo')}</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="reset-email"
                         type="email"
-                        placeholder="seu.email@empresa.com"
+                        placeholder={t('loginPage.emailPlaceholder', 'seu.email@empresa.com')}
                         value={resetEmail}
                         onChange={(e) => setResetEmail(e.target.value)}
                         className="pl-10"
@@ -1047,12 +1115,12 @@ export default function Auth() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Enviaremos um link para redefinir sua senha
+                      {t('loginPage.sendResetLink', 'Enviaremos um link para redefinir sua senha')}
                     </p>
                   </div>
 
                   <Button type="submit" className="w-full bg-gradient-primary" disabled={isLoading}>
-                    {isLoading ? "Enviando..." : "Recuperar Senha"}
+                    {isLoading ? t('loginPage.sending', 'Enviando...') : t('loginPage.recoverPasswordBtn', 'Recuperar Senha')}
                   </Button>
                 </form>
               </TabsContent>
@@ -1063,14 +1131,14 @@ export default function Auth() {
 
         <div className="text-center mt-3 space-y-0.5">
           <p className="text-[10px] text-muted-foreground">
-            Ao criar uma conta, você concorda com nossos{" "}
+            {t('loginPage.termsAgreement', 'Ao criar uma conta, você concorda com nossos')}{" "}
             <a 
               href="/terms" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="text-primary hover:underline font-medium"
             >
-              Termos de Serviço
+              {t('loginPage.termsOfService', 'Termos de Serviço')}
             </a>
           </p>
           <p className="text-[10px] text-muted-foreground/60 font-mono">
