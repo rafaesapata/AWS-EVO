@@ -318,6 +318,12 @@ export async function assignSeat(
     return { success: false, error: 'User does not belong to the license organization' };
   }
 
+  // Super admins don't consume seats - they have unlimited access
+  if (userProfile.role === 'super_admin' || userProfile.role === 'SUPER_ADMIN') {
+    logger.info('Super admin does not need seat assignment', { userId, licenseId });
+    return { success: true };
+  }
+
   const currentAssignments = license.seat_assignments.length;
   if (currentAssignments >= license.max_users) {
     return { success: false, error: 'No available seats' };
@@ -448,6 +454,16 @@ export async function getLicenseSummary(organizationId: string) {
 
   logger.info(`Filtered EVO licenses: ${licenses.length}`);
 
+  // Get super admin user IDs to exclude from seat count
+  const superAdminProfiles = await prisma.profile.findMany({
+    where: {
+      organization_id: organizationId,
+      role: { in: ['super_admin', 'SUPER_ADMIN'] }
+    },
+    select: { user_id: true }
+  });
+  const superAdminUserIds = new Set(superAdminProfiles.map((p: any) => p.user_id));
+
   const config = await prisma.organizationLicenseConfig.findUnique({
     where: { organization_id: organizationId },
   });
@@ -457,20 +473,28 @@ export async function getLicenseSummary(organizationId: string) {
     customerId: config?.customer_id,
     lastSync: config?.last_sync_at,
     syncStatus: config?.sync_status,
-    licenses: licenses.map((l: any) => ({
-      id: l.id,
-      licenseKey: l.license_key,
-      productType: l.product_type,
-      planType: l.plan_type,
-      totalSeats: l.max_users,
-      usedSeats: l.seat_assignments.length,
-      availableSeats: l.max_users - l.seat_assignments.length,
-      validFrom: l.valid_from,
-      validUntil: l.valid_until,
-      daysRemaining: l.days_remaining,
-      isExpired: l.is_expired,
-      isTrial: l.is_trial,
-      features: l.features,
-    })),
+    licenses: licenses.map((l: any) => {
+      // Exclude super admins from seat count
+      const nonSuperAdminSeats = l.seat_assignments.filter(
+        (s: any) => !superAdminUserIds.has(s.user_id)
+      );
+      const usedSeats = nonSuperAdminSeats.length;
+      
+      return {
+        id: l.id,
+        licenseKey: l.license_key,
+        productType: l.product_type,
+        planType: l.plan_type,
+        totalSeats: l.max_users,
+        usedSeats: usedSeats,
+        availableSeats: l.max_users - usedSeats,
+        validFrom: l.valid_from,
+        validUntil: l.valid_until,
+        daysRemaining: l.days_remaining,
+        isExpired: l.is_expired,
+        isTrial: l.is_trial,
+        features: l.features,
+      };
+    }),
   };
 }

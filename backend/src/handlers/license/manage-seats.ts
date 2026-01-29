@@ -105,57 +105,89 @@ export async function handler(
         });
 
         const profileMap = new Map(profiles.map((p: any) => [p.user_id, p]));
+        
+        // Get super admin user IDs - they don't count towards seat usage
+        const superAdminUserIds = new Set(
+          profiles
+            .filter((p: any) => p.role === 'super_admin' || p.role === 'SUPER_ADMIN')
+            .map((p: any) => p.user_id)
+        );
 
         // Build response with enriched seat data
-        const licensesWithSeats = licenses.map((license: any) => ({
-          id: license.id,
-          license_key: license.license_key,
-          product_type: license.product_type,
-          max_users: license.max_users,
-          used_seats: license.seat_assignments.length,
-          available_seats: license.max_users - license.seat_assignments.length,
-          is_trial: license.is_trial,
-          valid_until: license.valid_until,
-          seats: license.seat_assignments.map((seat: any) => {
-            const profile = profileMap.get(seat.user_id);
-            return {
-              id: seat.id,
-              user_id: seat.user_id,
-              user_name: profile?.full_name || 'Unknown User',
-              user_role: profile?.role || 'unknown',
-              assigned_at: seat.assigned_at,
-              assigned_by: seat.assigned_by,
-              // Flag if user doesn't have a profile (orphan seat)
-              is_orphan: !profile
-            };
-          })
-        }));
+        const licensesWithSeats = licenses.map((license: any) => {
+          // Filter out super admins from seat count
+          const nonSuperAdminSeats = license.seat_assignments.filter(
+            (s: any) => !superAdminUserIds.has(s.user_id)
+          );
+          
+          return {
+            id: license.id,
+            license_key: license.license_key,
+            product_type: license.product_type,
+            max_users: license.max_users,
+            used_seats: nonSuperAdminSeats.length,
+            available_seats: license.max_users - nonSuperAdminSeats.length,
+            is_trial: license.is_trial,
+            valid_until: license.valid_until,
+            seats: license.seat_assignments.map((seat: any) => {
+              const profile = profileMap.get(seat.user_id);
+              const isSuperAdmin = superAdminUserIds.has(seat.user_id);
+              return {
+                id: seat.id,
+                user_id: seat.user_id,
+                user_name: profile?.full_name || 'Unknown User',
+                user_role: profile?.role || 'unknown',
+                assigned_at: seat.assigned_at,
+                assigned_by: seat.assigned_by,
+                // Flag if user doesn't have a profile (orphan seat)
+                is_orphan: !profile,
+                // Flag if super admin (doesn't count towards seat usage)
+                is_super_admin: isSuperAdmin
+              };
+            })
+          };
+        });
 
-        // Get users without seats (available for allocation)
+        // Get users without seats (available for allocation) - exclude super admins
         const usersWithSeats = new Set(
           licenses.flatMap((l: any) => l.seat_assignments.map((s: any) => s.user_id))
         );
         
         const usersWithoutSeats = profiles
-          .filter((p: any) => !usersWithSeats.has(p.user_id))
+          .filter((p: any) => !usersWithSeats.has(p.user_id) && p.role !== 'super_admin' && p.role !== 'SUPER_ADMIN')
           .map((p: any) => ({
             user_id: p.user_id,
             full_name: p.full_name,
             role: p.role
           }));
 
+        // Calculate totals excluding super admins
+        const totalSeatsUsed = licenses.reduce((sum: number, l: any) => {
+          const nonSuperAdminCount = l.seat_assignments.filter(
+            (s: any) => !superAdminUserIds.has(s.user_id)
+          ).length;
+          return sum + nonSuperAdminCount;
+        }, 0);
+
         result = {
           licenses: licensesWithSeats,
           users_without_seats: usersWithoutSeats,
           total_users: profiles.length,
-          total_seats_used: licenses.reduce((sum: number, l: any) => sum + l.seat_assignments.length, 0),
-          total_seats_available: licenses.reduce((sum: number, l: any) => sum + (l.max_users - l.seat_assignments.length), 0)
+          total_super_admins: superAdminUserIds.size,
+          total_seats_used: totalSeatsUsed,
+          total_seats_available: licenses.reduce((sum: number, l: any) => {
+            const nonSuperAdminCount = l.seat_assignments.filter(
+              (s: any) => !superAdminUserIds.has(s.user_id)
+            ).length;
+            return sum + (l.max_users - nonSuperAdminCount);
+          }, 0)
         };
 
         logger.info('Seat list retrieved', { 
           organizationId,
           licensesCount: licenses.length,
-          totalSeatsUsed: result.total_seats_used
+          totalSeatsUsed: result.total_seats_used,
+          superAdminsExcluded: superAdminUserIds.size
         });
 
         break;
@@ -190,6 +222,15 @@ export async function handler(
           return badRequest('User not found or does not belong to your organization', undefined, origin);
         }
         
+        // 2.5. Super admins don't need seat allocation - they have unlimited access
+        if (userProfile.role === 'super_admin' || userProfile.role === 'SUPER_ADMIN') {
+          logger.info('Super admin does not need seat allocation', { userId: body.userId });
+          return success({ 
+            message: 'Super admins have unlimited access and do not require seat allocation',
+            is_super_admin: true 
+          }, 200, origin);
+        }
+        
         // 3. Check if user already has a seat for this license
         const existingSeat = await prisma.licenseSeatAssignment.findFirst({
           where: {
@@ -202,10 +243,23 @@ export async function handler(
           return badRequest('User already has a seat assigned for this license', undefined, origin);
         }
         
-        // 4. Check available seats
-        const currentSeats = await prisma.licenseSeatAssignment.count({
-          where: { license_id: license.id }
+        // 4. Check available seats (excluding super admins from count)
+        const allSeats = await prisma.licenseSeatAssignment.findMany({
+          where: { license_id: license.id },
+          select: { user_id: true }
         });
+        
+        // Get super admin user IDs for this organization
+        const orgSuperAdmins = await prisma.profile.findMany({
+          where: {
+            organization_id: organizationId,
+            role: { in: ['super_admin', 'SUPER_ADMIN'] }
+          },
+          select: { user_id: true }
+        });
+        const superAdminIds = new Set(orgSuperAdmins.map((p: any) => p.user_id));
+        
+        const currentSeats = allSeats.filter((s: any) => !superAdminIds.has(s.user_id)).length;
         
         if (currentSeats >= license.max_users) {
           return badRequest('No available seats. All seats are allocated.', undefined, origin);
@@ -221,7 +275,7 @@ export async function handler(
           }
         });
         
-        // 6. Update license seat counts
+        // 6. Update license seat counts (excluding super admins)
         await prisma.license.update({
           where: { id: license.id },
           data: {

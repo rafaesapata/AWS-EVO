@@ -188,6 +188,7 @@ async function checkExpiringLicenses(): Promise<void> {
  * Removes seat assignments where:
  * 1. User doesn't have a profile in the license's organization
  * 2. Updates license seat counts to reflect actual assignments
+ * Note: Super admins are excluded from seat count as they have unlimited access
  */
 async function cleanupOrphanSeatAssignments(): Promise<void> {
   const prisma = getPrismaClient();
@@ -209,10 +210,17 @@ async function cleanupOrphanSeatAssignments(): Promise<void> {
     // Get all profiles for this organization
     const orgProfiles = await prisma.profile.findMany({
       where: { organization_id: license.organization_id },
-      select: { user_id: true },
+      select: { user_id: true, role: true },
     });
 
     const validUserIds = new Set(orgProfiles.map(p => p.user_id));
+    
+    // Get super admin user IDs - they don't count towards seat usage
+    const superAdminUserIds = new Set(
+      orgProfiles
+        .filter((p: any) => p.role === 'super_admin' || p.role === 'SUPER_ADMIN')
+        .map(p => p.user_id)
+    );
 
     // Find orphan seat assignments (user not in organization)
     const orphanSeats = license.seat_assignments.filter(
@@ -236,10 +244,16 @@ async function cleanupOrphanSeatAssignments(): Promise<void> {
       totalOrphansRemoved += orphanSeats.length;
     }
 
-    // Recalculate and update seat counts
-    const actualSeatCount = license.seat_assignments.length - orphanSeats.length;
-    const expectedUsedSeats = actualSeatCount;
-    const expectedAvailableSeats = license.max_users - actualSeatCount;
+    // Recalculate and update seat counts (excluding super admins)
+    const remainingSeats = license.seat_assignments.filter(
+      (seat: any) => !orphanSeats.some((o: any) => o.id === seat.id)
+    );
+    const nonSuperAdminSeats = remainingSeats.filter(
+      (seat: any) => !superAdminUserIds.has(seat.user_id)
+    );
+    
+    const expectedUsedSeats = nonSuperAdminSeats.length;
+    const expectedAvailableSeats = license.max_users - nonSuperAdminSeats.length;
 
     if (license.used_seats !== expectedUsedSeats || license.available_seats !== expectedAvailableSeats) {
       await prisma.license.update({
@@ -257,6 +271,7 @@ async function cleanupOrphanSeatAssignments(): Promise<void> {
         newUsedSeats: expectedUsedSeats,
         oldAvailableSeats: license.available_seats,
         newAvailableSeats: expectedAvailableSeats,
+        superAdminsExcluded: superAdminUserIds.size,
       });
     }
   }
