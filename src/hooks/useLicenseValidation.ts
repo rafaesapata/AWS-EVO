@@ -101,6 +101,21 @@ export const useLicenseValidation = () => {
 
       // Check various invalid states
       if (!data.valid) {
+        // Super admins always have access, even without a seat
+        const isSuperAdmin = data.user_access?.is_super_admin === true;
+        
+        if (isSuperAdmin) {
+          // Super admin bypass - grant full access
+          return {
+            isValid: true,
+            hasCustomerId: !!data.customer_id,
+            totalSeats: data.seats?.total,
+            activeUsersCount: data.seats?.used,
+            isAdmin: true,
+            canAccessLicensePage: true
+          };
+        }
+        
         let reason: "expired" | "no_seats" | "no_license" | "seats_exceeded" = 'no_license';
         let message = 'Licença inválida';
 

@@ -284,12 +284,15 @@ export async function handler(
     }
 
     // Determine overall validity
-    // Super admins always have valid access regardless of seat assignment
+    // Super admins always have valid access regardless of seat assignment or license status
     const hasValid = await hasValidLicense(organizationId);
     const userHasSeat = isSuperAdmin || !!userSeat;
+    
+    // Super admins bypass ALL license restrictions
+    const isValidForUser = isSuperAdmin ? true : (hasValid && userHasSeat);
 
     return success({
-      valid: hasValid && userHasSeat,
+      valid: isValidForUser,
       configured: true,
       customer_id: summary.customerId,
       last_sync: summary.lastSync,
