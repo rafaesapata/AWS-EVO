@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2, Eye, EyeOff, HelpCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Loader2, Eye, EyeOff, HelpCircle, CheckCircle2, XCircle, ExternalLink, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -26,7 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { apiClient } from '@/integrations/aws/api-client';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -60,6 +60,18 @@ interface AzureCredentialsFormProps {
   mode?: 'create' | 'edit';
 }
 
+interface ValidationResultType {
+  valid: boolean;
+  message?: string;
+  subscriptionName?: string;
+  details?: {
+    code?: string;
+    statusCode?: number;
+    helpUrl?: string;
+    steps?: string[];
+  };
+}
+
 export function AzureCredentialsForm({ 
   onSuccess, 
   onCancel, 
@@ -69,11 +81,7 @@ export function AzureCredentialsForm({
   const { t } = useTranslation();
   const [showSecret, setShowSecret] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<{
-    valid: boolean;
-    message?: string;
-    subscriptionName?: string;
-  } | null>(null);
+  const [validationResult, setValidationResult] = useState<ValidationResultType | null>(null);
 
   const form = useForm<AzureCredentialsFormData>({
     resolver: zodResolver(azureCredentialsSchema),
@@ -108,9 +116,17 @@ export function AzureCredentialsForm({
       });
 
       if (result.error) {
+        // Extract details from error response
+        const errorDetails = result.error.details?.details || result.error.details || {};
         setValidationResult({
           valid: false,
           message: result.error.message || 'Validation failed',
+          details: {
+            code: errorDetails.code,
+            statusCode: errorDetails.statusCode,
+            helpUrl: errorDetails.helpUrl,
+            steps: errorDetails.steps,
+          },
         });
         return;
       }
@@ -126,9 +142,17 @@ export function AzureCredentialsForm({
           form.setValue('subscriptionName', data.subscriptionName);
         }
       } else {
+        // Extract details from validation result
+        const errorDetails = data?.details || {};
         setValidationResult({
           valid: false,
           message: data?.error || 'Invalid credentials',
+          details: {
+            code: errorDetails.code,
+            statusCode: errorDetails.statusCode,
+            helpUrl: errorDetails.helpUrl,
+            steps: errorDetails.steps,
+          },
         });
       }
     } catch (err: any) {
@@ -301,22 +325,103 @@ export function AzureCredentialsForm({
 
         {/* Validation Result */}
         {validationResult && (
-          <Alert variant={validationResult.valid ? 'default' : 'destructive'}>
-            <div className="flex items-center gap-2">
-              {validationResult.valid ? (
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-              ) : (
-                <XCircle className="h-4 w-4" />
-              )}
-              <AlertDescription>
-                {validationResult.valid 
-                  ? t('azure.credentialsValid', 'Credentials validated successfully') + 
-                    (validationResult.subscriptionName ? ` - ${validationResult.subscriptionName}` : '')
-                  : validationResult.message
-                }
-              </AlertDescription>
-            </div>
-          </Alert>
+          <div className="space-y-4">
+            <Alert variant={validationResult.valid ? 'default' : 'destructive'}>
+              <div className="flex items-center gap-2">
+                {validationResult.valid ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                <AlertDescription>
+                  {validationResult.valid 
+                    ? t('azure.credentialsValid', 'Credentials validated successfully') + 
+                      (validationResult.subscriptionName ? ` - ${validationResult.subscriptionName}` : '')
+                    : validationResult.message
+                  }
+                </AlertDescription>
+              </div>
+            </Alert>
+
+            {/* Permission Error Tutorial */}
+            {!validationResult.valid && validationResult.details?.code === 'AuthorizationFailed' && (
+              <Alert className="glass border-amber-500/50 bg-amber-500/10">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertTitle className="text-amber-600 dark:text-amber-400">
+                  {t('azure.permissionRequired', 'Permission Required')}
+                </AlertTitle>
+                <AlertDescription className="mt-3 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    {t('azure.permissionExplanation', 'The Service Principal (App Registration) needs to have the Reader role assigned on the subscription to access resources.')}
+                  </p>
+                  
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">
+                      {t('azure.howToFix', 'How to fix:')}
+                    </p>
+                    <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
+                      <li>{t('azure.step1', 'Go to Azure Portal → Subscriptions → Select your subscription')}</li>
+                      <li>{t('azure.step2', 'Click on "Access control (IAM)" in the left menu')}</li>
+                      <li>{t('azure.step3', 'Click "+ Add" → "Add role assignment"')}</li>
+                      <li>{t('azure.step4', 'Select the "Reader" role (or "Contributor" for full access)')}</li>
+                      <li>{t('azure.step5', 'Click "Next" and select "User, group, or service principal"')}</li>
+                      <li>{t('azure.step6', 'Search for your App Registration name and select it')}</li>
+                      <li>{t('azure.step7', 'Click "Review + assign" to save')}</li>
+                      <li>{t('azure.step8', 'Wait 1-2 minutes for permissions to propagate, then try again')}</li>
+                    </ol>
+                  </div>
+
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => window.open('https://learn.microsoft.com/en-us/azure/role-based-access-control/role-assignments-portal', '_blank')}
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      {t('azure.viewDocumentation', 'View Microsoft Documentation')}
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Authentication Error Tutorial */}
+            {!validationResult.valid && (validationResult.details?.statusCode === 401 || validationResult.details?.code === 'AuthenticationError') && (
+              <Alert className="glass border-red-500/50 bg-red-500/10">
+                <XCircle className="h-4 w-4 text-red-500" />
+                <AlertTitle className="text-red-600 dark:text-red-400">
+                  {t('azure.authenticationFailed', 'Authentication Failed')}
+                </AlertTitle>
+                <AlertDescription className="mt-3 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    {t('azure.authExplanation', 'The credentials provided are invalid. Please verify:')}
+                  </p>
+                  
+                  <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
+                    <li>{t('azure.checkTenantId', 'Tenant ID matches your Azure AD directory')}</li>
+                    <li>{t('azure.checkClientId', 'Client ID matches your App Registration')}</li>
+                    <li>{t('azure.checkClientSecret', 'Client Secret is correct and not expired')}</li>
+                    <li>{t('azure.checkSubscriptionId', 'Subscription ID is correct')}</li>
+                  </ul>
+
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => window.open('https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal', '_blank')}
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      {t('azure.viewAppRegistrationGuide', 'View App Registration Guide')}
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         )}
 
         {/* Actions */}

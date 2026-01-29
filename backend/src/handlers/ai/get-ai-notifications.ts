@@ -64,9 +64,15 @@ export async function handler(
       });
     }
 
+    // Contar notificações não lidas (pending ou delivered, mas não read/actioned/dismissed)
+    const unreadCount = notifications.filter(n => 
+      n.status === 'pending' || n.status === 'delivered'
+    ).length;
+
     logger.info('AI notifications fetched', {
       total: notifications.length,
       pending: pendingIds.length,
+      unread: unreadCount,
     });
 
     return success({
@@ -83,7 +89,7 @@ export async function handler(
         status: n.status,
         created_at: n.created_at,
       })),
-      unread_count: pendingIds.length,
+      unread_count: unreadCount,
     });
 
   } catch (err) {

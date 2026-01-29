@@ -101,7 +101,7 @@ const RULE_CHECKERS: Record<string, RuleChecker> = {
         message: `Você tem ${criticalFindings} achados de segurança de alta severidade pendentes. Recomendo revisar e remediar esses problemas o mais rápido possível.`,
         suggested_action: 'Quer que eu mostre os achados mais críticos?',
         action_type: 'navigate',
-        action_params: { path: '/security' },
+        action_params: { path: '/security-scans' },
         priority: criticalFindings >= criticalThreshold ? 'critical' : 'high',
         context: { critical_findings_count: criticalFindings },
       };
@@ -137,7 +137,7 @@ const RULE_CHECKERS: Record<string, RuleChecker> = {
           message: `Identifiquei ${recommendations} oportunidades de economia que podem reduzir seus custos em até $${totalSavings.toFixed(0)}/ano. Quer que eu explique as recomendações?`,
           suggested_action: 'Ver recomendações de economia',
           action_type: 'navigate',
-          action_params: { path: '/ri-sp-analysis' },
+          action_params: { path: '/ri-savings-plans' },
           priority: totalSavings >= 5000 ? 'high' : 'medium',
           context: { recommendations_count: recommendations, potential_savings: totalSavings },
         };
@@ -163,7 +163,7 @@ const RULE_CHECKERS: Record<string, RuleChecker> = {
         message: `Você tem ${oldCredentials} credencial(is) AWS que não foram rotacionadas há mais de ${daysThreshold} dias. A AWS recomenda rotação a cada 90 dias para maior segurança.`,
         suggested_action: 'Ver credenciais que precisam de atenção',
         action_type: 'navigate',
-        action_params: { path: '/settings' },
+        action_params: { path: '/cloud-credentials' },
         priority: 'medium',
         context: { credentials_count: oldCredentials },
       };

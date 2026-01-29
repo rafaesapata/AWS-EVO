@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { ExternalLink, Copy, Check, Cloud, Shield, DollarSign, Activity } from 'lucide-react';
+import { ExternalLink, Copy, Check, Cloud, Shield, DollarSign, Activity, Download, Terminal, Apple, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -214,6 +214,115 @@ export function AzureQuickConnect({ onManualSetup }: AzureQuickConnectProps) {
               {t('azure.cliSetupInfo', 'Use Azure CLI to create a Service Principal. Make sure you have Azure CLI installed and are logged in.')}
             </AlertDescription>
           </Alert>
+
+          {/* Automated Script Section */}
+          <Card className="glass border-primary/20 bg-gradient-to-r from-blue-500/10 to-purple-500/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Terminal className="h-5 w-5 text-blue-600" />
+                {t('azure.automatedScript', 'Script Automatizado (Recomendado)')}
+              </CardTitle>
+              <CardDescription>
+                {t('azure.automatedScriptDesc', 'Execute um único script que configura tudo automaticamente')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Download buttons for each OS */}
+              <div>
+                <p className="text-sm font-medium mb-2">{t('azure.selectOS', 'Selecione seu sistema operacional:')}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Button 
+                    variant="outline"
+                    className="glass hover-glow flex items-center justify-center gap-2"
+                    onClick={() => {
+                      window.open('/scripts/azure-quick-connect.ps1', '_blank');
+                      toast.success(t('azure.scriptDownloaded', 'Script baixado!'));
+                    }}
+                  >
+                    <Monitor className="h-4 w-4" />
+                    Windows
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="glass hover-glow flex items-center justify-center gap-2"
+                    onClick={() => {
+                      window.open('/scripts/azure-quick-connect.sh', '_blank');
+                      toast.success(t('azure.scriptDownloaded', 'Script baixado!'));
+                    }}
+                  >
+                    <Apple className="h-4 w-4" />
+                    macOS
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="glass hover-glow flex items-center justify-center gap-2"
+                    onClick={() => {
+                      window.open('/scripts/azure-quick-connect.sh', '_blank');
+                      toast.success(t('azure.scriptDownloaded', 'Script baixado!'));
+                    }}
+                  >
+                    <Terminal className="h-4 w-4" />
+                    Linux
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Windows instructions */}
+              <div className="text-sm space-y-2">
+                <p className="font-medium flex items-center gap-2">
+                  <Monitor className="h-4 w-4" />
+                  Windows (PowerShell):
+                </p>
+                <div className="bg-muted p-3 rounded-md font-mono text-xs space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">PS&gt;</span>
+                    <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code>
+                    <CopyButton text="Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser" stepId="ps-policy" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">PS&gt;</span>
+                    <code>.\azure-quick-connect.ps1</code>
+                    <CopyButton text=".\azure-quick-connect.ps1" stepId="ps-run" />
+                  </div>
+                </div>
+              </div>
+
+              {/* macOS/Linux instructions */}
+              <div className="text-sm space-y-2">
+                <p className="font-medium flex items-center gap-2">
+                  <Apple className="h-4 w-4" />
+                  macOS / Linux (Bash):
+                </p>
+                <div className="bg-muted p-3 rounded-md font-mono text-xs space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">$</span>
+                    <code>chmod +x azure-quick-connect.sh</code>
+                    <CopyButton text="chmod +x azure-quick-connect.sh" stepId="chmod" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">$</span>
+                    <code>./azure-quick-connect.sh</code>
+                    <CopyButton text="./azure-quick-connect.sh" stepId="run" />
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-muted-foreground text-xs">
+                {t('azure.scriptFeatures', 'O script irá: fazer login no Azure, listar suas subscriptions, criar o App Registration, Service Principal, Client Secret e atribuir todas as permissões necessárias.')}
+              </p>
+            </CardContent>
+          </Card>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                {t('azure.orManualSteps', 'ou siga os passos manuais')}
+              </span>
+            </div>
+          </div>
 
           <div className="space-y-3">
             <Card>

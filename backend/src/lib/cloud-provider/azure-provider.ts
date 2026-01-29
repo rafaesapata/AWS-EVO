@@ -266,21 +266,35 @@ export class AzureProvider implements ICloudProvider {
       };
     } catch (error: any) {
       logger.error('Azure credential validation failed', { 
-        error: error.message,
+        error: error,
         authType: this.authType,
       });
       
       // Parse Azure-specific errors
       let errorMessage = error.message || 'Failed to validate Azure credentials';
+      let helpUrl: string | undefined;
+      let steps: string[] | undefined;
       
       if (error.statusCode === 401 || error.code === 'AuthenticationError' || error.code === 'TOKEN_EXPIRED') {
         errorMessage = this.authType === 'oauth'
           ? 'OAuth token has expired or been revoked. Please reconnect your Azure account.'
           : 'Invalid Azure credentials. Please check tenant ID, client ID, and client secret.';
-      } else if (error.statusCode === 403) {
+      } else if (error.statusCode === 403 || error.code === 'AuthorizationFailed') {
         errorMessage = this.authType === 'oauth'
           ? 'Access denied. Your Azure account may not have sufficient permissions for this subscription.'
-          : 'Access denied. The Service Principal may not have sufficient permissions.';
+          : 'Access denied. The Service Principal does not have sufficient permissions on this subscription.';
+        
+        helpUrl = 'https://learn.microsoft.com/en-us/azure/role-based-access-control/role-assignments-portal';
+        steps = [
+          '1. Go to Azure Portal → Subscriptions → Select your subscription',
+          '2. Click on "Access control (IAM)" in the left menu',
+          '3. Click "+ Add" → "Add role assignment"',
+          '4. Select the "Reader" role (or "Contributor" for full access)',
+          '5. Click "Next" and select "User, group, or service principal"',
+          '6. Search for your App Registration name and select it',
+          '7. Click "Review + assign" to save',
+          '8. Wait 1-2 minutes for permissions to propagate, then try again'
+        ];
       } else if (error.code === 'SubscriptionNotFound') {
         errorMessage = 'Subscription not found. Please verify the subscription ID.';
       }
@@ -292,6 +306,8 @@ export class AzureProvider implements ICloudProvider {
           code: error.code || error.statusCode,
           statusCode: error.statusCode,
           authType: this.authType,
+          helpUrl,
+          steps,
         },
       };
     }

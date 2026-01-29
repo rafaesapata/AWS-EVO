@@ -461,7 +461,7 @@ Em Node.js 18+, o módulo `crypto` precisa ser importado explicitamente. Alguns 
 
 ### Solução
 
-Adicionar no início do handler Azure:
+Adicionar no início do handler Azure (ANTES de qualquer outro import):
 
 ```typescript
 // Ensure crypto is available globally for Azure SDK
@@ -470,6 +470,27 @@ if (typeof globalThis.crypto === 'undefined') {
   (globalThis as any).crypto = crypto.webcrypto || crypto;
 }
 ```
+
+### ⚠️ IMPORTANTE: Handlers que DEVEM ter o crypto polyfill
+
+Todos os handlers Azure que usam `AzureProvider` ou `azure-helpers.js` DEVEM ter o crypto polyfill:
+
+| Handler | Status |
+|---------|--------|
+| `validate-azure-credentials.ts` | ✅ Tem polyfill |
+| `save-azure-credentials.ts` | ✅ Tem polyfill |
+| `azure-activity-logs.ts` | ✅ Tem polyfill |
+| `azure-compliance-scan.ts` | ✅ Tem polyfill |
+| `azure-cost-optimization.ts` | ✅ Tem polyfill |
+| `azure-defender-scan.ts` | ✅ Tem polyfill |
+| `azure-detect-anomalies.ts` | ✅ Tem polyfill |
+| `azure-fetch-costs.ts` | ✅ Tem polyfill |
+| `azure-fetch-monitor-metrics.ts` | ✅ Tem polyfill |
+| `azure-reservations-analyzer.ts` | ✅ Tem polyfill |
+| `azure-resource-inventory.ts` | ✅ Tem polyfill |
+| `azure-security-scan.ts` | ✅ Tem polyfill |
+| `azure-well-architected-scan.ts` | ✅ Tem polyfill |
+| `start-azure-security-scan.ts` | ✅ Tem polyfill |
 
 ### Exemplo Completo de Handler Azure
 
@@ -497,8 +518,20 @@ export async function handler(
 }
 ```
 
+### Histórico de Incidentes
+
+#### 2026-01-29 - save-azure-credentials com erro "crypto is not defined"
+
+**Problema:** Após validar credenciais Azure com sucesso, ao clicar em salvar, erro "crypto is not defined"
+
+**Causa:** O handler `save-azure-credentials.ts` não tinha o crypto polyfill, mas usava `AzureProvider` para validar antes de salvar.
+
+**Solução:** Adicionado crypto polyfill a todos os 14 handlers Azure que usam Azure SDK.
+
+**Lição aprendida:** Ao criar novos handlers Azure, SEMPRE adicionar o crypto polyfill no início do arquivo.
+
 ---
 
-**Última atualização:** 2026-01-12  
-**Versão:** 1.1  
+**Última atualização:** 2026-01-29  
+**Versão:** 1.2  
 **Mantido por:** DevOps Team

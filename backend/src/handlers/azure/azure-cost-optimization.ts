@@ -4,6 +4,12 @@
  * Fetches cost optimization recommendations from Azure Advisor.
  */
 
+// Ensure crypto is available globally for Azure SDK
+import * as crypto from 'crypto';
+if (typeof globalThis.crypto === 'undefined') {
+  (globalThis as any).crypto = crypto.webcrypto || crypto;
+}
+
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';

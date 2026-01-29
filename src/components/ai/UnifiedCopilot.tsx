@@ -90,7 +90,7 @@ export function UnifiedCopilot() {
   const navigate = useNavigate();
   const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
-  const { notifications, unreadCount, markAsRead, markAsActioned, dismiss } = useAINotifications();
+  const { notifications, unreadCount, markAsRead, markAsActioned, dismiss, refetch } = useAINotifications();
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -100,6 +100,7 @@ export function UnifiedCopilot() {
   const [hasNewNotification, setHasNewNotification] = useState(false);
   const [lastUnreadCount, setLastUnreadCount] = useState(0);
   const [processedNotifications, setProcessedNotifications] = useState<Set<string>>(new Set());
+  const [welcomeShown, setWelcomeShown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Pulse effect when new notification arrives
@@ -134,6 +135,14 @@ export function UnifiedCopilot() {
 
   // Add notifications as messages when dialog opens
   useEffect(() => {
+    if (isOpen) {
+      // Refetch notifications when opening to get latest
+      refetch();
+    }
+  }, [isOpen, refetch]);
+
+  // Process notifications into messages - runs BEFORE welcome message
+  useEffect(() => {
     if (isOpen && notifications.length > 0) {
       const newNotifications = notifications.filter(
         (n: AINotification) => !processedNotifications.has(n.id) && n.status !== 'dismissed'
@@ -153,14 +162,14 @@ export function UnifiedCopilot() {
                   action: () => handleNotificationAction(notification),
                 },
                 {
-                  label: t('ai.dismiss', 'Ignorar'),
+                  label: t('ai.dismiss', 'Dismiss'),
                   variant: 'outline' as const,
                   action: () => handleDismiss(notification),
                 },
               ]
             : [
                 {
-                  label: t('ai.gotIt', 'Entendi'),
+                  label: t('ai.gotIt', 'OK'),
                   variant: 'outline' as const,
                   action: () => handleDismiss(notification),
                 },
@@ -180,26 +189,36 @@ export function UnifiedCopilot() {
     }
   }, [isOpen, notifications, processedNotifications, markAsRead, t]);
 
-  // Initialize with welcome message
+  // Initialize with welcome message - only after notifications are processed
   useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      const welcomeMessage: ChatMessage = {
-        id: 'welcome',
-        type: 'assistant',
-        content: t(
-          'copilot.welcomeMessage',
-          "Olá! Sou o EVO Copilot AI 🤖\n\nPosso ajudar com:\n• Análise de custos AWS\n• Segurança e vulnerabilidades\n• Otimização de recursos\n\nComo posso ajudar?"
-        ),
-        timestamp: new Date(),
-        suggestions: [
-          t('copilot.suggestions.analyzeCosts', 'Analisar meus custos'),
-          t('copilot.suggestions.checkSecurity', 'Verificar segurança'),
-          t('copilot.suggestions.optimizeResources', 'Otimizar recursos'),
-        ],
-      };
-      setMessages([welcomeMessage]);
+    if (isOpen && !welcomeShown) {
+      // Small delay to allow notifications to be processed first
+      const timer = setTimeout(() => {
+        // Only add welcome if no messages exist yet
+        setMessages(prev => {
+          if (prev.length === 0) {
+            return [{
+              id: 'welcome',
+              type: 'assistant',
+              content: t(
+                'copilot.welcomeMessage',
+                "Olá! Sou o EVO Copilot AI 🤖\n\nPosso ajudar com:\n• Análise de custos AWS\n• Segurança e vulnerabilidades\n• Otimização de recursos\n\nComo posso ajudar?"
+              ),
+              timestamp: new Date(),
+              suggestions: [
+                t('copilot.suggestions.analyzeCosts', 'Analisar meus custos'),
+                t('copilot.suggestions.checkSecurity', 'Verificar segurança'),
+                t('copilot.suggestions.optimizeResources', 'Otimizar recursos'),
+              ],
+            }];
+          }
+          return prev;
+        });
+        setWelcomeShown(true);
+      }, 300);
+      return () => clearTimeout(timer);
     }
-  }, [isOpen, t, messages.length]);
+  }, [isOpen, welcomeShown, t]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -299,8 +318,32 @@ export function UnifiedCopilot() {
         case 'navigate':
           const path = actionParams.path as string;
           if (path) {
+            // Map old/invalid paths to correct ones
+            const pathMapping: Record<string, string> = {
+              // Security
+              '/security': '/security-scans',
+              '/security-scan': '/security-scans',
+              '/findings': '/security-scans',
+              // Cost
+              '/settings': '/cloud-credentials',
+              '/aws-credentials': '/cloud-credentials',
+              '/credentials': '/cloud-credentials',
+              '/ri-sp-analysis': '/ri-savings-plans',
+              '/ri-sp': '/ri-savings-plans',
+              '/savings-plans': '/ri-savings-plans',
+              '/costs': '/cost-analysis',
+              '/cost': '/cost-analysis',
+              // Compliance
+              '/compliance-scan': '/compliance',
+              '/compliance-scans': '/compliance',
+              // Dashboard
+              '/home': '/dashboard',
+              '/index': '/dashboard',
+            };
+            const correctedPath = pathMapping[path] || path;
+            
             setIsOpen(false);
-            navigate(path);
+            navigate(correctedPath);
             successMessage = t('ai.navigating', 'Redirecionando...');
           }
           break;
@@ -469,16 +512,16 @@ export function UnifiedCopilot() {
 
                     {/* Actions for notifications */}
                     {message.actions && message.actions.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-3">
+                      <div className="flex flex-col gap-2 mt-3">
                         {message.actions.map((action, idx) => (
                           <Button
                             key={idx}
                             size="sm"
                             variant={action.variant || 'default'}
                             onClick={action.action}
-                            className="text-xs h-7 px-2"
+                            className="text-xs h-auto py-1.5 px-3 whitespace-normal text-left justify-start"
                           >
-                            {action.label}
+                            <span className="line-clamp-2">{action.label}</span>
                           </Button>
                         ))}
                       </div>

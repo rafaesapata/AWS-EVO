@@ -25,22 +25,30 @@ aws apigateway flush-stage-cache --rest-api-id 3l66kn0eaj --stage-name prod --re
 ## Lambda Layers
 
 ### Layer Atual (com AWS SDK + Azure SDK)
-- **Prisma + Zod + AWS SDK + Azure SDK Layer**: `arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:64`
+- **Prisma + Zod + AWS SDK + Azure SDK Layer**: `arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:69`
   - Contém: 
     - `@prisma/client`, `.prisma/client` (gerado)
     - `zod`
     - AWS SDK: `@aws-sdk/client-lambda`, `@aws-sdk/client-sts`, `@aws-sdk/client-wafv2`, `@aws-sdk/client-bedrock-runtime`, `@aws-sdk/client-sso`, `@aws-sdk/types` + todas dependências transitivas
     - Smithy: `@smithy/*` (80+ pacotes necessários para AWS SDK v3)
     - `@aws/lambda-invoke-store` (necessário para recursion detection)
-    - Utilitários: `tslib`, `uuid`, `fast-xml-parser`
+    - **Azure SDK**: `@azure/identity`, `@azure/arm-resources`, `@azure/arm-compute`, `@azure/arm-storage`, `@azure/arm-costmanagement`, `@azure/arm-network`, `@azure/arm-sql`, `@azure/arm-monitor` + dependências
+    - `@azure/msal-node`, `@azure/msal-common` (autenticação MSAL)
+    - `@typespec/ts-http-runtime` (necessário para Azure SDK) + arquivos de compatibilidade em `internal/`
+    - **jsonwebtoken** (**CRÍTICO** - necessário para `@azure/msal-node`)
+    - Utilitários: `tslib`, `uuid`, `fast-xml-parser`, `ms`, `debug`, `events`, `http-proxy-agent`, `https-proxy-agent`, `agent-base`
+    - Dependências jsonwebtoken: `jws`, `jwa`, `buffer-equal-constant-time`, `ecdsa-sig-formatter`, `safe-buffer`, `semver`
   - Binários: `rhel-openssl-1.0.x`, `rhel-openssl-3.0.x` (para Lambda)
-  - Tamanho: ~42MB comprimido, ~121MB descomprimido
+  - Tamanho: ~47MB comprimido, ~140MB descomprimido
   - **IMPORTANTE**: Layer criado com script de cópia recursiva de dependências para garantir que TODAS as dependências transitivas sejam incluídas
 
 ### Versões do Layer
 | Versão | Descrição | Data |
 |--------|-----------|------|
-| 64 | **ATUAL** - Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock, Lambda, Cognito) + Smithy (completo) | 2026-01-26 |
+| 69 | **ATUAL** - Prisma + Zod + AWS SDK + Azure SDK + **jsonwebtoken** (fix para @azure/msal-node) | 2026-01-29 |
+| 68 | ⚠️ QUEBRADO - Falta jsonwebtoken - Causa erro "Cannot find module 'jsonwebtoken'" | 2026-01-29 |
+| 65 | ⚠️ QUEBRADO - Sem Azure SDK - Causa erro "Azure SDK not installed" | 2026-01-27 |
+| 64 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock, Lambda, Cognito) + Smithy (completo) | 2026-01-26 |
 | 63 | ⚠️ QUEBRADO - Apenas Prisma + Zod (sem AWS SDK) - NÃO USAR | 2026-01-25 |
 | 62 | Prisma + Zod with demo_mode fields | 2026-01-25 |
 | 61 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock, Cognito, Lambda) + Smithy | 2026-01-17 |
@@ -68,6 +76,28 @@ Antes de executar `aws lambda publish-layer-version`, verificar se o layer cont�
 - [ ] Todas as dependências `@smithy/*` (80+ pacotes)
 - [ ] `@aws/lambda-invoke-store` (para recursion detection)
 - [ ] `tslib`, `uuid`, `fast-xml-parser`
+
+### 1.1 Checklist OBRIGATÓRIO para Azure SDK (Lambdas Azure)
+
+**⚠️ CRÍTICO**: Se o layer for usado por Lambdas Azure, DEVE conter:
+
+- [ ] `@azure/identity` (**OBRIGATÓRIO** - autenticação Azure)
+- [ ] `@azure/arm-resources` (**OBRIGATÓRIO** - validação de credenciais)
+- [ ] `@azure/arm-compute` (VMs)
+- [ ] `@azure/arm-storage` (Storage Accounts)
+- [ ] `@azure/arm-costmanagement` (Custos)
+- [ ] `@azure/arm-network` (Networking)
+- [ ] `@azure/arm-sql` (SQL Servers)
+- [ ] `@azure/arm-monitor` (Monitoring)
+- [ ] `@azure/msal-node` (**OBRIGATÓRIO** - autenticação MSAL)
+- [ ] `@azure/msal-common` (**OBRIGATÓRIO** - dependência do msal-node)
+- [ ] `@typespec/ts-http-runtime` (**OBRIGATÓRIO** - runtime do Azure SDK)
+- [ ] Arquivos de compatibilidade em `@typespec/ts-http-runtime/internal/` (logger.js, util.js, policies.js)
+- [ ] **`jsonwebtoken`** (**CRÍTICO** - dependência do @azure/msal-node, sem isso dá erro "Cannot find module 'jsonwebtoken'")
+- [ ] Dependências do jsonwebtoken: `jws`, `jwa`, `buffer-equal-constant-time`, `ecdsa-sig-formatter`, `safe-buffer`, `semver`
+- [ ] Dependências: `ms`, `debug`, `events`, `http-proxy-agent`, `https-proxy-agent`, `agent-base`
+
+**Sem esses pacotes, as Lambdas Azure retornarão erro: "Azure SDK not installed" ou "Cannot find module 'jsonwebtoken'"**
 
 ### 2. SEMPRE usar o script de cópia recursiva
 
@@ -138,6 +168,7 @@ Se o teste pós-publicação falhar:
 
 | Data | Versão | Problema | Impacto | Causa |
 |------|--------|----------|---------|-------|
+| 2026-01-29 | 65 | Sem Azure SDK | Erro "Azure SDK not installed" em todas Lambdas Azure | Layer publicado sem pacotes @azure/* |
 | 2026-01-26 | 63 | Sem AWS SDK | Erro 502 em todas Lambdas que usam aws-helpers.js | Layer publicado apenas com Prisma + Zod |
 
 ---
@@ -510,7 +541,7 @@ aws lambda get-function-configuration --function-name FUNCTION_NAME --query 'Vpc
 ```
 
 ### Azure SDK "not installed" Error
-Se receber erro "Azure SDK not installed", significa que o layer da Lambda não inclui os pacotes Azure.
+Se receber erro "Azure SDK not installed" ou "Cannot find module 'jsonwebtoken'", significa que o layer da Lambda não inclui os pacotes Azure ou suas dependências.
 
 **Solução:**
 1. Verificar versão do layer na Lambda:
@@ -518,21 +549,35 @@ Se receber erro "Azure SDK not installed", significa que o layer da Lambda não 
 aws lambda get-function-configuration --function-name FUNCTION_NAME --query 'Layers[0].Arn' --output text --region us-east-1
 ```
 
-2. Atualizar para layer versão 46 (com Azure SDK + @typespec + internal exports fix):
+2. Atualizar para layer versão 69 (com Azure SDK completo + jsonwebtoken):
 ```bash
 aws lambda update-function-configuration \
   --function-name FUNCTION_NAME \
-  --layers "arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:46" \
+  --layers "arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:69" \
   --region us-east-1
 ```
 
 3. Se precisar atualizar todas as Lambdas Azure:
 ```bash
-LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:46"
-for func in validate-azure-credentials save-azure-credentials list-azure-credentials delete-azure-credentials azure-security-scan start-azure-security-scan azure-defender-scan azure-compliance-scan azure-well-architected-scan azure-cost-optimization azure-reservations-analyzer azure-fetch-costs azure-resource-inventory azure-activity-logs list-cloud-credentials; do
+LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:69"
+for func in validate-azure-credentials save-azure-credentials list-azure-credentials delete-azure-credentials azure-security-scan start-azure-security-scan azure-defender-scan azure-compliance-scan azure-well-architected-scan azure-cost-optimization azure-reservations-analyzer azure-fetch-costs azure-resource-inventory azure-activity-logs azure-fetch-monitor-metrics azure-detect-anomalies list-cloud-credentials azure-oauth-initiate azure-oauth-callback azure-oauth-refresh azure-oauth-revoke; do
   aws lambda update-function-configuration --function-name "evo-uds-v3-production-$func" --layers "$LAYER_ARN" --region us-east-1
 done
 ```
+
+**Pacotes Azure OBRIGATÓRIOS no layer:**
+- `@azure/identity` - Autenticação
+- `@azure/arm-resources` - Resource Management (validação de credenciais)
+- `@azure/arm-compute` - VMs
+- `@azure/arm-storage` - Storage Accounts
+- `@azure/arm-costmanagement` - Cost Management
+- `@azure/arm-network` - Networking
+- `@azure/arm-sql` - SQL Servers
+- `@azure/arm-monitor` - Monitoring
+- `@azure/msal-node`, `@azure/msal-common` - Autenticação MSAL
+- `@typespec/ts-http-runtime` - Runtime necessário para Azure SDK
+- Arquivos de compatibilidade em `@typespec/ts-http-runtime/internal/` (logger.js, util.js, policies.js)
+- **`jsonwebtoken`** - Dependência CRÍTICA do @azure/msal-node (sem isso dá erro "Cannot find module 'jsonwebtoken'")
 
 ### Security Scan Falha com "sts:AssumeRole not authorized"
 
@@ -607,6 +652,91 @@ aws lambda add-permission \
 ---
 
 ## 📜 Histórico de Incidentes de Infraestrutura
+
+### 2026-01-29 - Azure SDK faltando jsonwebtoken (Quick Connect Azure falhando - SEGUNDO INCIDENTE)
+
+**Duração:** ~1 hora
+
+**Impacto:** CRÍTICO - Impossível conectar novas contas Azure via Quick Connect
+
+**Sintoma:**
+- Erro "Azure SDK not installed" persistia mesmo após atualizar para layer 68
+- Logs mostravam: `Cannot find module 'jsonwebtoken'`
+- Lambda `validate-azure-credentials` retornando erro 500
+
+**Causa raiz:**
+O layer versão 68 continha os pacotes `@azure/*`, mas faltava a dependência `jsonwebtoken` que é necessária para `@azure/msal-node`. A cadeia de dependências é:
+- `@azure/identity` → `@azure/msal-node` → `jsonwebtoken`
+
+O código em `azure-provider.ts` captura erros `MODULE_NOT_FOUND` e lança "Azure SDK not installed", mascarando o erro real.
+
+**Diagnóstico:**
+Criada Lambda de teste para verificar imports:
+```javascript
+const identity = require('@azure/identity');
+// Erro: Cannot find module 'jsonwebtoken'
+```
+
+**Correção aplicada:**
+1. Criado novo layer versão 69 com `jsonwebtoken` e suas dependências:
+   - `jsonwebtoken`
+   - `jws`, `jwa`, `buffer-equal-constant-time`, `ecdsa-sig-formatter`, `safe-buffer`, `semver`
+2. Atualizadas todas as 21 Lambdas Azure para usar layer versão 69
+
+**Lambdas afetadas:**
+- Todas as 21 Lambdas Azure (mesma lista do incidente anterior)
+
+**Lição aprendida:**
+- Dependências transitivas profundas podem não ser óbvias (identity → msal-node → jsonwebtoken)
+- Sempre testar o import real do pacote após criar um layer, não apenas verificar se os arquivos existem
+- O erro "Azure SDK not installed" mascara o erro real - considerar melhorar o logging
+
+**Prevenção futura:**
+- Adicionado `jsonwebtoken` ao checklist obrigatório para Azure SDK
+- Documentado que `@azure/msal-node` depende de `jsonwebtoken`
+- Criar script de teste de imports para validar layers antes de publicar
+
+---
+
+### 2026-01-29 - Azure SDK não instalado no Layer (Quick Connect Azure falhando)
+
+**Duração:** ~30 minutos
+
+**Impacto:** CRÍTICO - Impossível conectar novas contas Azure via Quick Connect
+
+**Sintoma:**
+- Erro "Azure SDK not installed. Run: npm install @azure/identity @azure/arm-resources @azure/arm-compute @azure/arm-storage @azure/arm-costmanagement"
+- Lambda `validate-azure-credentials` retornando erro 500
+
+**Causa raiz:**
+Layer versão 65 foi publicado sem os pacotes Azure SDK. O layer continha apenas Prisma + Zod + AWS SDK, mas não os pacotes `@azure/*` necessários para as Lambdas Azure.
+
+**Correção aplicada:**
+1. Criado novo layer versão 68 com Azure SDK completo:
+   - `@azure/identity`, `@azure/arm-resources`, `@azure/arm-compute`, `@azure/arm-storage`
+   - `@azure/arm-costmanagement`, `@azure/arm-network`, `@azure/arm-sql`, `@azure/arm-monitor`
+   - `@typespec/ts-http-runtime` + arquivos de compatibilidade em `internal/`
+   - Dependências: `ms`, `debug`, `events`, `http-proxy-agent`, `https-proxy-agent`, `agent-base`
+2. Atualizadas todas as 21 Lambdas Azure para usar layer versão 68
+
+**Lambdas afetadas:**
+- `validate-azure-credentials`, `save-azure-credentials`, `list-azure-credentials`, `delete-azure-credentials`
+- `azure-security-scan`, `start-azure-security-scan`, `azure-defender-scan`, `azure-compliance-scan`
+- `azure-well-architected-scan`, `azure-cost-optimization`, `azure-reservations-analyzer`
+- `azure-fetch-costs`, `azure-resource-inventory`, `azure-activity-logs`
+- `azure-fetch-monitor-metrics`, `azure-detect-anomalies`, `list-cloud-credentials`
+- `azure-oauth-initiate`, `azure-oauth-callback`, `azure-oauth-refresh`, `azure-oauth-revoke`
+
+**Lição aprendida:**
+- Ao publicar um novo layer, SEMPRE verificar se contém TODOS os pacotes necessários (AWS SDK E Azure SDK)
+- Adicionar checklist obrigatório para Azure SDK no processo de publicação de layers
+- Testar Lambdas Azure após publicar novo layer
+
+**Prevenção futura:**
+- Adicionado checklist obrigatório para Azure SDK na seção "REGRAS OBRIGATÓRIAS PARA PUBLICAÇÃO DE LAYERS"
+- Documentado no steering para evitar regressão
+
+---
 
 ### 2026-01-26 - Security Scan falhando com erro sts:AssumeRole
 
@@ -689,5 +819,5 @@ As Lambdas não conseguiam validar os tokens JWT dos usuários do frontend porqu
 
 ---
 
-**Última atualização:** 2026-01-27
-**Versão:** 1.6
+**Última atualização:** 2026-01-29
+**Versão:** 1.8
