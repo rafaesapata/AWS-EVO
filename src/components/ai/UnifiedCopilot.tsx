@@ -534,7 +534,7 @@ export function UnifiedCopilot() {
                 value={inputMessage}
                 onChange={e => setInputMessage(e.target.value)}
                 placeholder={t('ai.inputPlaceholder', 'Pergunte sobre custos, segurança, otimizações...')}
-                onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                 disabled={isTyping}
                 className="bg-background/50 border-border/50 focus-visible:ring-primary/50"
               />

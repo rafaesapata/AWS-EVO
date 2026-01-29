@@ -25,7 +25,7 @@ import {
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
 
 interface ManageOrganizationRequest {
-  action: 'list' | 'get' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'suspend' | 'unsuspend' | 'list_licenses';
+  action: 'list' | 'get' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'suspend' | 'unsuspend' | 'list_licenses' | 'list_seat_assignments' | 'release_seat';
   id?: string;
   name?: string;
   slug?: string;
@@ -34,6 +34,8 @@ interface ManageOrganizationRequest {
   billing_email?: string;
   status?: 'active' | 'inactive' | 'suspended';
   reason?: string; // Motivo da suspensão
+  seat_assignment_id?: string; // ID da atribuição de assento para liberar
+  license_id?: string; // ID da licença para filtrar atribuições
 }
 
 function getOriginFromEvent(event: AuthorizedEvent): string {
@@ -794,6 +796,203 @@ export async function handler(
             total_max_users: result.reduce((sum, l) => sum + l.max_users, 0),
             total_used_seats: result.reduce((sum, l) => sum + l.used_seats, 0)
           }
+        }, 200, origin);
+      }
+
+      case 'list_seat_assignments': {
+        if (!body.id) {
+          return badRequest('Organization ID is required', undefined, origin);
+        }
+
+        const orgForSeats = await prisma.organization.findUnique({
+          where: { id: body.id }
+        });
+
+        if (!orgForSeats) {
+          return badRequest('Organization not found', undefined, origin);
+        }
+
+        // Buscar todas as atribuições de assento da organização
+        const seatAssignments = await prisma.licenseSeatAssignment.findMany({
+          where: {
+            license: {
+              organization_id: body.id,
+              ...(body.license_id ? { id: body.license_id } : {})
+            }
+          },
+          include: {
+            license: {
+              select: {
+                id: true,
+                license_key: true,
+                plan_type: true,
+                product_type: true,
+                is_active: true
+              }
+            }
+          },
+          orderBy: { assigned_at: 'desc' }
+        });
+
+        // Buscar informações dos usuários
+        const userPoolId = process.env.COGNITO_USER_POOL_ID;
+        const seatsWithUserInfo = await Promise.all(
+          seatAssignments.map(async (seat) => {
+            // Buscar perfil do usuário
+            const profile = await prisma.profile.findFirst({
+              where: { user_id: seat.user_id },
+              select: {
+                full_name: true,
+                role: true
+              }
+            });
+
+            // Buscar email do Cognito
+            let email: string | undefined;
+            if (userPoolId) {
+              try {
+                const listResponse = await cognitoClient.send(new ListUsersCommand({
+                  UserPoolId: userPoolId,
+                  Filter: `sub = "${seat.user_id}"`,
+                  Limit: 1
+                }));
+                const cognitoUser = listResponse.Users?.[0];
+                if (cognitoUser) {
+                  email = cognitoUser.Attributes?.find(a => a.Name === 'email')?.Value;
+                }
+              } catch (err) {
+                logger.warn('Failed to get email from Cognito', { userId: seat.user_id });
+              }
+            }
+
+            return {
+              id: seat.id,
+              user_id: seat.user_id,
+              user_name: profile?.full_name || null,
+              user_email: email || null,
+              user_role: profile?.role || 'user',
+              license_id: seat.license_id,
+              license_key: seat.license.license_key,
+              license_plan: seat.license.plan_type,
+              license_product: seat.license.product_type,
+              license_active: seat.license.is_active,
+              assigned_at: seat.assigned_at,
+              assigned_by: seat.assigned_by
+            };
+          })
+        );
+
+        logger.info('Listed seat assignments for organization', {
+          organizationId: body.id,
+          seatCount: seatsWithUserInfo.length,
+          requestedBy: user.sub || user.id,
+        });
+
+        return success({
+          seat_assignments: seatsWithUserInfo,
+          total: seatsWithUserInfo.length
+        }, 200, origin);
+      }
+
+      case 'release_seat': {
+        if (!body.id) {
+          return badRequest('Organization ID is required', undefined, origin);
+        }
+
+        if (!body.seat_assignment_id) {
+          return badRequest('Seat assignment ID is required', undefined, origin);
+        }
+
+        // Verificar se a organização existe
+        const orgForRelease = await prisma.organization.findUnique({
+          where: { id: body.id }
+        });
+
+        if (!orgForRelease) {
+          return badRequest('Organization not found', undefined, origin);
+        }
+
+        // Buscar a atribuição de assento
+        const seatAssignment = await prisma.licenseSeatAssignment.findUnique({
+          where: { id: body.seat_assignment_id },
+          include: {
+            license: {
+              select: {
+                id: true,
+                organization_id: true,
+                license_key: true,
+                used_seats: true,
+                available_seats: true
+              }
+            }
+          }
+        });
+
+        if (!seatAssignment) {
+          return badRequest('Seat assignment not found', undefined, origin);
+        }
+
+        // Verificar se a atribuição pertence à organização
+        if (seatAssignment.license.organization_id !== body.id) {
+          return forbidden('Seat assignment does not belong to this organization', origin);
+        }
+
+        // Buscar informações do usuário para o log
+        const userProfile = await prisma.profile.findFirst({
+          where: { user_id: seatAssignment.user_id },
+          select: { full_name: true }
+        });
+
+        // Deletar a atribuição de assento
+        await prisma.licenseSeatAssignment.delete({
+          where: { id: body.seat_assignment_id }
+        });
+
+        // Atualizar contadores da licença
+        await prisma.license.update({
+          where: { id: seatAssignment.license_id },
+          data: {
+            used_seats: { decrement: 1 },
+            available_seats: { increment: 1 }
+          }
+        });
+
+        // Registrar no audit log
+        await prisma.auditLog.create({
+          data: {
+            id: randomUUID(),
+            organization_id: body.id,
+            user_id: user.sub || user.id || 'system',
+            action: 'SEAT_RELEASED',
+            resource_type: 'license_seat_assignment',
+            resource_id: body.seat_assignment_id,
+            details: {
+              released_user_id: seatAssignment.user_id,
+              released_user_name: userProfile?.full_name || 'Unknown',
+              license_id: seatAssignment.license_id,
+              license_key: seatAssignment.license.license_key,
+              reason: body.reason || 'Released by super admin',
+              released_by: user.email || user.sub
+            },
+            ip_address: event.requestContext?.identity?.sourceIp || 'unknown',
+            user_agent: event.headers?.['user-agent'] || 'unknown'
+          }
+        });
+
+        logger.info('Seat assignment released', {
+          organizationId: body.id,
+          seatAssignmentId: body.seat_assignment_id,
+          releasedUserId: seatAssignment.user_id,
+          releasedUserName: userProfile?.full_name,
+          licenseId: seatAssignment.license_id,
+          releasedBy: user.sub || user.id,
+        });
+
+        return success({
+          message: 'Seat released successfully',
+          released_user_id: seatAssignment.user_id,
+          released_user_name: userProfile?.full_name || 'Unknown',
+          license_id: seatAssignment.license_id
         }, 200, origin);
       }
 

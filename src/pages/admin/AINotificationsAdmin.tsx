@@ -48,15 +48,19 @@ import {
   MousePointer,
   XCircle,
   Sparkles,
+  Building2,
+  Loader2,
 } from 'lucide-react';
 import { apiClient } from '@/integrations/aws/api-client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS } from 'date-fns/locale';
 
 interface Organization {
   id: string;
   name: string;
+  slug?: string;
+  user_count?: number;
 }
 
 interface NotificationStats {
@@ -101,29 +105,49 @@ const statusConfig: Record<string, { icon: typeof Clock; color: string }> = {
   dismissed: { icon: XCircle, color: 'text-red-500' },
 };
 
-const notificationTypes = [
-  { value: 'custom', label: 'Personalizada' },
-  { value: 'security_scan_needed', label: 'Scan de Segurança' },
-  { value: 'compliance_scan_needed', label: 'Verificação de Compliance' },
-  { value: 'cost_alert', label: 'Alerta de Custos' },
-  { value: 'system_update', label: 'Atualização do Sistema' },
-  { value: 'feature_announcement', label: 'Nova Funcionalidade' },
-  { value: 'maintenance', label: 'Manutenção Programada' },
-];
-
-const actionTypes = [
-  { value: 'none', label: 'Nenhuma ação' },
-  { value: 'security_scan', label: 'Iniciar Scan de Segurança' },
-  { value: 'compliance_scan', label: 'Iniciar Scan de Compliance' },
-  { value: 'cost_analysis', label: 'Atualizar Análise de Custos' },
-  { value: 'navigate', label: 'Navegar para página' },
-];
-
 export default function AINotificationsAdmin() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('send');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  // Notification types with i18n
+  const notificationTypes = [
+    { value: 'custom', labelKey: 'admin.notifType.custom', fallback: 'Custom' },
+    { value: 'security_scan_needed', labelKey: 'admin.notifType.securityScan', fallback: 'Security Scan' },
+    { value: 'compliance_scan_needed', labelKey: 'admin.notifType.complianceScan', fallback: 'Compliance Check' },
+    { value: 'cost_alert', labelKey: 'admin.notifType.costAlert', fallback: 'Cost Alert' },
+    { value: 'system_update', labelKey: 'admin.notifType.systemUpdate', fallback: 'System Update' },
+    { value: 'feature_announcement', labelKey: 'admin.notifType.featureAnnouncement', fallback: 'New Feature' },
+    { value: 'maintenance', labelKey: 'admin.notifType.maintenance', fallback: 'Scheduled Maintenance' },
+  ];
+
+  // Action types with i18n
+  const actionTypes = [
+    { value: 'none', labelKey: 'admin.actionType.none', fallback: 'No action' },
+    { value: 'security_scan', labelKey: 'admin.actionType.securityScan', fallback: 'Start Security Scan' },
+    { value: 'compliance_scan', labelKey: 'admin.actionType.complianceScan', fallback: 'Start Compliance Scan' },
+    { value: 'cost_analysis', labelKey: 'admin.actionType.costAnalysis', fallback: 'Update Cost Analysis' },
+    { value: 'navigate', labelKey: 'admin.actionType.navigate', fallback: 'Navigate to page' },
+  ];
+
+  // Priority options with i18n
+  const priorityOptions = [
+    { value: 'low', emoji: '🔵', labelKey: 'admin.priorityLevel.low', fallback: 'Low' },
+    { value: 'medium', emoji: '🟡', labelKey: 'admin.priorityLevel.medium', fallback: 'Medium' },
+    { value: 'high', emoji: '🟠', labelKey: 'admin.priorityLevel.high', fallback: 'High' },
+    { value: 'critical', emoji: '🔴', labelKey: 'admin.priorityLevel.critical', fallback: 'Critical' },
+  ];
+
+  // Status filter options with i18n
+  const statusFilterOptions = [
+    { value: 'all', labelKey: 'admin.statusFilter.all', fallback: 'All' },
+    { value: 'pending', labelKey: 'admin.statusFilter.pending', fallback: 'Pending' },
+    { value: 'delivered', labelKey: 'admin.statusFilter.delivered', fallback: 'Delivered' },
+    { value: 'read', labelKey: 'admin.statusFilter.read', fallback: 'Read' },
+    { value: 'actioned', labelKey: 'admin.statusFilter.actioned', fallback: 'Actioned' },
+    { value: 'dismissed', labelKey: 'admin.statusFilter.dismissed', fallback: 'Dismissed' },
+  ];
 
   // Form state
   const [formData, setFormData] = useState({
@@ -140,13 +164,17 @@ export default function AINotificationsAdmin() {
   });
 
   // Fetch organizations
-  const { data: orgsData } = useQuery({
+  const { data: orgsData, isLoading: isLoadingOrgs, error: orgsError } = useQuery({
     queryKey: ['admin-organizations'],
     queryFn: async () => {
-      const response = await apiClient.invoke('manage-organizations', {
+      const response = await apiClient.invoke<Organization[]>('manage-organizations', {
         body: { action: 'list' },
       });
-      return response.data?.organizations || [];
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to load organizations');
+      }
+      // Backend returns array directly in response.data
+      return Array.isArray(response.data) ? response.data : [];
     },
   });
 
@@ -160,6 +188,9 @@ export default function AINotificationsAdmin() {
           limit: 50,
         },
       });
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to load notifications');
+      }
       return response.data;
     },
   });
@@ -300,24 +331,59 @@ export default function AINotificationsAdmin() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">
-                        {t('admin.targetOrg', 'Organização Alvo')}
+                        {t('admin.targetOrg', 'Target Organization')}
                       </label>
                       <Select
-                        value={formData.target_organization_id || 'current'}
-                        onValueChange={v => setFormData(prev => ({ ...prev, target_organization_id: v === 'current' ? '' : v }))}
+                        value={formData.target_organization_id || 'all'}
+                        onValueChange={v => setFormData(prev => ({ ...prev, target_organization_id: v === 'all' ? '' : v }))}
+                        disabled={isLoadingOrgs}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder={t('admin.allOrgs', 'Todas as organizações (sua org)')} />
+                          {isLoadingOrgs ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>{t('common.loading', 'Loading...')}</span>
+                            </div>
+                          ) : (
+                            <SelectValue placeholder={t('admin.selectOrg', 'Select organization')} />
+                          )}
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="current">{t('admin.myOrg', 'Minha organização')}</SelectItem>
-                          {organizations.map(org => (
-                            <SelectItem key={org.id} value={org.id}>
-                              {org.name}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="all">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4" />
+                              {t('admin.allOrgs', 'All organizations (broadcast)')}
+                            </div>
+                          </SelectItem>
+                          {orgsError ? (
+                            <div className="px-2 py-1.5 text-sm text-destructive">
+                              {t('admin.errorLoadingOrgs', 'Error loading organizations')}
+                            </div>
+                          ) : organizations.length === 0 && !isLoadingOrgs ? (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                              {t('admin.noOrgsFound', 'No organizations found')}
+                            </div>
+                          ) : (
+                            organizations.map(org => (
+                              <SelectItem key={org.id} value={org.id}>
+                                <div className="flex items-center justify-between gap-4">
+                                  <span>{org.name}</span>
+                                  {org.user_count !== undefined && (
+                                    <span className="text-xs text-muted-foreground">
+                                      ({org.user_count} {t('admin.users', 'users')})
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
+                      {orgsError && (
+                        <p className="text-xs text-destructive">
+                          {t('admin.errorLoadingOrgsHint', 'Could not load organizations. Please try again.')}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -336,7 +402,7 @@ export default function AINotificationsAdmin() {
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">
-                        {t('admin.notificationType', 'Tipo')}
+                        {t('admin.notificationType', 'Type')}
                       </label>
                       <Select
                         value={formData.type}
@@ -348,7 +414,7 @@ export default function AINotificationsAdmin() {
                         <SelectContent>
                           {notificationTypes.map(type => (
                             <SelectItem key={type.value} value={type.value}>
-                              {type.label}
+                              {t(type.labelKey, type.fallback)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -357,7 +423,7 @@ export default function AINotificationsAdmin() {
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium">
-                        {t('admin.priority', 'Prioridade')}
+                        {t('admin.priority', 'Priority')}
                       </label>
                       <Select
                         value={formData.priority}
@@ -367,10 +433,11 @@ export default function AINotificationsAdmin() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="low">🔵 Baixa</SelectItem>
-                          <SelectItem value="medium">🟡 Média</SelectItem>
-                          <SelectItem value="high">🟠 Alta</SelectItem>
-                          <SelectItem value="critical">🔴 Crítica</SelectItem>
+                          {priorityOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.emoji} {t(opt.labelKey, opt.fallback)}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -419,19 +486,19 @@ export default function AINotificationsAdmin() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">
-                        {t('admin.actionType', 'Tipo de Ação')}
+                        {t('admin.actionType', 'Action Type')}
                       </label>
                       <Select
                         value={formData.action_type || 'none'}
                         onValueChange={v => setFormData(prev => ({ ...prev, action_type: v === 'none' ? '' : v }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder={t('admin.selectAction', 'Selecione uma ação')} />
+                          <SelectValue placeholder={t('admin.selectAction', 'Select an action')} />
                         </SelectTrigger>
                         <SelectContent>
                           {actionTypes.map(action => (
                             <SelectItem key={action.value} value={action.value}>
-                              {action.label}
+                              {t(action.labelKey, action.fallback)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -535,12 +602,11 @@ export default function AINotificationsAdmin() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="pending">Pendentes</SelectItem>
-                        <SelectItem value="delivered">Entregues</SelectItem>
-                        <SelectItem value="read">Lidas</SelectItem>
-                        <SelectItem value="actioned">Acionadas</SelectItem>
-                        <SelectItem value="dismissed">Ignoradas</SelectItem>
+                        {statusFilterOptions.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {t(opt.labelKey, opt.fallback)}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <Button
@@ -611,7 +677,9 @@ export default function AINotificationsAdmin() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              {format(new Date(notification.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                              {format(new Date(notification.created_at), 'dd/MM/yyyy HH:mm', { 
+                                locale: i18n.language === 'pt' ? ptBR : enUS 
+                              })}
                             </TableCell>
                           </TableRow>
                         );

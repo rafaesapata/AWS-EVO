@@ -52,7 +52,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Trash2
 } from "lucide-react";
 
 interface Organization {
@@ -124,6 +125,26 @@ interface LicensesResponse {
     total_max_users: number;
     total_used_seats: number;
   };
+}
+
+interface SeatAssignment {
+  id: string;
+  user_id: string;
+  user_name: string | null;
+  user_email: string | null;
+  user_role: string;
+  license_id: string;
+  license_key: string;
+  license_plan: string;
+  license_product: string | null;
+  license_active: boolean;
+  assigned_at: string;
+  assigned_by: string | null;
+}
+
+interface SeatAssignmentsResponse {
+  seat_assignments: SeatAssignment[];
+  total: number;
 }
 
 interface OrganizationDetails {
@@ -203,6 +224,8 @@ export default function Organizations() {
   const [suspendDialogOrg, setSuspendDialogOrg] = useState<Organization | null>(null);
   const [suspendAction, setSuspendAction] = useState<'suspend' | 'unsuspend' | null>(null);
   const [suspendReason, setSuspendReason] = useState('');
+  const [licensesActiveTab, setLicensesActiveTab] = useState<'licenses' | 'seats'>('licenses');
+  const [releasingSeat, setReleasingSeat] = useState<SeatAssignment | null>(null);
   
   // Search, Filter, and Pagination state
   const [searchQuery, setSearchQuery] = useState('');
@@ -265,6 +288,25 @@ export default function Organizations() {
       
       const response = await apiClient.invoke<LicensesResponse>('manage-organizations', {
         body: { action: 'list_licenses', id: viewingLicensesOrg.id }
+      });
+
+      if (response.error) {
+        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
+      }
+
+      return response.data;
+    },
+  });
+
+  // Get seat assignments for a specific organization
+  const { data: seatAssignments, isLoading: isLoadingSeatAssignments, refetch: refetchSeatAssignments } = useQuery({
+    queryKey: ['organization-seat-assignments', viewingLicensesOrg?.id],
+    enabled: !!viewingLicensesOrg && licensesActiveTab === 'seats',
+    queryFn: async () => {
+      if (!viewingLicensesOrg) return null;
+      
+      const response = await apiClient.invoke<SeatAssignmentsResponse>('manage-organizations', {
+        body: { action: 'list_seat_assignments', id: viewingLicensesOrg.id }
       });
 
       if (response.error) {
@@ -520,6 +562,42 @@ export default function Organizations() {
     onError: (error) => {
       toast({
         title: t('organizations.licenseSyncError', 'Erro ao sincronizar licença'),
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Erro desconhecido'),
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Release seat assignment
+  const releaseSeatMutation = useMutation({
+    mutationFn: async ({ organizationId, seatAssignmentId }: { organizationId: string; seatAssignmentId: string }) => {
+      const response = await apiClient.invoke('manage-organizations', {
+        body: {
+          action: 'release_seat',
+          id: organizationId,
+          seat_assignment_id: seatAssignmentId
+        }
+      });
+
+      if (response.error) {
+        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
+      }
+
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: t('organizations.seatReleased', 'Assento liberado'),
+        description: t('organizations.seatReleasedDesc', 'O assento foi liberado com sucesso.'),
+      });
+      setReleasingSeat(null);
+      // Refetch seat assignments and licenses data
+      queryClient.invalidateQueries({ queryKey: ['organization-seat-assignments', viewingLicensesOrg?.id] });
+      queryClient.invalidateQueries({ queryKey: ['organization-licenses', viewingLicensesOrg?.id] });
+    },
+    onError: (error) => {
+      toast({
+        title: t('organizations.seatReleaseError', 'Erro ao liberar assento'),
         description: error instanceof Error ? error.message : t('common.unknownError', 'Erro desconhecido'),
         variant: "destructive"
       });
@@ -1897,7 +1975,12 @@ export default function Organizations() {
       </Dialog>
 
       {/* View Licenses Dialog */}
-      <Dialog open={!!viewingLicensesOrg} onOpenChange={(open) => !open && setViewingLicensesOrg(null)}>
+      <Dialog open={!!viewingLicensesOrg} onOpenChange={(open) => {
+        if (!open) {
+          setViewingLicensesOrg(null);
+          setLicensesActiveTab('licenses');
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1909,152 +1992,267 @@ export default function Organizations() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-auto">
-            {isLoadingLicenses ? (
-              <div className="space-y-3 p-4">
-                {[...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
-              </div>
-            ) : organizationLicenses ? (
-              <div className="space-y-4">
-                {/* Summary Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="p-3 rounded-lg bg-muted/50">
-                    <p className="text-xs text-muted-foreground">{t('organizations.totalLicenses', 'Total de Licenças')}</p>
-                    <p className="text-xl font-semibold">{organizationLicenses.summary.total_licenses}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-green-500/10">
-                    <p className="text-xs text-muted-foreground">{t('organizations.activeLicenses', 'Ativas')}</p>
-                    <p className="text-xl font-semibold text-green-600">{organizationLicenses.summary.active_licenses}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-blue-500/10">
-                    <p className="text-xs text-muted-foreground">{t('organizations.totalSeats', 'Total de Seats')}</p>
-                    <p className="text-xl font-semibold text-blue-600">{organizationLicenses.summary.total_max_users}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-amber-500/10">
-                    <p className="text-xs text-muted-foreground">{t('organizations.usedSeats', 'Seats Usados')}</p>
-                    <p className="text-xl font-semibold text-amber-600">{organizationLicenses.summary.total_used_seats}</p>
-                  </div>
+          <Tabs value={licensesActiveTab} onValueChange={(v) => setLicensesActiveTab(v as 'licenses' | 'seats')} className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="glass mb-4">
+              <TabsTrigger value="licenses">{t('organizations.tabLicenses', 'Licenças')}</TabsTrigger>
+              <TabsTrigger value="seats">{t('organizations.tabSeatAssignments', 'Atribuições de Assento')}</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="licenses" className="flex-1 overflow-auto">
+              {isLoadingLicenses ? (
+                <div className="space-y-3 p-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
                 </div>
-
-                {/* License Config */}
-                {organizationLicenses.config && (
-                  <div className="p-3 rounded-lg border bg-muted/30">
-                    <p className="text-sm font-medium mb-2">{t('organizations.licenseConfig', 'Configuração de Licença')}</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Customer ID:</span>
-                        <span className="ml-2 font-mono text-xs">{organizationLicenses.config.customer_id}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Auto Sync:</span>
-                        <Badge variant={organizationLicenses.config.auto_sync ? 'default' : 'secondary'} className="ml-2">
-                          {organizationLicenses.config.auto_sync ? 'Ativo' : 'Inativo'}
-                        </Badge>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Status:</span>
-                        <Badge 
-                          variant={organizationLicenses.config.sync_status === 'success' ? 'default' : 'secondary'} 
-                          className="ml-2"
-                        >
-                          {organizationLicenses.config.sync_status || 'N/A'}
-                        </Badge>
-                      </div>
-                      {organizationLicenses.config.last_sync_at && (
-                        <div>
-                          <span className="text-muted-foreground">Último Sync:</span>
-                          <span className="ml-2">{new Date(organizationLicenses.config.last_sync_at).toLocaleString('pt-BR')}</span>
-                        </div>
-                      )}
+              ) : organizationLicenses ? (
+                <div className="space-y-4">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">{t('organizations.totalLicenses', 'Total de Licenças')}</p>
+                      <p className="text-xl font-semibold">{organizationLicenses.summary.total_licenses}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-green-500/10">
+                      <p className="text-xs text-muted-foreground">{t('organizations.activeLicenses', 'Ativas')}</p>
+                      <p className="text-xl font-semibold text-green-600">{organizationLicenses.summary.active_licenses}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-blue-500/10">
+                      <p className="text-xs text-muted-foreground">{t('organizations.totalSeats', 'Total de Seats')}</p>
+                      <p className="text-xl font-semibold text-blue-600">{organizationLicenses.summary.total_max_users}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-amber-500/10">
+                      <p className="text-xs text-muted-foreground">{t('organizations.usedSeats', 'Seats Usados')}</p>
+                      <p className="text-xl font-semibold text-amber-600">{organizationLicenses.summary.total_used_seats}</p>
                     </div>
                   </div>
-                )}
 
-                {/* Licenses Table */}
-                {organizationLicenses.licenses.length > 0 ? (
+                  {/* License Config */}
+                  {organizationLicenses.config && (
+                    <div className="p-3 rounded-lg border bg-muted/30">
+                      <p className="text-sm font-medium mb-2">{t('organizations.licenseConfig', 'Configuração de Licença')}</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Customer ID:</span>
+                          <span className="ml-2 font-mono text-xs">{organizationLicenses.config.customer_id}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Auto Sync:</span>
+                          <Badge variant={organizationLicenses.config.auto_sync ? 'default' : 'secondary'} className="ml-2">
+                            {organizationLicenses.config.auto_sync ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Status:</span>
+                          <Badge 
+                            variant={organizationLicenses.config.sync_status === 'success' ? 'default' : 'secondary'} 
+                            className="ml-2"
+                          >
+                            {organizationLicenses.config.sync_status || 'N/A'}
+                          </Badge>
+                        </div>
+                        {organizationLicenses.config.last_sync_at && (
+                          <div>
+                            <span className="text-muted-foreground">Último Sync:</span>
+                            <span className="ml-2">{new Date(organizationLicenses.config.last_sync_at).toLocaleString('pt-BR')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Licenses Table */}
+                  {organizationLicenses.licenses.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t('organizations.licenseKey', 'Chave')}</TableHead>
+                          <TableHead>{t('organizations.licensePlan', 'Plano')}</TableHead>
+                          <TableHead>{t('organizations.licenseSeats', 'Seats')}</TableHead>
+                          <TableHead>{t('organizations.licenseValidity', 'Validade')}</TableHead>
+                          <TableHead>{t('organizations.licenseStatus', 'Status')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {organizationLicenses.licenses.map((license) => (
+                          <TableRow key={license.id}>
+                            <TableCell className="font-mono text-xs">
+                              {license.license_key.substring(0, 20)}...
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{license.plan_type}</span>
+                                {license.product_type && (
+                                  <span className="text-xs text-muted-foreground">{license.product_type}</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span>{license.used_seats} / {license.max_users}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {license.available_seats} {t('organizations.available', 'disponíveis')}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="text-xs">
+                                  {new Date(license.valid_from).toLocaleDateString('pt-BR')} - {new Date(license.valid_until).toLocaleDateString('pt-BR')}
+                                </span>
+                                {license.days_remaining !== null && (
+                                  <span className={`text-xs ${license.days_remaining <= 7 ? 'text-red-500' : license.days_remaining <= 30 ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                                    {license.days_remaining} {t('common.daysRemaining', 'dias restantes')}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {license.is_active ? (
+                                  <Badge className="bg-green-500">{t('organizations.active', 'Ativa')}</Badge>
+                                ) : (
+                                  <Badge variant="secondary">{t('organizations.inactive', 'Inativa')}</Badge>
+                                )}
+                                {license.is_trial && (
+                                  <Badge variant="outline" className="text-amber-600 border-amber-600">Trial</Badge>
+                                )}
+                                {license.is_expired && (
+                                  <Badge variant="destructive">{t('organizations.expired', 'Expirada')}</Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Key className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                      <p className="text-muted-foreground">
+                        {t('organizations.noLicenses', 'Nenhuma licença encontrada para esta organização')}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Key className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    {t('organizations.noLicenses', 'Nenhuma licença encontrada para esta organização')}
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="seats" className="flex-1 overflow-auto">
+              {isLoadingSeatAssignments ? (
+                <div className="space-y-3 p-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : seatAssignments && seatAssignments.seat_assignments.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      {t('organizations.totalSeatAssignments', 'Total de atribuições')}: {seatAssignments.total}
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => refetchSeatAssignments()}
+                      className="glass hover-glow"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      {t('common.refresh', 'Atualizar')}
+                    </Button>
+                  </div>
+                  
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{t('organizations.licenseKey', 'Chave')}</TableHead>
-                        <TableHead>{t('organizations.licensePlan', 'Plano')}</TableHead>
-                        <TableHead>{t('organizations.licenseSeats', 'Seats')}</TableHead>
-                        <TableHead>{t('organizations.licenseValidity', 'Validade')}</TableHead>
-                        <TableHead>{t('organizations.licenseStatus', 'Status')}</TableHead>
+                        <TableHead>{t('organizations.userName', 'Usuário')}</TableHead>
+                        <TableHead>{t('organizations.userEmail', 'Email')}</TableHead>
+                        <TableHead>{t('organizations.userRole', 'Função')}</TableHead>
+                        <TableHead>{t('organizations.licensePlan', 'Licença')}</TableHead>
+                        <TableHead>{t('organizations.assignedAt', 'Atribuído em')}</TableHead>
+                        <TableHead className="text-right">{t('common.actions', 'Ações')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {organizationLicenses.licenses.map((license) => (
-                        <TableRow key={license.id}>
-                          <TableCell className="font-mono text-xs">
-                            {license.license_key.substring(0, 20)}...
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{license.plan_type}</span>
-                              {license.product_type && (
-                                <span className="text-xs text-muted-foreground">{license.product_type}</span>
-                              )}
+                      {seatAssignments.seat_assignments.map((seat) => (
+                        <TableRow key={seat.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              {seat.user_name || t('organizations.noName', 'Sem nome')}
                             </div>
                           </TableCell>
                           <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-4 w-4 text-muted-foreground" />
+                              {seat.user_email || t('organizations.noEmail', 'Não disponível')}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={seat.user_role === 'org_admin' ? 'default' : seat.user_role === 'super_admin' ? 'default' : 'secondary'}>
+                              {seat.user_role === 'org_admin' 
+                                ? t('organizations.roleAdmin', 'Admin') 
+                                : seat.user_role === 'super_admin'
+                                  ? t('organizations.roleSuperAdmin', 'Super Admin')
+                                  : t('organizations.roleUser', 'Usuário')
+                              }
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
                             <div className="flex flex-col">
-                              <span>{license.used_seats} / {license.max_users}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {license.available_seats} {t('organizations.available', 'disponíveis')}
+                              <span className="text-sm font-medium">{seat.license_plan}</span>
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {seat.license_key.substring(0, 15)}...
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex flex-col">
-                              <span className="text-xs">
-                                {new Date(license.valid_from).toLocaleDateString('pt-BR')} - {new Date(license.valid_until).toLocaleDateString('pt-BR')}
-                              </span>
-                              {license.days_remaining !== null && (
-                                <span className={`text-xs ${license.days_remaining <= 7 ? 'text-red-500' : license.days_remaining <= 30 ? 'text-amber-500' : 'text-muted-foreground'}`}>
-                                  {license.days_remaining} {t('common.daysRemaining', 'dias restantes')}
-                                </span>
-                              )}
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Calendar className="h-4 w-4" />
+                              {new Date(seat.assigned_at).toLocaleDateString('pt-BR')}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {license.is_active ? (
-                                <Badge className="bg-green-500">{t('organizations.active', 'Ativa')}</Badge>
-                              ) : (
-                                <Badge variant="secondary">{t('organizations.inactive', 'Inativa')}</Badge>
-                              )}
-                              {license.is_trial && (
-                                <Badge variant="outline" className="text-amber-600 border-amber-600">Trial</Badge>
-                              )}
-                              {license.is_expired && (
-                                <Badge variant="destructive">{t('organizations.expired', 'Expirada')}</Badge>
-                              )}
-                            </div>
+                          <TableCell className="text-right">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setReleasingSeat(seat)}
+                                    className="text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{t('organizations.releaseSeat', 'Liberar assento')}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
-                ) : (
-                  <div className="text-center py-8">
-                    <Key className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-                    <p className="text-muted-foreground">
-                      {t('organizations.noLicenses', 'Nenhuma licença encontrada para esta organização')}
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Key className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  {t('organizations.noLicenses', 'Nenhuma licença encontrada para esta organização')}
-                </p>
-              </div>
-            )}
-          </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Users className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    {t('organizations.noSeatAssignments', 'Nenhuma atribuição de assento encontrada')}
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
           
           <DialogFooter className="mt-4">
             <Button 
@@ -2075,12 +2273,61 @@ export default function Organizations() {
                 </>
               )}
             </Button>
-            <Button variant="outline" onClick={() => setViewingLicensesOrg(null)}>
+            <Button variant="outline" onClick={() => {
+              setViewingLicensesOrg(null);
+              setLicensesActiveTab('licenses');
+            }}>
               {t('common.close', 'Fechar')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Release Seat Confirmation Dialog */}
+      <AlertDialog open={!!releasingSeat} onOpenChange={(open) => !open && setReleasingSeat(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-500" />
+              {t('organizations.releaseSeatTitle', 'Liberar Assento')}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4">
+              <p>
+                {t('organizations.confirmReleaseSeat', 'Tem certeza que deseja liberar este assento? O usuário perderá acesso à licença.')}
+              </p>
+              {releasingSeat && (
+                <div className="p-3 rounded-lg bg-muted/50 space-y-2">
+                  <p className="font-medium">{releasingSeat.user_name || t('organizations.noName', 'Sem nome')}</p>
+                  <p className="text-sm text-muted-foreground">{releasingSeat.user_email || t('organizations.noEmail', 'Email não disponível')}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t('organizations.licensePlan', 'Licença')}: {releasingSeat.license_plan}
+                  </p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel', 'Cancelar')}</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (releasingSeat && viewingLicensesOrg) {
+                  releaseSeatMutation.mutate({
+                    organizationId: viewingLicensesOrg.id,
+                    seatAssignmentId: releasingSeat.id
+                  });
+                }
+              }}
+              disabled={releaseSeatMutation.isPending}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {releaseSeatMutation.isPending 
+                ? t('common.processing', 'Processando...')
+                : t('organizations.releaseSeat', 'Liberar Assento')
+              }
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Suspend/Unsuspend Confirmation Dialog */}
       <AlertDialog open={!!suspendDialogOrg && !!suspendAction} onOpenChange={(open) => {
