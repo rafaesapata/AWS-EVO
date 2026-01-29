@@ -190,7 +190,7 @@ export default function CloudTrailAudit() {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId,
+          ...getAccountFilter(), // Multi-cloud compatible filter
           status: 'running'
         },
         order: { column: 'created_at', ascending: false },

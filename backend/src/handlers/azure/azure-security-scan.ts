@@ -29,6 +29,10 @@ const azureSecurityScanSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
   scanLevel: z.enum(['quick', 'standard', 'deep']).optional().default('standard'),
   regions: z.array(z.string()).optional(),
+  // Background job parameters
+  scanId: z.string().uuid().optional(),
+  backgroundJobId: z.string().uuid().optional(),
+  scheduledExecution: z.boolean().optional(),
 });
 
 export async function handler(
@@ -41,11 +45,27 @@ export async function handler(
   }
 
   try {
-    const user = getUserFromEvent(event);
-    const organizationId = getOrganizationIdWithImpersonation(event, user);
+    // Check if this is a background job execution
+    const isBackgroundJob = event.requestContext?.authorizer?.claims?.sub === 'background-job-processor';
+    
+    let organizationId: string;
+    
+    if (isBackgroundJob) {
+      // For background jobs, get org ID from claims
+      organizationId = event.requestContext?.authorizer?.claims?.['custom:organization_id'] || '';
+      if (!organizationId) {
+        logger.error('Background job missing organization_id');
+        return error('Missing organization_id for background job', 400);
+      }
+      logger.info('Processing Azure security scan as background job', { organizationId });
+    } else {
+      const user = getUserFromEvent(event);
+      organizationId = getOrganizationIdWithImpersonation(event, user);
+    }
+    
     const prisma = getPrismaClient();
 
-    logger.info('Starting Azure security scan', { organizationId });
+    logger.info('Starting Azure security scan', { organizationId, isBackgroundJob });
 
     // Parse and validate request body
     let body: any;
@@ -60,7 +80,7 @@ export async function handler(
       return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
     }
 
-    const { credentialId, scanLevel, regions } = validation.data;
+    const { credentialId, scanLevel, regions, scanId: existingScanId, backgroundJobId } = validation.data;
 
     // Fetch Azure credential
     const credential = await prisma.azureCredential.findFirst({
@@ -102,29 +122,47 @@ export async function handler(
       spCredentials = spValidation.credentials;
     }
 
-    // Create scan record
-    const scan = await prisma.securityScan.create({
-      data: {
-        organization_id: organizationId,
-        aws_account_id: credentialId, // Reusing field for Azure credential ID
-        cloud_provider: 'AZURE',
-        azure_credential_id: credentialId,
-        scan_type: `azure-security-${scanLevel}`,
-        status: 'running',
-        scan_config: {
-          scanLevel,
-          regions: regions || credential.regions,
+    // Use existing scan if this is a background job, otherwise create new
+    let scan: any;
+    
+    if (existingScanId) {
+      // Update existing scan to running status
+      scan = await prisma.securityScan.update({
+        where: { id: existingScanId },
+        data: {
+          status: 'running',
+          started_at: new Date(),
         },
-        started_at: new Date(),
-      },
-    });
-
-    logger.info('Azure security scan created', {
-      organizationId,
-      scanId: scan.id,
-      credentialId,
-      subscriptionId: credential.subscription_id,
-    });
+      });
+      logger.info('Azure security scan resumed from background job', {
+        organizationId,
+        scanId: scan.id,
+        credentialId,
+        backgroundJobId,
+      });
+    } else {
+      // Create new scan record
+      scan = await prisma.securityScan.create({
+        data: {
+          organization_id: organizationId,
+          cloud_provider: 'AZURE',
+          azure_credential_id: credentialId,
+          scan_type: `azure-security-${scanLevel}`,
+          status: 'running',
+          scan_config: {
+            scanLevel,
+            regions: regions || credential.regions,
+          },
+          started_at: new Date(),
+        },
+      });
+      logger.info('Azure security scan created', {
+        organizationId,
+        scanId: scan.id,
+        credentialId,
+        subscriptionId: credential.subscription_id,
+      });
+    }
 
     // Create Azure provider and run scan
     let azureProvider: AzureProvider;

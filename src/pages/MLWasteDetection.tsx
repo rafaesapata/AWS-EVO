@@ -79,8 +79,8 @@ interface MLRecommendation {
  analyzed_at: string;
 }
 
-// Analysis progress stages
-const ANALYSIS_STAGES = [
+// Analysis progress stages - AWS
+const AWS_ANALYSIS_STAGES = [
  { key: 'init', label: 'Initializing', labelPt: 'Inicializando', labelEs: 'Inicializando', progress: 5 },
  { key: 'credentials', label: 'Validating credentials', labelPt: 'Validando credenciais', labelEs: 'Validando credenciales', progress: 15 },
  { key: 'ec2', label: 'Analyzing EC2 instances', labelPt: 'Analisando instâncias EC2', labelEs: 'Analizando instancias EC2', progress: 30 },
@@ -91,6 +91,19 @@ const ANALYSIS_STAGES = [
  { key: 'cloudwatch', label: 'Fetching CloudWatch metrics', labelPt: 'Buscando métricas CloudWatch', labelEs: 'Obteniendo métricas CloudWatch', progress: 85 },
  { key: 'ml', label: 'Running ML analysis', labelPt: 'Executando análise ML', labelEs: 'Ejecutando análisis ML', progress: 92 },
  { key: 'saving', label: 'Saving recommendations', labelPt: 'Salvando recomendações', labelEs: 'Guardando recomendaciones', progress: 98 },
+ { key: 'complete', label: 'Analysis complete', labelPt: 'Análise concluída', labelEs: 'Análisis completado', progress: 100 },
+];
+
+// Analysis progress stages - Azure
+const AZURE_ANALYSIS_STAGES = [
+ { key: 'init', label: 'Initializing', labelPt: 'Inicializando', labelEs: 'Inicializando', progress: 5 },
+ { key: 'credentials', label: 'Validating Azure credentials', labelPt: 'Validando credenciais Azure', labelEs: 'Validando credenciales Azure', progress: 15 },
+ { key: 'vms', label: 'Analyzing Virtual Machines', labelPt: 'Analisando Máquinas Virtuais', labelEs: 'Analizando Máquinas Virtuales', progress: 30 },
+ { key: 'storage', label: 'Analyzing Storage Accounts', labelPt: 'Analisando Contas de Armazenamento', labelEs: 'Analizando Cuentas de Almacenamiento', progress: 45 },
+ { key: 'sql', label: 'Analyzing SQL Databases', labelPt: 'Analisando Bancos SQL', labelEs: 'Analizando Bases SQL', progress: 55 },
+ { key: 'advisor', label: 'Fetching Azure Advisor recommendations', labelPt: 'Buscando recomendações do Azure Advisor', labelEs: 'Obteniendo recomendaciones de Azure Advisor', progress: 70 },
+ { key: 'monitor', label: 'Fetching Azure Monitor metrics', labelPt: 'Buscando métricas do Azure Monitor', labelEs: 'Obteniendo métricas de Azure Monitor', progress: 85 },
+ { key: 'saving', label: 'Saving recommendations', labelPt: 'Salvando recomendações', labelEs: 'Guardando recomendaciones', progress: 95 },
  { key: 'complete', label: 'Analysis complete', labelPt: 'Análise concluída', labelEs: 'Análisis completado', progress: 100 },
 ];
 
@@ -110,7 +123,7 @@ export default function MLWasteDetection() {
  const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
  const [activeTab, setActiveTab] = useState<'recommendations' | 'history'>('recommendations');
  const { data: organizationId } = useOrganization();
- const { selectedAccountId } = useCloudAccount();
+ const { selectedAccountId, selectedProvider } = useCloudAccount();
  const { getAccountFilter } = useAccountFilter();
  const { isInDemoMode } = useDemoAwareQuery();
  
@@ -123,6 +136,9 @@ export default function MLWasteDetection() {
 
  const currentLocale = dateLocales[i18n.language] || enUS;
 
+ // Get the correct analysis stages based on provider
+ const ANALYSIS_STAGES = selectedProvider === 'AZURE' ? AZURE_ANALYSIS_STAGES : AWS_ANALYSIS_STAGES;
+
  // Progress animation effect
  useEffect(() => {
  if (!analyzing) {
@@ -131,21 +147,22 @@ export default function MLWasteDetection() {
  return;
  }
 
+ const stages = selectedProvider === 'AZURE' ? AZURE_ANALYSIS_STAGES : AWS_ANALYSIS_STAGES;
  const interval = setInterval(() => {
  setAnalysisStage(prev => {
  const nextStage = prev + 1;
- if (nextStage >= ANALYSIS_STAGES.length - 1) {
+ if (nextStage >= stages.length - 1) {
  return prev;
  }
- setAnalysisProgress(ANALYSIS_STAGES[nextStage].progress);
+ setAnalysisProgress(stages[nextStage].progress);
  return nextStage;
  });
  }, 2500);
 
  return () => clearInterval(interval);
- }, [analyzing]);
+ }, [analyzing, selectedProvider]);
 
- const getStageLabel = (stage: typeof ANALYSIS_STAGES[0]) => {
+ const getStageLabel = (stage: typeof AWS_ANALYSIS_STAGES[0]) => {
  if (i18n.language === 'pt') return stage.labelPt;
  if (i18n.language === 'es') return stage.labelEs;
  return stage.label;
@@ -269,7 +286,7 @@ export default function MLWasteDetection() {
 
  // Query for ML recommendations
  const { data: mlRecommendations, refetch, isLoading: recommendationsLoading } = useQuery<MLRecommendation[]>({
- queryKey: ['ml-waste-detection', 'org', organizationId, 'account', selectedAccountId, 'demo', isInDemoMode],
+ queryKey: ['ml-waste-detection', 'org', organizationId, 'account', selectedAccountId, 'provider', selectedProvider, 'demo', isInDemoMode],
  enabled: !!organizationId && (isInDemoMode || !!selectedAccountId),
  staleTime: 0,
  queryFn: async () => {
@@ -287,6 +304,54 @@ export default function MLWasteDetection() {
 
  if (!selectedAccountId) throw new Error('No account');
 
+ // For Azure, call azure-cost-optimization endpoint directly to get full data
+ if (selectedProvider === 'AZURE') {
+ const result = await apiClient.invoke('azure-cost-optimization', {
+ body: { credentialId: selectedAccountId, categories: ['Cost'] }
+ });
+ 
+ if (result.error) throw result.error;
+ 
+ const azureData = result.data as { recommendations?: any[]; summary?: { message?: string } };
+ const recommendations = azureData.recommendations || [];
+ 
+ // If no recommendations, return empty array (real data - no simulations)
+ if (recommendations.length === 0) {
+ return [];
+ }
+ 
+ // Transform Azure recommendations to ML recommendation format
+ return recommendations.map((rec: any) => ({
+ id: rec.id,
+ organization_id: organizationId,
+ azure_credential_id: selectedAccountId, // Use azure_credential_id for Azure
+ resource_id: rec.resourceId || rec.id,
+ resource_arn: rec.resourceId, // Azure resource ID as ARN equivalent
+ resource_name: rec.resourceName || 'Azure Resource',
+ resource_type: rec.resourceType || 'Azure Resource',
+ resource_subtype: rec.impact,
+ region: 'Azure',
+ current_size: rec.currentSize,
+ current_monthly_cost: rec.currentMonthlyCost,
+ recommendation_type: rec.impact === 'High' ? 'terminate' : rec.impact === 'Medium' ? 'downsize' : 'optimize',
+ recommendation_priority: rec.impact === 'High' ? 5 : rec.impact === 'Medium' ? 4 : 3,
+ recommended_size: rec.recommendedSize,
+ potential_monthly_savings: rec.potentialSavings || 0,
+ potential_annual_savings: (rec.potentialSavings || 0) * 12,
+ ml_confidence: 0.95, // Real Azure Advisor data
+ utilization_patterns: rec.utilizationPatterns,
+ implementation_complexity: rec.implementationComplexity || 'medium',
+ risk_assessment: rec.riskAssessment || 'low',
+ analyzed_at: rec.lastUpdated || new Date().toISOString(),
+ // Azure-specific fields for display - THE EXPLANATION
+ _azure_description: rec.shortDescription,
+ _azure_solution: rec.solution,
+ _azure_reason: rec.reason, // The explanation/reason for the recommendation
+ _azure_extended: rec.extendedProperties,
+ })) as MLRecommendation[];
+ }
+
+ // For AWS, fetch from resource_utilization_ml table
  const result = await apiClient.select('resource_utilization_ml', {
  select: '*',
  eq: { organization_id: organizationId, ...getAccountFilter() },
@@ -301,7 +366,7 @@ export default function MLWasteDetection() {
 
  // Query for analysis history
  const { data: analysisHistory, isLoading: historyLoading, refetch: refetchHistory } = useQuery({
- queryKey: ['ml-analysis-history', 'org', organizationId, 'account', selectedAccountId, 'demo', isInDemoMode],
+ queryKey: ['ml-analysis-history', 'org', organizationId, 'account', selectedAccountId, 'provider', selectedProvider, 'demo', isInDemoMode],
  enabled: !!organizationId && (isInDemoMode || !!selectedAccountId),
  refetchInterval: analyzing ? 3000 : false,
  queryFn: async () => {
@@ -313,6 +378,11 @@ export default function MLWasteDetection() {
  }
 
  if (!selectedAccountId) throw new Error('No account');
+
+ // For Azure, we don't have ML analysis history yet - return empty
+ if (selectedProvider === 'AZURE') {
+ return [] as MLAnalysisHistoryItem[];
+ }
 
  const result = await apiClient.select('ml_analysis_history', {
  select: '*',
@@ -341,7 +411,7 @@ export default function MLWasteDetection() {
  if (!selectedAccountId) {
  toast({
  title: t('mlWaste.noAccountSelected', 'No account selected'),
- description: t('mlWaste.selectAccountHeader', 'Please select an AWS account from the header'),
+ description: t('mlWaste.selectAccountHeader', 'Please select a cloud account from the header'),
  variant: "destructive",
  });
  return;
@@ -352,12 +422,32 @@ export default function MLWasteDetection() {
  setAnalysisStage(0);
  
  try {
- const result = await apiClient.invoke('ml-waste-detection', {
+ let result;
+ let data: { analyzed_resources?: number; total_monthly_savings?: number; recommendations?: any[]; totalPotentialSavings?: number };
+ 
+ if (selectedProvider === 'AZURE') {
+ // For Azure, call azure-cost-optimization endpoint
+ result = await apiClient.invoke('azure-cost-optimization', {
+ body: { credentialId: selectedAccountId, categories: ['Cost'] }
+ });
+ 
+ if (result.error) throw result.error;
+ const azureData = result.data as { recommendations?: any[]; summary?: { totalPotentialSavings?: number; totalRecommendations?: number } };
+ 
+ data = {
+ analyzed_resources: azureData.summary?.totalRecommendations || azureData.recommendations?.length || 0,
+ total_monthly_savings: azureData.summary?.totalPotentialSavings || 
+ azureData.recommendations?.reduce((sum: number, r: any) => sum + (r.potentialSavings || 0), 0) || 0,
+ };
+ } else {
+ // For AWS, call ml-waste-detection endpoint
+ result = await apiClient.invoke('ml-waste-detection', {
  body: { accountId: selectedAccountId }
  });
 
  if (result.error) throw result.error;
- const data = result.data as { analyzed_resources?: number; total_monthly_savings?: number };
+ data = result.data as { analyzed_resources?: number; total_monthly_savings?: number };
+ }
 
  setAnalysisProgress(100);
  setAnalysisStage(ANALYSIS_STAGES.length - 1);
@@ -488,9 +578,9 @@ export default function MLWasteDetection() {
  >
  <Alert>
  <AlertCircle className="h-4 w-4" />
- <AlertTitle>{t('mlWaste.noAccountTitle', 'No AWS Account Selected')}</AlertTitle>
+ <AlertTitle>{t('mlWaste.noAccountTitle', 'No Cloud Account Selected')}</AlertTitle>
  <AlertDescription>
- {t('mlWaste.noAccountDesc', 'Please select an AWS account from the header to run ML waste detection analysis.')}
+ {t('mlWaste.noAccountDesc', 'Please select a cloud account from the header to run waste detection analysis.')}
  </AlertDescription>
  </Alert>
  </Layout>
@@ -788,6 +878,35 @@ export default function MLWasteDetection() {
  {rec.recommendation_type?.replace('-', ' ').toUpperCase()}
  </Badge>
  </div>
+
+ {/* Explanation/Reason Section - Azure Advisor insights */}
+ {((rec as any)._azure_description || (rec as any)._azure_reason || (rec as any)._azure_solution) && (
+ <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
+ <div className="flex items-start gap-2">
+ <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+ <div className="space-y-1">
+ <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+ {t('mlWaste.whyThisRecommendation', 'Why this recommendation?')}
+ </p>
+ {(rec as any)._azure_description && (
+ <p className="text-sm text-blue-700 dark:text-blue-300">
+ <strong>{t('mlWaste.issue', 'Issue')}:</strong> {(rec as any)._azure_description}
+ </p>
+ )}
+ {(rec as any)._azure_reason && (rec as any)._azure_reason !== (rec as any)._azure_description && (
+ <p className="text-sm text-blue-700 dark:text-blue-300">
+ <strong>{t('mlWaste.reason', 'Reason')}:</strong> {(rec as any)._azure_reason}
+ </p>
+ )}
+ {(rec as any)._azure_solution && (
+ <p className="text-sm text-blue-700 dark:text-blue-300">
+ <strong>{t('mlWaste.solution', 'Solution')}:</strong> {(rec as any)._azure_solution}
+ </p>
+ )}
+ </div>
+ </div>
+ </div>
+ )}
 
  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
  <div>

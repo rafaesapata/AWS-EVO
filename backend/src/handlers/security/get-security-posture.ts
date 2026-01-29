@@ -27,11 +27,13 @@ export async function handler(
   const user = getUserFromEvent(event);
   const organizationId = getOrganizationIdWithImpersonation(event, user);
   
-  // Parse request body for accountId
+  // Parse request body for accountId and provider
   let accountId: string | undefined;
+  let provider: string | undefined;
   try {
     const body = event.body ? JSON.parse(event.body) : {};
     accountId = body.accountId;
+    provider = body.provider; // 'AWS' or 'AZURE'
   } catch {
     // Ignore parse errors
   }
@@ -39,6 +41,7 @@ export async function handler(
   logger.info('Get Security Posture started', { 
     organizationId,
     accountId: accountId || 'all',
+    provider: provider || 'all',
     userId: user.sub,
     requestId: context.awsRequestId 
   });
@@ -96,9 +99,20 @@ export async function handler(
       status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
     };
     
-    // Filter by specific account if provided
+    // Filter by specific account if provided - multi-cloud compatible
     if (accountId) {
-      baseFilter.aws_account_id = accountId;
+      if (provider === 'AZURE') {
+        baseFilter.azure_credential_id = accountId;
+      } else if (provider === 'AWS') {
+        baseFilter.aws_account_id = accountId;
+      } else {
+        // No provider specified - try both (for backwards compatibility)
+        // Use OR to check both AWS and Azure credential IDs
+        baseFilter.OR = [
+          { aws_account_id: accountId },
+          { azure_credential_id: accountId }
+        ];
+      }
     }
     
     // Contar findings por severidade (case-insensitive, incluindo pending e active)

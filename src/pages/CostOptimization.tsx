@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
@@ -469,7 +469,8 @@ export default function CostOptimization() {
   const { toast } = useToast();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { selectedAccountId } = useCloudAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [selectedRecommendation, setSelectedRecommendation] = useState<OptimizationRecommendation | null>(null);
@@ -525,7 +526,7 @@ export default function CostOptimization() {
       
       let filters: any = { 
         organization_id: organizationId,
-        aws_account_id: selectedAccountId
+        ...getAccountFilter() // Multi-cloud compatible filter
       };
 
       if (selectedType !== 'all') {
@@ -543,36 +544,45 @@ export default function CostOptimization() {
       }
 
       // Transform database records to match frontend interface
-      const transformedData = (response.data || []).map((record: any) => {
-        const implementation = getSpecificImplementation(
-          record.optimization_type,
-          record.resource_type,
-          record.resource_id
-        );
-        
-        return {
-          id: record.id,
-          type: record.optimization_type,
-          resource_type: record.resource_type,
-          resource_id: record.resource_id,
-          resource_name: record.resource_id, // Use resource_id as name for now
-          current_cost: record.potential_savings * 1.2, // Estimate current cost
-          optimized_cost: record.potential_savings * 0.2, // Estimate optimized cost
-          potential_savings: record.potential_savings,
-          savings_percentage: 80, // Default 80% savings
-          confidence: 'high' as const, // Default high confidence
-          effort: 'medium' as const, // Default medium effort
-          impact: 'high' as const, // Default high impact
-          description: `Optimize ${record.resource_type} resource ${record.resource_id}`,
-          recommendation: `Consider optimizing this ${record.resource_type} resource to reduce costs`,
-          implementation_steps: implementation.steps,
-          implementation_scripts: implementation.scripts,
-          copilot_prompt: implementation.copilotPrompt,
-          risk_level: 'low' as const,
-          created_at: record.created_at,
-          status: record.status
-        };
-      });
+      // IMPORTANT: Only use real data from database - NO fallbacks or estimates
+      // Filter out incomplete records (old data without new fields)
+      const transformedData = (response.data || [])
+        .filter((record: any) => {
+          // Only include records with complete data
+          return record.current_cost != null && 
+                 record.savings_percentage != null &&
+                 record.recommendation != null;
+        })
+        .map((record: any) => {
+          const implementation = getSpecificImplementation(
+            record.optimization_type,
+            record.resource_type,
+            record.resource_id
+          );
+          
+          return {
+            id: record.id,
+            type: record.optimization_type,
+            resource_type: record.resource_type,
+            resource_id: record.resource_id,
+            resource_name: record.resource_name,
+            current_cost: record.current_cost,
+            optimized_cost: record.optimized_cost,
+            potential_savings: record.potential_savings,
+            savings_percentage: record.savings_percentage,
+            confidence: record.priority as 'high' | 'medium' | 'low',
+            effort: record.effort as 'low' | 'medium' | 'high',
+            impact: record.priority as 'low' | 'medium' | 'high',
+            description: record.details,
+            recommendation: record.recommendation,
+            implementation_steps: implementation.steps,
+            implementation_scripts: implementation.scripts,
+            copilot_prompt: implementation.copilotPrompt,
+            risk_level: record.priority as 'low' | 'medium' | 'high',
+            created_at: record.created_at,
+            status: record.status
+          };
+        });
 
       return transformedData;
     },
@@ -615,7 +625,7 @@ export default function CostOptimization() {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible filter
         }
       });
       
@@ -629,7 +639,7 @@ export default function CostOptimization() {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: selectedAccountId
+          ...getAccountFilter() // Multi-cloud compatible filter
         },
         gte: { date: startOfMonth.toISOString().split('T')[0] }
       });

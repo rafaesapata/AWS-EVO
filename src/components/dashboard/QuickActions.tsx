@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 
 interface QuickActionsProps {
   organizationId: string;
@@ -40,7 +40,8 @@ export default function QuickActions({
   onExport 
 }: QuickActionsProps) {
   const { toast } = useToast();
-  const { selectedAccountId } = useCloudAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilterField } = useAccountFilter();
   const [showFiltersDialog, setShowFiltersDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [exportFormat, setExportFormat] = useState<'pdf' | 'excel'>('pdf');
@@ -50,19 +51,20 @@ export default function QuickActions({
     if (!selectedAccountId) {
       toast({
         title: "Erro",
-        description: "Nenhuma conta AWS selecionada",
+        description: "Nenhuma conta cloud selecionada",
         variant: "destructive"
       });
       return;
     }
     
     try {
-      // Buscar dados atuais - FILTERED BY ACCOUNT
+      // Buscar dados atuais - FILTERED BY ACCOUNT (multi-cloud compatible)
+      const accountFilterField = getAccountFilterField();
       const [costsData, findingsData] = await Promise.all([
         apiClient.get('daily_costs')
           .select('*')
           .eq('organization_id', organizationId)
-          .eq('aws_account_id', selectedAccountId)
+          .eq(accountFilterField, selectedAccountId)
           .order('cost_date', { ascending: false })
           .limit(1)
           .single(),

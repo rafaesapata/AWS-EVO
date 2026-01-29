@@ -110,16 +110,29 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const startDateStr = startDate.toISOString().split('T')[0];
  const endDateStr = endDate.toISOString().split('T')[0];
 
- console.log('CostAnalysisPage: Query params:', { startDateStr, endDateStr, organizationId, selectedAccountId });
+ console.log('CostAnalysisPage: Query params:', { startDateStr, endDateStr, organizationId, selectedAccountId, provider: selectedProvider });
  
- // In demo mode or when no account selected, call the Lambda which returns demo data
- // The Lambda checks demo_mode and returns appropriate data
- const lambdaResponse = await apiClient.invoke<any>('fetch-daily-costs', {
-   accountId: selectedAccountId,
-   startDate: startDateStr,
-   endDate: endDateStr,
-   granularity: 'DAILY',
-   incremental: false
+ // Multi-cloud support: Use different Lambda based on provider
+ const isAzure = selectedProvider === 'AZURE';
+ const lambdaName = isAzure ? 'azure-fetch-costs' : 'fetch-daily-costs';
+ const bodyParams = isAzure 
+   ? { 
+       credentialId: selectedAccountId,
+       startDate: startDateStr,
+       endDate: endDateStr,
+       granularity: 'DAILY'
+     }
+   : {
+       accountId: selectedAccountId,
+       startDate: startDateStr,
+       endDate: endDateStr,
+       granularity: 'DAILY',
+       incremental: false
+     };
+ 
+ // IMPORTANT: Parameters must be inside 'body' for the Lambda to receive them correctly
+ const lambdaResponse = await apiClient.invoke<any>(lambdaName, {
+   body: bodyParams
  });
  
  if (lambdaResponse.error) {
@@ -136,12 +149,29 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
    return response.data || [];
  }
  
- // Lambda returns { costs: [...], summary: {...}, _isDemo: boolean }
+ // Lambda returns different formats for AWS vs Azure
  const lambdaData = lambdaResponse.data;
  console.log('CostAnalysisPage: Lambda response:', lambdaData);
  
- // Extract costs array from Lambda response
- const costs = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
+ // For Azure: Lambda saves to DB and returns summary (byService), so we need to query DB
+ // For AWS: Lambda returns costs array directly
+ let costs: any[] = [];
+ 
+ if (isAzure) {
+   // Azure Lambda saves data to DB, query it directly
+   console.log('CostAnalysisPage: Azure detected, querying database for saved costs');
+   const dbResponse = await apiClient.select('daily_costs', { 
+     eq: { organization_id: organizationId, ...getAccountFilter() },
+     gte: { date: startDateStr },
+     lte: { date: endDateStr },
+     order: { column: 'date', ascending: false }
+   });
+   costs = dbResponse.data || [];
+   console.log('CostAnalysisPage: Azure DB query returned', costs.length, 'records');
+ } else {
+   // AWS: Extract costs array from Lambda response
+   costs = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
+ }
  
  if (!costs || costs.length === 0) {
    console.log('CostAnalysisPage: No data returned');

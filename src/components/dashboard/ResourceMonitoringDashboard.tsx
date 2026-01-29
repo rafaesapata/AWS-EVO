@@ -136,7 +136,8 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
 
 ResourceCard.displayName = 'ResourceCard';
 
-const RESOURCE_TYPES = [
+// AWS Resource Types
+const AWS_RESOURCE_TYPES = [
   { value: 'ec2', labelKey: 'resourceMonitoring.resourceTypes.ec2', icon: Server },
   { value: 'rds', labelKey: 'resourceMonitoring.resourceTypes.rds', icon: Database },
   { value: 'elasticache', labelKey: 'resourceMonitoring.resourceTypes.elasticache', icon: Layers },
@@ -147,6 +148,17 @@ const RESOURCE_TYPES = [
   { value: 'nlb', labelKey: 'resourceMonitoring.resourceTypes.nlb', icon: Activity },
   { value: 'apigateway', labelKey: 'resourceMonitoring.resourceTypes.apigateway', icon: Link2 }
 ];
+
+// Azure Resource Types
+const AZURE_RESOURCE_TYPES = [
+  { value: 'vm', labelKey: 'resourceMonitoring.resourceTypes.vm', icon: Server },
+  { value: 'webapp', labelKey: 'resourceMonitoring.resourceTypes.webapp', icon: Cloud },
+  { value: 'sqldb', labelKey: 'resourceMonitoring.resourceTypes.sqldb', icon: Database },
+  { value: 'storage', labelKey: 'resourceMonitoring.resourceTypes.storage', icon: Layers },
+];
+
+// Legacy constant for backward compatibility
+const RESOURCE_TYPES = AWS_RESOURCE_TYPES;
 
 // ============================================
 // Type definitions for resources and metrics
@@ -327,7 +339,7 @@ export const ResourceMonitoringDashboard = () => {
 
   // Buscar recursos monitorados - FILTERED BY GLOBAL ACCOUNT (supports Demo Mode)
   const { data: resources, isLoading: loadingResources } = useOrganizationQuery<MonitoredResource[]>(
-    ['monitored-resources', selectedAccountId, isInDemoMode],
+    ['monitored-resources', selectedAccountId, isInDemoMode, isAzure],
     async (organizationId) => {
       // In demo mode, call the Lambda handler which returns demo data
       if (isInDemoMode) {
@@ -354,12 +366,20 @@ export const ResourceMonitoringDashboard = () => {
       
       if (!selectedAccountId) return [];
       
-      // Verificar se a conta pertence à organização (usando aws_credentials, não aws_accounts)
-      const accountResponse = await apiClient.select('aws_credentials', { 
-        eq: { id: selectedAccountId, organization_id: organizationId } 
-      });
-      if (accountResponse.error || !accountResponse.data || (accountResponse.data as AwsAccount[]).length === 0) return [];
+      // Verificar se a conta pertence à organização (usando tabela correta por provider)
+      if (isAzure) {
+        const accountResponse = await apiClient.select('azure_credentials', { 
+          eq: { id: selectedAccountId, organization_id: organizationId } 
+        });
+        if (accountResponse.error || !accountResponse.data || (accountResponse.data as any[]).length === 0) return [];
+      } else {
+        const accountResponse = await apiClient.select('aws_credentials', { 
+          eq: { id: selectedAccountId, organization_id: organizationId } 
+        });
+        if (accountResponse.error || !accountResponse.data || (accountResponse.data as AwsAccount[]).length === 0) return [];
+      }
       
+      // Query monitored_resources - Multi-cloud compatible using getAccountFilter()
       const resourceResponse = await apiClient.select('monitored_resources', { 
         eq: { organization_id: organizationId, ...getAccountFilter() } 
       });
@@ -417,15 +437,27 @@ export const ResourceMonitoringDashboard = () => {
         return;
       }
       
-      // Get organization ID from aws_credentials table (where selectedAccountId comes from)
-      const orgResponse = await apiClient.select('aws_credentials', { 
-        eq: { id: selectedAccountId } 
-      });
-      const accountData = orgResponse.data as AwsAccount[] | null;
-      const organizationId = accountData?.[0]?.organization_id;
+      // Get organization ID from credentials table based on provider
+      let organizationId: string | undefined;
+      
+      if (isAzure) {
+        // For Azure, query azure_credentials table
+        const orgResponse = await apiClient.select('azure_credentials', { 
+          eq: { id: selectedAccountId } 
+        });
+        const accountData = orgResponse.data as any[] | null;
+        organizationId = accountData?.[0]?.organization_id;
+      } else {
+        // For AWS, query aws_credentials table
+        const orgResponse = await apiClient.select('aws_credentials', { 
+          eq: { id: selectedAccountId } 
+        });
+        const accountData = orgResponse.data as AwsAccount[] | null;
+        organizationId = accountData?.[0]?.organization_id;
+      }
       
       if (!organizationId) {
-        console.error('[MetricsCache] No organization ID found for account:', selectedAccountId);
+        console.error('[MetricsCache] No organization ID found for account:', selectedAccountId, 'provider:', isAzure ? 'Azure' : 'AWS');
         return;
       }
       
@@ -447,7 +479,7 @@ export const ResourceMonitoringDashboard = () => {
     } finally {
       setLoadingMetrics(false);
     }
-  }, [selectedAccountId, metricsPeriod, isPeriodCached, getMetricsFromCache, fetchMetrics, getCacheStats, isInDemoMode]);
+  }, [selectedAccountId, metricsPeriod, isPeriodCached, getMetricsFromCache, fetchMetrics, getCacheStats, isInDemoMode, isAzure]);
 
   // Load metrics when account or period changes
   useEffect(() => {
@@ -677,6 +709,11 @@ export const ResourceMonitoringDashboard = () => {
     setCurrentPage(1);
   }, [selectedResourceType, selectedRegion, searchTerm]);
 
+  // Reset resource type filter when switching between AWS/Azure providers
+  useEffect(() => {
+    setSelectedResourceType('all');
+  }, [isAzure]);
+
   // Agrupar métricas por recurso
   const resourceMetrics = metrics?.reduce((acc: Record<string, { resource: ResourceMetric; metrics: ResourceMetric[] }>, metric: ResourceMetric) => {
     const key = `${metric.resource_type}-${metric.resource_id}`;
@@ -690,11 +727,15 @@ export const ResourceMonitoringDashboard = () => {
     return acc;
   }, {}) || {};
 
-  // Estatísticas por tipo de recurso
+  // Estatísticas por tipo de recurso - usa tipos corretos baseado no provider
+  const activeResourceTypes = useMemo(() => {
+    return isAzure ? AZURE_RESOURCE_TYPES : AWS_RESOURCE_TYPES;
+  }, [isAzure]);
+
   const resourceStats = useMemo(() => {
     // Ensure resources is always an array
     if (!resources || !Array.isArray(resources)) {
-      return RESOURCE_TYPES.map(type => ({
+      return activeResourceTypes.map(type => ({
         type: type.value,
         labelKey: type.labelKey,
         icon: type.icon,
@@ -706,7 +747,7 @@ export const ResourceMonitoringDashboard = () => {
     
     const resourceList = resources as MonitoredResource[];
     
-    return RESOURCE_TYPES.map(type => {
+    return activeResourceTypes.map(type => {
       const count = resourceList.filter(r => r.resource_type === type.value).length;
       
       // Filtrar apenas recursos com status ativo para cálculo de CPU média
@@ -719,12 +760,14 @@ export const ResourceMonitoringDashboard = () => {
           .map(r => r.resource_id)
       );
       
-      // Contar quantos estão ativos/ligados (especialmente importante para EC2)
+      // Contar quantos estão ativos/ligados
       const runningCount = activeResourceIds.size;
       
+      // Azure uses different metric names: "Percentage CPU" instead of "CPUUtilization"
+      const cpuMetricName = isAzure ? 'Percentage CPU' : 'CPUUtilization';
       const cpuMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
           m.resource_type === type.value && 
-          m.metric_name === 'CPUUtilization' &&
+          m.metric_name === cpuMetricName &&
           activeResourceIds.has(m.resource_id)
         ) : [];
       
@@ -741,7 +784,7 @@ export const ResourceMonitoringDashboard = () => {
         avgCpu: avgCpu !== null && !isNaN(avgCpu) ? avgCpu : null
       };
     });
-  }, [resources, metrics]);
+  }, [resources, metrics, activeResourceTypes, isAzure]);
 
   if (!accounts || accounts.length === 0) {
     return (
@@ -1008,7 +1051,7 @@ export const ResourceMonitoringDashboard = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t('resourceMonitoring.allTypes', 'All types')}</SelectItem>
-                      {RESOURCE_TYPES.map(type => (
+                      {activeResourceTypes.map(type => (
                         <SelectItem key={type.value} value={type.value}>
                           {t(type.labelKey)}
                         </SelectItem>
@@ -1135,7 +1178,7 @@ export const ResourceMonitoringDashboard = () => {
                   <p className="text-muted-foreground mb-2">
                     {selectedResourceType === 'all' 
                       ? `⚠️ ${t('resourceMonitoring.noResourcesFound', 'No resources found in this account')}`
-                      : `⚠️ ${t('resourceMonitoring.noResourcesOfType', 'No {{type}} resources found', { type: t(RESOURCE_TYPES.find(rt => rt.value === selectedResourceType)?.labelKey || '') })}`
+                      : `⚠️ ${t('resourceMonitoring.noResourcesOfType', 'No {{type}} resources found', { type: t(activeResourceTypes.find(rt => rt.value === selectedResourceType)?.labelKey || '') })}`
                     }
                   </p>
                   <p className="text-sm text-muted-foreground">

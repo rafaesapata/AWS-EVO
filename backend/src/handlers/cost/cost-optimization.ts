@@ -134,14 +134,23 @@ export async function handler(
     // Sort by savings (highest first)
     optimizations.sort((a, b) => b.savings - a.savings);
     
-    // Save to database
+    // Save to database with all fields
     const prismaOptimizations = optimizations.map(opt => ({
       organization_id: organizationId,
       aws_account_id: credential.id,
       resource_type: opt.resource_type,
       resource_id: opt.resource_id,
+      resource_name: opt.resource_name || opt.resource_id,
       optimization_type: opt.type,
+      current_cost: opt.current_cost,
+      optimized_cost: opt.optimized_cost,
       potential_savings: opt.savings,
+      savings_percentage: opt.current_cost > 0 ? ((opt.savings / opt.current_cost) * 100) : 0,
+      recommendation: opt.recommendation,
+      details: opt.details,
+      priority: opt.priority,
+      effort: opt.effort,
+      category: opt.category,
       status: 'pending'
     }));
 

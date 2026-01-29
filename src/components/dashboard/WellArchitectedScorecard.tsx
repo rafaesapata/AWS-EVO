@@ -12,7 +12,7 @@ import { PillarCard } from "./well-architected/PillarCard";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTranslation } from "react-i18next";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 
 interface WellArchitectedScoreProps {
@@ -61,6 +61,7 @@ export const WellArchitectedScorecard = ({ onScanComplete }: WellArchitectedScor
   
   // CRITICAL: Get selected AWS account for multi-account isolation
   const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilterField } = useAccountFilter();
 
   const { data: scores, refetch, isLoading } = useQuery({
     queryKey: ['well-architected-scores', organizationId, selectedAccountId],
@@ -73,7 +74,8 @@ export const WellArchitectedScorecard = ({ onScanComplete }: WellArchitectedScor
       // Filter by selected account if available
       const filters: any = { organization_id: organizationId };
       if (selectedAccountId) {
-        filters['security_scans.aws_account_id'] = selectedAccountId;
+        const filterField = getAccountFilterField();
+        filters[`security_scans.${filterField}`] = selectedAccountId;
       }
       
       const response = await apiClient.select('well_architected_scores', {

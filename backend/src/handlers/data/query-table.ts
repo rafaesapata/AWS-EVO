@@ -21,6 +21,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'profiles': 'profile',
   'users': 'user',
   'aws_credentials': 'awsCredential',
+  'azure_credentials': 'azureCredential',
   'aws_accounts': 'awsAccount',
   'daily_costs': 'dailyCost',
   'findings': 'finding',
@@ -102,7 +103,9 @@ const TABLE_TO_MODEL: Record<string, string> = {
 // Também lista campos a IGNORAR (mapear para null) quando não existem no modelo
 const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   // Tabelas que tiveram account_id migrado para aws_account_id
-  'daily_costs': { 'cost_date': 'date', 'account_id': 'aws_account_id' },
+  // NOTA: azure_credential_id é mapeado para aws_account_id porque os custos Azure
+  // são salvos com aws_account_id contendo o ID da credencial Azure
+  'daily_costs': { 'cost_date': 'date', 'account_id': 'aws_account_id', 'azure_credential_id': 'aws_account_id' },
   'waste_detections': { 'account_id': 'aws_account_id' },
   'waste_detection': { 'account_id': 'aws_account_id' },
   'compliance_violations': { 'account_id': 'aws_account_id' },
@@ -149,7 +152,7 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
 // Tabelas que têm organization_id para multi-tenancy
 // NOTA: 'organizations' NÃO tem organization_id (usa 'id')
 const TABLES_WITH_ORG_ID = new Set([
-  'profiles', 'aws_credentials', 'aws_accounts',
+  'profiles', 'aws_credentials', 'azure_credentials', 'aws_accounts',
   'daily_costs', 'findings', 'security_scans',
   // NOTE: compliance_checks does NOT have organization_id - it uses scan_id -> SecurityScan
   'guardduty_findings', 'security_posture', 'knowledge_base_articles',
@@ -301,17 +304,33 @@ export async function handler(
     // Add eq filters with field mapping
     if (body.eq) {
       const fieldMap = FIELD_MAPPING[body.table] || {};
+      logger.info('Query table eq filters', { 
+        table: body.table, 
+        eq: body.eq, 
+        fieldMap,
+        organizationId 
+      });
       for (const [key, value] of Object.entries(body.eq)) {
         if (key === 'organization_id') continue; // Skip - enforced server-side
         const mappedKey = fieldMap[key];
         // If mapped to null, skip this field (doesn't exist in model)
-        if (mappedKey === null) continue;
+        if (mappedKey === null) {
+          logger.info('Skipping field (mapped to null)', { key, table: body.table });
+          continue;
+        }
         // If value is null or undefined, skip this filter (don't filter by this field)
-        if (value === null || value === undefined) continue;
+        if (value === null || value === undefined) {
+          logger.info('Skipping field (value is null/undefined)', { key, value, table: body.table });
+          continue;
+        }
         // If mapped to a string, use that; otherwise use original key
-        where[mappedKey || key] = value;
+        const finalKey = mappedKey || key;
+        where[finalKey] = value;
+        logger.info('Added filter', { originalKey: key, finalKey, value, table: body.table });
       }
     }
+    
+    logger.info('Final where clause', { table: body.table, where, modelName });
     
     // Add ilike filters
     if (body.ilike) {

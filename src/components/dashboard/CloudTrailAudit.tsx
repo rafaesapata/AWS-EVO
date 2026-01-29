@@ -72,8 +72,8 @@ interface UserActivity {
 
 const CloudTrailAudit = () => {
   const organizationId = useOrganizationId();
-  const { selectedAccountId } = useCloudAccount();
-  const { getAccountFilter } = useAccountFilter();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter, getAccountFilterField } = useAccountFilter();
   const queryClient = useQueryClient();
   
   // Scan state
@@ -105,11 +105,12 @@ const CloudTrailAudit = () => {
 
       if (result.error) throw new Error(getErrorMessage(result.error));
       
-      // Client-side filter for account isolation
+      // Client-side filter for account isolation (multi-cloud compatible)
+      const accountField = getAccountFilterField();
       if (selectedAccountId && result.data) {
         return result.data.filter((f: any) => {
           const details = f.details as any;
-          return details?.aws_account_id === selectedAccountId || !details?.aws_account_id;
+          return details?.[accountField] === selectedAccountId || !details?.[accountField];
         });
       }
       return result.data || [];

@@ -12,7 +12,7 @@ import { CheckCircle, Bell, Settings, RefreshCw, AlertTriangle, DollarSign, Shie
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -32,8 +32,9 @@ export function IntelligentAlerts() {
   const queryClient = useQueryClient();
   const [editingConfig, setEditingConfig] = useState<AlertConfig | null>(null);
   
-  // CRITICAL: Get selected AWS account for multi-account isolation
-  const { selectedAccountId } = useCloudAccount();
+  // CRITICAL: Get selected cloud account for multi-account isolation
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilterField } = useAccountFilter();
 
   const { data: alertConfigs = [] } = useQuery({
     queryKey: ['alert-configs', organizationId, selectedAccountId],
@@ -57,10 +58,11 @@ export function IntelligentAlerts() {
       });
       if (response.error) throw response.error;
       
-      // Filter by account on client-side if needed (column may not exist)
+      // Filter by account on client-side if needed (multi-cloud compatible)
+      const accountField = getAccountFilterField();
       if (selectedAccountId && response.data) {
         return response.data.filter((alert: any) => 
-          !alert.aws_account_id || alert.aws_account_id === selectedAccountId
+          !alert[accountField] || alert[accountField] === selectedAccountId
         );
       }
       

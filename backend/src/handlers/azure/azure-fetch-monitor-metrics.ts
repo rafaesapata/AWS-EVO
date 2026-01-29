@@ -57,6 +57,11 @@ const TIME_RANGE_MAP: Record<string, { duration: string; interval: string }> = {
   '7d': { duration: 'P7D', interval: 'PT6H' },
 };
 
+// Resource types that require minimum 1 hour interval (Azure limitation)
+const HOURLY_INTERVAL_RESOURCE_TYPES = [
+  'Microsoft.Storage/storageAccounts',
+];
+
 export async function handler(
   event: AuthorizedEvent,
   _context: LambdaContext
@@ -120,9 +125,38 @@ export async function handler(
         const metricDef = METRIC_DEFINITIONS[resource.type];
         if (!metricDef) continue;
 
+        // Create or update monitored resource entry
+        const mappedType = mapResourceType(resource.type);
+        await prisma.monitoredResource.upsert({
+          where: {
+            organization_id_aws_account_id_resource_id_resource_type: {
+              organization_id: organizationId,
+              aws_account_id: credentialId,
+              resource_id: resource.id,
+              resource_type: mappedType,
+            },
+          },
+          update: {
+            resource_name: resource.name,
+            region: resource.location,
+            status: 'active',
+            updated_at: new Date(),
+          },
+          create: {
+            organization_id: organizationId,
+            aws_account_id: credentialId,
+            resource_id: resource.id,
+            resource_name: resource.name,
+            resource_type: mappedType,
+            region: resource.location,
+            status: 'active',
+          },
+        });
+
         const metrics = await fetchResourceMetrics(
           accessToken,
           resource.id,
+          resource.type,
           metricDef.metrics,
           metricDef.aggregation,
           startTime,
@@ -245,6 +279,7 @@ async function listAzureResources(
 async function fetchResourceMetrics(
   accessToken: string,
   resourceId: string,
+  resourceType: string,
   metricNames: string[],
   aggregation: string,
   startTime: Date,
@@ -253,10 +288,13 @@ async function fetchResourceMetrics(
 ): Promise<Array<{ name: string; value: number; unit: string; timestamp: Date }>> {
   const metrics: Array<{ name: string; value: number; unit: string; timestamp: Date }> = [];
 
+  // Use hourly interval for resource types that require it (Azure limitation)
+  const effectiveInterval = HOURLY_INTERVAL_RESOURCE_TYPES.includes(resourceType) ? 'PT1H' : interval;
+
   const metricNamesParam = metricNames.join(',');
   const timespan = `${startTime.toISOString()}/${endTime.toISOString()}`;
 
-  const url = `https://management.azure.com${resourceId}/providers/Microsoft.Insights/metrics?api-version=2021-05-01&metricnames=${encodeURIComponent(metricNamesParam)}&timespan=${encodeURIComponent(timespan)}&interval=${interval}&aggregation=${aggregation}`;
+  const url = `https://management.azure.com${resourceId}/providers/Microsoft.Insights/metrics?api-version=2021-05-01&metricnames=${encodeURIComponent(metricNamesParam)}&timespan=${encodeURIComponent(timespan)}&interval=${effectiveInterval}&aggregation=${aggregation}`;
 
   const response = await fetch(url, {
     headers: {

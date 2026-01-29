@@ -131,7 +131,8 @@ export async function handler(
     const scan = await prisma.securityScan.create({
       data: {
         organization_id: organizationId,
-        aws_account_id: credentialId,
+        cloud_provider: 'AZURE',
+        azure_credential_id: credentialId,
         scan_type: 'azure-well-architected',
         status: 'running',
         scan_config: { pillars, cloudProvider: 'AZURE' },

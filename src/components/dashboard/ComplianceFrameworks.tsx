@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
 
 // AWS Frameworks
@@ -106,6 +106,7 @@ export function ComplianceFrameworks() {
   
   // CRITICAL: Get selected cloud account and provider for multi-cloud support
   const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilterField } = useAccountFilter();
   
   // Determine which frameworks to show based on selected provider
   const isAzure = selectedProvider === 'AZURE';
@@ -125,7 +126,8 @@ export function ComplianceFrameworks() {
       
       // Filter by selected account if available
       if (selectedAccountId) {
-        filters['security_scans.aws_account_id'] = selectedAccountId;
+        const filterField = getAccountFilterField();
+        filters[`security_scans.${filterField}`] = selectedAccountId;
       }
       
       const result = await apiClient.select('compliance_checks', {

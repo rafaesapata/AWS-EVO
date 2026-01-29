@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle, Clock, Zap, History, Search, ChevronLeft, ChevronRight, Loader2, TrendingUp, Shield, Activity } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { toast } from "sonner";
@@ -22,7 +22,8 @@ export default function PredictiveIncidents() {
  const queryClient = useQueryClient();
  const { isTVMode } = useTVDashboard();
  const { data: organizationId } = useOrganization();
- const { selectedAccountId } = useCloudAccount();
+ const { selectedAccountId, selectedProvider } = useCloudAccount();
+ const { getAccountFilterField } = useAccountFilter();
  const { isInDemoMode } = useDemoAwareQuery();
  const [activeTab, setActiveTab] = useState<'predictions' | 'history'>('predictions');
  const [searchTerm, setSearchTerm] = useState('');
@@ -50,9 +51,10 @@ export default function PredictiveIncidents() {
  });
  const data = response.data;
  const error = response.error;
- // Filter by account on client-side if needed
+ // Filter by account on client-side if needed (multi-cloud compatible)
+ const accountField = getAccountFilterField();
  if (selectedAccountId && data) {
- return data.filter((i: any) => !i.aws_account_id || i.aws_account_id === selectedAccountId);
+ return data.filter((i: any) => !i[accountField] || i[accountField] === selectedAccountId);
  }
  
  return data;
@@ -77,9 +79,10 @@ export default function PredictiveIncidents() {
  });
  const data = response.data;
  const error = response.error;
- // Filter by account on client-side if needed
+ // Filter by account on client-side if needed (multi-cloud compatible)
+ const accountField = getAccountFilterField();
  if (selectedAccountId && data) {
- return data.filter((h: any) => !h.aws_account_id || h.aws_account_id === selectedAccountId);
+ return data.filter((h: any) => !h[accountField] || h[accountField] === selectedAccountId);
  }
  
  return data || [];

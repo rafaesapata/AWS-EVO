@@ -123,6 +123,16 @@ export function AnomalyDashboard({ isInDemoMode = false }: AnomalyDashboardProps
  const runDetection = async () => {
  if (isExecuting) return;
  
+ // Azure requires a real credential ID (UUID), demo mode not supported for Azure
+ if (selectedProvider === 'AZURE' && !selectedAccountId) {
+ toast({
+ title: t('common.error'),
+ description: t('anomalyDetection.selectAzureAccountFirst', 'Please select an Azure account first'),
+ variant: 'destructive',
+ });
+ return;
+ }
+ 
  if (!selectedAccountId && !isInDemoMode) {
  toast({
  title: t('common.error'),
@@ -143,9 +153,8 @@ export function AnomalyDashboard({ isInDemoMode = false }: AnomalyDashboardProps
  const endpoint = selectedProvider === 'AZURE' ? 'azure-detect-anomalies' : 'detect-anomalies';
  const bodyParams = selectedProvider === 'AZURE' 
  ? {
- azureCredentialId: selectedAccountId || 'demo-account',
- analysisType: 'all',
- sensitivity: 'medium',
+ credentialId: selectedAccountId, // Azure handler expects 'credentialId' (UUID)
+ sensitivityLevel: 'medium', // Azure handler expects 'sensitivityLevel'
  lookbackDays: 30
  }
  : { 

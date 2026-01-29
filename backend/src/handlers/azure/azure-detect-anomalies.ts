@@ -223,27 +223,58 @@ async function fetchAzureCostData(
 
   const data = await response.json() as {
     properties?: {
-      rows?: Array<[number, string, number]>; // [cost, service, dateIndex]
+      rows?: Array<any[]>;
       columns?: Array<{ name: string; type: string }>;
     };
   };
 
   const rows = data.properties?.rows || [];
+  const columns = data.properties?.columns || [];
   const costData: CostDataPoint[] = [];
 
+  // Find column indices dynamically
+  const costIndex = columns.findIndex(c => c.name === 'Cost' || c.name === 'PreTaxCost');
+  const serviceIndex = columns.findIndex(c => c.name === 'ServiceName');
+  const dateIndex = columns.findIndex(c => c.name === 'UsageDate' || c.name === 'BillingPeriod');
+
+  logger.info('Azure Cost API response structure', {
+    columns: columns.map(c => c.name),
+    rowCount: rows.length,
+    sampleRow: rows[0],
+    costIndex,
+    serviceIndex,
+    dateIndex,
+  });
+
   for (const row of rows) {
-    const cost = row[0] || 0;
-    const service = row[1] || 'Unknown';
-    const dateIndex = row[2];
+    // Azure returns cost as first column, service as second, date as third (YYYYMMDD format)
+    const cost = typeof row[costIndex !== -1 ? costIndex : 0] === 'number' ? row[costIndex !== -1 ? costIndex : 0] : parseFloat(row[0]) || 0;
+    const service = row[serviceIndex !== -1 ? serviceIndex : 1] || 'Unknown';
+    const dateValue = row[dateIndex !== -1 ? dateIndex : 2];
     
-    // Convert date index to actual date
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + (typeof dateIndex === 'number' ? dateIndex : 0));
+    // Parse date - Azure returns as YYYYMMDD number or string
+    let dateStr: string;
+    if (typeof dateValue === 'number') {
+      // Convert YYYYMMDD to YYYY-MM-DD
+      const dateNum = dateValue.toString();
+      if (dateNum.length === 8) {
+        dateStr = `${dateNum.slice(0, 4)}-${dateNum.slice(4, 6)}-${dateNum.slice(6, 8)}`;
+      } else {
+        // Fallback: treat as days offset from start
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + dateValue);
+        dateStr = date.toISOString().split('T')[0];
+      }
+    } else if (typeof dateValue === 'string') {
+      dateStr = dateValue.includes('-') ? dateValue : `${dateValue.slice(0, 4)}-${dateValue.slice(4, 6)}-${dateValue.slice(6, 8)}`;
+    } else {
+      dateStr = startDate;
+    }
 
     costData.push({
-      date: date.toISOString().split('T')[0],
+      date: dateStr,
       cost,
-      service,
+      service: String(service),
     });
   }
 
@@ -265,31 +296,74 @@ function detectAnomalies(costData: CostDataPoint[], threshold: number): Anomaly[
     serviceData.get(point.service)!.push(point);
   }
 
+  // Sort each service's data by date
+  for (const [, points] of serviceData) {
+    points.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
+  // Calculate total cost to understand scale
+  const totalCost = costData.reduce((sum, p) => sum + p.cost, 0);
+  const avgCostPerService = totalCost / serviceData.size;
+  
+  logger.info('Analyzing services for anomalies', {
+    totalServices: serviceData.size,
+    totalCost: totalCost.toFixed(4),
+    avgCostPerService: avgCostPerService.toFixed(4),
+    services: Array.from(serviceData.keys()).slice(0, 10),
+  });
+
   // Analyze each service
   for (const [service, points] of serviceData) {
-    if (points.length < 7) continue; // Need at least 7 days of data
+    // Need at least 3 days of data for basic analysis
+    if (points.length < 3) continue;
 
     // Calculate statistics
     const costs = points.map(p => p.cost);
     const mean = costs.reduce((a, b) => a + b, 0) / costs.length;
+    const maxCost = Math.max(...costs);
+    const minCost = Math.min(...costs);
     
-    // Skip services with negligible costs (less than $0.10/day average)
-    if (mean < 0.10) continue;
+    // Skip services with zero or near-zero costs
+    if (mean === 0 || maxCost === 0) continue;
     
     const variance = costs.reduce((sum, cost) => sum + Math.pow(cost - mean, 2), 0) / costs.length;
     const stdDev = Math.sqrt(variance);
 
-    // Skip if no variation (all values are the same)
-    if (stdDev === 0) continue;
+    // For services with no variation, check for new services
+    if (stdDev === 0 || stdDev / mean < 0.001) {
+      // Check if this is a new service (appeared recently)
+      const firstDate = new Date(points[0].date);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      // Only flag as new if it's significant (top 20% of services by cost)
+      if (firstDate > thirtyDaysAgo && mean > avgCostPerService * 0.2) {
+        anomalies.push({
+          id: `new-${service}-${points[0].date}`,
+          type: 'new_resource',
+          severity: mean > avgCostPerService ? 'high' : mean > avgCostPerService * 0.5 ? 'medium' : 'low',
+          title: `Novo serviço detectado: ${service}`,
+          description: `Serviço ${service} apareceu recentemente com custo médio de ${formatCurrency(mean)}/dia`,
+          service,
+          date: points[0].date,
+          expectedValue: 0,
+          actualValue: Math.round(mean * 10000) / 10000,
+          deviation: mean,
+          deviationPercent: 100,
+          recommendation: `Verifique se o serviço ${service} foi provisionado intencionalmente e se está configurado corretamente.`,
+        });
+      }
+      continue;
+    }
 
-    // Check each point for anomalies
+    // Check each point for anomalies using z-score
     for (const point of points) {
       const zScore = (point.cost - mean) / stdDev;
       const deviation = point.cost - mean;
       const deviationPercent = mean > 0 ? (deviation / mean) * 100 : 0;
       
-      // Skip if absolute difference is less than $1 (not worth alerting)
-      if (Math.abs(deviation) < 1.0) continue;
+      // Use relative threshold - at least 20% deviation from mean
+      if (Math.abs(deviationPercent) < 20) continue;
 
       if (Math.abs(zScore) > threshold) {
         const isSpike = zScore > 0;
@@ -303,13 +377,13 @@ function detectAnomalies(costData: CostDataPoint[], threshold: number): Anomaly[
             ? `Pico de custo em ${service}` 
             : `Queda de custo em ${service}`,
           description: isSpike
-            ? `Custo ${deviationPercent.toFixed(0)}% acima da média (${point.cost.toFixed(2)} vs ${mean.toFixed(2)} esperado)`
-            : `Custo ${Math.abs(deviationPercent).toFixed(0)}% abaixo da média (${point.cost.toFixed(2)} vs ${mean.toFixed(2)} esperado)`,
+            ? `Custo ${deviationPercent.toFixed(0)}% acima da média (${formatCurrency(point.cost)} vs ${formatCurrency(mean)} esperado)`
+            : `Custo ${Math.abs(deviationPercent).toFixed(0)}% abaixo da média (${formatCurrency(point.cost)} vs ${formatCurrency(mean)} esperado)`,
           service,
           date: point.date,
-          expectedValue: Math.round(mean * 100) / 100,
-          actualValue: Math.round(point.cost * 100) / 100,
-          deviation: Math.round(deviation * 100) / 100,
+          expectedValue: Math.round(mean * 10000) / 10000,
+          actualValue: Math.round(point.cost * 10000) / 10000,
+          deviation: Math.round(deviation * 10000) / 10000,
           deviationPercent: Math.round(deviationPercent * 10) / 10,
           recommendation: isSpike
             ? `Investigue o aumento de uso em ${service}. Verifique se há recursos não utilizados ou configurações incorretas.`
@@ -317,17 +391,91 @@ function detectAnomalies(costData: CostDataPoint[], threshold: number): Anomaly[
         });
       }
     }
+
+    // Check for unusual patterns (week-over-week comparison)
+    if (points.length >= 14) {
+      const recentWeek = points.slice(-7);
+      const previousWeek = points.slice(-14, -7);
+      
+      const recentAvg = recentWeek.reduce((sum, p) => sum + p.cost, 0) / 7;
+      const previousAvg = previousWeek.reduce((sum, p) => sum + p.cost, 0) / 7;
+      
+      if (previousAvg > 0) {
+        const weekChange = ((recentAvg - previousAvg) / previousAvg) * 100;
+        
+        // Flag if change is more than 30%
+        if (Math.abs(weekChange) > 30) {
+          const isIncrease = weekChange > 0;
+          anomalies.push({
+            id: `trend-${service}-${points[points.length - 1].date}`,
+            type: 'usage_pattern',
+            severity: Math.abs(weekChange) > 100 ? 'high' : Math.abs(weekChange) > 50 ? 'medium' : 'low',
+            title: isIncrease 
+              ? `Tendência de aumento em ${service}` 
+              : `Tendência de queda em ${service}`,
+            description: `Custo semanal ${isIncrease ? 'aumentou' : 'diminuiu'} ${Math.abs(weekChange).toFixed(0)}% (${formatCurrency(previousAvg)}/dia → ${formatCurrency(recentAvg)}/dia)`,
+            service,
+            date: points[points.length - 1].date,
+            expectedValue: Math.round(previousAvg * 10000) / 10000,
+            actualValue: Math.round(recentAvg * 10000) / 10000,
+            deviation: Math.round((recentAvg - previousAvg) * 10000) / 10000,
+            deviationPercent: Math.round(weekChange * 10) / 10,
+            recommendation: isIncrease
+              ? `Analise o crescimento de uso em ${service}. Considere otimizações ou ajustes de capacidade.`
+              : `Verifique se a redução em ${service} é esperada ou indica problemas.`,
+          });
+        }
+      }
+    }
+  }
+
+  // Remove duplicates (same service/date)
+  const uniqueAnomalies = new Map<string, Anomaly>();
+  for (const anomaly of anomalies) {
+    const key = `${anomaly.service}-${anomaly.date}-${anomaly.type}`;
+    if (!uniqueAnomalies.has(key) || 
+        getSeverityOrder(anomaly.severity) < getSeverityOrder(uniqueAnomalies.get(key)!.severity)) {
+      uniqueAnomalies.set(key, anomaly);
+    }
   }
 
   // Sort by severity and date
-  anomalies.sort((a, b) => {
-    const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-    const severityDiff = severityOrder[a.severity] - severityOrder[b.severity];
+  const result = Array.from(uniqueAnomalies.values());
+  result.sort((a, b) => {
+    const severityDiff = getSeverityOrder(a.severity) - getSeverityOrder(b.severity);
     if (severityDiff !== 0) return severityDiff;
     return new Date(b.date).getTime() - new Date(a.date).getTime();
   });
 
-  return anomalies;
+  logger.info('Anomaly detection results', {
+    totalAnomalies: result.length,
+    byType: {
+      cost_spike: result.filter(a => a.type === 'cost_spike').length,
+      cost_drop: result.filter(a => a.type === 'cost_drop').length,
+      new_resource: result.filter(a => a.type === 'new_resource').length,
+      usage_pattern: result.filter(a => a.type === 'usage_pattern').length,
+    },
+  });
+
+  return result;
+}
+
+/**
+ * Format currency value for display
+ */
+function formatCurrency(value: number): string {
+  if (value >= 1) {
+    return `$${value.toFixed(2)}`;
+  } else if (value >= 0.01) {
+    return `$${value.toFixed(4)}`;
+  } else {
+    return `$${value.toFixed(6)}`;
+  }
+}
+
+function getSeverityOrder(severity: string): number {
+  const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+  return order[severity] ?? 4;
 }
 
 /**

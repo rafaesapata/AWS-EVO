@@ -525,16 +525,67 @@ export class AzureProvider implements ICloudProvider {
       });
 
       // Parse results
+      // Azure Cost Management API returns columns in order based on query configuration:
+      // - First: aggregation columns (Cost)
+      // - Then: grouping columns (ServiceName)
+      // - Then: date column (UsageDate as number YYYYMMDD)
+      // - Finally: Currency
+      // Actual row format: [cost, date (YYYYMMDD number), serviceName, currency]
       if (query.rows) {
+        logger.info('Azure Cost API response', {
+          rowCount: query.rows.length,
+          columns: query.columns?.map(c => c.name),
+          sampleRow: query.rows[0],
+        });
+        
+        // Determine column order from response columns
+        const columns = query.columns || [];
+        let costIndex = 0;
+        let dateIndex = 1;
+        let serviceIndex = 2;
+        let currencyIndex = 3;
+        
+        // Map column names to indices
+        columns.forEach((col, idx) => {
+          const name = col.name?.toLowerCase() || '';
+          if (name === 'cost' || name === 'totalcost' || name === 'precost') {
+            costIndex = idx;
+          } else if (name === 'usagedate' || name === 'billingperiod' || name.includes('date')) {
+            dateIndex = idx;
+          } else if (name === 'servicename' || name === 'service') {
+            serviceIndex = idx;
+          } else if (name === 'currency') {
+            currencyIndex = idx;
+          }
+        });
+        
         for (const row of query.rows) {
-          // Row format: [cost, serviceName, date, currency]
-          const cost = parseFloat(row[0] as string) || 0;
-          const service = row[1] as string || 'Unknown';
-          const date = row[2] as string || params.startDate;
-          const currency = row[3] as string || 'USD';
+          const cost = parseFloat(String(row[costIndex])) || 0;
+          
+          // Parse date - Azure returns as number (YYYYMMDD) or string
+          let dateStr = params.startDate;
+          const rawDate = row[dateIndex];
+          if (rawDate) {
+            const dateNum = String(rawDate);
+            // Convert YYYYMMDD to YYYY-MM-DD
+            if (/^\d{8}$/.test(dateNum)) {
+              dateStr = `${dateNum.slice(0, 4)}-${dateNum.slice(4, 6)}-${dateNum.slice(6, 8)}`;
+            } else if (/^\d{4}-\d{2}-\d{2}/.test(dateNum)) {
+              dateStr = dateNum.slice(0, 10);
+            } else {
+              // Try to parse as date
+              const parsed = new Date(rawDate as any);
+              if (!isNaN(parsed.getTime())) {
+                dateStr = parsed.toISOString().slice(0, 10);
+              }
+            }
+          }
+          
+          const service = String(row[serviceIndex] || 'Unknown');
+          const currency = String(row[currencyIndex] || 'USD');
 
           costs.push({
-            date,
+            date: dateStr,
             service,
             cost,
             currency,

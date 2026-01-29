@@ -9,6 +9,16 @@ import { logger } from '../../lib/logging.js';
 
 // SQL statements as an array to avoid splitting issues
 const AZURE_MIGRATION_STATEMENTS = [
+  // CRITICAL: Make aws_account_id optional in security_scans for Azure scans
+  `ALTER TABLE security_scans DROP CONSTRAINT IF EXISTS security_scans_aws_account_id_fkey`,
+  `ALTER TABLE security_scans ALTER COLUMN aws_account_id DROP NOT NULL`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'security_scans_aws_account_id_fkey') THEN
+      ALTER TABLE security_scans ADD CONSTRAINT security_scans_aws_account_id_fkey 
+        FOREIGN KEY (aws_account_id) REFERENCES aws_credentials(id) ON DELETE CASCADE;
+    END IF;
+  END $$`,
+  `CREATE INDEX IF NOT EXISTS security_scans_azure_credential_id_idx ON security_scans(azure_credential_id)`,
   // Azure Activity Events table
   `CREATE TABLE IF NOT EXISTS azure_activity_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

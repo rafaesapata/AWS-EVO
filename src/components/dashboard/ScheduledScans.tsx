@@ -12,6 +12,7 @@ import { Calendar, Plus, Pause, Play, Trash2, PlayCircle, ShieldAlert } from "lu
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useTranslation } from "react-i18next";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 
 interface ScanSchedule {
   id: string;
@@ -31,7 +32,9 @@ export const ScheduledScans = () => {
   const { t } = useTranslation();
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const { selectedAccountId } = useCloudAccount();
+  const { getAccountFilter, getAccountFilterField } = useAccountFilter();
+  const [dialogSelectedAccountId, setDialogSelectedAccountId] = useState<string>('');
   const [newSchedule, setNewSchedule] = useState({
     scan_type: 'security',
     schedule_type: 'daily',
@@ -92,7 +95,7 @@ export const ScheduledScans = () => {
         operation: 'insert',
         data: {
           organization_id: organizationId,
-          aws_account_id: selectedAccountId,
+          ...getAccountFilter(), // Multi-cloud compatible
           scan_type: newSchedule.scan_type,
           schedule_type: newSchedule.schedule_type,
           schedule_config: newSchedule.schedule_config,
@@ -305,19 +308,7 @@ export const ScheduledScans = () => {
                 <DialogDescription>{t('scheduledScans.dialogDescription', 'Configure scans recorrentes para monitoramento contínuo')}</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">{t('scheduledScans.awsAccount', 'Conta AWS')}</label>
-                  <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-                    <SelectTrigger><SelectValue placeholder={t('scheduledScans.selectAccount', 'Selecione uma conta')} /></SelectTrigger>
-                    <SelectContent>
-                      {awsAccounts?.map((account: any) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          {account.account_name || account.account_id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Account is selected from the global header selector */}
                 <div>
                   <label className="text-sm font-medium">{t('scheduledScans.scanType', 'Tipo de Scan')}</label>
                   <Select value={newSchedule.scan_type} onValueChange={(value) => setNewSchedule({ ...newSchedule, scan_type: value })}>
@@ -340,7 +331,7 @@ export const ScheduledScans = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={() => createMutation.mutate()} className="w-full glass hover-glow" disabled={!selectedAccountId}>
+                <Button onClick={() => createMutation.mutate()} className="w-full glass hover-glow">
                   {t('scheduledScans.createButton', 'Criar Agendamento')}
                 </Button>
               </div>

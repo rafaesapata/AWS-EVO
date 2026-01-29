@@ -98,25 +98,54 @@ export default function SecurityScanDetails() {
  },
  });
 
- // Get scan findings
+ // Get scan findings - filter by scan's aws_account_id and time range
  const { data: findings, isLoading: findingsLoading } = useQuery({
- queryKey: ['scan-findings', scanId, organizationId],
- enabled: !!scanId && !!organizationId,
+ queryKey: ['scan-findings', scanId, organizationId, scan?.aws_account_id, scan?.started_at],
+ enabled: !!scanId && !!organizationId && !!scan,
  queryFn: async () => {
- const response = await apiClient.select('findings', {
- select: '*',
- eq: { 
+ if (!scan) return [];
+ 
+ // Build filter based on scan properties
+ const filter: Record<string, any> = { 
  organization_id: organizationId,
  source: 'security-engine'
- },
- order: { column: 'created_at', ascending: false }
+ };
+ 
+ // Filter by the same AWS account as the scan
+ if (scan.aws_account_id) {
+ filter.aws_account_id = scan.aws_account_id;
+ }
+ 
+ // Filter by scan_type if available
+ if (scan.scan_type) {
+ filter.scan_type = scan.scan_type;
+ }
+ 
+ const response = await apiClient.select('findings', {
+ select: '*',
+ eq: filter,
+ order: { column: 'created_at', ascending: false },
+ // Limit to findings created around the scan time (within 1 hour after scan started)
+ // This helps associate findings with the specific scan
+ limit: 500
  });
 
  if (response.error) {
  throw new Error(response.error.message || 'Error fetching findings');
  }
 
- return (response.data as Finding[]) || [];
+ // Filter findings by time - only those created after scan started
+ const scanStartTime = new Date(scan.started_at).getTime();
+ const scanEndTime = scan.completed_at 
+ ? new Date(scan.completed_at).getTime() + 60000 // 1 minute buffer after completion
+ : scanStartTime + 3600000; // 1 hour if not completed
+ 
+ const filteredFindings = (response.data as Finding[])?.filter(finding => {
+ const findingTime = new Date(finding.created_at).getTime();
+ return findingTime >= scanStartTime && findingTime <= scanEndTime;
+ }) || [];
+
+ return filteredFindings;
  },
  });
 

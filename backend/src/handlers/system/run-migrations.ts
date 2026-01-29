@@ -770,6 +770,19 @@ const MIGRATION_COMMANDS = [
    WHERE id = '101d2418-cbcf-43e4-bf74-390f71f2e2bd' 
      AND demo_mode = true`,
   
+  // ==================== AZURE SECURITY SCANS FIX (2026-01-29) ====================
+  // Make aws_account_id optional in security_scans table to allow Azure scans
+  // Azure scans use azure_credential_id instead of aws_account_id
+  `ALTER TABLE "security_scans" DROP CONSTRAINT IF EXISTS "security_scans_aws_account_id_fkey"`,
+  `ALTER TABLE "security_scans" ALTER COLUMN "aws_account_id" DROP NOT NULL`,
+  `DO $ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'security_scans_aws_account_id_fkey') THEN
+      ALTER TABLE "security_scans" ADD CONSTRAINT "security_scans_aws_account_id_fkey" 
+        FOREIGN KEY ("aws_account_id") REFERENCES "aws_credentials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $`,
+  `CREATE INDEX IF NOT EXISTS "security_scans_azure_credential_id_idx" ON "security_scans"("azure_credential_id")`,
+  
   // ==================== AI NOTIFICATION RULES TABLE (2026-01-28) ====================
   // Table for configurable proactive notification rules
   `CREATE TABLE IF NOT EXISTS "ai_notification_rules" (
@@ -816,6 +829,19 @@ const MIGRATION_COMMANDS = [
   `INSERT INTO "ai_notification_rules" ("rule_type", "name", "description", "is_enabled", "priority", "parameters", "title_template", "message_template", "suggested_action_template", "action_type") 
    SELECT 'aws_credentials_expiring', 'Rotação de Credenciais', 'Notifica quando credenciais AWS não foram rotacionadas há muito tempo', true, 'medium', '{"days_threshold": 80}'::jsonb, 'Rotação de Credenciais Recomendada', 'Você tem {credentials_count} credencial(is) AWS que não foram rotacionadas há mais de 80 dias. A AWS recomenda rotação a cada 90 dias para maior segurança.', 'Ver credenciais que precisam de atenção', 'navigate'
    WHERE NOT EXISTS (SELECT 1 FROM "ai_notification_rules" WHERE "rule_type" = 'aws_credentials_expiring')`,
+  
+  // Cost Optimization - Add missing fields (2026-01-29)
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "resource_name" VARCHAR(255)`,
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "current_cost" DOUBLE PRECISION`,
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "optimized_cost" DOUBLE PRECISION`,
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "savings_percentage" DOUBLE PRECISION`,
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "recommendation" TEXT`,
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "details" TEXT`,
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "priority" VARCHAR(20)`,
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "effort" VARCHAR(20)`,
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "category" VARCHAR(100)`,
+  `CREATE INDEX IF NOT EXISTS "cost_optimizations_optimization_type_idx" ON "cost_optimizations"("optimization_type")`,
+  `CREATE INDEX IF NOT EXISTS "cost_optimizations_priority_idx" ON "cost_optimizations"("priority")`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

@@ -108,11 +108,13 @@ export default function SecurityScans() {
  enabled: shouldEnableAccountQuery(),
  staleTime: 10 * 1000, // 10 seconds - faster updates for running scans
  refetchInterval: (query) => {
- // Auto-refresh every 5 seconds if there are running scans (not in demo mode)
+ // Auto-refresh every 5 seconds if there are running or pending scans (not in demo mode)
  if (isInDemoMode) return false;
  const data = query.state.data as { scans: SecurityScan[], total: number } | undefined;
- const hasRunningScans = data?.scans?.some((scan: SecurityScan) => scan.status === 'running');
- return hasRunningScans ? 5000 : false;
+ const hasActiveScans = data?.scans?.some((scan: SecurityScan) => 
+   scan.status === 'running' || scan.status === 'pending'
+ );
+ return hasActiveScans ? 5000 : false;
  },
  queryFn: async (): Promise<{ scans: SecurityScan[], total: number }> => {
  console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage, isInDemoMode });
@@ -288,16 +290,13 @@ export default function SecurityScans() {
  const providerName = selectedProvider === 'AZURE' ? 'Azure' : 'AWS';
  toast({
  title: t('securityScans.scanStarted', 'Security Scan Started'),
- description: t('securityScans.scanStartedDesc', 'The {{provider}} security scan was started successfully using Security Engine V3.', { provider: providerName }),
+ description: t('securityScans.scanStartedDesc', 'The {{provider}} security scan was started successfully. It will begin processing shortly.', { provider: providerName }),
  });
  
- // Invalidate and refetch immediately
+ // Invalidate and refetch immediately to show the pending scan
+ // The refetchInterval will auto-refresh every 5 seconds while scan is pending/running
  queryClient.invalidateQueries({ queryKey: ['security-scans'] });
- 
- // Force refetch after a short delay to ensure the scan is persisted
- setTimeout(() => {
  refetch();
- }, 2000);
  },
  onError: (error) => {
  console.error('❌ Start scan mutation error:', error);
@@ -448,6 +447,7 @@ export default function SecurityScans() {
 
  const getStatusIcon = (status: string) => {
  switch (status) {
+ case 'pending': return <Clock className="h-4 w-4 text-yellow-500 animate-pulse" />;
  case 'running': return <Clock className="h-4 w-4 text-blue-500 animate-spin" />;
  case 'completed': return <CheckCircle className="h-4 w-4 text-green-500" />;
  case 'failed': return <XCircle className="h-4 w-4 text-red-500" />;
@@ -458,6 +458,7 @@ export default function SecurityScans() {
 
  const getStatusBadge = (status: string) => {
  switch (status) {
+ case 'pending': return <Badge className="bg-yellow-500">{t('securityScans.statusPending', 'Pending')}</Badge>;
  case 'running': return <Badge className="bg-blue-500">{t('securityScans.statusRunning', 'Running')}</Badge>;
  case 'completed': return <Badge className="bg-green-500">{t('securityScans.statusCompleted', 'Completed')}</Badge>;
  case 'failed': return <Badge variant="destructive">{t('securityScans.statusFailed', 'Failed')}</Badge>;
@@ -640,24 +641,25 @@ export default function SecurityScans() {
  // Calculate summary metrics - ensure scans is always an array
  const scansArray = scans || [];
  
- // Detect stuck scans (running for more than 60 minutes)
+ // Detect stuck scans (running/pending for more than 60 minutes)
  const STUCK_SCAN_THRESHOLD_MS = 60 * 60 * 1000; // 60 minutes
  const now = Date.now();
  
- const runningScansData = scansArray.filter(scan => scan.status === 'running');
- const stuckScans = runningScansData.filter(scan => {
- const startedAt = new Date(scan.started_at).getTime();
- return (now - startedAt) > STUCK_SCAN_THRESHOLD_MS;
+ // Include both running and pending scans in active scan detection
+ const activeScansData = scansArray.filter(scan => scan.status === 'running' || scan.status === 'pending');
+ const stuckScans = activeScansData.filter(scan => {
+ const scanTime = scan.started_at ? new Date(scan.started_at).getTime() : new Date(scan.created_at).getTime();
+ return (now - scanTime) > STUCK_SCAN_THRESHOLD_MS;
  });
- const activeScans = runningScansData.filter(scan => {
- const startedAt = new Date(scan.started_at).getTime();
- return (now - startedAt) <= STUCK_SCAN_THRESHOLD_MS;
+ const activeScans = activeScansData.filter(scan => {
+ const scanTime = scan.started_at ? new Date(scan.started_at).getTime() : new Date(scan.created_at).getTime();
+ return (now - scanTime) <= STUCK_SCAN_THRESHOLD_MS;
  });
  
- const runningScans = runningScansData.length;
+ const runningScans = activeScansData.length;
  const hasStuckScan = stuckScans.length > 0;
  const hasActiveRunningScan = activeScans.length > 0;
- // Only block new scans if there's an ACTIVE running scan (not stuck)
+ // Only block new scans if there's an ACTIVE running/pending scan (not stuck)
  const hasRunningScan = hasActiveRunningScan;
  
  const completedScans = scansArray.filter(scan => scan.status === 'completed').length;

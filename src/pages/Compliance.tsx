@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { Layout } from "@/components/Layout";
@@ -161,6 +161,7 @@ export default function Compliance() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter, getAccountFilterField } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const { isInDemoMode } = useDemoAwareQuery();
   
@@ -200,7 +201,9 @@ export default function Compliance() {
       };
       
       if (selectedAccountId) {
-        filters['security_scans.aws_account_id'] = selectedAccountId;
+        // Use the correct field based on provider
+        const filterField = getAccountFilterField();
+        filters[`security_scans.${filterField}`] = selectedAccountId;
       }
       
       const result = await apiClient.select('compliance_checks', {

@@ -1,7 +1,8 @@
 /**
  * Azure Cost Optimization Handler
  * 
- * Fetches cost optimization recommendations from Azure Advisor.
+ * Fetches REAL cost optimization recommendations from Azure Advisor.
+ * NO SIMULATED DATA - Only real Azure Advisor recommendations.
  */
 
 // Ensure crypto is available globally for Azure SDK
@@ -23,6 +24,43 @@ const costOptSchema = z.object({
   categories: z.array(z.enum(['Cost', 'HighAvailability', 'Performance', 'Security', 'OperationalExcellence'])).optional(),
 });
 
+// Helper to extract resource name from Azure resource ID
+function extractResourceName(resourceId: string): string {
+  if (!resourceId) return 'Unknown';
+  const parts = resourceId.split('/');
+  return parts[parts.length - 1] || 'Unknown';
+}
+
+// Helper to extract resource type from Azure resource ID
+function extractResourceType(resourceId: string): string {
+  if (!resourceId) return 'Unknown';
+  // Format: /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
+  const match = resourceId.match(/providers\/([^/]+\/[^/]+)/);
+  return match ? match[1] : 'Unknown';
+}
+
+// Helper to map impact to priority
+function mapImpactToPriority(impact: string): number {
+  switch (impact?.toLowerCase()) {
+    case 'high': return 5;
+    case 'medium': return 4;
+    case 'low': return 3;
+    default: return 2;
+  }
+}
+
+// Helper to map impact to recommendation type
+function mapImpactToRecommendationType(impact: string, category: string): string {
+  if (category === 'Cost') {
+    switch (impact?.toLowerCase()) {
+      case 'high': return 'terminate';
+      case 'medium': return 'downsize';
+      default: return 'optimize';
+    }
+  }
+  return 'optimize';
+}
+
 export async function handler(
   event: AuthorizedEvent,
   _context: LambdaContext
@@ -36,7 +74,7 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
-    logger.info('Starting Azure cost optimization analysis', { organizationId });
+    logger.info('Starting Azure cost optimization analysis (REAL DATA ONLY)', { organizationId });
 
     let body: any;
     try {
@@ -67,20 +105,19 @@ export async function handler(
 
     // Import Azure SDK dynamically and create token credential
     let advisorClient: any = null;
+    let computeClient: any = null;
     let tokenCredential: any = null;
     
     try {
       // Handle both OAuth and Service Principal credentials
       if (credential.auth_type === 'oauth') {
-        // Use getAzureCredentialWithToken for OAuth
         const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
         const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
         
         if (!tokenResult.success) {
-          return error(tokenResult.error, 400);
+          return error(tokenResult.error || 'Failed to get Azure token', 400);
         }
         
-        // Create a token credential that returns the OAuth token
         tokenCredential = {
           getToken: async () => ({
             token: tokenResult.accessToken,
@@ -88,7 +125,6 @@ export async function handler(
           }),
         };
       } else {
-        // Service Principal credentials - validate required fields
         if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
           return error('Service Principal credentials incomplete. Missing tenant_id, client_id, or client_secret.', 400);
         }
@@ -100,126 +136,141 @@ export async function handler(
         );
       }
       
-      // Create advisor client
+      // Create Azure clients
       const advisor = await import('@azure/arm-advisor');
-      advisorClient = new advisor.AdvisorManagementClient(
-        tokenCredential,
-        credential.subscription_id
-      );
+      advisorClient = new advisor.AdvisorManagementClient(tokenCredential, credential.subscription_id);
+      
+      // Try to create compute client for additional VM details
+      try {
+        const compute = await import('@azure/arm-compute');
+        computeClient = new compute.ComputeManagementClient(tokenCredential, credential.subscription_id);
+      } catch {
+        logger.warn('Could not create compute client for VM details');
+      }
     } catch (err: any) {
-      logger.warn('Azure Advisor SDK not available, using simulated recommendations', { error: err.message });
+      logger.error('Failed to initialize Azure SDK', { error: err.message });
+      return error(`Failed to connect to Azure: ${err.message}`, 500);
     }
 
     const recommendations: any[] = [];
     let totalPotentialSavings = 0;
 
-    if (advisorClient) {
-      try {
-        for await (const rec of advisorClient.recommendations.list()) {
-          if (categories.includes(rec.category as any)) {
-            const savings = rec.extendedProperties?.savingsAmount 
-              ? parseFloat(rec.extendedProperties.savingsAmount) 
-              : 0;
-            
-            recommendations.push({
-              id: rec.name,
-              category: rec.category,
-              impact: rec.impact,
-              impactedField: rec.impactedField,
-              impactedValue: rec.impactedValue,
-              shortDescription: rec.shortDescription?.problem,
-              solution: rec.shortDescription?.solution,
-              resourceId: rec.resourceMetadata?.resourceId,
-              potentialSavings: savings,
-              lastUpdated: rec.lastUpdated,
-            });
-
-            totalPotentialSavings += savings;
-          }
+    // Fetch REAL recommendations from Azure Advisor
+    try {
+      logger.info('Fetching recommendations from Azure Advisor...');
+      
+      for await (const rec of advisorClient.recommendations.list()) {
+        // Filter by requested categories
+        if (!categories.includes(rec.category as any)) {
+          continue;
         }
-      } catch (err: any) {
-        logger.warn('Error fetching Advisor recommendations', { error: err.message });
+
+        // Extract savings amount from extended properties
+        const savingsAmount = rec.extendedProperties?.savingsAmount 
+          ? parseFloat(rec.extendedProperties.savingsAmount) 
+          : rec.extendedProperties?.annualSavingsAmount
+            ? parseFloat(rec.extendedProperties.annualSavingsAmount) / 12
+            : 0;
+
+        // Extract current and recommended SKU if available
+        const currentSku = rec.extendedProperties?.currentSku || 
+                          rec.extendedProperties?.vmSize ||
+                          rec.extendedProperties?.currentSize ||
+                          null;
+        const recommendedSku = rec.extendedProperties?.targetSku || 
+                              rec.extendedProperties?.recommendedSku ||
+                              rec.extendedProperties?.recommendedSize ||
+                              null;
+
+        // Build the recommendation object with REAL data
+        const recommendation = {
+          id: rec.name || crypto.randomUUID(),
+          category: rec.category,
+          impact: rec.impact,
+          
+          // Resource identification
+          resourceId: rec.resourceMetadata?.resourceId || rec.impactedValue,
+          resourceName: extractResourceName(rec.resourceMetadata?.resourceId || rec.impactedValue || ''),
+          resourceType: extractResourceType(rec.resourceMetadata?.resourceId || '') || rec.impactedField,
+          
+          // Problem and solution - THE EXPLANATION
+          shortDescription: rec.shortDescription?.problem || 'Cost optimization opportunity identified',
+          solution: rec.shortDescription?.solution || 'Review and apply the recommended changes',
+          
+          // Extended explanation from Azure Advisor
+          reason: rec.extendedProperties?.reason || 
+                  rec.extendedProperties?.description ||
+                  rec.shortDescription?.problem ||
+                  'Azure Advisor identified this resource for optimization based on usage patterns and best practices.',
+          
+          // Sizing information
+          currentSize: currentSku,
+          recommendedSize: recommendedSku,
+          
+          // Cost information
+          potentialSavings: savingsAmount,
+          currentMonthlyCost: rec.extendedProperties?.currentCost 
+            ? parseFloat(rec.extendedProperties.currentCost) 
+            : null,
+          
+          // Utilization data if available
+          utilizationPatterns: rec.extendedProperties?.avgCpuPercentage || rec.extendedProperties?.avgMemoryPercentage
+            ? {
+                avgCpuUsage: rec.extendedProperties.avgCpuPercentage 
+                  ? parseFloat(rec.extendedProperties.avgCpuPercentage) 
+                  : null,
+                avgMemoryUsage: rec.extendedProperties.avgMemoryPercentage 
+                  ? parseFloat(rec.extendedProperties.avgMemoryPercentage) 
+                  : null,
+                lookbackPeriod: rec.extendedProperties.lookbackPeriod || '7 days',
+              }
+            : null,
+          
+          // Risk and complexity assessment
+          implementationComplexity: rec.risk === 'None' ? 'low' : rec.risk === 'Low' ? 'low' : 'medium',
+          riskAssessment: rec.risk?.toLowerCase() || 'low',
+          
+          // Metadata
+          lastUpdated: rec.lastUpdated,
+          recommendationTypeId: rec.recommendationTypeId,
+          
+          // All extended properties for reference
+          extendedProperties: rec.extendedProperties,
+        };
+
+        recommendations.push(recommendation);
+        totalPotentialSavings += savingsAmount;
       }
+
+      logger.info('Azure Advisor recommendations fetched', { 
+        count: recommendations.length,
+        totalSavings: totalPotentialSavings 
+      });
+
+    } catch (err: any) {
+      logger.error('Error fetching Azure Advisor recommendations', { error: err.message, stack: err.stack });
+      return error(`Failed to fetch Azure Advisor recommendations: ${err.message}`, 500);
     }
 
-    // If no real recommendations, generate simulated ones
+    // If no recommendations found, return empty result (NO SIMULATED DATA)
     if (recommendations.length === 0) {
-      const simulatedRecs = [
-        {
-          id: 'sim-1',
-          category: 'Cost',
-          impact: 'High',
-          shortDescription: 'Right-size underutilized virtual machines',
-          solution: 'Resize VM to a smaller SKU based on CPU and memory utilization',
-          resourceType: 'VirtualMachine',
-          potentialSavings: Math.floor(Math.random() * 500) + 100,
+      logger.info('No Azure Advisor recommendations found for this subscription');
+      
+      return success({
+        recommendations: [],
+        summary: {
+          totalRecommendations: 0,
+          totalPotentialSavings: 0,
+          byImpact: { high: 0, medium: 0, low: 0 },
+          byCategory: categories.reduce((acc, cat) => ({ ...acc, [cat]: 0 }), {}),
+          message: 'No cost optimization recommendations found. Your Azure resources are already optimized, or Azure Advisor has not generated recommendations yet. Recommendations are typically generated within 24-48 hours of resource creation.',
         },
-        {
-          id: 'sim-2',
-          category: 'Cost',
-          impact: 'Medium',
-          shortDescription: 'Delete unattached managed disks',
-          solution: 'Remove managed disks that are not attached to any VM',
-          resourceType: 'Disk',
-          potentialSavings: Math.floor(Math.random() * 200) + 50,
-        },
-        {
-          id: 'sim-3',
-          category: 'Cost',
-          impact: 'High',
-          shortDescription: 'Purchase reserved instances for consistent workloads',
-          solution: 'Buy 1-year or 3-year reserved instances for predictable workloads',
-          resourceType: 'Reservation',
-          potentialSavings: Math.floor(Math.random() * 1000) + 500,
-        },
-        {
-          id: 'sim-4',
-          category: 'Cost',
-          impact: 'Low',
-          shortDescription: 'Use Azure Hybrid Benefit',
-          solution: 'Apply existing Windows Server licenses to reduce VM costs',
-          resourceType: 'VirtualMachine',
-          potentialSavings: Math.floor(Math.random() * 300) + 100,
-        },
-        {
-          id: 'sim-5',
-          category: 'Cost',
-          impact: 'Medium',
-          shortDescription: 'Optimize storage tier',
-          solution: 'Move infrequently accessed data to cool or archive storage',
-          resourceType: 'StorageAccount',
-          potentialSavings: Math.floor(Math.random() * 150) + 50,
-        },
-      ];
-
-      recommendations.push(...simulatedRecs);
-      totalPotentialSavings = simulatedRecs.reduce((sum, r) => sum + r.potentialSavings, 0);
-    }
-
-    // Store recommendations
-    for (const rec of recommendations) {
-      await (prisma as any).costOptimization.upsert({
-        where: {
-          id: rec.id.startsWith('sim-') ? rec.id : undefined,
-        },
-        update: {
-          potential_savings: rec.potentialSavings,
-          status: 'pending',
-        },
-        create: {
-          organization_id: organizationId,
-          aws_account_id: credentialId,
-          resource_type: rec.resourceType || 'Unknown',
-          resource_id: rec.resourceId || rec.id,
-          optimization_type: rec.category,
-          potential_savings: rec.potentialSavings,
-          status: 'pending',
-        },
-      }).catch(() => {
-        // Ignore upsert errors for simulated data
+        subscriptionId: credential.subscription_id,
+        subscriptionName: credential.subscription_name,
       });
     }
 
+    // Build summary
     const summary = {
       totalRecommendations: recommendations.length,
       totalPotentialSavings,
@@ -234,8 +285,9 @@ export async function handler(
       }, {} as Record<string, number>),
     };
 
-    logger.info('Azure cost optimization analysis completed', {
+    logger.info('Azure cost optimization analysis completed (REAL DATA)', {
       organizationId,
+      subscriptionId: credential.subscription_id,
       recommendationsCount: recommendations.length,
       totalPotentialSavings,
     });
@@ -247,7 +299,7 @@ export async function handler(
       subscriptionName: credential.subscription_name,
     });
   } catch (err: any) {
-    logger.error('Error running Azure cost optimization', { error: err.message });
+    logger.error('Error running Azure cost optimization', { error: err.message, stack: err.stack });
     return error(err.message || 'Failed to run Azure cost optimization', 500);
   }
 }

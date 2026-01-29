@@ -74,7 +74,8 @@ export async function handler(
     const scan = await prisma.securityScan.create({
       data: {
         organization_id: organizationId,
-        aws_account_id: credentialId, // Reusing for Azure credential ID
+        cloud_provider: 'AZURE',
+        azure_credential_id: credentialId,
         scan_type: `azure-security-${scanLevel}`,
         status: 'pending',
         scan_config: {
@@ -88,7 +89,7 @@ export async function handler(
     });
 
     // Create background job for async processing
-    await prisma.backgroundJob.create({
+    const job = await prisma.backgroundJob.create({
       data: {
         organization_id: organizationId,
         job_type: 'azure-security-scan',
@@ -106,6 +107,7 @@ export async function handler(
     logger.info('Azure security scan initiated', {
       organizationId,
       scanId: scan.id,
+      jobId: job.id,
       credentialId,
       subscriptionId: credential.subscription_id,
     });

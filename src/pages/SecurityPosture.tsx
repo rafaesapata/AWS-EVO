@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -10,8 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Layout } from "@/components/Layout";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiClient } from "@/integrations/aws/api-client";
-import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuthSafe } from "@/hooks/useAuthSafe";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
@@ -33,7 +35,13 @@ import {
   BarChart3,
   PieChart,
   Ticket,
-  CheckSquare
+  CheckSquare,
+  Search,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Cell, Pie, LineChart, Line } from "recharts";
 
@@ -69,7 +77,8 @@ interface SecurityMetrics {
 export default function SecurityPosture() {
   const { toast } = useToast();
   const { t } = useTranslation();
-  const { selectedAccountId } = useCloudAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const { user } = useAuthSafe();
   const queryClient = useQueryClient();
@@ -78,10 +87,18 @@ export default function SecurityPosture() {
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
   const [creatingBatchTickets, setCreatingBatchTickets] = useState(false);
+  
+  // Findings filters, search and pagination state
+  const [findingsSearch, setFindingsSearch] = useState('');
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [serviceFilter, setServiceFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Get security posture data - enabled in demo mode even without account
   const { data: securityData, isLoading, refetch } = useQuery({
-    queryKey: ['security-posture-page', organizationId, selectedAccountId],
+    queryKey: ['security-posture-page', organizationId, selectedAccountId, selectedProvider],
     enabled: shouldEnableAccountQuery(),
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
@@ -101,7 +118,7 @@ export default function SecurityPosture() {
           };
           calculatedAt: string;
         };
-      }>('get-security-posture', { accountId: selectedAccountId });
+      }>('get-security-posture', { accountId: selectedAccountId, provider: selectedProvider });
 
       if ('error' in postureResponse && postureResponse.error) {
         throw new Error(postureResponse.error.message);
@@ -140,10 +157,10 @@ export default function SecurityPosture() {
           overall_score: posture.overallScore,
           risk_level: posture.riskLevel,
           findings_by_severity: {
-            critical: posture.findings.critical,
-            high: posture.findings.high,
-            medium: posture.findings.medium,
-            low: posture.findings.low
+            critical: Number(posture.findings.critical) || 0,
+            high: Number(posture.findings.high) || 0,
+            medium: Number(posture.findings.medium) || 0,
+            low: Number(posture.findings.low) || 0
           },
           compliance_scores: complianceScores,
           findings: transformedFindings,
@@ -157,7 +174,7 @@ export default function SecurityPosture() {
         // Buscar findings da tabela Finding para exibir detalhes
         const findingsResponse = await apiClient.select('findings', {
           select: '*',
-          eq: { organization_id: organizationId, aws_account_id: selectedAccountId },
+          eq: { organization_id: organizationId, ...getAccountFilter() },
           order: { column: 'created_at', ascending: false },
           limit: 50
         });
@@ -188,7 +205,7 @@ export default function SecurityPosture() {
       // Buscar findings da tabela Finding para exibir detalhes
       const findingsResponse = await apiClient.select('findings', {
         select: '*',
-        eq: { organization_id: organizationId, aws_account_id: selectedAccountId },
+        eq: { organization_id: organizationId, ...getAccountFilter() },
         order: { column: 'created_at', ascending: false },
         limit: 50
       });
@@ -197,10 +214,10 @@ export default function SecurityPosture() {
         overall_score: posture.overallScore,
         risk_level: posture.riskLevel,
         findings_by_severity: {
-          critical: posture.findings.critical,
-          high: posture.findings.high,
-          medium: posture.findings.medium,
-          low: posture.findings.low
+          critical: Number(posture.findings.critical) || 0,
+          high: Number(posture.findings.high) || 0,
+          medium: Number(posture.findings.medium) || 0,
+          low: Number(posture.findings.low) || 0
         },
         compliance_scores: {},
         findings: findingsResponse.data || [],
@@ -215,7 +232,7 @@ export default function SecurityPosture() {
     setIsRefreshing(true);
     try {
       // Chamar o endpoint que recalcula a postura de segurança
-      const response = await apiClient.invoke('get-security-posture', { accountId: selectedAccountId });
+      const response = await apiClient.invoke('get-security-posture', { accountId: selectedAccountId, provider: selectedProvider });
       
       if ('error' in response && response.error) {
         throw new Error(response.error.message);
@@ -301,16 +318,18 @@ export default function SecurityPosture() {
     );
   };
 
-  // Select all findings on current page
+  // Select all findings on current page (filtered)
   const selectAllFindings = () => {
-    if (!securityData?.findings) return;
-    const allIds = securityData.findings.map((f: SecurityFinding) => f.id);
-    const allSelected = allIds.every((id: string) => selectedFindings.includes(id));
+    if (!paginatedFindings || paginatedFindings.length === 0) return;
+    const pageIds = paginatedFindings.map((f: SecurityFinding) => f.id);
+    const allSelected = pageIds.every((id: string) => selectedFindings.includes(id));
     
     if (allSelected) {
-      setSelectedFindings([]);
+      // Deselect all on current page
+      setSelectedFindings(prev => prev.filter(id => !pageIds.includes(id)));
     } else {
-      setSelectedFindings(allIds);
+      // Select all on current page
+      setSelectedFindings(prev => [...new Set([...prev, ...pageIds])]);
     }
   };
 
@@ -366,9 +385,11 @@ export default function SecurityPosture() {
         return [];
       };
 
+      const accountFilter = getAccountFilter();
+      
       const response = await apiClient.insert('remediation_tickets', {
         organization_id: organizationId,
-        aws_account_id: selectedAccountId || null,
+        ...accountFilter, // Multi-cloud compatible: sets aws_account_id OR azure_credential_id
         title: `[${(finding.severity || 'medium').toUpperCase()}] ${getTitle()}`,
         description: (finding.description || 'No description available') + (finding.remediation ? `\n\nRemediação: ${typeof finding.remediation === 'string' ? finding.remediation : JSON.stringify(finding.remediation)}` : ''),
         severity: finding.severity || 'medium',
@@ -467,7 +488,7 @@ export default function SecurityPosture() {
   // Prepare chart data
   const severityChartData = Object.entries(securityData?.findings_by_severity || {}).map(([severity, count]) => ({
     severity: severity.charAt(0).toUpperCase() + severity.slice(1),
-    count,
+    count: Number(count) || 0,
     color: getSeverityColor(severity)
   }));
 
@@ -476,6 +497,110 @@ export default function SecurityPosture() {
     score: Math.round(score),
     color: score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'
   }));
+
+  // Get unique services from findings for filter dropdown
+  const uniqueServices = useMemo(() => {
+    if (!securityData?.findings) return [];
+    const services = new Set<string>();
+    securityData.findings.forEach((f: SecurityFinding) => {
+      if (f.service) services.add(f.service);
+    });
+    return Array.from(services).sort();
+  }, [securityData?.findings]);
+
+  // Filter and search findings
+  const filteredFindings = useMemo(() => {
+    if (!securityData?.findings) return [];
+    
+    let filtered = [...securityData.findings];
+    
+    // Apply search filter
+    if (findingsSearch.trim()) {
+      const searchLower = findingsSearch.toLowerCase().trim();
+      filtered = filtered.filter((f: SecurityFinding) => 
+        (f.title?.toLowerCase().includes(searchLower)) ||
+        (f.description?.toLowerCase().includes(searchLower)) ||
+        (f.service?.toLowerCase().includes(searchLower)) ||
+        (f.resource_id?.toLowerCase().includes(searchLower)) ||
+        (f.resource_arn?.toLowerCase().includes(searchLower)) ||
+        (f.resource?.toLowerCase().includes(searchLower)) ||
+        (f.category?.toLowerCase().includes(searchLower))
+      );
+    }
+    
+    // Apply severity filter
+    if (severityFilter !== 'all') {
+      filtered = filtered.filter((f: SecurityFinding) => 
+        f.severity?.toLowerCase() === severityFilter.toLowerCase()
+      );
+    }
+    
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((f: SecurityFinding) => 
+        f.status?.toLowerCase() === statusFilter.toLowerCase()
+      );
+    }
+    
+    // Apply service filter
+    if (serviceFilter !== 'all') {
+      filtered = filtered.filter((f: SecurityFinding) => 
+        f.service === serviceFilter
+      );
+    }
+    
+    return filtered;
+  }, [securityData?.findings, findingsSearch, severityFilter, statusFilter, serviceFilter]);
+
+  // Paginated findings
+  const paginatedFindings = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredFindings.slice(startIndex, endIndex);
+  }, [filteredFindings, currentPage, itemsPerPage]);
+
+  // Pagination info
+  const totalPages = Math.ceil(filteredFindings.length / itemsPerPage);
+  const totalFilteredCount = filteredFindings.length;
+  const showingFrom = totalFilteredCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const showingTo = Math.min(currentPage * itemsPerPage, totalFilteredCount);
+
+  // Reset to page 1 when filters change
+  const handleSearchChange = (value: string) => {
+    setFindingsSearch(value);
+    setCurrentPage(1);
+  };
+
+  const handleSeverityFilterChange = (value: string) => {
+    setSeverityFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleServiceFilterChange = (value: string) => {
+    setServiceFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setFindingsSearch('');
+    setSeverityFilter('all');
+    setStatusFilter('all');
+    setServiceFilter('all');
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = findingsSearch || severityFilter !== 'all' || statusFilter !== 'all' || serviceFilter !== 'all';
 
   return (
     <Layout 
@@ -600,7 +725,7 @@ export default function SecurityPosture() {
               <div className="text-3xl font-semibold text-muted-foreground">--</div>
             ) : (
               <div className="text-3xl font-semibold">
-                {Object.values(securityData.findings_by_severity || {}).reduce((sum, count) => sum + count, 0)}
+                {Object.values(securityData.findings_by_severity || {}).reduce((sum, count) => sum + (Number(count) || 0), 0)}
               </div>
             )}
           </CardContent>
@@ -704,8 +829,8 @@ export default function SecurityPosture() {
             <CardHeader>
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <CardTitle>Findings de Segurança</CardTitle>
-                  <CardDescription>Lista detalhada dos achados de segurança</CardDescription>
+                  <CardTitle>{t('securityPosture.securityFindings', 'Findings de Segurança')}</CardTitle>
+                  <CardDescription>{t('securityPosture.findingsListDesc', 'Lista detalhada dos achados de segurança')}</CardDescription>
                 </div>
                 {securityData?.findings && securityData.findings.length > 0 && (
                   <div className="flex items-center gap-2">
@@ -716,9 +841,9 @@ export default function SecurityPosture() {
                       className="gap-2"
                     >
                       <CheckSquare className="h-4 w-4" />
-                      {selectedFindings.length === securityData.findings.length 
-                        ? 'Desmarcar Todos' 
-                        : 'Selecionar Todos'}
+                      {paginatedFindings.length > 0 && paginatedFindings.every((f: SecurityFinding) => selectedFindings.includes(f.id))
+                        ? t('common.deselectAll', 'Desmarcar Todos')
+                        : t('common.selectAll', 'Selecionar Todos')}
                     </Button>
                     {selectedFindings.length > 0 && (
                       <Button
@@ -729,24 +854,142 @@ export default function SecurityPosture() {
                       >
                         <Ticket className="h-4 w-4" />
                         {creatingBatchTickets 
-                          ? 'Criando...' 
-                          : `Criar ${selectedFindings.length} Ticket(s)`}
+                          ? t('common.creating', 'Criando...')
+                          : t('securityPosture.createTicketsCount', 'Criar {{count}} Ticket(s)', { count: selectedFindings.length })}
                       </Button>
                     )}
                   </div>
                 )}
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Search and Filters */}
+              {securityData?.findings && securityData.findings.length > 0 && (
+                <div className="space-y-4">
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder={t('securityPosture.searchFindings', 'Buscar por título, descrição, serviço ou recurso...')}
+                      value={findingsSearch}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  {/* Filters Row */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">{t('common.filters', 'Filtros')}:</span>
+                    </div>
+                    
+                    {/* Severity Filter */}
+                    <Select value={severityFilter} onValueChange={handleSeverityFilterChange}>
+                      <SelectTrigger className="w-[140px] h-9">
+                        <SelectValue placeholder={t('securityPosture.severity', 'Severidade')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t('common.all', 'Todas')}</SelectItem>
+                        <SelectItem value="critical">
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-red-600" />
+                            Critical
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="high">
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-orange-500" />
+                            High
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="medium">
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                            Medium
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="low">
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-green-500" />
+                            Low
+                          </span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* Status Filter */}
+                    <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                      <SelectTrigger className="w-[130px] h-9">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t('common.all', 'Todos')}</SelectItem>
+                        <SelectItem value="active">{t('status.active', 'Ativo')}</SelectItem>
+                        <SelectItem value="pending">{t('status.pending', 'Pendente')}</SelectItem>
+                        <SelectItem value="resolved">{t('status.resolved', 'Resolvido')}</SelectItem>
+                        <SelectItem value="suppressed">{t('status.suppressed', 'Suprimido')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* Service Filter */}
+                    {uniqueServices.length > 0 && (
+                      <Select value={serviceFilter} onValueChange={handleServiceFilterChange}>
+                        <SelectTrigger className="w-[150px] h-9">
+                          <SelectValue placeholder={t('common.service', 'Serviço')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t('common.all', 'Todos')}</SelectItem>
+                          {uniqueServices.map((service) => (
+                            <SelectItem key={service} value={service}>
+                              {service}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    
+                    {/* Clear Filters Button */}
+                    {hasActiveFilters && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearFilters}
+                        className="h-9 text-muted-foreground hover:text-foreground"
+                      >
+                        {t('common.clearFilters', 'Limpar filtros')}
+                      </Button>
+                    )}
+                    
+                    {/* Results count */}
+                    <div className="ml-auto text-sm text-muted-foreground">
+                      {hasActiveFilters ? (
+                        <span>
+                          {t('securityPosture.showingFiltered', '{{filtered}} de {{total}} findings', {
+                            filtered: totalFilteredCount,
+                            total: securityData.findings.length
+                          })}
+                        </span>
+                      ) : (
+                        <span>
+                          {t('securityPosture.totalFindingsCount', '{{count}} findings', { count: securityData.findings.length })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Findings List */}
               {isLoading ? (
                 <div className="space-y-4">
                   {[...Array(5)].map((_, i) => (
                     <Skeleton key={i} className="h-20 w-full" />
                   ))}
                 </div>
-              ) : securityData?.findings && securityData.findings.length > 0 ? (
+              ) : paginatedFindings && paginatedFindings.length > 0 ? (
                 <div className="space-y-4">
-                  {securityData.findings.map((finding) => {
+                  {paginatedFindings.map((finding: SecurityFinding) => {
                     const SeverityIcon = getSeverityIcon(finding.severity);
                     const isSelected = selectedFindings.includes(finding.id);
                     return (
@@ -768,14 +1011,18 @@ export default function SecurityPosture() {
                               style={{ color: getSeverityColor(finding.severity) }}
                             />
                             <div className="space-y-1">
-                              <h4 className="font-semibold text-sm">{finding.title}</h4>
-                              <p className="text-sm text-muted-foreground">{finding.description}</p>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span>{finding.service}</span>
-                                <span>•</span>
-                                <span>{finding.resource}</span>
-                                <span>•</span>
-                                <span>{finding.region}</span>
+                              <h4 className="font-semibold text-sm">{finding.title || finding.description?.substring(0, 80)}</h4>
+                              <p className="text-sm text-muted-foreground line-clamp-2">{finding.description}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                                {finding.service && <span>{finding.service}</span>}
+                                {finding.service && (finding.resource_id || finding.resource_arn || finding.resource) && <span>•</span>}
+                                {(finding.resource_id || finding.resource_arn || finding.resource) && (
+                                  <span className="truncate max-w-[200px]" title={finding.resource_arn || finding.resource_id || finding.resource}>
+                                    {finding.resource_id || finding.resource_arn || finding.resource}
+                                  </span>
+                                )}
+                                {(finding.resource_id || finding.resource_arn || finding.resource) && finding.region && <span>•</span>}
+                                {finding.region && <span>{finding.region}</span>}
                               </div>
                             </div>
                           </div>
@@ -826,7 +1073,7 @@ export default function SecurityPosture() {
                         
                         {finding.remediation && (
                           <div className="bg-muted/30 rounded p-3 space-y-2">
-                            <p className="text-sm font-medium mb-2">Remediação:</p>
+                            <p className="text-sm font-medium mb-2">{t('securityPosture.remediation', 'Remediação')}:</p>
                             {(() => {
                               try {
                                 const remediation = typeof finding.remediation === 'string' 
@@ -841,7 +1088,7 @@ export default function SecurityPosture() {
                                     
                                     {remediation.steps && remediation.steps.length > 0 && (
                                       <div>
-                                        <p className="text-sm font-medium mb-1">Passos:</p>
+                                        <p className="text-sm font-medium mb-1">{t('securityPosture.steps', 'Passos')}:</p>
                                         <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
                                           {remediation.steps.map((step: string, idx: number) => (
                                             <li key={idx}>{step}</li>
@@ -853,19 +1100,19 @@ export default function SecurityPosture() {
                                     <div className="flex gap-4 text-xs">
                                       {remediation.estimated_effort && (
                                         <Badge variant="outline" className="capitalize">
-                                          Esforço: {remediation.estimated_effort}
+                                          {t('securityPosture.effort', 'Esforço')}: {remediation.estimated_effort}
                                         </Badge>
                                       )}
                                       {remediation.automation_available && (
                                         <Badge variant="secondary">
-                                          Automação Disponível
+                                          {t('securityPosture.automationAvailable', 'Automação Disponível')}
                                         </Badge>
                                       )}
                                     </div>
                                     
                                     {remediation.cli_command && (
                                       <div className="mt-2">
-                                        <p className="text-xs font-medium mb-1">Comando CLI:</p>
+                                        <p className="text-xs font-medium mb-1">{t('securityPosture.cliCommand', 'Comando CLI')}:</p>
                                         <code className="block text-xs bg-muted p-2 rounded overflow-x-auto">
                                           {remediation.cli_command}
                                         </code>
@@ -884,13 +1131,95 @@ export default function SecurityPosture() {
                     );
                   })}
                 </div>
+              ) : securityData?.findings && securityData.findings.length > 0 && hasActiveFilters ? (
+                <div className="text-center py-8">
+                  <Search className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">{t('securityPosture.noMatchingFindings', 'Nenhum finding encontrado')}</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {t('securityPosture.tryDifferentFilters', 'Tente ajustar os filtros ou termos de busca.')}
+                  </p>
+                  <Button variant="outline" onClick={clearFilters}>
+                    {t('common.clearFilters', 'Limpar filtros')}
+                  </Button>
+                </div>
               ) : (
                 <div className="text-center py-8">
                   <CheckCircle className="h-12 w-12 mx-auto mb-4 text-success" />
-                  <h3 className="text-lg font-semibold mb-2">Nenhum finding encontrado</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t('securityPosture.noFindingsFound', 'Nenhum finding encontrado')}</h3>
                   <p className="text-muted-foreground">
-                    Sua infraestrutura está em conformidade com as verificações de segurança.
+                    {t('securityPosture.infrastructureCompliant', 'Sua infraestrutura está em conformidade com as verificações de segurança.')}
                   </p>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {paginatedFindings && paginatedFindings.length > 0 && totalPages > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>{t('common.showing', 'Mostrando')}</span>
+                    <Select value={String(itemsPerPage)} onValueChange={handleItemsPerPageChange}>
+                      <SelectTrigger className="w-[70px] h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span>
+                      {t('common.ofTotal', 'de {{total}}', { total: totalFilteredCount })}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground mr-2">
+                      {showingFrom}-{showingTo} {t('common.of', 'de')} {totalFilteredCount}
+                    </span>
+                    
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    <span className="px-3 text-sm">
+                      {t('common.page', 'Página')} {currentPage} {t('common.of', 'de')} {totalPages}
+                    </span>
+                    
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

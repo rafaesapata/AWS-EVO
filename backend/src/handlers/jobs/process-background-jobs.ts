@@ -212,6 +212,10 @@ async function processJob(prisma: any, lambdaClient: LambdaClient, job: any): Pr
     'cost_analysis': 'cost-optimization',
     'drift_detection': 'drift-detection',
     'guardduty_scan': 'guardduty-scan',
+    // Azure scans
+    'azure-security-scan': 'azure-security-scan',
+    'azure-compliance-scan': 'azure-compliance-scan',
+    'azure-well-architected-scan': 'azure-well-architected-scan',
   };
   
   // If it's a scan job, invoke the corresponding Lambda

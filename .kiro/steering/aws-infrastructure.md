@@ -434,6 +434,87 @@ aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"
 - S3: `com.amazonaws.us-east-1.s3`
 - DynamoDB: `com.amazonaws.us-east-1.dynamodb`
 
+---
+
+## 🚨 REGRA OBRIGATÓRIA: Lambdas e VPC
+
+### Lambdas que DEVEM estar na VPC
+
+**Todas as Lambdas que acessam o banco de dados (RDS PostgreSQL) DEVEM estar na VPC.**
+
+Isso inclui:
+- Todas as Lambdas que usam `getPrismaClient()` ou `prisma.*`
+- Todas as Lambdas Azure que acessam credenciais do banco
+- Todas as Lambdas de autenticação (MFA, WebAuthn)
+- Todas as Lambdas de segurança, custos, dashboard, etc.
+
+**Configuração VPC obrigatória:**
+```bash
+aws lambda update-function-configuration \
+  --function-name LAMBDA_NAME \
+  --vpc-config "SubnetIds=subnet-0dbb444e4ef54d211,subnet-05383447666913b7b,SecurityGroupIds=sg-04eb71f681cc651ae" \
+  --region us-east-1
+```
+
+### Lambdas que NÃO precisam de VPC
+
+Lambdas que **apenas** acessam APIs AWS (CloudWatch, etc.) e **não** acessam o banco de dados:
+
+| Lambda | Motivo |
+|--------|--------|
+| `generate-error-fix-prompt` | Só usa CloudWatch Logs |
+| `get-lambda-health` | Só usa CloudWatch Metrics |
+| `get-platform-metrics` | Só usa CloudWatch Metrics/Logs |
+| `get-recent-errors` | Só usa CloudWatch Logs |
+| `lambda-health-check` | Só usa CloudWatch Metrics |
+| `log-frontend-error` | Só faz logging |
+
+### Como verificar se uma Lambda precisa de VPC
+
+1. Verificar se o handler importa `getPrismaClient` ou usa `prisma.*`
+2. Se sim → DEVE estar na VPC
+3. Se não → Pode ficar fora da VPC
+
+### Erro comum: "Can't reach database server"
+
+**Sintoma:**
+```
+PrismaClientInitializationError: Can't reach database server at 
+`evo-uds-v3-production-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432`
+```
+
+**Causa:** Lambda não está na VPC ou está na VPC errada.
+
+**Diagnóstico:**
+```bash
+aws lambda get-function-configuration \
+  --function-name LAMBDA_NAME \
+  --region us-east-1 \
+  --query 'VpcConfig.VpcId'
+```
+
+**Solução:**
+```bash
+aws lambda update-function-configuration \
+  --function-name LAMBDA_NAME \
+  --vpc-config "SubnetIds=subnet-0dbb444e4ef54d211,subnet-05383447666913b7b,SecurityGroupIds=sg-04eb71f681cc651ae" \
+  --region us-east-1
+```
+
+### Histórico de Incidentes de VPC
+
+#### 2026-01-29 - azure-fetch-monitor-metrics e azure-detect-anomalies fora da VPC
+
+**Problema:** Erro "Can't reach database server" ao monitorar recursos Azure
+
+**Causa:** Lambdas `azure-fetch-monitor-metrics` e `azure-detect-anomalies` foram criadas sem configuração de VPC
+
+**Solução:** Adicionadas à VPC correta com subnets privadas e security group
+
+**Lição aprendida:** Ao criar novas Lambdas que usam banco de dados, SEMPRE configurar VPC
+
+---
+
 ## RDS PostgreSQL
 
 - **Engine**: PostgreSQL 15.10

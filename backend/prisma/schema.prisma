@@ -217,7 +217,7 @@ model Finding {
 model SecurityScan {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
-  aws_account_id    String   @db.Uuid
+  aws_account_id    String?  @db.Uuid  // Optional - null for Azure scans
   cloud_provider    CloudProvider @default(AWS)
   azure_credential  AzureCredential? @relation("AzureSecurityScans", fields: [azure_credential_id], references: [id])
   azure_credential_id String? @db.Uuid
@@ -235,13 +235,14 @@ model SecurityScan {
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  aws_credential    AwsCredential @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)
+  aws_credential    AwsCredential? @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)  // Optional for Azure
   compliance_checks ComplianceCheck[]
   well_architected_scores WellArchitectedScore[]
   
   @@index([organization_id])
   @@index([status])
   @@index([cloud_provider])
+  @@index([azure_credential_id])
   @@map("security_scans")
 }
 
@@ -1123,13 +1124,24 @@ model CostOptimization {
   aws_account_id    String
   resource_type     String
   resource_id       String
+  resource_name     String?
   optimization_type String
+  current_cost      Float?
+  optimized_cost    Float?
   potential_savings Float
+  savings_percentage Float?
+  recommendation    String?
+  details           String?
+  priority          String?  // high, medium, low
+  effort            String?  // low, medium, high
+  category          String?
   status            String   @default("pending")
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([optimization_type])
+  @@index([priority])
   @@map("cost_optimizations")
 }
 
@@ -1467,6 +1479,7 @@ model RemediationTicket {
   id                      String   @id @default(uuid()) @db.Uuid
   organization_id         String   @db.Uuid
   aws_account_id          String?  @db.Uuid
+  azure_credential_id     String?  @db.Uuid  // For Azure multi-cloud support
   title                   String
   description             String?
   severity                String   @default("medium") // low, medium, high, critical
@@ -1492,6 +1505,7 @@ model RemediationTicket {
   
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
   @@index([status])
   @@index([priority])
   @@index([severity])

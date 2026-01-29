@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -31,7 +32,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  X
+  X,
+  Info
 } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart, Pie, Cell, ComposedChart, Legend } from "recharts";
 
@@ -63,7 +65,7 @@ interface EdgeMetrics {
 export default function EdgeMonitoring() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { selectedAccountId } = useCloudAccount();
+  const { selectedAccountId, selectedProvider, selectedAccount } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
@@ -73,9 +75,15 @@ export default function EdgeMonitoring() {
   const [serviceTypeFilter, setServiceTypeFilter] = useState<string>('all');
   const queryClient = useQueryClient();
 
-  // Mutation to discover edge services
+  // Check if selected account is Azure (Edge Services is AWS-only)
+  const isAzureAccount = selectedProvider === 'AZURE';
+
+  // Mutation to discover edge services (AWS only)
   const discoverMutation = useMutation({
     mutationFn: async () => {
+      if (isAzureAccount) {
+        throw new Error('Edge Services não está disponível para contas Azure. Selecione uma conta AWS.');
+      }
       const response = await apiClient.post('/api/functions/fetch-edge-services', {
         accountId: selectedAccountId,
         regions: ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1']
@@ -102,10 +110,10 @@ export default function EdgeMonitoring() {
     }
   });
 
-  // Get edge services data
+  // Get edge services data (AWS only)
   const { data: edgeServicesData, isLoading, refetch } = useQuery({
     queryKey: ['edge-services', organizationId, selectedAccountId, currentPage, itemsPerPage, searchTerm, serviceTypeFilter],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: !!organizationId && !!selectedAccountId && !isAzureAccount,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       // Calculate offset for pagination
@@ -211,10 +219,10 @@ export default function EdgeMonitoring() {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  // Get edge metrics for charts
+  // Get edge metrics for charts (AWS only)
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ['edge-metrics', organizationId, selectedAccountId, selectedTimeRange],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: !!organizationId && !!selectedAccountId && !isAzureAccount,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       const hoursBack = selectedTimeRange === '24h' ? 24 : selectedTimeRange === '7d' ? 168 : 720;
@@ -345,19 +353,35 @@ export default function EdgeMonitoring() {
           <Button 
             variant="outline" 
             onClick={handleRefresh}
-            disabled={isLoading}
+            disabled={isLoading || isAzureAccount}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
           <Button 
             onClick={() => discoverMutation.mutate()}
-            disabled={discoverMutation.isPending || !selectedAccountId}
+            disabled={discoverMutation.isPending || !selectedAccountId || isAzureAccount}
           >
             <Search className={`h-4 w-4 mr-2 ${discoverMutation.isPending ? 'animate-spin' : ''}`} />
             {discoverMutation.isPending ? 'Descobrindo...' : 'Descobrir Serviços'}
           </Button>
         </div>
+
+        {/* Azure Account Warning */}
+        {isAzureAccount && (
+          <Alert className="border-blue-500/50 bg-blue-500/10">
+            <Info className="h-4 w-4 text-blue-500" />
+            <AlertTitle className="text-blue-500">Recurso exclusivo AWS</AlertTitle>
+            <AlertDescription>
+              Edge Monitoring (CloudFront, WAF, Load Balancers) é um recurso exclusivo da AWS. 
+              {selectedAccount?.accountName && (
+                <span> A conta selecionada <strong>"{selectedAccount.accountName}"</strong> é uma conta Azure.</span>
+              )}
+              <br />
+              Para monitorar serviços de borda, selecione uma conta AWS no seletor de contas acima.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

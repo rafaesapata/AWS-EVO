@@ -92,6 +92,91 @@ export async function handler(
       incremental = true // Nova opção: busca incremental por padrão
     } = parseResult.data as any;
     
+    // Check if accountId is an Azure credential
+    if (accountId) {
+      const azureCredential = await prisma.azureCredential.findFirst({
+        where: {
+          id: accountId,
+          organization_id: organizationId,
+          is_active: true,
+        },
+      });
+      
+      if (azureCredential) {
+        // This is an Azure account - return data from database only
+        // Azure costs are fetched via azure-fetch-costs Lambda
+        logger.info('Fetching Azure costs from database', {
+          organizationId,
+          credentialId: accountId,
+          subscriptionId: azureCredential.subscription_id,
+        });
+        
+        const requestedStart = requestedStartDate || getDateDaysAgo(365);
+        
+        // Fetch Azure costs from database
+        const azureCosts = await prisma.dailyCost.findMany({
+          where: {
+            organization_id: organizationId,
+            aws_account_id: accountId, // Azure uses this field to store credential ID
+            cloud_provider: 'AZURE',
+            date: {
+              gte: new Date(requestedStart),
+              lte: new Date(endDate),
+            },
+          },
+          orderBy: { date: 'desc' },
+        });
+        
+        // Transform to expected format
+        const costs = azureCosts.map(c => ({
+          accountId: c.aws_account_id,
+          accountName: azureCredential.subscription_name || azureCredential.subscription_id,
+          date: c.date.toISOString().split('T')[0],
+          service: c.service || 'Unknown',
+          cost: typeof c.cost === 'number' ? c.cost : parseFloat(String(c.cost)),
+          currency: c.currency || 'USD',
+          cloudProvider: 'AZURE',
+        }));
+        
+        const totalCost = costs.reduce((sum, c) => sum + c.cost, 0);
+        const uniqueDates = [...new Set(costs.map(c => c.date))].length;
+        const uniqueServices = [...new Set(costs.map(c => c.service))].length;
+        
+        logger.info('Azure costs fetched from database', {
+          organizationId,
+          credentialId: accountId,
+          recordCount: costs.length,
+          uniqueDates,
+          totalCost: parseFloat(totalCost.toFixed(2)),
+        });
+        
+        return success({
+          success: true,
+          cloudProvider: 'AZURE',
+          data: {
+            dailyCosts: costs,
+          },
+          costs: costs,
+          summary: {
+            totalCost: parseFloat(totalCost.toFixed(2)),
+            totalRecords: costs.length,
+            newRecords: 0,
+            skippedDays: 0,
+            dateRange: { start: requestedStart, end: endDate },
+            uniqueDates,
+            uniqueServices,
+            accounts: 1,
+            accountsProcessed: [{ 
+              id: accountId, 
+              name: azureCredential.subscription_name || azureCredential.subscription_id,
+              cloudProvider: 'AZURE',
+            }],
+            incremental: false,
+          },
+        });
+      }
+    }
+    
     // AWS Cost Explorer limita dados históricos a 14 meses
     const maxHistoricalDate = getDateDaysAgo(420); // ~14 meses
     
