@@ -2759,7 +2759,12 @@
     "roleAdmin": "Admin",
     "roleSuperAdmin": "Super Admin",
     "roleUser": "User",
-    "noUsers": "No users found in this organization"
+    "noUsers": "No users found in this organization",
+    "licenseSynced": "License synced",
+    "licenseSyncedDesc": "The license was synced successfully.",
+    "licenseSyncError": "Error syncing license",
+    "syncLicense": "Sync License",
+    "syncingLicense": "Syncing..."
   },
   "resourceMonitoring": {
     "title": "Resource Monitoring",

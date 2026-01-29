@@ -494,6 +494,38 @@ export default function Organizations() {
     }
   });
 
+  // Sync license for organization
+  const syncLicenseMutation = useMutation({
+    mutationFn: async (organizationId: string) => {
+      const response = await apiClient.invoke('admin-sync-license', {
+        body: {
+          organization_ids: [organizationId]
+        }
+      });
+
+      if (response.error) {
+        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
+      }
+
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: t('organizations.licenseSynced', 'Licença sincronizada'),
+        description: t('organizations.licenseSyncedDesc', 'A licença foi sincronizada com sucesso.'),
+      });
+      // Refetch licenses data
+      queryClient.invalidateQueries({ queryKey: ['organization-licenses', viewingLicensesOrg?.id] });
+    },
+    onError: (error) => {
+      toast({
+        title: t('organizations.licenseSyncError', 'Erro ao sincronizar licença'),
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Erro desconhecido'),
+        variant: "destructive"
+      });
+    }
+  });
+
   const handleCreateOrg = () => {
     if (!newOrg.name || !newOrg.domain || !newOrg.billing_email) {
       toast({
@@ -2025,6 +2057,24 @@ export default function Organizations() {
           </div>
           
           <DialogFooter className="mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => viewingLicensesOrg && syncLicenseMutation.mutate(viewingLicensesOrg.id)}
+              disabled={syncLicenseMutation.isPending || isLoadingLicenses}
+              className="glass hover-glow"
+            >
+              {syncLicenseMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {t('organizations.syncingLicense', 'Sincronizando...')}
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  {t('organizations.syncLicense', 'Sincronizar Licença')}
+                </>
+              )}
+            </Button>
             <Button variant="outline" onClick={() => setViewingLicensesOrg(null)}>
               {t('common.close', 'Fechar')}
             </Button>
