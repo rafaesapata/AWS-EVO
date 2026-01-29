@@ -123,8 +123,25 @@ export async function handler(
       }, 200, origin);
     }
 
+    // Check if user is a super admin (they have unlimited access across all organizations)
+    const userProfile = await prisma.profile.findFirst({
+      where: {
+        user_id: userId,
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    });
+    
+    const isSuperAdmin = userProfile?.role === 'super_admin' || userProfile?.role === 'SUPER_ADMIN';
+    
+    if (isSuperAdmin) {
+      logger.info(`User ${userId} is a super admin - unlimited access granted`);
+    }
+
     // Check if current user has a seat assigned (only for EVO licenses)
-    let userSeat = await prisma.licenseSeatAssignment.findFirst({
+    // Super admins don't need seats - they have unlimited access
+    let userSeat = isSuperAdmin ? null : await prisma.licenseSeatAssignment.findFirst({
       where: {
         user_id: userId,
         license: {
@@ -148,22 +165,23 @@ export async function handler(
       },
     });
 
-    logger.info(`User ${userId} seat check: has_seat=${!!userSeat}`);
+    logger.info(`User ${userId} seat check: has_seat=${!!userSeat}, is_super_admin=${isSuperAdmin}`);
 
     // AUTO-ASSIGNMENT: If user doesn't have a seat, try to assign one automatically
     // CRITICAL: Only auto-assign if user has a profile in this organization
-    if (!userSeat) {
+    // Super admins don't need seats - skip auto-assignment for them
+    if (!userSeat && !isSuperAdmin) {
       logger.info(`Attempting auto-assign for user ${userId}`);
       
       // First, verify user has a profile in this organization
-      const userProfile = await prisma.profile.findFirst({
+      const userOrgProfile = await prisma.profile.findFirst({
         where: {
           user_id: userId,
           organization_id: organizationId
         }
       });
 
-      if (!userProfile) {
+      if (!userOrgProfile) {
         logger.warn(`User ${userId} does not have a profile in organization ${organizationId}, skipping auto-assign`);
       } else {
         // Find an active EVO license with available seats
@@ -266,8 +284,9 @@ export async function handler(
     }
 
     // Determine overall validity
+    // Super admins always have valid access regardless of seat assignment
     const hasValid = await hasValidLicense(organizationId);
-    const userHasSeat = !!userSeat;
+    const userHasSeat = isSuperAdmin || !!userSeat;
 
     return success({
       valid: hasValid && userHasSeat,
@@ -278,10 +297,16 @@ export async function handler(
       
       user_access: {
         has_seat: userHasSeat,
+        is_super_admin: isSuperAdmin,
         seat_license: userSeat ? {
           license_key: userSeat.license.license_key,
           product_type: userSeat.license.product_type,
           features: userSeat.license.features,
+        } : isSuperAdmin ? { 
+          // Super admins get full access without a specific license
+          license_key: 'SUPER_ADMIN_ACCESS',
+          product_type: 'evo_unlimited',
+          features: ['*'], // All features
         } : null,
       },
 
