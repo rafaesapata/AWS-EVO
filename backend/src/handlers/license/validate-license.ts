@@ -88,7 +88,53 @@ export async function handler(
     
     logger.info(`License summary for org ${organizationId}: hasLicense=${summary.hasLicense}, customerId=${summary.customerId}, licenses=${summary.licenses?.length || 0}`);
 
+    // Check if user is a super admin FIRST (they have unlimited access across all organizations)
+    const userProfile = await prisma.profile.findFirst({
+      where: {
+        user_id: userId,
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    });
+    
+    const isSuperAdmin = userProfile?.role === 'super_admin' || userProfile?.role === 'SUPER_ADMIN';
+    
+    if (isSuperAdmin) {
+      logger.info(`User ${userId} is a super admin - unlimited access granted`);
+    }
+
     if (!summary.hasLicense) {
+      // Super admins can access organizations without licenses (for impersonation/management)
+      if (isSuperAdmin) {
+        logger.info(`Super admin ${userId} accessing org ${organizationId} without license - granting access`);
+        return success({
+          valid: true,
+          configured: false,
+          reason: 'Super admin access',
+          user_access: {
+            has_seat: true,
+            is_super_admin: true,
+            seat_license: {
+              license_key: 'SUPER_ADMIN_ACCESS',
+              product_type: 'evo_unlimited',
+              features: ['*'],
+            },
+          },
+          license: null,
+          seats: null,
+          usage: {
+            accounts: { current: 0, limit: 100 },
+            users: { current: 0, limit: 0 },
+          },
+          total_licenses: 0,
+          licenses: [],
+          all_licenses: [],
+          alerts: [],
+          status: 'active',
+        }, 200, origin);
+      }
+      
       // Check if there's a config but no licenses synced yet
       const config = await prisma.organizationLicenseConfig.findUnique({
         where: { organization_id: organizationId },
@@ -121,22 +167,6 @@ export async function handler(
         licenses: [],
         total_licenses: 0,
       }, 200, origin);
-    }
-
-    // Check if user is a super admin (they have unlimited access across all organizations)
-    const userProfile = await prisma.profile.findFirst({
-      where: {
-        user_id: userId,
-      },
-      orderBy: {
-        created_at: 'desc'
-      }
-    });
-    
-    const isSuperAdmin = userProfile?.role === 'super_admin' || userProfile?.role === 'SUPER_ADMIN';
-    
-    if (isSuperAdmin) {
-      logger.info(`User ${userId} is a super admin - unlimited access granted`);
     }
 
     // Check if current user has a seat assigned (only for EVO licenses)

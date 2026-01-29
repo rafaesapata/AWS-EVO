@@ -89,6 +89,17 @@ export const useLicenseValidation = () => {
 
       // Check if license is configured
       if (data.configured === false) {
+        // Super admins can access even unconfigured organizations (for impersonation)
+        const isSuperAdmin = data.user_access?.is_super_admin === true;
+        if (isSuperAdmin) {
+          return {
+            isValid: true,
+            hasCustomerId: false,
+            isAdmin: true,
+            canAccessLicensePage: true
+          };
+        }
+        
         return {
           isValid: false,
           reason: 'no_license' as const,
