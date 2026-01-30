@@ -466,6 +466,7 @@ interface OptimizationRecommendation {
   risk_level: 'low' | 'medium' | 'high';
   created_at: string;
   status: 'pending' | 'implemented' | 'dismissed';
+  remediation_ticket_id?: string;  // Link to remediation ticket
 }
 
 interface CostMetrics {
@@ -601,7 +602,8 @@ export default function CostOptimization() {
             copilot_prompt: implementation.copilotPrompt,
             risk_level: record.priority as 'low' | 'medium' | 'high',
             created_at: record.created_at,
-            status: record.status
+            status: record.status,
+            remediation_ticket_id: record.remediation_ticket_id
           };
         });
 
@@ -889,6 +891,16 @@ export default function CostOptimization() {
   const createTicketForRecommendation = async (rec: OptimizationRecommendation) => {
     if (creatingTicketId === rec.id) return;
     
+    // Check if recommendation already has a ticket
+    if (rec.remediation_ticket_id) {
+      toast({ 
+        title: t('costOptimization.ticketAlreadyExists', 'Ticket already exists'),
+        description: t('costOptimization.ticketAlreadyExistsDesc', 'This recommendation already has a linked remediation ticket'),
+        variant: "destructive" 
+      });
+      return;
+    }
+    
     setCreatingTicketId(rec.id);
     
     try {
@@ -923,12 +935,21 @@ export default function CostOptimization() {
         throw new Error(response.error.message || 'Failed to create ticket');
       }
 
+      // Get the created ticket ID and update the recommendation to create the link
+      const ticketId = response.data?.id;
+      if (ticketId) {
+        // Update the recommendation with the ticket ID to create bidirectional link
+        await apiClient.update('cost_optimizations', { remediation_ticket_id: ticketId }, { id: rec.id });
+      }
+
       toast({ 
         title: t('costOptimization.ticketCreated', 'Ticket created'),
         description: t('costOptimization.ticketCreatedDesc', 'Remediation ticket created successfully')
       });
       
+      // Invalidate both queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['remediation-tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['cost-optimization'] });
     } catch (err) {
       console.error('Error creating ticket:', err);
       toast({ 
@@ -955,10 +976,14 @@ export default function CostOptimization() {
     
     try {
       const recsToCreate = recommendations?.filter((rec) => 
-        selectedRecommendations.includes(rec.id)
+        selectedRecommendations.includes(rec.id) && !rec.remediation_ticket_id  // Skip recommendations that already have tickets
       ) || [];
 
       if (recsToCreate.length === 0) {
+        toast({ 
+          title: t('costOptimization.allHaveTickets', 'All selected recommendations already have tickets'),
+          variant: "destructive" 
+        });
         setCreatingBatchTickets(false);
         return;
       }

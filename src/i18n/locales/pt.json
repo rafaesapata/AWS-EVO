@@ -2253,7 +2253,10 @@
     "additionalSteps": "passos adicionais",
     "createTicket": "Criar ticket de remediação",
     "recommendation": "Recomendação",
-    "implementedSavings": "Economia Implementada"
+    "implementedSavings": "Economia Implementada",
+    "ticketAlreadyExists": "Ticket já existe",
+    "ticketAlreadyExistsDesc": "Esta recomendação já possui um ticket de remediação vinculado",
+    "allHaveTickets": "Todas as recomendações selecionadas já possuem tickets"
   },
   "costAnalysis": {
     "title": "Análise Detalhada de Custos",

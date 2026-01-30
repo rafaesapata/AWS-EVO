@@ -1993,7 +1993,10 @@
     "additionalSteps": "additional steps",
     "createTicket": "Create remediation ticket",
     "recommendation": "Recommendation",
-    "implementedSavings": "Implemented Savings"
+    "implementedSavings": "Implemented Savings",
+    "ticketAlreadyExists": "Ticket already exists",
+    "ticketAlreadyExistsDesc": "This recommendation already has a linked remediation ticket",
+    "allHaveTickets": "All selected recommendations already have tickets"
   },
   "costAnalysis": {
     "title": "Detailed Cost Analysis",

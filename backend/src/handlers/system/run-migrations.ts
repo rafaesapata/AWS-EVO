@@ -860,6 +860,10 @@ const MIGRATION_COMMANDS = [
   `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "category" VARCHAR(100)`,
   `CREATE INDEX IF NOT EXISTS "cost_optimizations_optimization_type_idx" ON "cost_optimizations"("optimization_type")`,
   `CREATE INDEX IF NOT EXISTS "cost_optimizations_priority_idx" ON "cost_optimizations"("priority")`,
+  
+  // Cost Optimization - Add remediation_ticket_id for ticket linking (2026-01-30)
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "remediation_ticket_id" UUID`,
+  `CREATE INDEX IF NOT EXISTS "cost_optimizations_remediation_ticket_id_idx" ON "cost_optimizations"("remediation_ticket_id")`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {
