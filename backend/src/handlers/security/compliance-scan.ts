@@ -13,6 +13,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { complianceScanSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { isOrganizationInDemoMode, generateDemoComplianceData } from '../../lib/demo-data-service.js';
 
 // AWS SDK imports
@@ -1348,18 +1349,12 @@ export async function handler(
     }
     
     // Validate input
-    const parseResult = complianceScanSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
-    
-    if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+    const validation = parseAndValidateBody(complianceScanSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
     
-    const { frameworkId, scanId, accountId, jobId } = parseResult.data;
+    const { frameworkId, scanId, accountId, jobId } = validation.data;
     
     logger.info('Starting compliance scan', { frameworkId, accountId, jobId });
     

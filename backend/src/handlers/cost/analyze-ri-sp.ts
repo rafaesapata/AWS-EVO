@@ -13,6 +13,7 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { analyzeRiSpSchema, type AnalyzeRiSpInput } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { 
   EC2Client, 
   DescribeReservedInstancesCommand,
@@ -41,15 +42,11 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const parseResult = analyzeRiSpSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
+    // Validar input com Zod usando parseAndValidateBody
+    const parseResult = parseAndValidateBody(analyzeRiSpSchema, event.body);
     
     if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, origin);
+      return parseResult.error;
     }
     
     const { 

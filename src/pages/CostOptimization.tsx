@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -10,10 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useAuthSafe } from "@/hooks/useAuthSafe";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
   Zap, 
@@ -35,7 +38,15 @@ import {
   Copy,
   Terminal,
   MessageSquare,
-  ExternalLink
+  ExternalLink,
+  Search,
+  Filter,
+  Ticket,
+  CheckSquare,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
@@ -472,10 +483,20 @@ export default function CostOptimization() {
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
+  const { user } = useAuthSafe();
   const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [selectedRecommendation, setSelectedRecommendation] = useState<OptimizationRecommendation | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedConfidence, setSelectedConfidence] = useState<string>('all');
+  const [selectedEffort, setSelectedEffort] = useState<string>('all');
+  
+  // Search, selection and pagination state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRecommendations, setSelectedRecommendations] = useState<string[]>([]);
+  const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
+  const [creatingBatchTickets, setCreatingBatchTickets] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Get optimization recommendations - enabled in demo mode
   const { data: recommendations, isLoading, refetch } = useQuery({
@@ -756,6 +777,212 @@ export default function CostOptimization() {
     }
   });
 
+  // Filter and search recommendations
+  const filteredRecommendations = useMemo(() => {
+    if (!recommendations) return [];
+    
+    let filtered = [...recommendations];
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const searchLower = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter((rec) => 
+        rec.resource_name?.toLowerCase().includes(searchLower) ||
+        rec.resource_id?.toLowerCase().includes(searchLower) ||
+        rec.resource_type?.toLowerCase().includes(searchLower) ||
+        rec.description?.toLowerCase().includes(searchLower) ||
+        rec.recommendation?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Apply type filter
+    if (selectedType !== 'all') {
+      filtered = filtered.filter((rec) => rec.type === selectedType);
+    }
+    
+    // Apply confidence filter
+    if (selectedConfidence !== 'all') {
+      filtered = filtered.filter((rec) => rec.confidence === selectedConfidence);
+    }
+    
+    // Apply effort filter
+    if (selectedEffort !== 'all') {
+      filtered = filtered.filter((rec) => rec.effort === selectedEffort);
+    }
+    
+    return filtered;
+  }, [recommendations, searchQuery, selectedType, selectedConfidence, selectedEffort]);
+
+  // Paginated recommendations
+  const paginatedRecommendations = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredRecommendations.slice(startIndex, endIndex);
+  }, [filteredRecommendations, currentPage, itemsPerPage]);
+
+  // Pagination info
+  const totalPages = Math.ceil(filteredRecommendations.length / itemsPerPage);
+  const totalFilteredCount = filteredRecommendations.length;
+  const showingFrom = totalFilteredCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const showingTo = Math.min(currentPage * itemsPerPage, totalFilteredCount);
+
+  // Reset to page 1 when filters change
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
+
+  const handleTypeChange = (value: string) => {
+    setSelectedType(value);
+    setCurrentPage(1);
+  };
+
+  const handleConfidenceChange = (value: string) => {
+    setSelectedConfidence(value);
+    setCurrentPage(1);
+  };
+
+  const handleEffortChange = (value: string) => {
+    setSelectedEffort(value);
+    setCurrentPage(1);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedType('all');
+    setSelectedConfidence('all');
+    setSelectedEffort('all');
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = searchQuery || selectedType !== 'all' || selectedConfidence !== 'all' || selectedEffort !== 'all';
+
+  // Toggle recommendation selection
+  const toggleRecommendationSelection = (recId: string) => {
+    setSelectedRecommendations(prev => 
+      prev.includes(recId) 
+        ? prev.filter(id => id !== recId)
+        : [...prev, recId]
+    );
+  };
+
+  // Select all recommendations on current page
+  const selectAllRecommendations = () => {
+    if (!paginatedRecommendations || paginatedRecommendations.length === 0) return;
+    const pageIds = paginatedRecommendations.map((rec) => rec.id);
+    const allSelected = pageIds.every((id) => selectedRecommendations.includes(id));
+    
+    if (allSelected) {
+      setSelectedRecommendations(prev => prev.filter(id => !pageIds.includes(id)));
+    } else {
+      setSelectedRecommendations(prev => [...new Set([...prev, ...pageIds])]);
+    }
+  };
+
+  // Create ticket for a single recommendation
+  const createTicketForRecommendation = async (rec: OptimizationRecommendation) => {
+    if (creatingTicketId === rec.id) return;
+    
+    setCreatingTicketId(rec.id);
+    
+    try {
+      const accountFilter = getAccountFilter();
+      
+      const response = await apiClient.insert('remediation_tickets', {
+        organization_id: organizationId,
+        ...accountFilter,
+        title: `[${t('costOptimization.title', 'Cost Optimization')}] ${rec.resource_name}`,
+        description: `${rec.description}\n\n${t('costOptimization.recommendation', 'Recommendation')}: ${rec.recommendation}\n\n${t('costOptimization.potentialSavings', 'Potential Savings')}: $${rec.potential_savings.toFixed(2)}/mês (${rec.savings_percentage.toFixed(1)}%)`,
+        severity: rec.confidence === 'high' ? 'high' : rec.confidence === 'medium' ? 'medium' : 'low',
+        priority: rec.impact === 'high' ? 'high' : rec.impact === 'medium' ? 'medium' : 'low',
+        status: 'open',
+        category: 'cost_optimization',
+        created_by: user?.email || 'system',
+        finding_ids: [],
+        affected_resources: [rec.resource_id],
+        metadata: {
+          optimization_type: rec.type,
+          resource_type: rec.resource_type,
+          current_cost: rec.current_cost,
+          optimized_cost: rec.optimized_cost,
+          potential_savings: rec.potential_savings,
+          savings_percentage: rec.savings_percentage,
+          confidence: rec.confidence,
+          effort: rec.effort,
+          impact: rec.impact
+        }
+      });
+
+      if ('error' in response && response.error) {
+        throw new Error(response.error.message || 'Failed to create ticket');
+      }
+
+      toast({ 
+        title: t('costOptimization.ticketCreated', 'Ticket created'),
+        description: t('costOptimization.ticketCreatedDesc', 'Remediation ticket created successfully')
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['remediation-tickets'] });
+    } catch (err) {
+      console.error('Error creating ticket:', err);
+      toast({ 
+        title: t('costOptimization.ticketError', 'Error creating ticket'), 
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: "destructive" 
+      });
+    } finally {
+      setCreatingTicketId(null);
+    }
+  };
+
+  // Create tickets for selected recommendations
+  const createTicketsForSelected = async () => {
+    if (selectedRecommendations.length === 0) {
+      toast({ 
+        title: t('costOptimization.selectRecommendations', 'Select at least one recommendation'), 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setCreatingBatchTickets(true);
+    
+    try {
+      const recsToCreate = recommendations?.filter((rec) => 
+        selectedRecommendations.includes(rec.id)
+      ) || [];
+
+      if (recsToCreate.length === 0) {
+        setCreatingBatchTickets(false);
+        return;
+      }
+
+      let createdCount = 0;
+      for (const rec of recsToCreate) {
+        await createTicketForRecommendation(rec);
+        createdCount++;
+      }
+
+      toast({ 
+        title: t('costOptimization.ticketsCreatedCount', '{{count}} ticket(s) created successfully', { count: createdCount })
+      });
+      setSelectedRecommendations([]);
+    } catch (error) {
+      toast({ 
+        title: t('costOptimization.ticketsError', 'Error creating tickets'), 
+        variant: "destructive" 
+      });
+    } finally {
+      setCreatingBatchTickets(false);
+    }
+  };
+
   const handleRefresh = async () => {
     try {
       // Execute the cost optimization analysis
@@ -1006,36 +1233,90 @@ export default function CostOptimization() {
       {/* Filters */}
       <Card className="glass border-primary/20">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Tipo de Otimização</label>
-              <Select value={selectedType} onValueChange={setSelectedType}>
-                <SelectTrigger className="glass">
-                  <SelectValue />
+          <div className="space-y-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={t('costOptimization.searchPlaceholder', 'Search by resource name, ID, type or description...')}
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-10 glass"
+              />
+            </div>
+            
+            {/* Filters Row */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">{t('common.filters', 'Filters')}:</span>
+              </div>
+              
+              <Select value={selectedType} onValueChange={handleTypeChange}>
+                <SelectTrigger className="w-[180px] h-9 glass">
+                  <SelectValue placeholder={t('costOptimization.optimizationType', 'Optimization Type')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os Tipos</SelectItem>
+                  <SelectItem value="all">{t('common.all', 'All Types')}</SelectItem>
                   <SelectItem value="rightsizing">Right-sizing</SelectItem>
                   <SelectItem value="reserved_instances">Reserved Instances</SelectItem>
-                  <SelectItem value="storage_optimization">Otimização de Storage</SelectItem>
-                  <SelectItem value="unused_resources">Recursos Não Utilizados</SelectItem>
-                  <SelectItem value="scheduling">Agendamento</SelectItem>
+                  <SelectItem value="storage_optimization">{t('costOptimization.storageOptimization', 'Storage Optimization')}</SelectItem>
+                  <SelectItem value="unused_resources">{t('costOptimization.unusedResources', 'Unused Resources')}</SelectItem>
+                  <SelectItem value="scheduling">{t('costOptimization.scheduling', 'Scheduling')}</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Nível de Confiança</label>
-              <Select value={selectedConfidence} onValueChange={setSelectedConfidence}>
-                <SelectTrigger className="glass">
-                  <SelectValue />
+              
+              <Select value={selectedConfidence} onValueChange={handleConfidenceChange}>
+                <SelectTrigger className="w-[150px] h-9 glass">
+                  <SelectValue placeholder={t('costOptimization.confidence', 'Confidence')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os Níveis</SelectItem>
-                  <SelectItem value="high">Alta Confiança</SelectItem>
-                  <SelectItem value="medium">Média Confiança</SelectItem>
-                  <SelectItem value="low">Baixa Confiança</SelectItem>
+                  <SelectItem value="all">{t('common.all', 'All')}</SelectItem>
+                  <SelectItem value="high">{t('costOptimization.confidenceHigh', 'High')}</SelectItem>
+                  <SelectItem value="medium">{t('costOptimization.confidenceMedium', 'Medium')}</SelectItem>
+                  <SelectItem value="low">{t('costOptimization.confidenceLow', 'Low')}</SelectItem>
                 </SelectContent>
               </Select>
+              
+              <Select value={selectedEffort} onValueChange={handleEffortChange}>
+                <SelectTrigger className="w-[140px] h-9 glass">
+                  <SelectValue placeholder={t('costOptimization.effort', 'Effort')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('common.all', 'All')}</SelectItem>
+                  <SelectItem value="low">{t('costOptimization.effortLow', 'Low')}</SelectItem>
+                  <SelectItem value="medium">{t('costOptimization.effortMedium', 'Medium')}</SelectItem>
+                  <SelectItem value="high">{t('costOptimization.effortHigh', 'High')}</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* Clear Filters Button */}
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="h-9 text-muted-foreground hover:text-foreground"
+                >
+                  {t('common.clearFilters', 'Clear filters')}
+                </Button>
+              )}
+              
+              {/* Results count */}
+              <div className="ml-auto text-sm text-muted-foreground">
+                {hasActiveFilters ? (
+                  <span>
+                    {t('costOptimization.showingFiltered', '{{filtered}} of {{total}} recommendations', {
+                      filtered: totalFilteredCount,
+                      total: recommendations?.length || 0
+                    })}
+                  </span>
+                ) : (
+                  <span>
+                    {t('costOptimization.totalRecommendations', '{{count}} recommendations', { count: recommendations?.length || 0 })}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -1044,32 +1325,72 @@ export default function CostOptimization() {
       {/* Main Content */}
       <Tabs defaultValue="recommendations" className="w-full">
         <TabsList className="glass">
-          <TabsTrigger value="recommendations">Recomendações</TabsTrigger>
+          <TabsTrigger value="recommendations">{t('costOptimization.recommendations', 'Recommendations')}</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="implemented">Implementadas</TabsTrigger>
+          <TabsTrigger value="implemented">{t('costOptimization.implemented', 'Implemented')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="recommendations" className="space-y-4">
           <Card className="glass border-primary/20">
             <CardHeader>
-              <CardTitle>Recomendações de Otimização</CardTitle>
-              <CardDescription>Oportunidades identificadas para redução de custos</CardDescription>
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <CardTitle>{t('costOptimization.optimizationRecommendations', 'Optimization Recommendations')}</CardTitle>
+                  <CardDescription>{t('costOptimization.opportunitiesIdentified', 'Opportunities identified for cost reduction')}</CardDescription>
+                </div>
+                {paginatedRecommendations && paginatedRecommendations.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllRecommendations}
+                      className="gap-2 glass hover-glow"
+                    >
+                      <CheckSquare className="h-4 w-4" />
+                      {paginatedRecommendations.every((rec) => selectedRecommendations.includes(rec.id))
+                        ? t('common.deselectAll', 'Deselect All')
+                        : t('common.selectAll', 'Select All')}
+                    </Button>
+                    {selectedRecommendations.length > 0 && (
+                      <Button
+                        onClick={createTicketsForSelected}
+                        disabled={creatingBatchTickets}
+                        size="sm"
+                        className="gap-2 glass hover-glow"
+                      >
+                        <Ticket className="h-4 w-4" />
+                        {creatingBatchTickets 
+                          ? t('common.creating', 'Creating...')
+                          : t('costOptimization.createTicketsCount', 'Create {{count}} Ticket(s)', { count: selectedRecommendations.length })}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               {isLoading ? (
                 <div className="space-y-4">
                   {[...Array(5)].map((_, i) => (
                     <Skeleton key={i} className="h-32 w-full" />
                   ))}
                 </div>
-              ) : recommendations && recommendations.length > 0 ? (
+              ) : paginatedRecommendations && paginatedRecommendations.length > 0 ? (
                 <div className="space-y-4">
-                  {recommendations.map((rec) => {
+                  {paginatedRecommendations.map((rec) => {
                     const TypeIcon = getTypeIcon(rec.type);
+                    const isSelected = selectedRecommendations.includes(rec.id);
                     return (
-                      <div key={rec.id} className="border rounded-lg p-6 space-y-4">
+                      <div key={rec.id} className={`border rounded-lg p-6 space-y-4 transition-colors ${
+                        isSelected ? 'border-primary bg-primary/5' : ''
+                      }`}>
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-4">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleRecommendationSelection(rec.id)}
+                              className="mt-1"
+                            />
                             <TypeIcon className={`h-6 w-6 mt-1 ${getTypeColor(rec.type)}`} />
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
@@ -1077,22 +1398,34 @@ export default function CostOptimization() {
                                 <Badge variant="outline">{rec.resource_type}</Badge>
                               </div>
                               <p className="text-muted-foreground">{rec.description}</p>
-                              <div className="flex items-center gap-4 text-sm">
-                                <span>Confiança: {getConfidenceBadge(rec.confidence)}</span>
-                                <span>Esforço: {getEffortBadge(rec.effort)}</span>
-                                <span>Impacto: {getImpactBadge(rec.impact)}</span>
+                              <div className="flex items-center gap-4 text-sm flex-wrap">
+                                <span>{t('costOptimization.confidence', 'Confidence')}: {getConfidenceBadge(rec.confidence)}</span>
+                                <span>{t('costOptimization.effort', 'Effort')}: {getEffortBadge(rec.effort)}</span>
+                                <span>{t('costOptimization.impact', 'Impact')}: {getImpactBadge(rec.impact)}</span>
                               </div>
                             </div>
                           </div>
-                          <div className="text-right space-y-1">
-                            <div className="text-2xl font-semibold text-green-500">
-                              ${rec.potential_savings.toFixed(2)}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {rec.savings_percentage.toFixed(1)}% economia
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              ${rec.current_cost.toFixed(2)} → ${rec.optimized_cost.toFixed(2)}
+                          <div className="flex items-start gap-3">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => createTicketForRecommendation(rec)}
+                              disabled={creatingTicketId === rec.id}
+                              title={t('costOptimization.createTicket', 'Create remediation ticket')}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Ticket className={`h-4 w-4 ${creatingTicketId === rec.id ? 'animate-pulse' : ''}`} />
+                            </Button>
+                            <div className="text-right space-y-1">
+                              <div className="text-2xl font-semibold text-green-500">
+                                ${rec.potential_savings.toFixed(2)}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {rec.savings_percentage.toFixed(1)}% {t('costOptimization.savings', 'savings')}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                ${rec.current_cost.toFixed(2)} → ${rec.optimized_cost.toFixed(2)}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1100,13 +1433,13 @@ export default function CostOptimization() {
                         <div className="bg-muted/30 rounded-lg p-4">
                           <h5 className="font-medium mb-2 flex items-center gap-2">
                             <Lightbulb className="h-4 w-4" />
-                            Recomendação
+                            {t('costOptimization.recommendation', 'Recommendation')}
                           </h5>
                           <p className="text-sm text-muted-foreground mb-3">{rec.recommendation}</p>
                           
                           {rec.implementation_steps && rec.implementation_steps.length > 0 && (
                             <div className="mb-4">
-                              <h6 className="font-medium text-sm mb-2">Passos para Implementação:</h6>
+                              <h6 className="font-medium text-sm mb-2">{t('costOptimization.implementationSteps', 'Implementation Steps')}:</h6>
                               <ol className="text-sm text-muted-foreground space-y-1">
                                 {rec.implementation_steps.slice(0, 3).map((step, idx) => (
                                   <li key={idx} className="flex gap-2">
@@ -1116,7 +1449,7 @@ export default function CostOptimization() {
                                 ))}
                                 {rec.implementation_steps.length > 3 && (
                                   <li className="text-xs text-muted-foreground italic">
-                                    + {rec.implementation_steps.length - 3} passos adicionais...
+                                    + {rec.implementation_steps.length - 3} {t('costOptimization.additionalSteps', 'additional steps')}...
                                   </li>
                                 )}
                               </ol>
@@ -1129,28 +1462,28 @@ export default function CostOptimization() {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                className="text-xs"
+                                className="text-xs glass hover-glow"
                                 onClick={() => setSelectedRecommendation(rec)}
                               >
                                 <Terminal className="h-3 w-3 mr-1" />
-                                Ver Scripts ({rec.implementation_scripts.length})
+                                {t('costOptimization.viewScripts', 'View Scripts')} ({rec.implementation_scripts.length})
                               </Button>
                             )}
                             {rec.copilot_prompt && (
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                className="text-xs"
+                                className="text-xs glass hover-glow"
                                 onClick={() => {
                                   navigator.clipboard.writeText(rec.copilot_prompt || '');
                                   toast({
-                                    title: "Prompt copiado!",
-                                    description: "Cole no FinOps Copilot para obter ajuda personalizada.",
+                                    title: t('costOptimization.promptCopied', 'Prompt copied!'),
+                                    description: t('costOptimization.goToCopilot', 'Now go to FinOps Copilot and paste the prompt.'),
                                   });
                                 }}
                               >
                                 <MessageSquare className="h-3 w-3 mr-1" />
-                                Copiar para Copilot
+                                {t('costOptimization.copyToCopilot', 'Copy to Copilot')}
                               </Button>
                             )}
                           </div>
@@ -1159,27 +1492,109 @@ export default function CostOptimization() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <AlertTriangle className="h-4 w-4" />
-                            <span>Risco: {rec.risk_level}</span>
+                            <span>{t('costOptimization.risk', 'Risk')}: {rec.risk_level}</span>
                           </div>
-                          <Button variant="outline" size="sm" onClick={() => setSelectedRecommendation(rec)}>
-                            Mais Detalhes
+                          <Button variant="outline" size="sm" className="glass hover-glow" onClick={() => setSelectedRecommendation(rec)}>
+                            {t('costOptimization.moreDetails', 'More Details')}
                           </Button>
                         </div>
                       </div>
                     );
                   })}
                 </div>
+              ) : recommendations && recommendations.length > 0 && hasActiveFilters ? (
+                <div className="text-center py-12">
+                  <Search className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-xl font-semibold mb-2">{t('costOptimization.noMatchingRecommendations', 'No matching recommendations')}</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {t('costOptimization.tryDifferentFilters', 'Try adjusting the filters or search terms.')}
+                  </p>
+                  <Button variant="outline" onClick={clearFilters} className="glass hover-glow">
+                    {t('common.clearFilters', 'Clear filters')}
+                  </Button>
+                </div>
               ) : (
                 <div className="text-center py-12">
                   <Target className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-xl font-semibold mb-2">Nenhuma recomendação encontrada</h3>
+                  <h3 className="text-xl font-semibold mb-2">{t('costOptimization.noRecommendationsFound', 'No recommendations found')}</h3>
                   <p className="text-muted-foreground mb-4">
-                    Sua infraestrutura está bem otimizada ou ainda estamos analisando os dados.
+                    {t('costOptimization.infrastructureOptimized', 'Your infrastructure is well optimized or we are still analyzing the data.')}
                   </p>
-                  <Button onClick={handleRefresh}>
+                  <Button onClick={handleRefresh} className="glass hover-glow">
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Verificar Novamente
+                    {t('costOptimization.checkAgain', 'Check Again')}
                   </Button>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {paginatedRecommendations && paginatedRecommendations.length > 0 && totalPages > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>{t('common.showing', 'Showing')}</span>
+                    <Select value={String(itemsPerPage)} onValueChange={handleItemsPerPageChange}>
+                      <SelectTrigger className="w-[70px] h-8 glass">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span>
+                      {t('common.ofTotal', 'of {{total}}', { total: totalFilteredCount })}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground mr-2">
+                      {showingFrom}-{showingTo} {t('common.of', 'of')} {totalFilteredCount}
+                    </span>
+                    
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 glass"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 glass"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    <span className="px-3 text-sm">
+                      {t('common.page', 'Page')} {currentPage} {t('common.of', 'of')} {totalPages}
+                    </span>
+                    
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 glass"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 glass"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1191,8 +1606,8 @@ export default function CostOptimization() {
             {/* Savings by Type */}
             <Card className="glass border-primary/20">
               <CardHeader>
-                <CardTitle>Economia por Tipo</CardTitle>
-                <CardDescription>Distribuição das oportunidades de economia</CardDescription>
+                <CardTitle>{t('costOptimization.savingsByType', 'Savings by Type')}</CardTitle>
+                <CardDescription>{t('costOptimization.savingsDistribution', 'Distribution of savings opportunities')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (

@@ -1,1 +1,0 @@
-{"version":3,"file":"generate-remediation-script.d.ts","sourceRoot":"","sources":["../../../src/handlers/reports/generate-remediation-script.ts"],"names":[],"mappings":"AACA;;;GAGG;AAEH,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AAUrG,wBAAsB,OAAO,CAC3B,KAAK,EAAE,eAAe,EACtB,OAAO,EAAE,aAAa,GACrB,OAAO,CAAC,uBAAuB,CAAC,CAkDlC"}

@@ -17,6 +17,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const complianceScanSchema = z.object({
@@ -40,16 +41,10 @@ export async function handler(
 
     logger.info('Starting Azure compliance scan', { organizationId });
 
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = complianceScanSchema.safeParse(body);
+    // Parse and validate request body
+    const validation = parseAndValidateBody(complianceScanSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
     const { credentialId, frameworks = ['CIS_AZURE'], resourceGroups } = validation.data;

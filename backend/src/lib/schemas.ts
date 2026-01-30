@@ -222,9 +222,12 @@ export const autoAlertsSchema = z.object({
 // ============================================================================
 
 export const generatePdfReportSchema = z.object({
-  reportType: z.enum(['security', 'cost', 'compliance', 'executive']),
+  reportType: z.enum(['security', 'cost', 'compliance', 'executive', 'inventory']),
   scanId: uuidSchema.optional(),
-  dateRange: dateRangeSchema.optional(),
+  dateRange: z.object({
+    start: z.string(),
+    end: z.string(),
+  }).optional(),
 });
 
 export const generateExcelReportSchema = z.object({
@@ -242,11 +245,43 @@ export const sendEmailSchema = z.object({
   cc: z.union([emailSchema, z.array(emailSchema)]).optional(),
   bcc: z.union([emailSchema, z.array(emailSchema)]).optional(),
   subject: z.string().max(200).optional(),
-  htmlBody: z.string().optional(),
-  textBody: z.string().optional(),
-  template: z.string().optional(),
+  htmlBody: z.string().max(100000).optional(),
+  textBody: z.string().max(50000).optional(),
+  template: z.string().max(100).optional(),
   templateData: z.record(z.any()).optional(),
   priority: z.enum(['high', 'normal', 'low']).default('normal'),
+  tags: z.record(z.string()).optional(),
+  alertData: z.object({
+    id: z.string(),
+    severity: z.enum(['low', 'medium', 'high', 'critical']),
+    metric: z.string(),
+    currentValue: z.number(),
+    threshold: z.number(),
+    message: z.string(),
+    timestamp: z.string(),
+  }).optional(),
+  securityEvent: z.object({
+    type: z.string(),
+    description: z.string(),
+    timestamp: z.string(),
+    sourceIp: z.string().optional(),
+    userAgent: z.string().optional(),
+    userId: z.string().optional(),
+  }).optional(),
+  welcomeData: z.object({
+    name: z.string(),
+    organizationName: z.string(),
+    loginUrl: z.string().url(),
+  }).optional(),
+  resetData: z.object({
+    name: z.string(),
+    resetUrl: z.string().url(),
+    expiresIn: z.string(),
+  }).optional(),
+  notificationData: z.object({
+    message: z.string(),
+    severity: z.enum(['info', 'warning', 'error', 'critical']).optional(),
+  }).optional(),
 });
 
 // ============================================================================
@@ -306,6 +341,312 @@ export const queryTableSchema = z.object({
 });
 
 // ============================================================================
+// ALERTS SCHEMAS
+// ============================================================================
+
+export const alertsQuerySchema = z.object({
+  severity: z.enum(['critical', 'high', 'medium', 'low']).optional(),
+  status: z.enum(['active', 'acknowledged', 'resolved']).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(50),
+});
+
+export const alertUpdateSchema = z.object({
+  id: uuidSchema,
+  action: z.enum(['acknowledge', 'resolve']),
+});
+
+export const alertDeleteSchema = z.object({
+  id: uuidSchema,
+});
+
+// ============================================================================
+// MONITORED ENDPOINTS SCHEMAS
+// ============================================================================
+
+export const createMonitoredEndpointSchema = z.object({
+  name: z.string().min(1).max(100),
+  url: z.string().url(),
+  timeout: z.number().int().min(1000).max(60000).default(5000),
+  is_active: z.boolean().default(true),
+  alert_on_failure: z.boolean().default(true),
+  monitor_ssl: z.boolean().default(true),
+  ssl_alert_days: z.number().int().min(1).max(365).default(30),
+});
+
+export const updateMonitoredEndpointSchema = z.object({
+  id: uuidSchema,
+  name: z.string().min(1).max(100).optional(),
+  url: z.string().url().optional(),
+  timeout: z.number().int().min(1000).max(60000).optional(),
+  is_active: z.boolean().optional(),
+  alert_on_failure: z.boolean().optional(),
+  monitor_ssl: z.boolean().optional(),
+  ssl_alert_days: z.number().int().min(1).max(365).optional(),
+});
+
+export const deleteMonitoredEndpointSchema = z.object({
+  id: uuidSchema,
+});
+
+// ============================================================================
+// TV TOKENS SCHEMAS
+// ============================================================================
+
+export const manageTvTokensSchema = z.object({
+  action: z.enum(['list', 'create', 'toggle', 'delete']),
+  tokenId: uuidSchema.optional(),
+  name: z.string().min(1).max(100).optional(),
+  expirationDays: z.number().int().min(1).max(365).default(30),
+  isActive: z.boolean().optional(),
+});
+
+// ============================================================================
+// REALTIME METRICS SCHEMAS
+// ============================================================================
+
+export const realtimeMetricsSchema = z.object({
+  accountId: uuidSchema.optional(),
+  regions: z.array(awsRegionSchema).optional(),
+  services: z.array(z.string()).optional(),
+  timeRange: z.enum(['1h', '3h', '6h', '12h', '24h', '7d']).default('1h'),
+});
+
+// ============================================================================
+// COMMUNICATION LOGS SCHEMAS
+// ============================================================================
+
+export const communicationLogsQuerySchema = z.object({
+  type: z.enum(['email', 'sms', 'webhook', 'all']).default('all'),
+  status: z.enum(['sent', 'failed', 'pending', 'all']).default('all'),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+// ============================================================================
+// SECURITY SCAN PDF EXPORT SCHEMAS
+// ============================================================================
+
+export const securityScanPdfExportSchema = z.object({
+  scanId: uuidSchema,
+  includeRemediation: z.boolean().default(true),
+  includeSummary: z.boolean().default(true),
+  language: z.enum(['en', 'pt']).default('en'),
+});
+
+// ============================================================================
+// GENERATE REMEDIATION SCRIPT SCHEMAS
+// ============================================================================
+
+export const generateRemediationScriptSchema = z.object({
+  findingIds: z.array(uuidSchema).min(1).max(50),
+  format: z.enum(['bash', 'powershell', 'terraform', 'cloudformation']).default('bash'),
+  includeComments: z.boolean().default(true),
+});
+
+// ============================================================================
+// GENERATE SECURITY PDF SCHEMAS
+// ============================================================================
+
+export const generateSecurityPdfSchema = z.object({
+  scanId: uuidSchema.optional(),
+  accountId: uuidSchema.optional(),
+  dateRange: dateRangeSchema.optional(),
+  includeFindings: z.boolean().default(true),
+  includeCompliance: z.boolean().default(true),
+  includeRecommendations: z.boolean().default(true),
+});
+
+// ============================================================================
+// RI/SP ANALYZER SCHEMAS
+// ============================================================================
+
+export const riSpAnalyzerSchema = z.object({
+  accountId: uuidSchema,
+  region: awsRegionSchema.optional(),
+  regions: z.array(awsRegionSchema).optional(),
+  analysisDepth: z.enum(['basic', 'detailed', 'comprehensive']).default('comprehensive'),
+});
+
+// ============================================================================
+// JIRA INTEGRATION SCHEMAS
+// ============================================================================
+
+export const createJiraTicketFullSchema = z.object({
+  findingId: uuidSchema,
+  title: z.string().min(1).max(255),
+  description: z.string().max(10000).optional(),
+  priority: z.enum(['Highest', 'High', 'Medium', 'Low', 'Lowest']).default('Medium'),
+  issueType: z.enum(['Bug', 'Task', 'Story', 'Epic']).default('Bug'),
+  projectKey: z.string().min(1).max(20).optional(),
+  labels: z.array(z.string().max(50)).max(10).optional(),
+  assignee: z.string().max(100).optional(),
+});
+
+// ============================================================================
+// SCHEDULED JOB SCHEMAS
+// ============================================================================
+
+export const executeScheduledJobSchema = z.object({
+  jobId: uuidSchema,
+  force: z.boolean().default(false),
+});
+
+// ============================================================================
+// NOTIFICATION SETTINGS SCHEMAS
+// ============================================================================
+
+export const notificationSettingsSchema = z.object({
+  action: z.enum(['get', 'update']),
+  settings: z.object({
+    email_enabled: z.boolean().optional(),
+    slack_enabled: z.boolean().optional(),
+    webhook_enabled: z.boolean().optional(),
+    security_alerts: z.boolean().optional(),
+    cost_alerts: z.boolean().optional(),
+    compliance_alerts: z.boolean().optional(),
+    daily_digest: z.boolean().optional(),
+    weekly_report: z.boolean().optional(),
+    alert_threshold: z.enum(['all', 'high', 'critical']).optional(),
+  }).optional(),
+});
+
+// ============================================================================
+// AI INSIGHTS SCHEMAS
+// ============================================================================
+
+export const generateAiInsightsSchema = z.object({
+  accountId: uuidSchema.optional(),
+  insightType: z.enum(['cost', 'security', 'performance', 'all']).default('all'),
+  timeRange: z.enum(['7d', '30d', '90d']).default('30d'),
+  maxInsights: z.number().int().min(1).max(20).default(10),
+});
+
+// ============================================================================
+// FETCH EDGE SERVICES SCHEMAS
+// ============================================================================
+
+export const fetchEdgeServicesSchema = z.object({
+  accountId: uuidSchema.optional(),
+  regions: z.array(awsRegionSchema).optional(),
+  services: z.array(z.enum(['cloudfront', 'route53', 'waf', 'shield', 'globalaccelerator'])).optional(),
+});
+
+// ============================================================================
+// AUTO ALERTS SCHEMAS
+// ============================================================================
+
+export const autoAlertsRequestSchema = z.object({
+  accountId: uuidSchema.optional(),
+  enabled: z.boolean().optional(),
+  thresholds: z.object({
+    cpu: z.number().min(0).max(100).optional(),
+    memory: z.number().min(0).max(100).optional(),
+    disk: z.number().min(0).max(100).optional(),
+    cost: z.number().min(0).optional(),
+  }).optional(),
+});
+
+// ============================================================================
+// ENDPOINT MONITOR CHECK SCHEMAS
+// ============================================================================
+
+export const endpointMonitorCheckSchema = z.object({
+  endpointId: uuidSchema.optional(),
+  forceCheck: z.boolean().default(false),
+});
+
+// ============================================================================
+// CHECK ALERT RULES SCHEMAS
+// ============================================================================
+
+export const checkAlertRulesSchema = z.object({
+  ruleId: uuidSchema.optional(),
+  dryRun: z.boolean().default(false),
+});
+
+// ============================================================================
+// FETCH CLOUDWATCH METRICS SCHEMAS
+// ============================================================================
+
+export const fetchCloudwatchMetricsSchema = z.object({
+  accountId: uuidSchema.optional(),
+  regions: z.array(awsRegionSchema).default(['us-east-1']),
+  namespace: z.string().optional(),
+  metricName: z.string().optional(),
+  dimensions: z.array(z.object({
+    Name: z.string(),
+    Value: z.string(),
+  })).optional(),
+  startTime: z.string().datetime().optional(),
+  endTime: z.string().datetime().optional(),
+  period: z.number().int().min(60).max(86400).default(300),
+  statistics: z.array(z.enum(['Average', 'Sum', 'Minimum', 'Maximum', 'SampleCount'])).default(['Average']),
+});
+
+// ============================================================================
+// LOG FRONTEND ERROR SCHEMAS
+// ============================================================================
+
+export const logFrontendErrorSchema = z.object({
+  error: z.string().min(1).max(5000),
+  stack: z.string().max(10000).optional(),
+  url: z.string().url().optional(),
+  userAgent: z.string().max(500).optional(),
+  timestamp: z.string().datetime().optional(),
+  metadata: z.record(z.any()).optional(),
+});
+
+// ============================================================================
+// CREATE WITH ORGANIZATION SCHEMAS
+// ============================================================================
+
+export const createWithOrganizationSchema = z.object({
+  email: emailSchema,
+  name: z.string().min(2).max(100),
+  organizationName: z.string().min(2).max(100),
+  role: z.enum(['admin', 'user', 'viewer']).default('admin'),
+});
+
+// ============================================================================
+// GET USER ORGANIZATION SCHEMAS
+// ============================================================================
+
+export const getUserOrganizationSchema = z.object({
+  userId: z.string().optional(),
+  includeMembers: z.boolean().default(false),
+});
+
+// ============================================================================
+// SYNC RESOURCE INVENTORY SCHEMAS
+// ============================================================================
+
+export const syncResourceInventorySchema = z.object({
+  accountId: uuidSchema,
+  regions: z.array(awsRegionSchema).optional(),
+  services: z.array(z.string()).optional(),
+  fullSync: z.boolean().default(false),
+});
+
+// ============================================================================
+// SAVE RI/SP ANALYSIS SCHEMAS
+// ============================================================================
+
+export const saveRiSpAnalysisSchema = z.object({
+  accountId: uuidSchema,
+  analysisData: z.object({
+    reservedInstances: z.array(z.any()).optional(),
+    savingsPlans: z.array(z.any()).optional(),
+    recommendations: z.array(z.any()).optional(),
+    coverage: z.object({
+      ri: z.number().min(0).max(100).optional(),
+      sp: z.number().min(0).max(100).optional(),
+    }).optional(),
+  }),
+});
+
+// ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
@@ -318,3 +659,9 @@ export type DetectAnomaliesInput = z.infer<typeof detectAnomaliesSchema>;
 export type SendNotificationInput = z.infer<typeof sendNotificationSchema>;
 export type QueryTableInput = z.infer<typeof queryTableSchema>;
 export type FinopsCopilotInput = z.infer<typeof finopsCopilotSchema>;
+export type AlertUpdateInput = z.infer<typeof alertUpdateSchema>;
+export type CreateMonitoredEndpointInput = z.infer<typeof createMonitoredEndpointSchema>;
+export type UpdateMonitoredEndpointInput = z.infer<typeof updateMonitoredEndpointSchema>;
+export type ManageTvTokensInput = z.infer<typeof manageTvTokensSchema>;
+export type RiSpAnalyzerInput = z.infer<typeof riSpAnalyzerSchema>;
+export type CreateJiraTicketInput = z.infer<typeof createJiraTicketFullSchema>;

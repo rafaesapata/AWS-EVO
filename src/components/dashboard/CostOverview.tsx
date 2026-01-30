@@ -77,7 +77,7 @@ const CostOverview = () => {
           const lambdaName = isAzure ? 'azure-fetch-costs' : 'fetch-daily-costs';
           const bodyParam = isAzure 
             ? { credentialId: selectedAccountId!, startDate: oneYearAgo.toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] }
-            : { accountId: selectedAccountId!, days: 365 };
+            : { accountId: selectedAccountId!, days: 365, incremental: true };
           
           const fetchedData = await apiClient.lambda(lambdaName, {
             body: bodyParam
@@ -150,7 +150,7 @@ const CostOverview = () => {
       const lambdaName = isAzure ? 'azure-fetch-costs' : 'fetch-daily-costs';
       const bodyParam = isAzure 
         ? { credentialId: selectedAccountId, startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] }
-        : { accountId: selectedAccountId, days: 365 };
+        : { accountId: selectedAccountId, days: 365, incremental: true };
       
       const result = await apiClient.lambda(lambdaName, {
         body: bodyParam

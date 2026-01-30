@@ -183,21 +183,78 @@ export async function handler(
         })),
       },
 
-      recommendations: recommendations.map(rec => ({
-        type: rec.recommendation_type,
-        service: rec.service,
-        instanceType: rec.instance_type,
-        savingsPlanType: rec.savings_plan_type,
-        priority: rec.priority,
-        potentialSavings: {
-          monthly: rec.estimated_monthly_savings,
-          annual: rec.estimated_annual_savings,
-        },
-        annualSavings: rec.estimated_annual_savings,
-        confidence: rec.confidence_level,
-        implementationEffort: rec.implementation_effort,
-        details: rec.recommendation_details,
-      })),
+      recommendations: recommendations.map(rec => {
+        // Extract title and description from recommendation_details if available
+        const details = rec.recommendation_details as Record<string, any> || {};
+        
+        // Generate title based on type if not in details
+        const getTitle = () => {
+          if (details.title) return details.title;
+          switch (rec.recommendation_type) {
+            case 'ri_purchase':
+              return `Adquirir Reserved Instance para ${rec.service || 'EC2'}`;
+            case 'sp_purchase':
+              return `Implementar Savings Plan para ${rec.service || 'Compute'}`;
+            case 'right_sizing':
+              return `Right-Sizing de ${rec.instance_type || 'Instâncias'}`;
+            case 'spot_instances':
+              return 'Considerar Spot Instances';
+            default:
+              return `Otimização de ${rec.service || 'Custos'}`;
+          }
+        };
+        
+        // Generate description based on type if not in details
+        const getDescription = () => {
+          if (details.description) return details.description;
+          const savings = rec.estimated_annual_savings || 0;
+          switch (rec.recommendation_type) {
+            case 'ri_purchase':
+              return `Reserved Instances de 1 ano podem economizar ~31% em ${rec.service || 'EC2'}. Economia estimada: $${savings.toFixed(0)}/ano.`;
+            case 'sp_purchase':
+              return `Savings Plans oferecem economia flexível de ~22% em EC2, Lambda e Fargate. Economia estimada: $${savings.toFixed(0)}/ano.`;
+            case 'right_sizing':
+              return `Instâncias subutilizadas podem ser redimensionadas para economizar ~50%. Economia estimada: $${savings.toFixed(0)}/ano.`;
+            case 'spot_instances':
+              return `Workloads tolerantes a falhas podem usar Spot Instances com economia de até 70%. Economia estimada: $${savings.toFixed(0)}/ano.`;
+            default:
+              return `Oportunidade de otimização identificada. Economia estimada: $${savings.toFixed(0)}/ano.`;
+          }
+        };
+        
+        // Map implementation effort to difficulty
+        const getDifficulty = () => {
+          if (details.implementation?.difficulty) return details.implementation.difficulty;
+          switch (rec.implementation_effort) {
+            case 'low': return 'easy';
+            case 'medium': return 'medium';
+            case 'high': return 'hard';
+            default: return 'medium';
+          }
+        };
+        
+        return {
+          type: rec.recommendation_type,
+          service: rec.service,
+          instanceType: rec.instance_type,
+          savingsPlanType: rec.savings_plan_type,
+          priority: rec.priority,
+          title: getTitle(),
+          description: getDescription(),
+          potentialSavings: {
+            monthly: rec.estimated_monthly_savings,
+            annual: rec.estimated_annual_savings,
+          },
+          annualSavings: rec.estimated_annual_savings,
+          confidence: rec.confidence_level,
+          implementationEffort: rec.implementation_effort,
+          implementation: details.implementation || {
+            difficulty: getDifficulty(),
+            timeToImplement: rec.implementation_effort === 'low' ? '30 minutos' : rec.implementation_effort === 'high' ? '4-6 horas' : '1-2 horas',
+          },
+          details: rec.recommendation_details,
+        };
+      }),
 
       coverage: {
         reservedInstances: avgRiUtilization,

@@ -10,7 +10,7 @@ import { DemoModeProvider } from "@/contexts/DemoModeContext";
 import { TrialLicenseProvider } from "@/contexts/TrialLicenseContext";
 import { ErrorBoundary as GlobalErrorBoundary } from "@/components/ErrorBoundary";
 import { UnifiedCopilot } from "@/components/ai/UnifiedCopilot";
-import AuthSimple from "./pages/Auth-simple";
+import Auth from "./pages/Auth";
 import Register from "./pages/Register";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
@@ -100,8 +100,8 @@ createRoot(document.getElementById("root")!).render(
               <TrialLicenseProvider>
               <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
-              <Route path="/" element={<AuthSimple />} />
-              <Route path="/auth" element={<AuthSimple />} />
+              <Route path="/" element={<Auth />} />
+              <Route path="/auth" element={<Auth />} />
               <Route path="/register" element={<Register />} />
               <Route 
                 path="/app" 

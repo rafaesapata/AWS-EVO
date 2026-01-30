@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
@@ -21,7 +23,13 @@ import {
   Zap,
   History,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  ExternalLink,
+  Copy,
+  ChevronRight,
+  Server,
+  Database,
+  Info
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
@@ -98,6 +106,17 @@ export const RiSpAnalysis = () => {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider, selectedAccount } = useCloudAccount();
   const { data: organizationId } = useOrganization();
+  const [selectedRecommendation, setSelectedRecommendation] = useState<any>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // Copy to clipboard helper
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copiado!",
+      description: "Texto copiado para a área de transferência",
+    });
+  };
   const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [activeTab, setActiveTab] = useState<'overview' | 'ri' | 'sp' | 'recommendations' | 'history'>('overview');
 
@@ -115,10 +134,11 @@ export const RiSpAnalysis = () => {
     staleTime: 30 * 60 * 1000, // 30 minutes - data stays fresh
     gcTime: 60 * 60 * 1000, // 1 hour - keep in cache
     queryFn: async () => {
-      console.log('🔄 Fetching RI/SP analysis from database...', {
+      console.log('🔄 Fetching RI/SP analysis...', {
         organizationId,
         selectedAccountId,
         selectedProvider,
+        isAzure,
         isInDemoMode
       });
       
@@ -137,7 +157,99 @@ export const RiSpAnalysis = () => {
         return response.data;
       }
       
-      // Get saved data from database
+      // For Azure, call azure-reservations-analyzer directly
+      if (isAzure) {
+        console.log('🔵 Fetching Azure reservations analysis...');
+        const response = await apiClient.invoke<any>('azure-reservations-analyzer', {
+          body: { credentialId: selectedAccountId, includeRecommendations: true }
+        });
+        
+        if (response.error) {
+          console.error('❌ Error fetching Azure reservations:', response.error);
+          throw new Error(response.error.message);
+        }
+        
+        // Transform Azure response to match RiSpAnalysisData format
+        const azureData = response.data;
+        const transformedData: RiSpAnalysisData = {
+          success: true,
+          hasData: (azureData?.reservations?.length > 0) || (azureData?.recommendations?.length > 0),
+          analyzedAt: new Date().toISOString(),
+          executiveSummary: {
+            status: azureData?.reservations?.length > 0 ? 'analyzed' : 'no_data',
+            totalCommitments: azureData?.summary?.totalReservations || 0,
+            coverageScore: azureData?.summary?.averageUtilization || 0,
+            potentialAnnualSavings: (azureData?.summary?.totalMonthlySavings || 0) * 12,
+            recommendationsSummary: {
+              total: azureData?.recommendations?.length || 0,
+              critical: azureData?.recommendations?.filter((r: any) => r.priority === 'high').length || 0,
+              high: azureData?.recommendations?.filter((r: any) => r.priority === 'medium').length || 0,
+              quickWins: azureData?.recommendations?.filter((r: any) => r.type === 'NEW_PURCHASE').length || 0,
+            },
+          },
+          reservedInstances: {
+            total: azureData?.summary?.totalReservations || 0,
+            count: azureData?.summary?.totalReservations || 0,
+            active: azureData?.reservations?.length || 0,
+            averageUtilization: azureData?.summary?.averageUtilization || 0,
+            totalMonthlySavings: azureData?.summary?.totalMonthlySavings || 0,
+            underutilized: azureData?.reservations?.filter((r: any) => (r.utilizationPercentage || 0) < 75).map((r: any) => ({
+              id: r.id,
+              instanceType: r.skuName,
+              utilization: r.utilizationPercentage || 0,
+              potentialWaste: (100 - (r.utilizationPercentage || 0)) * r.quantity * 0.5,
+            })) || [],
+            underutilizedCount: azureData?.summary?.byUtilization?.low || 0,
+          },
+          savingsPlans: {
+            total: 0, // Azure doesn't have Savings Plans, only Reserved Instances
+            count: 0,
+            active: 0,
+            averageUtilization: 0,
+            averageCoverage: 0,
+            totalMonthlySavings: 0,
+            underutilized: [],
+          },
+          recommendations: azureData?.recommendations?.map((rec: any) => ({
+            type: rec.type === 'NEW_PURCHASE' ? 'reserved_instance' : rec.type,
+            service: rec.resourceType || 'Azure',
+            instanceType: rec.skuName,
+            priority: rec.priority === 'high' ? 1 : rec.priority === 'medium' ? 2 : 3,
+            potentialSavings: {
+              monthly: rec.estimatedSavings || rec.potentialSavings || 0,
+              annual: (rec.estimatedSavings || rec.potentialSavings || 0) * 12,
+            },
+            annualSavings: (rec.estimatedSavings || rec.potentialSavings || 0) * 12,
+            title: rec.recommendation,
+            description: rec.recommendation,
+          })) || [],
+          coverage: {
+            reservedInstances: azureData?.summary?.averageUtilization || 0,
+            savingsPlans: 0,
+            overall: azureData?.summary?.averageUtilization || 0,
+          },
+          potentialSavings: {
+            monthly: azureData?.summary?.totalMonthlySavings || 0,
+            annual: (azureData?.summary?.totalMonthlySavings || 0) * 12,
+          },
+          analysisMetadata: {
+            analysisDepth: 'full',
+            region: 'Azure',
+            timestamp: new Date().toISOString(),
+            accountId: selectedAccountId,
+          },
+        };
+        
+        console.log('✅ Azure RI analysis loaded:', {
+          hasData: transformedData.hasData,
+          reservationsCount: azureData?.reservations?.length || 0,
+          recommendationsCount: azureData?.recommendations?.length || 0,
+        });
+        
+        return transformedData;
+      }
+      
+      // For AWS, get saved data from database
       const response = await apiClient.invoke<RiSpAnalysisData>('get-ri-sp-analysis', {
         body: { accountId: selectedAccountId, includeHistory: false }
       });
@@ -147,7 +259,7 @@ export const RiSpAnalysis = () => {
         throw new Error(response.error.message);
       }
       
-      console.log('✅ RI/SP analysis loaded from database:', {
+      console.log('✅ AWS RI/SP analysis loaded from database:', {
         hasData: response.data?.hasData,
         riCount: response.data?.reservedInstances?.total,
         spCount: response.data?.savingsPlans?.total,
@@ -266,6 +378,65 @@ export const RiSpAnalysis = () => {
       ? recommendations.reduce((sum: number, r: any) => sum + (r.potentialSavings?.annual || r.annualSavings || 0), 0)
       : (recommendations?.totalPotentialAnnualSavings ?? 0));
 
+  // Helper function to get default implementation steps based on recommendation type
+  const getDefaultSteps = (type: string): string[] => {
+    switch (type) {
+      case 'ri_purchase':
+      case 'reserved_instance':
+        return [
+          'Acesse o AWS Cost Explorer em console.aws.amazon.com/cost-management',
+          'Navegue até "Reservations" > "Recommendations" no menu lateral',
+          'Analise as recomendações baseadas no seu histórico de uso (30-60 dias)',
+          'Escolha entre Standard RI (maior desconto, menos flexível) ou Convertible RI (menor desconto, mais flexível)',
+          'Selecione o termo: 1 ano (menor compromisso) ou 3 anos (maior desconto)',
+          'Escolha a opção de pagamento: No Upfront, Partial Upfront ou All Upfront',
+          'Revise o resumo e confirme a compra',
+          'Configure alertas de utilização de RI no CloudWatch para monitorar o uso'
+        ];
+      case 'sp_purchase':
+        return [
+          'Acesse o AWS Cost Management em console.aws.amazon.com/cost-management',
+          'Navegue até "Savings Plans" > "Recommendations"',
+          'Revise as recomendações automáticas baseadas no seu uso',
+          'Escolha o tipo: Compute SP (mais flexível, cobre EC2, Lambda, Fargate) ou EC2 Instance SP (maior desconto, menos flexível)',
+          'Defina o commitment por hora (recomendado: 70-80% do uso médio)',
+          'Selecione o termo: 1 ano ou 3 anos',
+          'Escolha a opção de pagamento',
+          'Confirme a compra e monitore a utilização mensalmente'
+        ];
+      case 'right_sizing':
+        return [
+          'Acesse o AWS Compute Optimizer em console.aws.amazon.com/compute-optimizer',
+          'Revise as recomendações de right-sizing para suas instâncias',
+          'Analise as métricas de CPU, memória e rede no CloudWatch (últimos 14 dias)',
+          'Identifique instâncias com utilização consistentemente baixa (<20%)',
+          'Crie um snapshot/AMI da instância antes de fazer alterações',
+          'Teste o novo tipo de instância em ambiente de staging primeiro',
+          'Agende a mudança para um período de baixo tráfego',
+          'Monitore a performance após a mudança por pelo menos 1 semana'
+        ];
+      case 'spot_instances':
+        return [
+          'Identifique workloads tolerantes a interrupções (dev, test, batch processing)',
+          'Acesse o EC2 Console e navegue até "Spot Requests"',
+          'Configure um Spot Fleet com múltiplos tipos de instância para maior disponibilidade',
+          'Defina o preço máximo (recomendado: preço On-Demand para evitar interrupções frequentes)',
+          'Implemente tratamento de interrupções (AWS envia aviso 2 minutos antes)',
+          'Use Auto Scaling Groups com mixed instances (On-Demand + Spot)',
+          'Configure CloudWatch Alarms para monitorar interrupções',
+          'Considere usar Spot Blocks para workloads com duração definida (1-6 horas)'
+        ];
+      default:
+        return [
+          'Acesse o AWS Cost Management Console',
+          'Revise as recomendações de otimização',
+          'Analise o impacto potencial antes de implementar',
+          'Implemente as mudanças em ambiente de teste primeiro',
+          'Monitore os resultados após a implementação'
+        ];
+    }
+  };
+
   // Verificar se os dados foram realmente analisados
   // Usar o campo hasData do backend como fonte de verdade
   const hasRealData = analysisData?.hasData === true || (
@@ -309,10 +480,14 @@ export const RiSpAnalysis = () => {
           <CardHeader>
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-600" />
-              <CardTitle className="text-amber-900">Primeira Execução Necessária</CardTitle>
+              <CardTitle className="text-amber-900">
+                {isAzure ? 'Análise Azure Necessária' : 'Primeira Execução Necessária'}
+              </CardTitle>
             </div>
             <CardDescription className="text-amber-700">
-              As rotinas de análise de Reserved Instances e Savings Plans ainda não foram executadas para esta conta AWS.
+              {isAzure 
+                ? 'As rotinas de análise de Azure Reserved Instances ainda não foram executadas para esta subscription.'
+                : 'As rotinas de análise de Reserved Instances e Savings Plans ainda não foram executadas para esta conta AWS.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -321,7 +496,11 @@ export const RiSpAnalysis = () => {
               <ol className="list-decimal list-inside space-y-2 text-sm text-amber-800">
                 <li>Clique no botão "Executar Análise" abaixo</li>
                 <li>Aguarde o processamento (pode levar alguns minutos)</li>
-                <li>Os dados de utilização e recomendações serão coletados da AWS</li>
+                <li>
+                  {isAzure 
+                    ? 'Os dados de reservas e recomendações serão coletados do Azure Advisor'
+                    : 'Os dados de utilização e recomendações serão coletados da AWS'}
+                </li>
                 <li>A análise será atualizada automaticamente a cada execução</li>
               </ol>
             </div>
@@ -338,8 +517,9 @@ export const RiSpAnalysis = () => {
             </div>
 
             <div className="text-xs text-amber-600 bg-amber-100 p-3 rounded-lg">
-              <strong>Nota:</strong> A primeira execução pode demorar mais tempo pois precisa coletar dados históricos 
-              de utilização dos últimos 30 dias da AWS Cost Explorer.
+              <strong>Nota:</strong> {isAzure 
+                ? 'Azure Reserved Instances são compradas no nível da conta de cobrança. As recomendações vêm do Azure Advisor.'
+                : 'A primeira execução pode demorar mais tempo pois precisa coletar dados históricos de utilização dos últimos 30 dias da AWS Cost Explorer.'}
             </div>
           </CardContent>
         </Card>
@@ -509,46 +689,345 @@ export const RiSpAnalysis = () => {
               <CardHeader>
                 <CardTitle className="text-base">Top Recomendações</CardTitle>
                 <CardDescription>
-                  Maiores oportunidades de economia identificadas
+                  Maiores oportunidades de economia identificadas • Clique para ver detalhes
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {recommendationsArray.slice(0, 5).map((rec: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${
-                          rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? 'bg-purple-100' : 'bg-blue-100'
-                        }`}>
-                          {rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? (
-                            <Clock className="h-4 w-4 text-purple-600" />
-                          ) : (
-                            <Zap className="h-4 w-4 text-blue-600" />
-                          )}
+                  {recommendationsArray.slice(0, 5).map((rec: any, idx: number) => {
+                    // Format subtitle with useful info
+                    const getSubtitle = () => {
+                      const parts: string[] = [];
+                      if (rec.service) parts.push(rec.service);
+                      if (rec.implementation?.difficulty) {
+                        const difficultyMap: Record<string, string> = {
+                          'easy': 'Fácil',
+                          'medium': 'Médio',
+                          'hard': 'Difícil'
+                        };
+                        parts.push(`Implementação: ${difficultyMap[rec.implementation.difficulty] || rec.implementation.difficulty}`);
+                      }
+                      if (rec.implementation?.timeToImplement) {
+                        parts.push(rec.implementation.timeToImplement);
+                      }
+                      return parts.join(' • ') || rec.description?.substring(0, 80) || '';
+                    };
+                    
+                    return (
+                      <div 
+                        key={idx} 
+                        className="flex items-start justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
+                        onClick={() => {
+                          setSelectedRecommendation(rec);
+                          setIsDetailModalOpen(true);
+                        }}
+                      >
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className={`p-2 rounded-full shrink-0 ${
+                            rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? 'bg-purple-100' : 
+                            rec.type === 'right_sizing' ? 'bg-amber-100' :
+                            rec.type === 'spot_instances' ? 'bg-green-100' :
+                            'bg-blue-100'
+                          }`}>
+                            {rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? (
+                              <Clock className="h-4 w-4 text-purple-600" />
+                            ) : rec.type === 'right_sizing' ? (
+                              <TrendingDown className="h-4 w-4 text-amber-600" />
+                            ) : rec.type === 'spot_instances' ? (
+                              <TrendingUp className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <Zap className="h-4 w-4 text-blue-600" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-sm flex items-center gap-2">
+                              {rec.title || (rec.type === 'reserved_instance' ? 'Reserved Instance' : 'Savings Plan')}
+                              <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {getSubtitle()}
+                            </div>
+                            {rec.description && (
+                              <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                {rec.description}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-medium text-sm">
-                            {rec.title || (rec.type === 'reserved_instance' ? 'Reserved Instance' : 'Savings Plan')}
+                        <div className="text-right shrink-0 ml-3">
+                          <div className="font-semibold text-green-600">
+                            ${(rec.potentialSavings?.annual || rec.annualSavings || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/ano
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {rec.instanceType || rec.savingsPlanType || rec.service} • {rec.service}
+                            ${(rec.potentialSavings?.monthly || (rec.annualSavings || 0) / 12 || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/mês
                           </div>
+                          <Badge variant={rec.priority === 1 || rec.priority === 'critical' || rec.priority === 'high' ? 'default' : 'secondary'} className="text-xs mt-1">
+                            {typeof rec.priority === 'string' ? rec.priority.toUpperCase() : `P${rec.priority}`}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-green-600">
-                          ${(rec.potentialSavings?.annual || rec.annualSavings || 0).toFixed(2)}/ano
-                        </div>
-                        <Badge variant={rec.priority === 1 || rec.priority === 'critical' || rec.priority === 'high' ? 'default' : 'secondary'} className="text-xs">
-                          {typeof rec.priority === 'string' ? rec.priority.toUpperCase() : `Prioridade ${rec.priority}`}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
           )}
+
+          {/* Recommendation Detail Modal */}
+          <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
+            <DialogContent className="max-w-3xl max-h-[90vh]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  {selectedRecommendation?.type === 'reserved_instance' || selectedRecommendation?.type === 'ri_purchase' ? (
+                    <Clock className="h-5 w-5 text-purple-600" />
+                  ) : selectedRecommendation?.type === 'right_sizing' ? (
+                    <TrendingDown className="h-5 w-5 text-amber-600" />
+                  ) : selectedRecommendation?.type === 'spot_instances' ? (
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <Zap className="h-5 w-5 text-blue-600" />
+                  )}
+                  {selectedRecommendation?.title || 'Detalhes da Recomendação'}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedRecommendation?.description}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
+                <div className="space-y-6">
+                  {/* Savings Summary */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <Card className="bg-green-50 border-green-200">
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-green-600">
+                          ${(selectedRecommendation?.potentialSavings?.annual || selectedRecommendation?.annualSavings || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </div>
+                        <div className="text-xs text-green-700">Economia Anual</div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-blue-50 border-blue-200">
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-blue-600">
+                          ${(selectedRecommendation?.potentialSavings?.monthly || (selectedRecommendation?.annualSavings || 0) / 12 || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </div>
+                        <div className="text-xs text-blue-700">Economia Mensal</div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-purple-50 border-purple-200">
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-purple-600">
+                          {selectedRecommendation?.potentialSavings?.percentage || 31}%
+                        </div>
+                        <div className="text-xs text-purple-700">Redução de Custo</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Affected Instances */}
+                  {(selectedRecommendation?.details?.currentInstances?.length > 0 || 
+                    selectedRecommendation?.details?.underutilizedInstances?.length > 0 ||
+                    selectedRecommendation?.details?.currentDatabases?.length > 0) && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Server className="h-4 w-4" />
+                          Recursos Afetados
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="rounded-lg border overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-muted/50">
+                                <TableHead className="text-xs">ID</TableHead>
+                                <TableHead className="text-xs">Tipo</TableHead>
+                                <TableHead className="text-xs">CPU</TableHead>
+                                <TableHead className="text-xs text-right">Custo/Mês</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {(selectedRecommendation?.details?.currentInstances || 
+                                selectedRecommendation?.details?.underutilizedInstances || 
+                                []).slice(0, 10).map((instance: any, idx: number) => (
+                                <TableRow key={idx}>
+                                  <TableCell className="font-mono text-xs py-2">
+                                    <div className="flex items-center gap-1">
+                                      {instance.instanceId?.substring(0, 19) || instance.identifier || '-'}
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-5 w-5 p-0"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          copyToClipboard(instance.instanceId || instance.identifier || '');
+                                        }}
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs py-2">{instance.instanceType || instance.instanceClass || '-'}</TableCell>
+                                  <TableCell className="py-2">
+                                    <div className="flex items-center gap-2">
+                                      <Progress value={instance.cpuUtilization || 0} className="w-12 h-2" />
+                                      <span className="text-xs">{(instance.cpuUtilization || 0).toFixed(0)}%</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-right py-2">
+                                    ${(instance.monthlyCost || 0).toFixed(2)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {(selectedRecommendation?.details?.currentDatabases || []).slice(0, 10).map((db: any, idx: number) => (
+                                <TableRow key={`db-${idx}`}>
+                                  <TableCell className="font-mono text-xs py-2">
+                                    <div className="flex items-center gap-1">
+                                      <Database className="h-3 w-3 text-muted-foreground" />
+                                      {db.identifier?.substring(0, 19) || '-'}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs py-2">{db.instanceClass || '-'}</TableCell>
+                                  <TableCell className="py-2">
+                                    <div className="flex items-center gap-2">
+                                      <Progress value={db.cpuUtilization || 0} className="w-12 h-2" />
+                                      <span className="text-xs">{(db.cpuUtilization || 0).toFixed(0)}%</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-right py-2">
+                                    ${(db.monthlyCost || 0).toFixed(2)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        {((selectedRecommendation?.details?.currentInstances?.length || 0) > 10 ||
+                          (selectedRecommendation?.details?.underutilizedInstances?.length || 0) > 10) && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Mostrando 10 de {selectedRecommendation?.details?.currentInstances?.length || 
+                              selectedRecommendation?.details?.underutilizedInstances?.length} recursos
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Implementation Steps */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        Tutorial de Implementação
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Siga os passos abaixo para implementar esta recomendação
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {(selectedRecommendation?.implementation?.steps || getDefaultSteps(selectedRecommendation?.type)).map((step: string, idx: number) => (
+                          <div key={idx} className="flex gap-3 items-start">
+                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
+                              {idx + 1}
+                            </div>
+                            <div className="flex-1 pt-0.5">
+                              <p className="text-sm">{step}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* AWS Console Links */}
+                  <Card className="bg-amber-50 border-amber-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2 text-amber-800">
+                        <ExternalLink className="h-4 w-4" />
+                        Links Úteis
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {selectedRecommendation?.type === 'ri_purchase' || selectedRecommendation?.type === 'reserved_instance' ? (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full justify-start text-amber-800 border-amber-300 hover:bg-amber-100"
+                            onClick={() => window.open('https://console.aws.amazon.com/cost-management/home#/ri/recommendations', '_blank')}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            AWS Cost Explorer - Recomendações de RI
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full justify-start text-amber-800 border-amber-300 hover:bg-amber-100"
+                            onClick={() => window.open('https://console.aws.amazon.com/ec2/home#ReservedInstances:', '_blank')}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            EC2 Console - Reserved Instances
+                          </Button>
+                        </>
+                      ) : selectedRecommendation?.type === 'sp_purchase' ? (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full justify-start text-amber-800 border-amber-300 hover:bg-amber-100"
+                            onClick={() => window.open('https://console.aws.amazon.com/cost-management/home#/savings-plans/recommendations', '_blank')}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            AWS Cost Management - Savings Plans
+                          </Button>
+                        </>
+                      ) : selectedRecommendation?.type === 'right_sizing' ? (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full justify-start text-amber-800 border-amber-300 hover:bg-amber-100"
+                            onClick={() => window.open('https://console.aws.amazon.com/compute-optimizer/home#/recommendations', '_blank')}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            AWS Compute Optimizer
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full justify-start text-amber-800 border-amber-300 hover:bg-amber-100"
+                            onClick={() => window.open('https://console.aws.amazon.com/cloudwatch/home#metricsV2:', '_blank')}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            CloudWatch Metrics
+                          </Button>
+                        </>
+                      ) : (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full justify-start text-amber-800 border-amber-300 hover:bg-amber-100"
+                          onClick={() => window.open('https://console.aws.amazon.com/cost-management/home', '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          AWS Cost Management Console
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Additional Info */}
+                  <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div className="text-xs text-blue-800">
+                      <strong>Dica:</strong> Antes de comprar Reserved Instances ou Savings Plans, analise o histórico de uso dos últimos 30-60 dias para garantir que o compromisso seja adequado ao seu padrão de consumo.
+                    </div>
+                  </div>
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="ri" className="space-y-4">

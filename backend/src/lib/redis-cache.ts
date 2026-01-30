@@ -846,9 +846,16 @@ export class EdgeCacheManager {
       regionsScanned: string[];
       permissionErrors?: any[];
       breakdown?: {
-        cloudfront: number;
-        waf: number;
-        loadBalancer: number;
+        // AWS services
+        cloudfront?: number;
+        waf?: number;
+        loadBalancer?: number;
+        // Azure services
+        frontDoor?: number;
+        applicationGateway?: number;
+        natGateway?: number;
+        apiManagement?: number;
+        azureWaf?: number;
       };
     },
     ttl: number = 300
@@ -877,9 +884,16 @@ export class EdgeCacheManager {
     regionsScanned: string[];
     permissionErrors?: any[];
     breakdown?: {
-      cloudfront: number;
-      waf: number;
-      loadBalancer: number;
+      // AWS services
+      cloudfront?: number;
+      waf?: number;
+      loadBalancer?: number;
+      // Azure services
+      frontDoor?: number;
+      applicationGateway?: number;
+      natGateway?: number;
+      apiManagement?: number;
+      azureWaf?: number;
     };
     cachedAt: number;
     fromCache: boolean;

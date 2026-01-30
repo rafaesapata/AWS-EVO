@@ -4,7 +4,7 @@
   "metadata": {
     "description": "Creates an App Registration with Service Principal for EVO Platform",
     "author": "EVO Platform",
-    "version": "2.0.0"
+    "version": "3.0.0"
   },
   "parameters": {
     "appName": {

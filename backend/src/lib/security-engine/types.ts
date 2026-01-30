@@ -75,6 +75,14 @@ export interface ScanMetricsReport {
   servicesScanned: number;
   regionsScanned: number;
   serviceDetails: Record<string, ServiceMetric>;
+  timedOutScanners?: string[];
+  cacheStats?: {
+    hits: number;
+    misses: number;
+    hitRate: number;
+    dynamoHits?: number;
+    dynamoMisses?: number;
+  };
 }
 
 export interface ServiceMetric {

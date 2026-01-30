@@ -19,6 +19,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 // Validation schema for Service Principal credentials
@@ -67,22 +68,20 @@ export async function handler(
 
     logger.info('Saving Azure credentials', { organizationId });
 
-    // Parse and validate request body
-    let body: any;
+    // Parse and validate request body - default to service_principal if authType not specified
+    let bodyWithDefault: any;
     try {
-      body = JSON.parse(event.body || '{}');
+      bodyWithDefault = JSON.parse(event.body || '{}');
+      if (!bodyWithDefault.authType) {
+        bodyWithDefault.authType = 'service_principal';
+      }
     } catch {
       return error('Invalid JSON in request body', 400);
     }
 
-    // Default to service_principal if authType not specified
-    if (!body.authType) {
-      body.authType = 'service_principal';
-    }
-
-    const validation = saveAzureCredentialsSchema.safeParse(body);
+    const validation = parseAndValidateBody(saveAzureCredentialsSchema, JSON.stringify(bodyWithDefault));
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
     const data = validation.data;

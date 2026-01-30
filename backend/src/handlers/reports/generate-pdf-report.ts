@@ -9,17 +9,10 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { generatePdfReportSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-
-interface GeneratePDFRequest {
-  reportType: 'security' | 'compliance' | 'cost' | 'inventory';
-  scanId?: string;
-  dateRange?: {
-    start: string;
-    end: string;
-  };
-}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -40,12 +33,12 @@ export async function handler(
   });
   
   try {
-    const body: GeneratePDFRequest = event.body ? JSON.parse(event.body) : {};
-    const { reportType, scanId, dateRange } = body;
-    
-    if (!reportType) {
-      return badRequest('reportType is required');
+    // Validate request body
+    const validation = parseAndValidateBody(generatePdfReportSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    const { reportType, scanId, dateRange } = validation.data;
     
     logger.info('Generating PDF report', { organizationId, reportType, scanId });
     

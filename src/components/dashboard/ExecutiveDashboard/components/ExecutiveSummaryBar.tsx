@@ -48,7 +48,8 @@ export default function ExecutiveSummaryBar({ data }: Props) {
           
           <div className="text-center mt-4">
             <CardCTA 
-              text={t('executiveDashboard.optimizeHealthCTA', 'Ver como otimizar saúde')}
+              textKey="executiveDashboard.optimizeHealthCTA"
+              fallback="Ver como otimizar saúde"
               href="/security-scan"
               align="center"
             />
@@ -206,7 +207,8 @@ export default function ExecutiveSummaryBar({ data }: Props) {
             
             <div className="text-right">
               <CardCTA 
-                text={t('executiveDashboard.optimizeCostCTA', 'Ver como otimizar custo')}
+                textKey="executiveDashboard.optimizeCostCTA"
+                fallback="Ver como otimizar custo"
                 href="/cost-optimization"
                 align="right"
               />

@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { Layout } from "@/components/Layout";
-import { AdvancedRISPAnalyzerV2 } from "@/components/cost-analysis/AdvancedRISPAnalyzerV2";
+import { AdvancedRISPAnalyzerV3 } from "@/components/cost-analysis/AdvancedRISPAnalyzerV3";
 import { AzureReservationsAnalyzer } from "@/components/cost-analysis/AzureReservationsAnalyzer";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
@@ -39,7 +39,7 @@ export default function RISavingsPlans() {
         isAzureSelected ? (
           <AzureReservationsAnalyzer credentialId={effectiveAccountId} />
         ) : (
-          <AdvancedRISPAnalyzerV2 
+          <AdvancedRISPAnalyzerV3 
             accountId={effectiveAccountId} 
             regions={accountRegions}
           />

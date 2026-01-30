@@ -10,13 +10,16 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 
-interface CreateProfileWithOrgRequest {
-  userId: string;
-  email: string;
-  fullName?: string;
-  organizationName: string;
-}
+// Zod schema for create profile with organization
+const createProfileWithOrgSchema = z.object({
+  userId: z.string().min(1, 'userId is required'),
+  email: z.string().email('Invalid email format'),
+  fullName: z.string().max(100).optional(),
+  organizationName: z.string().min(2, 'organizationName must be at least 2 characters').max(100),
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -35,12 +38,13 @@ export async function handler(
   });
 
   try {
-    const body: CreateProfileWithOrgRequest = event.body ? JSON.parse(event.body) : {};
-    const { userId, email, fullName, organizationName } = body;
-
-    if (!userId || !email || !organizationName) {
-      return error('userId, email e organizationName são obrigatórios', 400);
+    // Validate input with Zod
+    const validation = parseAndValidateBody(createProfileWithOrgSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { userId, email, fullName, organizationName } = validation.data;
 
     const prisma = getPrismaClient();
     

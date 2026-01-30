@@ -13,12 +13,9 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { isOrganizationInDemoMode, generateDemoBudgetForecast } from '../../lib/demo-data-service.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { budgetForecastSchema } from '../../lib/schemas.js';
 import { CostExplorerClient, GetCostForecastCommand, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
-
-interface BudgetForecastRequest {
-  accountId?: string;
-  months?: number;
-}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -34,8 +31,12 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: BudgetForecastRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, months = 3 } = body;
+    const validation = parseAndValidateBody(budgetForecastSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
+    const { accountId, months = 3 } = validation.data;
     
     const prisma = getPrismaClient();
     

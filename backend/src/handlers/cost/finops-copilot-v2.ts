@@ -5,6 +5,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { finopsCopilotSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { CostExplorerClient, GetCostAndUsageCommand, GetCostForecastCommand } from '@aws-sdk/client-cost-explorer';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
@@ -43,16 +44,11 @@ export async function handler(
   }
 
   try {
-    // Validar input com Zod
-    const parseResult = finopsCopilotSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
+    // Validar input com Zod usando parseAndValidateBody
+    const parseResult = parseAndValidateBody(finopsCopilotSchema, event.body);
     
     if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+      return parseResult.error;
     }
     
     const { question, awsAccountId, context: queryContext = 'general', timeRange } = parseResult.data;

@@ -1,1 +1,0 @@
-{"version":3,"file":"cloudformation-webhook.d.ts","sourceRoot":"","sources":["../../../src/handlers/integrations/cloudformation-webhook.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,oBAAoB,EAAE,qBAAqB,EAAE,MAAM,YAAY,CAAC;AAoBzE,eAAO,MAAM,OAAO,GAAU,OAAO,oBAAoB,KAAG,OAAO,CAAC,qBAAqB,CAoHxF,CAAC"}

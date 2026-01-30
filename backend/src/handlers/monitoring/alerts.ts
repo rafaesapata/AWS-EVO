@@ -5,16 +5,13 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoAlerts } from '../../lib/demo-data-service.js';
-
-interface UpdateAlertRequest {
-  id: string;
-  action: 'acknowledge' | 'resolve';
-}
+import { alertsQuerySchema, alertUpdateSchema, alertDeleteSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody, validateQueryParams } from '../../lib/validation.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -48,10 +45,12 @@ export async function handler(
     
     // GET - Listar alertas
     if (method === 'GET') {
-      const queryParams = event.queryStringParameters || {};
-      const severity = queryParams.severity;
-      const status = queryParams.status; // 'active', 'acknowledged', 'resolved'
-      const limit = parseInt(queryParams.limit || '50');
+      // Validate query parameters
+      const queryValidation = validateQueryParams(alertsQuerySchema, event.queryStringParameters);
+      if (!queryValidation.success) {
+        return queryValidation.error;
+      }
+      const { severity, status, limit } = queryValidation.data;
       
       const alerts = await prisma.alert.findMany({
         where: {
@@ -73,15 +72,15 @@ export async function handler(
     
     // PUT - Atualizar alerta (acknowledge/resolve)
     if (method === 'PUT') {
-      const body: UpdateAlertRequest = event.body ? JSON.parse(event.body) : {};
-      
-      if (!body.id || !body.action) {
-        return error('ID e ação são obrigatórios', 400);
+      const validation = parseAndValidateBody(alertUpdateSchema, event.body);
+      if (!validation.success) {
+        return validation.error;
       }
+      const { id, action } = validation.data;
       
       // Verificar se alerta pertence à organização
       const existing = await prisma.alert.findFirst({
-        where: { id: body.id, organization_id: organizationId },
+        where: { id, organization_id: organizationId },
       });
       
       if (!existing) {
@@ -89,9 +88,9 @@ export async function handler(
       }
       
       const updateData: any = {};
-      if (body.action === 'acknowledge') {
+      if (action === 'acknowledge') {
         updateData.acknowledged_at = new Date();
-      } else if (body.action === 'resolve') {
+      } else if (action === 'resolve') {
         updateData.resolved_at = new Date();
         if (!existing.acknowledged_at) {
           updateData.acknowledged_at = new Date();
@@ -99,22 +98,32 @@ export async function handler(
       }
       
       const alert = await prisma.alert.update({
-        where: { id: body.id },
+        where: { id },
         data: updateData,
       });
       
-      logger.info(`✅ Alert ${body.action}d: ${alert.id}`);
+      logger.info(`✅ Alert ${action}d: ${alert.id}`);
       
       return success(alert);
     }
     
     // DELETE - Deletar alerta
     if (method === 'DELETE') {
-      const body = event.body ? JSON.parse(event.body) : {};
-      const alertId = body.id || event.queryStringParameters?.id;
+      // Try to get ID from body or query params
+      let alertId: string | undefined;
+      
+      if (event.body) {
+        const validation = parseAndValidateBody(alertDeleteSchema, event.body);
+        if (!validation.success) {
+          return validation.error;
+        }
+        alertId = validation.data.id;
+      } else {
+        alertId = event.queryStringParameters?.id;
+      }
       
       if (!alertId) {
-        return error('ID do alerta é obrigatório', 400);
+        return badRequest('ID do alerta é obrigatório');
       }
       
       // Verificar se alerta pertence à organização

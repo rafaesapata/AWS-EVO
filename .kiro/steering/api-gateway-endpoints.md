@@ -181,6 +181,7 @@ Access-Control-Allow-Origin: *
 | `7enf38` | `/api/functions/azure-activity-logs` | `evo-uds-v3-production-azure-activity-logs` |
 | `wn1yqu` | `/api/functions/azure-fetch-monitor-metrics` | `evo-uds-v3-production-azure-fetch-monitor-metrics` |
 | `cd7gtb` | `/api/functions/azure-detect-anomalies` | `evo-uds-v3-production-azure-detect-anomalies` |
+| `chj1lt` | `/api/functions/azure-fetch-edge-services` | `evo-uds-v3-production-azure-fetch-edge-services` |
 | `3s8ari` | `/api/functions/list-cloud-credentials` | `evo-uds-v3-production-list-cloud-credentials` |
 
 ### 📜 Licenciamento
@@ -278,7 +279,7 @@ Access-Control-Allow-Origin: *
 
 ## Estatísticas
 
-- **Total de Endpoints**: 114 endpoints sob `/api/functions/`
+- **Total de Endpoints**: 115 endpoints sob `/api/functions/`
 - **Endpoints Especiais**: 4 endpoints
 - **Categorias**: 15 categorias
 
@@ -465,6 +466,10 @@ Adicionado `X-Impersonate-Organization` aos headers CORS permitidos em todos os 
 ### 2026-01-12 - Fix Permissão Lambda validate-azure-credentials
 Corrigida permissão Lambda que estava com path incorreto (`/validate-azure-credentials` em vez de `/api/functions/validate-azure-credentials`).
 
+### 2026-01-29 - Azure Edge Services Endpoint
+Adicionado novo endpoint para monitoramento de serviços de borda Azure:
+- `azure-fetch-edge-services` (chj1lt) - Busca serviços de borda Azure (Front Door, App Gateway, Load Balancer, NAT Gateway, API Management, WAF)
+
 ### 2026-01-15 - Platform Monitoring Endpoints
 Adicionados 3 novos endpoints para o sistema de Platform Monitoring com 100% de cobertura:
 - `generate-error-fix-prompt` (658jbt) - Gera prompts de correção dinâmicos
@@ -479,5 +484,5 @@ Adicionados 3 novos endpoints para o sistema avançado de compliance:
 
 ---
 
-**Última atualização:** 2026-01-15
-**Versão:** 1.3
+**Última atualização:** 2026-01-29
+**Versão:** 1.4

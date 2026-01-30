@@ -7,10 +7,8 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, notFound, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-
-interface RequestBody {
-  userId?: string;
-}
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { getUserOrganizationSchema } from '../../lib/schemas.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -26,8 +24,13 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationId(user);
     
-    const body: RequestBody = event.body ? JSON.parse(event.body) : {};
-    const { userId } = body;
+    // Validate input with Zod
+    const validation = parseAndValidateBody(getUserOrganizationSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
+    const { userId, includeMembers } = validation.data;
     
     const prisma = getPrismaClient();
     

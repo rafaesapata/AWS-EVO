@@ -1,11 +1,15 @@
 /**
  * Security Engine V3 - S3 Scanner
  * Comprehensive S3 security checks (20+ checks)
+ * 
+ * Features:
+ * - Retry strategy with exponential backoff for AWS API calls
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';
 import type { Finding, AWSCredentials } from '../../types.js';
 import { ResourceCache } from '../../core/resource-cache.js';
+import { sendWithRetry, sendWithRetryOrNull, COMMON_IGNORED_ERRORS } from '../../core/aws-client-helpers.js';
 import {
   S3Client,
   ListBucketsCommand,
@@ -39,7 +43,11 @@ export class S3Scanner extends BaseScanner {
     const s3Client = await this.clientFactory.getS3Client(this.region);
 
     try {
-      const bucketsResponse = await s3Client.send(new ListBucketsCommand({}));
+      // Use retry for listing buckets
+      const bucketsResponse = await sendWithRetry<S3Client, { Buckets?: Array<{ Name?: string }> }>(
+        s3Client, 
+        new ListBucketsCommand({})
+      );
       const buckets = bucketsResponse.Buckets || [];
 
       for (const bucket of buckets) {
@@ -60,10 +68,13 @@ export class S3Scanner extends BaseScanner {
     const findings: Finding[] = [];
     const bucketArn = this.arnBuilder.s3Bucket(bucketName);
 
-    // Check 1: Public Access Block
+    // Check 1: Public Access Block (with retry)
     await this.safeExecute('publicAccessBlock', async () => {
       try {
-        const response = await client.send(new GetPublicAccessBlockCommand({ Bucket: bucketName }));
+        const response = await sendWithRetry<S3Client, { PublicAccessBlockConfiguration?: any }>(
+          client, 
+          new GetPublicAccessBlockCommand({ Bucket: bucketName })
+        );
         const config = response.PublicAccessBlockConfiguration;
 
         if (!config?.BlockPublicAcls || !config?.BlockPublicPolicy ||

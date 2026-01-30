@@ -9,11 +9,9 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { executeScheduledJobSchema } from '../../lib/schemas.js';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-
-interface ExecuteJobRequest {
-  jobId: string;
-}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -34,12 +32,13 @@ export async function handler(
   });
   
   try {
-    const body: ExecuteJobRequest = event.body ? JSON.parse(event.body) : {};
-    const { jobId } = body;
-    
-    if (!jobId) {
-      return badRequest('jobId is required');
+    // Validate input with Zod
+    const validation = parseAndValidateBody(executeScheduledJobSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { jobId, force } = validation.data;
     
     const prisma = getPrismaClient();
     

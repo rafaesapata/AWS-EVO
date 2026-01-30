@@ -1,11 +1,16 @@
 /**
  * Security Engine V3 - IAM Scanner
  * Comprehensive IAM security checks (25+ checks)
+ * 
+ * Features:
+ * - Retry strategy with exponential backoff for AWS API calls
+ * - Graceful error handling for throttling
  */
 
 import { BaseScanner } from '../../core/base-scanner.js';
 import type { Finding, AWSCredentials } from '../../types.js';
 import { ResourceCache } from '../../core/resource-cache.js';
+import { withRetry } from '../../core/aws-retry.js';
 import {
   IAMClient,
   GetAccountPasswordPolicyCommand,
@@ -24,6 +29,17 @@ import {
   ListFindingsCommand,
   GetAnalyzerCommand,
 } from '@aws-sdk/client-accessanalyzer';
+
+/**
+ * Helper to send IAM commands with retry
+ */
+async function sendWithRetry(client: IAMClient, command: any, operationName: string): Promise<any> {
+  return withRetry(
+    () => client.send(command),
+    operationName,
+    { maxRetries: 3, baseDelayMs: 200 }
+  );
+}
 
 export class IAMScanner extends BaseScanner {
   get serviceName(): string {
@@ -69,7 +85,11 @@ export class IAMScanner extends BaseScanner {
     const findings: Finding[] = [];
 
     try {
-      const response = await client.send(new GetAccountPasswordPolicyCommand({}));
+      const response = await sendWithRetry(
+        client, 
+        new GetAccountPasswordPolicyCommand({}),
+        'GetAccountPasswordPolicy'
+      );
       const policy = response.PasswordPolicy;
 
       if (!policy) {

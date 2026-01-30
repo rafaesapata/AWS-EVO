@@ -156,7 +156,7 @@ export const CostAnalysis = () => {
       }
 
       const data = await apiClient.lambda('fetch-daily-costs', {
-        body: { accountId: accountId, days: 90 }
+        body: { accountId: accountId, days: 90, incremental: true }
       });
       
       if (!data?.success) {
@@ -166,7 +166,9 @@ export const CostAnalysis = () => {
       return data;
     },
     onSuccess: (data) => {
-      const daysUpdated = data.data?.dailyCosts?.length || 0;
+      const summary = data.summary || {};
+      const daysUpdated = summary.uniqueDates || 0;
+      const newRecords = summary.newRecords || 0;
       
       // Invalidate queries to refresh UI - pattern matching for all organization variants
       queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
@@ -175,12 +177,12 @@ export const CostAnalysis = () => {
       
       // Only show toast if not background refresh
       if (!document.hidden) {
-        const message = daysUpdated > 0 
+        const message = newRecords > 0 
           ? t('costAnalysis.daysUpdated', { count: daysUpdated })
           : t('costAnalysis.noNewData');
           
         toast({
-          title: daysUpdated > 0 ? t('costAnalysis.costsUpdated') : t('common.information'),
+          title: newRecords > 0 ? t('costAnalysis.costsUpdated') : t('common.information'),
           description: message,
         });
       }

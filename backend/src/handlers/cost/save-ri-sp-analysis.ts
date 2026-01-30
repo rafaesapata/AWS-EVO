@@ -11,21 +11,24 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 
-interface SaveRiSpAnalysisInput {
-  accountId: string;
-  analysisData: {
-    reservedInstances?: any[];
-    savingsPlans?: any[];
-    recommendations?: any[];
-    utilizationHistory?: any[];
-    metadata?: {
-      analysisDepth?: string;
-      regions?: string[];
-      timestamp?: string;
-    };
-  };
-}
+// Zod schema for save RI/SP analysis
+const saveRiSpAnalysisSchema = z.object({
+  accountId: z.string().uuid('Invalid account ID format'),
+  analysisData: z.object({
+    reservedInstances: z.array(z.any()).optional(),
+    savingsPlans: z.array(z.any()).optional(),
+    recommendations: z.array(z.any()).optional(),
+    utilizationHistory: z.array(z.any()).optional(),
+    metadata: z.object({
+      analysisDepth: z.string().optional(),
+      regions: z.array(z.string()).optional(),
+      timestamp: z.string().optional(),
+    }).optional(),
+  }),
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -40,12 +43,13 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
-    const body: SaveRiSpAnalysisInput = JSON.parse(event.body || '{}');
-    const { accountId, analysisData } = body;
-
-    if (!accountId || !analysisData) {
-      return error('Missing required fields: accountId, analysisData', 400);
+    // Validate input with Zod
+    const validation = parseAndValidateBody(saveRiSpAnalysisSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { accountId, analysisData } = validation.data;
 
     logger.info('Saving RI/SP analysis to database', {
       organizationId,

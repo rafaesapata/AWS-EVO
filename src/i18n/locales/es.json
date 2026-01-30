@@ -180,6 +180,15 @@
     "increaseEconomy": "Aumentar ahorro",
     "optimizeCostCTA": "Ver cómo optimizar costo",
     "viewAlerts": "Ver alertas",
+    "cta": {
+      "viewSecurityFindings": "Ver findings de seguridad",
+      "viewCostDetails": "Ver detalles de costo",
+      "viewEndpoints": "Ver endpoints",
+      "viewRecommendations": "Ver recomendaciones",
+      "runScan": "Ejecutar scan",
+      "viewAll": "Ver todos",
+      "learnMore": "Saber más"
+    },
     "healthScoreTooltip": "Score de 0-100 que evalúa la salud general de su infraestructura AWS. Considera seguridad (findings críticos), compliance (frameworks CIS, LGPD, PCI-DSS), rendimiento (uptime, latencia) y costos (optimización, desperdicio). Actualizado en tiempo real.",
     "healthScoreDescription": "Análisis completo de seguridad y conformidad",
     "uptimeSLATooltip": "Porcentaje de disponibilidad de sus endpoints monitoreados en los últimos 30 días. Meta recomendada: 99.9% (menos de 43 minutos de downtime por mes). Incluye APIs, sitios web y servicios críticos.",

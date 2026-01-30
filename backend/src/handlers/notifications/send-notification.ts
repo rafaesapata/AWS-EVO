@@ -10,6 +10,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { sendNotificationSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 
@@ -33,19 +34,13 @@ export async function handler(
   });
   
   try {
-    // Validar input com Zod
-    const parseResult = sendNotificationSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
-    
-    if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+    // Validar input com Zod usando parseAndValidateBody
+    const validation = parseAndValidateBody(sendNotificationSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
     
-    const { channel, recipient, subject, message, metadata } = parseResult.data;
+    const { channel, recipient, subject, message, metadata } = validation.data;
     
     logger.info('Sending notification', { 
       organizationId, 

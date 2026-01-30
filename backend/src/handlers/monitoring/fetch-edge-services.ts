@@ -15,6 +15,8 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { edgeCache } from '../../lib/redis-cache.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { CloudWatchClient, GetMetricStatisticsCommand, type Dimension } from '@aws-sdk/client-cloudwatch';
 import { CloudFrontClient, ListDistributionsCommand } from '@aws-sdk/client-cloudfront';
 import { WAFV2Client, ListWebACLsCommand, GetWebACLCommand } from '@aws-sdk/client-wafv2';
@@ -22,11 +24,12 @@ import { ElasticLoadBalancingV2Client, DescribeLoadBalancersCommand } from '@aws
 import { randomUUID } from 'crypto';
 import { isOrganizationInDemoMode, generateDemoEdgeServices } from '../../lib/demo-data-service.js';
 
-interface FetchEdgeServicesRequest {
-  accountId: string;
-  regions?: string[];
-  forceRefresh?: boolean; // Força atualização ignorando cache
-}
+// Zod schema for fetch edge services request
+const fetchEdgeServicesRequestSchema = z.object({
+  accountId: z.string().min(1, 'accountId is required'),
+  regions: z.array(z.string()).optional(),
+  forceRefresh: z.boolean().default(false),
+});
 
 interface EdgeServiceInfo {
   serviceType: 'cloudfront' | 'waf' | 'load_balancer';
@@ -72,12 +75,12 @@ export async function handler(
       return success(demoData);
     }
     
-    const body: FetchEdgeServicesRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, regions = DEFAULT_REGIONS, forceRefresh = false } = body;
-    
-    if (!accountId) {
-      return error('Missing required parameter: accountId');
+    const validation = parseAndValidateBody(fetchEdgeServicesRequestSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { accountId, regions = DEFAULT_REGIONS, forceRefresh } = validation.data;
     
     // Buscar credenciais AWS
     const account = await prisma.awsCredential.findFirst({
@@ -648,6 +651,7 @@ async function upsertEdgeService(
     });
     
     const data = {
+      cloud_provider: 'AWS',
       service_type: service.serviceType,
       service_name: service.serviceName,
       status: service.status,
@@ -708,6 +712,7 @@ async function saveEdgeMetrics(
         data: {
           id: randomUUID(),
           organization_id: organizationId,
+          cloud_provider: 'AWS',
           aws_account_id: accountId,
           service_id: serviceId,
           timestamp: roundedTimestamp,

@@ -1,1 +1,0 @@
-{"requestContext":{"http":{"method":"POST"}},"headers":{"Authorization":"Bearer dummy"},"body":"{\"table\":\"cloudtrail_analyses\",\"order\":{\"column\":\"created_at\",\"ascending\":false},\"limit\":10}"}

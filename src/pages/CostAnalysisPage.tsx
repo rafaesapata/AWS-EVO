@@ -127,7 +127,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
        startDate: startDateStr,
        endDate: endDateStr,
        granularity: 'DAILY',
-       incremental: false
+       incremental: true  // Use incremental fetch to avoid re-fetching all data
      };
  
  // IMPORTANT: Parameters must be inside 'body' for the Lambda to receive them correctly
@@ -345,9 +345,9 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  summary: data?.summary || { totalRecords: 0, newRecords: data?.summary?.savedCount || 0 },
  };
  } else {
- // AWS: Call fetch-daily-costs Lambda
+ // AWS: Call fetch-daily-costs Lambda with incremental fetch
  const result = await apiClient.invoke<any>('fetch-daily-costs', {
- body: { accountId: accountId, days: 90 }
+ body: { accountId: accountId, days: 90, incremental: true }
  });
  
  if (result.error) {
@@ -367,7 +367,9 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }
  },
  onSuccess: (data) => {
- const daysUpdated = data.data?.dailyCosts?.length || 0;
+ const summary = data.summary || {};
+ const daysUpdated = summary.uniqueDates || 0;
+ const newRecords = summary.newRecords || 0;
  
  // Invalidate queries to refresh UI - pattern matching for all organization variants
  queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
@@ -376,12 +378,12 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  
  // Only show toast if not background refresh
  if (!document.hidden) {
- const message = daysUpdated > 0 
+ const message = newRecords > 0 
  ? t('costAnalysis.daysUpdated', { count: daysUpdated })
  : t('costAnalysis.noNewData');
  
  toast({
- title: daysUpdated > 0 ? t('costAnalysis.costsUpdated') : t('common.information'),
+ title: newRecords > 0 ? t('costAnalysis.costsUpdated') : t('common.information'),
  description: message,
  });
  }
@@ -478,12 +480,14 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }
  },
  onSuccess: (data) => {
- const daysUpdated = data.data?.dailyCosts?.length || 0;
+ const summary = data.summary || {};
+ const daysUpdated = summary.uniqueDates || 0;
+ const newRecords = summary.newRecords || 0;
  
  toast({
  title: 'Busca Completa Realizada',
- description: daysUpdated > 0 
- ? `Buscados ${daysUpdated} registros de custo desde 2024. Recarregando dados...`
+ description: newRecords > 0 
+ ? `Buscados ${daysUpdated} dias de custo desde 2024. Recarregando dados...`
  : 'Busca completa realizada. Recarregando dados...',
  });
  

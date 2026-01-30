@@ -12,6 +12,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, requireRole } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { manageUserSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { 
   CognitoIdentityProviderClient, 
   AdminCreateUserCommand,
@@ -39,19 +40,13 @@ export async function handler(
     // Apenas admins podem gerenciar usuários
     requireRole(user, 'admin');
     
-    // Validar input com Zod
-    const parseResult = manageUserSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
-    
-    if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`);
+    // Validar input com Zod usando parseAndValidateBody
+    const validation = parseAndValidateBody(manageUserSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
     
-    const { action, email, attributes, password } = parseResult.data;
+    const { action, email, attributes, password } = validation.data;
     
     const userPoolId = process.env.USER_POOL_ID;
     if (!userPoolId) {

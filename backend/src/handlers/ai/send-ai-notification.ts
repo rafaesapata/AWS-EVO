@@ -9,6 +9,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const sendNotificationSchema = z.object({
@@ -47,11 +48,10 @@ export async function handler(
     const userRoles = user['custom:roles'] ? JSON.parse(user['custom:roles']) : [];
     const isSuperAdmin = userRoles.includes('super_admin');
 
-    const body = JSON.parse(event.body || '{}');
-    const validation = sendNotificationSchema.safeParse(body);
-
+    // Validate request body with Zod
+    const validation = parseAndValidateBody(sendNotificationSchema, event.body);
     if (!validation.success) {
-      return error('Invalid request: ' + validation.error.message, 400);
+      return validation.error;
     }
 
     const data = validation.data;
@@ -97,20 +97,23 @@ export async function handler(
     });
 
     // Criar notificação
+    const notificationType = data.type || 'custom';
+    const expiresInHours = data.expires_in_hours || 168;
+    
     const notification = await prisma.aiNotification.create({
       data: {
         organization_id: targetOrgId,
         user_id: data.target_user_id || null,
-        type: data.type,
+        type: notificationType,
         priority: data.priority,
         title: data.title,
         message: data.message,
-        suggested_action: data.suggested_action,
-        action_type: data.action_type,
+        suggested_action: data.suggested_action ?? null,
+        action_type: data.action_type ?? null,
         action_params: data.action_params as object | undefined,
         context: data.context as object | undefined,
         status: 'pending',
-        expires_at: new Date(Date.now() + data.expires_in_hours * 60 * 60 * 1000),
+        expires_at: new Date(Date.now() + expiresInHours * 60 * 60 * 1000),
         created_by: user.sub,
       },
     });

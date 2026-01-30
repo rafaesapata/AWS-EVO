@@ -1,15 +1,22 @@
 /**
  * Security Engine V3 - Scan Manager
  * Orchestrates all security scanners with parallel execution
+ * 
+ * Features:
+ * - Persistent cache (DynamoDB) to survive Lambda cold starts
+ * - Retry strategy with exponential backoff for AWS API calls
+ * - Individual scanner timeouts to prevent hanging
  */
 
 import type { Finding, ScanResult, ScanContext, ScanSummary, ScanMetricsReport, AWSCredentials } from '../types.js';
 import { ResourceCache, getGlobalCache } from './resource-cache.js';
+import { PersistentCache, getPersistentCache } from './persistent-cache.js';
 import { ParallelExecutor } from './parallel-executor.js';
 import { AWSClientFactory } from './client-factory.js';
 import { GLOBAL_SERVICES, REGIONAL_SERVICES } from '../config.js';
 import { logger } from '../../logging.js';
 import { randomUUID } from 'crypto';
+import { withTimeout, ScannerTimeoutError, DEFAULT_TIMEOUT_CONFIG } from './scanner-timeout.js';
 
 // Import all scanners
 import { scanIAM } from '../scanners/iam/index.js';
@@ -122,14 +129,22 @@ const SCANNERS: ScannerConfig[] = [
 export class ScanManager {
   private context: ScanContext;
   private cache: ResourceCache;
+  private persistentCache: PersistentCache | null = null;
   private executor: ParallelExecutor;
   private clientFactory: AWSClientFactory;
+  private scannerTimeouts: Map<string, number> = new Map();
+  private timedOutScanners: string[] = [];
 
   constructor(context: ScanContext) {
     this.context = context;
     this.cache = getGlobalCache();
     this.executor = new ParallelExecutor();
     this.clientFactory = new AWSClientFactory(context.credentials);
+    
+    // Initialize persistent cache if account ID is available
+    if (context.awsAccountId) {
+      this.persistentCache = getPersistentCache(context.awsAccountId);
+    }
   }
 
   async scan(): Promise<ScanResult> {
@@ -263,21 +278,45 @@ export class ScanManager {
       scanners.map(async (config) => {
         const startTime = Date.now();
         try {
-          const scannerFindings = await config.scanner(
-            region,
-            accountId,
-            this.context.credentials,
-            this.cache
+          // Get timeout for this scanner
+          const timeoutMs = DEFAULT_TIMEOUT_CONFIG.scannerTimeouts[config.name] || 
+                           DEFAULT_TIMEOUT_CONFIG.defaultTimeoutMs;
+          
+          // Execute scanner with timeout
+          const scannerFindings = await withTimeout(
+            () => config.scanner(
+              region,
+              accountId,
+              this.context.credentials,
+              this.cache
+            ),
+            config.name,
+            region
           );
           
           const duration = Date.now() - startTime;
           this.executor.recordMetric(config.name, region, duration, scannerFindings.length);
+          this.scannerTimeouts.set(`${config.name}:${region}`, duration);
           
           return scannerFindings;
         } catch (error) {
           const duration = Date.now() - startTime;
           this.executor.recordMetric(config.name, region, duration, 0, 1);
-          logger.warn(`Scanner ${config.name} failed in ${region}`, { error: (error as Error).message });
+          
+          // Track timed out scanners
+          if (error instanceof ScannerTimeoutError) {
+            this.timedOutScanners.push(`${config.name}:${region}`);
+            logger.warn(`Scanner ${config.name} timed out in ${region}`, { 
+              duration,
+              timeoutMs: (error as ScannerTimeoutError).timeoutMs,
+            });
+          } else {
+            logger.warn(`Scanner ${config.name} failed in ${region}`, { 
+              error: (error as Error).message,
+              duration,
+            });
+          }
+          
           return [];
         }
       })
@@ -330,6 +369,9 @@ export class ScanManager {
       serviceDetails[key] = metric;
     }
 
+    // Add cache stats if persistent cache is available
+    const cacheStats = this.persistentCache?.getStats();
+
     return {
       totalDuration,
       totalFindings: findings.length,
@@ -337,6 +379,14 @@ export class ScanManager {
       servicesScanned: executorMetrics.size,
       regionsScanned: this.context.regions.length,
       serviceDetails,
+      timedOutScanners: this.timedOutScanners,
+      cacheStats: cacheStats ? {
+        hits: cacheStats.hits,
+        misses: cacheStats.misses,
+        hitRate: cacheStats.hitRate,
+        dynamoHits: cacheStats.dynamoHits,
+        dynamoMisses: cacheStats.dynamoMisses,
+      } : undefined,
     };
   }
 }

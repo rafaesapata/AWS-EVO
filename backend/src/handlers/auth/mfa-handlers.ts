@@ -9,6 +9,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId, checkUserRateLimit, RateLimitError } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { mfaEnrollSchema, mfaVerifySchema, mfaUnenrollSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { logger } from '../../lib/logging.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { CognitoIdentityProviderClient, AdminSetUserMFAPreferenceCommand, AdminGetUserCommand, AssociateSoftwareTokenCommand, VerifySoftwareTokenCommand } from '@aws-sdk/client-cognito-identity-provider';
@@ -114,20 +115,10 @@ export async function enrollHandler(
     const user = getUserFromEvent(event);
     
     // Parse and validate input
-    let body;
-    try {
-      body = event.body ? JSON.parse(event.body) : {};
-    } catch {
-      return badRequest('Invalid JSON in request body', undefined, origin);
-    }
-    
-    const parseResult = mfaEnrollSchema.safeParse(body);
+    const parseResult = parseAndValidateBody(mfaEnrollSchema, event.body);
     
     if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+      return parseResult.error;
     }
     
     const { factorType, friendlyName } = parseResult.data;
@@ -266,28 +257,17 @@ export async function verifyHandler(
     }
     
     // Parse and validate input
-    let body;
-    try {
-      body = event.body ? JSON.parse(event.body) : {};
-    } catch {
-      return badRequest('Invalid JSON in request body', undefined, origin);
+    const parseResult = parseAndValidateBody(mfaVerifySchema, event.body);
+    
+    if (!parseResult.success) {
+      return parseResult.error;
     }
     
     logger.info('🔐 MFA Verify: Received body', { 
-      hasFactorId: !!body.factorId, 
-      hasCode: !!body.code,
-      codeLength: body.code?.length 
+      hasFactorId: !!parseResult.data.factorId, 
+      hasCode: !!parseResult.data.code,
+      codeLength: parseResult.data.code?.length 
     });
-    
-    const parseResult = mfaVerifySchema.safeParse(body);
-    
-    if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      logger.warn('🔐 MFA Verify: Validation failed', { errors: errorMessages });
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
-    }
     
     const { factorId, code } = parseResult.data;
     const prisma = getPrismaClient();

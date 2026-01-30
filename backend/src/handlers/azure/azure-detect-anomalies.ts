@@ -18,6 +18,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { getAzureCredentialWithToken } from '../../lib/azure-helpers.js';
 import { z } from 'zod';
+import { parseAndValidateBody } from '../../lib/validation.js';
 
 // Validation schema
 const azureDetectAnomaliesSchema = z.object({
@@ -71,19 +72,12 @@ export async function handler(
     logger.info('Detecting Azure anomalies', { organizationId });
 
     // Parse and validate request body
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = azureDetectAnomaliesSchema.safeParse(body);
+    const validation = parseAndValidateBody(azureDetectAnomaliesSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
-    const { credentialId, lookbackDays, sensitivityLevel } = validation.data;
+    const { credentialId, lookbackDays = 30, sensitivityLevel = 'medium' } = validation.data;
     const threshold = SENSITIVITY_THRESHOLDS[sensitivityLevel];
 
     // Get Azure credential with valid token

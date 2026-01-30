@@ -1,1 +1,0 @@
-{"query": "SELECT u.email, u.id, COUNT(w.id) as webauthn_count FROM \"User\" u LEFT JOIN \"WebAuthnCredential\" w ON u.id = w.user_id GROUP BY u.id, u.email ORDER BY webauthn_count DESC, u.email"}

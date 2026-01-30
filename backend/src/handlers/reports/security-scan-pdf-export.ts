@@ -4,18 +4,21 @@ import { getPrismaClient } from '../../lib/database.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { success, error, badRequest, notFound, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import PDFDocument from 'pdfkit';
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 
-interface ExportRequest {
-  scanId: string;
-  format?: 'detailed' | 'summary' | 'executive';
-  includeRemediation?: boolean;
-  language?: 'pt-BR' | 'en-US';
-}
+// Zod schema for security scan PDF export
+const securityScanPdfExportSchema = z.object({
+  scanId: z.string().uuid('Invalid scan ID format'),
+  format: z.enum(['detailed', 'summary', 'executive']).default('detailed'),
+  includeRemediation: z.boolean().default(true),
+  language: z.enum(['pt-BR', 'en-US']).default('pt-BR'),
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -28,8 +31,8 @@ export async function handler(
     return corsOptions(origin);
   }
 
-  let organizationId: string;
-  let userId: string;
+  let organizationId: string = '';
+  let userId: string = 'unknown';
   
   try {
     const user = getUserFromEvent(event);
@@ -40,14 +43,20 @@ export async function handler(
     return error('Unauthorized', 401, undefined, origin);
   }
 
+  if (!organizationId) {
+    return error('Organization ID not found', 401, undefined, origin);
+  }
+
   try {
     const prisma = getPrismaClient();
-    const body: ExportRequest = JSON.parse(event.body || '{}');
-    const { scanId, format = 'detailed', includeRemediation = true, language = 'pt-BR' } = body;
-
-    if (!scanId) {
-      return badRequest('scanId is required', undefined, origin);
+    
+    // Validate input with Zod
+    const validation = parseAndValidateBody(securityScanPdfExportSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { scanId, format, includeRemediation, language } = validation.data;
 
     // Buscar scan - FILTRAR POR ORGANIZATION_ID
     const scan = await prisma.securityScan.findFirst({
@@ -77,7 +86,13 @@ export async function handler(
     });
 
     // Gerar PDF
-    const pdfBuffer = await generatePDF(scan, findings, format, includeRemediation, language);
+    const pdfBuffer = await generatePDF(
+      scan, 
+      findings, 
+      format ?? 'detailed', 
+      includeRemediation !== undefined ? includeRemediation : true, 
+      language ?? 'pt-BR'
+    );
 
     // Upload para S3
     const bucket = process.env.REPORTS_BUCKET || 'evo-uds-reports-383234048592';
@@ -92,7 +107,7 @@ export async function handler(
       ContentDisposition: `attachment; filename="evo-security-report-${scanId.slice(0, 8)}.pdf"`,
       Metadata: { 
         scanId, 
-        format, 
+        format: format ?? 'detailed', 
         generatedBy: userId, 
         generatedAt: new Date().toISOString(),
         organizationId

@@ -10,11 +10,14 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { IAMClient, ListUsersCommand, ListUserPoliciesCommand, ListAttachedUserPoliciesCommand } from '@aws-sdk/client-iam';
 
-interface IAMDeepAnalysisRequest {
-  accountId: string;
-}
+// Zod schema for IAM deep analysis request
+const iamDeepAnalysisSchema = z.object({
+  accountId: z.string().min(1, 'accountId is required'),
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -34,12 +37,12 @@ export async function handler(
   });
   
   try {
-    const body: IAMDeepAnalysisRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId } = body;
-    
-    if (!accountId) {
-      return error('Missing required parameter: accountId');
+    const validation = parseAndValidateBody(iamDeepAnalysisSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { accountId } = validation.data;
     
     const prisma = getPrismaClient();
     

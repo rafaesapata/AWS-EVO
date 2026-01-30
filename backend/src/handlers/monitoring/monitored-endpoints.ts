@@ -5,25 +5,13 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoMonitoredEndpoints } from '../../lib/demo-data-service.js';
-
-interface CreateEndpointRequest {
-  name: string;
-  url: string;
-  timeout?: number;
-  is_active?: boolean;
-  alert_on_failure?: boolean;
-  monitor_ssl?: boolean;
-  ssl_alert_days?: number;
-}
-
-interface UpdateEndpointRequest extends Partial<CreateEndpointRequest> {
-  id: string;
-}
+import { createMonitoredEndpointSchema, updateMonitoredEndpointSchema, deleteMonitoredEndpointSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -72,29 +60,22 @@ export async function handler(
     
     // POST - Criar endpoint
     if (method === 'POST') {
-      const body: CreateEndpointRequest = event.body ? JSON.parse(event.body) : {};
-      
-      if (!body.name || !body.url) {
-        return error('Nome e URL são obrigatórios', 400);
+      const validation = parseAndValidateBody(createMonitoredEndpointSchema, event.body);
+      if (!validation.success) {
+        return validation.error;
       }
-      
-      // Validar URL
-      try {
-        new URL(body.url);
-      } catch {
-        return error('URL inválida', 400);
-      }
+      const { name, url, timeout, is_active, alert_on_failure, monitor_ssl, ssl_alert_days } = validation.data;
       
       const endpoint = await prisma.monitoredEndpoint.create({
         data: {
           organization_id: organizationId,
-          name: body.name,
-          url: body.url,
-          timeout: body.timeout || 5000,
-          is_active: body.is_active ?? true,
-          alert_on_failure: body.alert_on_failure ?? true,
-          monitor_ssl: body.monitor_ssl ?? true,
-          ssl_alert_days: body.ssl_alert_days || 30,
+          name,
+          url,
+          timeout,
+          is_active,
+          alert_on_failure,
+          monitor_ssl,
+          ssl_alert_days,
         },
       });
       
@@ -105,15 +86,15 @@ export async function handler(
     
     // PUT - Atualizar endpoint
     if (method === 'PUT') {
-      const body: UpdateEndpointRequest = event.body ? JSON.parse(event.body) : {};
-      
-      if (!body.id) {
-        return error('ID do endpoint é obrigatório', 400);
+      const validation = parseAndValidateBody(updateMonitoredEndpointSchema, event.body);
+      if (!validation.success) {
+        return validation.error;
       }
+      const { id, name, url, timeout, is_active, alert_on_failure, monitor_ssl, ssl_alert_days } = validation.data;
       
       // Verificar se endpoint pertence à organização
       const existing = await prisma.monitoredEndpoint.findFirst({
-        where: { id: body.id, organization_id: organizationId },
+        where: { id, organization_id: organizationId },
       });
       
       if (!existing) {
@@ -121,15 +102,15 @@ export async function handler(
       }
       
       const endpoint = await prisma.monitoredEndpoint.update({
-        where: { id: body.id },
+        where: { id },
         data: {
-          ...(body.name && { name: body.name }),
-          ...(body.url && { url: body.url }),
-          ...(body.timeout !== undefined && { timeout: body.timeout }),
-          ...(body.is_active !== undefined && { is_active: body.is_active }),
-          ...(body.alert_on_failure !== undefined && { alert_on_failure: body.alert_on_failure }),
-          ...(body.monitor_ssl !== undefined && { monitor_ssl: body.monitor_ssl }),
-          ...(body.ssl_alert_days !== undefined && { ssl_alert_days: body.ssl_alert_days }),
+          ...(name && { name }),
+          ...(url && { url }),
+          ...(timeout !== undefined && { timeout }),
+          ...(is_active !== undefined && { is_active }),
+          ...(alert_on_failure !== undefined && { alert_on_failure }),
+          ...(monitor_ssl !== undefined && { monitor_ssl }),
+          ...(ssl_alert_days !== undefined && { ssl_alert_days }),
         },
       });
       
@@ -140,11 +121,20 @@ export async function handler(
     
     // DELETE - Deletar endpoint
     if (method === 'DELETE') {
-      const body = event.body ? JSON.parse(event.body) : {};
-      const endpointId = body.id || event.queryStringParameters?.id;
+      let endpointId: string | undefined;
+      
+      if (event.body) {
+        const validation = parseAndValidateBody(deleteMonitoredEndpointSchema, event.body);
+        if (!validation.success) {
+          return validation.error;
+        }
+        endpointId = validation.data.id;
+      } else {
+        endpointId = event.queryStringParameters?.id;
+      }
       
       if (!endpointId) {
-        return error('ID do endpoint é obrigatório', 400);
+        return badRequest('ID do endpoint é obrigatório');
       }
       
       // Verificar se endpoint pertence à organização

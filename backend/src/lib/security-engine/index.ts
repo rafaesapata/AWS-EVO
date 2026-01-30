@@ -42,10 +42,14 @@ export {
 // Core components
 export { ArnBuilder } from './arn-builder.js';
 export { ResourceCache, getGlobalCache, resetGlobalCache } from './core/resource-cache.js';
+export { PersistentCache, getPersistentCache, resetPersistentCache } from './core/persistent-cache.js';
 export { AWSClientFactory } from './core/client-factory.js';
 export { ParallelExecutor, BatchProcessor } from './core/parallel-executor.js';
 export { BaseScanner } from './core/base-scanner.js';
 export { ScanManager, runSecurityScan } from './core/scan-manager.js';
+export { withRetry, batchWithRetry, createRetryableClient, DEFAULT_RETRY_CONFIG } from './core/aws-retry.js';
+export { withTimeout, withTimeoutPartial, ScannerTimeoutError, DEFAULT_TIMEOUT_CONFIG, getScannerTimeout, estimateTotalScanTime } from './core/scanner-timeout.js';
+export { sendWithRetry, wrapClientWithRetry, sendAllWithRetry, sendWithRetryOrNull, COMMON_IGNORED_ERRORS } from './core/aws-client-helpers.js';
 
 // Individual scanners
 export { scanIAM, IAMScanner } from './scanners/iam/index.js';

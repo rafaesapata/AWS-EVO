@@ -19,6 +19,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { getAzureCredentialWithToken } from '../../lib/azure-helpers.js';
 import { z } from 'zod';
+import { parseAndValidateBody } from '../../lib/validation.js';
 
 // Validation schema
 const azureFetchMetricsSchema = z.object({
@@ -79,19 +80,12 @@ export async function handler(
     logger.info('Fetching Azure Monitor metrics', { organizationId });
 
     // Parse and validate request body
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = azureFetchMetricsSchema.safeParse(body);
+    const validation = parseAndValidateBody(azureFetchMetricsSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
-    const { credentialId, resourceTypes, timeRange } = validation.data;
+    const { credentialId, resourceTypes, timeRange = '3h' } = validation.data;
 
     // Get Azure credential with valid token
     const credentialResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);

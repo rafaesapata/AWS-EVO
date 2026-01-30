@@ -14,6 +14,8 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logging.js';
 import { businessMetrics } from '../../lib/metrics.js';
 import { isOrganizationInDemoMode, generateDemoCostOptimizations } from '../../lib/demo-data-service.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { 
   EC2Client, 
   DescribeInstancesCommand, 
@@ -30,6 +32,11 @@ import { ElasticLoadBalancingV2Client, DescribeLoadBalancersCommand, DescribeTar
 import { ECSClient, ListClustersCommand, DescribeClustersCommand, ListServicesCommand } from '@aws-sdk/client-ecs';
 import { ElastiCacheClient, DescribeCacheClustersCommand } from '@aws-sdk/client-elasticache';
 import { DynamoDBClient, ListTablesCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
+
+// Zod schema for cost optimization request
+const costOptimizationSchema = z.object({
+  accountId: z.string().uuid().optional(),
+});
 
 interface Optimization {
   type: string;
@@ -67,8 +74,12 @@ export async function handler(
   logger.info('Cost optimization started', { organizationId, requestId: context.awsRequestId });
   
   try {
-    const body = event.body ? JSON.parse(event.body) : {};
-    const { accountId } = body;
+    const validation = parseAndValidateBody(costOptimizationSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
+    const { accountId } = validation.data;
     
     const prisma = getPrismaClient();
     

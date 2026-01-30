@@ -15,6 +15,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { z } from 'zod';
+import { parseAndValidateBody } from '../../lib/validation.js';
 
 // Validation schema
 const revokeSchema = z.object({
@@ -40,16 +41,9 @@ export async function handler(
     const prisma = getPrismaClient();
 
     // Parse and validate request body
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = revokeSchema.safeParse(body);
+    const validation = parseAndValidateBody(revokeSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
     const { credentialId } = validation.data;

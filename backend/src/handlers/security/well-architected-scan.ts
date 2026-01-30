@@ -6,11 +6,19 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
 import { isOrganizationInDemoMode, generateDemoWellArchitectedData } from '../../lib/demo-data-service.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { EC2Client, DescribeInstancesCommand, DescribeSecurityGroupsCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { S3Client, ListBucketsCommand, GetBucketEncryptionCommand } from '@aws-sdk/client-s3';
 import { IAMClient, ListUsersCommand, ListMFADevicesCommand } from '@aws-sdk/client-iam';
 import { CloudWatchClient, DescribeAlarmsCommand } from '@aws-sdk/client-cloudwatch';
+
+// Zod schema for well-architected scan request
+const wellArchitectedScanSchema = z.object({
+  accountId: z.string().min(1, 'accountId is required'),
+  region: z.string().optional(),
+});
 
 interface PillarScore {
   pillar: string;
@@ -47,11 +55,12 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
   // =========================================================================
   
   try {
-    const body = event.body ? JSON.parse(event.body) : {};
-    const accountId = body.accountId;
-    const requestedRegion = body.region;
+    const validation = parseAndValidateBody(wellArchitectedScanSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
     
-    if (!accountId) return error('Missing required parameter: accountId');
+    const { accountId, region: requestedRegion } = validation.data;
     
     const account = await prisma.awsCredential.findFirst({
       where: { id: accountId, organization_id: organizationId, is_active: true },

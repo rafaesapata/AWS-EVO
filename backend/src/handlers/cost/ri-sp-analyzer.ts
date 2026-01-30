@@ -19,6 +19,8 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { getEC2Price, getRDSPrice } from '../../lib/pricing/dynamic-pricing-service.js';
 import { isOrganizationInDemoMode, generateDemoRISPAnalysis } from '../../lib/demo-data-service.js';
+import { riSpAnalyzerSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { 
   EC2Client, 
   DescribeReservedInstancesCommand, 
@@ -194,8 +196,12 @@ export async function handler(
       });
     }
     
-    const body: RISPAnalyzerRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, region, regions, analysisDepth = 'comprehensive' } = body;
+    // Validate request body
+    const validation = parseAndValidateBody(riSpAnalyzerSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    const { accountId, region, regions, analysisDepth = 'comprehensive' } = validation.data;
     
     let regionsToAnalyze: string[] = [];
     
@@ -203,10 +209,6 @@ export async function handler(
       regionsToAnalyze = regions;
     } else if (region) {
       regionsToAnalyze = [region];
-    }
-    
-    if (!accountId) {
-      return error('Missing required parameter: accountId');
     }
     
     const account = await prisma.awsCredential.findFirst({

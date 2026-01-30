@@ -17,6 +17,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { z } from 'zod';
 
@@ -142,38 +143,39 @@ export async function handler(
       return error('Organization not found', 400);
     }
 
-    const body = event.body ? JSON.parse(event.body) : {};
-    const validation = querySchema.safeParse(body);
-
+    // Parse and validate body using centralized validation
+    const validation = parseAndValidateBody(querySchema, event.body);
     if (!validation.success) {
-      return error('Invalid request body', 400);
+      return validation.error;
     }
 
-    const { limit, hours, source } = validation.data;
+    const { limit = 50, hours = 24, source = 'all' } = validation.data;
+    const effectiveLimit = limit ?? 50;
+    const effectiveHours = hours ?? 24;
 
     logger.info('Fetching recent errors (OPTIMIZED)', { 
       organizationId, 
-      limit, 
-      hours, 
+      limit: effectiveLimit, 
+      hours: effectiveHours, 
       source,
       criticalLambdas: CRITICAL_LAMBDAS.length,
       otherLambdas: OTHER_LAMBDAS.length,
     });
 
     const now = new Date();
-    const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
+    const startTime = new Date(now.getTime() - effectiveHours * 60 * 60 * 1000);
 
     const allErrors: any[] = [];
 
     // Fetch backend errors (Lambda) - priorizar críticas
     if (source === 'all' || source === 'backend') {
-      const lambdaErrors = await getLambdaErrorsOptimized(startTime, now, limit);
+      const lambdaErrors = await getLambdaErrorsOptimized(startTime, now, effectiveLimit);
       allErrors.push(...lambdaErrors);
     }
 
     // Fetch frontend errors
     if (source === 'all' || source === 'frontend') {
-      const frontendErrors = await getFrontendErrors(startTime, now, limit);
+      const frontendErrors = await getFrontendErrors(startTime, now, effectiveLimit);
       allErrors.push(...frontendErrors);
     }
 

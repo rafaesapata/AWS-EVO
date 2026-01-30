@@ -1421,14 +1421,16 @@ model AwsResource {
 model EdgeService {
   id                    String   @id @default(uuid()) @db.Uuid
   organization_id       String   @db.Uuid
-  aws_account_id        String   @db.Uuid
-  service_type          String   // 'cloudfront', 'waf', 'load_balancer'
+  cloud_provider        CloudProvider @default(AWS)
+  aws_account_id        String?  @db.Uuid  // For AWS services (CloudFront, WAF, ALB/NLB)
+  azure_credential_id   String?  @db.Uuid  // For Azure services (Front Door, WAF, App Gateway, NAT Gateway)
+  service_type          String   // AWS: 'cloudfront', 'waf', 'load_balancer' | Azure: 'front_door', 'azure_waf', 'application_gateway', 'load_balancer', 'nat_gateway', 'api_management'
   service_name          String
-  service_id            String   // CloudFront Distribution ID, WAF Web ACL ID, or ALB/NLB ARN
+  service_id            String   // CloudFront Distribution ID, WAF Web ACL ID, ALB/NLB ARN, or Azure resource ID
   status                String   @default("active") // 'active', 'inactive', 'error'
   region                String   @default("global")
-  domain_name           String?  // CloudFront domain or ALB DNS name
-  origin_domain         String?  // Origin domain for CloudFront
+  domain_name           String?  // CloudFront domain, ALB DNS name, or Azure Front Door endpoint
+  origin_domain         String?  // Origin domain for CloudFront/Front Door
   requests_per_minute   Float    @default(0)
   cache_hit_rate        Float    @default(0)
   error_rate            Float    @default(0)
@@ -1439,34 +1441,40 @@ model EdgeService {
   
   metrics               EdgeMetric[]
   
-  @@unique([organization_id, aws_account_id, service_id])
+  @@unique([organization_id, service_id])
   @@index([organization_id])
+  @@index([cloud_provider])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
   @@index([service_type])
   @@map("edge_services")
 }
 
 model EdgeMetric {
-  id                String   @id @default(uuid()) @db.Uuid
-  organization_id   String   @db.Uuid
-  aws_account_id    String   @db.Uuid
-  service_id        String   @db.Uuid
-  timestamp         DateTime @db.Timestamptz(6)
-  requests          Int      @default(0)
-  cache_hits        Int      @default(0)
-  cache_misses      Int      @default(0)
-  blocked_requests  Int      @default(0)
-  response_time     Float    @default(0) // Average response time in ms
-  bandwidth_gb      Float    @default(0)
-  error_4xx         Int      @default(0)
-  error_5xx         Int      @default(0)
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  id                    String   @id @default(uuid()) @db.Uuid
+  organization_id       String   @db.Uuid
+  cloud_provider        CloudProvider @default(AWS)
+  aws_account_id        String?  @db.Uuid
+  azure_credential_id   String?  @db.Uuid
+  service_id            String   @db.Uuid
+  timestamp             DateTime @db.Timestamptz(6)
+  requests              Int      @default(0)
+  cache_hits            Int      @default(0)
+  cache_misses          Int      @default(0)
+  blocked_requests      Int      @default(0)
+  response_time         Float    @default(0) // Average response time in ms
+  bandwidth_gb          Float    @default(0)
+  error_4xx             Int      @default(0)
+  error_5xx             Int      @default(0)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
   
-  edge_service      EdgeService @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  edge_service          EdgeService @relation(fields: [service_id], references: [id], onDelete: Cascade)
   
   @@unique([service_id, timestamp])
   @@index([organization_id])
+  @@index([cloud_provider])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
   @@index([service_id])
   @@index([timestamp])
   @@map("edge_metrics")

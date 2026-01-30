@@ -8,6 +8,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const querySchema = z.object({
@@ -36,12 +37,10 @@ export async function handler(
     const userRoles = user['custom:roles'] ? JSON.parse(user['custom:roles']) : [];
     const isSuperAdmin = userRoles.includes('super_admin');
 
-    // Parse query params
-    const body = JSON.parse(event.body || '{}');
-    const validation = querySchema.safeParse(body);
-
+    // Parse and validate body using centralized validation
+    const validation = parseAndValidateBody(querySchema, event.body);
     if (!validation.success) {
-      return error('Invalid request: ' + validation.error.message, 400);
+      return validation.error;
     }
 
     const params = validation.data;
@@ -134,7 +133,7 @@ export async function handler(
         total,
         limit: params.limit,
         offset: params.offset,
-        has_more: params.offset + notifications.length < total,
+        has_more: (params.offset ?? 0) + notifications.length < total,
       },
       stats: {
         pending: statusCounts.pending || 0,

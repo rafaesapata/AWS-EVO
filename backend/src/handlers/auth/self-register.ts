@@ -12,6 +12,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { z } from 'zod';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { 
   CognitoIdentityProviderClient, 
   AdminCreateUserCommand,
@@ -347,12 +348,9 @@ export async function handler(
 
   try {
     // Parse and validate request body
-    const body = JSON.parse(event.body || '{}');
-    const validation = registerSchema.safeParse(body);
-
+    const validation = parseAndValidateBody(registerSchema, event.body);
     if (!validation.success) {
-      logger.warn('Validation failed', { errors: validation.error.errors });
-      return error(validation.error.errors[0].message, 400);
+      return validation.error;
     }
 
     const { country, fullName, email, phone, password, company } = validation.data;

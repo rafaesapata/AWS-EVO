@@ -12,10 +12,13 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { GuardDutyClient, ListDetectorsCommand, ListFindingsCommand, GetFindingsCommand } from '@aws-sdk/client-guardduty';
 import { logger } from '../../lib/logging.js';
 import { isOrganizationInDemoMode, generateDemoGuardDutyFindings } from '../../lib/demo-data-service.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 
-interface GuardDutyScanRequest {
-  accountId?: string;
-}
+// Zod schema for GuardDuty scan request
+const guardDutyScanSchema = z.object({
+  accountId: z.string().uuid().optional(),
+});
 
 interface GuardDutyFinding {
   Id: string;
@@ -64,8 +67,12 @@ export async function handler(
     }
     // ========================================
     
-    const body: GuardDutyScanRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId } = body;
+    const validation = parseAndValidateBody(guardDutyScanSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
+    const { accountId } = validation.data;
     
     // Get AWS credentials
     const credential = await prisma.awsCredential.findFirst({

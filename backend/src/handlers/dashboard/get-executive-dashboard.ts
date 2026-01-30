@@ -13,6 +13,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoExecutiveDashboard } from '../../lib/demo-data-service.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 // ============================================================================
@@ -163,6 +164,7 @@ interface ExecutiveDashboardResponse {
 
 const requestSchema = z.object({
   accountId: z.string().uuid().optional().nullable(),
+  provider: z.enum(['AWS', 'AZURE']).optional().nullable(), // Cloud provider for the selected account
   includeForecasts: z.boolean().default(true),
   includeTrends: z.boolean().default(true),
   includeInsights: z.boolean().default(true),
@@ -191,9 +193,12 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const userId = user.sub;
 
-    // 2. Validate input
-    const body = event.body ? JSON.parse(event.body) : {};
-    const params = requestSchema.parse(body);
+    // 2. Validate input using centralized validation
+    const validation = parseAndValidateBody(requestSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    const params = validation.data;
 
     logger.info('Executive Dashboard request', {
       organizationId,
@@ -236,6 +241,17 @@ export async function handler(
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
+    
+    // Determine provider from request or detect from account
+    let provider = params.provider;
+    if (!provider && params.accountId) {
+      // Try to detect provider by checking if accountId exists in azure_credentials
+      const azureCredential = await prisma.azureCredential.findFirst({
+        where: { id: params.accountId, organization_id: organizationId },
+        select: { id: true }
+      });
+      provider = azureCredential ? 'AZURE' : 'AWS';
+    }
 
     const [
       financialData,
@@ -244,11 +260,11 @@ export async function handler(
       insightsData,
       trendsData
     ] = await Promise.all([
-      getFinancialData(prisma, organizationId, params.accountId || undefined, startOfMonth, startOfYear),
-      getSecurityData(prisma, organizationId, params.accountId || undefined),
+      getFinancialData(prisma, organizationId, params.accountId || undefined, startOfMonth, startOfYear, provider || undefined),
+      getSecurityData(prisma, organizationId, params.accountId || undefined, provider || undefined),
       getOperationsData(prisma, organizationId),
-      params.includeInsights ? getInsightsData(prisma, organizationId, params.accountId || undefined) : Promise.resolve([]),
-      params.includeTrends ? getTrendsData(prisma, organizationId, params.trendPeriod, params.accountId || undefined) : Promise.resolve(null)
+      params.includeInsights ? getInsightsData(prisma, organizationId, params.accountId || undefined, provider || undefined) : Promise.resolve([]),
+      params.includeTrends ? getTrendsData(prisma, organizationId, params.trendPeriod ?? '30d', params.accountId ?? undefined, provider || undefined) : Promise.resolve(null)
     ]);
 
     // 5. Calculate aggregated scores
@@ -270,8 +286,8 @@ export async function handler(
           endpoints: operationsData.lastCheckDate
         },
         organizationId,
-        accountId: params.accountId || 'all',
-        trendPeriod: params.trendPeriod
+        accountId: params.accountId ?? 'all',
+        trendPeriod: params.trendPeriod ?? '30d'
       }
     };
 
@@ -314,15 +330,27 @@ async function getFinancialData(
   organizationId: string,
   accountId: string | undefined,
   startOfMonth: Date,
-  startOfYear: Date
+  startOfYear: Date,
+  provider?: string
 ): Promise<FinancialHealth> {
   
-  // Base filter - by organization_id and optionally by aws_account_id
+  // Base filter for tables WITH azure_credential_id (DailyCost, etc.)
   const baseFilter: any = { organization_id: organizationId };
   
-  // Filter by specific account if provided
+  // Filter by specific account if provided, using correct field based on provider
   if (accountId) {
-    baseFilter.aws_account_id = accountId;
+    if (provider === 'AZURE') {
+      baseFilter.azure_credential_id = accountId;
+    } else {
+      baseFilter.aws_account_id = accountId;
+    }
+  }
+  
+  // Filter for tables WITHOUT azure_credential_id (CostOptimization, RiSpRecommendation)
+  // These tables only have aws_account_id, so for Azure we filter only by organization
+  const awsOnlyFilter: any = { organization_id: organizationId };
+  if (accountId && provider !== 'AZURE') {
+    awsOnlyFilter.aws_account_id = accountId;
   }
 
   // Get the most recent cost date first
@@ -373,12 +401,13 @@ async function getFinancialData(
   });
 
   // Cost optimizations from cost_optimizations table
+  // Note: This table doesn't have azure_credential_id, so use awsOnlyFilter
   let costOptimizationsSum = 0;
   let costOptimizationsCount = 0;
   try {
     const costOptResult = await prisma.costOptimization.aggregate({
       where: { 
-        ...baseFilter,
+        ...awsOnlyFilter,
         status: { in: ['pending', 'active'] }
       },
       _sum: { potential_savings: true },
@@ -396,12 +425,13 @@ async function getFinancialData(
   }
 
   // RI/SP recommendations from ri_sp_recommendations table
+  // Note: This table doesn't have azure_credential_id, so use awsOnlyFilter
   let riSpRecommendationsSum = 0;
   let riSpRecommendationsCount = 0;
   try {
     const riSpResult = await prisma.riSpRecommendation.aggregate({
       where: { 
-        ...baseFilter,
+        ...awsOnlyFilter,
         status: { in: ['active', 'pending'] }
       },
       _sum: { estimated_monthly_savings: true },
@@ -452,18 +482,35 @@ async function getFinancialData(
 async function getSecurityData(
   prisma: any,
   organizationId: string,
-  accountId?: string
+  accountId?: string,
+  provider?: string
 ): Promise<SecurityPosture> {
   
-  // Base filter - by organization and optionally by account
+  // Base filter - by organization and optionally by account (AWS or Azure)
   const baseFilter: any = { organization_id: organizationId };
   if (accountId) {
-    baseFilter.aws_account_id = accountId;
+    if (provider === 'AZURE') {
+      baseFilter.azure_credential_id = accountId;
+    } else {
+      baseFilter.aws_account_id = accountId;
+    }
+  }
+  
+  // For security scans, also check by cloud_provider if filtering by account
+  const scanFilter: any = { organization_id: organizationId };
+  if (accountId) {
+    if (provider === 'AZURE') {
+      scanFilter.azure_credential_id = accountId;
+      scanFilter.cloud_provider = 'AZURE';
+    } else {
+      scanFilter.aws_account_id = accountId;
+      scanFilter.cloud_provider = 'AWS';
+    }
   }
   
   // Check if any security scans have been performed
   const lastScan = await prisma.securityScan.findFirst({
-    where: baseFilter,
+    where: scanFilter,
     orderBy: { started_at: 'desc' },
     select: { completed_at: true }
   });
@@ -736,15 +783,20 @@ async function getOperationsData(
 async function getInsightsData(
   prisma: any,
   organizationId: string,
-  accountId?: string
+  accountId?: string,
+  provider?: string
 ): Promise<AIInsight[]> {
   const insights: AIInsight[] = [];
   const now = new Date();
   
-  // Base filter - by organization and optionally by account
+  // Base filter - by organization and optionally by account (AWS or Azure)
   const baseFilter: any = { organization_id: organizationId };
   if (accountId) {
-    baseFilter.aws_account_id = accountId;
+    if (provider === 'AZURE') {
+      baseFilter.azure_credential_id = accountId;
+    } else {
+      baseFilter.aws_account_id = accountId;
+    }
   }
 
   try {
@@ -916,28 +968,47 @@ async function getTrendsData(
   prisma: any,
   organizationId: string,
   period: '7d' | '30d' | '90d',
-  accountId?: string
+  accountId?: string,
+  provider?: string
 ): Promise<TrendData> {
   
   const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  
+  // Determine which account field to use based on provider
+  const isAzure = provider === 'AZURE';
+  const accountField = isAzure ? 'azure_credential_id' : 'aws_account_id';
 
   // Cost by day - aggregate by date since we have per-service rows
   // Use raw query to avoid Prisma groupBy issues
   let costTrend: any[] = [];
   try {
     if (accountId) {
-      costTrend = await prisma.$queryRaw`
-        SELECT 
-          date,
-          SUM(cost) as total_cost
-        FROM daily_costs
-        WHERE organization_id = ${organizationId}::uuid
-          AND aws_account_id = ${accountId}::uuid
-          AND date >= ${startDate}
-        GROUP BY date
-        ORDER BY date ASC
-      `;
+      if (isAzure) {
+        costTrend = await prisma.$queryRaw`
+          SELECT 
+            date,
+            SUM(cost) as total_cost
+          FROM daily_costs
+          WHERE organization_id = ${organizationId}::uuid
+            AND azure_credential_id = ${accountId}::uuid
+            AND date >= ${startDate}
+          GROUP BY date
+          ORDER BY date ASC
+        `;
+      } else {
+        costTrend = await prisma.$queryRaw`
+          SELECT 
+            date,
+            SUM(cost) as total_cost
+          FROM daily_costs
+          WHERE organization_id = ${organizationId}::uuid
+            AND aws_account_id = ${accountId}::uuid
+            AND date >= ${startDate}
+          GROUP BY date
+          ORDER BY date ASC
+        `;
+      }
     } else {
       costTrend = await prisma.$queryRaw`
         SELECT 
@@ -958,7 +1029,11 @@ async function getTrendsData(
         date: { gte: startDate }
       };
       if (accountId) {
-        baseFilter.aws_account_id = accountId;
+        if (isAzure) {
+          baseFilter.azure_credential_id = accountId;
+        } else {
+          baseFilter.aws_account_id = accountId;
+        }
       }
       
       const rawCosts = await prisma.dailyCost.findMany({

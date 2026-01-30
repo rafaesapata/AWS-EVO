@@ -68,6 +68,7 @@ interface Summary {
     medium: number;
     low: number;
   };
+  message?: string;
 }
 
 interface AnalysisData {
@@ -209,6 +210,15 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
 
           {/* Summary Tab */}
           <TabsContent value="summary" className="space-y-6">
+            {/* Message when no reservations */}
+            {analysis.summary.message && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>{t('azureReservations.noReservationsTitle', 'Informação')}</AlertTitle>
+                <AlertDescription>{analysis.summary.message}</AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="glass border-primary/20">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

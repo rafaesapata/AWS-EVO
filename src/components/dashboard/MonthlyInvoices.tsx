@@ -233,7 +233,7 @@ export const MonthlyInvoices = () => {
       });
 
       const result = await apiClient.lambda('fetch-daily-costs', {
-        body: { accountId, days: 365 }
+        body: { accountId, days: 365, incremental: true }
       });
 
       

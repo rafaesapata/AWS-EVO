@@ -10,6 +10,7 @@
 
 import { ZodSchema, ZodObject, ZodString, ZodNumber, ZodBoolean, ZodArray, ZodEnum, ZodOptional, ZodDefault, ZodUnion } from 'zod';
 import * as schemas from './schemas.js';
+import { VERSION } from './version.js';
 
 // ============================================================================
 // TYPES
@@ -415,7 +416,7 @@ export function generateOpenAPISpec(): OpenAPISpec {
     openapi: '3.0.3',
     info: {
       title: 'EVO UDS API',
-      version: '2.0.0',
+      version: VERSION,
       description: 'EVO Unified Dashboard System - AWS Security & Cost Management Platform',
     },
     servers: [

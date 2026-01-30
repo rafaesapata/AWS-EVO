@@ -7,6 +7,7 @@ import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost
 import { success, error, badRequest, notFound, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { detectAnomaliesSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { resolveAwsCredentials } from '../../lib/aws-helpers.js';
 import { isOrganizationInDemoMode, generateDemoAnomalyDetection } from '../../lib/demo-data-service.js';
 
@@ -70,19 +71,13 @@ export async function handler(
     }
     // =========================================================================
     
-    // Validar input com Zod
-    const parseResult = detectAnomaliesSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
-    
-    if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+    // Validar input com Zod usando parseAndValidateBody
+    const validation = parseAndValidateBody(detectAnomaliesSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
     
-    const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = parseResult.data;
+    const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = validation.data;
 
     const startTime = Date.now();
 

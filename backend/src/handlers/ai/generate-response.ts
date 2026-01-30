@@ -7,6 +7,7 @@ import { success, error, badRequest } from '../../lib/response.js';
 import { withSecurityMiddleware, type MiddlewareContext } from '../../lib/middleware.js';
 import { getBedrockClient } from '../../lib/bedrock-client.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const requestSchema = z.object({
@@ -22,11 +23,10 @@ async function generateResponseHandler(
 ): Promise<APIGatewayProxyResultV2> {
   
   try {
-    const body = JSON.parse(event.body || '{}');
-    const validation = requestSchema.safeParse(body);
-    
+    // Parse and validate body using centralized validation
+    const validation = parseAndValidateBody(requestSchema, event.body);
     if (!validation.success) {
-      return badRequest('Invalid request', { errors: validation.error.errors });
+      return validation.error;
     }
     
     const { type, prompt, context: additionalContext } = validation.data;

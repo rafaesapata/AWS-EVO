@@ -308,7 +308,7 @@ export function UnifiedCopilot() {
           break;
 
         case 'cost_analysis':
-          await apiClient.invoke('fetch-daily-costs', { body: actionParams });
+          await apiClient.invoke('fetch-daily-costs', { body: { ...actionParams, incremental: true } });
           successMessage = t(
             'ai.costAnalysisStarted',
             '✅ Análise de custos atualizada! Você pode ver os resultados no Dashboard de Custos.'

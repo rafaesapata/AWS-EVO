@@ -11,11 +11,9 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { checkAlertRulesSchema } from '../../lib/schemas.js';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
-
-interface CheckAlertRulesRequest {
-  ruleId?: string;
-}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -35,8 +33,13 @@ export async function handler(
   });
   
   try {
-    const body: CheckAlertRulesRequest = event.body ? JSON.parse(event.body) : {};
-    const { ruleId } = body;
+    // Validate input with Zod
+    const validation = parseAndValidateBody(checkAlertRulesSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
+    const { ruleId, dryRun } = validation.data;
     
     const prisma = getPrismaClient();
     

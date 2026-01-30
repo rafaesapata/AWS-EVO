@@ -9,10 +9,13 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 
-interface GenerateRemediationRequest {
-  findingId: string;
-}
+// Zod schema for generate remediation script
+const generateRemediationSchema = z.object({
+  findingId: z.string().uuid('Invalid finding ID format'),
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -28,12 +31,13 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: GenerateRemediationRequest = event.body ? JSON.parse(event.body) : {};
-    const { findingId } = body;
-    
-    if (!findingId) {
-      return error('Missing required parameter: findingId');
+    // Validate input with Zod
+    const validation = parseAndValidateBody(generateRemediationSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { findingId } = validation.data;
     
     const prisma = getPrismaClient();
     

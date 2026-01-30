@@ -11,10 +11,8 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient, getOptionalCredentialFilter } from '../../lib/database.js';
-
-interface AutoAlertsRequest {
-  accountId?: string;
-}
+import { autoAlertsRequestSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -30,8 +28,12 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: AutoAlertsRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId } = body;
+    // Validate request body
+    const validation = parseAndValidateBody(autoAlertsRequestSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    const { accountId } = validation.data;
     
     const prisma = getPrismaClient();
     

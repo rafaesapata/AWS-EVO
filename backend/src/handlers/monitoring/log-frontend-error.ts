@@ -7,28 +7,30 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 
-interface FrontendError {
-  message: string;
-  stack?: string;
-  componentStack?: string;
-  url: string;
-  userAgent: string;
-  timestamp: string;
-  userId?: string;
-  organizationId?: string;
-  sessionId?: string;
-  errorType: 'unhandled_error' | 'api_error' | 'chunk_load_error' | 'network_error' | 'render_error';
-  severity: 'error' | 'warning' | 'critical';
-  metadata?: {
-    apiEndpoint?: string;
-    statusCode?: number;
-    requestId?: string;
-    componentName?: string;
-    action?: string;
-    [key: string]: any;
-  };
-}
+// Zod schema for frontend error validation
+const frontendErrorSchema = z.object({
+  message: z.string().min(1).max(5000),
+  stack: z.string().max(10000).optional(),
+  componentStack: z.string().max(5000).optional(),
+  url: z.string().max(2000),
+  userAgent: z.string().max(500),
+  timestamp: z.string(),
+  userId: z.string().optional(),
+  organizationId: z.string().optional(),
+  sessionId: z.string().optional(),
+  errorType: z.enum(['unhandled_error', 'api_error', 'chunk_load_error', 'network_error', 'render_error']),
+  severity: z.enum(['error', 'warning', 'critical']),
+  metadata: z.object({
+    apiEndpoint: z.string().optional(),
+    statusCode: z.number().optional(),
+    requestId: z.string().optional(),
+    componentName: z.string().optional(),
+    action: z.string().optional(),
+  }).passthrough().optional(),
+});
 
 export async function handler(
   event: APIGatewayProxyEventV2
@@ -40,12 +42,13 @@ export async function handler(
   }
 
   try {
-    const body: FrontendError = event.body ? JSON.parse(event.body) : {};
-    
-    // Validate required fields
-    if (!body.message || !body.errorType) {
-      return error('Missing required fields: message, errorType', 400);
+    // Parse and validate request body using centralized validation
+    const validation = parseAndValidateBody(frontendErrorSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const body = validation.data;
 
     // Extract client info
     const clientIp = event.requestContext?.http?.sourceIp || 'unknown';

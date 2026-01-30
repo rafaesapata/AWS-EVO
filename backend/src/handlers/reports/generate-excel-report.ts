@@ -9,15 +9,18 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient, getOptionalCredentialFilter } from '../../lib/database.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-interface GenerateExcelRequest {
-  reportType: 'security' | 'cost' | 'compliance' | 'drift';
-  accountId?: string;
-  startDate?: string;
-  endDate?: string;
-}
+// Zod schema for generate excel report
+const generateExcelReportSchema = z.object({
+  reportType: z.enum(['security', 'cost', 'compliance', 'drift']),
+  accountId: z.string().uuid().optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -33,12 +36,13 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: GenerateExcelRequest = event.body ? JSON.parse(event.body) : {};
-    const { reportType, accountId, startDate, endDate } = body;
-    
-    if (!reportType) {
-      return error('Missing required parameter: reportType');
+    // Validate input with Zod
+    const validation = parseAndValidateBody(generateExcelReportSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { reportType, accountId, startDate, endDate } = validation.data;
     
     const prisma = getPrismaClient();
     

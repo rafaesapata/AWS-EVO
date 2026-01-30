@@ -325,6 +325,15 @@ export async function handler(
         }
         // If mapped to a string, use that; otherwise use original key
         const finalKey = mappedKey || key;
+        
+        // Special handling for cloud_provider field in edge_services and edge_metrics tables
+        // The database column is TEXT but Prisma schema defines it as CloudProvider enum
+        // We need to skip this filter and handle it via raw query or just filter in memory
+        if (finalKey === 'cloud_provider' && (body.table === 'edge_services' || body.table === 'edge_metrics')) {
+          logger.info('Skipping cloud_provider filter for edge tables (will filter in memory)', { key, value, table: body.table });
+          continue;
+        }
+        
         where[finalKey] = value;
         logger.info('Added filter', { originalKey: key, finalKey, value, table: body.table });
       }
@@ -426,13 +435,27 @@ export async function handler(
       skip: body.offset || 0,  // Add offset support for pagination
     });
     
+    // In-memory filtering for cloud_provider in edge tables
+    // This is needed because the database column is TEXT but Prisma schema defines it as CloudProvider enum
+    let filteredResults = results;
+    if ((body.table === 'edge_services' || body.table === 'edge_metrics') && body.eq?.cloud_provider) {
+      const cloudProviderFilter = body.eq.cloud_provider;
+      filteredResults = results.filter((r: any) => r.cloud_provider === cloudProviderFilter);
+      logger.info('Applied in-memory cloud_provider filter', { 
+        table: body.table, 
+        filter: cloudProviderFilter, 
+        beforeCount: results.length, 
+        afterCount: filteredResults.length 
+      });
+    }
+    
     logger.info('Query table completed', { 
       table: body.table,
       organizationId,
-      resultCount: results.length,
+      resultCount: filteredResults.length,
     });
     
-    return success(results, 200, origin);
+    return success(filteredResults, 200, origin);
     
   } catch (err: any) {
     logger.error('Query table error', err, { 

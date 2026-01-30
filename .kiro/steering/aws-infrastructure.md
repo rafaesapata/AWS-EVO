@@ -45,14 +45,22 @@ aws apigateway flush-stage-cache --rest-api-id 3l66kn0eaj --stage-name prod --re
 ### Versões do Layer
 | Versão | Descrição | Data |
 |--------|-----------|------|
-| 69 | **ATUAL** - Prisma + Zod + AWS SDK + Azure SDK + **jsonwebtoken** (fix para @azure/msal-node) | 2026-01-29 |
+| 74 | **ATUAL AZURE** - Prisma + Zod + Azure SDK (com arm-frontdoor, arm-apimanagement) + jsonwebtoken + lodash - Para Lambdas Azure | 2026-01-29 |
+| 72 | Prisma + Zod + Azure SDK (com arm-advisor + lodash) + AWS SDK core - Para Lambdas Azure | 2026-01-29 |
+| 71 | ⚠️ Falta lodash.includes - Causa erro "Cannot find module 'lodash.includes'" | 2026-01-29 |
+| 70 | Prisma + Zod + AWS SDK + Azure SDK + jsonwebtoken + aws_account_id optional fix | 2026-01-29 |
+| 69 | Prisma + Zod + AWS SDK + Azure SDK + **jsonwebtoken** (fix para @azure/msal-node) | 2026-01-29 |
 | 68 | ⚠️ QUEBRADO - Falta jsonwebtoken - Causa erro "Cannot find module 'jsonwebtoken'" | 2026-01-29 |
-| 65 | ⚠️ QUEBRADO - Sem Azure SDK - Causa erro "Azure SDK not installed" | 2026-01-27 |
+| 65 | **ATUAL AWS** - Prisma + Zod + AWS SDK completo - Para Lambdas AWS | 2026-01-27 |
 | 64 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock, Lambda, Cognito) + Smithy (completo) | 2026-01-26 |
 | 63 | ⚠️ QUEBRADO - Apenas Prisma + Zod (sem AWS SDK) - NÃO USAR | 2026-01-25 |
 | 62 | Prisma + Zod with demo_mode fields | 2026-01-25 |
 | 61 | Prisma + Zod + AWS SDK (STS, WAFV2, Bedrock, Cognito, Lambda) + Smithy | 2026-01-17 |
 | 59 | Prisma + Zod + AWS SDK (Lambda, STS, WAFV2, Bedrock, SSO) + Smithy (completo) + @aws/lambda-invoke-store | 2026-01-17 |
+
+**NOTA:** Existem dois layers em uso:
+- **Layer 72** - Para Lambdas Azure (inclui `@azure/arm-advisor` para ML Waste Detection)
+- **Layer 65** - Para Lambdas AWS (inclui AWS SDK completo)
 
 ---
 
@@ -83,6 +91,7 @@ Antes de executar `aws lambda publish-layer-version`, verificar se o layer cont�
 
 - [ ] `@azure/identity` (**OBRIGATÓRIO** - autenticação Azure)
 - [ ] `@azure/arm-resources` (**OBRIGATÓRIO** - validação de credenciais)
+- [ ] `@azure/arm-advisor` (**OBRIGATÓRIO** - para ML Waste Detection / Cost Optimization)
 - [ ] `@azure/arm-compute` (VMs)
 - [ ] `@azure/arm-storage` (Storage Accounts)
 - [ ] `@azure/arm-costmanagement` (Custos)
@@ -95,9 +104,10 @@ Antes de executar `aws lambda publish-layer-version`, verificar se o layer cont�
 - [ ] Arquivos de compatibilidade em `@typespec/ts-http-runtime/internal/` (logger.js, util.js, policies.js)
 - [ ] **`jsonwebtoken`** (**CRÍTICO** - dependência do @azure/msal-node, sem isso dá erro "Cannot find module 'jsonwebtoken'")
 - [ ] Dependências do jsonwebtoken: `jws`, `jwa`, `buffer-equal-constant-time`, `ecdsa-sig-formatter`, `safe-buffer`, `semver`
+- [ ] Dependências lodash: `lodash.includes`, `lodash.camelcase`, `lodash.defaults`, etc. (necessário para arm-advisor)
 - [ ] Dependências: `ms`, `debug`, `events`, `http-proxy-agent`, `https-proxy-agent`, `agent-base`
 
-**Sem esses pacotes, as Lambdas Azure retornarão erro: "Azure SDK not installed" ou "Cannot find module 'jsonwebtoken'"**
+**Sem esses pacotes, as Lambdas Azure retornarão erro: "Azure SDK not installed" ou "Cannot find module 'jsonwebtoken'" ou "Cannot find module 'lodash.includes'"**
 
 ### 2. SEMPRE usar o script de cópia recursiva
 

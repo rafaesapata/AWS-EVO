@@ -22,7 +22,7 @@ interface UseExecutiveDashboardOptions {
 
 export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}) {
   const { data: organizationId } = useOrganization();
-  const { selectedAccountId, isLoading: accountLoading } = useCloudAccount();
+  const { selectedAccountId, selectedProvider, isLoading: accountLoading } = useCloudAccount();
   const { isTVMode, organizationId: tvOrgId } = useTVDashboard();
   const { isDemoMode, isLoading: demoLoading, isVerified: demoVerified } = useDemoModeOptional();
   const queryClient = useQueryClient();
@@ -46,6 +46,7 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
       'executive-dashboard-v2',
       effectiveOrgId,
       selectedAccountId,
+      selectedProvider,
       trendPeriod,
       isTVMode,
       isInDemoMode
@@ -80,9 +81,10 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
         return data as ExecutiveDashboardData;
       }
 
-      // Normal authenticated mode
+      // Normal authenticated mode - pass provider for correct filtering
       const response = await apiClient.lambda<ExecutiveDashboardData>('get-executive-dashboard', {
         accountId: selectedAccountId,
+        provider: selectedProvider, // Pass provider to backend for correct field filtering
         includeForecasts,
         includeTrends,
         includeInsights,

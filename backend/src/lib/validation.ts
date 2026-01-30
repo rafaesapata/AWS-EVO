@@ -3,6 +3,7 @@
  * Provides type-safe validation for Lambda handlers with military-grade security
  */
 
+import * as crypto from 'crypto';
 import { z } from 'zod';
 import { badRequest } from './response.js';
 import type { APIGatewayProxyResultV2 } from '../types/lambda.js';
@@ -403,7 +404,7 @@ export function validateInput<T>(
  */
 export function parseAndValidateBody<T>(
   schema: z.ZodSchema<T>,
-  body: string | null,
+  body: string | null | undefined,
   contentType?: string
 ): { success: true; data: T } | { success: false; error: APIGatewayProxyResultV2 } {
   if (!body) {
@@ -501,7 +502,7 @@ function getObjectDepth(obj: any, depth = 0): number {
  */
 export function validateQueryParams<T>(
   schema: z.ZodSchema<T>,
-  queryParams: Record<string, string> | null
+  queryParams: Record<string, string> | null | undefined
 ): { success: true; data: T } | { success: false; error: APIGatewayProxyResultV2 } {
   // Convert query string parameters to appropriate types
   const processedParams: Record<string, unknown> = {};
@@ -530,15 +531,84 @@ export function validateQueryParams<T>(
   return validateInput(schema, processedParams);
 }
 
+// ============================================================================
+// 4. CSRF TOKEN VALIDATION - MILITARY GRADE
+// ============================================================================
+
 /**
- * CSRF Token validation for Lambda handlers
+ * In-memory CSRF token store (for Lambda, consider using DynamoDB/Redis in production)
+ * Key: sessionId, Value: { token, createdAt, expiresAt }
+ */
+const csrfTokenStore = new Map<string, { token: string; createdAt: number; expiresAt: number }>();
+
+/**
+ * CSRF Token configuration
+ */
+const CSRF_CONFIG = {
+  TOKEN_LENGTH: 32, // 32 bytes = 64 hex characters
+  TOKEN_TTL_MS: 3600000, // 1 hour
+  MAX_TOKENS_PER_SESSION: 5, // Limit tokens per session to prevent memory exhaustion
+};
+
+/**
+ * Generate a cryptographically secure CSRF token
+ */
+export function generateCSRFToken(sessionId: string): string {
+  const token = crypto.randomBytes(CSRF_CONFIG.TOKEN_LENGTH).toString('hex');
+  const now = Date.now();
+  
+  // Store token with expiration
+  csrfTokenStore.set(`csrf:${sessionId}`, {
+    token,
+    createdAt: now,
+    expiresAt: now + CSRF_CONFIG.TOKEN_TTL_MS,
+  });
+  
+  return token;
+}
+
+/**
+ * Timing-safe string comparison to prevent timing attacks
+ */
+function timingSafeCompare(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') {
+    return false;
+  }
+  
+  // Ensure both strings are the same length for timing-safe comparison
+  if (a.length !== b.length) {
+    return false;
+  }
+  
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(a, 'utf8'),
+      Buffer.from(b, 'utf8')
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * CSRF Token validation for Lambda handlers - MILITARY GRADE
+ * 
+ * This function validates CSRF tokens against stored session values using
+ * timing-safe comparison to prevent timing attacks.
+ * 
+ * @param headers - Request headers containing X-CSRF-Token
+ * @param method - HTTP method (GET requests are skipped)
+ * @param sessionId - Optional session ID for token verification (from JWT sub or session cookie)
+ * @returns Validation result with success status or error response
  */
 export function validateCSRFToken(
   headers: Record<string, string | undefined>,
-  method: string
+  method: string,
+  sessionId?: string
 ): { success: true } | { success: false; error: APIGatewayProxyResultV2 } {
-  // Skip CSRF validation for GET requests
-  if (method === 'GET') {
+  // Skip CSRF validation for safe methods (GET, HEAD, OPTIONS)
+  const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+  if (safeMethods.includes(method.toUpperCase())) {
     return { success: true };
   }
   
@@ -553,6 +623,7 @@ export function validateCSRFToken(
         body: JSON.stringify({
           error: 'CSRF token required',
           message: 'CSRF token is required for this operation',
+          code: 'CSRF_TOKEN_MISSING',
         }),
       },
     };
@@ -568,12 +639,192 @@ export function validateCSRFToken(
         body: JSON.stringify({
           error: 'Invalid CSRF token',
           message: 'CSRF token format is invalid',
+          code: 'CSRF_TOKEN_INVALID_FORMAT',
+        }),
+      },
+    };
+  }
+  
+  // If sessionId is provided, verify token against stored value
+  if (sessionId) {
+    const storedData = csrfTokenStore.get(`csrf:${sessionId}`);
+    
+    if (!storedData) {
+      return {
+        success: false,
+        error: {
+          statusCode: 403,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            error: 'CSRF token not found',
+            message: 'No CSRF token found for this session. Please refresh and try again.',
+            code: 'CSRF_TOKEN_NOT_FOUND',
+          }),
+        },
+      };
+    }
+    
+    // Check if token has expired
+    if (Date.now() > storedData.expiresAt) {
+      // Clean up expired token
+      csrfTokenStore.delete(`csrf:${sessionId}`);
+      
+      return {
+        success: false,
+        error: {
+          statusCode: 403,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            error: 'CSRF token expired',
+            message: 'CSRF token has expired. Please refresh and try again.',
+            code: 'CSRF_TOKEN_EXPIRED',
+          }),
+        },
+      };
+    }
+    
+    // Timing-safe comparison to prevent timing attacks
+    if (!timingSafeCompare(csrfToken, storedData.token)) {
+      return {
+        success: false,
+        error: {
+          statusCode: 403,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            error: 'CSRF token mismatch',
+            message: 'CSRF token does not match. Possible CSRF attack detected.',
+            code: 'CSRF_TOKEN_MISMATCH',
+          }),
+        },
+      };
+    }
+  }
+  
+  return { success: true };
+}
+
+/**
+ * Validate CSRF token asynchronously with external store (DynamoDB/Redis)
+ * Use this for distributed Lambda environments
+ * 
+ * @param headers - Request headers containing X-CSRF-Token
+ * @param sessionId - Session ID for token verification
+ * @param getStoredToken - Async function to retrieve stored token from external store
+ * @returns Validation result with success status or error response
+ */
+export async function validateCSRFTokenAsync(
+  headers: Record<string, string | undefined>,
+  sessionId: string,
+  getStoredToken: (sessionId: string) => Promise<{ token: string; expiresAt: number } | null>
+): Promise<{ success: true } | { success: false; error: APIGatewayProxyResultV2 }> {
+  const csrfToken = headers['x-csrf-token'] || headers['X-CSRF-Token'];
+  
+  if (!csrfToken) {
+    return {
+      success: false,
+      error: {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: 'CSRF token required',
+          message: 'CSRF token is required for this operation',
+          code: 'CSRF_TOKEN_MISSING',
+        }),
+      },
+    };
+  }
+  
+  // Validate token format
+  if (!/^[a-f0-9]{64}$/i.test(csrfToken)) {
+    return {
+      success: false,
+      error: {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: 'Invalid CSRF token',
+          message: 'CSRF token format is invalid',
+          code: 'CSRF_TOKEN_INVALID_FORMAT',
+        }),
+      },
+    };
+  }
+  
+  // Retrieve stored token from external store
+  const storedData = await getStoredToken(sessionId);
+  
+  if (!storedData) {
+    return {
+      success: false,
+      error: {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: 'CSRF token not found',
+          message: 'No CSRF token found for this session. Please refresh and try again.',
+          code: 'CSRF_TOKEN_NOT_FOUND',
+        }),
+      },
+    };
+  }
+  
+  // Check expiration
+  if (Date.now() > storedData.expiresAt) {
+    return {
+      success: false,
+      error: {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: 'CSRF token expired',
+          message: 'CSRF token has expired. Please refresh and try again.',
+          code: 'CSRF_TOKEN_EXPIRED',
+        }),
+      },
+    };
+  }
+  
+  // Timing-safe comparison
+  if (!timingSafeCompare(csrfToken, storedData.token)) {
+    return {
+      success: false,
+      error: {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: 'CSRF token mismatch',
+          message: 'CSRF token does not match. Possible CSRF attack detected.',
+          code: 'CSRF_TOKEN_MISMATCH',
         }),
       },
     };
   }
   
   return { success: true };
+}
+
+/**
+ * Invalidate CSRF token after use (for single-use tokens)
+ */
+export function invalidateCSRFToken(sessionId: string): void {
+  csrfTokenStore.delete(`csrf:${sessionId}`);
+}
+
+/**
+ * Clean up expired CSRF tokens from memory
+ */
+export function cleanupExpiredCSRFTokens(): number {
+  const now = Date.now();
+  let cleaned = 0;
+  
+  for (const [key, data] of csrfTokenStore.entries()) {
+    if (now > data.expiresAt) {
+      csrfTokenStore.delete(key);
+      cleaned++;
+    }
+  }
+  
+  return cleaned;
 }
 
 /**

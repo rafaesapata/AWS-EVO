@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useTranslation } from "react-i18next";
+import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,20 +124,17 @@ export default function TVDashboardManagement() {
   const isExpired = (expiresAt: string) => new Date(expiresAt) < new Date();
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Tv className="h-6 w-6" />
-            {t('tvDashboard.management')}
-          </h1>
-          <p className="text-muted-foreground">{t('tvDashboard.managementDesc')}</p>
-        </div>
-        
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />{t('tvDashboard.createToken')}</Button>
-          </DialogTrigger>
+    <Layout
+      title={t('tvDashboard.management', 'TV Dashboard Management')}
+      description={t('tvDashboard.managementDesc', 'Manage TV dashboard access tokens')}
+      icon={<Tv className="h-4 w-4 text-white" />}
+    >
+      <div className="space-y-6">
+        <div className="flex items-center justify-end">
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button className="glass hover-glow"><Plus className="h-4 w-4 mr-2" />{t('tvDashboard.createToken')}</Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{t('tvDashboard.createNewToken')}</DialogTitle>
@@ -163,7 +161,7 @@ export default function TVDashboardManagement() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateOpen(false)}>{t('common.cancel')}</Button>
-              <Button onClick={handleCreate} disabled={createMutation.isPending}>
+              <Button className="glass hover-glow" onClick={handleCreate} disabled={createMutation.isPending}>
                 {createMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
                 {t('common.create')}
               </Button>
@@ -173,27 +171,27 @@ export default function TVDashboardManagement() {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i} className="glass border-primary/20 animate-pulse">
               <CardHeader><div className="h-4 bg-muted rounded w-3/4" /></CardHeader>
               <CardContent><div className="h-20 bg-muted rounded" /></CardContent>
             </Card>
           ))}
         </div>
       ) : tokens?.length === 0 ? (
-        <Card className="border-dashed">
+        <Card className="glass border-primary/20 border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Tv className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">{t('tvDashboard.noTokens')}</h3>
             <p className="text-muted-foreground text-center mb-4">{t('tvDashboard.noTokensDesc')}</p>
-            <Button onClick={() => setIsCreateOpen(true)}><Plus className="h-4 w-4 mr-2" />{t('tvDashboard.createFirstToken')}</Button>
+            <Button className="glass hover-glow" onClick={() => setIsCreateOpen(true)}><Plus className="h-4 w-4 mr-2" />{t('tvDashboard.createFirstToken')}</Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {tokens?.map((token: TVToken) => (
-            <Card key={token.id} className={!token.is_active || isExpired(token.expires_at) ? "opacity-60" : ""}>
+            <Card key={token.id} className={`glass border-primary/20 ${!token.is_active || isExpired(token.expires_at) ? "opacity-60" : ""}`}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base truncate">{token.token.substring(0, 8)}...</CardTitle>
@@ -228,13 +226,13 @@ export default function TVDashboardManagement() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => copyToClipboard(token.token)}>
+                  <Button variant="outline" size="sm" className="flex-1 glass hover-glow" onClick={() => copyToClipboard(token.token)}>
                     <Copy className="h-4 w-4 mr-1" />{t('tvDashboard.copyLink')}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => openInNewTab(token.token)}>
+                  <Button variant="outline" size="sm" className="glass hover-glow" onClick={() => openInNewTab(token.token)}>
                     <ExternalLink className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(token.id)}>
+                  <Button variant="outline" size="sm" className="glass hover-glow text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(token.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -243,6 +241,7 @@ export default function TVDashboardManagement() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </Layout>
   );
 }

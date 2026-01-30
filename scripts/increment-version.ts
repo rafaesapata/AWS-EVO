@@ -2,106 +2,154 @@
 
 /**
  * Version Increment Script
- * Automatically increments version numbers on deploy
+ * 
+ * ⚠️ SINGLE SOURCE OF TRUTH: version.json ⚠️
+ * 
+ * This script reads from version.json and updates all version references:
+ * - version.json (source of truth)
+ * - package.json (frontend)
+ * - backend/package.json
+ * - cli/package.json
+ * - src/lib/version.ts (frontend runtime)
+ * 
+ * Usage:
+ *   npx tsx scripts/increment-version.ts patch   # 3.0.0 -> 3.0.1
+ *   npx tsx scripts/increment-version.ts minor   # 3.0.0 -> 3.1.0
+ *   npx tsx scripts/increment-version.ts major   # 3.0.0 -> 4.0.0
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 interface VersionConfig {
+  version: string;
   major: number;
   minor: number;
   patch: number;
-  deployCount: number;
-  lastDeploy: string;
+  releaseDate: string;
+  codename: string;
 }
 
-const VERSION_FILE = join(process.cwd(), 'version.json');
-const PACKAGE_JSON = join(process.cwd(), 'package.json');
+const ROOT = process.cwd();
+const VERSION_FILE = join(ROOT, 'version.json');
 
-// Load or create version config
+// Files to update with version
+const PACKAGE_FILES = [
+  join(ROOT, 'package.json'),
+  join(ROOT, 'backend/package.json'),
+  join(ROOT, 'cli/package.json'),
+];
+
+// Load version config
 function loadVersionConfig(): VersionConfig {
-  try {
-    const content = readFileSync(VERSION_FILE, 'utf-8');
-    return JSON.parse(content);
-  } catch {
-    // Create initial version config
-    return {
-      major: 2,
-      minor: 1,
+  if (!existsSync(VERSION_FILE)) {
+    console.error('❌ version.json not found! Creating default...');
+    const defaultConfig: VersionConfig = {
+      version: '3.0.0',
+      major: 3,
+      minor: 0,
       patch: 0,
-      deployCount: 0,
-      lastDeploy: new Date().toISOString()
+      releaseDate: new Date().toISOString().split('T')[0],
+      codename: 'Multi-Cloud'
     };
+    saveVersionConfig(defaultConfig);
+    return defaultConfig;
   }
+  return JSON.parse(readFileSync(VERSION_FILE, 'utf-8'));
 }
 
 // Save version config
 function saveVersionConfig(config: VersionConfig): void {
-  writeFileSync(VERSION_FILE, JSON.stringify(config, null, 2));
+  writeFileSync(VERSION_FILE, JSON.stringify(config, null, 2) + '\n');
 }
 
-// Update package.json version
-function updatePackageJson(version: string): void {
-  try {
-    const packageJson = JSON.parse(readFileSync(PACKAGE_JSON, 'utf-8'));
-    packageJson.version = version;
-    writeFileSync(PACKAGE_JSON, JSON.stringify(packageJson, null, 2) + '\n');
-  } catch (error) {
-    console.warn('Could not update package.json:', error);
+// Update package.json files
+function updatePackageJsonFiles(version: string): void {
+  for (const filePath of PACKAGE_FILES) {
+    if (!existsSync(filePath)) {
+      console.warn(`⚠️  Skipping ${filePath} (not found)`);
+      continue;
+    }
+    try {
+      const packageJson = JSON.parse(readFileSync(filePath, 'utf-8'));
+      packageJson.version = version;
+      writeFileSync(filePath, JSON.stringify(packageJson, null, 2) + '\n');
+      console.log(`✅ Updated ${filePath}`);
+    } catch (error) {
+      console.warn(`⚠️  Could not update ${filePath}:`, error);
+    }
   }
 }
 
-// Generate version.ts file
-function generateVersionFile(config: VersionConfig): void {
-  const versionTs = `/**
+// Generate src/lib/version.ts
+function generateVersionTs(config: VersionConfig): void {
+  const content = `/**
  * Application Version Configuration
- * Auto-generated on deploy - DO NOT EDIT MANUALLY
- * Last updated: ${new Date().toISOString()}
+ * 
+ * ⚠️ SINGLE SOURCE OF TRUTH FOR VERSION ⚠️
+ * 
+ * All version references in the application should import from this file.
+ * DO NOT hardcode version numbers anywhere else.
+ * 
+ * To update version, run: npx tsx scripts/increment-version.ts [patch|minor|major]
+ * 
+ * Last updated: ${config.releaseDate}
  */
 
+// Version components - AUTO-GENERATED from version.json
+const MAJOR = ${config.major};
+const MINOR = ${config.minor};
+const PATCH = ${config.patch};
+
 export const APP_VERSION = {
-  major: ${config.major},
-  minor: ${config.minor},
-  patch: ${config.patch},
-  deployCount: ${config.deployCount},
-  build: "${Date.now().toString().slice(-6)}",
-  environment: import.meta.env.MODE || 'development',
-  deployDate: "${config.lastDeploy}",
+  major: MAJOR,
+  minor: MINOR,
+  patch: PATCH,
+  full: \`\${MAJOR}.\${MINOR}.\${PATCH}\`,
+  codename: '${config.codename}',
+  environment: typeof import.meta !== 'undefined' ? import.meta.env?.MODE || 'development' : 'production',
+  deployDate: "${new Date().toISOString()}",
 } as const;
 
+export const VERSION = APP_VERSION.full;
+
 export const getVersionString = (): string => {
-  return \`v\${APP_VERSION.major}.\${APP_VERSION.minor}.\${APP_VERSION.patch}\`;
+  return \`v\${APP_VERSION.full}\`;
 };
 
 export const getFullVersionString = (): string => {
-  return \`v\${APP_VERSION.major}.\${APP_VERSION.minor}.\${APP_VERSION.patch}-\${APP_VERSION.environment}.\${APP_VERSION.build}\`;
+  return \`v\${APP_VERSION.full}-\${APP_VERSION.environment}\`;
 };
 
 export const getBuildInfo = () => {
   return {
     version: getVersionString(),
     fullVersion: getFullVersionString(),
+    codename: APP_VERSION.codename,
     environment: APP_VERSION.environment,
     buildTime: APP_VERSION.deployDate,
-    buildNumber: APP_VERSION.build,
-    deployCount: APP_VERSION.deployCount,
   };
 };
 `;
 
-  writeFileSync(join(process.cwd(), 'src/lib/version.ts'), versionTs);
+  const versionTsPath = join(ROOT, 'src/lib/version.ts');
+  writeFileSync(versionTsPath, content);
+  console.log(`✅ Updated ${versionTsPath}`);
 }
 
 // Main function
 function main() {
   const args = process.argv.slice(2);
-  const incrementType = args[0] || 'patch'; // patch, minor, major
+  const incrementType = args[0] || 'patch';
   
-  console.log('🚀 Incrementing version for deploy...');
+  console.log('🚀 EVO Version Manager');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
   // Load current version
   const config = loadVersionConfig();
+  const oldVersion = config.version;
+  
+  console.log(`📦 Current version: v${oldVersion}`);
   
   // Increment version based on type
   switch (incrementType) {
@@ -115,35 +163,43 @@ function main() {
       config.patch = 0;
       break;
     case 'patch':
-    default:
       config.patch += 1;
       break;
+    case 'show':
+      console.log(`\n📋 Version Info:`);
+      console.log(`   Version: ${config.version}`);
+      console.log(`   Codename: ${config.codename}`);
+      console.log(`   Release Date: ${config.releaseDate}`);
+      return;
+    default:
+      console.log(`\n❌ Unknown increment type: ${incrementType}`);
+      console.log('   Valid options: patch, minor, major, show');
+      process.exit(1);
   }
   
-  // Increment deploy count
-  config.deployCount += 1;
-  config.lastDeploy = new Date().toISOString();
+  // Update version string
+  config.version = `${config.major}.${config.minor}.${config.patch}`;
+  config.releaseDate = new Date().toISOString().split('T')[0];
   
-  const versionString = `${config.major}.${config.minor}.${config.patch}`;
+  console.log(`📦 New version: v${config.version}`);
+  console.log(`📅 Release date: ${config.releaseDate}`);
+  console.log('');
   
-  console.log(`📦 New version: v${versionString}`);
-  console.log(`🔢 Deploy count: ${config.deployCount}`);
-  console.log(`📅 Deploy time: ${config.lastDeploy}`);
-  
-  // Save files
+  // Save all files
+  console.log('📝 Updating files...');
   saveVersionConfig(config);
-  updatePackageJson(versionString);
-  generateVersionFile(config);
+  console.log(`✅ Updated version.json`);
   
-  console.log('✅ Version incremented successfully!');
-  console.log(`   Version file: ${VERSION_FILE}`);
-  console.log(`   Source file: src/lib/version.ts`);
-  console.log(`   Package.json: ${PACKAGE_JSON}`);
+  updatePackageJsonFiles(config.version);
+  generateVersionTs(config);
+  
+  console.log('');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log(`✅ Version updated: v${oldVersion} → v${config.version}`);
+  console.log('');
+  console.log('Next steps:');
+  console.log('  1. npm run build');
+  console.log('  2. Deploy frontend and backend');
 }
 
-// Run if this is the main module
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
-}
-
-export { main as incrementVersion };
+main();

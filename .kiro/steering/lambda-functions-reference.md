@@ -173,6 +173,7 @@ Ao criar uma nova Lambda ou endpoint:
 | `azure-activity-logs` | `/api/functions/azure-activity-logs` | Logs de atividade Azure | `azure/azure-activity-logs.ts` |
 | `azure-fetch-monitor-metrics` | `/api/functions/azure-fetch-monitor-metrics` | Busca métricas Azure Monitor (VMs, App Services, etc) | `azure/azure-fetch-monitor-metrics.ts` |
 | `azure-detect-anomalies` | `/api/functions/azure-detect-anomalies` | Detecção de anomalias Azure (custos, performance, segurança) | `azure/azure-detect-anomalies.ts` |
+| `azure-fetch-edge-services` | `/api/functions/azure-fetch-edge-services` | Busca serviços de borda Azure (Front Door, App Gateway, Load Balancer, NAT Gateway, API Management, WAF) | `azure/azure-fetch-edge-services.ts` |
 | `list-cloud-credentials` | `/api/functions/list-cloud-credentials` | Lista credenciais unificadas (AWS + Azure) | `cloud/list-cloud-credentials.ts` |
 
 ### 📜 Licenciamento (license/)
@@ -281,19 +282,20 @@ Ao criar uma nova Lambda ou endpoint:
 
 ## Estatísticas
 
-- **Total de Lambdas**: ~117 funções
-- **Total de Endpoints API Gateway**: ~107 endpoints
+- **Total de Lambdas**: ~118 funções
+- **Total de Endpoints API Gateway**: ~108 endpoints
 - **Categorias**: 15 categorias principais
 
 ---
 
 ## Última Atualização
 
-**Data**: 2026-01-15
-**Versão**: 1.3
+**Data**: 2026-01-29
+**Versão**: 1.4
 **Atualizado por**: Sistema
 
 ### Changelog
+- 2026-01-29: Adicionado endpoint azure-fetch-edge-services para monitoramento de serviços de borda Azure (Front Door, App Gateway, Load Balancer, NAT Gateway, API Management, WAF)
 - 2026-01-15: Adicionados 3 novos endpoints de Platform Monitoring (generate-error-fix-prompt, get-platform-metrics, get-recent-errors)
 - 2026-01-15: Adicionados 3 novos endpoints de compliance (start-compliance-scan, get-compliance-scan-status, get-compliance-history)
 

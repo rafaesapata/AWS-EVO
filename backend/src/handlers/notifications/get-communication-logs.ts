@@ -9,13 +9,16 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 
-interface GetCommunicationLogsRequest {
-  channel?: string;
-  status?: string;
-  limit?: number;
-  offset?: number;
-}
+// Zod schema for communication logs query
+const getCommunicationLogsSchema = z.object({
+  channel: z.enum(['email', 'sms', 'webhook', 'slack', 'sns']).optional(),
+  status: z.enum(['sent', 'failed', 'pending', 'delivered']).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -31,8 +34,13 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: GetCommunicationLogsRequest = event.body ? JSON.parse(event.body) : {};
-    const { channel, status, limit = 50, offset = 0 } = body;
+    // Validate input with Zod
+    const validation = parseAndValidateBody(getCommunicationLogsSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
+    const { channel, status, limit, offset } = validation.data;
     
     const prisma = getPrismaClient();
     
@@ -64,7 +72,7 @@ export async function handler(
         total,
         limit,
         offset,
-        hasMore: offset + logs.length < total,
+        hasMore: (offset ?? 0) + logs.length < total,
       },
     });
     

@@ -21,6 +21,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 // Schema de validação
@@ -43,24 +44,13 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
-    // Parse body
-    let body: any = {};
-    if (event.body) {
-      try {
-        body = JSON.parse(event.body);
-        logger.info('Parsed request body', { body, rawBody: event.body });
-      } catch {
-        return error('Invalid JSON body', 400);
-      }
-    } else {
-      logger.info('No body in request', { event: JSON.stringify(event).slice(0, 500) });
-    }
-
-    // Validar input - requer confirmação explícita
-    const validation = deactivateDemoSchema.safeParse(body);
+    // Parse and validate body using centralized validation
+    const validation = parseAndValidateBody(deactivateDemoSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.message}`, 400);
+      return validation.error;
     }
+    
+    logger.info('Parsed request body', { body: validation.data });
 
     logger.info('Deactivate demo mode request', { 
       organizationId, 

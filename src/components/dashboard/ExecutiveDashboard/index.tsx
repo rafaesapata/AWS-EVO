@@ -1,5 +1,5 @@
 /**
- * Executive Dashboard v2.2 - Clean Light Theme Design
+ * Executive Dashboard v2.3 - Clean Light Theme Design with Granular Skeleton Loading
  * Structure: Beginning (Current State) → Middle (Risks/Waste) → End (Actions)
  * Design: Light background (#F9FAFB), #003C7D accent, white cards with subtle shadows
  * Color Palette:
@@ -8,6 +8,11 @@
  *   - Success: #10B981 (green)
  *   - Background: #FFFFFF / #F9FAFB
  *   - Text: #1F2937 (dark gray)
+ * 
+ * Features:
+ *   - Granular skeleton loading per section
+ *   - Progressive data loading
+ *   - Suspense-like boundaries for each card
  */
 
 import { useState } from 'react';
@@ -29,6 +34,24 @@ import SecurityPostureCard from './components/SecurityPostureCard';
 import OperationsCenterCard from './components/OperationsCenterCard';
 import AICommandCenter from './components/AICommandCenter';
 import TrendAnalysis from './components/TrendAnalysis';
+
+// Granular Skeletons
+import {
+  ExecutiveSummaryBarSkeleton,
+  TrendAnalysisSkeleton,
+  FinancialHealthCardSkeleton,
+  SecurityPostureCardSkeleton,
+  OperationsCenterCardSkeleton,
+  AICommandCenterSkeleton,
+  QuickActionsSummarySkeleton,
+  SectionHeaderSkeleton,
+} from './components/Skeletons';
+
+// Section Loader for progressive loading
+import { SectionLoader, CardLoader } from './components/SectionLoader';
+
+// Hook for tracking section loading states
+import { useExecutiveDashboardSections } from '@/hooks/useExecutiveDashboardSections';
 
 // Section Header Component - Clean Light Design
 function SectionHeader({ 
@@ -75,9 +98,12 @@ export default function ExecutiveDashboardV2() {
     includeTrends: true
   });
 
-  // Loading state
+  // Track which sections have valid data for progressive loading
+  const sectionStates = useExecutiveDashboardSections(data, isLoading);
+
+  // Loading state - Now uses granular skeletons
   if (isLoading) {
-    return <DashboardSkeleton />;
+    return <DashboardSkeletonGranular />;
   }
 
   // Error state
@@ -149,15 +175,25 @@ export default function ExecutiveDashboardV2() {
           {t('executiveDashboard.sections.currentState', 'Visão Executiva')}
         </h2>
         
-        <ExecutiveSummaryBar data={data.summary} />
+        <CardLoader
+          isLoading={!sectionStates.summary && isFetching}
+          skeleton={<ExecutiveSummaryBarSkeleton />}
+        >
+          <ExecutiveSummaryBar data={data.summary} />
+        </CardLoader>
 
-        {data.trends && (
-          <TrendAnalysis 
-            data={data.trends}
-            period={trendPeriod}
-            onPeriodChange={setTrendPeriod}
-          />
-        )}
+        <CardLoader
+          isLoading={!sectionStates.trends && isFetching}
+          skeleton={<TrendAnalysisSkeleton />}
+        >
+          {data.trends && (
+            <TrendAnalysis 
+              data={data.trends}
+              period={trendPeriod}
+              onPeriodChange={setTrendPeriod}
+            />
+          )}
+        </CardLoader>
       </section>
 
       {/* SECTION 2: Risks and Waste */}
@@ -177,7 +213,12 @@ export default function ExecutiveDashboardV2() {
                 </span>
               </div>
             )}
-            <FinancialHealthCard data={data.financial} />
+            <CardLoader
+              isLoading={!sectionStates.financial && isFetching}
+              skeleton={<FinancialHealthCardSkeleton />}
+            >
+              <FinancialHealthCard data={data.financial} />
+            </CardLoader>
           </div>
 
           <div className="relative">
@@ -188,7 +229,12 @@ export default function ExecutiveDashboardV2() {
                 </span>
               </div>
             )}
-            <SecurityPostureCard data={data.security} />
+            <CardLoader
+              isLoading={!sectionStates.security && isFetching}
+              skeleton={<SecurityPostureCardSkeleton />}
+            >
+              <SecurityPostureCard data={data.security} />
+            </CardLoader>
           </div>
         </div>
       </section>
@@ -210,15 +256,27 @@ export default function ExecutiveDashboardV2() {
                 </span>
               </div>
             )}
-            <OperationsCenterCard data={data.operations} />
+            <CardLoader
+              isLoading={!sectionStates.operations && isFetching}
+              skeleton={<OperationsCenterCardSkeleton />}
+              className="h-full"
+            >
+              <OperationsCenterCard data={data.operations} />
+            </CardLoader>
           </div>
 
           <div className="h-full">
-            <AICommandCenter 
-              insights={data.insights}
-              onRefresh={refresh}
-              isLoading={isFetching}
-            />
+            <CardLoader
+              isLoading={!sectionStates.insights && isFetching}
+              skeleton={<AICommandCenterSkeleton />}
+              className="h-full"
+            >
+              <AICommandCenter 
+                insights={data.insights}
+                onRefresh={refresh}
+                isLoading={isFetching}
+              />
+            </CardLoader>
           </div>
         </div>
 
@@ -344,7 +402,69 @@ function QuickActionsSummary({
   );
 }
 
-// Skeleton Loading - Clean Light Design
+// Granular Skeleton Loading - Uses specific skeletons for each section
+function DashboardSkeletonGranular() {
+  const { t, i18n } = useTranslation();
+  
+  // Format current date based on locale
+  const currentDate = new Date().toLocaleDateString(i18n.language === 'pt' ? 'pt-BR' : 'en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  const formattedDate = currentDate.charAt(0).toUpperCase() + currentDate.slice(1);
+
+  return (
+    <div data-executive-dashboard className="min-h-screen bg-[#F1F3F7] -m-6 p-6 space-y-6">
+      {/* Header - Shows immediately */}
+      <div className="flex items-start justify-between">
+        <div className="space-y-0.5">
+          <h1 className="text-3xl font-light text-[#1F2937]">
+            {t('executiveDashboard.greeting', 'Olá, confira a visão geral da sua infraestrutura')}
+          </h1>
+          <p className="text-sm text-gray-500">{formattedDate}</p>
+        </div>
+        <Skeleton className="h-10 w-32 rounded-xl" />
+      </div>
+
+      {/* SECTION 1: Current Infrastructure State */}
+      <section className="space-y-4">
+        <h2 className="text-xl font-light text-[#393939]">
+          {t('executiveDashboard.sections.currentState', 'Visão Executiva')}
+        </h2>
+        <ExecutiveSummaryBarSkeleton />
+        <TrendAnalysisSkeleton />
+      </section>
+
+      {/* SECTION 2: Risks and Waste */}
+      <section className="space-y-4">
+        <SectionHeaderSkeleton />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <FinancialHealthCardSkeleton />
+          <SecurityPostureCardSkeleton />
+        </div>
+      </section>
+
+      {/* SECTION 3: Operations & Recommended Actions */}
+      <section className="space-y-4">
+        <SectionHeaderSkeleton />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <OperationsCenterCardSkeleton />
+          <AICommandCenterSkeleton />
+        </div>
+        <QuickActionsSummarySkeleton />
+      </section>
+
+      {/* Metadata Footer Skeleton */}
+      <div className="text-center pt-4 border-t border-gray-200">
+        <Skeleton className="h-4 w-96 mx-auto" />
+      </div>
+    </div>
+  );
+}
+
+// Legacy Skeleton Loading - Kept for backwards compatibility
 function DashboardSkeleton() {
   return (
     <div className="min-h-screen bg-[#F1F3F7] -m-6 p-6 space-y-8">
@@ -396,3 +516,17 @@ function DashboardSkeleton() {
 
 // Re-export for backwards compatibility
 export { ExecutiveDashboardV2 as ExecutiveDashboard };
+
+// Export skeletons for use in other components
+export {
+  ExecutiveSummaryBarSkeleton,
+  TrendAnalysisSkeleton,
+  FinancialHealthCardSkeleton,
+  SecurityPostureCardSkeleton,
+  OperationsCenterCardSkeleton,
+  AICommandCenterSkeleton,
+  QuickActionsSummarySkeleton,
+} from './components/Skeletons';
+
+// Export section loader utilities
+export { SectionLoader, CardLoader } from './components/SectionLoader';

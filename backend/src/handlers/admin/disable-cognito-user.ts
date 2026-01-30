@@ -9,6 +9,8 @@ import { success, error, badRequest, forbidden, corsOptions } from '../../lib/re
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { 
   CognitoIdentityProviderClient, 
   AdminDisableUserCommand,
@@ -17,10 +19,13 @@ import {
 
 const cognitoClient = new CognitoIdentityProviderClient({});
 
-interface DisableCognitoUserRequest {
-  userId: string;
-  email?: string;
-}
+// Zod schema for disable cognito user request
+const disableCognitoUserSchema = z.object({
+  userId: z.string().optional(),
+  email: z.string().email().optional(),
+}).refine(data => data.userId || data.email, {
+  message: 'Either userId or email is required',
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -51,12 +56,12 @@ export async function handler(
       return forbidden('Admin access required', origin);
     }
 
-    const body: DisableCognitoUserRequest = event.body ? JSON.parse(event.body) : {};
-    const { userId, email } = body;
-
-    if (!userId && !email) {
-      return badRequest('Missing required field: userId or email', undefined, origin);
+    const validation = parseAndValidateBody(disableCognitoUserSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { userId, email } = validation.data;
 
     const userPoolId = process.env.COGNITO_USER_POOL_ID;
     if (!userPoolId) {

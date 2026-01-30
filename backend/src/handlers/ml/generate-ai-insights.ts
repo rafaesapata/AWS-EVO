@@ -11,11 +11,8 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-
-interface GenerateAIInsightsRequest {
-  accountId?: string;
-  insightType?: 'cost' | 'security' | 'performance' | 'all';
-}
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { generateAiInsightsSchema } from '../../lib/schemas.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -31,8 +28,13 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: GenerateAIInsightsRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, insightType = 'all' } = body;
+    // Validate input with Zod
+    const validation = parseAndValidateBody(generateAiInsightsSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
+    const { accountId, insightType, timeRange, maxInsights } = validation.data;
     
     const prisma = getPrismaClient();
     

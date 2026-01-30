@@ -9,16 +9,22 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient, getOptionalCredentialFilter } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
-interface RequestBody {
-  message: string;
-  history?: Array<{ role: string; content: string }>;
-  context?: any;
-  accountId?: string;
-  organizationId?: string;
-  language?: string; // 'pt' or 'en'
-}
+// Zod schema for bedrock chat request
+const bedrockChatSchema = z.object({
+  message: z.string().min(1, 'Message is required').max(10000, 'Message too long'),
+  history: z.array(z.object({
+    role: z.string(),
+    content: z.string(),
+  })).max(20).optional(),
+  context: z.any().optional(),
+  accountId: z.string().uuid().optional(),
+  organizationId: z.string().uuid().optional(),
+  language: z.enum(['pt', 'en']).default('pt'),
+});
 
 interface PlatformContext {
   costs: {
@@ -79,12 +85,12 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: RequestBody = event.body ? JSON.parse(event.body) : {};
-    const { message, history, accountId, language = 'pt' } = body;
-    
-    if (!message) {
-      return badRequest('Message is required');
+    const validation = parseAndValidateBody(bedrockChatSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { message, history, accountId, language } = validation.data;
     
     const prisma = getPrismaClient();
     

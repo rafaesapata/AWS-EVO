@@ -18,6 +18,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
 import { validateServicePrincipalCredentials } from '../../lib/azure-helpers.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import type { CostQueryParams } from '../../types/cloud.js';
 import { z } from 'zod';
 
@@ -46,16 +47,9 @@ export async function handler(
     logger.info('Fetching Azure costs', { organizationId });
 
     // Parse and validate request body
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = azureFetchCostsSchema.safeParse(body);
+    const validation = parseAndValidateBody(azureFetchCostsSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
     const { credentialId, startDate, endDate, granularity } = validation.data;

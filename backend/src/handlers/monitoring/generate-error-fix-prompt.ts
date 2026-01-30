@@ -9,6 +9,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const generatePromptSchema = z.object({
@@ -401,11 +402,10 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
 
-    const body = JSON.parse(event.body || '{}');
-    const validation = generatePromptSchema.safeParse(body);
-
+    // Parse and validate body using centralized validation
+    const validation = parseAndValidateBody(generatePromptSchema, event.body);
     if (!validation.success) {
-      return error('Invalid request body', 400);
+      return validation.error;
     }
 
     const errorData = validation.data;

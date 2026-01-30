@@ -9,14 +9,8 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-
-interface CreateJiraTicketRequest {
-  findingId?: string;
-  title: string;
-  description: string;
-  priority?: 'Highest' | 'High' | 'Medium' | 'Low' | 'Lowest';
-  issueType?: string;
-}
+import { createJiraTicketSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -32,12 +26,12 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: CreateJiraTicketRequest = event.body ? JSON.parse(event.body) : {};
-    const { findingId, title, description, priority = 'Medium', issueType = 'Bug' } = body;
-    
-    if (!title || !description) {
-      return error('Missing required parameters: title, description');
+    // Validate request body
+    const validation = parseAndValidateBody(createJiraTicketSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    const { findingId, title, description, priority = 'Medium', issueType = 'Bug' } = validation.data;
     
     const prisma = getPrismaClient();
     

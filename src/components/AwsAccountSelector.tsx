@@ -1,4 +1,4 @@
-import { useAwsAccount } from '@/contexts/AwsAccountContext';
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {

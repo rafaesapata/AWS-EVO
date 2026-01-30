@@ -8,6 +8,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const updateSchema = z.object({
@@ -28,11 +29,10 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
-    const body = JSON.parse(event.body || '{}');
-    const validation = updateSchema.safeParse(body);
-
+    // Validate request body with Zod
+    const validation = parseAndValidateBody(updateSchema, event.body);
     if (!validation.success) {
-      return error('Invalid request: ' + validation.error.message, 400);
+      return validation.error;
     }
 
     const { notification_id, action } = validation.data;

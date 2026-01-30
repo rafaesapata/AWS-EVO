@@ -9,6 +9,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 // Schema de validação
@@ -133,17 +134,10 @@ export async function handler(
       return error('Apenas super admins podem gerenciar regras de notificação', 403);
     }
 
-    // Parse body
-    let body: unknown;
-    try {
-      body = event.body ? JSON.parse(event.body) : {};
-    } catch {
-      return error('Invalid JSON body', 400);
-    }
-
-    const validation = requestSchema.safeParse(body);
+    // Parse and validate body using centralized validation
+    const validation = parseAndValidateBody(requestSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.message}`, 400);
+      return validation.error;
     }
 
     const request = validation.data;

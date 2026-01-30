@@ -25,6 +25,7 @@ import {
   serializeEncryptedToken,
 } from '../../lib/token-encryption.js';
 import { z } from 'zod';
+import { parseAndValidateBody } from '../../lib/validation.js';
 
 // OAuth configuration from environment
 const AZURE_OAUTH_CLIENT_ID = process.env.AZURE_OAUTH_CLIENT_ID;
@@ -68,16 +69,9 @@ export async function handler(
     const prisma = getPrismaClient();
 
     // Parse and validate request body
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = callbackSchema.safeParse(body);
+    const validation = parseAndValidateBody(callbackSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
     const { code, state, codeVerifier } = validation.data;

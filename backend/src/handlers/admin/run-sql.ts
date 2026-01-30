@@ -10,6 +10,13 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { getUserFromEvent, isSuperAdmin } from '../../lib/auth.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
+
+// Zod schema for SQL query validation
+const runSqlSchema = z.object({
+  sql: z.string().min(1, 'SQL query is required').max(5000, 'Query too long (max 5000 characters)'),
+});
 
 // MILITARY GRADE: Dangerous SQL patterns that could be used for injection
 const DANGEROUS_PATTERNS = [
@@ -59,26 +66,13 @@ export async function handler(
       return unauthorized('Only super_admin can execute raw SQL queries', origin);
     }
 
-    // Parse body
-    let body: { sql?: string } = {};
-    if (event.body) {
-      try {
-        body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
-      } catch {
-        return badRequest('Invalid JSON body');
-      }
+    // Parse and validate body using centralized validation
+    const validation = parseAndValidateBody(runSqlSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
     
-    const { sql } = body;
-    
-    if (!sql) {
-      return badRequest('Missing required field: sql');
-    }
-
-    // MILITARY GRADE: Limit query length
-    if (sql.length > 5000) {
-      return badRequest('Query too long (max 5000 characters)');
-    }
+    const { sql } = validation.data;
     
     // Only allow SELECT queries for safety
     const normalizedSql = sql.trim().toUpperCase();

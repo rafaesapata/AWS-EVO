@@ -14,6 +14,8 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { withAwsCircuitBreaker } from '../../lib/circuit-breaker.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoCloudWatchMetrics } from '../../lib/demo-data-service.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { CloudWatchClient, GetMetricStatisticsCommand, Statistic } from '@aws-sdk/client-cloudwatch';
 import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
@@ -23,6 +25,14 @@ import { ElastiCacheClient, DescribeCacheClustersCommand } from '@aws-sdk/client
 import { ElasticLoadBalancingV2Client, DescribeLoadBalancersCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { APIGatewayClient, GetRestApisCommand } from '@aws-sdk/client-api-gateway';
 import { randomUUID } from 'crypto';
+
+// Zod schema for request validation
+const fetchMetricsRequestSchema = z.object({
+  accountId: z.string().uuid(),
+  regions: z.array(z.string().regex(/^[a-z]{2}-[a-z]+-\d$/)).optional(),
+  forceRefresh: z.boolean().default(false),
+  period: z.enum(['3h', '24h', '7d']).default('3h'),
+});
 
 interface FetchMetricsRequest {
   accountId: string;
@@ -172,19 +182,13 @@ async function fetchCloudwatchMetricsHandler(
       return success(demoData, 200, origin);
     }
     
-    // Parse request body
-    let body: FetchMetricsRequest;
-    try {
-      body = event.body ? JSON.parse(event.body) : {};
-    } catch {
-      return badRequest('Invalid JSON body', undefined, origin);
+    // Parse and validate request body using centralized validation
+    const validation = parseAndValidateBody(fetchMetricsRequestSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
     
-    const { accountId, regions: requestedRegions, period = '3h' } = body;
-    
-    if (!accountId) {
-      return badRequest('Missing required parameter: accountId', undefined, origin);
-    }
+    const { accountId, regions: requestedRegions, period = '3h' } = validation.data;
     
     // Buscar credenciais AWS
     const credential = await prisma.awsCredential.findFirst({

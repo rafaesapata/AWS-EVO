@@ -9,12 +9,13 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const getHistorySchema = z.object({
   days: z.number().min(1).max(365).optional().default(30),
   framework: z.string().optional(),
-  accountId: z.string().uuid().optional(),
+  accountId: z.string().optional(), // Can be UUID or AWS account ID
 });
 
 export async function handler(
@@ -34,23 +35,19 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     // Validate input
-    const parseResult = getHistorySchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
-    
-    if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+    const validation = parseAndValidateBody(getHistorySchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
     
-    const { days, framework, accountId } = parseResult.data;
+    const { days = 30, framework, accountId } = validation.data;
+    // Ensure days is always defined (Zod default + destructuring default)
+    const effectiveDays = days ?? 30;
     
     const prisma = getPrismaClient();
     
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    startDate.setDate(startDate.getDate() - effectiveDays);
     
     // Get security posture history (compliance scores over time)
     const postureHistory = await prisma.securityPosture.findMany({

@@ -22,6 +22,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { z } from 'zod';
+import { parseAndValidateBody } from '../../lib/validation.js';
 
 // Schema de validação
 const manageDemoModeSchema = z.object({
@@ -44,20 +45,10 @@ export async function handler(
     const userOrgId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
-    // Parse body
-    let body: any = {};
-    if (event.body) {
-      try {
-        body = JSON.parse(event.body);
-      } catch {
-        return error('Invalid JSON body', 400);
-      }
-    }
-
-    // Validar input
-    const validation = manageDemoModeSchema.safeParse(body);
+    // Parse and validate request body
+    const validation = parseAndValidateBody(manageDemoModeSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.message}`, 400);
+      return validation.error;
     }
 
     const { action, organizationId, expiresInDays, reason } = validation.data;
@@ -120,7 +111,7 @@ export async function handler(
         }
 
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+        expiresAt.setDate(expiresAt.getDate() + (expiresInDays ?? 30));
 
         const previousState = {
           demo_mode: organization.demo_mode,
@@ -258,7 +249,7 @@ export async function handler(
           : new Date();
         
         const newExpiry = new Date(Math.max(currentExpiry.getTime(), Date.now()));
-        newExpiry.setDate(newExpiry.getDate() + expiresInDays);
+        newExpiry.setDate(newExpiry.getDate() + (expiresInDays ?? 30));
 
         const previousState = {
           demo_expires_at: organization.demo_expires_at

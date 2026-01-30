@@ -7,29 +7,32 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 const DEFAULT_BUCKET = process.env.S3_BUCKET || 'evo-uds-v3-production-attachments-383234048592';
 
-interface UploadRequest {
-  fileName: string;
-  contentType: string;
-  content?: string; // Base64 encoded
-  bucket?: string;
-  path?: string;
-}
+// Zod schemas for storage operations
+const uploadRequestSchema = z.object({
+  fileName: z.string().min(1, 'File name is required').max(255),
+  contentType: z.string().max(100).optional(),
+  content: z.string().optional(), // Base64 encoded
+  bucket: z.string().max(100).optional(),
+  path: z.string().max(500).optional(),
+});
 
-interface DownloadRequest {
-  bucket?: string;
-  path: string;
-}
+const downloadRequestSchema = z.object({
+  bucket: z.string().max(100).optional(),
+  path: z.string().min(1, 'Path is required').max(500),
+});
 
-interface DeleteRequest {
-  bucket?: string;
-  path: string;
-}
+const deleteRequestSchema = z.object({
+  bucket: z.string().max(100).optional(),
+  path: z.string().min(1, 'Path is required').max(500),
+});
 
 // Upload Attachment Handler
 export async function uploadHandler(
@@ -46,12 +49,13 @@ export async function uploadHandler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: UploadRequest = event.body ? JSON.parse(event.body) : {};
-    const { fileName, contentType, content, bucket, path } = body;
-    
-    if (!fileName) {
-      return badRequest('File name is required');
+    // Validate input with Zod
+    const validation = parseAndValidateBody(uploadRequestSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { fileName, contentType, content, bucket, path } = validation.data;
     
     const bucketName = bucket || DEFAULT_BUCKET;
     const key = path || `${organizationId}/${Date.now()}-${fileName}`;
@@ -123,12 +127,13 @@ export async function downloadHandler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: DownloadRequest = event.body ? JSON.parse(event.body) : {};
-    const { bucket, path } = body;
-    
-    if (!path) {
-      return badRequest('Path is required');
+    // Validate input with Zod
+    const validation = parseAndValidateBody(downloadRequestSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { bucket, path } = validation.data;
     
     const bucketName = bucket || DEFAULT_BUCKET;
     
@@ -173,12 +178,13 @@ export async function deleteHandler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: DeleteRequest = event.body ? JSON.parse(event.body) : {};
-    const { bucket, path } = body;
-    
-    if (!path) {
-      return badRequest('Path is required');
+    // Validate input with Zod
+    const validation = parseAndValidateBody(deleteRequestSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { bucket, path } = validation.data;
     
     const bucketName = bucket || DEFAULT_BUCKET;
     

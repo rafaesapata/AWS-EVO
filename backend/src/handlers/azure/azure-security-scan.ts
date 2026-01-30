@@ -20,6 +20,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
 import { validateServicePrincipalCredentials } from '../../lib/azure-helpers.js';
 import { runAllAzureScanners, azureScannerMetadata } from '../../lib/security-engine/scanners/azure/index.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import type { AzureScanContext } from '../../lib/security-engine/scanners/azure/types.js';
 import type { ScanConfig } from '../../types/cloud.js';
 import { z } from 'zod';
@@ -68,19 +69,12 @@ export async function handler(
     logger.info('Starting Azure security scan', { organizationId, isBackgroundJob });
 
     // Parse and validate request body
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = azureSecurityScanSchema.safeParse(body);
+    const validation = parseAndValidateBody(azureSecurityScanSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
-    const { credentialId, scanLevel, regions, scanId: existingScanId, backgroundJobId } = validation.data;
+    const { credentialId, scanLevel = 'standard', regions, scanId: existingScanId, backgroundJobId } = validation.data;
 
     // Fetch Azure credential
     const credential = await prisma.azureCredential.findFirst({
@@ -283,6 +277,18 @@ export async function handler(
     const allFindings = [...findingsToCreate, ...moduleFindingsToCreate];
 
     if (allFindings.length > 0) {
+      // Delete old pending findings from Azure scans for this credential
+      // This prevents accumulating duplicate findings across scans
+      const deletedCount = await prisma.finding.deleteMany({
+        where: {
+          organization_id: organizationId,
+          azure_credential_id: credentialId,
+          source: { in: ['azure-security-scan', 'azure-module-scanner'] },
+          status: 'pending',
+        },
+      });
+      logger.info('Deleted old pending Azure findings', { deletedCount: deletedCount.count });
+
       await prisma.finding.createMany({
         data: allFindings,
       });

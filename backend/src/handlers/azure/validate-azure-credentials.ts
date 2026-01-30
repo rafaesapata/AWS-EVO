@@ -17,6 +17,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 // Validation schema for Azure credentials
@@ -57,16 +58,9 @@ export async function handler(
     logger.info('Validating Azure credentials', { organizationId });
 
     // Parse and validate request body
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = validateAzureCredentialsSchema.safeParse(body);
+    const validation = parseAndValidateBody(validateAzureCredentialsSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
     const { tenantId, clientId, clientSecret, subscriptionId, subscriptionName } = validation.data;

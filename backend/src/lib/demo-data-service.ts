@@ -3071,6 +3071,283 @@ export function generateDemoResourceMetrics() {
 }
 
 /**
+ * Gera dados de Azure Edge Services para demonstração
+ */
+export function generateDemoAzureEdgeServices() {
+  return {
+    _isDemo: true,
+    success: true,
+    message: 'Dados de demonstração - 10 serviços de borda Azure',
+    servicesFound: 10,
+    metricsCollected: 10,
+    breakdown: {
+      frontDoor: 2,
+      applicationGateway: 2,
+      loadBalancer: 2,
+      natGateway: 2,
+      apiManagement: 1,
+      azureWaf: 1
+    },
+    fromCache: false,
+    services: [
+      {
+        id: 'demo-azure-fd-001',
+        serviceType: 'front_door',
+        serviceName: 'demo-frontdoor-main',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.Network/frontDoors/demo-fd-main',
+        status: 'active',
+        region: 'global',
+        domainName: 'demo-fd-main.azurefd.net',
+        metadata: {
+          resourceState: 'Enabled',
+          frontendEndpoints: ['demo-fd-main.azurefd.net', 'www.demo.com'],
+          backendPools: ['api-pool', 'web-pool'],
+          routingRules: 4,
+          loadBalancingSettings: 2,
+          healthProbeSettings: 2,
+          hasWaf: true
+        },
+        metrics: {
+          requests: 95000,
+          blockedRequests: 1250,
+          responseTime: 45,
+          bandwidthGb: 28.5
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-azure-fd-002',
+        serviceType: 'front_door',
+        serviceName: 'demo-frontdoor-api',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.Network/frontDoors/demo-fd-api',
+        status: 'active',
+        region: 'global',
+        domainName: 'demo-fd-api.azurefd.net',
+        metadata: {
+          resourceState: 'Enabled',
+          frontendEndpoints: ['demo-fd-api.azurefd.net', 'api.demo.com'],
+          backendPools: ['api-backend'],
+          routingRules: 2,
+          loadBalancingSettings: 1,
+          healthProbeSettings: 1,
+          hasWaf: true
+        },
+        metrics: {
+          requests: 65000,
+          blockedRequests: 850,
+          responseTime: 32,
+          bandwidthGb: 15.2
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-azure-appgw-001',
+        serviceType: 'application_gateway',
+        serviceName: 'demo-appgw-web',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.Network/applicationGateways/demo-appgw-web',
+        status: 'active',
+        region: 'eastus',
+        metadata: {
+          sku: 'WAF_v2',
+          tier: 'WAF_v2',
+          capacity: 2,
+          operationalState: 'Running',
+          provisioningState: 'Succeeded',
+          frontendPorts: [80, 443],
+          backendPools: 3,
+          httpListeners: 4,
+          requestRoutingRules: 4,
+          sslCertificates: 2,
+          hasWaf: true,
+          wafMode: 'Prevention'
+        },
+        metrics: {
+          requests: 45000,
+          blockedRequests: 320,
+          responseTime: 28,
+          bandwidthGb: 8.7
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-azure-appgw-002',
+        serviceType: 'application_gateway',
+        serviceName: 'demo-appgw-internal',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.Network/applicationGateways/demo-appgw-internal',
+        status: 'active',
+        region: 'westeurope',
+        metadata: {
+          sku: 'Standard_v2',
+          tier: 'Standard_v2',
+          capacity: 1,
+          operationalState: 'Running',
+          provisioningState: 'Succeeded',
+          frontendPorts: [443],
+          backendPools: 2,
+          httpListeners: 2,
+          requestRoutingRules: 2,
+          sslCertificates: 1,
+          hasWaf: false
+        },
+        metrics: {
+          requests: 22000,
+          blockedRequests: 0,
+          responseTime: 35,
+          bandwidthGb: 4.2
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-azure-lb-001',
+        serviceType: 'load_balancer',
+        serviceName: 'demo-lb-public',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.Network/loadBalancers/demo-lb-public',
+        status: 'active',
+        region: 'eastus',
+        metadata: {
+          sku: 'Standard',
+          tier: 'Regional',
+          provisioningState: 'Succeeded',
+          isPublic: true,
+          frontendIPConfigurations: 2,
+          backendAddressPools: 3,
+          loadBalancingRules: 4,
+          probes: 3,
+          inboundNatRules: 2,
+          outboundRules: 1
+        },
+        metrics: {
+          requests: 180000,
+          bandwidthGb: 42.5
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-azure-lb-002',
+        serviceType: 'load_balancer',
+        serviceName: 'demo-lb-internal',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.Network/loadBalancers/demo-lb-internal',
+        status: 'active',
+        region: 'eastus',
+        metadata: {
+          sku: 'Standard',
+          tier: 'Regional',
+          provisioningState: 'Succeeded',
+          isPublic: false,
+          frontendIPConfigurations: 1,
+          backendAddressPools: 2,
+          loadBalancingRules: 3,
+          probes: 2,
+          inboundNatRules: 0,
+          outboundRules: 0
+        },
+        metrics: {
+          requests: 95000,
+          bandwidthGb: 18.3
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-azure-nat-001',
+        serviceType: 'nat_gateway',
+        serviceName: 'demo-natgw-main',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.Network/natGateways/demo-natgw-main',
+        status: 'active',
+        region: 'eastus',
+        metadata: {
+          sku: 'Standard',
+          provisioningState: 'Succeeded',
+          idleTimeoutInMinutes: 10,
+          publicIpAddresses: 2,
+          publicIpPrefixes: 0,
+          subnets: 4,
+          zones: ['1', '2', '3']
+        },
+        metrics: {
+          requests: 250000,
+          error5xx: 125,
+          bandwidthGb: 85.2
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-azure-nat-002',
+        serviceType: 'nat_gateway',
+        serviceName: 'demo-natgw-secondary',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.Network/natGateways/demo-natgw-secondary',
+        status: 'active',
+        region: 'westeurope',
+        metadata: {
+          sku: 'Standard',
+          provisioningState: 'Succeeded',
+          idleTimeoutInMinutes: 5,
+          publicIpAddresses: 1,
+          publicIpPrefixes: 0,
+          subnets: 2,
+          zones: ['1']
+        },
+        metrics: {
+          requests: 120000,
+          error5xx: 45,
+          bandwidthGb: 32.8
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-azure-apim-001',
+        serviceType: 'api_management',
+        serviceName: 'demo-apim-main',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.ApiManagement/service/demo-apim-main',
+        status: 'active',
+        region: 'eastus',
+        domainName: 'demo-apim-main.azure-api.net',
+        metadata: {
+          sku: 'Premium',
+          skuCapacity: 2,
+          provisioningState: 'Succeeded',
+          gatewayUrl: 'https://demo-apim-main.azure-api.net',
+          portalUrl: 'https://demo-apim-main.portal.azure-api.net',
+          managementApiUrl: 'https://demo-apim-main.management.azure-api.net',
+          developerPortalUrl: 'https://demo-apim-main.developer.azure-api.net',
+          publicIpAddresses: ['20.185.xxx.xxx'],
+          virtualNetworkType: 'External',
+          platformVersion: 'stv2'
+        },
+        metrics: {
+          requests: 75000,
+          cacheHits: 68000,
+          error4xx: 450,
+          error5xx: 25,
+          responseTime: 42
+        },
+        _isDemo: true
+      },
+      {
+        id: 'demo-azure-waf-001',
+        serviceType: 'azure_waf',
+        serviceName: 'WAF - demo-frontdoor-main',
+        serviceId: '/subscriptions/demo-sub/resourceGroups/demo-rg/providers/Microsoft.Network/FrontDoorWebApplicationFirewallPolicies/demo-waf-policy',
+        status: 'active',
+        region: 'global',
+        metadata: {
+          associatedWith: 'front_door',
+          frontDoorName: 'demo-frontdoor-main',
+          policyMode: 'Prevention',
+          customRules: 5,
+          managedRules: 3,
+          requestBodyCheck: true
+        },
+        metrics: {
+          requests: 95000,
+          blockedRequests: 1250
+        },
+        _isDemo: true
+      }
+    ]
+  };
+}
+
+/**
  * Gera dados de Edge Services para tabela (formato banco de dados)
  * Usado pelo query-table quando a organização está em modo demo
  */
@@ -3470,6 +3747,7 @@ export default {
   generateDemoAlerts,
   generateDemoAlertRules,
   generateDemoEdgeServices,
+  generateDemoAzureEdgeServices,
   generateDemoRealtimeMetrics,
   generateDemoCloudWatchMetrics,
   generateDemoSecurityScans,

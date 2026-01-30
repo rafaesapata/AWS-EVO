@@ -16,6 +16,7 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { fetchDailyCostsSchema, type FetchDailyCostsInput } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { isOrganizationInDemoMode, generateDemoCostData } from '../../lib/demo-data-service.js';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 
@@ -72,16 +73,11 @@ export async function handler(
       });
     }
     
-    // Validar input com Zod
-    const parseResult = fetchDailyCostsSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
+    // Validar input com Zod usando parseAndValidateBody
+    const parseResult = parseAndValidateBody(fetchDailyCostsSchema, event.body);
     
     if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+      return parseResult.error;
     }
     
     const { 

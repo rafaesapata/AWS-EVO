@@ -35,6 +35,11 @@ interface SecurityScan {
  scan_config: any;
  results: any;
  created_at: string;
+ // AWS fields
+ aws_account_id?: string;
+ // Azure fields
+ azure_credential_id?: string;
+ cloud_provider?: 'AWS' | 'AZURE';
 }
 
 interface Finding {
@@ -98,35 +103,40 @@ export default function SecurityScanDetails() {
  },
  });
 
- // Get scan findings - filter by scan's aws_account_id and time range
+ // Get scan findings - filter by scan's credential (AWS or Azure)
  const { data: findings, isLoading: findingsLoading } = useQuery({
- queryKey: ['scan-findings', scanId, organizationId, scan?.aws_account_id, scan?.started_at],
+ queryKey: ['scan-findings', scanId, organizationId, scan?.aws_account_id, scan?.azure_credential_id, scan?.cloud_provider],
  enabled: !!scanId && !!organizationId && !!scan,
  queryFn: async () => {
  if (!scan) return [];
  
+ // Determine if this is an Azure or AWS scan
+ const isAzureScan = scan.cloud_provider === 'AZURE' || scan.azure_credential_id || scan.scan_type?.startsWith('azure-');
+ 
  // Build filter based on scan properties
  const filter: Record<string, any> = { 
  organization_id: organizationId,
- source: 'security-engine'
  };
  
- // Filter by the same AWS account as the scan
- if (scan.aws_account_id) {
- filter.aws_account_id = scan.aws_account_id;
+ if (isAzureScan) {
+ // For Azure scans, filter by azure_credential_id and Azure sources
+ if (scan.azure_credential_id) {
+   filter.azure_credential_id = scan.azure_credential_id;
  }
- 
- // Filter by scan_type if available
- if (scan.scan_type) {
- filter.scan_type = scan.scan_type;
+ // Azure findings use different source values
+ // We'll fetch all and filter client-side for Azure sources
+ } else {
+ // For AWS scans, filter by aws_account_id and security-engine source
+ filter.source = 'security-engine';
+ if (scan.aws_account_id) {
+   filter.aws_account_id = scan.aws_account_id;
+ }
  }
  
  const response = await apiClient.select('findings', {
  select: '*',
  eq: filter,
  order: { column: 'created_at', ascending: false },
- // Limit to findings created around the scan time (within 1 hour after scan started)
- // This helps associate findings with the specific scan
  limit: 500
  });
 
@@ -134,18 +144,18 @@ export default function SecurityScanDetails() {
  throw new Error(response.error.message || 'Error fetching findings');
  }
 
- // Filter findings by time - only those created after scan started
- const scanStartTime = new Date(scan.started_at).getTime();
- const scanEndTime = scan.completed_at 
- ? new Date(scan.completed_at).getTime() + 60000 // 1 minute buffer after completion
- : scanStartTime + 3600000; // 1 hour if not completed
+ let results = (response.data as Finding[]) || [];
  
- const filteredFindings = (response.data as Finding[])?.filter(finding => {
- const findingTime = new Date(finding.created_at).getTime();
- return findingTime >= scanStartTime && findingTime <= scanEndTime;
- }) || [];
+ // For Azure scans, filter to only Azure sources
+ if (isAzureScan) {
+ results = results.filter(f => 
+   f.source === 'azure-security-scan' || 
+   f.source === 'azure-module-scanner' ||
+   f.source === 'azure-defender'
+ );
+ }
 
- return filteredFindings;
+ return results;
  },
  });
 

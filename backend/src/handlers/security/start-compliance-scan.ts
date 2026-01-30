@@ -9,6 +9,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 import https from 'https';
 
@@ -73,18 +74,12 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     // Validate input
-    const parseResult = startComplianceScanSchema.safeParse(
-      event.body ? JSON.parse(event.body) : {}
-    );
-    
-    if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+    const validation = parseAndValidateBody(startComplianceScanSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
     
-    const { frameworkId, accountId } = parseResult.data;
+    const { frameworkId, accountId } = validation.data;
     
     const prisma = getPrismaClient();
     

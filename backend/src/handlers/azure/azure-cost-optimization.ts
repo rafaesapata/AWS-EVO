@@ -17,6 +17,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const costOptSchema = z.object({
@@ -76,16 +77,10 @@ export async function handler(
 
     logger.info('Starting Azure cost optimization analysis (REAL DATA ONLY)', { organizationId });
 
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = costOptSchema.safeParse(body);
+    // Parse and validate request body
+    const validation = parseAndValidateBody(costOptSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
     const { credentialId, categories = ['Cost'] } = validation.data;

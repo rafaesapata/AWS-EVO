@@ -10,14 +10,21 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { realtimeMetricsSchema } from '../../lib/schemas.js';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
 import { isOrganizationInDemoMode, generateDemoRealtimeMetrics } from '../../lib/demo-data-service.js';
+import { z } from 'zod';
 
-interface RealtimeMetricsRequest {
-  accountId: string;
-  region?: string;
-  resources?: Array<{ type: string; id: string }>;
-}
+// Extended schema for realtime metrics with resources
+const awsRealtimeMetricsSchema = z.object({
+  accountId: z.string().uuid().optional(),
+  region: z.string().regex(/^[a-z]{2}-[a-z]+-\d$/).optional(),
+  resources: z.array(z.object({
+    type: z.string().min(1),
+    id: z.string().min(1),
+  })).optional(),
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -50,8 +57,13 @@ export async function handler(
       return success(demoData);
     }
     
-    const body: RealtimeMetricsRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, region: requestedRegion, resources = [] } = body;
+    // Validate input with Zod
+    const validation = parseAndValidateBody(awsRealtimeMetricsSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
+    const { accountId, region: requestedRegion, resources = [] } = validation.data;
     
     if (!accountId) {
       return error('Missing required parameter: accountId');

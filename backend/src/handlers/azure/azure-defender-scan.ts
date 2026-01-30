@@ -17,13 +17,14 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const defenderScanSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
   severity: z.enum(['High', 'Medium', 'Low', 'Informational']).optional(),
   status: z.enum(['Active', 'Resolved', 'Dismissed']).optional(),
-  limit: z.number().min(1).max(500).optional().default(100),
+  limit: z.number().min(1).max(500).default(100),
 });
 
 export async function handler(
@@ -41,19 +42,13 @@ export async function handler(
 
     logger.info('Starting Azure Defender scan', { organizationId });
 
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = defenderScanSchema.safeParse(body);
+    // Parse and validate request body
+    const validation = parseAndValidateBody(defenderScanSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
-    const { credentialId, severity, status, limit } = validation.data;
+    const { credentialId, severity, status, limit = 100 } = validation.data;
 
     // Fetch Azure credential
     const credential = await prisma.azureCredential.findFirst({
@@ -120,7 +115,7 @@ export async function handler(
 
     try {
       for await (const alert of securityClient.alerts.list()) {
-        if (alertCount >= limit) break;
+        if (limit && alertCount >= limit) break;
         
         // Filter by severity if specified
         if (severity && alert.severity !== severity) continue;

@@ -10,12 +10,9 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { syncResourceInventorySchema } from '../../lib/schemas.js';
 import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
-
-interface SyncResourceInventoryRequest {
-  accountId: string;
-  region?: string;
-}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -31,12 +28,14 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: SyncResourceInventoryRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, region: requestedRegion } = body;
-    
-    if (!accountId) {
-      return error('Missing required parameter: accountId');
+    // Validate input with Zod
+    const validation = parseAndValidateBody(syncResourceInventorySchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { accountId, regions, services, fullSync } = validation.data;
+    const requestedRegion = regions?.[0];
     
     const prisma = getPrismaClient();
     

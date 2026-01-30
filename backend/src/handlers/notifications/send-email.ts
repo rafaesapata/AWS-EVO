@@ -9,7 +9,9 @@ import { emailService, EmailOptions } from '../../lib/email-service.js';
 import { logger } from '../../lib/logging.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, checkUserRateLimit, RateLimitError } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
-import { sanitizeStringAdvanced } from '../../lib/validation.js';
+import { sanitizeStringAdvanced, parseAndValidateBody } from '../../lib/validation.js';
+import { sendEmailSchema } from '../../lib/schemas.js';
+import { z } from 'zod';
 
 // Allowed domains for password reset URLs
 const ALLOWED_RESET_DOMAINS = [
@@ -59,56 +61,6 @@ function sanitizeHtmlContent(html: string): string {
   return sanitized;
 }
 
-interface SendEmailRequest {
-  type: 'single' | 'bulk' | 'notification' | 'alert' | 'security' | 'welcome' | 'password-reset';
-  to: string | string[];
-  cc?: string | string[];
-  bcc?: string | string[];
-  subject?: string;
-  htmlBody?: string;
-  textBody?: string;
-  template?: string;
-  templateData?: Record<string, any>;
-  priority?: 'high' | 'normal' | 'low';
-  tags?: Record<string, string>;
-  
-  alertData?: {
-    id: string;
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    metric: string;
-    currentValue: number;
-    threshold: number;
-    message: string;
-    timestamp: string;
-  };
-  
-  securityEvent?: {
-    type: string;
-    description: string;
-    timestamp: string;
-    sourceIp?: string;
-    userAgent?: string;
-    userId?: string;
-  };
-  
-  welcomeData?: {
-    name: string;
-    organizationName: string;
-    loginUrl: string;
-  };
-  
-  resetData?: {
-    name: string;
-    resetUrl: string;
-    expiresIn: string;
-  };
-  
-  notificationData?: {
-    message: string;
-    severity?: 'info' | 'warning' | 'error' | 'critical';
-  };
-}
-
 /**
  * Send email handler
  */
@@ -143,16 +95,12 @@ export async function handler(
       return badRequest('Request body is required', undefined, origin);
     }
 
-    let request: SendEmailRequest;
-    try {
-      request = JSON.parse(event.body);
-    } catch {
-      return badRequest('Invalid JSON in request body', undefined, origin);
+    // Validate request body with Zod
+    const validation = parseAndValidateBody(sendEmailSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
-
-    if (!request.type || !request.to) {
-      return badRequest('type and to fields are required', undefined, origin);
-    }
+    const request = validation.data;
 
     // SECURITY: Rate limiting by email type
     const rateConfig = EMAIL_RATE_LIMITS[request.type] || EMAIL_RATE_LIMITS['single'];

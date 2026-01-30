@@ -29,8 +29,7 @@ VITE_API_BASE_URL=http://localhost:3000
 # Security (Development)
 VITE_STORAGE_ENCRYPTION_KEY=dev-key-32-chars-for-local-testing
 
-# Application
-VITE_APP_VERSION=2.5.2
+# Application - Version is auto-loaded from src/lib/version.ts
 `;
   
   writeFileSync('.env', devEnvContent);

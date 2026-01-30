@@ -5,17 +5,12 @@
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
-import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
-
-interface LogAuditRequest {
-  action: string;
-  resourceType: string;
-  resourceId: string;
-  details?: Record<string, any>;
-}
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { logAuditSchema } from '../../lib/schemas.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -32,12 +27,12 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const userId = user.sub || user.id || 'unknown';
 
-    const body: LogAuditRequest = event.body ? JSON.parse(event.body) : {};
-    const { action, resourceType, resourceId, details } = body;
-
-    if (!action || !resourceType || !resourceId) {
-      return badRequest('Missing required fields: action, resourceType, resourceId', undefined, origin);
+    const validation = parseAndValidateBody(logAuditSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
+    
+    const { action, resourceType, resourceId, details } = validation.data;
 
     const prisma = getPrismaClient();
 

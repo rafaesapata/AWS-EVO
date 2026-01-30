@@ -11,10 +11,8 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-
-interface EndpointMonitorCheckRequest {
-  endpointId?: string;
-}
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { endpointMonitorCheckSchema } from '../../lib/schemas.js';
 
 interface EndpointCheckResult {
   endpointId: string;
@@ -50,8 +48,13 @@ export async function handler(
       try {
         const user = getUserFromEvent(event);
         organizationId = getOrganizationIdWithImpersonation(event, user);
-        const body: EndpointMonitorCheckRequest = event.body ? JSON.parse(event.body) : {};
-        endpointId = body.endpointId;
+        
+        // Validate input with Zod
+        const validation = parseAndValidateBody(endpointMonitorCheckSchema, event.body);
+        if (!validation.success) {
+          return validation.error;
+        }
+        endpointId = validation.data.endpointId;
       } catch {
         // If no auth, proceed without org filter (scheduled job)
       }

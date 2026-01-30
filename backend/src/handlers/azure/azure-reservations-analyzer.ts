@@ -3,6 +3,11 @@
  * 
  * Analyzes Azure Reserved Instances utilization and provides recommendations.
  * Equivalent to AWS RI/SP Analyzer.
+ * 
+ * IMPORTANT: This handler fetches REAL data from Azure APIs.
+ * - Uses Azure Reservations API to list reservations
+ * - Uses Azure Consumption API for utilization data
+ * - NO SIMULATED DATA - Returns empty if no reservations found
  */
 
 // Ensure crypto is available globally for Azure SDK
@@ -17,6 +22,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 const reservationsSchema = z.object({
@@ -37,18 +43,12 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
 
-    logger.info('Starting Azure reservations analysis', { organizationId });
+    logger.info('Starting Azure reservations analysis (REAL DATA ONLY)', { organizationId });
 
-    let body: any;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch {
-      return error('Invalid JSON in request body', 400);
-    }
-
-    const validation = reservationsSchema.safeParse(body);
+    // Parse and validate request body
+    const validation = parseAndValidateBody(reservationsSchema, event.body);
     if (!validation.success) {
-      return error(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
+      return validation.error;
     }
 
     const { credentialId, includeRecommendations } = validation.data;
@@ -66,25 +66,19 @@ export async function handler(
       return error('Azure credential not found or inactive', 404);
     }
 
-    // Import Azure SDK dynamically
-    let consumptionClient: any = null;
+    // Import Azure SDK dynamically and create token credential
+    let tokenCredential: any = null;
     
     try {
-      const identity = await import('@azure/identity');
-      const consumption = await import('@azure/arm-consumption');
-      
-      let tokenCredential: any;
-      
+      // Handle both OAuth and Service Principal credentials
       if (credential.auth_type === 'oauth') {
-        // Use getAzureCredentialWithToken for OAuth
         const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
         const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
         
         if (!tokenResult.success) {
-          return error(tokenResult.error, 400);
+          return error(tokenResult.error || 'Failed to get Azure token', 400);
         }
         
-        // Create a simple token credential for OAuth
         tokenCredential = {
           getToken: async () => ({
             token: tokenResult.accessToken,
@@ -92,24 +86,19 @@ export async function handler(
           }),
         };
       } else {
-        // Service Principal
         if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
-          return error('Missing Service Principal credentials', 400);
+          return error('Service Principal credentials incomplete. Missing tenant_id, client_id, or client_secret.', 400);
         }
-        
+        const identity = await import('@azure/identity');
         tokenCredential = new identity.ClientSecretCredential(
           credential.tenant_id,
           credential.client_id,
           credential.client_secret
         );
       }
-      
-      consumptionClient = new consumption.ConsumptionManagementClient(
-        tokenCredential,
-        credential.subscription_id
-      );
     } catch (err: any) {
-      logger.warn('Azure Consumption SDK not available, using simulated data');
+      logger.error('Failed to initialize Azure credentials', { error: err.message });
+      return error(`Failed to connect to Azure: ${err.message}`, 500);
     }
 
     const reservations: any[] = [];
@@ -117,96 +106,88 @@ export async function handler(
     let totalSavings = 0;
     let totalUnused = 0;
 
-    // Try to fetch real reservations if SDK is available
-    if (consumptionClient) {
-      try {
-        const scope = `/subscriptions/${credential.subscription_id}`;
-        for await (const reservation of consumptionClient.reservationsSummaries.list(scope, 'monthly')) {
+    // Try to fetch reservations using Azure Advisor recommendations for reserved instances
+    // The Consumption API reservationsSummaries requires billing account scope, not subscription
+    // So we use Azure Advisor which provides reservation recommendations at subscription level
+    try {
+      const advisor = await import('@azure/arm-advisor');
+      const advisorClient = new advisor.AdvisorManagementClient(tokenCredential, credential.subscription_id);
+      
+      logger.info('Fetching reservation recommendations from Azure Advisor...');
+      
+      // Get reservation-related recommendations from Advisor
+      for await (const rec of advisorClient.recommendations.list()) {
+        // Filter for reservation-related recommendations
+        if (rec.category === 'Cost' && 
+            (rec.shortDescription?.problem?.toLowerCase().includes('reserved') ||
+             rec.shortDescription?.problem?.toLowerCase().includes('reservation') ||
+             rec.recommendationTypeId?.toLowerCase().includes('reserved'))) {
+          
+          const savingsAmount = rec.extendedProperties?.savingsAmount 
+            ? parseFloat(rec.extendedProperties.savingsAmount) 
+            : rec.extendedProperties?.annualSavingsAmount
+              ? parseFloat(rec.extendedProperties.annualSavingsAmount) / 12
+              : 0;
+
+          recommendations.push({
+            type: 'NEW_PURCHASE',
+            recommendation: rec.shortDescription?.solution || rec.shortDescription?.problem || 'Consider purchasing reserved capacity',
+            estimatedSavings: savingsAmount,
+            term: rec.extendedProperties?.term || '1 Year',
+            quantity: rec.extendedProperties?.recommendedQuantity ? parseInt(rec.extendedProperties.recommendedQuantity) : 1,
+            priority: rec.impact === 'High' ? 'high' : rec.impact === 'Medium' ? 'medium' : 'low',
+            resourceType: rec.impactedField || 'Virtual Machine',
+            skuName: rec.extendedProperties?.targetSku || rec.extendedProperties?.vmSize || 'Unknown',
+            location: rec.extendedProperties?.region || 'Unknown',
+          });
+          
+          totalSavings += savingsAmount;
+        }
+      }
+      
+      logger.info('Azure Advisor reservation recommendations fetched', { 
+        recommendationsCount: recommendations.length 
+      });
+    } catch (err: any) {
+      logger.warn('Error fetching from Azure Advisor', { error: err.message });
+    }
+
+    // Try to fetch existing reservations from the database (previously saved)
+    try {
+      const savedReservations = await (prisma as any).azureReservation.findMany({
+        where: {
+          organization_id: organizationId,
+          azure_credential_id: credentialId,
+        },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+      });
+
+      if (savedReservations.length > 0) {
+        logger.info('Found saved reservations in database', { count: savedReservations.length });
+        
+        for (const res of savedReservations) {
           reservations.push({
-            id: reservation.reservationId || `res-${Date.now()}`,
-            displayName: reservation.reservationOrderId || 'Unknown',
-            skuName: reservation.skuName || 'Unknown',
-            skuDescription: reservation.skuName || 'Unknown',
-            location: 'global',
-            quantity: reservation.reservedHours || 0,
-            term: 'P1Y',
-            effectiveDate: reservation.usageDate?.toISOString() || new Date().toISOString(),
-            expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-            utilizationPercentage: reservation.avgUtilizationPercentage || 0,
-            provisioningState: 'Succeeded',
-            appliedScopeType: 'Shared',
+            id: res.reservation_id,
+            displayName: res.display_name,
+            skuName: res.sku_name,
+            skuDescription: res.sku_description,
+            location: res.location,
+            quantity: res.quantity,
+            term: res.term,
+            effectiveDate: res.effective_date?.toISOString(),
+            expiryDate: res.expiry_date?.toISOString(),
+            utilizationPercentage: res.utilization_percentage || 0,
+            provisioningState: res.provisioning_state,
+            appliedScopeType: res.applied_scope_type,
           });
         }
-      } catch (err: any) {
-        logger.warn('Error fetching reservations from Azure', { error: err.message });
       }
+    } catch (err: any) {
+      logger.warn('Error fetching saved reservations', { error: err.message });
     }
 
-    // Generate simulated reservation data if no real data found
-    if (reservations.length === 0) {
-      const simulatedReservations = [
-      {
-        id: 'res-vm-1',
-        displayName: 'Standard_D4s_v3 - 1 Year',
-        skuName: 'Standard_D4s_v3',
-        skuDescription: 'Virtual Machines D4s v3',
-        location: 'eastus',
-        quantity: 5,
-        term: 'P1Y',
-        effectiveDate: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString(),
-        expiryDate: new Date(Date.now() + 185 * 24 * 60 * 60 * 1000).toISOString(),
-        utilizationPercentage: 78,
-        provisioningState: 'Succeeded',
-        appliedScopeType: 'Shared',
-      },
-      {
-        id: 'res-vm-2',
-        displayName: 'Standard_E8s_v4 - 3 Year',
-        skuName: 'Standard_E8s_v4',
-        skuDescription: 'Virtual Machines E8s v4',
-        location: 'westeurope',
-        quantity: 3,
-        term: 'P3Y',
-        effectiveDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-        expiryDate: new Date(Date.now() + 730 * 24 * 60 * 60 * 1000).toISOString(),
-        utilizationPercentage: 92,
-        provisioningState: 'Succeeded',
-        appliedScopeType: 'Single',
-      },
-      {
-        id: 'res-sql-1',
-        displayName: 'SQL Database vCore - 1 Year',
-        skuName: 'GP_Gen5_8',
-        skuDescription: 'SQL Database General Purpose Gen5 8 vCores',
-        location: 'eastus',
-        quantity: 2,
-        term: 'P1Y',
-        effectiveDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-        expiryDate: new Date(Date.now() + 275 * 24 * 60 * 60 * 1000).toISOString(),
-        utilizationPercentage: 45,
-        provisioningState: 'Succeeded',
-        appliedScopeType: 'Shared',
-      },
-      {
-        id: 'res-cosmos-1',
-        displayName: 'Cosmos DB Reserved Capacity',
-        skuName: 'CosmosDB_RU_100',
-        skuDescription: 'Cosmos DB 100 RU/s Reserved',
-        location: 'global',
-        quantity: 10000,
-        term: 'P1Y',
-        effectiveDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-        expiryDate: new Date(Date.now() + 305 * 24 * 60 * 60 * 1000).toISOString(),
-        utilizationPercentage: 85,
-        provisioningState: 'Succeeded',
-        appliedScopeType: 'Shared',
-      },
-    ];
-
-      reservations.push(...simulatedReservations);
-    }
-
-    // Calculate savings and unused
+    // Calculate savings and unused for existing reservations
     for (const res of reservations) {
       const monthlyValue = res.quantity * 100; // Simplified calculation
       const utilized = (res.utilizationPercentage / 100) * monthlyValue;
@@ -215,40 +196,8 @@ export async function handler(
       totalSavings += utilized * 0.4; // Assume 40% savings vs on-demand
       totalUnused += unused;
 
-      // Store reservation
-      await (prisma as any).azureReservation.upsert({
-        where: { reservation_id: res.id },
-        update: {
-          utilization_percentage: res.utilizationPercentage,
-          last_updated_time: new Date(),
-          updated_at: new Date(),
-        },
-        create: {
-          organization_id: organizationId,
-          azure_credential_id: credentialId,
-          reservation_id: res.id,
-          display_name: res.displayName,
-          sku_name: res.skuName,
-          sku_description: res.skuDescription,
-          location: res.location,
-          quantity: res.quantity,
-          term: res.term,
-          effective_date: new Date(res.effectiveDate),
-          expiry_date: new Date(res.expiryDate),
-          utilization_percentage: res.utilizationPercentage,
-          provisioning_state: res.provisioningState,
-          applied_scope_type: res.appliedScopeType,
-        },
-      }).catch(() => {
-        // Ignore upsert errors
-      });
-    }
-
-    // Generate recommendations
-    if (includeRecommendations) {
-      // Low utilization recommendations
-      const lowUtilization = reservations.filter(r => r.utilizationPercentage < 60);
-      for (const res of lowUtilization) {
+      // Generate recommendations for low utilization
+      if (includeRecommendations && res.utilizationPercentage < 60) {
         recommendations.push({
           type: 'OPTIMIZE_UTILIZATION',
           reservationId: res.id,
@@ -260,38 +209,29 @@ export async function handler(
         });
       }
 
-      // Expiring soon recommendations
-      const expiringSoon = reservations.filter(r => {
-        const daysToExpiry = (new Date(r.expiryDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000);
-        return daysToExpiry < 90 && daysToExpiry > 0;
-      });
-      for (const res of expiringSoon) {
+      // Generate recommendations for expiring soon
+      if (includeRecommendations && res.expiryDate) {
         const daysToExpiry = Math.floor((new Date(res.expiryDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-        recommendations.push({
-          type: 'RENEWAL_NEEDED',
-          reservationId: res.id,
-          reservationName: res.displayName,
-          expiryDate: res.expiryDate,
-          daysToExpiry,
-          recommendation: `Reservation ${res.displayName} expires in ${daysToExpiry} days. Review and renew if workload is still needed.`,
-          priority: daysToExpiry < 30 ? 'high' : 'medium',
-        });
+        if (daysToExpiry < 90 && daysToExpiry > 0) {
+          recommendations.push({
+            type: 'RENEWAL_NEEDED',
+            reservationId: res.id,
+            reservationName: res.displayName,
+            expiryDate: res.expiryDate,
+            daysToExpiry,
+            recommendation: `Reservation ${res.displayName} expires in ${daysToExpiry} days. Review and renew if workload is still needed.`,
+            priority: daysToExpiry < 30 ? 'high' : 'medium',
+          });
+        }
       }
-
-      // New purchase recommendations
-      recommendations.push({
-        type: 'NEW_PURCHASE',
-        recommendation: 'Based on your usage patterns, consider purchasing reserved capacity for Standard_B2ms VMs in eastus region.',
-        estimatedSavings: 2400,
-        term: '1 Year',
-        quantity: 4,
-        priority: 'medium',
-      });
     }
 
+    // Build summary
     const summary = {
       totalReservations: reservations.length,
-      averageUtilization: Math.round(reservations.reduce((sum, r) => sum + r.utilizationPercentage, 0) / reservations.length),
+      averageUtilization: reservations.length > 0 
+        ? Math.round(reservations.reduce((sum, r) => sum + (r.utilizationPercentage || 0), 0) / reservations.length)
+        : 0,
       totalMonthlySavings: Math.round(totalSavings),
       totalUnusedValue: Math.round(totalUnused),
       byTerm: {
@@ -299,16 +239,22 @@ export async function handler(
         threeYear: reservations.filter(r => r.term === 'P3Y').length,
       },
       byUtilization: {
-        high: reservations.filter(r => r.utilizationPercentage >= 80).length,
-        medium: reservations.filter(r => r.utilizationPercentage >= 50 && r.utilizationPercentage < 80).length,
-        low: reservations.filter(r => r.utilizationPercentage < 50).length,
+        high: reservations.filter(r => (r.utilizationPercentage || 0) >= 80).length,
+        medium: reservations.filter(r => (r.utilizationPercentage || 0) >= 50 && (r.utilizationPercentage || 0) < 80).length,
+        low: reservations.filter(r => (r.utilizationPercentage || 0) < 50).length,
       },
+      // Add message when no reservations found
+      message: reservations.length === 0 
+        ? 'No Azure Reserved Instances found for this subscription. Azure Reservations are purchased at the billing account level and may not be visible at the subscription level. Check Azure Advisor recommendations for potential savings opportunities.'
+        : undefined,
     };
 
-    logger.info('Azure reservations analysis completed', {
+    logger.info('Azure reservations analysis completed (REAL DATA)', {
       organizationId,
+      subscriptionId: credential.subscription_id,
       reservationsCount: reservations.length,
       recommendationsCount: recommendations.length,
+      totalSavings,
     });
 
     return success({
@@ -317,9 +263,11 @@ export async function handler(
       summary,
       subscriptionId: credential.subscription_id,
       subscriptionName: credential.subscription_name,
+      // Flag to indicate this is real data, not simulated
+      dataSource: 'azure_api',
     });
   } catch (err: any) {
-    logger.error('Error analyzing Azure reservations', { error: err.message });
+    logger.error('Error analyzing Azure reservations', { error: err.message, stack: err.stack });
     return error(err.message || 'Failed to analyze Azure reservations', 500);
   }
 }

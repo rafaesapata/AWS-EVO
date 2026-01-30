@@ -222,7 +222,7 @@ export default function Compliance() {
   });
 
   // Get compliance history for trends
-  const { data: complianceHistory, isLoading: isLoadingHistory } = useQuery({
+  const { data: complianceHistory, isLoading: isLoadingHistory, error: historyError } = useQuery({
     queryKey: ['compliance-history', organizationId, selectedAccountId, historyDays, 'demo', isInDemoMode],
     queryFn: async () => {
       if (!organizationId) throw new Error('Organization not found');
@@ -233,7 +233,7 @@ export default function Compliance() {
           posture_history: [],
           framework_stats: {},
           total_scans: 0,
-          overall_trend: 'stable',
+          overall_trend: 'stable' as const,
           summary: { current_score: 75, score_change: 0 },
           recent_critical_findings: [],
         };
@@ -242,15 +242,32 @@ export default function Compliance() {
       const result = await apiClient.invoke('get-compliance-history', {
         body: {
           days: historyDays,
-          accountId: selectedAccountId,
+          accountId: selectedAccountId || undefined, // Don't send null/empty string
         }
       });
       
-      if (result.error) throw new Error(getErrorMessage(result.error));
-      return result.data as any;
+      if (result.error) {
+        console.error('Compliance history error:', result.error);
+        throw new Error(getErrorMessage(result.error));
+      }
+      
+      // Ensure we have valid data structure
+      const data = result.data as any;
+      return {
+        posture_history: data?.posture_history || [],
+        framework_stats: data?.framework_stats || {},
+        total_scans: data?.total_scans || 0,
+        overall_trend: data?.overall_trend || 'stable',
+        summary: {
+          current_score: data?.summary?.current_score ?? 0,
+          score_change: data?.summary?.score_change ?? 0,
+        },
+        recent_critical_findings: data?.recent_critical_findings || [],
+      };
     },
     enabled: !!organizationId,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: false, // Don't retry on error
   });
 
 

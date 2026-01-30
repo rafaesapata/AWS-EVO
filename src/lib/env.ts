@@ -3,6 +3,8 @@
  * Centralizes all environment variable access and validation
  */
 
+import { VERSION } from './version';
+
 export const env = {
   // AWS Configuration
   AWS_REGION: import.meta.env.VITE_AWS_REGION || 'us-east-1',
@@ -12,8 +14,8 @@ export const env = {
   // API Configuration
   API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
   
-  // Application Configuration
-  APP_VERSION: import.meta.env.VITE_APP_VERSION || '2.1.0',
+  // Application Configuration - imports from centralized version.ts
+  APP_VERSION: VERSION,
   ENVIRONMENT: import.meta.env.VITE_ENVIRONMENT || 'development',
   
   // Development flags
@@ -43,19 +45,23 @@ export const validateEnvironment = () => {
   return true;
 };
 
-// Helper to get AWS credentials from environment (server-side only)
-export const getAWSCredentials = () => {
-  if (typeof process === 'undefined') {
-    console.warn('AWS credentials not available in browser environment');
-    return null;
+/**
+ * @deprecated AWS credentials should NEVER be accessed from frontend code.
+ * All AWS operations must go through the backend API via API Gateway.
+ * This function is kept as a no-op to prevent breaking changes but will always return null.
+ */
+export const getAWSCredentials = (): null => {
+  // SECURITY: AWS credentials must NEVER be exposed in frontend code.
+  // All AWS operations should use backend Lambda functions via API Gateway.
+  // See: backend/src/lib/aws-helpers.ts for server-side credential handling.
+  if (import.meta.env.DEV) {
+    console.warn(
+      '[SECURITY] getAWSCredentials() called from frontend. ' +
+      'AWS credentials must never be accessed from browser code. ' +
+      'Use API Gateway endpoints instead.'
+    );
   }
-  
-  return {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    sessionToken: process.env.AWS_SESSION_TOKEN,
-    region: process.env.AWS_REGION || process.env.VITE_AWS_REGION || 'us-east-1'
-  };
+  return null;
 };
 
 export default env;

@@ -9,27 +9,33 @@ import { logger } from '../../lib/logging.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 
-interface NotificationSettings {
-  email_enabled: boolean;
-  webhook_enabled: boolean;
-  webhook_url?: string;
-  slack_enabled: boolean;
-  slack_webhook_url?: string;
-  datadog_enabled: boolean;
-  datadog_api_key?: string;
-  datadog_site?: string;
-  graylog_enabled: boolean;
-  graylog_url?: string;
-  graylog_port?: number;
-  zabbix_enabled: boolean;
-  zabbix_url?: string;
-  zabbix_auth_token?: string;
-  notify_on_critical: boolean;
-  notify_on_high: boolean;
-  notify_on_medium: boolean;
-  notify_on_scan_complete: boolean;
-}
+// Zod schema for notification settings
+const notificationSettingsSchema = z.object({
+  email_enabled: z.boolean(),
+  webhook_enabled: z.boolean().default(false),
+  webhook_url: z.string().url().optional(),
+  slack_enabled: z.boolean().default(false),
+  slack_webhook_url: z.string().url().refine(
+    (url) => !url || url.startsWith('https://hooks.slack.com/'),
+    { message: 'Invalid Slack webhook URL format' }
+  ).optional(),
+  datadog_enabled: z.boolean().default(false),
+  datadog_api_key: z.string().max(100).optional(),
+  datadog_site: z.string().max(50).optional(),
+  graylog_enabled: z.boolean().default(false),
+  graylog_url: z.string().url().optional(),
+  graylog_port: z.number().int().min(1).max(65535).optional(),
+  zabbix_enabled: z.boolean().default(false),
+  zabbix_url: z.string().url().optional(),
+  zabbix_auth_token: z.string().max(200).optional(),
+  notify_on_critical: z.boolean().default(true),
+  notify_on_high: z.boolean().default(true),
+  notify_on_medium: z.boolean().default(false),
+  notify_on_scan_complete: z.boolean().default(true),
+});
 
 /**
  * Get user notification settings
@@ -64,7 +70,7 @@ export async function getHandler(
     });
 
     if (!existingSettings) {
-      const defaultSettings: NotificationSettings = {
+      const defaultSettings = {
         email_enabled: true,
         webhook_enabled: false,
         slack_enabled: false,
@@ -117,24 +123,13 @@ export async function postHandler(
       return badRequest('Request body is required', undefined, origin);
     }
 
-    const settings: NotificationSettings = JSON.parse(event.body);
-
-    if (typeof settings.email_enabled !== 'boolean') {
-      return badRequest('email_enabled is required and must be boolean', undefined, origin);
+    // Validate input with Zod
+    const validation = parseAndValidateBody(notificationSettingsSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
-
-    // Validate URLs
-    if (settings.webhook_enabled && settings.webhook_url) {
-      try { new URL(settings.webhook_url); } catch {
-        return badRequest('Invalid webhook URL format', undefined, origin);
-      }
-    }
-
-    if (settings.slack_enabled && settings.slack_webhook_url) {
-      if (!settings.slack_webhook_url.startsWith('https://hooks.slack.com/')) {
-        return badRequest('Invalid Slack webhook URL format', undefined, origin);
-      }
-    }
+    
+    const settings = validation.data;
 
     const prisma = getPrismaClient();
     const updatedSettings = await prisma.notificationSettings.upsert({

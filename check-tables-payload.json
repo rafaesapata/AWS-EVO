@@ -1,3 +1,0 @@
-{
-  "body": "{\"query\":\"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('reserved_instances', 'savings_plans', 'ri_sp_recommendations', 'ri_sp_utilization_history') ORDER BY table_name\"}"
-}

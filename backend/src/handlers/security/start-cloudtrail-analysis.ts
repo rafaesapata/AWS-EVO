@@ -14,14 +14,17 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getOrigin, getHttpMethod } from '../../lib/middleware.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { z } from 'zod';
 
-interface StartAnalysisRequest {
-  accountId: string;
-  hoursBack?: number;
-  maxResults?: number;
-  forceReprocess?: boolean; // Force reprocessing even if period was already analyzed
-}
+// Zod schema for request validation
+const startCloudtrailAnalysisSchema = z.object({
+  accountId: z.string().uuid('Invalid account ID format'),
+  hoursBack: z.number().int().min(1).max(2160).default(24), // Max 90 days
+  maxResults: z.number().int().min(100).max(10000).default(5000),
+  forceReprocess: z.boolean().default(false),
+});
 
 interface OverlapInfo {
   hasOverlap: boolean;
@@ -209,18 +212,17 @@ export async function handler(
   }
   
   try {
-    const body: StartAnalysisRequest = event.body ? JSON.parse(event.body) : {};
-    const { accountId, hoursBack = 24, maxResults = 5000, forceReprocess = false } = body;
-    
-    // Validate hoursBack parameter (max 2160 hours = 90 days)
-    // Increased from 120 days to allow longer analysis periods
-    if (hoursBack > 2160) {
-      return badRequest('Maximum analysis period is 90 days (2160 hours)', undefined, origin);
+    // Validate request body with Zod
+    const validation = parseAndValidateBody(startCloudtrailAnalysisSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
     }
     
-    if (!accountId) {
-      return badRequest('Missing required parameter: accountId', undefined, origin);
-    }
+    const { accountId, maxResults, forceReprocess } = validation.data;
+    // hoursBack has a default value of 24 from Zod schema, ensure it's always defined
+    const hoursBack = validation.data.hoursBack ?? 24;
+    
+    // Validate hoursBack parameter (max 2160 hours = 90 days) - already validated by Zod
     
     // Verify account exists and belongs to organization
     const account = await prisma.awsCredential.findFirst({

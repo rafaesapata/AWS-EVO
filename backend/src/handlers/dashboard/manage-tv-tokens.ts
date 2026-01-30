@@ -4,15 +4,9 @@ import { getPrismaClient } from '../../lib/database.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
+import { manageTvTokensSchema } from '../../lib/schemas.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
 import * as crypto from 'crypto';
-
-interface ManageTokensRequest {
-  action: 'list' | 'create' | 'toggle' | 'delete';
-  tokenId?: string;
-  name?: string;
-  expirationDays?: number;
-  isActive?: boolean;
-}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -34,8 +28,13 @@ export async function handler(
     }
 
     const prisma = getPrismaClient();
-    const body: ManageTokensRequest = JSON.parse(event.body || '{}');
-    const { action } = body;
+    
+    // Validate request body
+    const validation = parseAndValidateBody(manageTvTokensSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    const { action, tokenId, name, expirationDays, isActive } = validation.data;
 
     switch (action) {
       case 'list': {
@@ -47,14 +46,13 @@ export async function handler(
       }
 
       case 'create': {
-        const { name, expirationDays = 30 } = body;
         if (!name) {
           return badRequest('Name is required', undefined, origin);
         }
 
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + expirationDays);
+        expiresAt.setDate(expiresAt.getDate() + (expirationDays || 30));
 
         const newToken = await prisma.tvDisplayToken.create({
           data: {
@@ -70,7 +68,6 @@ export async function handler(
       }
 
       case 'toggle': {
-        const { tokenId, isActive } = body;
         if (!tokenId) {
           return badRequest('Token ID is required', undefined, origin);
         }
@@ -94,7 +91,6 @@ export async function handler(
       }
 
       case 'delete': {
-        const { tokenId } = body;
         if (!tokenId) {
           return badRequest('Token ID is required', undefined, origin);
         }

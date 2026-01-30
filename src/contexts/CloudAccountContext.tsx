@@ -11,6 +11,7 @@ import { apiClient } from '@/integrations/aws/api-client';
 import { useOrganization } from '@/hooks/useOrganization';
 import { ErrorHandler } from '@/lib/error-handler';
 import { useCacheInvalidation } from '@/lib/cache-invalidation';
+import { getEffectiveOrganizationId } from '@/components/SuperAdminOrganizationSwitcher';
 
 // Cloud provider types
 export type CloudProvider = 'AWS' | 'AZURE';
@@ -82,11 +83,13 @@ const STORAGE_KEY = 'evo_selected_cloud_account';
 const PROVIDER_FILTER_KEY = 'evo_cloud_provider_filter';
 
 export function CloudAccountProvider({ children }: { children: React.ReactNode }) {
-  const { data: organizationId, isLoading: orgLoading } = useOrganization();
+  const { data: userOrganizationId, isLoading: orgLoading } = useOrganization();
+  // Use effective organization ID (considers impersonation for super admins)
+  const organizationId = getEffectiveOrganizationId(userOrganizationId || undefined) || userOrganizationId;
   const { invalidateByTrigger } = useCacheInvalidation();
   
   // Keep queryClient reference for potential future use
-  useQueryClient();
+  const queryClient = useQueryClient();
   
   const [selectedAccountId, setSelectedAccountIdState] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -104,6 +107,21 @@ export function CloudAccountProvider({ children }: { children: React.ReactNode }
     }
     return 'ALL';
   });
+
+  // Track previous organization ID to detect changes
+  const [prevOrgId, setPrevOrgId] = useState<string | null>(null);
+  
+  // Clear selected account when organization changes (e.g., during impersonation)
+  useEffect(() => {
+    if (organizationId && prevOrgId && organizationId !== prevOrgId) {
+      // Organization changed - clear selected account to force re-selection
+      setSelectedAccountIdState(null);
+      localStorage.removeItem(STORAGE_KEY);
+      // Invalidate cloud accounts cache for the new organization
+      queryClient.invalidateQueries({ queryKey: ['cloud-accounts'] });
+    }
+    setPrevOrgId(organizationId);
+  }, [organizationId, prevOrgId, queryClient]);
 
   // Fetch all cloud accounts (AWS + Azure) using unified endpoint
   const { data: accounts = [], isLoading: accountsLoading, error, refetch } = useQuery({

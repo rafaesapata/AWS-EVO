@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * EVO UDS CLI v2.0
+ * EVO UDS CLI
  * Command-line interface using AWS SDK (no Supabase)
  */
 
 import { Command } from 'commander';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import {
   CognitoIdentityProviderClient,
   AdminCreateUserCommand,
@@ -319,10 +322,15 @@ class EvoCLI {
 const program = new Command();
 const cli = new EvoCLI();
 
+// Read version from package.json
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf-8'));
+
 program
   .name('evo-cli')
   .description('EVO UDS Command Line Interface (AWS)')
-  .version('2.0.0');
+  .version(packageJson.version);
 
 // User Commands
 const users = program.command('users').description('User management');

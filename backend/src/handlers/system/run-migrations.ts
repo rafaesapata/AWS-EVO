@@ -279,11 +279,13 @@ const MIGRATION_COMMANDS = [
   `ALTER TABLE "cloudtrail_events" ADD COLUMN IF NOT EXISTS "remediation_suggestion" TEXT`,
   `ALTER TABLE "cloudtrail_events" ADD COLUMN IF NOT EXISTS "event_category" TEXT`,
   
-  // Edge Services tables (CloudFront, WAF, Load Balancers)
+  // Edge Services tables (CloudFront, WAF, Load Balancers) - Multi-cloud support
   `CREATE TABLE IF NOT EXISTS "edge_services" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "organization_id" UUID NOT NULL,
-    "aws_account_id" UUID NOT NULL,
+    "cloud_provider" TEXT NOT NULL DEFAULT 'AWS',
+    "aws_account_id" UUID,
+    "azure_credential_id" UUID,
     "service_type" TEXT NOT NULL,
     "service_name" TEXT NOT NULL,
     "service_id" TEXT NOT NULL,
@@ -300,15 +302,24 @@ const MIGRATION_COMMANDS = [
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "edge_services_pkey" PRIMARY KEY ("id")
   )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "edge_services_org_account_service_key" ON "edge_services"("organization_id", "aws_account_id", "service_id")`,
+  // Add multi-cloud columns to existing edge_services table
+  `ALTER TABLE "edge_services" ADD COLUMN IF NOT EXISTS "cloud_provider" TEXT NOT NULL DEFAULT 'AWS'`,
+  `ALTER TABLE "edge_services" ADD COLUMN IF NOT EXISTS "azure_credential_id" UUID`,
+  // Make aws_account_id nullable for Azure services
+  `ALTER TABLE "edge_services" ALTER COLUMN "aws_account_id" DROP NOT NULL`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "edge_services_org_service_key" ON "edge_services"("organization_id", "service_id")`,
   `CREATE INDEX IF NOT EXISTS "edge_services_organization_id_idx" ON "edge_services"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "edge_services_cloud_provider_idx" ON "edge_services"("cloud_provider")`,
   `CREATE INDEX IF NOT EXISTS "edge_services_aws_account_id_idx" ON "edge_services"("aws_account_id")`,
+  `CREATE INDEX IF NOT EXISTS "edge_services_azure_credential_id_idx" ON "edge_services"("azure_credential_id")`,
   `CREATE INDEX IF NOT EXISTS "edge_services_service_type_idx" ON "edge_services"("service_type")`,
   
   `CREATE TABLE IF NOT EXISTS "edge_metrics" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "organization_id" UUID NOT NULL,
-    "aws_account_id" UUID NOT NULL,
+    "cloud_provider" TEXT NOT NULL DEFAULT 'AWS',
+    "aws_account_id" UUID,
+    "azure_credential_id" UUID,
     "service_id" UUID NOT NULL,
     "timestamp" TIMESTAMPTZ(6) NOT NULL,
     "requests" INTEGER NOT NULL DEFAULT 0,
@@ -322,9 +333,16 @@ const MIGRATION_COMMANDS = [
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "edge_metrics_pkey" PRIMARY KEY ("id")
   )`,
+  // Add multi-cloud columns to existing edge_metrics table
+  `ALTER TABLE "edge_metrics" ADD COLUMN IF NOT EXISTS "cloud_provider" TEXT NOT NULL DEFAULT 'AWS'`,
+  `ALTER TABLE "edge_metrics" ADD COLUMN IF NOT EXISTS "azure_credential_id" UUID`,
+  // Make aws_account_id nullable for Azure services
+  `ALTER TABLE "edge_metrics" ALTER COLUMN "aws_account_id" DROP NOT NULL`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "edge_metrics_service_timestamp_key" ON "edge_metrics"("service_id", "timestamp")`,
   `CREATE INDEX IF NOT EXISTS "edge_metrics_organization_id_idx" ON "edge_metrics"("organization_id")`,
+  `CREATE INDEX IF NOT EXISTS "edge_metrics_cloud_provider_idx" ON "edge_metrics"("cloud_provider")`,
   `CREATE INDEX IF NOT EXISTS "edge_metrics_aws_account_id_idx" ON "edge_metrics"("aws_account_id")`,
+  `CREATE INDEX IF NOT EXISTS "edge_metrics_azure_credential_id_idx" ON "edge_metrics"("azure_credential_id")`,
   `CREATE INDEX IF NOT EXISTS "edge_metrics_service_id_idx" ON "edge_metrics"("service_id")`,
   `CREATE INDEX IF NOT EXISTS "edge_metrics_timestamp_idx" ON "edge_metrics"("timestamp")`,
   `DO $$ BEGIN

@@ -39,11 +39,12 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 
 interface EdgeService {
   id: string;
-  service_type: 'cloudfront' | 'waf' | 'load_balancer';
+  service_type: 'cloudfront' | 'waf' | 'load_balancer' | 'front_door' | 'azure_waf' | 'application_gateway' | 'nat_gateway' | 'api_management';
   service_name: string;
   service_id: string;
   status: 'active' | 'inactive' | 'error';
   region: string;
+  cloud_provider?: 'AWS' | 'AZURE';
   requests_per_minute: number;
   cache_hit_rate: number;
   error_rate: number;
@@ -75,19 +76,21 @@ export default function EdgeMonitoring() {
   const [serviceTypeFilter, setServiceTypeFilter] = useState<string>('all');
   const queryClient = useQueryClient();
 
-  // Check if selected account is Azure (Edge Services is AWS-only)
+  // Check if selected account is Azure
   const isAzureAccount = selectedProvider === 'AZURE';
 
-  // Mutation to discover edge services (AWS only)
+  // Mutation to discover edge services (AWS or Azure)
   const discoverMutation = useMutation({
     mutationFn: async () => {
-      if (isAzureAccount) {
-        throw new Error('Edge Services não está disponível para contas Azure. Selecione uma conta AWS.');
-      }
-      const response = await apiClient.post('/api/functions/fetch-edge-services', {
-        accountId: selectedAccountId,
-        regions: ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1']
-      });
+      const endpoint = isAzureAccount 
+        ? '/api/functions/azure-fetch-edge-services'
+        : '/api/functions/fetch-edge-services';
+      
+      const payload = isAzureAccount
+        ? { accountId: selectedAccountId }
+        : { accountId: selectedAccountId, regions: ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1'] };
+      
+      const response = await apiClient.post(endpoint, payload);
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
       }
@@ -110,20 +113,27 @@ export default function EdgeMonitoring() {
     }
   });
 
-  // Get edge services data (AWS only)
+  // Get edge services data (AWS or Azure)
   const { data: edgeServicesData, isLoading, refetch } = useQuery({
-    queryKey: ['edge-services', organizationId, selectedAccountId, currentPage, itemsPerPage, searchTerm, serviceTypeFilter],
-    enabled: !!organizationId && !!selectedAccountId && !isAzureAccount,
+    queryKey: ['edge-services', organizationId, selectedAccountId, selectedProvider, currentPage, itemsPerPage, searchTerm, serviceTypeFilter],
+    enabled: !!organizationId && !!selectedAccountId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       // Calculate offset for pagination
       const offset = (currentPage - 1) * itemsPerPage;
 
-      // Build base filters
-      const baseFilters = {
+      // Build base filters based on provider
+      const baseFilters: Record<string, any> = {
         organization_id: organizationId,
-        ...getAccountFilter() // Multi-cloud compatible
       };
+      
+      if (isAzureAccount) {
+        baseFilters.azure_credential_id = selectedAccountId;
+        baseFilters.cloud_provider = 'AZURE';
+      } else {
+        baseFilters.aws_account_id = selectedAccountId;
+        baseFilters.cloud_provider = 'AWS';
+      }
 
       // Add service type filter if not 'all'
       const filters = serviceTypeFilter !== 'all' 
@@ -219,21 +229,30 @@ export default function EdgeMonitoring() {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  // Get edge metrics for charts (AWS only)
+  // Get edge metrics for charts (AWS or Azure)
   const { data: metrics, isLoading: metricsLoading } = useQuery({
-    queryKey: ['edge-metrics', organizationId, selectedAccountId, selectedTimeRange],
-    enabled: !!organizationId && !!selectedAccountId && !isAzureAccount,
+    queryKey: ['edge-metrics', organizationId, selectedAccountId, selectedProvider, selectedTimeRange],
+    enabled: !!organizationId && !!selectedAccountId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       const hoursBack = selectedTimeRange === '24h' ? 24 : selectedTimeRange === '7d' ? 168 : 720;
       const startTime = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
 
+      const filters: Record<string, any> = { 
+        organization_id: organizationId,
+      };
+      
+      if (isAzureAccount) {
+        filters.azure_credential_id = selectedAccountId;
+        filters.cloud_provider = 'AZURE';
+      } else {
+        filters.aws_account_id = selectedAccountId;
+        filters.cloud_provider = 'AWS';
+      }
+
       const response = await apiClient.select('edge_metrics', {
         select: '*',
-        eq: { 
-          organization_id: organizationId,
-          ...getAccountFilter() // Multi-cloud compatible
-        },
+        eq: filters,
         gte: { timestamp: startTime.toISOString() },
         order: { column: 'timestamp', ascending: true }
       });
@@ -264,11 +283,32 @@ export default function EdgeMonitoring() {
 
   const getServiceIcon = (serviceType: string) => {
     switch (serviceType) {
+      // AWS services
       case 'cloudfront': return <Cloud className="h-5 w-5 text-blue-500" />;
       case 'waf': return <Shield className="h-5 w-5 text-red-500" />;
       case 'load_balancer': return <Zap className="h-5 w-5 text-green-500" />;
+      // Azure services
+      case 'front_door': return <Cloud className="h-5 w-5 text-blue-400" />;
+      case 'azure_waf': return <Shield className="h-5 w-5 text-orange-500" />;
+      case 'application_gateway': return <Zap className="h-5 w-5 text-purple-500" />;
+      case 'nat_gateway': return <Activity className="h-5 w-5 text-cyan-500" />;
+      case 'api_management': return <Globe className="h-5 w-5 text-indigo-500" />;
       default: return <Globe className="h-5 w-5 text-gray-500" />;
     }
+  };
+
+  const getServiceTypeName = (serviceType: string) => {
+    const names: Record<string, string> = {
+      cloudfront: 'CloudFront',
+      waf: 'AWS WAF',
+      load_balancer: 'Load Balancer',
+      front_door: 'Front Door',
+      azure_waf: 'Azure WAF',
+      application_gateway: 'App Gateway',
+      nat_gateway: 'NAT Gateway',
+      api_management: 'API Management',
+    };
+    return names[serviceType] || serviceType.replace('_', ' ').toUpperCase();
   };
 
   const getStatusBadge = (status: string) => {
@@ -353,32 +393,41 @@ export default function EdgeMonitoring() {
           <Button 
             variant="outline" 
             onClick={handleRefresh}
-            disabled={isLoading || isAzureAccount}
+            disabled={isLoading}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Atualizar
+            {t('common.refresh', 'Atualizar')}
           </Button>
           <Button 
             onClick={() => discoverMutation.mutate()}
-            disabled={discoverMutation.isPending || !selectedAccountId || isAzureAccount}
+            disabled={discoverMutation.isPending || !selectedAccountId}
           >
             <Search className={`h-4 w-4 mr-2 ${discoverMutation.isPending ? 'animate-spin' : ''}`} />
-            {discoverMutation.isPending ? 'Descobrindo...' : 'Descobrir Serviços'}
+            {discoverMutation.isPending ? t('edgeMonitoring.discovering', 'Descobrindo...') : t('edgeMonitoring.discoverServices', 'Descobrir Serviços')}
           </Button>
         </div>
 
-        {/* Azure Account Warning */}
-        {isAzureAccount && (
-          <Alert className="border-blue-500/50 bg-blue-500/10">
-            <Info className="h-4 w-4 text-blue-500" />
-            <AlertTitle className="text-blue-500">Recurso exclusivo AWS</AlertTitle>
+        {/* Provider Info */}
+        {selectedAccount && (
+          <Alert className={isAzureAccount ? "border-blue-500/50 bg-blue-500/10" : "border-orange-500/50 bg-orange-500/10"}>
+            <Info className={`h-4 w-4 ${isAzureAccount ? 'text-blue-500' : 'text-orange-500'}`} />
+            <AlertTitle className={isAzureAccount ? 'text-blue-500' : 'text-orange-500'}>
+              {isAzureAccount ? 'Azure Edge Services' : 'AWS Edge Services'}
+            </AlertTitle>
             <AlertDescription>
-              Edge Monitoring (CloudFront, WAF, Load Balancers) é um recurso exclusivo da AWS. 
-              {selectedAccount?.accountName && (
-                <span> A conta selecionada <strong>"{selectedAccount.accountName}"</strong> é uma conta Azure.</span>
+              {isAzureAccount ? (
+                <>
+                  Monitorando serviços de borda Azure: Front Door, Application Gateway, Load Balancer, NAT Gateway, API Management e Azure WAF.
+                  <br />
+                  <span className="text-muted-foreground">Conta: <strong>{selectedAccount.accountName}</strong></span>
+                </>
+              ) : (
+                <>
+                  Monitorando serviços de borda AWS: CloudFront, WAF e Load Balancers (ALB/NLB).
+                  <br />
+                  <span className="text-muted-foreground">Conta: <strong>{selectedAccount.accountName}</strong></span>
+                </>
               )}
-              <br />
-              Para monitorar serviços de borda, selecione uma conta AWS no seletor de contas acima.
             </AlertDescription>
           </Alert>
         )}
@@ -443,11 +492,23 @@ export default function EdgeMonitoring() {
 
       {/* Main Content */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="glass-card-float">
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-          <TabsTrigger value="cloudfront">CloudFront</TabsTrigger>
-          <TabsTrigger value="waf">WAF</TabsTrigger>
-          <TabsTrigger value="loadbalancer">Load Balancers</TabsTrigger>
+        <TabsList className="glass-card-float flex-wrap">
+          <TabsTrigger value="overview">{t('edgeMonitoring.tabs.overview', 'Visão Geral')}</TabsTrigger>
+          {!isAzureAccount ? (
+            <>
+              <TabsTrigger value="cloudfront">CloudFront</TabsTrigger>
+              <TabsTrigger value="waf">WAF</TabsTrigger>
+              <TabsTrigger value="loadbalancer">Load Balancers</TabsTrigger>
+            </>
+          ) : (
+            <>
+              <TabsTrigger value="frontdoor">Front Door</TabsTrigger>
+              <TabsTrigger value="appgateway">App Gateway</TabsTrigger>
+              <TabsTrigger value="azurelb">Load Balancer</TabsTrigger>
+              <TabsTrigger value="natgateway">NAT Gateway</TabsTrigger>
+              <TabsTrigger value="apim">API Management</TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -471,16 +532,8 @@ export default function EdgeMonitoring() {
                         tick={{ fill: 'hsl(var(--muted-foreground))' }}
                       />
                       <YAxis 
-                        yAxisId="left"
                         className="text-xs"
                         tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
-                      />
-                      <YAxis 
-                        yAxisId="right"
-                        orientation="right"
-                        className="text-xs"
-                        tick={{ fill: '#ef4444' }}
                         tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
                       />
                       <Tooltip 
@@ -496,14 +549,12 @@ export default function EdgeMonitoring() {
                       />
                       <Legend />
                       <Bar 
-                        yAxisId="left"
                         dataKey="requests" 
                         fill="#3b82f6" 
                         name="Requests"
                         radius={[4, 4, 0, 0]}
                       />
                       <Bar 
-                        yAxisId="right"
                         dataKey="blocked" 
                         fill="#ef4444" 
                         name="Bloqueados"
@@ -588,13 +639,26 @@ export default function EdgeMonitoring() {
                 <div className="flex gap-2">
                   <Select value={serviceTypeFilter} onValueChange={handleServiceTypeFilterChange}>
                     <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Tipo de serviço" />
+                      <SelectValue placeholder={t('edgeMonitoring.serviceType', 'Tipo de serviço')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os tipos</SelectItem>
-                      <SelectItem value="cloudfront">CloudFront</SelectItem>
-                      <SelectItem value="waf">WAF</SelectItem>
-                      <SelectItem value="load_balancer">Load Balancer</SelectItem>
+                      <SelectItem value="all">{t('edgeMonitoring.allTypes', 'Todos os tipos')}</SelectItem>
+                      {!isAzureAccount ? (
+                        <>
+                          <SelectItem value="cloudfront">CloudFront</SelectItem>
+                          <SelectItem value="waf">WAF</SelectItem>
+                          <SelectItem value="load_balancer">Load Balancer</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="front_door">Front Door</SelectItem>
+                          <SelectItem value="application_gateway">App Gateway</SelectItem>
+                          <SelectItem value="load_balancer">Load Balancer</SelectItem>
+                          <SelectItem value="nat_gateway">NAT Gateway</SelectItem>
+                          <SelectItem value="api_management">API Management</SelectItem>
+                          <SelectItem value="azure_waf">Azure WAF</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                   
@@ -630,7 +694,7 @@ export default function EdgeMonitoring() {
                   )}
                   {serviceTypeFilter !== 'all' && (
                     <Badge variant="secondary" className="text-xs">
-                      Tipo: {serviceTypeFilter.replace('_', ' ').toUpperCase()}
+                      {t('edgeMonitoring.type', 'Tipo')}: {getServiceTypeName(serviceTypeFilter)}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -662,11 +726,11 @@ export default function EdgeMonitoring() {
                             <h4 className="font-semibold text-sm">{service.service_name}</h4>
                             <p className="text-sm text-muted-foreground">{service.service_id}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>{service.service_type.replace('_', ' ').toUpperCase()}</span>
+                              <span>{getServiceTypeName(service.service_type)}</span>
                               <span>•</span>
                               <span>{service.region}</span>
                               <span>•</span>
-                              <span>Atualizado: {new Date(service.last_updated).toLocaleString('pt-BR')}</span>
+                              <span>{t('edgeMonitoring.updated', 'Atualizado')}: {new Date(service.last_updated).toLocaleString('pt-BR')}</span>
                             </div>
                           </div>
                         </div>
@@ -1034,6 +1098,372 @@ export default function EdgeMonitoring() {
                     <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                     <h3 className="text-lg font-semibold mb-2">Nenhum Load Balancer encontrado</h3>
                     <p className="text-muted-foreground">Clique em "Descobrir Serviços" para buscar ALBs e NLBs.</p>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Azure Front Door Tab */}
+        <TabsContent value="frontdoor" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Cloud className="h-5 w-5 text-blue-400" />
+                Azure Front Door
+              </CardTitle>
+              <CardDescription>{t('edgeMonitoring.azure.frontDoorDesc', 'CDN global e balanceamento de carga')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : (() => {
+                const fdServices = edgeServices?.filter(s => s.service_type === 'front_door') || [];
+                return fdServices.length > 0 ? (
+                  <div className="space-y-4">
+                    {fdServices.map((service) => (
+                      <div key={service.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <Cloud className="h-5 w-5 text-blue-400" />
+                            <div className="space-y-1">
+                              <h4 className="font-semibold text-sm">{service.service_name}</h4>
+                              <p className="text-sm text-muted-foreground">{service.domain_name}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>{service.region}</span>
+                                <span>•</span>
+                                <span>{t('edgeMonitoring.updated', 'Atualizado')}: {new Date(service.last_updated).toLocaleString('pt-BR')}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {getStatusBadge(service.status)}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Requests/min:</span>
+                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.blocked', 'Bloqueados')}:</span>
+                            <div className="font-medium text-red-500">{service.blocked_requests.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.responseTime', 'Response Time')}:</span>
+                            <div className="font-medium">{(service.metadata?.responseTime || 0).toFixed(0)} ms</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.hasWaf', 'WAF')}:</span>
+                            <div className="font-medium">{service.metadata?.hasWaf ? '✓' : '✗'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Cloud className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">{t('edgeMonitoring.azure.noFrontDoor', 'Nenhum Front Door encontrado')}</h3>
+                    <p className="text-muted-foreground">{t('edgeMonitoring.clickDiscover', 'Clique em "Descobrir Serviços" para buscar.')}</p>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Azure Application Gateway Tab */}
+        <TabsContent value="appgateway" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-purple-500" />
+                Application Gateway
+              </CardTitle>
+              <CardDescription>{t('edgeMonitoring.azure.appGatewayDesc', 'Load balancer de camada 7 com WAF')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : (() => {
+                const appGwServices = edgeServices?.filter(s => s.service_type === 'application_gateway') || [];
+                return appGwServices.length > 0 ? (
+                  <div className="space-y-4">
+                    {appGwServices.map((service) => (
+                      <div key={service.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <Zap className="h-5 w-5 text-purple-500" />
+                            <div className="space-y-1">
+                              <h4 className="font-semibold text-sm">{service.service_name}</h4>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline" className="text-xs">{service.metadata?.sku || 'Standard'}</Badge>
+                                <span>•</span>
+                                <span>{service.region}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {getStatusBadge(service.status)}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Requests/min:</span>
+                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.blocked', 'Bloqueados')}:</span>
+                            <div className="font-medium text-red-500">{service.blocked_requests.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.hasWaf', 'WAF')}:</span>
+                            <div className="font-medium">{service.metadata?.hasWaf ? service.metadata?.wafMode : 'N/A'}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.capacity', 'Capacidade')}:</span>
+                            <div className="font-medium">{service.metadata?.capacity || 0}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">{t('edgeMonitoring.azure.noAppGateway', 'Nenhum Application Gateway encontrado')}</h3>
+                    <p className="text-muted-foreground">{t('edgeMonitoring.clickDiscover', 'Clique em "Descobrir Serviços" para buscar.')}</p>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Azure Load Balancer Tab */}
+        <TabsContent value="azurelb" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-green-500" />
+                Azure Load Balancer
+              </CardTitle>
+              <CardDescription>{t('edgeMonitoring.azure.lbDesc', 'Balanceamento de carga de camada 4')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : (() => {
+                const lbServices = edgeServices?.filter(s => s.service_type === 'load_balancer') || [];
+                return lbServices.length > 0 ? (
+                  <div className="space-y-4">
+                    {lbServices.map((service) => (
+                      <div key={service.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <Zap className="h-5 w-5 text-green-500" />
+                            <div className="space-y-1">
+                              <h4 className="font-semibold text-sm">{service.service_name}</h4>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline" className="text-xs">{service.metadata?.sku || 'Standard'}</Badge>
+                                <span>•</span>
+                                <Badge variant={service.metadata?.isPublic ? 'default' : 'secondary'} className="text-xs">
+                                  {service.metadata?.isPublic ? 'Public' : 'Internal'}
+                                </Badge>
+                                <span>•</span>
+                                <span>{service.region}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {getStatusBadge(service.status)}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.packets', 'Pacotes')}:</span>
+                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.bandwidth', 'Bandwidth')}:</span>
+                            <div className="font-medium">{(service.metadata?.bandwidthGb || 0).toFixed(2)} GB</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.backendPools', 'Backend Pools')}:</span>
+                            <div className="font-medium">{service.metadata?.backendAddressPools || 0}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.rules', 'Regras')}:</span>
+                            <div className="font-medium">{service.metadata?.loadBalancingRules || 0}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">{t('edgeMonitoring.azure.noLB', 'Nenhum Load Balancer encontrado')}</h3>
+                    <p className="text-muted-foreground">{t('edgeMonitoring.clickDiscover', 'Clique em "Descobrir Serviços" para buscar.')}</p>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Azure NAT Gateway Tab */}
+        <TabsContent value="natgateway" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5 text-cyan-500" />
+                NAT Gateway
+              </CardTitle>
+              <CardDescription>{t('edgeMonitoring.azure.natGwDesc', 'Conectividade de saída para redes virtuais')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : (() => {
+                const natServices = edgeServices?.filter(s => s.service_type === 'nat_gateway') || [];
+                return natServices.length > 0 ? (
+                  <div className="space-y-4">
+                    {natServices.map((service) => (
+                      <div key={service.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <Activity className="h-5 w-5 text-cyan-500" />
+                            <div className="space-y-1">
+                              <h4 className="font-semibold text-sm">{service.service_name}</h4>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>{service.region}</span>
+                                <span>•</span>
+                                <span>{t('edgeMonitoring.updated', 'Atualizado')}: {new Date(service.last_updated).toLocaleString('pt-BR')}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {getStatusBadge(service.status)}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.connections', 'Conexões')}:</span>
+                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.bandwidth', 'Bandwidth')}:</span>
+                            <div className="font-medium">{(service.metadata?.bandwidthGb || 0).toFixed(2)} GB</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.publicIPs', 'IPs Públicos')}:</span>
+                            <div className="font-medium">{service.metadata?.publicIpAddresses || 0}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.subnets', 'Subnets')}:</span>
+                            <div className="font-medium">{service.metadata?.subnets || 0}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Activity className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">{t('edgeMonitoring.azure.noNatGw', 'Nenhum NAT Gateway encontrado')}</h3>
+                    <p className="text-muted-foreground">{t('edgeMonitoring.clickDiscover', 'Clique em "Descobrir Serviços" para buscar.')}</p>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Azure API Management Tab */}
+        <TabsContent value="apim" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="h-5 w-5 text-indigo-500" />
+                API Management
+              </CardTitle>
+              <CardDescription>{t('edgeMonitoring.azure.apimDesc', 'Gateway de API e portal de desenvolvedores')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : (() => {
+                const apimServices = edgeServices?.filter(s => s.service_type === 'api_management') || [];
+                return apimServices.length > 0 ? (
+                  <div className="space-y-4">
+                    {apimServices.map((service) => (
+                      <div key={service.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <Globe className="h-5 w-5 text-indigo-500" />
+                            <div className="space-y-1">
+                              <h4 className="font-semibold text-sm">{service.service_name}</h4>
+                              <p className="text-sm text-muted-foreground">{service.domain_name}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline" className="text-xs">{service.metadata?.sku || 'Developer'}</Badge>
+                                <span>•</span>
+                                <span>{service.region}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {getStatusBadge(service.status)}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Requests/min:</span>
+                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.successRate', 'Taxa de Sucesso')}:</span>
+                            <div className="font-medium">{service.cache_hit_rate.toFixed(1)}%</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.errorRate', 'Taxa de Erro')}:</span>
+                            <div className="font-medium">{service.error_rate.toFixed(2)}%</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">{t('edgeMonitoring.responseTime', 'Response Time')}:</span>
+                            <div className="font-medium">{(service.metadata?.responseTime || 0).toFixed(0)} ms</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Globe className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">{t('edgeMonitoring.azure.noApim', 'Nenhum API Management encontrado')}</h3>
+                    <p className="text-muted-foreground">{t('edgeMonitoring.clickDiscover', 'Clique em "Descobrir Serviços" para buscar.')}</p>
                   </div>
                 );
               })()}

@@ -9,15 +9,18 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { parseAndValidateBody } from '../../lib/validation.js';
+import { z } from 'zod';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-interface GenerateSecurityPDFRequest {
-  accountId?: string;
-  includeFindings?: boolean;
-  includeCompliance?: boolean;
-  includeDrifts?: boolean;
-}
+// Zod schema for generate security PDF
+const generateSecurityPdfSchema = z.object({
+  accountId: z.string().uuid().optional(),
+  includeFindings: z.boolean().default(true),
+  includeCompliance: z.boolean().default(true),
+  includeDrifts: z.boolean().default(true),
+});
 
 export async function handler(
   event: AuthorizedEvent,
@@ -33,13 +36,18 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: GenerateSecurityPDFRequest = event.body ? JSON.parse(event.body) : {};
+    // Validate input with Zod
+    const validation = parseAndValidateBody(generateSecurityPdfSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
     const {
       accountId,
-      includeFindings = true,
-      includeCompliance = true,
-      includeDrifts = true,
-    } = body;
+      includeFindings,
+      includeCompliance,
+      includeDrifts,
+    } = validation.data;
     
     const prisma = getPrismaClient();
     
