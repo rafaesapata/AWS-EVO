@@ -864,6 +864,15 @@ const MIGRATION_COMMANDS = [
   // Cost Optimization - Add remediation_ticket_id for ticket linking (2026-01-30)
   `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "remediation_ticket_id" UUID`,
   `CREATE INDEX IF NOT EXISTS "cost_optimizations_remediation_ticket_id_idx" ON "cost_optimizations"("remediation_ticket_id")`,
+  
+  // ==================== COST OPTIMIZATION MULTI-CLOUD SUPPORT (2026-01-30) ====================
+  // Add azure_credential_id and cloud_provider to cost_optimizations for Azure support
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "azure_credential_id" UUID`,
+  `ALTER TABLE "cost_optimizations" ADD COLUMN IF NOT EXISTS "cloud_provider" "CloudProvider" DEFAULT 'AWS'`,
+  // Make aws_account_id nullable for Azure optimizations
+  `ALTER TABLE "cost_optimizations" ALTER COLUMN "aws_account_id" DROP NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS "cost_optimizations_azure_credential_id_idx" ON "cost_optimizations"("azure_credential_id")`,
+  `CREATE INDEX IF NOT EXISTS "cost_optimizations_cloud_provider_idx" ON "cost_optimizations"("cloud_provider")`,
 ];
 
 export async function handler(event?: AuthorizedEvent): Promise<APIGatewayProxyResultV2> {

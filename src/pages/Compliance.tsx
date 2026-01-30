@@ -650,7 +650,7 @@ export default function Compliance() {
         `"${check.control_name}"`,
         check.severity,
         check.status,
-        `"${check.evidence || ''}"`
+        `"${typeof check.evidence === 'string' ? check.evidence : JSON.stringify(check.evidence || {})}"`
       ].join(','))
     ].join('\n');
 
@@ -1164,7 +1164,9 @@ export default function Compliance() {
                                           </p>
                                           {check.evidence && (
                                             <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
-                                              {check.evidence}
+                                              {typeof check.evidence === 'string' 
+                                                ? check.evidence 
+                                                : JSON.stringify(check.evidence, null, 2)}
                                             </p>
                                           )}
                                         </div>
@@ -1649,7 +1651,9 @@ export default function Compliance() {
                 <h4 className="font-semibold mb-2">{t('compliance.evidence', 'Evidence')}</h4>
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {selectedCheck.evidence}
+                    {typeof selectedCheck.evidence === 'string' 
+                      ? selectedCheck.evidence 
+                      : JSON.stringify(selectedCheck.evidence, null, 2)}
                   </p>
                 </div>
               </div>

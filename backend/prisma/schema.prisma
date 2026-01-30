@@ -1121,7 +1121,9 @@ model SystemEvent {
 model CostOptimization {
   id                     String   @id @default(uuid()) @db.Uuid
   organization_id        String   @db.Uuid
-  aws_account_id         String
+  aws_account_id         String?  // Optional - null for Azure optimizations
+  azure_credential_id    String?  @db.Uuid  // For Azure multi-cloud support
+  cloud_provider         CloudProvider @default(AWS)
   resource_type          String
   resource_id            String
   resource_name          String?
@@ -1141,6 +1143,8 @@ model CostOptimization {
   
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
+  @@index([cloud_provider])
   @@index([optimization_type])
   @@index([priority])
   @@index([remediation_ticket_id])

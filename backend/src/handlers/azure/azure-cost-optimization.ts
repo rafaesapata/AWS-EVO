@@ -280,6 +280,48 @@ export async function handler(
       }, {} as Record<string, number>),
     };
 
+    // Save recommendations to cost_optimizations table for consistency with AWS
+    try {
+      // Delete existing Azure optimizations for this credential
+      await (prisma as any).costOptimization.deleteMany({
+        where: { 
+          organization_id: organizationId, 
+          azure_credential_id: credentialId 
+        }
+      });
+
+      // Save new recommendations
+      if (recommendations.length > 0) {
+        const optimizationsToSave = recommendations.map(rec => ({
+          organization_id: organizationId,
+          azure_credential_id: credentialId,
+          cloud_provider: 'AZURE' as const,
+          resource_type: rec.resourceType || 'Azure Resource',
+          resource_id: rec.resourceId || rec.id,
+          resource_name: rec.resourceName || 'Unknown',
+          optimization_type: mapImpactToRecommendationType(rec.impact, rec.category),
+          current_cost: rec.currentMonthlyCost || 0,
+          optimized_cost: rec.currentMonthlyCost ? (rec.currentMonthlyCost - rec.potentialSavings) : 0,
+          potential_savings: rec.potentialSavings || 0,
+          savings_percentage: rec.currentMonthlyCost && rec.currentMonthlyCost > 0 
+            ? ((rec.potentialSavings / rec.currentMonthlyCost) * 100) 
+            : 0,
+          recommendation: rec.solution || rec.shortDescription,
+          details: rec.reason || rec.shortDescription,
+          priority: rec.impact?.toLowerCase() || 'medium',
+          effort: rec.implementationComplexity || 'medium',
+          category: rec.category || 'Cost',
+          status: 'pending'
+        }));
+
+        await (prisma as any).costOptimization.createMany({ data: optimizationsToSave });
+        logger.info('Saved Azure cost optimizations to database', { count: optimizationsToSave.length });
+      }
+    } catch (saveErr: any) {
+      // Log but don't fail - the recommendations are still returned
+      logger.warn('Failed to save Azure optimizations to database', { error: saveErr.message });
+    }
+
     logger.info('Azure cost optimization analysis completed (REAL DATA)', {
       organizationId,
       subscriptionId: credential.subscription_id,
