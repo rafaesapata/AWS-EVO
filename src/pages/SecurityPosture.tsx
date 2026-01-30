@@ -12,7 +12,7 @@ import { Layout } from "@/components/Layout";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiClient } from "@/integrations/aws/api-client";
+import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuthSafe } from "@/hooks/useAuthSafe";
@@ -41,9 +41,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Minus,
+  History,
+  FileCheck
 } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Cell, Pie, LineChart, Line } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Cell, Pie, LineChart, Line, AreaChart, Area } from "recharts";
 
 interface SecurityFinding {
   id: string;
@@ -87,6 +90,7 @@ export default function SecurityPosture() {
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
   const [creatingBatchTickets, setCreatingBatchTickets] = useState(false);
+  const [historyDays, setHistoryDays] = useState(30);
   
   // Findings filters, search and pagination state
   const [findingsSearch, setFindingsSearch] = useState('');
@@ -222,6 +226,109 @@ export default function SecurityPosture() {
         compliance_scores: {},
         findings: findingsResponse.data || [],
         hasData: true
+      };
+    },
+  });
+
+  // Get compliance data from compliance checks
+  const { data: complianceData, isLoading: isLoadingCompliance } = useQuery({
+    queryKey: ['compliance-data-posture', organizationId, selectedAccountId],
+    enabled: !!organizationId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      if (!organizationId) return null;
+      
+      // Buscar compliance checks do banco
+      let filters: any = {
+        'security_scans.organization_id': organizationId
+      };
+      
+      if (selectedAccountId) {
+        filters['security_scans.aws_account_id'] = selectedAccountId;
+      }
+      
+      const result = await apiClient.select('compliance_checks', {
+        select: `
+          *,
+          security_scans!inner(organization_id, aws_account_id)
+        `,
+        ...filters,
+        order: { created_at: 'desc' }
+      });
+      
+      if (result.error) {
+        console.error('Error fetching compliance checks:', result.error);
+        return null;
+      }
+      
+      const checks = result.data || [];
+      
+      if (checks.length === 0) return null;
+      
+      // Agrupar por framework e calcular scores
+      const frameworkStats: Record<string, { passed: number; failed: number; total: number; score: number }> = {};
+      
+      for (const check of checks) {
+        const framework = check.framework || 'unknown';
+        if (!frameworkStats[framework]) {
+          frameworkStats[framework] = { passed: 0, failed: 0, total: 0, score: 0 };
+        }
+        
+        frameworkStats[framework].total++;
+        if (check.status === 'passed') {
+          frameworkStats[framework].passed++;
+        } else if (check.status === 'failed') {
+          frameworkStats[framework].failed++;
+        }
+      }
+      
+      // Calcular scores
+      for (const [framework, stats] of Object.entries(frameworkStats)) {
+        const applicable = stats.passed + stats.failed;
+        stats.score = applicable > 0 ? Math.round((stats.passed / applicable) * 100) : 0;
+      }
+      
+      return {
+        frameworks: frameworkStats,
+        totalChecks: checks.length,
+        passedChecks: checks.filter((c: any) => c.status === 'passed').length,
+        failedChecks: checks.filter((c: any) => c.status === 'failed').length,
+      };
+    },
+  });
+
+  // Get compliance history for trends
+  const { data: complianceHistory, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['compliance-history-posture', organizationId, selectedAccountId, historyDays],
+    enabled: !!organizationId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      if (!organizationId) return null;
+      
+      const result = await apiClient.invoke('get-compliance-history', {
+        body: {
+          days: historyDays,
+          accountId: selectedAccountId || undefined,
+        }
+      });
+      
+      if (result.error) {
+        console.error('Compliance history error:', result.error);
+        return null;
+      }
+      
+      const data = result.data as any;
+      return {
+        posture_history: data?.posture_history || [],
+        framework_stats: data?.framework_stats || {},
+        total_scans: data?.total_scans || 0,
+        overall_trend: data?.overall_trend || 'stable',
+        summary: {
+          current_score: data?.summary?.current_score ?? null,
+          previous_score: data?.summary?.previous_score ?? null,
+          score_change: data?.summary?.score_change ?? 0,
+        },
+        recent_critical_findings: data?.recent_critical_findings || [],
       };
     },
   });
@@ -492,11 +599,50 @@ export default function SecurityPosture() {
     color: getSeverityColor(severity)
   }));
 
-  const complianceChartData = Object.entries(securityData?.compliance_scores || {}).map(([standard, score]) => ({
-    standard,
-    score: Math.round(score),
-    color: score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'
-  }));
+  // Use compliance data from complianceData query instead of securityData
+  const complianceChartData = complianceData?.frameworks 
+    ? Object.entries(complianceData.frameworks).map(([standard, stats]) => ({
+        standard: standard.toUpperCase(),
+        score: stats.score,
+        passed: stats.passed,
+        failed: stats.failed,
+        total: stats.total,
+        color: stats.score >= 80 ? '#10b981' : stats.score >= 60 ? '#f59e0b' : '#ef4444'
+      }))
+    : Object.entries(securityData?.compliance_scores || {}).map(([standard, score]) => ({
+        standard,
+        score: Math.round(score as number),
+        color: (score as number) >= 80 ? '#10b981' : (score as number) >= 60 ? '#f59e0b' : '#ef4444'
+      }));
+
+  // Prepare trend data from history
+  const trendData = complianceHistory?.posture_history?.map((p: any) => ({
+    date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+    fullDate: p.date,
+    score: p.compliance_score || p.overall_score || 0,
+    overallScore: p.overall_score || 0,
+    critical: p.critical_findings || 0,
+    high: p.high_findings || 0,
+    medium: p.medium_findings || 0,
+    low: p.low_findings || 0,
+  })) || [];
+
+  // Helper function for trend icon
+  const getTrendIcon = (trend: string) => {
+    switch (trend) {
+      case 'improving': return <TrendingUp className="h-4 w-4 text-green-500" />;
+      case 'declining': return <TrendingDown className="h-4 w-4 text-red-500" />;
+      default: return <Minus className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getTrendLabel = (trend: string) => {
+    switch (trend) {
+      case 'improving': return t('securityPosture.improving', 'Melhorando');
+      case 'declining': return t('securityPosture.declining', 'Piorando');
+      default: return t('securityPosture.stable', 'Estável');
+    }
+  };
 
   // Get unique services from findings for filter dropdown
   const uniqueServices = useMemo(() => {
@@ -1227,46 +1373,126 @@ export default function SecurityPosture() {
         </TabsContent>
 
         <TabsContent value="compliance" className="space-y-6">
-          <Card >
+          <Card>
             <CardHeader>
-              <CardTitle>Status de Compliance</CardTitle>
-              <CardDescription>Conformidade com padrões de segurança</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>{t('securityPosture.complianceStatus', 'Status de Compliance')}</CardTitle>
+                  <CardDescription>{t('securityPosture.complianceDesc', 'Conformidade com padrões de segurança')}</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.href = '/compliance'}
+                  className="gap-2"
+                >
+                  <FileCheck className="h-4 w-4" />
+                  {t('securityPosture.viewFullCompliance', 'Ver Compliance Completo')}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {isLoading || isLoadingCompliance ? (
                 <div className="space-y-4">
                   {[...Array(5)].map((_, i) => (
                     <Skeleton key={i} className="h-16 w-full" />
                   ))}
                 </div>
-              ) : Object.entries(securityData?.compliance_scores || {}).length > 0 ? (
-                <div className="space-y-4">
-                  {Object.entries(securityData.compliance_scores).map(([standard, score]) => (
-                    <div key={standard} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-sm">{standard.toUpperCase()}</h4>
-                        <Badge 
-                          variant={score >= 80 ? "default" : score >= 60 ? "secondary" : "destructive"}
+              ) : complianceChartData.length > 0 ? (
+                <div className="space-y-6">
+                  {/* Compliance Chart */}
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={complianceChartData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          type="number" 
+                          domain={[0, 100]}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <YAxis 
+                          type="category" 
+                          dataKey="standard" 
+                          width={100}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                          formatter={(value: number, name: string, props: any) => {
+                            const item = props.payload;
+                            return [
+                              <div key="tooltip" className="space-y-1">
+                                <div className="font-semibold">{value}%</div>
+                                {item.passed !== undefined && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {item.passed} {t('securityPosture.passed', 'aprovados')} / {item.total} {t('securityPosture.total', 'total')}
+                                  </div>
+                                )}
+                              </div>,
+                              'Score'
+                            ];
+                          }}
+                        />
+                        <Bar 
+                          dataKey="score" 
+                          fill="#3b82f6"
+                          radius={[0, 4, 4, 0]}
                         >
-                          {Math.round(score)}%
-                        </Badge>
+                          {complianceChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Framework Details */}
+                  <div className="space-y-4">
+                    {complianceChartData.map((framework) => (
+                      <div key={framework.standard} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-sm">{framework.standard}</h4>
+                          <Badge 
+                            variant={framework.score >= 80 ? "default" : framework.score >= 60 ? "secondary" : "destructive"}
+                          >
+                            {framework.score}%
+                          </Badge>
+                        </div>
+                        <Progress value={framework.score} className="h-2" />
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-sm text-muted-foreground">
+                            {framework.score >= 80 ? t('securityPosture.excellentCompliance', 'Excelente conformidade') : 
+                             framework.score >= 60 ? t('securityPosture.adequateCompliance', 'Conformidade adequada') : 
+                             t('securityPosture.needsAttention', 'Requer atenção imediata')}
+                          </p>
+                          {framework.passed !== undefined && (
+                            <p className="text-xs text-muted-foreground">
+                              <span className="text-green-500">{framework.passed}</span> / {framework.total} {t('securityPosture.controls', 'controles')}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <Progress value={score} className="h-2" />
-                      <p className="text-sm text-muted-foreground mt-2">
-                        {score >= 80 ? 'Excelente conformidade' : 
-                         score >= 60 ? 'Conformidade adequada' : 
-                         'Requer atenção imediata'}
-                      </p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8">
                   <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold mb-2">Nenhum dado de compliance</h3>
-                  <p className="text-muted-foreground">
-                    Execute verificações de compliance para ver os resultados aqui.
+                  <h3 className="text-lg font-semibold mb-2">{t('securityPosture.noComplianceData', 'Nenhum dado de compliance')}</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {t('securityPosture.runComplianceScan', 'Execute verificações de compliance para ver os resultados aqui.')}
                   </p>
+                  <Button 
+                    variant="outline"
+                    onClick={() => window.location.href = '/compliance'}
+                  >
+                    <FileCheck className="h-4 w-4 mr-2" />
+                    {t('securityPosture.goToCompliance', 'Ir para Compliance')}
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -1274,21 +1500,290 @@ export default function SecurityPosture() {
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-6">
-          <Card >
+          {/* Trend Summary Cards */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {t('securityPosture.currentScore', 'Score Atual')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingHistory ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <div className="text-2xl font-semibold">
+                    {complianceHistory?.summary?.current_score !== null 
+                      ? `${complianceHistory.summary.current_score}%` 
+                      : '--'}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {t('securityPosture.scoreChange', 'Variação')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingHistory ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <div className={`text-2xl font-semibold flex items-center gap-2 ${
+                    (complianceHistory?.summary?.score_change || 0) > 0 ? 'text-green-500' :
+                    (complianceHistory?.summary?.score_change || 0) < 0 ? 'text-red-500' : ''
+                  }`}>
+                    {complianceHistory?.summary?.score_change !== undefined && complianceHistory.summary.score_change !== 0 ? (
+                      <>
+                        {complianceHistory.summary.score_change > 0 ? '+' : ''}
+                        {complianceHistory.summary.score_change}%
+                      </>
+                    ) : '--'}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  {t('securityPosture.trend', 'Tendência')}
+                  {complianceHistory?.overall_trend && getTrendIcon(complianceHistory.overall_trend)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingHistory ? (
+                  <Skeleton className="h-8 w-20" />
+                ) : (
+                  <div className="text-lg font-semibold">
+                    {complianceHistory?.overall_trend ? getTrendLabel(complianceHistory.overall_trend) : '--'}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {t('securityPosture.totalScans', 'Total de Scans')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingHistory ? (
+                  <Skeleton className="h-8 w-12" />
+                ) : (
+                  <div className="text-2xl font-semibold">
+                    {complianceHistory?.total_scans || 0}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Period Selector */}
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">{t('securityPosture.period', 'Período')}:</span>
+            <Select value={String(historyDays)} onValueChange={(v) => setHistoryDays(Number(v))}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">{t('securityPosture.last7Days', 'Últimos 7 dias')}</SelectItem>
+                <SelectItem value="30">{t('securityPosture.last30Days', 'Últimos 30 dias')}</SelectItem>
+                <SelectItem value="90">{t('securityPosture.last90Days', 'Últimos 90 dias')}</SelectItem>
+                <SelectItem value="180">{t('securityPosture.last180Days', 'Últimos 180 dias')}</SelectItem>
+                <SelectItem value="365">{t('securityPosture.lastYear', 'Último ano')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Score Evolution Chart */}
+          <Card>
             <CardHeader>
-              <CardTitle>Tendências de Segurança</CardTitle>
-              <CardDescription>Evolução da postura de segurança ao longo do tempo</CardDescription>
+              <CardTitle>{t('securityPosture.scoreEvolution', 'Evolução do Score de Segurança')}</CardTitle>
+              <CardDescription>{t('securityPosture.scoreEvolutionDesc', 'Acompanhe a evolução da postura de segurança ao longo do tempo')}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Dados históricos em desenvolvimento</h3>
-                  <p>As tendências de segurança serão exibidas aqui em breve.</p>
+              {isLoadingHistory ? (
+                <Skeleton className="h-[300px] w-full" />
+              ) : trendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={trendData}>
+                    <defs>
+                      <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    />
+                    <YAxis 
+                      domain={[0, 100]}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                      formatter={(value: number, name: string) => {
+                        const labels: Record<string, string> = {
+                          score: t('securityPosture.complianceScore', 'Score Compliance'),
+                          overallScore: t('securityPosture.overallScore', 'Score Geral'),
+                        };
+                        return [`${value}%`, labels[name] || name];
+                      }}
+                    />
+                    <Legend />
+                    <Area 
+                      type="monotone" 
+                      dataKey="score" 
+                      stroke="#3b82f6" 
+                      fillOpacity={1} 
+                      fill="url(#colorScore)"
+                      name={t('securityPosture.complianceScore', 'Score Compliance')}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="overallScore" 
+                      stroke="#10b981" 
+                      strokeWidth={2}
+                      dot={false}
+                      name={t('securityPosture.overallScore', 'Score Geral')}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <History className="h-12 w-12 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">{t('securityPosture.noHistoricalData', 'Sem dados históricos')}</h3>
+                    <p className="text-sm">{t('securityPosture.runScansForHistory', 'Execute scans de segurança para começar a acumular histórico.')}</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
+
+          {/* Findings Evolution Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('securityPosture.findingsEvolution', 'Evolução de Findings')}</CardTitle>
+              <CardDescription>{t('securityPosture.findingsEvolutionDesc', 'Quantidade de findings por severidade ao longo do tempo')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingHistory ? (
+                <Skeleton className="h-[300px] w-full" />
+              ) : trendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    />
+                    <YAxis 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="critical" stackId="a" fill="#dc2626" name="Critical" />
+                    <Bar dataKey="high" stackId="a" fill="#ea580c" name="High" />
+                    <Bar dataKey="medium" stackId="a" fill="#d97706" name="Medium" />
+                    <Bar dataKey="low" stackId="a" fill="#65a30d" name="Low" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <BarChart3 className="h-12 w-12 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">{t('securityPosture.noFindingsHistory', 'Sem histórico de findings')}</h3>
+                    <p className="text-sm">{t('securityPosture.runScansForFindings', 'Execute scans para ver a evolução dos findings.')}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Framework Stats */}
+          {complianceHistory?.framework_stats && Object.keys(complianceHistory.framework_stats).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('securityPosture.frameworkTrends', 'Tendências por Framework')}</CardTitle>
+                <CardDescription>{t('securityPosture.frameworkTrendsDesc', 'Evolução de compliance por framework de segurança')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {Object.entries(complianceHistory.framework_stats).map(([framework, stats]: [string, any]) => (
+                    <div key={framework} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold">{framework.toUpperCase()}</h4>
+                        {getTrendIcon(stats.trend)}
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">{t('securityPosture.latestScore', 'Score Atual')}</span>
+                          <Badge variant={stats.latest_score >= 80 ? "default" : stats.latest_score >= 60 ? "secondary" : "destructive"}>
+                            {stats.latest_score}%
+                          </Badge>
+                        </div>
+                        <Progress value={stats.latest_score} className="h-2" />
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>{t('securityPosture.avgScore', 'Média')}: {stats.avg_score}%</span>
+                          <span>{stats.total_scans} {t('securityPosture.scans', 'scans')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recent Critical Findings */}
+          {complianceHistory?.recent_critical_findings && complianceHistory.recent_critical_findings.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                  {t('securityPosture.recentCriticalFindings', 'Findings Críticos Recentes')}
+                </CardTitle>
+                <CardDescription>{t('securityPosture.recentCriticalDesc', 'Últimos findings críticos de compliance que requerem atenção')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {complianceHistory.recent_critical_findings.map((finding: any, index: number) => (
+                    <div key={index} className="border rounded-lg p-3 border-red-200 bg-red-50/50 dark:bg-red-950/20">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="destructive" className="text-xs">{finding.framework?.toUpperCase()}</Badge>
+                            <span className="text-sm font-medium">{finding.control_id}</span>
+                          </div>
+                          <p className="text-sm">{finding.control_name}</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(finding.created_at).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
       </div>

@@ -636,6 +636,15 @@
     "increaseEconomy": "Aumentar economia",
     "optimizeCostCTA": "Ver como otimizar custo",
     "viewAlerts": "Ver alertas",
+    "cta": {
+      "viewSecurityFindings": "Ver findings de segurança",
+      "viewCostDetails": "Ver detalhes de custo",
+      "viewEndpoints": "Ver endpoints",
+      "viewRecommendations": "Ver recomendações",
+      "runScan": "Executar scan",
+      "viewAll": "Ver todos",
+      "learnMore": "Saiba mais"
+    },
     "healthScoreTooltip": "Score de 0-100 que avalia a saúde geral da sua infraestrutura AWS. Considera segurança (findings críticos), compliance (frameworks CIS, LGPD, PCI-DSS), performance (uptime, latência) e custos (otimização, desperdício). Atualizado em tempo real.",
     "healthScoreDescription": "Análise completa de segurança e conformidade",
     "uptimeSLATooltip": "Porcentagem de disponibilidade dos seus endpoints monitorados nos últimos 30 dias. Meta recomendada: 99.9% (menos de 43 minutos de downtime por mês). Inclui APIs, websites e serviços críticos.",
@@ -1947,7 +1956,49 @@
     "findings": "Findings",
     "trends": "Tendências",
     "findingsBySeverity": "Findings por Severidade",
-    "findingsDistribution": "Distribuição dos achados de segurança"
+    "findingsDistribution": "Distribuição dos achados de segurança",
+    "complianceStatus": "Status de Compliance",
+    "complianceDesc": "Conformidade com padrões de segurança",
+    "viewFullCompliance": "Ver Compliance Completo",
+    "excellentCompliance": "Excelente conformidade",
+    "adequateCompliance": "Conformidade adequada",
+    "needsAttention": "Requer atenção imediata",
+    "controls": "controles",
+    "passed": "aprovados",
+    "total": "total",
+    "noComplianceData": "Nenhum dado de compliance",
+    "runComplianceScan": "Execute verificações de compliance para ver os resultados aqui.",
+    "goToCompliance": "Ir para Compliance",
+    "currentScore": "Score Atual",
+    "scoreChange": "Variação",
+    "trend": "Tendência",
+    "totalScans": "Total de Scans",
+    "improving": "Melhorando",
+    "declining": "Piorando",
+    "stable": "Estável",
+    "period": "Período",
+    "last7Days": "Últimos 7 dias",
+    "last30Days": "Últimos 30 dias",
+    "last90Days": "Últimos 90 dias",
+    "last180Days": "Últimos 180 dias",
+    "lastYear": "Último ano",
+    "scoreEvolution": "Evolução do Score de Segurança",
+    "scoreEvolutionDesc": "Acompanhe a evolução da postura de segurança ao longo do tempo",
+    "complianceScore": "Score Compliance",
+    "overallScore": "Score Geral",
+    "noHistoricalData": "Sem dados históricos",
+    "runScansForHistory": "Execute scans de segurança para começar a acumular histórico.",
+    "findingsEvolution": "Evolução de Findings",
+    "findingsEvolutionDesc": "Quantidade de findings por severidade ao longo do tempo",
+    "noFindingsHistory": "Sem histórico de findings",
+    "runScansForFindings": "Execute scans para ver a evolução dos findings.",
+    "frameworkTrends": "Tendências por Framework",
+    "frameworkTrendsDesc": "Evolução de compliance por framework de segurança",
+    "latestScore": "Score Atual",
+    "avgScore": "Média",
+    "scans": "scans",
+    "recentCriticalFindings": "Findings Críticos Recentes",
+    "recentCriticalDesc": "Últimos findings críticos de compliance que requerem atenção"
   },
   "wasteDetection": {
     "title": "Detecção de Desperdício AWS",
@@ -3292,6 +3343,112 @@
     "feature3": "Cálculos precisos de economia potencial",
     "feature4": "Sugestões de right-sizing",
     "feature5": "Relatórios executivos completos"
+  },
+  "risp": {
+    "title": "Análise Avançada de Reserved Instances & Savings Plans",
+    "subtitle": "Análise completa de oportunidades de otimização de custos",
+    "previousAnalysis": "Análise anterior",
+    "analyzing": "Analisando...",
+    "updateAnalysis": "Atualizar Análise",
+    "runAnalysis": "Executar Análise",
+    "analyzingInfra": "Analisando sua infraestrutura...",
+    "analyzingDesc": "Coletando dados de utilização, Reserved Instances e Savings Plans.",
+    "estimatedTime": "Tempo estimado: 10-30 segundos",
+    "loading": {
+      "saved": "Carregando análise anterior...",
+      "summary": "Carregando resumo...",
+      "recommendations": "Processando recomendações...",
+      "coverage": "Calculando cobertura..."
+    },
+    "error": {
+      "title": "Erro na Análise",
+      "analysis": "Erro na análise",
+      "invalidResponse": "Resposta inválida da API",
+      "unknown": "Erro desconhecido"
+    },
+    "status": {
+      "optimized": "Otimizado",
+      "needsAttention": "Atenção",
+      "analyzing": "Analisando"
+    },
+    "tabs": {
+      "summary": "Resumo Executivo",
+      "recommendations": "Recomendações",
+      "coverage": "Cobertura"
+    },
+    "stats": {
+      "status": "Status Geral",
+      "activeCommitments": "compromissos ativos",
+      "potentialSavings": "Economia Potencial",
+      "perYear": "por ano",
+      "upTo": "até",
+      "coverageScore": "Score de Cobertura",
+      "recommendations": "Recomendações",
+      "quickWins": "implementações rápidas"
+    },
+    "insights": {
+      "title": "Principais Insights",
+      "desc": "Resumo dos pontos mais importantes"
+    },
+    "resources": {
+      "title": "Recursos Analisados",
+      "desc": "Resumo dos recursos AWS analisados",
+      "totalCommitments": "Total"
+    },
+    "rec": {
+      "perYear": "por ano",
+      "implementation": "Implementação",
+      "difficulty": "Dificuldade",
+      "easy": "Fácil",
+      "medium": "Médio",
+      "hard": "Difícil",
+      "monthlySavings": "Economia Mensal"
+    },
+    "noRec": {
+      "title": "Nenhuma Recomendação no Momento",
+      "desc": "Sua infraestrutura já está bem otimizada."
+    },
+    "noResources": {
+      "title": "Nenhum Recurso Computacional Encontrado",
+      "desc": "Não foram encontradas instâncias EC2 ou RDS em execução."
+    },
+    "coverage": {
+      "ri": "Reserved Instances",
+      "riDesc": "Cobertura de instâncias reservadas",
+      "sp": "Savings Plans",
+      "spDesc": "Cobertura de planos de economia",
+      "overall": "Cobertura Geral",
+      "overallDesc": "Score combinado de otimização",
+      "active": "ativas",
+      "good": "Bom",
+      "regular": "Regular",
+      "needsImprovement": "Precisa melhorar"
+    },
+    "edu": {
+      "title": "O que são Reserved Instances e Savings Plans?",
+      "ri": "Reserved Instances (RIs)",
+      "riDesc": "Compromisso de 1 ou 3 anos para tipos específicos de instâncias. Descontos de até",
+      "sp": "Savings Plans",
+      "spDesc": "Compromisso de gasto por hora com flexibilidade. Economia de até"
+    },
+    "action": {
+      "title": "Análise de Reserved Instances & Savings Plans",
+      "desc": "Execute uma análise completa para identificar oportunidades de otimização",
+      "info": "A análise verificará seus padrões de uso e identificará oportunidades de economia."
+    },
+    "tips": {
+      "title": "Não possui RI ou Savings Plans ainda?",
+      "desc": "Aqui estão os próximos passos recomendados:",
+      "step1": "Execute a Análise",
+      "step1Desc": "Entenda seus padrões de uso atuais.",
+      "step2": "Avalie as Recomendações",
+      "step2Desc": "Considere o ROI e período de compromisso.",
+      "step3": "Comece Pequeno",
+      "step3Desc": "Inicie com compromissos de 1 ano.",
+      "step4": "Monitore Regularmente",
+      "step4Desc": "Acompanhe a utilização dos compromissos.",
+      "learnMore": "Saiba mais sobre Savings Plans na documentação AWS"
+    }
   },
   "azureReservations": {
     "title": "Análise de Azure Reserved Instances",
