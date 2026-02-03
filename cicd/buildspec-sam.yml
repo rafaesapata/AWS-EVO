@@ -83,7 +83,8 @@ phases:
       - du -sh backend/layers/dependencies/ || echo "Cannot calculate size"
       - echo "Template location:"
       - ls -la template.yaml || echo "Template not found in root"
-      - sam package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix evo-uds-v3-$ENV --region us-east-1
+      # Use aws cloudformation package instead of sam package for faster processing
+      - aws cloudformation package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix evo-uds-v3-$ENV --region us-east-1
 
   post_build:
     commands:

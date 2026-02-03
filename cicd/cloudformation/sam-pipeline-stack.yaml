@@ -157,7 +157,7 @@ Resources:
       Name: !Sub 'evo-sam-build-${Environment}'
       Description: 'Build and deploy EVO Platform using AWS SAM'
       ServiceRole: !GetAtt CodeBuildRole.Arn
-      TimeoutInMinutes: 60
+      TimeoutInMinutes: 120
       QueuedTimeoutInMinutes: 480
       Artifacts:
         Type: CODEPIPELINE
