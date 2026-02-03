@@ -294,7 +294,7 @@ Globals:
     Timeout: 30
     MemorySize: 256
     Architectures:
-      - x86_64
+      - arm64
     VpcConfig:
       SecurityGroupIds:
         - !Ref LambdaSecurityGroupId
@@ -352,9 +352,12 @@ Resources:
       ContentUri: backend/layers/dependencies/
       CompatibleRuntimes:
         - nodejs18.x
+      CompatibleArchitectures:
+        - arm64
       RetentionPolicy: Retain
     Metadata:
       BuildMethod: nodejs18.x
+      BuildArchitecture: arm64
 
   # ==========================================================================
   # LAMBDA FUNCTIONS (${HANDLERS.length} total)
