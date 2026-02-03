@@ -69,6 +69,20 @@ phases:
 
   post_build:
     commands:
+      - echo "🔍 Checking stack status..."
+      - |
+        STACK_NAME="evo-uds-v3-$ENV-lambdas"
+        STACK_STATUS=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+        echo "Stack status: $STACK_STATUS"
+        
+        if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
+          echo "🗑️ Deleting stack in $STACK_STATUS state..."
+          aws cloudformation delete-stack --stack-name $STACK_NAME --region us-east-1
+          echo "⏳ Waiting for stack deletion..."
+          aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME --region us-east-1 || true
+          echo "✅ Stack deleted"
+        fi
+      
       - echo "🚀 Deploying SAM application..."
       - |
         sam deploy \
