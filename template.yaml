@@ -84,4061 +84,1828 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-admin-manage-user'
-      CodeUri: backend/src/handlers/admin/
-      Handler: admin-manage-user.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/admin-manage-user.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - admin-manage-user.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AutomatedCleanupStuckScansFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-automated-cleanup-stuck-scans'
-      CodeUri: backend/src/handlers/admin/
-      Handler: automated-cleanup-stuck-scans.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/automated-cleanup-stuck-scans.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - automated-cleanup-stuck-scans.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CheckCloudtrailStatusFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-cloudtrail-status'
-      CodeUri: backend/src/handlers/admin/
-      Handler: check-cloudtrail-status.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/check-cloudtrail-status.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - check-cloudtrail-status.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CheckCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-costs'
-      CodeUri: backend/src/handlers/admin/
-      Handler: check-costs.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/check-costs.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - check-costs.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CleanupStuckScansFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans'
-      CodeUri: backend/src/handlers/admin/
-      Handler: cleanup-stuck-scans.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/cleanup-stuck-scans.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - cleanup-stuck-scans.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CreateCognitoUserFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-cognito-user'
-      CodeUri: backend/src/handlers/admin/
-      Handler: create-cognito-user.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/create-cognito-user.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - create-cognito-user.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CreateUserFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-user'
-      CodeUri: backend/src/handlers/admin/
-      Handler: create-user.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/create-user.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - create-user.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DeactivateDemoModeFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-deactivate-demo-mode'
-      CodeUri: backend/src/handlers/admin/
-      Handler: deactivate-demo-mode.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/deactivate-demo-mode.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - deactivate-demo-mode.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DebugCloudtrailFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-debug-cloudtrail'
-      CodeUri: backend/src/handlers/admin/
-      Handler: debug-cloudtrail.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/debug-cloudtrail.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - debug-cloudtrail.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DirectCleanupFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-direct-cleanup'
-      CodeUri: backend/src/handlers/admin/
-      Handler: direct-cleanup.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/direct-cleanup.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - direct-cleanup.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DisableCognitoUserFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-disable-cognito-user'
-      CodeUri: backend/src/handlers/admin/
-      Handler: disable-cognito-user.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/disable-cognito-user.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - disable-cognito-user.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   FixRoleArnMigrationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fix-role-arn-migration'
-      CodeUri: backend/src/handlers/admin/
-      Handler: fix-role-arn-migration.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/fix-role-arn-migration.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - fix-role-arn-migration.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   LogAuditFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-log-audit'
-      CodeUri: backend/src/handlers/admin/
-      Handler: log-audit.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/log-audit.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - log-audit.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ManageDemoModeFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-demo-mode'
-      CodeUri: backend/src/handlers/admin/
-      Handler: manage-demo-mode.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/manage-demo-mode.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - manage-demo-mode.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ManageEmailTemplatesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-email-templates'
-      CodeUri: backend/src/handlers/admin/
-      Handler: manage-email-templates.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/manage-email-templates.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - manage-email-templates.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ManageOrganizationsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-organizations'
-      CodeUri: backend/src/handlers/admin/
-      Handler: manage-organizations.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/manage-organizations.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - manage-organizations.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   RunMigrationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-migration'
-      CodeUri: backend/src/handlers/admin/
-      Handler: run-migration.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/run-migration.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - run-migration.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   RunMigrationStandaloneFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-migration-standalone'
-      CodeUri: backend/src/handlers/admin/
-      Handler: run-migration-standalone.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/run-migration-standalone.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - run-migration-standalone.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   RunSqlFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-sql'
-      CodeUri: backend/src/handlers/admin/
-      Handler: run-sql.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/run-sql.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - run-sql.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SetupLicenseConfigFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-setup-license-config'
-      CodeUri: backend/src/handlers/admin/
-      Handler: setup-license-config.handler
+      CodeUri: backend/dist/
+      Handler: handlers/admin/setup-license-config.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - setup-license-config.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   BedrockChatFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-bedrock-chat'
-      CodeUri: backend/src/handlers/ai/
-      Handler: bedrock-chat.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ai/bedrock-chat.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - bedrock-chat.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CheckProactiveNotificationsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-proactive-notifications'
-      CodeUri: backend/src/handlers/ai/
-      Handler: check-proactive-notifications.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ai/check-proactive-notifications.handler
       Timeout: 120
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - check-proactive-notifications.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GenerateResponseFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-response'
-      CodeUri: backend/src/handlers/ai/
-      Handler: generate-response.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ai/generate-response.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - generate-response.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetAiNotificationsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-ai-notifications'
-      CodeUri: backend/src/handlers/ai/
-      Handler: get-ai-notifications.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ai/get-ai-notifications.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-ai-notifications.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ListAiNotificationsAdminFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-ai-notifications-admin'
-      CodeUri: backend/src/handlers/ai/
-      Handler: list-ai-notifications-admin.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ai/list-ai-notifications-admin.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - list-ai-notifications-admin.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ManageNotificationRulesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-notification-rules'
-      CodeUri: backend/src/handlers/ai/
-      Handler: manage-notification-rules.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ai/manage-notification-rules.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - manage-notification-rules.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SendAiNotificationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-ai-notification'
-      CodeUri: backend/src/handlers/ai/
-      Handler: send-ai-notification.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ai/send-ai-notification.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - send-ai-notification.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   UpdateAiNotificationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-update-ai-notification'
-      CodeUri: backend/src/handlers/ai/
-      Handler: update-ai-notification.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ai/update-ai-notification.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - update-ai-notification.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DeleteWebauthnCredentialFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-delete-webauthn-credential'
-      CodeUri: backend/src/handlers/auth/
-      Handler: delete-webauthn-credential.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/delete-webauthn-credential.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - delete-webauthn-credential.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DeleteWebauthnCredentialAdminFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-delete-webauthn-credential-admin'
-      CodeUri: backend/src/handlers/auth/
-      Handler: delete-webauthn-credential-admin.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/delete-webauthn-credential-admin.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - delete-webauthn-credential-admin.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ForgotPasswordFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-forgot-password'
-      CodeUri: backend/src/handlers/auth/
-      Handler: forgot-password.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/forgot-password.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - forgot-password.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MfaEnrollFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-enroll'
-      CodeUri: backend/src/handlers/auth/
-      Handler: mfa-handlers.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/mfa-handlers.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - mfa-handlers.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MfaCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-check'
-      CodeUri: backend/src/handlers/auth/
-      Handler: mfa-handlers.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/mfa-handlers.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - mfa-handlers.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MfaChallengeVerifyFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-challenge-verify'
-      CodeUri: backend/src/handlers/auth/
-      Handler: mfa-handlers.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/mfa-handlers.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - mfa-handlers.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MfaVerifyLoginFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-verify-login'
-      CodeUri: backend/src/handlers/auth/
-      Handler: mfa-handlers.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/mfa-handlers.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - mfa-handlers.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MfaListFactorsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-list-factors'
-      CodeUri: backend/src/handlers/auth/
-      Handler: mfa-handlers.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/mfa-handlers.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - mfa-handlers.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MfaUnenrollFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-unenroll'
-      CodeUri: backend/src/handlers/auth/
-      Handler: mfa-handlers.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/mfa-handlers.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - mfa-handlers.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SelfRegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-self-register'
-      CodeUri: backend/src/handlers/auth/
-      Handler: self-register.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/self-register.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - self-register.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   VerifyTvTokenFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-verify-tv-token'
-      CodeUri: backend/src/handlers/auth/
-      Handler: verify-tv-token.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/verify-tv-token.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - verify-tv-token.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WebauthnAuthenticateFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-authenticate'
-      CodeUri: backend/src/handlers/auth/
-      Handler: webauthn-authenticate.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/webauthn-authenticate.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - webauthn-authenticate.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WebauthnCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-check'
-      CodeUri: backend/src/handlers/auth/
-      Handler: webauthn-check-standalone.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/webauthn-check-standalone.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - webauthn-check-standalone.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WebauthnRegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-register'
-      CodeUri: backend/src/handlers/auth/
-      Handler: webauthn-register.handler
+      CodeUri: backend/dist/
+      Handler: handlers/auth/webauthn-register.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - webauthn-register.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ListAwsCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-aws-credentials'
-      CodeUri: backend/src/handlers/aws/
-      Handler: list-aws-credentials.handler
+      CodeUri: backend/dist/
+      Handler: handlers/aws/list-aws-credentials.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - list-aws-credentials.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SaveAwsCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-save-aws-credentials'
-      CodeUri: backend/src/handlers/aws/
-      Handler: save-aws-credentials.handler
+      CodeUri: backend/dist/
+      Handler: handlers/aws/save-aws-credentials.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - save-aws-credentials.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   UpdateAwsCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-update-aws-credentials'
-      CodeUri: backend/src/handlers/aws/
-      Handler: update-aws-credentials.handler
+      CodeUri: backend/dist/
+      Handler: handlers/aws/update-aws-credentials.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - update-aws-credentials.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureActivityLogsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-activity-logs'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-activity-logs.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-activity-logs.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-activity-logs.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureComplianceScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-compliance-scan'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-compliance-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-compliance-scan.handler
       Timeout: 300
       MemorySize: 1024
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-compliance-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureCostOptimizationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-cost-optimization'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-cost-optimization.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-cost-optimization.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-cost-optimization.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureDefenderScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-defender-scan'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-defender-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-defender-scan.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-defender-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureDetectAnomaliesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-detect-anomalies'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-detect-anomalies.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-detect-anomalies.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-detect-anomalies.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureFetchCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-costs'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-fetch-costs.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-fetch-costs.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-fetch-costs.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureFetchEdgeServicesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-edge-services'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-fetch-edge-services.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-fetch-edge-services.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-fetch-edge-services.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureFetchMonitorMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-monitor-metrics'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-fetch-monitor-metrics.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-fetch-monitor-metrics.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-fetch-monitor-metrics.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureOauthCallbackFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-callback'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-oauth-callback.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-oauth-callback.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-oauth-callback.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureOauthInitiateFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-initiate'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-oauth-initiate.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-oauth-initiate.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-oauth-initiate.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureOauthRefreshFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-refresh'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-oauth-refresh.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-oauth-refresh.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-oauth-refresh.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureOauthRevokeFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-revoke'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-oauth-revoke.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-oauth-revoke.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-oauth-revoke.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureReservationsAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-reservations-analyzer'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-reservations-analyzer.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-reservations-analyzer.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-reservations-analyzer.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureResourceInventoryFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-resource-inventory'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-resource-inventory.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-resource-inventory.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-resource-inventory.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureSecurityScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-security-scan'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-security-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-security-scan.handler
       Timeout: 300
       MemorySize: 1024
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-security-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AzureWellArchitectedScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-well-architected-scan'
-      CodeUri: backend/src/handlers/azure/
-      Handler: azure-well-architected-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/azure-well-architected-scan.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - azure-well-architected-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DebugAzureCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-debug-azure-costs'
-      CodeUri: backend/src/handlers/azure/
-      Handler: debug-azure-costs.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/debug-azure-costs.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - debug-azure-costs.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DeleteAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-delete-azure-credentials'
-      CodeUri: backend/src/handlers/azure/
-      Handler: delete-azure-credentials.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/delete-azure-credentials.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - delete-azure-credentials.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ListAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-azure-credentials'
-      CodeUri: backend/src/handlers/azure/
-      Handler: list-azure-credentials.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/list-azure-credentials.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - list-azure-credentials.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SaveAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-save-azure-credentials'
-      CodeUri: backend/src/handlers/azure/
-      Handler: save-azure-credentials.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/save-azure-credentials.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - save-azure-credentials.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   StartAzureSecurityScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-azure-security-scan'
-      CodeUri: backend/src/handlers/azure/
-      Handler: start-azure-security-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/start-azure-security-scan.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - start-azure-security-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ValidateAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-azure-credentials'
-      CodeUri: backend/src/handlers/azure/
-      Handler: validate-azure-credentials.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/validate-azure-credentials.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - validate-azure-credentials.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ValidateAzurePermissionsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-azure-permissions'
-      CodeUri: backend/src/handlers/azure/
-      Handler: validate-azure-permissions.handler
+      CodeUri: backend/dist/
+      Handler: handlers/azure/validate-azure-permissions.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - validate-azure-permissions.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ListCloudCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-cloud-credentials'
-      CodeUri: backend/src/handlers/cloud/
-      Handler: list-cloud-credentials.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cloud/list-cloud-credentials.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - list-cloud-credentials.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AnalyzeRiSpFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-analyze-ri-sp'
-      CodeUri: backend/src/handlers/cost/
-      Handler: analyze-ri-sp.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/analyze-ri-sp.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - analyze-ri-sp.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   BudgetForecastFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-budget-forecast'
-      CodeUri: backend/src/handlers/cost/
-      Handler: budget-forecast.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/budget-forecast.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - budget-forecast.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CostOptimizationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cost-optimization'
-      CodeUri: backend/src/handlers/cost/
-      Handler: cost-optimization.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/cost-optimization.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - cost-optimization.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   FetchDailyCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-daily-costs'
-      CodeUri: backend/src/handlers/cost/
-      Handler: fetch-daily-costs.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/fetch-daily-costs.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - fetch-daily-costs.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   FinopsCopilotFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-finops-copilot'
-      CodeUri: backend/src/handlers/cost/
-      Handler: finops-copilot-v2.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/finops-copilot-v2.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - finops-copilot-v2.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GenerateCostForecastFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-cost-forecast'
-      CodeUri: backend/src/handlers/cost/
-      Handler: generate-cost-forecast.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/generate-cost-forecast.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - generate-cost-forecast.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetRiSpAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-ri-sp-analysis'
-      CodeUri: backend/src/handlers/cost/
-      Handler: get-ri-sp-analysis.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/get-ri-sp-analysis.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-ri-sp-analysis.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetRiSpDataFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-ri-sp-data'
-      CodeUri: backend/src/handlers/cost/
-      Handler: get-ri-sp-data.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/get-ri-sp-data.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-ri-sp-data.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ListRiSpHistoryFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-ri-sp-history'
-      CodeUri: backend/src/handlers/cost/
-      Handler: list-ri-sp-history.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/list-ri-sp-history.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - list-ri-sp-history.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MlWasteDetectionFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ml-waste-detection'
-      CodeUri: backend/src/handlers/cost/
-      Handler: ml-waste-detection.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/ml-waste-detection.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - ml-waste-detection.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   RiSpAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ri-sp-analyzer'
-      CodeUri: backend/src/handlers/cost/
-      Handler: ri-sp-analyzer.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/ri-sp-analyzer.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - ri-sp-analyzer.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SaveRiSpAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-save-ri-sp-analysis'
-      CodeUri: backend/src/handlers/cost/
-      Handler: save-ri-sp-analysis.handler
+      CodeUri: backend/dist/
+      Handler: handlers/cost/save-ri-sp-analysis.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - save-ri-sp-analysis.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetExecutiveDashboardFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-executive-dashboard'
-      CodeUri: backend/src/handlers/dashboard/
-      Handler: get-executive-dashboard.handler
+      CodeUri: backend/dist/
+      Handler: handlers/dashboard/get-executive-dashboard.handler
       Timeout: 60
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-executive-dashboard.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetExecutiveDashboardPublicFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-executive-dashboard-public'
-      CodeUri: backend/src/handlers/dashboard/
-      Handler: get-executive-dashboard-public.handler
+      CodeUri: backend/dist/
+      Handler: handlers/dashboard/get-executive-dashboard-public.handler
       Timeout: 60
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-executive-dashboard-public.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ManageTvTokensFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-tv-tokens'
-      CodeUri: backend/src/handlers/dashboard/
-      Handler: manage-tv-tokens.handler
+      CodeUri: backend/dist/
+      Handler: handlers/dashboard/manage-tv-tokens.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - manage-tv-tokens.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CleanupCostDataFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-cost-data'
-      CodeUri: backend/src/handlers/data/
-      Handler: cleanup-cost-data.handler
+      CodeUri: backend/dist/
+      Handler: handlers/data/cleanup-cost-data.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - cleanup-cost-data.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MutateTableFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mutate-table'
-      CodeUri: backend/src/handlers/data/
-      Handler: mutate-table.handler
+      CodeUri: backend/dist/
+      Handler: handlers/data/mutate-table.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - mutate-table.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   QueryTableFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-query-table'
-      CodeUri: backend/src/handlers/data/
-      Handler: query-table.handler
+      CodeUri: backend/dist/
+      Handler: handlers/data/query-table.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - query-table.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   TicketAttachmentsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ticket-attachments'
-      CodeUri: backend/src/handlers/data/
-      Handler: ticket-attachments.handler
+      CodeUri: backend/dist/
+      Handler: handlers/data/ticket-attachments.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - ticket-attachments.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   TicketManagementFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ticket-management'
-      CodeUri: backend/src/handlers/data/
-      Handler: ticket-management.handler
+      CodeUri: backend/dist/
+      Handler: handlers/data/ticket-management.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - ticket-management.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CheckDailyCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-daily-costs'
-      CodeUri: backend/src/handlers/debug/
-      Handler: check-daily-costs.handler
+      CodeUri: backend/dist/
+      Handler: handlers/debug/check-daily-costs.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - check-daily-costs.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DiagnoseCostDashboardFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-diagnose-cost-dashboard'
-      CodeUri: backend/src/handlers/debug/
-      Handler: diagnose-cost-dashboard.handler
+      CodeUri: backend/dist/
+      Handler: handlers/debug/diagnose-cost-dashboard.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - diagnose-cost-dashboard.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   InvestigateDataMismatchFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-investigate-data-mismatch'
-      CodeUri: backend/src/handlers/debug/
-      Handler: investigate-data-mismatch.handler
+      CodeUri: backend/dist/
+      Handler: handlers/debug/investigate-data-mismatch.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - investigate-data-mismatch.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CloudformationWebhookFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cloudformation-webhook'
-      CodeUri: backend/src/handlers/integrations/
-      Handler: cloudformation-webhook.handler
+      CodeUri: backend/dist/
+      Handler: handlers/integrations/cloudformation-webhook.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - cloudformation-webhook.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CreateJiraTicketFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-jira-ticket'
-      CodeUri: backend/src/handlers/integrations/
-      Handler: create-jira-ticket.handler
+      CodeUri: backend/dist/
+      Handler: handlers/integrations/create-jira-ticket.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - create-jira-ticket.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AutoCleanupStuckScansFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-auto-cleanup-stuck-scans'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: auto-cleanup-stuck-scans.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/auto-cleanup-stuck-scans.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - auto-cleanup-stuck-scans.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CleanupExpiredExternalIdsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-expired-external-ids'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: cleanup-expired-external-ids.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/cleanup-expired-external-ids.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - cleanup-expired-external-ids.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CleanupExpiredOauthStatesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-expired-oauth-states'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: cleanup-expired-oauth-states.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/cleanup-expired-oauth-states.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - cleanup-expired-oauth-states.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CleanupStuckScansJobsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans-jobs'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: cleanup-stuck-scans.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/cleanup-stuck-scans.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - cleanup-stuck-scans.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ExecuteScheduledJobFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-execute-scheduled-job'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: execute-scheduled-job.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/execute-scheduled-job.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - execute-scheduled-job.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   InitialDataLoadFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-initial-data-load'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: initial-data-load.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/initial-data-load.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - initial-data-load.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ListBackgroundJobsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-background-jobs'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: list-background-jobs.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/list-background-jobs.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - list-background-jobs.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ProcessBackgroundJobsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-process-background-jobs'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: process-background-jobs.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/process-background-jobs.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - process-background-jobs.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ProcessEventsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-process-events'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: process-events.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/process-events.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - process-events.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ScheduledScanExecutorFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-scan-executor'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: scheduled-scan-executor.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/scheduled-scan-executor.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - scheduled-scan-executor.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ScheduledViewRefreshFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-view-refresh'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: scheduled-view-refresh.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/scheduled-view-refresh.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - scheduled-view-refresh.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SendScheduledEmailsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-scheduled-emails'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: send-scheduled-emails.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/send-scheduled-emails.handler
       Timeout: 120
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - send-scheduled-emails.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SyncResourceInventoryFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-sync-resource-inventory'
-      CodeUri: backend/src/handlers/jobs/
-      Handler: sync-resource-inventory.handler
+      CodeUri: backend/dist/
+      Handler: handlers/jobs/sync-resource-inventory.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - sync-resource-inventory.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   IncrementArticleHelpfulFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-increment-article-helpful'
-      CodeUri: backend/src/handlers/kb/
-      Handler: increment-article-helpful.handler
+      CodeUri: backend/dist/
+      Handler: handlers/kb/increment-article-helpful.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - increment-article-helpful.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   IncrementArticleViewsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-increment-article-views'
-      CodeUri: backend/src/handlers/kb/
-      Handler: increment-article-views.handler
+      CodeUri: backend/dist/
+      Handler: handlers/kb/increment-article-views.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - increment-article-views.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   KbAiSuggestionsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-ai-suggestions'
-      CodeUri: backend/src/handlers/kb/
-      Handler: kb-ai-suggestions.handler
+      CodeUri: backend/dist/
+      Handler: handlers/kb/kb-ai-suggestions.handler
       Timeout: 60
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - kb-ai-suggestions.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   KbAnalyticsDashboardFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-analytics-dashboard'
-      CodeUri: backend/src/handlers/kb/
-      Handler: kb-analytics-dashboard.handler
+      CodeUri: backend/dist/
+      Handler: handlers/kb/kb-analytics-dashboard.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - kb-analytics-dashboard.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   KbArticleTrackingFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-article-tracking'
-      CodeUri: backend/src/handlers/kb/
-      Handler: kb-article-tracking.handler
+      CodeUri: backend/dist/
+      Handler: handlers/kb/kb-article-tracking.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - kb-article-tracking.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   KbExportPdfFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-export-pdf'
-      CodeUri: backend/src/handlers/kb/
-      Handler: kb-export-pdf.handler
+      CodeUri: backend/dist/
+      Handler: handlers/kb/kb-export-pdf.handler
       Timeout: 60
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - kb-export-pdf.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   TrackArticleViewDetailedFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-track-article-view-detailed'
-      CodeUri: backend/src/handlers/kb/
-      Handler: track-article-view-detailed.handler
+      CodeUri: backend/dist/
+      Handler: handlers/kb/track-article-view-detailed.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - track-article-view-detailed.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AdminSyncLicenseFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-admin-sync-license'
-      CodeUri: backend/src/handlers/license/
-      Handler: admin-sync-license.handler
+      CodeUri: backend/dist/
+      Handler: handlers/license/admin-sync-license.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - admin-sync-license.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CleanupSeatsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-seats'
-      CodeUri: backend/src/handlers/license/
-      Handler: cleanup-seats.handler
+      CodeUri: backend/dist/
+      Handler: handlers/license/cleanup-seats.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - cleanup-seats.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ConfigureLicenseFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-configure-license'
-      CodeUri: backend/src/handlers/license/
-      Handler: configure-license.handler
+      CodeUri: backend/dist/
+      Handler: handlers/license/configure-license.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - configure-license.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DailyLicenseValidationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-daily-license-validation'
-      CodeUri: backend/src/handlers/license/
-      Handler: daily-license-validation.handler
+      CodeUri: backend/dist/
+      Handler: handlers/license/daily-license-validation.handler
       Timeout: 120
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - daily-license-validation.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ManageSeatAssignmentsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-seat-assignments'
-      CodeUri: backend/src/handlers/license/
-      Handler: manage-seat-assignments.handler
+      CodeUri: backend/dist/
+      Handler: handlers/license/manage-seat-assignments.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - manage-seat-assignments.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ManageSeatsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-seats'
-      CodeUri: backend/src/handlers/license/
-      Handler: manage-seats.handler
+      CodeUri: backend/dist/
+      Handler: handlers/license/manage-seats.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - manage-seats.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ScheduledLicenseSyncFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-license-sync'
-      CodeUri: backend/src/handlers/license/
-      Handler: scheduled-license-sync.handler
+      CodeUri: backend/dist/
+      Handler: handlers/license/scheduled-license-sync.handler
       Timeout: 120
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - scheduled-license-sync.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SyncLicenseFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-sync-license'
-      CodeUri: backend/src/handlers/license/
-      Handler: sync-license.handler
+      CodeUri: backend/dist/
+      Handler: handlers/license/sync-license.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - sync-license.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ValidateLicenseFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-license'
-      CodeUri: backend/src/handlers/license/
-      Handler: validate-license.handler
+      CodeUri: backend/dist/
+      Handler: handlers/license/validate-license.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - validate-license.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MaintenanceAutoCleanupFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-maintenance-auto-cleanup'
-      CodeUri: backend/src/handlers/maintenance/
-      Handler: auto-cleanup-stuck-scans.handler
+      CodeUri: backend/dist/
+      Handler: handlers/maintenance/auto-cleanup-stuck-scans.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - auto-cleanup-stuck-scans.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CleanupStuckScansSimpleFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans-simple'
-      CodeUri: backend/src/handlers/maintenance/
-      Handler: cleanup-stuck-scans-simple.handler
+      CodeUri: backend/dist/
+      Handler: handlers/maintenance/cleanup-stuck-scans-simple.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - cleanup-stuck-scans-simple.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AiPrioritizationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ai-prioritization'
-      CodeUri: backend/src/handlers/ml/
-      Handler: ai-prioritization.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ml/ai-prioritization.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - ai-prioritization.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DetectAnomaliesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-detect-anomalies'
-      CodeUri: backend/src/handlers/ml/
-      Handler: detect-anomalies.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ml/detect-anomalies.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - detect-anomalies.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GenerateAiInsightsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-ai-insights'
-      CodeUri: backend/src/handlers/ml/
-      Handler: generate-ai-insights.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ml/generate-ai-insights.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - generate-ai-insights.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   IntelligentAlertsAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-intelligent-alerts-analyzer'
-      CodeUri: backend/src/handlers/ml/
-      Handler: intelligent-alerts-analyzer.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ml/intelligent-alerts-analyzer.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - intelligent-alerts-analyzer.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   PredictIncidentsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-predict-incidents'
-      CodeUri: backend/src/handlers/ml/
-      Handler: predict-incidents.handler
+      CodeUri: backend/dist/
+      Handler: handlers/ml/predict-incidents.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - predict-incidents.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AlertsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-alerts'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: alerts.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/alerts.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - alerts.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AutoAlertsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-auto-alerts'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: auto-alerts.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/auto-alerts.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - auto-alerts.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AwsRealtimeMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-aws-realtime-metrics'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: aws-realtime-metrics.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/aws-realtime-metrics.handler
       Timeout: 60
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - aws-realtime-metrics.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CheckAlertRulesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-alert-rules'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: check-alert-rules.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/check-alert-rules.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - check-alert-rules.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   EndpointMonitorCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-endpoint-monitor-check'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: endpoint-monitor-check.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/endpoint-monitor-check.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - endpoint-monitor-check.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ErrorAggregatorFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-error-aggregator'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: error-aggregator.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/error-aggregator.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - error-aggregator.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   FetchCloudwatchMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudwatch-metrics'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: fetch-cloudwatch-metrics.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/fetch-cloudwatch-metrics.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - fetch-cloudwatch-metrics.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   FetchEdgeServicesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-edge-services'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: fetch-edge-services.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/fetch-edge-services.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - fetch-edge-services.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GenerateErrorFixPromptFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-error-fix-prompt'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: generate-error-fix-prompt.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/generate-error-fix-prompt.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - generate-error-fix-prompt.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetLambdaHealthFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-lambda-health'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: get-lambda-health.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/get-lambda-health.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-lambda-health.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetPlatformMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-platform-metrics'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: get-platform-metrics.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/get-platform-metrics.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-platform-metrics.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetRecentErrorsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-recent-errors'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: get-recent-errors.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/get-recent-errors.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-recent-errors.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   HealthCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-health-check'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: health-check.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/health-check.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - health-check.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   LambdaHealthCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-lambda-health-check'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: lambda-health-check.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/lambda-health-check.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - lambda-health-check.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   LogFrontendErrorFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-log-frontend-error'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: log-frontend-error.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/log-frontend-error.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - log-frontend-error.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   MonitoredEndpointsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-monitored-endpoints'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: monitored-endpoints.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/monitored-endpoints.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - monitored-endpoints.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   TestLambdaMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-test-lambda-metrics'
-      CodeUri: backend/src/handlers/monitoring/
-      Handler: test-lambda-metrics.handler
+      CodeUri: backend/dist/
+      Handler: handlers/monitoring/test-lambda-metrics.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - test-lambda-metrics.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetCommunicationLogsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-communication-logs'
-      CodeUri: backend/src/handlers/notifications/
-      Handler: get-communication-logs.handler
+      CodeUri: backend/dist/
+      Handler: handlers/notifications/get-communication-logs.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-communication-logs.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ManageEmailPreferencesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-email-preferences'
-      CodeUri: backend/src/handlers/notifications/
-      Handler: manage-email-preferences.handler
+      CodeUri: backend/dist/
+      Handler: handlers/notifications/manage-email-preferences.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - manage-email-preferences.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SendEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-email'
-      CodeUri: backend/src/handlers/notifications/
-      Handler: send-email.handler
+      CodeUri: backend/dist/
+      Handler: handlers/notifications/send-email.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - send-email.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SendNotificationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-notification'
-      CodeUri: backend/src/handlers/notifications/
-      Handler: send-notification.handler
+      CodeUri: backend/dist/
+      Handler: handlers/notifications/send-notification.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - send-notification.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CreateOrganizationAccountFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-organization-account'
-      CodeUri: backend/src/handlers/organizations/
-      Handler: create-organization-account.handler
+      CodeUri: backend/dist/
+      Handler: handlers/organizations/create-organization-account.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - create-organization-account.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SyncOrganizationAccountsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-sync-organization-accounts'
-      CodeUri: backend/src/handlers/organizations/
-      Handler: sync-organization-accounts.handler
+      CodeUri: backend/dist/
+      Handler: handlers/organizations/sync-organization-accounts.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - sync-organization-accounts.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CheckOrganizationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-organization'
-      CodeUri: backend/src/handlers/profiles/
-      Handler: check-organization.handler
+      CodeUri: backend/dist/
+      Handler: handlers/profiles/check-organization.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - check-organization.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CreateWithOrganizationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-with-organization'
-      CodeUri: backend/src/handlers/profiles/
-      Handler: create-with-organization.handler
+      CodeUri: backend/dist/
+      Handler: handlers/profiles/create-with-organization.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - create-with-organization.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetUserOrganizationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-user-organization'
-      CodeUri: backend/src/handlers/profiles/
-      Handler: get-user-organization.handler
+      CodeUri: backend/dist/
+      Handler: handlers/profiles/get-user-organization.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-user-organization.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GenerateExcelReportFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-excel-report'
-      CodeUri: backend/src/handlers/reports/
-      Handler: generate-excel-report.handler
+      CodeUri: backend/dist/
+      Handler: handlers/reports/generate-excel-report.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - generate-excel-report.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GeneratePdfReportFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-pdf-report'
-      CodeUri: backend/src/handlers/reports/
-      Handler: generate-pdf-report.handler
+      CodeUri: backend/dist/
+      Handler: handlers/reports/generate-pdf-report.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - generate-pdf-report.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GenerateRemediationScriptFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-remediation-script'
-      CodeUri: backend/src/handlers/reports/
-      Handler: generate-remediation-script.handler
+      CodeUri: backend/dist/
+      Handler: handlers/reports/generate-remediation-script.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - generate-remediation-script.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GenerateSecurityPdfFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-security-pdf'
-      CodeUri: backend/src/handlers/reports/
-      Handler: generate-security-pdf.handler
+      CodeUri: backend/dist/
+      Handler: handlers/reports/generate-security-pdf.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - generate-security-pdf.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SecurityScanPdfExportFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-security-scan-pdf-export'
-      CodeUri: backend/src/handlers/reports/
-      Handler: security-scan-pdf-export.handler
+      CodeUri: backend/dist/
+      Handler: handlers/reports/security-scan-pdf-export.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - security-scan-pdf-export.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AnalyzeCloudtrailFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-analyze-cloudtrail'
-      CodeUri: backend/src/handlers/security/
-      Handler: analyze-cloudtrail.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/analyze-cloudtrail.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - analyze-cloudtrail.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ComplianceScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-compliance-scan'
-      CodeUri: backend/src/handlers/security/
-      Handler: compliance-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/compliance-scan.handler
       Timeout: 300
       MemorySize: 1024
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - compliance-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CreateRemediationTicketFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-remediation-ticket'
-      CodeUri: backend/src/handlers/security/
-      Handler: create-remediation-ticket.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/create-remediation-ticket.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - create-remediation-ticket.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DriftDetectionFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-drift-detection'
-      CodeUri: backend/src/handlers/security/
-      Handler: drift-detection.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/drift-detection.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - drift-detection.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   FetchCloudtrailFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudtrail'
-      CodeUri: backend/src/handlers/security/
-      Handler: fetch-cloudtrail.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/fetch-cloudtrail.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - fetch-cloudtrail.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetComplianceHistoryFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-history'
-      CodeUri: backend/src/handlers/security/
-      Handler: get-compliance-history.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/get-compliance-history.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-compliance-history.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetComplianceScanStatusFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-scan-status'
-      CodeUri: backend/src/handlers/security/
-      Handler: get-compliance-scan-status.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/get-compliance-scan-status.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-compliance-scan-status.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetFindingsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-findings'
-      CodeUri: backend/src/handlers/security/
-      Handler: get-findings.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/get-findings.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-findings.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GetSecurityPostureFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-security-posture'
-      CodeUri: backend/src/handlers/security/
-      Handler: get-security-posture.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/get-security-posture.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - get-security-posture.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   GuarddutyScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-guardduty-scan'
-      CodeUri: backend/src/handlers/security/
-      Handler: guardduty-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/guardduty-scan.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - guardduty-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   IamBehaviorAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-iam-behavior-analysis'
-      CodeUri: backend/src/handlers/security/
-      Handler: iam-behavior-analysis.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/iam-behavior-analysis.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - iam-behavior-analysis.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   IamDeepAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-iam-deep-analysis'
-      CodeUri: backend/src/handlers/security/
-      Handler: iam-deep-analysis.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/iam-deep-analysis.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - iam-deep-analysis.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   LateralMovementDetectionFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-lateral-movement-detection'
-      CodeUri: backend/src/handlers/security/
-      Handler: lateral-movement-detection.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/lateral-movement-detection.handler
       Timeout: 120
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - lateral-movement-detection.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   SecurityScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-security-scan'
-      CodeUri: backend/src/handlers/security/
-      Handler: security-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/security-scan.handler
       Timeout: 300
       MemorySize: 1024
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - security-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   StartAnalyzeCloudtrailFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-analyze-cloudtrail'
-      CodeUri: backend/src/handlers/security/
-      Handler: start-analyze-cloudtrail.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/start-analyze-cloudtrail.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - start-analyze-cloudtrail.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   StartCloudtrailAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-cloudtrail-analysis'
-      CodeUri: backend/src/handlers/security/
-      Handler: start-cloudtrail-analysis.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/start-cloudtrail-analysis.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - start-cloudtrail-analysis.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   StartComplianceScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-compliance-scan'
-      CodeUri: backend/src/handlers/security/
-      Handler: start-compliance-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/start-compliance-scan.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - start-compliance-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   StartSecurityScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-security-scan'
-      CodeUri: backend/src/handlers/security/
-      Handler: start-security-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/start-security-scan.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - start-security-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ValidateAwsCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-aws-credentials'
-      CodeUri: backend/src/handlers/security/
-      Handler: validate-aws-credentials.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/validate-aws-credentials.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - validate-aws-credentials.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ValidatePermissionsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-permissions'
-      CodeUri: backend/src/handlers/security/
-      Handler: validate-permissions.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/validate-permissions.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - validate-permissions.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ValidateWafSecurityFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-waf-security'
-      CodeUri: backend/src/handlers/security/
-      Handler: validate-waf-security.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/validate-waf-security.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - validate-waf-security.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WafDashboardApiFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-dashboard-api'
-      CodeUri: backend/src/handlers/security/
-      Handler: waf-dashboard-api.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/waf-dashboard-api.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - waf-dashboard-api.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WafLogForwarderFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-forwarder'
-      CodeUri: backend/src/handlers/security/
-      Handler: waf-log-forwarder.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/waf-log-forwarder.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - waf-log-forwarder.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WafLogProcessorFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-processor'
-      CodeUri: backend/src/handlers/security/
-      Handler: waf-log-processor.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/waf-log-processor.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - waf-log-processor.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WafSetupMonitoringFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-setup-monitoring'
-      CodeUri: backend/src/handlers/security/
-      Handler: waf-setup-monitoring.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/waf-setup-monitoring.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - waf-setup-monitoring.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WafThreatAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-threat-analyzer'
-      CodeUri: backend/src/handlers/security/
-      Handler: waf-threat-analyzer.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/waf-threat-analyzer.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - waf-threat-analyzer.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WafUnblockExpiredFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-unblock-expired'
-      CodeUri: backend/src/handlers/security/
-      Handler: waf-unblock-expired.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/waf-unblock-expired.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - waf-unblock-expired.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WellArchitectedScanFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-well-architected-scan'
-      CodeUri: backend/src/handlers/security/
-      Handler: well-architected-scan.handler
+      CodeUri: backend/dist/
+      Handler: handlers/security/well-architected-scan.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - well-architected-scan.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   StorageDownloadFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-storage-download'
-      CodeUri: backend/src/handlers/storage/
-      Handler: storage-handlers.handler
+      CodeUri: backend/dist/
+      Handler: handlers/storage/storage-handlers.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - storage-handlers.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   StorageDeleteFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-storage-delete'
-      CodeUri: backend/src/handlers/storage/
-      Handler: storage-handlers.handler
+      CodeUri: backend/dist/
+      Handler: handlers/storage/storage-handlers.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - storage-handlers.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   UploadAttachmentFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-upload-attachment'
-      CodeUri: backend/src/handlers/storage/
-      Handler: storage-handlers.handler
+      CodeUri: backend/dist/
+      Handler: handlers/storage/storage-handlers.handler
       Timeout: 60
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - storage-handlers.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   AddStatusColumnFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-add-status-column'
-      CodeUri: backend/src/handlers/system/
-      Handler: add-status-column.handler
+      CodeUri: backend/dist/
+      Handler: handlers/system/add-status-column.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - add-status-column.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   CheckMigrationsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-migrations'
-      CodeUri: backend/src/handlers/system/
-      Handler: check-migrations.handler
+      CodeUri: backend/dist/
+      Handler: handlers/system/check-migrations.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - check-migrations.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DbInitFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-db-init'
-      CodeUri: backend/src/handlers/system/
-      Handler: db-init.handler
+      CodeUri: backend/dist/
+      Handler: handlers/system/db-init.handler
       Timeout: 300
       MemorySize: 512
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - db-init.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   DebugOrgQueryFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-debug-org-query'
-      CodeUri: backend/src/handlers/system/
-      Handler: debug-org-query.handler
+      CodeUri: backend/dist/
+      Handler: handlers/system/debug-org-query.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - debug-org-query.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   FixAzureConstraintsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fix-azure-constraints'
-      CodeUri: backend/src/handlers/system/
-      Handler: fix-azure-constraints.handler
+      CodeUri: backend/dist/
+      Handler: handlers/system/fix-azure-constraints.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - fix-azure-constraints.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   ListTablesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-tables'
-      CodeUri: backend/src/handlers/system/
-      Handler: list-tables.handler
+      CodeUri: backend/dist/
+      Handler: handlers/system/list-tables.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - list-tables.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   RunMigrationsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-migrations'
-      CodeUri: backend/src/handlers/system/
-      Handler: run-migrations.handler
+      CodeUri: backend/dist/
+      Handler: handlers/system/run-migrations.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - run-migrations.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   RunSqlMigrationFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-sql-migration'
-      CodeUri: backend/src/handlers/system/
-      Handler: run-sql-migration.handler
+      CodeUri: backend/dist/
+      Handler: handlers/system/run-sql-migration.handler
       Timeout: 300
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - run-sql-migration.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   NotificationSettingsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-notification-settings'
-      CodeUri: backend/src/handlers/user/
-      Handler: notification-settings.handler
+      CodeUri: backend/dist/
+      Handler: handlers/user/notification-settings.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - notification-settings.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WebsocketConnectFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-websocket-connect'
-      CodeUri: backend/src/handlers/websocket/
-      Handler: connect.handler
+      CodeUri: backend/dist/
+      Handler: handlers/websocket/connect.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - connect.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
   WebsocketDisconnectFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-websocket-disconnect'
-      CodeUri: backend/src/handlers/websocket/
-      Handler: disconnect.handler
+      CodeUri: backend/dist/
+      Handler: handlers/websocket/disconnect.handler
       Timeout: 30
       MemorySize: 256
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - disconnect.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'
 
 Outputs:
   DependenciesLayerArn:

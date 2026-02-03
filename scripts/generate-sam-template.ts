@@ -267,26 +267,17 @@ function generateFunction(h: HandlerConfig): string {
   const timeout = h.timeout || 30;
   const memory = h.memory || 256;
   
+  // Use pre-compiled code from backend/dist/
+  // This is faster than esbuild because tsc already compiled everything
   return `
   ${name}Function:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '\${ProjectName}-\${Environment}-${h.name}'
-      CodeUri: backend/src/handlers/${h.path}/
-      Handler: ${h.handler}.handler
+      CodeUri: backend/dist/
+      Handler: handlers/${h.path}/${h.handler}.handler
       Timeout: ${timeout}
-      MemorySize: ${memory}
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Sourcemap: false
-        EntryPoints:
-          - ${h.handler}.ts
-        External:
-          - '@prisma/client'
-          - '.prisma/client'`;
+      MemorySize: ${memory}`;
 }
 
 function generateTemplate(): string {
