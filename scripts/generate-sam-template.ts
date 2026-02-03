@@ -27,11 +27,9 @@ interface HandlerConfig {
 
 // All handlers grouped by category
 const HANDLERS: HandlerConfig[] = [
-  // ADMIN (17)
+  // ADMIN (13)
   { name: 'admin-manage-user', path: 'admin', handler: 'admin-manage-user' },
   { name: 'automated-cleanup-stuck-scans', path: 'admin', handler: 'automated-cleanup-stuck-scans', timeout: 300, scheduled: true },
-  { name: 'check-cloudtrail-status', path: 'admin', handler: 'check-cloudtrail-status', scheduled: true },
-  { name: 'check-costs', path: 'admin', handler: 'check-costs', scheduled: true },
   { name: 'cleanup-stuck-scans', path: 'admin', handler: 'cleanup-stuck-scans', timeout: 300, scheduled: true },
   { name: 'create-cognito-user', path: 'admin', handler: 'create-cognito-user' },
   { name: 'create-user', path: 'admin', handler: 'create-user' },
@@ -39,13 +37,11 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'debug-cloudtrail', path: 'admin', handler: 'debug-cloudtrail', scheduled: true },
   { name: 'direct-cleanup', path: 'admin', handler: 'direct-cleanup', scheduled: true },
   { name: 'disable-cognito-user', path: 'admin', handler: 'disable-cognito-user' },
-  { name: 'fix-role-arn-migration', path: 'admin', handler: 'fix-role-arn-migration', scheduled: true },
   { name: 'log-audit', path: 'admin', handler: 'log-audit' },
   { name: 'manage-demo-mode', path: 'admin', handler: 'manage-demo-mode' },
   { name: 'manage-email-templates', path: 'admin', handler: 'manage-email-templates' },
   { name: 'manage-organizations', path: 'admin', handler: 'manage-organizations' },
   { name: 'run-migration', path: 'admin', handler: 'run-migration', timeout: 300, scheduled: true },
-  { name: 'run-migration-standalone', path: 'admin', handler: 'run-migration-standalone', timeout: 300, scheduled: true },
   { name: 'run-sql', path: 'admin', handler: 'run-sql', scheduled: true },
   { name: 'setup-license-config', path: 'admin', handler: 'setup-license-config', scheduled: true },
   // AI (8)
@@ -57,9 +53,8 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'manage-notification-rules', path: 'ai', handler: 'manage-notification-rules' },
   { name: 'send-ai-notification', path: 'ai', handler: 'send-ai-notification' },
   { name: 'update-ai-notification', path: 'ai', handler: 'update-ai-notification' },
-  // AUTH (14)
+  // AUTH (13)
   { name: 'delete-webauthn-credential', path: 'auth', handler: 'delete-webauthn-credential' },
-  { name: 'delete-webauthn-credential-admin', path: 'auth', handler: 'delete-webauthn-credential-admin', scheduled: true },
   { name: 'forgot-password', path: 'auth', handler: 'forgot-password', auth: 'NONE' },
   { name: 'mfa-enroll', path: 'auth', handler: 'mfa-handlers' },
   { name: 'mfa-check', path: 'auth', handler: 'mfa-handlers' },
@@ -93,7 +88,6 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'azure-resource-inventory', path: 'azure', handler: 'azure-resource-inventory', timeout: 120, memory: 512 },
   { name: 'azure-security-scan', path: 'azure', handler: 'azure-security-scan', timeout: 300, memory: 1024 },
   { name: 'azure-well-architected-scan', path: 'azure', handler: 'azure-well-architected-scan', timeout: 300, memory: 512 },
-  { name: 'debug-azure-costs', path: 'azure', handler: 'debug-azure-costs', scheduled: true },
   { name: 'delete-azure-credentials', path: 'azure', handler: 'delete-azure-credentials' },
   { name: 'list-azure-credentials', path: 'azure', handler: 'list-azure-credentials' },
   { name: 'save-azure-credentials', path: 'azure', handler: 'save-azure-credentials' },
@@ -125,10 +119,8 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'query-table', path: 'data', handler: 'query-table' },
   { name: 'ticket-attachments', path: 'data', handler: 'ticket-attachments', timeout: 60 },
   { name: 'ticket-management', path: 'data', handler: 'ticket-management' },
-  // DEBUG (3)
-  { name: 'check-daily-costs', path: 'debug', handler: 'check-daily-costs', scheduled: true },
+  // DEBUG (1)
   { name: 'diagnose-cost-dashboard', path: 'debug', handler: 'diagnose-cost-dashboard', scheduled: true },
-  { name: 'investigate-data-mismatch', path: 'debug', handler: 'investigate-data-mismatch', scheduled: true },
   // INTEGRATIONS (2)
   { name: 'cloudformation-webhook', path: 'integrations', handler: 'cloudformation-webhook', auth: 'NONE' },
   { name: 'create-jira-ticket', path: 'integrations', handler: 'create-jira-ticket', timeout: 60 },
@@ -242,12 +234,9 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'storage-download', path: 'storage', handler: 'storage-handlers', timeout: 60 },
   { name: 'storage-delete', path: 'storage', handler: 'storage-handlers' },
   { name: 'upload-attachment', path: 'storage', handler: 'storage-handlers', timeout: 60 },
-  // SYSTEM (8)
-  { name: 'add-status-column', path: 'system', handler: 'add-status-column', scheduled: true },
+  // SYSTEM (5)
   { name: 'check-migrations', path: 'system', handler: 'check-migrations', scheduled: true },
   { name: 'db-init', path: 'system', handler: 'db-init', timeout: 300, memory: 512 },
-  { name: 'debug-org-query', path: 'system', handler: 'debug-org-query', scheduled: true },
-  { name: 'fix-azure-constraints', path: 'system', handler: 'fix-azure-constraints', scheduled: true },
   { name: 'list-tables', path: 'system', handler: 'list-tables', scheduled: true },
   { name: 'run-migrations', path: 'system', handler: 'run-migrations', timeout: 300, scheduled: true },
   { name: 'run-sql-migration', path: 'system', handler: 'run-sql-migration', timeout: 300, scheduled: true },
@@ -310,7 +299,7 @@ Globals:
         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
     Layers:
-      - !Ref DependenciesLayerArn
+      - !If [CreateLayer, !Ref DependenciesLayer, !Ref DependenciesLayerArn]
 
 Parameters:
   Environment:
@@ -345,17 +334,41 @@ Parameters:
 
   DependenciesLayerArn:
     Type: String
-    Description: Existing Lambda Layer ARN with dependencies (Prisma, AWS SDK, etc.)
-    Default: arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92
+    Description: Lambda Layer ARN with dependencies (created by SAM or existing)
+    Default: ''
+
+Conditions:
+  CreateLayer: !Equals [!Ref DependenciesLayerArn, '']
 
 Resources:
   # ==========================================================================
+  # LAMBDA LAYER (only Prisma + zod - AWS SDK is in Lambda runtime)
+  # ==========================================================================
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Condition: CreateLayer
+    Properties:
+      LayerName: !Sub '\${ProjectName}-\${Environment}-deps'
+      ContentUri: backend/layers/dependencies/
+      CompatibleRuntimes:
+        - nodejs18.x
+      CompatibleArchitectures:
+        - arm64
+      RetentionPolicy: Retain
+    Metadata:
+      BuildMethod: nodejs18.x
+      BuildArchitecture: arm64
+
+  # ==========================================================================
   # LAMBDA FUNCTIONS (\${HANDLERS.length} total)
-  # Uses existing layer: evo-prisma-deps-layer (Prisma + AWS SDK + Azure SDK)
   # ==========================================================================
 ${functions}
 
 Outputs:
+  DependenciesLayerArn:
+    Description: Dependencies Layer ARN
+    Value: !If [CreateLayer, !Ref DependenciesLayer, !Ref DependenciesLayerArn]
+
   FunctionCount:
     Description: Number of Lambda functions deployed
     Value: ${HANDLERS.length}

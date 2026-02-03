@@ -61,8 +61,32 @@ phases:
       - echo "📝 Generating SAM template..."
       - npx tsx scripts/generate-sam-template.ts
       
-      # Using existing layer - no need to prepare dependencies
-      # Layer ARN: arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92
+      - echo "📦 Preparing Lambda layer (Prisma + zod only)..."
+      - mkdir -p backend/layers/dependencies/nodejs/node_modules
+      - cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
+      - cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
+      - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
+      
+      # Clean up unnecessary files to reduce layer size
+      - find backend/layers/dependencies/nodejs/node_modules -name "*.map" -delete 2>/dev/null || true
+      - find backend/layers/dependencies/nodejs/node_modules -name "*.md" -delete 2>/dev/null || true
+      - find backend/layers/dependencies/nodejs/node_modules -name "*.ts" -not -name "*.d.ts" -delete 2>/dev/null || true
+      - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node 2>/dev/null || true
+      - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-debian*.node 2>/dev/null || true
+      - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-rhel*.node 2>/dev/null || true
+      
+      # Keep only linux-arm64 engine for Lambda
+      - |
+        cd backend/layers/dependencies/nodejs/node_modules/.prisma/client
+        for f in libquery_engine-*.node; do
+          if [[ "$f" != *"linux-arm64"* ]]; then
+            rm -f "$f" 2>/dev/null || true
+          fi
+        done
+        cd -
+      
+      - echo "📊 Layer size:"
+      - du -sh backend/layers/dependencies/nodejs/
       
       - echo "🏗️ Building SAM application..."
       - sam build --template-file template.yaml
@@ -100,7 +124,6 @@ phases:
             "LambdaSecurityGroupId=$LAMBDA_SG_ID" \
             "PrivateSubnet1Id=$PRIVATE_SUBNET_1" \
             "PrivateSubnet2Id=$PRIVATE_SUBNET_2" \
-            "DependenciesLayerArn=$LAYER_ARN" \
           --no-confirm-changeset \
           --no-fail-on-empty-changeset
       
