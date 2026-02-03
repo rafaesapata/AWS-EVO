@@ -78,7 +78,10 @@ phases:
       - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node 2>/dev/null || true
       
       - echo "🏗️ Packaging SAM application..."
-      - sam package --template-file sam/template.yaml --output-template-file sam/packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix evo-uds-v3-$ENV --region us-east-1
+      - echo "Layer directory contents:"
+      - ls -la backend/layers/dependencies/nodejs/node_modules/ | head -20 || echo "Layer directory not found"
+      - du -sh backend/layers/dependencies/ || echo "Cannot calculate size"
+      - sam package --template-file sam/template.yaml --output-template-file sam/packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix evo-uds-v3-$ENV --region us-east-1 --debug 2>&1 | tail -100
 
   post_build:
     commands:
