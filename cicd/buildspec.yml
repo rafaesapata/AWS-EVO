@@ -1,0 +1,124 @@
+version: 0.2
+
+# AWS CodeBuild - Build specification for EVO Lambda deployment
+# Este buildspec detecta quais handlers foram alterados e faz deploy apenas deles
+
+env:
+  variables:
+    NODE_VERSION: "18"
+  secrets-manager:
+    # Secrets Manager armazena segredos de forma segura com rotação automática
+    # Formato: ENV_VAR: secret-id:json-key
+    DATABASE_URL_SANDBOX: "evo/sandbox/secrets:DATABASE_URL"
+    DATABASE_URL_PRODUCTION: "evo/production/secrets:DATABASE_URL"
+    COGNITO_USER_POOL_ID_SANDBOX: "evo/sandbox/secrets:COGNITO_USER_POOL_ID"
+    COGNITO_USER_POOL_ID_PRODUCTION: "evo/production/secrets:COGNITO_USER_POOL_ID"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - echo "📦 Installing dependencies..."
+      - npm ci --prefix backend
+      - npx prisma generate --schema=backend/prisma/schema.prisma
+      
+      # Executar migrações de banco de dados
+      - echo "🗄️ Running database migrations..."
+      - |
+        # Determinar DATABASE_URL baseado na branch
+        if [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/production" ] || [ "$BRANCH_NAME" = "production" ]; then
+          export DATABASE_URL="$DATABASE_URL_PRODUCTION"
+        else
+          export DATABASE_URL="$DATABASE_URL_SANDBOX"
+        fi
+        
+        # Executar migrações (apenas se DATABASE_URL estiver definida)
+        if [ -n "$DATABASE_URL" ]; then
+          echo "Applying Prisma migrations..."
+          npx prisma migrate deploy --schema=backend/prisma/schema.prisma || {
+            echo "⚠️ Migration failed - continuing with build"
+            # Não falhar o build por causa de migrações
+            # Isso permite que o deploy continue mesmo se o banco já estiver atualizado
+          }
+        else
+          echo "⚠️ DATABASE_URL not set - skipping migrations"
+        fi
+
+  pre_build:
+    commands:
+      - echo "🔍 Detecting changed files..."
+      - |
+        # Detectar arquivos alterados no commit
+        if [ -n "$CODEBUILD_RESOLVED_SOURCE_VERSION" ]; then
+          # Buscar commits anteriores para comparação
+          git fetch --depth=2 origin $CODEBUILD_SOURCE_VERSION 2>/dev/null || true
+          
+          # Detectar arquivos alterados
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Verificar se lib/types foram alterados (requer deploy de todas as lambdas)
+          if echo "$CHANGED_FILES" | grep -qE "^backend/src/(lib|types)/|^backend/prisma/|^backend/package"; then
+            echo "DEPLOY_ALL=true" >> /tmp/deploy_config
+            echo "⚠️ Core files changed - will deploy ALL lambdas"
+          else
+            echo "DEPLOY_ALL=false" >> /tmp/deploy_config
+            # Extrair handlers alterados
+            HANDLERS=$(echo "$CHANGED_FILES" | grep "^backend/src/handlers/" | sed 's|backend/src/handlers/||' | sed 's|\.ts$||' | sort -u)
+            echo "CHANGED_HANDLERS=$HANDLERS" >> /tmp/deploy_config
+            echo "📝 Changed handlers: $HANDLERS"
+          fi
+        else
+          echo "DEPLOY_ALL=true" >> /tmp/deploy_config
+          echo "⚠️ No source version - deploying all"
+        fi
+
+  build:
+    commands:
+      - echo "🔨 Building TypeScript..."
+      - npm run build --prefix backend
+      - echo "✅ Build completed"
+
+  post_build:
+    commands:
+      - echo "🚀 Deploying Lambdas..."
+      - source /tmp/deploy_config
+      - |
+        # Determinar ambiente baseado na branch
+        if [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/production" ] || [ "$BRANCH_NAME" = "production" ]; then
+          export ENV="production"
+          export LAMBDA_PREFIX="evo-uds-v3-prod"
+          export LAYER_ARN="$LAYER_ARN_PRODUCTION"
+          export DATABASE_URL="$DATABASE_URL_PRODUCTION"
+          export COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID_PRODUCTION"
+          export VPC_SUBNETS="$VPC_SUBNETS_PRODUCTION"
+          export SECURITY_GROUP="$SECURITY_GROUP_PRODUCTION"
+        else
+          export ENV="sandbox"
+          export LAMBDA_PREFIX="evo-uds-v3-production"
+          export LAYER_ARN="$LAYER_ARN_SANDBOX"
+          export DATABASE_URL="$DATABASE_URL_SANDBOX"
+          export COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID_SANDBOX"
+          export VPC_SUBNETS="$VPC_SUBNETS_SANDBOX"
+          export SECURITY_GROUP="$SECURITY_GROUP_SANDBOX"
+        fi
+        
+        echo "🌍 Environment: $ENV"
+        echo "📦 Lambda prefix: $LAMBDA_PREFIX"
+        
+        # Executar script de deploy
+        chmod +x cicd/scripts/deploy-changed-lambdas.sh
+        ./cicd/scripts/deploy-changed-lambdas.sh
+
+artifacts:
+  files:
+    - backend/dist/**/*
+    - cicd/scripts/**/*
+  discard-paths: no
+
+cache:
+  paths:
+    - 'backend/node_modules/**/*'
+    - '/root/.npm/**/*'

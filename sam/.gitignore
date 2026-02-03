@@ -1,0 +1,6 @@
+# SAM build artifacts
+.aws-sam/
+packaged.yaml
+
+# Local testing
+events/

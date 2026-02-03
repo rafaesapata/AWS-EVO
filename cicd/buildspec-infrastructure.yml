@@ -1,0 +1,151 @@
+version: 0.2
+
+# AWS CodeBuild - Infrastructure deployment via CloudFormation
+# Este buildspec faz deploy da infraestrutura completa usando nested stacks
+
+env:
+  variables:
+    NODE_VERSION: "18"
+  parameter-store:
+    DATABASE_PASSWORD: "/evo/sandbox/database-password"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - echo "📦 Installing dependencies..."
+      - npm ci --prefix backend
+      - npx prisma generate --schema=backend/prisma/schema.prisma
+
+  pre_build:
+    commands:
+      - echo "🔍 Determining environment..."
+      - |
+        if [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/production" ] || [ "$BRANCH_NAME" = "production" ]; then
+          export ENV="production"
+          export AWS_ACCOUNT="523115032346"
+          export STACK_PREFIX="evo-uds-v3-prod"
+        else
+          export ENV="sandbox"
+          export AWS_ACCOUNT="971354623291"
+          export STACK_PREFIX="evo-uds-v3-sandbox"
+        fi
+        echo "🌍 Environment: $ENV"
+        echo "📦 Stack prefix: $STACK_PREFIX"
+
+  build:
+    commands:
+      - echo "🔨 Building TypeScript..."
+      - npm run build --prefix backend
+      - npm run build
+      
+      - echo "📝 Generating CloudFormation templates..."
+      - npx tsx scripts/generate-cf-stacks.ts
+      
+      - echo "✅ Build completed"
+
+  post_build:
+    commands:
+      - echo "🚀 Uploading CloudFormation templates to S3..."
+      - |
+        TEMPLATES_BUCKET="evo-cicd-artifacts-${ENV}-${AWS_ACCOUNT}"
+        aws s3 sync cloudformation/ s3://${TEMPLATES_BUCKET}/cloudformation/ --delete
+      
+      - echo "🏗️ Deploying Infrastructure Stack..."
+      - |
+        # Deploy infrastructure stack (VPC, RDS, Cognito, API Gateway, etc.)
+        aws cloudformation deploy \
+          --stack-name ${STACK_PREFIX}-infrastructure \
+          --template-file cloudformation/evo-infrastructure-stack.yaml \
+          --parameter-overrides \
+            ProjectName=evo-uds-v3 \
+            Environment=${ENV} \
+            DatabasePassword=${DATABASE_PASSWORD} \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --no-fail-on-empty-changeset
+      
+      - echo "📤 Getting Infrastructure Outputs..."
+      - |
+        # Get outputs from infrastructure stack
+        INFRA_OUTPUTS=$(aws cloudformation describe-stacks \
+          --stack-name ${STACK_PREFIX}-infrastructure \
+          --query 'Stacks[0].Outputs' \
+          --output json)
+        
+        # Extract values
+        export REST_API_ID=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="RestApiId") | .OutputValue')
+        export FUNCTIONS_RESOURCE_ID=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="FunctionsResourceId") | .OutputValue')
+        export AUTHORIZER_ID=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="AuthorizerId") | .OutputValue')
+        export LAMBDA_ROLE_ARN=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="LambdaExecutionRoleArn") | .OutputValue')
+        export LAMBDA_BUCKET=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="LambdaCodeBucketName") | .OutputValue')
+        export DATABASE_URL=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="DatabaseUrl") | .OutputValue')
+        export COGNITO_USER_POOL_ID=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="CognitoUserPoolId") | .OutputValue')
+        export PRIVATE_SUBNET_1=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="PrivateSubnet1Id") | .OutputValue')
+        export PRIVATE_SUBNET_2=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="PrivateSubnet2Id") | .OutputValue')
+        export LAMBDA_SG=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="LambdaSecurityGroupId") | .OutputValue')
+
+      - echo "📦 Packaging Lambda code..."
+      - |
+        # Create Lambda deployment packages
+        chmod +x cicd/scripts/package-lambdas.sh
+        ./cicd/scripts/package-lambdas.sh
+        
+        # Upload to S3
+        aws s3 sync /tmp/lambda-packages/ s3://${LAMBDA_BUCKET}/lambdas/
+      
+      - echo "🏗️ Deploying Lambda Nested Stacks..."
+      - |
+        # Deploy each category as a nested stack
+        for CATEGORY in admin ai auth aws azure cloud cost dashboard data debug integrations jobs kb license maintenance ml monitoring notifications organizations profiles reports security storage system user websocket; do
+          echo "  📦 Deploying ${CATEGORY} stack..."
+          
+          aws cloudformation deploy \
+            --stack-name ${STACK_PREFIX}-lambdas-${CATEGORY} \
+            --template-file cloudformation/nested/evo-${CATEGORY}-stack.yaml \
+            --parameter-overrides \
+              ProjectName=evo-uds-v3 \
+              Environment=${ENV} \
+              RestApiId=${REST_API_ID} \
+              FunctionsResourceId=${FUNCTIONS_RESOURCE_ID} \
+              AuthorizerId=${AUTHORIZER_ID} \
+              LambdaCodeBucket=${LAMBDA_BUCKET} \
+              LambdaExecutionRoleArn=${LAMBDA_ROLE_ARN} \
+              LambdaSecurityGroupIds=${LAMBDA_SG} \
+              PrivateSubnetIds=${PRIVATE_SUBNET_1},${PRIVATE_SUBNET_2} \
+              LambdaLayerArn=${LAYER_ARN} \
+              DatabaseUrl=${DATABASE_URL} \
+              CognitoUserPoolId=${COGNITO_USER_POOL_ID} \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset || echo "⚠️ ${CATEGORY} stack deployment failed"
+        done
+      
+      - echo "🚀 Deploying API Gateway..."
+      - |
+        aws apigateway create-deployment \
+          --rest-api-id ${REST_API_ID} \
+          --stage-name prod \
+          --description "Deployed by CI/CD pipeline"
+      
+      - echo "🌐 Deploying Frontend..."
+      - |
+        FRONTEND_BUCKET=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="FrontendBucketName") | .OutputValue')
+        CLOUDFRONT_ID=$(echo $INFRA_OUTPUTS | jq -r '.[] | select(.OutputKey=="CloudFrontDistributionId") | .OutputValue')
+        
+        aws s3 sync dist/ s3://${FRONTEND_BUCKET}/ --delete
+        aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_ID} --paths "/*"
+      
+      - echo "✅ Deployment completed!"
+
+artifacts:
+  files:
+    - backend/dist/**/*
+    - dist/**/*
+    - cloudformation/**/*
+  discard-paths: no
+
+cache:
+  paths:
+    - 'backend/node_modules/**/*'
+    - 'node_modules/**/*'
+    - '/root/.npm/**/*'

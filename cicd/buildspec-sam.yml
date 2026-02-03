@@ -1,0 +1,164 @@
+version: 0.2
+
+# AWS CodeBuild - SAM Build and Deploy
+# Builds and deploys EVO Platform using AWS SAM
+
+env:
+  variables:
+    SAM_CLI_TELEMETRY: 0
+  parameter-store:
+    DATABASE_PASSWORD_SANDBOX: "/evo/sandbox/database-password"
+    DATABASE_PASSWORD_PRODUCTION: "/evo/production/database-password"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+      python: 3.11
+    commands:
+      - echo "📦 Installing SAM CLI..."
+      - pip install aws-sam-cli
+      
+      - echo "📦 Installing dependencies..."
+      - npm ci
+      - npm ci --prefix backend
+      
+      - echo "🔧 Generating Prisma client..."
+      - npx prisma generate --schema=backend/prisma/schema.prisma
+
+  pre_build:
+    commands:
+      - echo "🔍 Determining environment..."
+      - |
+        if [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/production" ] || [ "$BRANCH_NAME" = "production" ]; then
+          export ENV="production"
+          export SAM_CONFIG_ENV="production"
+          export DATABASE_PASSWORD="$DATABASE_PASSWORD_PRODUCTION"
+          export AWS_ACCOUNT="523115032346"
+        else
+          export ENV="sandbox"
+          export SAM_CONFIG_ENV="sandbox"
+          export DATABASE_PASSWORD="$DATABASE_PASSWORD_SANDBOX"
+          export AWS_ACCOUNT="971354623291"
+        fi
+        echo "🌍 Environment: $ENV"
+        echo "📦 SAM config: $SAM_CONFIG_ENV"
+
+  build:
+    commands:
+      - echo "🔨 Building TypeScript..."
+      - npm run build --prefix backend
+      - npm run build
+      
+      - echo "📝 Generating SAM template..."
+      - npx tsx scripts/generate-sam-template.ts
+      
+      - echo "📦 Preparing Lambda layer..."
+      - mkdir -p backend/layers/dependencies/nodejs/node_modules
+      - cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
+      - cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
+      - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
+      
+      # Copy AWS SDK packages
+      - |
+        for pkg in @aws-sdk @smithy tslib uuid fast-xml-parser; do
+          if [ -d "backend/node_modules/$pkg" ]; then
+            cp -r "backend/node_modules/$pkg" backend/layers/dependencies/nodejs/node_modules/
+          fi
+        done
+      
+      # Copy Azure SDK packages (if present)
+      - |
+        for pkg in @azure jsonwebtoken lodash; do
+          if [ -d "backend/node_modules/$pkg" ]; then
+            cp -r "backend/node_modules/$pkg" backend/layers/dependencies/nodejs/node_modules/
+          fi
+        done
+      
+      # Clean up unnecessary files
+      - find backend/layers/dependencies/nodejs/node_modules -name "*.map" -delete 2>/dev/null || true
+      - find backend/layers/dependencies/nodejs/node_modules -name "*.md" -delete 2>/dev/null || true
+      - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node 2>/dev/null || true
+      
+      - echo "🏗️ Building SAM application..."
+      - sam build --template sam/template.yaml --build-dir sam/.aws-sam/build
+
+  post_build:
+    commands:
+      - echo "🚀 Deploying SAM application..."
+      - |
+        sam deploy \
+          --template sam/.aws-sam/build/template.yaml \
+          --stack-name evo-uds-v3-$ENV \
+          --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT \
+          --s3-prefix evo-uds-v3-$ENV \
+          --region us-east-1 \
+          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+          --parameter-overrides \
+            "Environment=$ENV" \
+            "ProjectName=evo-uds-v3" \
+            "DatabasePassword=$DATABASE_PASSWORD" \
+          --no-confirm-changeset \
+          --no-fail-on-empty-changeset
+      
+      - echo "🗄️ Running database migrations..."
+      - |
+        # Get DATABASE_URL from Secrets Manager
+        SECRET_ARN=$(aws cloudformation describe-stacks \
+          --stack-name evo-uds-v3-$ENV \
+          --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretArn`].OutputValue' \
+          --output text 2>/dev/null || echo "")
+        
+        if [ -n "$SECRET_ARN" ]; then
+          export DATABASE_URL=$(aws secretsmanager get-secret-value \
+            --secret-id $SECRET_ARN \
+            --query 'SecretString' \
+            --output text | jq -r '.DATABASE_URL')
+          
+          echo "Applying Prisma migrations..."
+          npx prisma migrate deploy --schema=backend/prisma/schema.prisma || echo "⚠️ Migration failed"
+        fi
+      
+      - echo "🌐 Deploying Frontend..."
+      - |
+        FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+          --stack-name evo-uds-v3-$ENV \
+          --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
+          --output text 2>/dev/null || echo "")
+        
+        if [ -n "$FRONTEND_BUCKET" ]; then
+          aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
+          
+          # Invalidate CloudFront cache
+          CF_DIST_ID=$(aws cloudformation describe-stacks \
+            --stack-name evo-uds-v3-$ENV \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$CF_DIST_ID" ]; then
+            aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*"
+          fi
+        else
+          echo "⚠️ Frontend bucket not found in stack outputs"
+        fi
+      
+      - echo "✅ Deployment completed!"
+      - |
+        API_ENDPOINT=$(aws cloudformation describe-stacks \
+          --stack-name evo-uds-v3-$ENV \
+          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+          --output text 2>/dev/null || echo "N/A")
+        echo "🔗 API Endpoint: $API_ENDPOINT"
+
+artifacts:
+  files:
+    - sam/.aws-sam/**/*
+    - dist/**/*
+  discard-paths: no
+
+cache:
+  paths:
+    - 'backend/node_modules/**/*'
+    - 'node_modules/**/*'
+    - '/root/.npm/**/*'
+    - 'sam/.aws-sam/**/*'

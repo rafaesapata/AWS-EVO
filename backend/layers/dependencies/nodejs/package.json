@@ -1,0 +1,6 @@
+{
+  "name": "evo-lambda-dependencies",
+  "version": "1.0.0",
+  "description": "Lambda layer dependencies for EVO Platform",
+  "dependencies": {}
+}

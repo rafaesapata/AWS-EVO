@@ -1,0 +1,305 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO CI/CD Pipeline - Deploy Lambdas automaticamente baseado em push no GitHub'
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      - sandbox
+      - production
+    Description: Ambiente de deploy
+
+  GitHubOwner:
+    Type: String
+    Description: GitHub repository owner
+
+  GitHubRepo:
+    Type: String
+    Default: AWS-EVO
+    Description: GitHub repository name
+
+  GitHubBranch:
+    Type: String
+    Description: Branch para monitorar (main para sandbox, production para production)
+
+  GitHubConnectionArn:
+    Type: String
+    Description: ARN da conexão CodeStar com GitHub
+
+  # Sandbox Config
+  LayerArnSandbox:
+    Type: String
+    Default: 'arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92'
+    Description: ARN do Layer para Sandbox
+
+  VpcSubnetsSandbox:
+    Type: String
+    Default: 'subnet-0dbb444e4ef54d211,subnet-05383447666913b7b'
+    Description: Subnets para Lambdas Sandbox
+
+  SecurityGroupSandbox:
+    Type: String
+    Default: 'sg-04eb71f681cc651ae'
+    Description: Security Group para Lambdas Sandbox
+
+  # Production Config
+  LayerArnProduction:
+    Type: String
+    Default: 'arn:aws:lambda:us-east-1:523115032346:layer:evo-uds-v3-prod-deps-layer:1'
+    Description: ARN do Layer para Production
+
+  VpcSubnetsProduction:
+    Type: String
+    Default: 'subnet-0af7face420b9f317,subnet-099b0fbc0a342fb0f'
+    Description: Subnets para Lambdas Production
+
+  SecurityGroupProduction:
+    Type: String
+    Default: 'sg-07ea931d32276e039'
+    Description: Security Group para Lambdas Production
+
+Conditions:
+  IsSandbox: !Equals [!Ref Environment, 'sandbox']
+  IsProduction: !Equals [!Ref Environment, 'production']
+
+Resources:
+  # S3 Bucket para artefatos do Pipeline
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'evo-cicd-artifacts-${Environment}-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldArtifacts
+            Status: Enabled
+            ExpirationInDays: 30
+
+  # IAM Role para CodeBuild
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'evo-codebuild-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # CloudWatch Logs
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              # S3 Artifacts
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+                Resource: !Sub '${ArtifactBucket.Arn}/*'
+              # Lambda Deploy
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:UpdateFunctionConfiguration
+                Resource: 
+                  - !If 
+                    - IsSandbox
+                    - 'arn:aws:lambda:us-east-1:971354623291:function:evo-uds-v3-sandbox-*'
+                    - 'arn:aws:lambda:us-east-1:523115032346:function:evo-uds-v3-prod-*'
+              # Secrets Manager
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:evo/${Environment}/secrets-*'
+              # CodeBuild Reports
+              - Effect: Allow
+                Action:
+                  - codebuild:CreateReportGroup
+                  - codebuild:CreateReport
+                  - codebuild:UpdateReport
+                  - codebuild:BatchPutTestCases
+                Resource: '*'
+
+  # IAM Role para CodePipeline
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'evo-codepipeline-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                Resource:
+                  - !Sub '${ArtifactBucket.Arn}'
+                  - !Sub '${ArtifactBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource: !GetAtt CodeBuildProject.Arn
+              - Effect: Allow
+                Action:
+                  - codestar-connections:UseConnection
+                Resource: !Ref GitHubConnectionArn
+
+  # CodeBuild Project - Infrastructure & Lambda Deploy
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub 'evo-lambda-build-${Environment}'
+      Description: !Sub 'Build and deploy EVO Platform - ${Environment}'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - Name: ENV
+            Value: !Ref Environment
+          - Name: LAMBDA_PREFIX
+            Value: !If [IsSandbox, 'evo-uds-v3-sandbox', 'evo-uds-v3-prod']
+          - Name: LAYER_ARN
+            Value: !If [IsSandbox, !Ref LayerArnSandbox, !Ref LayerArnProduction]
+          - Name: BRANCH_NAME
+            Value: !Ref GitHubBranch
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: cicd/buildspec-infrastructure.yml
+      TimeoutInMinutes: 60
+      Cache:
+        Type: S3
+        Location: !Sub '${ArtifactBucket}/cache'
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Sub '/aws/codebuild/evo-lambda-build-${Environment}'
+
+  # CodePipeline
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub 'evo-lambda-pipeline-${Environment}'
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        # Source Stage - GitHub
+        - Name: Source
+          Actions:
+            - Name: GitHub
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              Configuration:
+                ConnectionArn: !Ref GitHubConnectionArn
+                FullRepositoryId: !Sub '${GitHubOwner}/${GitHubRepo}'
+                BranchName: !Ref GitHubBranch
+                OutputArtifactFormat: CODE_ZIP
+                DetectChanges: true
+              OutputArtifacts:
+                - Name: SourceCode
+              RunOrder: 1
+
+        # Build & Deploy Stage
+        - Name: BuildAndDeploy
+          Actions:
+            - Name: BuildAndDeployLambdas
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 1
+
+  # SNS Topic para notificações
+  PipelineNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'evo-pipeline-notifications-${Environment}'
+      DisplayName: !Sub 'EVO Pipeline Notifications (${Environment})'
+
+  # CloudWatch Event Rule para notificações de falha
+  PipelineFailureRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'evo-pipeline-failure-${Environment}'
+      Description: Notifica quando o pipeline falha
+      EventPattern:
+        source:
+          - aws.codepipeline
+        detail-type:
+          - CodePipeline Pipeline Execution State Change
+        detail:
+          pipeline:
+            - !Ref Pipeline
+          state:
+            - FAILED
+      State: ENABLED
+      Targets:
+        - Id: SNSTarget
+          Arn: !Ref PipelineNotificationTopic
+
+Outputs:
+  PipelineName:
+    Description: Nome do Pipeline
+    Value: !Ref Pipeline
+
+  PipelineUrl:
+    Description: URL do Pipeline no Console
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${Pipeline}/view'
+
+  ArtifactBucketName:
+    Description: Bucket de artefatos
+    Value: !Ref ArtifactBucket
+
+  NotificationTopicArn:
+    Description: ARN do tópico SNS para notificações
+    Value: !Ref PipelineNotificationTopic

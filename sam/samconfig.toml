@@ -1,0 +1,40 @@
+# SAM Configuration for EVO Platform
+# Deploy: sam deploy --config-env sandbox
+# Deploy prod: sam deploy --config-env production
+
+version = 0.1
+
+[default.global.parameters]
+stack_name = "evo-uds-v3"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[sandbox]
+[sandbox.deploy.parameters]
+stack_name = "evo-uds-v3-sandbox"
+s3_bucket = "evo-sam-artifacts-971354623291"
+s3_prefix = "evo-uds-v3-sandbox"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+parameter_overrides = "Environment=sandbox ProjectName=evo-uds-v3 DatabasePassword=REPLACE_WITH_SECURE_PASSWORD"
+
+[sandbox.build.parameters]
+cached = true
+parallel = true
+
+[production]
+[production.deploy.parameters]
+stack_name = "evo-uds-v3-prod"
+s3_bucket = "evo-sam-artifacts-523115032346"
+s3_prefix = "evo-uds-v3-prod"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+parameter_overrides = "Environment=production ProjectName=evo-uds-v3 DatabasePassword=REPLACE_WITH_SECURE_PASSWORD"
+
+[production.build.parameters]
+cached = true
+parallel = true
