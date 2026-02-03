@@ -81,14 +81,16 @@ phases:
       - echo "Layer directory contents:"
       - ls -la backend/layers/dependencies/nodejs/node_modules/ | head -20 || echo "Layer directory not found"
       - du -sh backend/layers/dependencies/ || echo "Cannot calculate size"
-      - sam package --template-file sam/template.yaml --output-template-file sam/packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix evo-uds-v3-$ENV --region us-east-1 --debug 2>&1 | tail -100
+      - echo "Template location:"
+      - ls -la template.yaml || echo "Template not found in root"
+      - sam package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix evo-uds-v3-$ENV --region us-east-1
 
   post_build:
     commands:
       - echo "🚀 Deploying SAM application..."
       - |
         sam deploy \
-          --template-file sam/packaged.yaml \
+          --template-file packaged.yaml \
           --stack-name evo-uds-v3-$ENV \
           --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT \
           --s3-prefix evo-uds-v3-$ENV \
@@ -152,7 +154,7 @@ phases:
 
 artifacts:
   files:
-    - sam/packaged.yaml
+    - packaged.yaml
     - dist/**/*
   discard-paths: no
 

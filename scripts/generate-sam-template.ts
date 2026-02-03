@@ -730,7 +730,8 @@ async function main(): Promise<void> {
   
   const template = generateTemplate();
   
-  const outputPath = path.join(__dirname, '..', 'sam', 'template.yaml');
+  // Write to root directory (not sam/) so paths resolve correctly
+  const outputPath = path.join(__dirname, '..', 'template.yaml');
   fs.writeFileSync(outputPath, template, 'utf8');
   
   console.log(`\n✅ Generated: ${outputPath}`);
