@@ -6,9 +6,6 @@ version: 0.2
 env:
   variables:
     SAM_CLI_TELEMETRY: 0
-  parameter-store:
-    DATABASE_PASSWORD_SANDBOX: "/evo/sandbox/database-password"
-    DATABASE_PASSWORD_PRODUCTION: "/evo/production/database-password"
 
 phases:
   install:
@@ -33,13 +30,13 @@ phases:
         if [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/production" ] || [ "$BRANCH_NAME" = "production" ]; then
           export ENV="production"
           export SAM_CONFIG_ENV="production"
-          export DATABASE_PASSWORD="$DATABASE_PASSWORD_PRODUCTION"
           export AWS_ACCOUNT="523115032346"
+          export DATABASE_PASSWORD=$(aws ssm get-parameter --name "/evo/production/database-password" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         else
           export ENV="sandbox"
           export SAM_CONFIG_ENV="sandbox"
-          export DATABASE_PASSWORD="$DATABASE_PASSWORD_SANDBOX"
           export AWS_ACCOUNT="971354623291"
+          export DATABASE_PASSWORD=$(aws ssm get-parameter --name "/evo/sandbox/database-password" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         fi
         echo "🌍 Environment: $ENV"
         echo "📦 SAM config: $SAM_CONFIG_ENV"
