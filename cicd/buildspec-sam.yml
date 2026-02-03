@@ -77,20 +77,20 @@ phases:
       - find backend/layers/dependencies/nodejs/node_modules -name "*.md" -delete 2>/dev/null || true
       - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node 2>/dev/null || true
       
-      - echo "🏗️ Building SAM application..."
-      - sam build --template sam/template.yaml --build-dir sam/.aws-sam/build
+      - echo "🏗️ Packaging SAM application..."
+      - sam package --template-file sam/template.yaml --output-template-file sam/packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix evo-uds-v3-$ENV --region us-east-1
 
   post_build:
     commands:
       - echo "🚀 Deploying SAM application..."
       - |
         sam deploy \
-          --template sam/.aws-sam/build/template.yaml \
+          --template-file sam/packaged.yaml \
           --stack-name evo-uds-v3-$ENV \
           --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT \
           --s3-prefix evo-uds-v3-$ENV \
           --region us-east-1 \
-          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
           --parameter-overrides \
             "Environment=$ENV" \
             "ProjectName=evo-uds-v3" \
@@ -149,7 +149,7 @@ phases:
 
 artifacts:
   files:
-    - sam/.aws-sam/**/*
+    - sam/packaged.yaml
     - dist/**/*
   discard-paths: no
 
@@ -158,4 +158,3 @@ cache:
     - 'backend/node_modules/**/*'
     - 'node_modules/**/*'
     - '/root/.npm/**/*'
-    - 'sam/.aws-sam/**/*'
