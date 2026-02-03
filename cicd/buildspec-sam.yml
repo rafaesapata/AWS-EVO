@@ -35,6 +35,7 @@ phases:
           export LAMBDA_SG_ID="sg-07ea931d32276e039"
           export PRIVATE_SUBNET_1="subnet-0af7face420b9f317"
           export PRIVATE_SUBNET_2="subnet-099b0fbc0a342fb0f"
+          export LAYER_ARN="arn:aws:lambda:us-east-1:523115032346:layer:evo-prisma-deps-layer:1"
           export DATABASE_URL=$(aws ssm get-parameter --name "/evo/production/database-url" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         else
           export ENV="sandbox"
@@ -44,10 +45,12 @@ phases:
           export LAMBDA_SG_ID="sg-04eb71f681cc651ae"
           export PRIVATE_SUBNET_1="subnet-0dbb444e4ef54d211"
           export PRIVATE_SUBNET_2="subnet-05383447666913b7b"
+          export LAYER_ARN="arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92"
           export DATABASE_URL=$(aws ssm get-parameter --name "/evo/sandbox/database-url" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         fi
         echo "🌍 Environment: $ENV"
         echo "📦 Using existing infrastructure"
+        echo "🔗 Layer: $LAYER_ARN"
 
   build:
     commands:
@@ -58,32 +61,8 @@ phases:
       - echo "📝 Generating SAM template..."
       - npx tsx scripts/generate-sam-template.ts
       
-      - echo "📦 Preparing Lambda layer..."
-      - mkdir -p backend/layers/dependencies/nodejs/node_modules
-      - cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
-      - cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
-      - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
-      
-      # Copy AWS SDK packages
-      - |
-        for pkg in @aws-sdk @smithy tslib uuid fast-xml-parser; do
-          if [ -d "backend/node_modules/$pkg" ]; then
-            cp -r "backend/node_modules/$pkg" backend/layers/dependencies/nodejs/node_modules/
-          fi
-        done
-      
-      # Copy Azure SDK packages (if present)
-      - |
-        for pkg in @azure jsonwebtoken lodash; do
-          if [ -d "backend/node_modules/$pkg" ]; then
-            cp -r "backend/node_modules/$pkg" backend/layers/dependencies/nodejs/node_modules/
-          fi
-        done
-      
-      # Clean up unnecessary files
-      - find backend/layers/dependencies/nodejs/node_modules -name "*.map" -delete 2>/dev/null || true
-      - find backend/layers/dependencies/nodejs/node_modules -name "*.md" -delete 2>/dev/null || true
-      - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node 2>/dev/null || true
+      # Using existing layer - no need to prepare dependencies
+      # Layer ARN: arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92
       
       - echo "🏗️ Building SAM application..."
       - sam build --template-file template.yaml
@@ -107,6 +86,7 @@ phases:
             "LambdaSecurityGroupId=$LAMBDA_SG_ID" \
             "PrivateSubnet1Id=$PRIVATE_SUBNET_1" \
             "PrivateSubnet2Id=$PRIVATE_SUBNET_2" \
+            "DependenciesLayerArn=$LAYER_ARN" \
           --no-confirm-changeset \
           --no-fail-on-empty-changeset
       

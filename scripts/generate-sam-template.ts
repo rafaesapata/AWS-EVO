@@ -310,7 +310,7 @@ Globals:
         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
     Layers:
-      - !Ref DependenciesLayer
+      - !Ref DependenciesLayerArn
 
 Parameters:
   Environment:
@@ -343,34 +343,19 @@ Parameters:
     Type: String
     Description: Existing Private Subnet 2 ID
 
+  DependenciesLayerArn:
+    Type: String
+    Description: Existing Lambda Layer ARN with dependencies (Prisma, AWS SDK, etc.)
+    Default: arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92
+
 Resources:
   # ==========================================================================
-  # LAMBDA LAYER
-  # ==========================================================================
-  DependenciesLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: !Sub '\${ProjectName}-\${Environment}-deps'
-      ContentUri: backend/layers/dependencies/
-      CompatibleRuntimes:
-        - nodejs18.x
-      CompatibleArchitectures:
-        - arm64
-      RetentionPolicy: Retain
-    Metadata:
-      BuildMethod: nodejs18.x
-      BuildArchitecture: arm64
-
-  # ==========================================================================
-  # LAMBDA FUNCTIONS (${HANDLERS.length} total)
+  # LAMBDA FUNCTIONS (\${HANDLERS.length} total)
+  # Uses existing layer: evo-prisma-deps-layer (Prisma + AWS SDK + Azure SDK)
   # ==========================================================================
 ${functions}
 
 Outputs:
-  DependenciesLayerArn:
-    Description: Dependencies Layer ARN
-    Value: !Ref DependenciesLayer
-
   FunctionCount:
     Description: Number of Lambda functions deployed
     Value: ${HANDLERS.length}
