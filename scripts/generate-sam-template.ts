@@ -272,10 +272,21 @@ function generateFunction(h: HandlerConfig): string {
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '\${ProjectName}-\${Environment}-${h.name}'
-      CodeUri: backend/
-      Handler: dist/handlers/${h.path}/${h.handler}.handler
+      CodeUri: backend/src/handlers/${h.path}/
+      Handler: ${h.handler}.handler
       Timeout: ${timeout}
-      MemorySize: ${memory}`;
+      MemorySize: ${memory}
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - ${h.handler}.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'`;
 }
 
 function generateTemplate(): string {
