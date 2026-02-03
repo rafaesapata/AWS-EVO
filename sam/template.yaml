@@ -323,7 +323,7 @@ Resources:
     Type: AWS::Serverless::LayerVersion
     Properties:
       LayerName: !Sub '${ProjectName}-${Environment}-deps'
-      ContentUri: backend/layers/dependencies/
+      ContentUri: ../backend/layers/dependencies/
       CompatibleRuntimes:
         - nodejs18.x
       RetentionPolicy: Retain
@@ -355,7 +355,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-admin-manage-user'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/admin-manage-user.handler
       Events:
         Api:
@@ -369,7 +369,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-automated-cleanup-stuck-scans'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/automated-cleanup-stuck-scans.handler
       Timeout: 300
 
@@ -377,21 +377,21 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-cloudtrail-status'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/check-cloudtrail-status.handler
 
   CheckCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-costs'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/check-costs.handler
 
   CleanupStuckScansFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/cleanup-stuck-scans.handler
       Timeout: 300
 
@@ -399,7 +399,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-cognito-user'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/create-cognito-user.handler
       Events:
         Api:
@@ -413,7 +413,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-user'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/create-user.handler
       Events:
         Api:
@@ -427,7 +427,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-deactivate-demo-mode'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/deactivate-demo-mode.handler
       Events:
         Api:
@@ -441,21 +441,21 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-debug-cloudtrail'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/debug-cloudtrail.handler
 
   DirectCleanupFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-direct-cleanup'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/direct-cleanup.handler
 
   DisableCognitoUserFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-disable-cognito-user'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/disable-cognito-user.handler
       Events:
         Api:
@@ -469,14 +469,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fix-role-arn-migration'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/fix-role-arn-migration.handler
 
   LogAuditFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-log-audit'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/log-audit.handler
       Events:
         Api:
@@ -490,7 +490,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-demo-mode'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/manage-demo-mode.handler
       Events:
         Api:
@@ -504,7 +504,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-email-templates'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/manage-email-templates.handler
       Events:
         Api:
@@ -518,7 +518,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-organizations'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/manage-organizations.handler
       Events:
         Api:
@@ -532,7 +532,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-migration'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/run-migration.handler
       Timeout: 300
 
@@ -540,7 +540,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-migration-standalone'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/run-migration-standalone.handler
       Timeout: 300
 
@@ -548,21 +548,21 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-sql'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/run-sql.handler
 
   SetupLicenseConfigFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-setup-license-config'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/admin/setup-license-config.handler
 
   BedrockChatFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-bedrock-chat'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ai/bedrock-chat.handler
       Timeout: 120
       MemorySize: 512
@@ -578,7 +578,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-proactive-notifications'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ai/check-proactive-notifications.handler
       Timeout: 120
 
@@ -586,7 +586,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-response'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ai/generate-response.handler
       Timeout: 120
       MemorySize: 512
@@ -595,7 +595,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-ai-notifications'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ai/get-ai-notifications.handler
       Events:
         Api:
@@ -609,7 +609,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-ai-notifications-admin'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ai/list-ai-notifications-admin.handler
       Events:
         Api:
@@ -623,7 +623,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-notification-rules'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ai/manage-notification-rules.handler
       Events:
         Api:
@@ -637,7 +637,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-ai-notification'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ai/send-ai-notification.handler
       Events:
         Api:
@@ -651,7 +651,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-update-ai-notification'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ai/update-ai-notification.handler
       Events:
         Api:
@@ -665,7 +665,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-delete-webauthn-credential'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/delete-webauthn-credential.handler
       Events:
         Api:
@@ -679,14 +679,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-delete-webauthn-credential-admin'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/delete-webauthn-credential-admin.handler
 
   ForgotPasswordFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-forgot-password'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/forgot-password.handler
       Events:
         Api:
@@ -702,7 +702,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-enroll'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/mfa-handlers.handler
       Events:
         Api:
@@ -716,7 +716,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-check'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/mfa-handlers.handler
       Events:
         Api:
@@ -730,7 +730,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-challenge-verify'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/mfa-handlers.handler
       Events:
         Api:
@@ -744,7 +744,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-verify-login'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/mfa-handlers.handler
       Events:
         Api:
@@ -758,7 +758,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-list-factors'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/mfa-handlers.handler
       Events:
         Api:
@@ -772,7 +772,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-unenroll'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/mfa-handlers.handler
       Events:
         Api:
@@ -786,7 +786,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-self-register'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/self-register.handler
       Timeout: 60
       Events:
@@ -803,7 +803,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-verify-tv-token'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/verify-tv-token.handler
       Events:
         Api:
@@ -817,7 +817,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-authenticate'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/webauthn-authenticate.handler
       Events:
         Api:
@@ -831,7 +831,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-check'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/webauthn-check-standalone.handler
       Events:
         Api:
@@ -845,7 +845,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-register'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/auth/webauthn-register.handler
       Events:
         Api:
@@ -859,7 +859,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-aws-credentials'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/aws/list-aws-credentials.handler
       Events:
         Api:
@@ -873,7 +873,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-save-aws-credentials'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/aws/save-aws-credentials.handler
       Events:
         Api:
@@ -887,7 +887,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-update-aws-credentials'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/aws/update-aws-credentials.handler
       Events:
         Api:
@@ -901,7 +901,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-activity-logs'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-activity-logs.handler
       Timeout: 60
       Events:
@@ -916,7 +916,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-compliance-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-compliance-scan.handler
       Timeout: 300
       MemorySize: 1024
@@ -932,7 +932,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-cost-optimization'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-cost-optimization.handler
       Timeout: 120
       MemorySize: 512
@@ -948,7 +948,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-defender-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-defender-scan.handler
       Timeout: 120
       MemorySize: 512
@@ -964,7 +964,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-detect-anomalies'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-detect-anomalies.handler
       Timeout: 120
       MemorySize: 512
@@ -980,7 +980,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-costs'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-fetch-costs.handler
       Timeout: 120
       MemorySize: 512
@@ -996,7 +996,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-edge-services'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-fetch-edge-services.handler
       Timeout: 60
       Events:
@@ -1011,7 +1011,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-monitor-metrics'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-fetch-monitor-metrics.handler
       Timeout: 60
       Events:
@@ -1026,7 +1026,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-callback'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-oauth-callback.handler
       Timeout: 60
       Events:
@@ -1041,7 +1041,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-initiate'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-oauth-initiate.handler
       Events:
         Api:
@@ -1055,7 +1055,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-refresh'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-oauth-refresh.handler
       Events:
         Api:
@@ -1069,7 +1069,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-revoke'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-oauth-revoke.handler
       Events:
         Api:
@@ -1083,7 +1083,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-reservations-analyzer'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-reservations-analyzer.handler
       Timeout: 120
       MemorySize: 512
@@ -1099,7 +1099,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-resource-inventory'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-resource-inventory.handler
       Timeout: 120
       MemorySize: 512
@@ -1115,7 +1115,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-security-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-security-scan.handler
       Timeout: 300
       MemorySize: 1024
@@ -1131,7 +1131,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-well-architected-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/azure-well-architected-scan.handler
       Timeout: 300
       MemorySize: 512
@@ -1147,14 +1147,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-debug-azure-costs'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/debug-azure-costs.handler
 
   DeleteAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-delete-azure-credentials'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/delete-azure-credentials.handler
       Events:
         Api:
@@ -1168,7 +1168,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-azure-credentials'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/list-azure-credentials.handler
       Events:
         Api:
@@ -1182,7 +1182,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-save-azure-credentials'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/save-azure-credentials.handler
       Events:
         Api:
@@ -1196,7 +1196,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-azure-security-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/start-azure-security-scan.handler
       Timeout: 60
       Events:
@@ -1211,7 +1211,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-azure-credentials'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/validate-azure-credentials.handler
       Timeout: 60
       Events:
@@ -1226,7 +1226,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-azure-permissions'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/azure/validate-azure-permissions.handler
       Timeout: 60
       Events:
@@ -1241,7 +1241,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-cloud-credentials'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cloud/list-cloud-credentials.handler
       Events:
         Api:
@@ -1255,7 +1255,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-analyze-ri-sp'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/analyze-ri-sp.handler
       Timeout: 300
       MemorySize: 512
@@ -1271,7 +1271,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-budget-forecast'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/budget-forecast.handler
       Timeout: 120
       MemorySize: 512
@@ -1287,7 +1287,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cost-optimization'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/cost-optimization.handler
       Timeout: 300
       MemorySize: 512
@@ -1303,7 +1303,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-daily-costs'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/fetch-daily-costs.handler
       Timeout: 300
       MemorySize: 512
@@ -1319,7 +1319,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-finops-copilot'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/finops-copilot-v2.handler
       Timeout: 120
       MemorySize: 512
@@ -1335,7 +1335,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-cost-forecast'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/generate-cost-forecast.handler
       Timeout: 120
       MemorySize: 512
@@ -1351,7 +1351,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-ri-sp-analysis'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/get-ri-sp-analysis.handler
       Events:
         Api:
@@ -1365,7 +1365,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-ri-sp-data'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/get-ri-sp-data.handler
       Events:
         Api:
@@ -1379,7 +1379,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-ri-sp-history'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/list-ri-sp-history.handler
       Events:
         Api:
@@ -1393,7 +1393,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ml-waste-detection'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/ml-waste-detection.handler
       Timeout: 120
       MemorySize: 512
@@ -1409,7 +1409,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ri-sp-analyzer'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/ri-sp-analyzer.handler
       Timeout: 300
       MemorySize: 512
@@ -1425,14 +1425,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-save-ri-sp-analysis'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/cost/save-ri-sp-analysis.handler
 
   GetExecutiveDashboardFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-executive-dashboard'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/dashboard/get-executive-dashboard.handler
       Timeout: 60
       MemorySize: 512
@@ -1448,7 +1448,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-executive-dashboard-public'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/dashboard/get-executive-dashboard-public.handler
       Timeout: 60
       MemorySize: 512
@@ -1466,7 +1466,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-tv-tokens'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/dashboard/manage-tv-tokens.handler
       Events:
         Api:
@@ -1480,7 +1480,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-cost-data'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/data/cleanup-cost-data.handler
       Timeout: 300
 
@@ -1488,7 +1488,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mutate-table'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/data/mutate-table.handler
       Events:
         Api:
@@ -1502,7 +1502,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-query-table'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/data/query-table.handler
       Events:
         Api:
@@ -1516,7 +1516,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ticket-attachments'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/data/ticket-attachments.handler
       Timeout: 60
       Events:
@@ -1531,7 +1531,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ticket-management'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/data/ticket-management.handler
       Events:
         Api:
@@ -1545,28 +1545,28 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-daily-costs'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/debug/check-daily-costs.handler
 
   DiagnoseCostDashboardFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-diagnose-cost-dashboard'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/debug/diagnose-cost-dashboard.handler
 
   InvestigateDataMismatchFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-investigate-data-mismatch'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/debug/investigate-data-mismatch.handler
 
   CloudformationWebhookFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cloudformation-webhook'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/integrations/cloudformation-webhook.handler
       Events:
         Api:
@@ -1582,7 +1582,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-jira-ticket'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/integrations/create-jira-ticket.handler
       Timeout: 60
       Events:
@@ -1597,7 +1597,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-auto-cleanup-stuck-scans'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/auto-cleanup-stuck-scans.handler
       Timeout: 300
 
@@ -1605,7 +1605,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-expired-external-ids'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/cleanup-expired-external-ids.handler
       Timeout: 60
 
@@ -1613,7 +1613,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-expired-oauth-states'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/cleanup-expired-oauth-states.handler
       Timeout: 60
 
@@ -1621,7 +1621,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/cleanup-stuck-scans.handler
       Timeout: 300
 
@@ -1629,7 +1629,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-execute-scheduled-job'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/execute-scheduled-job.handler
       Timeout: 300
       MemorySize: 512
@@ -1645,7 +1645,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-initial-data-load'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/initial-data-load.handler
       Timeout: 300
 
@@ -1653,7 +1653,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-background-jobs'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/list-background-jobs.handler
       Events:
         Api:
@@ -1667,7 +1667,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-process-background-jobs'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/process-background-jobs.handler
       Timeout: 300
       MemorySize: 512
@@ -1683,7 +1683,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-process-events'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/process-events.handler
       Timeout: 300
 
@@ -1691,7 +1691,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-scan-executor'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/scheduled-scan-executor.handler
       Timeout: 300
       MemorySize: 512
@@ -1707,7 +1707,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-view-refresh'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/scheduled-view-refresh.handler
       Timeout: 300
 
@@ -1715,7 +1715,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-scheduled-emails'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/send-scheduled-emails.handler
       Timeout: 120
 
@@ -1723,7 +1723,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-sync-resource-inventory'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/jobs/sync-resource-inventory.handler
       Timeout: 300
 
@@ -1731,7 +1731,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-increment-article-helpful'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/kb/increment-article-helpful.handler
       Events:
         Api:
@@ -1745,7 +1745,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-increment-article-views'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/kb/increment-article-views.handler
       Events:
         Api:
@@ -1759,7 +1759,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-ai-suggestions'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/kb/kb-ai-suggestions.handler
       Timeout: 60
       MemorySize: 512
@@ -1775,7 +1775,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-analytics-dashboard'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/kb/kb-analytics-dashboard.handler
       Events:
         Api:
@@ -1789,14 +1789,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-article-tracking'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/kb/kb-article-tracking.handler
 
   KbExportPdfFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-export-pdf'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/kb/kb-export-pdf.handler
       Timeout: 60
       MemorySize: 512
@@ -1812,7 +1812,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-track-article-view-detailed'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/kb/track-article-view-detailed.handler
       Events:
         Api:
@@ -1826,7 +1826,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-admin-sync-license'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/license/admin-sync-license.handler
       Timeout: 60
       Events:
@@ -1841,7 +1841,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-seats'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/license/cleanup-seats.handler
       Timeout: 60
 
@@ -1849,7 +1849,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-configure-license'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/license/configure-license.handler
       Events:
         Api:
@@ -1863,7 +1863,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-daily-license-validation'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/license/daily-license-validation.handler
       Timeout: 120
 
@@ -1871,14 +1871,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-seat-assignments'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/license/manage-seat-assignments.handler
 
   ManageSeatsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-seats'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/license/manage-seats.handler
       Events:
         Api:
@@ -1892,7 +1892,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-license-sync'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/license/scheduled-license-sync.handler
       Timeout: 120
 
@@ -1900,7 +1900,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-sync-license'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/license/sync-license.handler
       Timeout: 60
       Events:
@@ -1915,7 +1915,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-license'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/license/validate-license.handler
       Events:
         Api:
@@ -1929,7 +1929,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-maintenance-auto-cleanup-stuck-scans'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/maintenance/auto-cleanup-stuck-scans.handler
       Timeout: 300
 
@@ -1937,7 +1937,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans-simple'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/maintenance/cleanup-stuck-scans-simple.handler
       Timeout: 300
 
@@ -1945,7 +1945,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ai-prioritization'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ml/ai-prioritization.handler
       Timeout: 120
       MemorySize: 512
@@ -1954,7 +1954,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-detect-anomalies'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ml/detect-anomalies.handler
       Timeout: 120
       MemorySize: 512
@@ -1970,7 +1970,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-ai-insights'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ml/generate-ai-insights.handler
       Timeout: 120
       MemorySize: 512
@@ -1979,7 +1979,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-intelligent-alerts-analyzer'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ml/intelligent-alerts-analyzer.handler
       Timeout: 120
       MemorySize: 512
@@ -1995,7 +1995,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-predict-incidents'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/ml/predict-incidents.handler
       Timeout: 120
       MemorySize: 512
@@ -2011,7 +2011,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-alerts'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/alerts.handler
       Events:
         Api:
@@ -2025,7 +2025,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-auto-alerts'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/auto-alerts.handler
       Events:
         Api:
@@ -2039,7 +2039,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-aws-realtime-metrics'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/aws-realtime-metrics.handler
       Timeout: 60
       MemorySize: 512
@@ -2055,7 +2055,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-alert-rules'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/check-alert-rules.handler
       Events:
         Api:
@@ -2069,7 +2069,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-endpoint-monitor-check'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/endpoint-monitor-check.handler
       Events:
         Api:
@@ -2083,14 +2083,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-error-aggregator'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/error-aggregator.handler
 
   FetchCloudwatchMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudwatch-metrics'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/fetch-cloudwatch-metrics.handler
       Timeout: 60
       Events:
@@ -2105,7 +2105,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-edge-services'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/fetch-edge-services.handler
       Timeout: 60
       Events:
@@ -2120,7 +2120,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-error-fix-prompt'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/generate-error-fix-prompt.handler
       Events:
         Api:
@@ -2134,7 +2134,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-lambda-health'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/get-lambda-health.handler
       Events:
         Api:
@@ -2148,7 +2148,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-platform-metrics'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/get-platform-metrics.handler
       Timeout: 60
       Events:
@@ -2163,7 +2163,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-recent-errors'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/get-recent-errors.handler
       Events:
         Api:
@@ -2177,21 +2177,21 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-health-check'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/health-check.handler
 
   LambdaHealthCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-lambda-health-check'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/lambda-health-check.handler
 
   LogFrontendErrorFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-log-frontend-error'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/log-frontend-error.handler
       Events:
         Api:
@@ -2207,7 +2207,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-monitored-endpoints'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/monitored-endpoints.handler
       Events:
         Api:
@@ -2221,14 +2221,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-test-lambda-metrics'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/monitoring/test-lambda-metrics.handler
 
   GetCommunicationLogsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-communication-logs'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/notifications/get-communication-logs.handler
       Events:
         Api:
@@ -2242,7 +2242,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-email-preferences'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/notifications/manage-email-preferences.handler
       Events:
         Api:
@@ -2256,7 +2256,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-email'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/notifications/send-email.handler
       Events:
         Api:
@@ -2270,7 +2270,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-notification'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/notifications/send-notification.handler
       Events:
         Api:
@@ -2284,7 +2284,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-organization-account'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/organizations/create-organization-account.handler
       Events:
         Api:
@@ -2298,7 +2298,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-sync-organization-accounts'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/organizations/sync-organization-accounts.handler
       Timeout: 60
       Events:
@@ -2313,7 +2313,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-organization'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/profiles/check-organization.handler
       Events:
         Api:
@@ -2327,7 +2327,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-with-organization'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/profiles/create-with-organization.handler
       Events:
         Api:
@@ -2341,7 +2341,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-user-organization'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/profiles/get-user-organization.handler
       Events:
         Api:
@@ -2355,7 +2355,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-excel-report'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/reports/generate-excel-report.handler
       Timeout: 120
       MemorySize: 512
@@ -2371,7 +2371,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-pdf-report'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/reports/generate-pdf-report.handler
       Timeout: 120
       MemorySize: 512
@@ -2387,7 +2387,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-remediation-script'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/reports/generate-remediation-script.handler
       Timeout: 60
       Events:
@@ -2402,7 +2402,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-security-pdf'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/reports/generate-security-pdf.handler
       Timeout: 120
       MemorySize: 512
@@ -2418,7 +2418,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-security-scan-pdf-export'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/reports/security-scan-pdf-export.handler
       Timeout: 120
       MemorySize: 512
@@ -2434,7 +2434,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-analyze-cloudtrail'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/analyze-cloudtrail.handler
       Timeout: 300
       MemorySize: 512
@@ -2450,7 +2450,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-compliance-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/compliance-scan.handler
       Timeout: 300
       MemorySize: 1024
@@ -2466,14 +2466,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-remediation-ticket'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/create-remediation-ticket.handler
 
   DriftDetectionFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-drift-detection'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/drift-detection.handler
       Timeout: 120
       MemorySize: 512
@@ -2489,7 +2489,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudtrail'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/fetch-cloudtrail.handler
       Timeout: 60
       Events:
@@ -2504,7 +2504,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-history'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/get-compliance-history.handler
       Events:
         Api:
@@ -2518,7 +2518,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-scan-status'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/get-compliance-scan-status.handler
       Events:
         Api:
@@ -2532,7 +2532,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-findings'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/get-findings.handler
       Events:
         Api:
@@ -2546,7 +2546,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-security-posture'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/get-security-posture.handler
       Events:
         Api:
@@ -2560,7 +2560,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-guardduty-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/guardduty-scan.handler
       Timeout: 120
       MemorySize: 512
@@ -2576,7 +2576,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-iam-behavior-analysis'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/iam-behavior-analysis.handler
       Timeout: 120
       MemorySize: 512
@@ -2585,7 +2585,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-iam-deep-analysis'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/iam-deep-analysis.handler
       Timeout: 120
       MemorySize: 512
@@ -2601,7 +2601,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-lateral-movement-detection'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/lateral-movement-detection.handler
       Timeout: 120
       MemorySize: 512
@@ -2617,7 +2617,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-security-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/security-scan.handler
       Timeout: 300
       MemorySize: 1024
@@ -2633,7 +2633,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-analyze-cloudtrail'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/start-analyze-cloudtrail.handler
       Timeout: 60
 
@@ -2641,7 +2641,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-cloudtrail-analysis'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/start-cloudtrail-analysis.handler
       Timeout: 60
       Events:
@@ -2656,7 +2656,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-compliance-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/start-compliance-scan.handler
       Timeout: 60
       Events:
@@ -2671,7 +2671,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-security-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/start-security-scan.handler
       Timeout: 60
       Events:
@@ -2686,7 +2686,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-aws-credentials'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/validate-aws-credentials.handler
       Timeout: 60
       Events:
@@ -2701,7 +2701,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-permissions'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/validate-permissions.handler
       Timeout: 60
       Events:
@@ -2716,14 +2716,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-waf-security'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/validate-waf-security.handler
 
   WafDashboardApiFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-dashboard-api'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/waf-dashboard-api.handler
       Events:
         Api:
@@ -2737,21 +2737,21 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-forwarder'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/waf-log-forwarder.handler
 
   WafLogProcessorFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-processor'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/waf-log-processor.handler
 
   WafSetupMonitoringFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-setup-monitoring'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/waf-setup-monitoring.handler
       Timeout: 60
       Events:
@@ -2766,14 +2766,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-threat-analyzer'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/waf-threat-analyzer.handler
 
   WafUnblockExpiredFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-unblock-expired'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/waf-unblock-expired.handler
       Timeout: 60
 
@@ -2781,7 +2781,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-well-architected-scan'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/security/well-architected-scan.handler
       Timeout: 300
       MemorySize: 512
@@ -2797,7 +2797,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-storage-download'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/storage/storage-handlers.handler
       Timeout: 60
       Events:
@@ -2812,7 +2812,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-storage-delete'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/storage/storage-handlers.handler
       Events:
         Api:
@@ -2826,7 +2826,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-upload-attachment'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/storage/storage-handlers.handler
       Timeout: 60
       Events:
@@ -2841,21 +2841,21 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-add-status-column'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/system/add-status-column.handler
 
   CheckMigrationsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-migrations'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/system/check-migrations.handler
 
   DbInitFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-db-init'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/system/db-init.handler
       Timeout: 300
       MemorySize: 512
@@ -2871,28 +2871,28 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-debug-org-query'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/system/debug-org-query.handler
 
   FixAzureConstraintsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fix-azure-constraints'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/system/fix-azure-constraints.handler
 
   ListTablesFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-tables'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/system/list-tables.handler
 
   RunMigrationsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-migrations'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/system/run-migrations.handler
       Timeout: 300
 
@@ -2900,7 +2900,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-sql-migration'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/system/run-sql-migration.handler
       Timeout: 300
 
@@ -2908,7 +2908,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-notification-settings'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/user/notification-settings.handler
       Events:
         Api:
@@ -2922,7 +2922,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-websocket-connect'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/websocket/connect.handler
       Events:
         Api:
@@ -2938,7 +2938,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-websocket-disconnect'
-      CodeUri: backend/
+      CodeUri: ../backend/
       Handler: dist/handlers/websocket/disconnect.handler
       Events:
         Api:
