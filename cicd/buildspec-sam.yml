@@ -77,14 +77,38 @@ phases:
       - find backend/layers/dependencies/nodejs/node_modules -name "*.md" -delete 2>/dev/null || true
       - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node 2>/dev/null || true
       
-      - echo "🏗️ Packaging SAM application..."
+      - echo "🏗️ Packaging SAM application (optimized)..."
       - echo "Layer directory contents:"
       - ls -la backend/layers/dependencies/nodejs/node_modules/ | head -20 || echo "Layer directory not found"
       - du -sh backend/layers/dependencies/ || echo "Cannot calculate size"
       - echo "Template location:"
       - ls -la template.yaml || echo "Template not found in root"
-      # Use aws cloudformation package instead of sam package for faster processing
-      - aws cloudformation package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix evo-uds-v3-$ENV --region us-east-1
+      
+      # OPTIMIZED: Upload code once and reference it in all functions
+      - echo "📤 Uploading Lambda code to S3 (single upload)..."
+      - TIMESTAMP=$(date +%Y%m%d%H%M%S)
+      - CODE_KEY="evo-uds-v3-$ENV/lambda-code-$TIMESTAMP.zip"
+      - LAYER_KEY="evo-uds-v3-$ENV/layer-$TIMESTAMP.zip"
+      
+      # Create and upload Lambda code zip
+      - cd backend && zip -rq /tmp/lambda-code.zip dist/ && cd ..
+      - aws s3 cp /tmp/lambda-code.zip s3://evo-sam-artifacts-$AWS_ACCOUNT/$CODE_KEY
+      - CODE_S3_URI="s3://evo-sam-artifacts-$AWS_ACCOUNT/$CODE_KEY"
+      - echo "✅ Lambda code uploaded to $CODE_S3_URI"
+      
+      # Create and upload Layer zip
+      - cd backend/layers/dependencies && zip -rq /tmp/layer.zip nodejs/ && cd ../../..
+      - aws s3 cp /tmp/layer.zip s3://evo-sam-artifacts-$AWS_ACCOUNT/$LAYER_KEY
+      - LAYER_S3_URI="s3://evo-sam-artifacts-$AWS_ACCOUNT/$LAYER_KEY"
+      - echo "✅ Layer uploaded to $LAYER_S3_URI"
+      
+      # Replace CodeUri and ContentUri in template with S3 URIs
+      - sed -i "s|CodeUri: backend/|CodeUri: $CODE_S3_URI|g" template.yaml
+      - sed -i "s|ContentUri: backend/layers/dependencies/|ContentUri: $LAYER_S3_URI|g" template.yaml
+      
+      # Copy template as packaged (no need for cloudformation package now)
+      - cp template.yaml packaged.yaml
+      - echo "✅ Template packaged with S3 references"
 
   post_build:
     commands:
