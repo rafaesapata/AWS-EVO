@@ -103,8 +103,10 @@ phases:
       - echo "✅ Layer uploaded to $LAYER_S3_URI"
       
       # Replace CodeUri and ContentUri in template with S3 URIs
-      - sed -i "s|CodeUri: backend/|CodeUri: $CODE_S3_URI|g" template.yaml
-      - sed -i "s|ContentUri: backend/layers/dependencies/|ContentUri: $LAYER_S3_URI|g" template.yaml
+      - |
+        # Use @ as delimiter since S3 URIs contain /
+        sed -i "s@CodeUri: backend/@CodeUri: $CODE_S3_URI@g" template.yaml
+        sed -i "s@ContentUri: backend/layers/dependencies/@ContentUri: $LAYER_S3_URI@g" template.yaml
       
       # Copy template as packaged (no need for cloudformation package now)
       - cp template.yaml packaged.yaml
