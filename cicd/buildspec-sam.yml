@@ -10,7 +10,7 @@ env:
 phases:
   install:
     runtime-versions:
-      nodejs: 18
+      nodejs: 20
       python: 3.11
     commands:
       - echo "📦 Installing SAM CLI..."
@@ -21,7 +21,7 @@ phases:
       - npm install --prefix backend
       
       - echo "🔧 Generating Prisma client..."
-      - npx prisma generate --schema=backend/prisma/schema.prisma
+      - cd backend && npx prisma generate && cd ..
 
   pre_build:
     commands:
