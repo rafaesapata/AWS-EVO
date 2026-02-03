@@ -43,10 +43,9 @@ npx tsx scripts/generate-sam-template.ts
 | **S3 Frontend** | `evo-uds-v3-production-frontend-971354623291` |
 | **Cognito User Pool ID** | `us-east-1_cnesJ48lR` |
 | **Cognito Client ID** | `4p0okvsr983v2f8rrvgpls76d6` |
-| **VPC ID** | `vpc-09773244a2156129c` |
-| **Private Subnets** | `subnet-0dbb444e4ef54d211`, `subnet-05383447666913b7b` |
-| **Security Group** | `sg-04eb71f681cc651ae` |
-| **NAT Gateway** | `nat-071801f85e8109355` |
+| **VPC ID** | `vpc-0c55e2a97fd92a5ca` |
+| **Private Subnets** | `subnet-0edbe4968ff3a5a9e`, `subnet-01931c820b0b0e864` |
+| **Security Group** | `sg-0f14fd661fc5c41ba` |
 
 ### PRODUCTION (523115032346)
 
@@ -177,7 +176,7 @@ aws lambda update-function-configuration \
 ```bash
 aws lambda update-function-configuration \
   --function-name LAMBDA_NAME \
-  --vpc-config "SubnetIds=subnet-0dbb444e4ef54d211,subnet-05383447666913b7b,SecurityGroupIds=sg-04eb71f681cc651ae" \
+  --vpc-config "SubnetIds=subnet-0edbe4968ff3a5a9e,subnet-01931c820b0b0e864,SecurityGroupIds=sg-0f14fd661fc5c41ba" \
   --region us-east-1
 ```
 

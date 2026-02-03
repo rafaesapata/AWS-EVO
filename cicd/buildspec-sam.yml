@@ -42,9 +42,9 @@ phases:
           export AWS_ACCOUNT="971354623291"
           # Sandbox infrastructure values (existing)
           export COGNITO_USER_POOL_ID="us-east-1_cnesJ48lR"
-          export LAMBDA_SG_ID="sg-04eb71f681cc651ae"
-          export PRIVATE_SUBNET_1="subnet-0dbb444e4ef54d211"
-          export PRIVATE_SUBNET_2="subnet-05383447666913b7b"
+          export LAMBDA_SG_ID="sg-0f14fd661fc5c41ba"
+          export PRIVATE_SUBNET_1="subnet-0edbe4968ff3a5a9e"
+          export PRIVATE_SUBNET_2="subnet-01931c820b0b0e864"
           export LAYER_ARN="arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92"
           export DATABASE_URL=$(aws ssm get-parameter --name "/evo/sandbox/database-url" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         fi
