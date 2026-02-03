@@ -1,7 +1,7 @@
 version: 0.2
 
 # AWS CodeBuild - SAM Build and Deploy
-# Builds and deploys EVO Platform using AWS SAM
+# Deploys Lambda functions using existing infrastructure
 
 env:
   variables:
@@ -29,17 +29,25 @@ phases:
       - |
         if [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/production" ] || [ "$BRANCH_NAME" = "production" ]; then
           export ENV="production"
-          export SAM_CONFIG_ENV="production"
           export AWS_ACCOUNT="523115032346"
-          export DATABASE_PASSWORD=$(aws ssm get-parameter --name "/evo/production/database-password" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          # Production infrastructure values
+          export COGNITO_USER_POOL_ID="us-east-1_WVljEXXs9"
+          export LAMBDA_SG_ID="sg-07ea931d32276e039"
+          export PRIVATE_SUBNET_1="subnet-0af7face420b9f317"
+          export PRIVATE_SUBNET_2="subnet-099b0fbc0a342fb0f"
+          export DATABASE_URL=$(aws ssm get-parameter --name "/evo/production/database-url" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         else
           export ENV="sandbox"
-          export SAM_CONFIG_ENV="sandbox"
           export AWS_ACCOUNT="971354623291"
-          export DATABASE_PASSWORD=$(aws ssm get-parameter --name "/evo/sandbox/database-password" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          # Sandbox infrastructure values (existing)
+          export COGNITO_USER_POOL_ID="us-east-1_cnesJ48lR"
+          export LAMBDA_SG_ID="sg-04eb71f681cc651ae"
+          export PRIVATE_SUBNET_1="subnet-0dbb444e4ef54d211"
+          export PRIVATE_SUBNET_2="subnet-05383447666913b7b"
+          export DATABASE_URL=$(aws ssm get-parameter --name "/evo/sandbox/database-url" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         fi
         echo "🌍 Environment: $ENV"
-        echo "📦 SAM config: $SAM_CONFIG_ENV"
+        echo "📦 Using existing infrastructure"
 
   build:
     commands:
@@ -77,111 +85,54 @@ phases:
       - find backend/layers/dependencies/nodejs/node_modules -name "*.md" -delete 2>/dev/null || true
       - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node 2>/dev/null || true
       
-      - echo "🏗️ Packaging SAM application (optimized)..."
-      - echo "Layer directory contents:"
-      - ls -la backend/layers/dependencies/nodejs/node_modules/ | head -20 || echo "Layer directory not found"
-      - du -sh backend/layers/dependencies/ || echo "Cannot calculate size"
-      - echo "Template location:"
-      - ls -la template.yaml || echo "Template not found in root"
-      
-      # OPTIMIZED: Upload code once and reference it in all functions
-      - echo "📤 Uploading Lambda code to S3 (single upload)..."
-      - TIMESTAMP=$(date +%Y%m%d%H%M%S)
-      - CODE_KEY="evo-uds-v3-$ENV/lambda-code-$TIMESTAMP.zip"
-      - LAYER_KEY="evo-uds-v3-$ENV/layer-$TIMESTAMP.zip"
-      
-      # Create and upload Lambda code zip
-      - cd backend && zip -rq /tmp/lambda-code.zip dist/ && cd ..
-      - aws s3 cp /tmp/lambda-code.zip s3://evo-sam-artifacts-$AWS_ACCOUNT/$CODE_KEY
-      - CODE_S3_URI="s3://evo-sam-artifacts-$AWS_ACCOUNT/$CODE_KEY"
-      - echo "✅ Lambda code uploaded to $CODE_S3_URI"
-      
-      # Create and upload Layer zip
-      - cd backend/layers/dependencies && zip -rq /tmp/layer.zip nodejs/ && cd ../../..
-      - aws s3 cp /tmp/layer.zip s3://evo-sam-artifacts-$AWS_ACCOUNT/$LAYER_KEY
-      - LAYER_S3_URI="s3://evo-sam-artifacts-$AWS_ACCOUNT/$LAYER_KEY"
-      - echo "✅ Layer uploaded to $LAYER_S3_URI"
-      
-      # Replace CodeUri and ContentUri in template with S3 URIs
-      - |
-        # Use @ as delimiter since S3 URIs contain /
-        sed -i "s@CodeUri: backend/@CodeUri: $CODE_S3_URI@g" template.yaml
-        sed -i "s@ContentUri: backend/layers/dependencies/@ContentUri: $LAYER_S3_URI@g" template.yaml
-      
-      # Copy template as packaged (no need for cloudformation package now)
-      - cp template.yaml packaged.yaml
-      - echo "✅ Template packaged with S3 references"
+      - echo "🏗️ Building SAM application..."
+      - sam build --template-file template.yaml
 
   post_build:
     commands:
       - echo "🚀 Deploying SAM application..."
       - |
         sam deploy \
-          --template-file packaged.yaml \
-          --stack-name evo-uds-v3-$ENV \
+          --template-file .aws-sam/build/template.yaml \
+          --stack-name evo-uds-v3-$ENV-lambdas \
           --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT \
           --s3-prefix evo-uds-v3-$ENV \
           --region us-east-1 \
-          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
+          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
           --parameter-overrides \
             "Environment=$ENV" \
             "ProjectName=evo-uds-v3" \
-            "DatabasePassword=$DATABASE_PASSWORD" \
+            "DatabaseUrl=$DATABASE_URL" \
+            "CognitoUserPoolId=$COGNITO_USER_POOL_ID" \
+            "LambdaSecurityGroupId=$LAMBDA_SG_ID" \
+            "PrivateSubnet1Id=$PRIVATE_SUBNET_1" \
+            "PrivateSubnet2Id=$PRIVATE_SUBNET_2" \
           --no-confirm-changeset \
           --no-fail-on-empty-changeset
       
-      - echo "🗄️ Running database migrations..."
-      - |
-        # Get DATABASE_URL from Secrets Manager
-        SECRET_ARN=$(aws cloudformation describe-stacks \
-          --stack-name evo-uds-v3-$ENV \
-          --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretArn`].OutputValue' \
-          --output text 2>/dev/null || echo "")
-        
-        if [ -n "$SECRET_ARN" ]; then
-          export DATABASE_URL=$(aws secretsmanager get-secret-value \
-            --secret-id $SECRET_ARN \
-            --query 'SecretString' \
-            --output text | jq -r '.DATABASE_URL')
-          
-          echo "Applying Prisma migrations..."
-          npx prisma migrate deploy --schema=backend/prisma/schema.prisma || echo "⚠️ Migration failed"
-        fi
-      
       - echo "🌐 Deploying Frontend..."
       - |
-        FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
-          --stack-name evo-uds-v3-$ENV \
-          --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
-          --output text 2>/dev/null || echo "")
+        if [ "$ENV" = "sandbox" ]; then
+          FRONTEND_BUCKET="evo-uds-v3-production-frontend-971354623291"
+          CF_DIST_ID="E1PY7U3VNT6P1R"
+        else
+          FRONTEND_BUCKET="evo-uds-v3-prod-frontend-523115032346"
+          CF_DIST_ID=""
+        fi
         
         if [ -n "$FRONTEND_BUCKET" ]; then
           aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
           
-          # Invalidate CloudFront cache
-          CF_DIST_ID=$(aws cloudformation describe-stacks \
-            --stack-name evo-uds-v3-$ENV \
-            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
-            --output text 2>/dev/null || echo "")
-          
           if [ -n "$CF_DIST_ID" ]; then
             aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*"
           fi
-        else
-          echo "⚠️ Frontend bucket not found in stack outputs"
         fi
       
       - echo "✅ Deployment completed!"
-      - |
-        API_ENDPOINT=$(aws cloudformation describe-stacks \
-          --stack-name evo-uds-v3-$ENV \
-          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-          --output text 2>/dev/null || echo "N/A")
-        echo "🔗 API Endpoint: $API_ENDPOINT"
 
 artifacts:
   files:
-    - packaged.yaml
+    - .aws-sam/build/template.yaml
     - dist/**/*
   discard-paths: no
 

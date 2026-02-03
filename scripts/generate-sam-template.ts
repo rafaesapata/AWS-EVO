@@ -2,7 +2,8 @@
 /**
  * EVO Platform - SAM Template Generator
  * 
- * Generates AWS SAM template.yaml with all Lambda functions
+ * Generates AWS SAM template for Lambda functions using existing infrastructure.
+ * This approach avoids the 500 resource limit by not recreating VPC, RDS, Cognito.
  * 
  * Usage: npx tsx scripts/generate-sam-template.ts
  */
@@ -24,9 +25,9 @@ interface HandlerConfig {
   scheduled?: boolean;
 }
 
-// All handlers
+// All handlers grouped by category
 const HANDLERS: HandlerConfig[] = [
-  // ADMIN
+  // ADMIN (17)
   { name: 'admin-manage-user', path: 'admin', handler: 'admin-manage-user' },
   { name: 'automated-cleanup-stuck-scans', path: 'admin', handler: 'automated-cleanup-stuck-scans', timeout: 300, scheduled: true },
   { name: 'check-cloudtrail-status', path: 'admin', handler: 'check-cloudtrail-status', scheduled: true },
@@ -47,7 +48,7 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'run-migration-standalone', path: 'admin', handler: 'run-migration-standalone', timeout: 300, scheduled: true },
   { name: 'run-sql', path: 'admin', handler: 'run-sql', scheduled: true },
   { name: 'setup-license-config', path: 'admin', handler: 'setup-license-config', scheduled: true },
-  // AI
+  // AI (8)
   { name: 'bedrock-chat', path: 'ai', handler: 'bedrock-chat', timeout: 120, memory: 512 },
   { name: 'check-proactive-notifications', path: 'ai', handler: 'check-proactive-notifications', timeout: 120, scheduled: true },
   { name: 'generate-response', path: 'ai', handler: 'generate-response', timeout: 120, memory: 512, scheduled: true },
@@ -56,7 +57,7 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'manage-notification-rules', path: 'ai', handler: 'manage-notification-rules' },
   { name: 'send-ai-notification', path: 'ai', handler: 'send-ai-notification' },
   { name: 'update-ai-notification', path: 'ai', handler: 'update-ai-notification' },
-  // AUTH
+  // AUTH (14)
   { name: 'delete-webauthn-credential', path: 'auth', handler: 'delete-webauthn-credential' },
   { name: 'delete-webauthn-credential-admin', path: 'auth', handler: 'delete-webauthn-credential-admin', scheduled: true },
   { name: 'forgot-password', path: 'auth', handler: 'forgot-password', auth: 'NONE' },
@@ -71,11 +72,11 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'webauthn-authenticate', path: 'auth', handler: 'webauthn-authenticate' },
   { name: 'webauthn-check', path: 'auth', handler: 'webauthn-check-standalone' },
   { name: 'webauthn-register', path: 'auth', handler: 'webauthn-register' },
-  // AWS
+  // AWS (3)
   { name: 'list-aws-credentials', path: 'aws', handler: 'list-aws-credentials' },
   { name: 'save-aws-credentials', path: 'aws', handler: 'save-aws-credentials' },
   { name: 'update-aws-credentials', path: 'aws', handler: 'update-aws-credentials' },
-  // AZURE
+  // AZURE (24)
   { name: 'azure-activity-logs', path: 'azure', handler: 'azure-activity-logs', timeout: 60 },
   { name: 'azure-compliance-scan', path: 'azure', handler: 'azure-compliance-scan', timeout: 300, memory: 1024 },
   { name: 'azure-cost-optimization', path: 'azure', handler: 'azure-cost-optimization', timeout: 120, memory: 512 },
@@ -99,9 +100,9 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'start-azure-security-scan', path: 'azure', handler: 'start-azure-security-scan', timeout: 60 },
   { name: 'validate-azure-credentials', path: 'azure', handler: 'validate-azure-credentials', timeout: 60 },
   { name: 'validate-azure-permissions', path: 'azure', handler: 'validate-azure-permissions', timeout: 60 },
-  // CLOUD
+  // CLOUD (1)
   { name: 'list-cloud-credentials', path: 'cloud', handler: 'list-cloud-credentials' },
-  // COST
+  // COST (12)
   { name: 'analyze-ri-sp', path: 'cost', handler: 'analyze-ri-sp', timeout: 300, memory: 512 },
   { name: 'budget-forecast', path: 'cost', handler: 'budget-forecast', timeout: 120, memory: 512 },
   { name: 'cost-optimization', path: 'cost', handler: 'cost-optimization', timeout: 300, memory: 512 },
@@ -114,28 +115,28 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'ml-waste-detection', path: 'cost', handler: 'ml-waste-detection', timeout: 120, memory: 512 },
   { name: 'ri-sp-analyzer', path: 'cost', handler: 'ri-sp-analyzer', timeout: 300, memory: 512 },
   { name: 'save-ri-sp-analysis', path: 'cost', handler: 'save-ri-sp-analysis', scheduled: true },
-  // DASHBOARD
+  // DASHBOARD (3)
   { name: 'get-executive-dashboard', path: 'dashboard', handler: 'get-executive-dashboard', timeout: 60, memory: 512 },
   { name: 'get-executive-dashboard-public', path: 'dashboard', handler: 'get-executive-dashboard-public', timeout: 60, memory: 512, auth: 'NONE' },
   { name: 'manage-tv-tokens', path: 'dashboard', handler: 'manage-tv-tokens' },
-  // DATA
+  // DATA (5)
   { name: 'cleanup-cost-data', path: 'data', handler: 'cleanup-cost-data', timeout: 300, scheduled: true },
   { name: 'mutate-table', path: 'data', handler: 'mutate-table' },
   { name: 'query-table', path: 'data', handler: 'query-table' },
   { name: 'ticket-attachments', path: 'data', handler: 'ticket-attachments', timeout: 60 },
   { name: 'ticket-management', path: 'data', handler: 'ticket-management' },
-  // DEBUG
+  // DEBUG (3)
   { name: 'check-daily-costs', path: 'debug', handler: 'check-daily-costs', scheduled: true },
   { name: 'diagnose-cost-dashboard', path: 'debug', handler: 'diagnose-cost-dashboard', scheduled: true },
   { name: 'investigate-data-mismatch', path: 'debug', handler: 'investigate-data-mismatch', scheduled: true },
-  // INTEGRATIONS
+  // INTEGRATIONS (2)
   { name: 'cloudformation-webhook', path: 'integrations', handler: 'cloudformation-webhook', auth: 'NONE' },
   { name: 'create-jira-ticket', path: 'integrations', handler: 'create-jira-ticket', timeout: 60 },
-  // JOBS
+  // JOBS (13)
   { name: 'auto-cleanup-stuck-scans', path: 'jobs', handler: 'auto-cleanup-stuck-scans', timeout: 300, scheduled: true },
   { name: 'cleanup-expired-external-ids', path: 'jobs', handler: 'cleanup-expired-external-ids', timeout: 60, scheduled: true },
   { name: 'cleanup-expired-oauth-states', path: 'jobs', handler: 'cleanup-expired-oauth-states', timeout: 60, scheduled: true },
-  { name: 'cleanup-stuck-scans', path: 'jobs', handler: 'cleanup-stuck-scans', timeout: 300, scheduled: true },
+  { name: 'cleanup-stuck-scans-jobs', path: 'jobs', handler: 'cleanup-stuck-scans', timeout: 300, scheduled: true },
   { name: 'execute-scheduled-job', path: 'jobs', handler: 'execute-scheduled-job', timeout: 300, memory: 512 },
   { name: 'initial-data-load', path: 'jobs', handler: 'initial-data-load', timeout: 300, scheduled: true },
   { name: 'list-background-jobs', path: 'jobs', handler: 'list-background-jobs' },
@@ -145,7 +146,7 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'scheduled-view-refresh', path: 'jobs', handler: 'scheduled-view-refresh', timeout: 300, scheduled: true },
   { name: 'send-scheduled-emails', path: 'jobs', handler: 'send-scheduled-emails', timeout: 120, scheduled: true },
   { name: 'sync-resource-inventory', path: 'jobs', handler: 'sync-resource-inventory', timeout: 300, scheduled: true },
-  // KB
+  // KB (7)
   { name: 'increment-article-helpful', path: 'kb', handler: 'increment-article-helpful' },
   { name: 'increment-article-views', path: 'kb', handler: 'increment-article-views' },
   { name: 'kb-ai-suggestions', path: 'kb', handler: 'kb-ai-suggestions', timeout: 60, memory: 512 },
@@ -153,7 +154,7 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'kb-article-tracking', path: 'kb', handler: 'kb-article-tracking', scheduled: true },
   { name: 'kb-export-pdf', path: 'kb', handler: 'kb-export-pdf', timeout: 60, memory: 512 },
   { name: 'track-article-view-detailed', path: 'kb', handler: 'track-article-view-detailed' },
-  // LICENSE
+  // LICENSE (9)
   { name: 'admin-sync-license', path: 'license', handler: 'admin-sync-license', timeout: 60 },
   { name: 'cleanup-seats', path: 'license', handler: 'cleanup-seats', timeout: 60, scheduled: true },
   { name: 'configure-license', path: 'license', handler: 'configure-license' },
@@ -163,16 +164,16 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'scheduled-license-sync', path: 'license', handler: 'scheduled-license-sync', timeout: 120, scheduled: true },
   { name: 'sync-license', path: 'license', handler: 'sync-license', timeout: 60 },
   { name: 'validate-license', path: 'license', handler: 'validate-license' },
-  // MAINTENANCE
-  { name: 'maintenance-auto-cleanup-stuck-scans', path: 'maintenance', handler: 'auto-cleanup-stuck-scans', timeout: 300, scheduled: true },
+  // MAINTENANCE (2)
+  { name: 'maintenance-auto-cleanup', path: 'maintenance', handler: 'auto-cleanup-stuck-scans', timeout: 300, scheduled: true },
   { name: 'cleanup-stuck-scans-simple', path: 'maintenance', handler: 'cleanup-stuck-scans-simple', timeout: 300, scheduled: true },
-  // ML
+  // ML (5)
   { name: 'ai-prioritization', path: 'ml', handler: 'ai-prioritization', timeout: 120, memory: 512, scheduled: true },
   { name: 'detect-anomalies', path: 'ml', handler: 'detect-anomalies', timeout: 120, memory: 512 },
   { name: 'generate-ai-insights', path: 'ml', handler: 'generate-ai-insights', timeout: 120, memory: 512, scheduled: true },
   { name: 'intelligent-alerts-analyzer', path: 'ml', handler: 'intelligent-alerts-analyzer', timeout: 120, memory: 512 },
   { name: 'predict-incidents', path: 'ml', handler: 'predict-incidents', timeout: 120, memory: 512 },
-  // MONITORING
+  // MONITORING (17)
   { name: 'alerts', path: 'monitoring', handler: 'alerts' },
   { name: 'auto-alerts', path: 'monitoring', handler: 'auto-alerts' },
   { name: 'aws-realtime-metrics', path: 'monitoring', handler: 'aws-realtime-metrics', timeout: 60, memory: 512 },
@@ -190,25 +191,25 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'log-frontend-error', path: 'monitoring', handler: 'log-frontend-error', auth: 'NONE' },
   { name: 'monitored-endpoints', path: 'monitoring', handler: 'monitored-endpoints' },
   { name: 'test-lambda-metrics', path: 'monitoring', handler: 'test-lambda-metrics', scheduled: true },
-  // NOTIFICATIONS
+  // NOTIFICATIONS (4)
   { name: 'get-communication-logs', path: 'notifications', handler: 'get-communication-logs' },
   { name: 'manage-email-preferences', path: 'notifications', handler: 'manage-email-preferences' },
   { name: 'send-email', path: 'notifications', handler: 'send-email' },
   { name: 'send-notification', path: 'notifications', handler: 'send-notification' },
-  // ORGANIZATIONS
+  // ORGANIZATIONS (2)
   { name: 'create-organization-account', path: 'organizations', handler: 'create-organization-account' },
   { name: 'sync-organization-accounts', path: 'organizations', handler: 'sync-organization-accounts', timeout: 60 },
-  // PROFILES
+  // PROFILES (3)
   { name: 'check-organization', path: 'profiles', handler: 'check-organization' },
   { name: 'create-with-organization', path: 'profiles', handler: 'create-with-organization' },
   { name: 'get-user-organization', path: 'profiles', handler: 'get-user-organization' },
-  // REPORTS
+  // REPORTS (5)
   { name: 'generate-excel-report', path: 'reports', handler: 'generate-excel-report', timeout: 120, memory: 512 },
   { name: 'generate-pdf-report', path: 'reports', handler: 'generate-pdf-report', timeout: 120, memory: 512 },
   { name: 'generate-remediation-script', path: 'reports', handler: 'generate-remediation-script', timeout: 60 },
   { name: 'generate-security-pdf', path: 'reports', handler: 'generate-security-pdf', timeout: 120, memory: 512 },
   { name: 'security-scan-pdf-export', path: 'reports', handler: 'security-scan-pdf-export', timeout: 120, memory: 512 },
-  // SECURITY
+  // SECURITY (28)
   { name: 'analyze-cloudtrail', path: 'security', handler: 'analyze-cloudtrail', timeout: 300, memory: 512 },
   { name: 'compliance-scan', path: 'security', handler: 'compliance-scan', timeout: 300, memory: 1024 },
   { name: 'create-remediation-ticket', path: 'security', handler: 'create-remediation-ticket', scheduled: true },
@@ -237,11 +238,11 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'waf-threat-analyzer', path: 'security', handler: 'waf-threat-analyzer', scheduled: true },
   { name: 'waf-unblock-expired', path: 'security', handler: 'waf-unblock-expired', timeout: 60, scheduled: true },
   { name: 'well-architected-scan', path: 'security', handler: 'well-architected-scan', timeout: 300, memory: 512 },
-  // STORAGE
+  // STORAGE (3)
   { name: 'storage-download', path: 'storage', handler: 'storage-handlers', timeout: 60 },
   { name: 'storage-delete', path: 'storage', handler: 'storage-handlers' },
   { name: 'upload-attachment', path: 'storage', handler: 'storage-handlers', timeout: 60 },
-  // SYSTEM
+  // SYSTEM (8)
   { name: 'add-status-column', path: 'system', handler: 'add-status-column', scheduled: true },
   { name: 'check-migrations', path: 'system', handler: 'check-migrations', scheduled: true },
   { name: 'db-init', path: 'system', handler: 'db-init', timeout: 300, memory: 512 },
@@ -250,13 +251,12 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'list-tables', path: 'system', handler: 'list-tables', scheduled: true },
   { name: 'run-migrations', path: 'system', handler: 'run-migrations', timeout: 300, scheduled: true },
   { name: 'run-sql-migration', path: 'system', handler: 'run-sql-migration', timeout: 300, scheduled: true },
-  // USER
+  // USER (1)
   { name: 'notification-settings', path: 'user', handler: 'notification-settings' },
-  // WEBSOCKET
+  // WEBSOCKET (2)
   { name: 'websocket-connect', path: 'websocket', handler: 'connect', auth: 'NONE' },
   { name: 'websocket-disconnect', path: 'websocket', handler: 'disconnect', auth: 'NONE' },
 ];
-
 
 function toPascalCase(str: string): string {
   return str.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
@@ -267,52 +267,25 @@ function generateFunction(h: HandlerConfig): string {
   const timeout = h.timeout || 30;
   const memory = h.memory || 256;
   
-  let yaml = `
+  return `
   ${name}Function:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '\${ProjectName}-\${Environment}-${h.name}'
       CodeUri: backend/
-      Handler: dist/handlers/${h.path}/${h.handler}.handler`;
-  
-  if (timeout !== 30) {
-    yaml += `
-      Timeout: ${timeout}`;
-  }
-  
-  if (memory !== 256) {
-    yaml += `
+      Handler: dist/handlers/${h.path}/${h.handler}.handler
+      Timeout: ${timeout}
       MemorySize: ${memory}`;
-  }
-  
-  // Add API event for non-scheduled functions
-  if (!h.scheduled) {
-    yaml += `
-      Events:
-        Api:
-          Type: Api
-          Properties:
-            RestApiId: !Ref Api
-            Path: /api/functions/${h.name}
-            Method: POST`;
-    
-    // Auth must be at the same level as Properties, not inside it
-    if (h.auth === 'NONE') {
-      yaml += `
-            Auth:
-              Authorizer: NONE`;
-    }
-  }
-  
-  return yaml;
 }
 
 function generateTemplate(): string {
-  const header = `AWSTemplateFormatVersion: '2010-09-09'
+  const functions = HANDLERS.map(h => generateFunction(h)).join('\n');
+  
+  return `AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: |
-  EVO Platform - Serverless Application
-  ${HANDLERS.length} Lambda Functions + API Gateway + Infrastructure
+  EVO Platform - Lambda Functions Only
+  ${HANDLERS.length} Lambda Functions using existing infrastructure
   Generated by scripts/generate-sam-template.ts
 
 Globals:
@@ -324,15 +297,15 @@ Globals:
       - x86_64
     VpcConfig:
       SecurityGroupIds:
-        - !Ref LambdaSecurityGroup
+        - !Ref LambdaSecurityGroupId
       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
     Environment:
       Variables:
         NODE_PATH: /opt/nodejs/node_modules
-        DATABASE_URL: !Sub '{{resolve:secretsmanager:\${DatabaseSecret}:SecretString:DATABASE_URL}}'
-        COGNITO_USER_POOL_ID: !Ref UserPool
+        DATABASE_URL: !Ref DatabaseUrl
+        COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
     Layers:
       - !Ref DependenciesLayer
@@ -347,287 +320,28 @@ Parameters:
     Type: String
     Default: evo-uds-v3
 
-  DatabasePassword:
+  DatabaseUrl:
     Type: String
     NoEcho: true
-    MinLength: 16
+    Description: PostgreSQL connection string
+
+  CognitoUserPoolId:
+    Type: String
+    Description: Existing Cognito User Pool ID
+
+  LambdaSecurityGroupId:
+    Type: String
+    Description: Existing Lambda Security Group ID
+
+  PrivateSubnet1Id:
+    Type: String
+    Description: Existing Private Subnet 1 ID
+
+  PrivateSubnet2Id:
+    Type: String
+    Description: Existing Private Subnet 2 ID
 
 Resources:
-  # ==========================================================================
-  # NETWORKING
-  # ==========================================================================
-  VPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsHostnames: true
-      EnableDnsSupport: true
-      Tags:
-        - Key: Name
-          Value: !Sub '\${ProjectName}-\${Environment}-vpc'
-
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-
-  InternetGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref VPC
-      InternetGatewayId: !Ref InternetGateway
-
-  PublicSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [0, !GetAZs '']
-      CidrBlock: 10.0.1.0/24
-      MapPublicIpOnLaunch: true
-
-  PublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [1, !GetAZs '']
-      CidrBlock: 10.0.2.0/24
-      MapPublicIpOnLaunch: true
-
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [0, !GetAZs '']
-      CidrBlock: 10.0.10.0/24
-
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [1, !GetAZs '']
-      CidrBlock: 10.0.11.0/24
-
-  NatGatewayEIP:
-    Type: AWS::EC2::EIP
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      Domain: vpc
-
-  NatGateway:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt NatGatewayEIP.AllocationId
-      SubnetId: !Ref PublicSubnet1
-
-  PublicRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-
-  PublicRoute:
-    Type: AWS::EC2::Route
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-
-  PublicSubnet1RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet1
-      RouteTableId: !Ref PublicRouteTable
-
-  PublicSubnet2RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet2
-      RouteTableId: !Ref PublicRouteTable
-
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-
-  PrivateRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway
-
-  PrivateSubnet1RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet1
-      RouteTableId: !Ref PrivateRouteTable
-
-  PrivateSubnet2RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet2
-      RouteTableId: !Ref PrivateRouteTable
-`;
-
-  const securityAndDb = `
-  # ==========================================================================
-  # SECURITY GROUPS
-  # ==========================================================================
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Lambda functions
-      VpcId: !Ref VPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
-  DatabaseSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for RDS
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
-
-  # ==========================================================================
-  # DATABASE
-  # ==========================================================================
-  DBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Subnet group for RDS
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-
-  Database:
-    Type: AWS::RDS::DBInstance
-    DeletionPolicy: Snapshot
-    Properties:
-      DBInstanceIdentifier: !Sub '\${ProjectName}-\${Environment}-postgres'
-      DBInstanceClass: db.t3.micro
-      Engine: postgres
-      EngineVersion: '15'
-      AllocatedStorage: 20
-      StorageType: gp3
-      DBName: evouds
-      MasterUsername: evoadmin
-      MasterUserPassword: !Ref DatabasePassword
-      VPCSecurityGroups:
-        - !Ref DatabaseSecurityGroup
-      DBSubnetGroupName: !Ref DBSubnetGroup
-      PubliclyAccessible: false
-      BackupRetentionPeriod: 7
-
-  DatabaseSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: !Sub '\${ProjectName}/\${Environment}/database'
-      SecretString: !Sub |
-        {
-          "DATABASE_URL": "postgresql://evoadmin:\${DatabasePassword}@\${Database.Endpoint.Address}:5432/evouds?schema=public"
-        }
-
-  # ==========================================================================
-  # COGNITO
-  # ==========================================================================
-  UserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: !Sub '\${ProjectName}-\${Environment}-users'
-      AutoVerifiedAttributes: [email]
-      UsernameAttributes: [email]
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireUppercase: true
-
-  UserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      ClientName: !Sub '\${ProjectName}-\${Environment}-web'
-      UserPoolId: !Ref UserPool
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-        - ALLOW_USER_SRP_AUTH
-
-  # ==========================================================================
-  # FRONTEND (S3 + CloudFront)
-  # ==========================================================================
-  FrontendBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '\${ProjectName}-\${Environment}-frontend-\${AWS::AccountId}'
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: index.html
-
-  FrontendBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref FrontendBucket
-      PolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
-            Action: s3:GetObject
-            Resource: !Sub '\${FrontendBucket.Arn}/*'
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub 'arn:aws:cloudfront::\${AWS::AccountId}:distribution/\${CloudFrontDistribution}'
-
-  CloudFrontOriginAccessControl:
-    Type: AWS::CloudFront::OriginAccessControl
-    Properties:
-      OriginAccessControlConfig:
-        Name: !Sub '\${ProjectName}-\${Environment}-oac'
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
-
-  CloudFrontDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        DefaultRootObject: index.html
-        Origins:
-          - Id: S3Origin
-            DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            OriginAccessControlId: !Ref CloudFrontOriginAccessControl
-            S3OriginConfig:
-              OriginAccessIdentity: ''
-        DefaultCacheBehavior:
-          TargetOriginId: S3Origin
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [GET, HEAD, OPTIONS]
-          CachedMethods: [GET, HEAD]
-          ForwardedValues:
-            QueryString: false
-            Cookies:
-              Forward: none
-          Compress: true
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-        PriceClass: PriceClass_100
-
   # ==========================================================================
   # LAMBDA LAYER
   # ==========================================================================
@@ -643,82 +357,19 @@ Resources:
       BuildMethod: nodejs18.x
 
   # ==========================================================================
-  # API GATEWAY
+  # LAMBDA FUNCTIONS (${HANDLERS.length} total)
   # ==========================================================================
-  Api:
-    Type: AWS::Serverless::Api
-    Properties:
-      Name: !Sub '\${ProjectName}-\${Environment}-api'
-      StageName: prod
-      Auth:
-        DefaultAuthorizer: CognitoAuthorizer
-        Authorizers:
-          CognitoAuthorizer:
-            UserPoolArn: !GetAtt UserPool.Arn
-      Cors:
-        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
-        AllowOrigin: "'*'"
-`;
+${functions}
 
-  // Generate all functions
-  const functions = HANDLERS.map(h => generateFunction(h)).join('\n');
-
-  const outputs = `
-  # ==========================================================================
-  # OUTPUTS
-  # ==========================================================================
 Outputs:
-  ApiEndpoint:
-    Description: API Gateway endpoint URL
-    Value: !Sub 'https://\${Api}.execute-api.\${AWS::Region}.amazonaws.com/prod'
+  DependenciesLayerArn:
+    Description: Dependencies Layer ARN
+    Value: !Ref DependenciesLayer
 
-  UserPoolId:
-    Description: Cognito User Pool ID
-    Value: !Ref UserPool
-
-  UserPoolClientId:
-    Description: Cognito User Pool Client ID
-    Value: !Ref UserPoolClient
-
-  DatabaseEndpoint:
-    Description: RDS endpoint
-    Value: !GetAtt Database.Endpoint.Address
-
-  DatabaseSecretArn:
-    Description: Database secret ARN for CI/CD
-    Value: !Ref DatabaseSecret
-
-  VpcId:
-    Description: VPC ID
-    Value: !Ref VPC
-
-  PrivateSubnet1:
-    Description: Private Subnet 1 ID
-    Value: !Ref PrivateSubnet1
-
-  PrivateSubnet2:
-    Description: Private Subnet 2 ID
-    Value: !Ref PrivateSubnet2
-
-  LambdaSecurityGroupId:
-    Description: Lambda Security Group ID
-    Value: !Ref LambdaSecurityGroup
-
-  FrontendBucketName:
-    Description: S3 bucket for frontend
-    Value: !Ref FrontendBucket
-
-  CloudFrontDistributionId:
-    Description: CloudFront distribution ID
-    Value: !Ref CloudFrontDistribution
-
-  CloudFrontDomainName:
-    Description: CloudFront domain name
-    Value: !GetAtt CloudFrontDistribution.DomainName
+  FunctionCount:
+    Description: Number of Lambda functions deployed
+    Value: ${HANDLERS.length}
 `;
-
-  return header + securityAndDb + '\n  # ==========================================================================\n  # LAMBDA FUNCTIONS\n  # ==========================================================================' + functions + outputs;
 }
 
 async function main(): Promise<void> {
@@ -730,7 +381,7 @@ async function main(): Promise<void> {
   
   const template = generateTemplate();
   
-  // Write to root directory (not sam/) so paths resolve correctly
+  // Write to root directory
   const outputPath = path.join(__dirname, '..', 'template.yaml');
   fs.writeFileSync(outputPath, template, 'utf8');
   
