@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: |
   EVO Platform - Frontend Infrastructure
-  S3 Bucket + CloudFront Distribution for React SPA
+  S3 Bucket + CloudFront Distribution with Custom Domain
 
 Parameters:
   Environment:
@@ -12,6 +12,19 @@ Parameters:
   ProjectName:
     Type: String
     Default: evo-uds-v3
+
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM Certificate ARN for custom domain (leave empty for CloudFront default domain)
+
+  CustomDomain:
+    Type: String
+    Default: ''
+    Description: Custom domain for frontend (leave empty for CloudFront default domain)
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref CustomDomain, '']]
 
 Resources:
   # ==========================================================================
@@ -75,6 +88,16 @@ Resources:
         DefaultRootObject: index.html
         HttpVersion: http2and3
         IPV6Enabled: true
+        Aliases: !If
+          - HasCustomDomain
+          - [!Ref CustomDomain]
+          - !Ref AWS::NoValue
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
@@ -134,4 +157,7 @@ Outputs:
 
   FrontendUrl:
     Description: Frontend URL
-    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+    Value: !If
+      - HasCustomDomain
+      - !Sub 'https://${CustomDomain}'
+      - !Sub 'https://${CloudFrontDistribution.DomainName}'
