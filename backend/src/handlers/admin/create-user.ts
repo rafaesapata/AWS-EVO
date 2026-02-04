@@ -102,9 +102,9 @@ export async function handler(
       return notFound('Organization not found', origin);
     }
 
-    // Verificar se email já existe no banco
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    // Verificar se email já existe no banco (profiles table)
+    const existingProfile = await prisma.profile.findFirst({ where: { email } });
+    if (existingProfile) {
       return badRequest('User with this email already exists in database', undefined, origin);
     }
 
@@ -148,6 +148,11 @@ export async function handler(
       }));
 
       cognitoUserId = cognitoResponse.User?.Username;
+      
+      if (!cognitoUserId) {
+        throw new Error('Cognito user creation succeeded but no Username returned');
+      }
+      
       cognitoUserCreated = true;
       logger.info('✅ Cognito user created successfully', { email, cognitoUserId });
 
@@ -185,34 +190,32 @@ export async function handler(
       throw new Error(`Failed to create user in Cognito: ${cognitoError instanceof Error ? cognitoError.message : String(cognitoError)}`);
     }
 
+    // Validar que cognitoUserId foi criado
+    if (!cognitoUserId) {
+      throw new Error('Cognito user creation succeeded but no Username returned');
+    }
+    
+    const validatedUserId: string = cognitoUserId;
+
     // STEP 2: Criar usuário no banco PostgreSQL usando transação
     try {
       logger.info('🔐 Creating database user and profile', { email });
       
       const result = await prisma.$transaction(async (tx) => {
-        // Criar usuário no banco
-        const newUser = await tx.user.create({
-          data: { 
-            email, 
-            full_name: name, 
-            is_active: true 
-          }
-        });
-        
-        logger.info('✅ Database user created', { email, userId: newUser.id });
-        databaseUserId = newUser.id;
-        databaseUserCreated = true;
-
-        // Criar profile
+        // Criar perfil no banco (não mais tabela users)
         const newProfile = await tx.profile.create({
-          data: {
-            user_id: newUser.id,
+          data: { 
+            user_id: validatedUserId,
+            email: email,
+            full_name: name,
             organization_id: organizationId,
-            role: role
+            role: role || 'user'
           }
         });
         
-        logger.info('✅ User profile created', { email, userId: newUser.id, profileId: newProfile.id });
+        logger.info('✅ Database profile created', { email, userId: validatedUserId, profileId: newProfile.id });
+        databaseUserId = validatedUserId;
+        databaseUserCreated = true;
         profileCreated = true;
 
         // Registrar auditoria
@@ -222,36 +225,35 @@ export async function handler(
             user_id: adminUserId,
             action: 'CREATE_USER',
             resource_type: 'USER',
-            resource_id: newUser.id,
-            details: { email, role, createdBy: adminUserId, cognitoUserId },
+            resource_id: validatedUserId,
+            details: { email, role, createdBy: adminUserId, cognitoUserId: validatedUserId },
             ip_address: event.requestContext?.identity?.sourceIp || event.headers?.['x-forwarded-for']?.split(',')[0],
             user_agent: event.headers?.['user-agent']
           }
         });
 
-        logger.info('✅ Audit log created', { email, userId: newUser.id });
+        logger.info('✅ Audit log created', { email, userId: validatedUserId });
 
         return {
-          user: newUser,
           profile: newProfile
         };
       });
 
       logger.info('🎉 User creation completed successfully', { 
         email, 
-        userId: result.user.id, 
+        userId: result.profile.user_id, 
         cognitoUserId,
         organizationId 
       });
 
       return success({
         user: {
-          id: result.user.id,
-          email: result.user.email,
-          name: result.user.full_name,
-          isActive: result.user.is_active,
-          role: role,
-          organizationId: organizationId
+          id: result.profile.user_id,
+          email: result.profile.email,
+          name: result.profile.full_name,
+          isActive: true,
+          role: result.profile.role,
+          organizationId: result.profile.organization_id
         },
         inviteSent: sendInvite,
         cognitoUserId: cognitoUserId
@@ -366,9 +368,9 @@ async function performRollback(rollbackData: {
           where: { resource_id: databaseUserId, resource_type: 'USER' }
         });
         
-        // Delete user
-        await tx.user.delete({
-          where: { id: databaseUserId }
+        // Delete profile (não mais tabela users)
+        await tx.profile.deleteMany({
+          where: { user_id: databaseUserId }
         });
       });
       

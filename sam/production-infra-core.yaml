@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: EVO Production - Complete Infrastructure (VPC, RDS, Cognito, API Gateway, S3, CloudFront)
+Description: EVO Production - Core Infrastructure (VPC, RDS, Cognito, API Gateway)
 
 Parameters:
   Environment:
@@ -14,27 +14,9 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 16
-    Description: Password for RDS PostgreSQL database
-
-  CertificateArn:
-    Type: String
-    Default: arn:aws:acm:us-east-1:523115032346:certificate/9df982f9-7993-4454-8887-a33e1298b568
-    Description: ACM Certificate ARN for custom domains
-
-  FrontendDomain:
-    Type: String
-    Default: evo.nuevacore.com
-    Description: Frontend custom domain
-
-  ApiDomain:
-    Type: String
-    Default: api.evo.nuevacore.com
-    Description: API custom domain
 
 Resources:
-  # ==========================================================================
-  # NETWORKING - VPC, Subnets, NAT Gateway, Internet Gateway
-  # ==========================================================================
+  # VPC
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -105,26 +87,17 @@ Resources:
     DependsOn: InternetGatewayAttachment
     Properties:
       Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-nat-eip'
 
   NatGateway:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt NatGatewayEIP.AllocationId
       SubnetId: !Ref PublicSubnet1
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-nat'
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-public-rt'
 
   PublicRoute:
     Type: AWS::EC2::Route
@@ -150,9 +123,6 @@ Resources:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-private-rt'
 
   PrivateRoute:
     Type: AWS::EC2::Route
@@ -173,9 +143,7 @@ Resources:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
-  # ==========================================================================
-  # SECURITY GROUPS
-  # ==========================================================================
+  # Security Groups
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -185,9 +153,6 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-lambda-sg'
 
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -200,13 +165,8 @@ Resources:
           FromPort: 5432
           ToPort: 5432
           SourceSecurityGroupId: !Ref LambdaSecurityGroup
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-rds-sg'
 
-  # ==========================================================================
-  # DATABASE - RDS PostgreSQL
-  # ==========================================================================
+  # RDS
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -215,17 +175,14 @@ Resources:
       SubnetIds:
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-db-subnet-group'
 
   Database:
     Type: AWS::RDS::DBInstance
-    DeletionPolicy: Snapshot
-    UpdateReplacePolicy: Snapshot
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       DBInstanceIdentifier: !Sub '${ProjectName}-${Environment}-postgres'
-      DBInstanceClass: db.t3.medium
+      DBInstanceClass: db.t4g.medium
       Engine: postgres
       EngineVersion: '15'
       AllocatedStorage: 100
@@ -239,13 +196,10 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       PubliclyAccessible: false
       BackupRetentionPeriod: 7
-      MultiAZ: true
+      MultiAZ: false
       StorageEncrypted: true
       EnablePerformanceInsights: true
       PerformanceInsightsRetentionPeriod: 7
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-postgres'
 
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
@@ -261,13 +215,8 @@ Resources:
           "DB_USER": "evoadmin",
           "DB_PASSWORD": "${DatabasePassword}"
         }
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-db-secret'
 
-  # ==========================================================================
-  # COGNITO - User Pool and Client
-  # ==========================================================================
+  # Cognito
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -306,8 +255,6 @@ Resources:
         AllowAdminCreateUserOnly: false
       EmailConfiguration:
         EmailSendingAccount: COGNITO_DEFAULT
-      UserPoolTags:
-        Name: !Sub '${ProjectName}-${Environment}-users'
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -330,9 +277,7 @@ Resources:
         IdToken: hours
         RefreshToken: days
 
-  # ==========================================================================
-  # API GATEWAY - HTTP API with JWT Authorizer
-  # ==========================================================================
+  # API Gateway
   HttpApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
@@ -380,114 +325,7 @@ Resources:
       StageName: prod
       AutoDeploy: true
 
-  # ==========================================================================
-  # FRONTEND - S3 Bucket + CloudFront Distribution
-  # ==========================================================================
-  FrontendBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${Environment}-frontend-${AWS::AccountId}'
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: index.html
-      CorsConfiguration:
-        CorsRules:
-          - AllowedHeaders: ['*']
-            AllowedMethods: [GET, HEAD]
-            AllowedOrigins: ['*']
-            MaxAge: 3600
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-frontend'
-
-  FrontendBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref FrontendBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: AllowCloudFrontAccess
-            Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
-            Action: s3:GetObject
-            Resource: !Sub '${FrontendBucket.Arn}/*'
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
-
-  CloudFrontOriginAccessControl:
-    Type: AWS::CloudFront::OriginAccessControl
-    Properties:
-      OriginAccessControlConfig:
-        Name: !Sub '${ProjectName}-${Environment}-oac'
-        Description: OAC for EVO Platform Frontend
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
-
-  CloudFrontDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        Comment: !Sub '${ProjectName}-${Environment} Frontend Distribution'
-        DefaultRootObject: index.html
-        HttpVersion: http2and3
-        IPV6Enabled: true
-        Aliases:
-          - !Ref FrontendDomain
-        ViewerCertificate:
-          AcmCertificateArn: !Ref CertificateArn
-          SslSupportMethod: sni-only
-          MinimumProtocolVersion: TLSv1.2_2021
-        Origins:
-          - Id: S3Origin
-            DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            OriginAccessControlId: !Ref CloudFrontOriginAccessControl
-            S3OriginConfig:
-              OriginAccessIdentity: ''
-        DefaultCacheBehavior:
-          TargetOriginId: S3Origin
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods:
-            - GET
-            - HEAD
-            - OPTIONS
-          CachedMethods:
-            - GET
-            - HEAD
-          ForwardedValues:
-            QueryString: false
-            Cookies:
-              Forward: none
-          Compress: true
-          DefaultTTL: 86400
-          MaxTTL: 31536000
-          MinTTL: 0
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 10
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 10
-        PriceClass: PriceClass_100
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-cloudfront'
-
-  # ==========================================================================
-  # STORAGE - S3 Bucket for Attachments
-  # ==========================================================================
+  # S3 Attachments
   AttachmentsBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -508,9 +346,6 @@ Resources:
           - Id: DeleteOldAttachments
             Status: Enabled
             ExpirationInDays: 365
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-attachments'
 
 Outputs:
   VpcId:
@@ -561,15 +396,6 @@ Outputs:
     Value: !Ref HttpApiAuthorizer
     Export:
       Name: !Sub '${ProjectName}-${Environment}-HttpApiAuthorizerId'
-
-  FrontendBucketName:
-    Value: !Ref FrontendBucket
-
-  CloudFrontDistributionId:
-    Value: !Ref CloudFrontDistribution
-
-  CloudFrontDomainName:
-    Value: !GetAtt CloudFrontDistribution.DomainName
 
   AttachmentsBucketName:
     Value: !Ref AttachmentsBucket

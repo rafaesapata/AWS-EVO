@@ -147,12 +147,12 @@ export async function handler(
       return badRequest('Target organization not found');
     }
     
-    // Verificar se usuário já existe no banco
-    const existingUser = await prisma.user.findUnique({ 
+    // Verificar se usuário já existe no banco (profiles table)
+    const existingProfile = await prisma.profile.findFirst({ 
       where: { email } 
     });
     
-    if (existingUser) {
+    if (existingProfile) {
       return error('User with this email already exists', 409);
     }
     

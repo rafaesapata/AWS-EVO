@@ -68,16 +68,16 @@ export async function handler(
       return error('Cognito not configured', 500, undefined, origin);
     }
 
-    // Buscar usuário no banco para obter email se necessário
+    // Buscar usuário no banco para obter email se necessário (profiles table)
     let targetEmail = email;
     let targetUserId = userId;
     
     if (!targetEmail && userId) {
-      const dbUser = await prisma.user.findUnique({
-        where: { id: userId }
+      const dbProfile = await prisma.profile.findFirst({
+        where: { user_id: userId }
       });
-      if (dbUser) {
-        targetEmail = dbUser.email;
+      if (dbProfile) {
+        targetEmail = dbProfile.email || '';
       }
     }
 
@@ -85,25 +85,16 @@ export async function handler(
       return badRequest('User not found', undefined, origin);
     }
 
-    // Buscar usuário pelo email
-    const targetUser = await prisma.user.findUnique({
-      where: { email: targetEmail }
-    });
-
-    if (!targetUser) {
-      return badRequest('User not found', undefined, origin);
-    }
-
-    // Verificar se o usuário tem profile na mesma organização
+    // Buscar usuário pelo email (profiles table)
     const targetProfile = await prisma.profile.findFirst({
-      where: {
-        user_id: targetUser.id,
+      where: { 
+        email: targetEmail,
         organization_id: organizationId
       }
     });
 
     if (!targetProfile) {
-      return forbidden('Cannot disable user from another organization', origin);
+      return badRequest('User not found in this organization', undefined, origin);
     }
 
     // Desabilitar no Cognito
@@ -119,12 +110,9 @@ export async function handler(
       logger.warn(`User ${targetEmail} not found in Cognito, continuing with DB update`);
     }
 
-    // Atualizar status no banco
-    await prisma.user.update({
-      where: { email: targetEmail },
-      data: { is_active: false }
-    });
-
+    // Atualizar status no banco (profiles table - note: profiles doesn't have is_active, skip this)
+    // Profile status is managed through Cognito only
+    
     // Registrar auditoria
     await prisma.auditLog.create({
       data: {
@@ -132,7 +120,7 @@ export async function handler(
         user_id: adminUserId,
         action: 'DISABLE_USER',
         resource_type: 'USER',
-        resource_id: targetUser.id,
+        resource_id: targetProfile.user_id,
         details: { 
           email: targetEmail, 
           disabledBy: adminUserId 
@@ -148,7 +136,7 @@ export async function handler(
     return success({
       success: true,
       message: 'User disabled successfully',
-      userId: targetUser.id
+      userId: targetProfile.user_id
     }, 200, origin);
 
   } catch (err) {

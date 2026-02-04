@@ -74,30 +74,14 @@ async function generateChallenge(
   const prisma = getPrismaClient();
   
   try {
-    // Verificar se o usuário existe na tabela users
-    let user = await prisma.user.findUnique({
-      where: { id: userId }
+    // Verificar se o usuário existe na tabela profiles
+    let user = await prisma.profile.findFirst({
+      where: { user_id: userId }
     });
 
-    // Se não existir, criar o usuário
+    // Se não existir, retornar erro (usuário deve ser criado pelo self-register)
     if (!user) {
-      // Buscar dados do perfil para obter email
-      const profile = await prisma.profile.findFirst({
-        where: { user_id: userId }
-      });
-
-      if (!profile) {
-        return errorResponse('User profile not found', 404, undefined, origin);
-      }
-
-      user = await prisma.user.create({
-        data: {
-          id: userId,
-          email: profile.full_name || `user-${userId}@example.com`, // Fallback email
-          full_name: profile.full_name,
-          is_active: true
-        }
-      });
+      return errorResponse('User profile not found', 404, undefined, origin);
     }
 
     // Gerar challenge com crypto seguro
@@ -108,7 +92,7 @@ async function generateChallenge(
     await prisma.webauthnChallenge.create({
       data: {
         challenge,
-        user_id: user.id,
+        user_id: user.user_id,
         expires_at: challengeExpiry
       }
     });
@@ -121,9 +105,9 @@ async function generateChallenge(
       challenge,
       rpName,
       rpId,
-      userId: user.id,
-      userEmail: user.email,
-      userDisplayName: user.full_name || user.email
+      userId: user.user_id,
+      userEmail: user.email || '',
+      userDisplayName: user.full_name || user.email || 'User'
     };
 
     logger.info('Challenge generated successfully:', { userId, challenge: challenge.substring(0, 10) + '...' });
@@ -150,8 +134,8 @@ async function verifyRegistration(
 
   try {
     // Verificar se o usuário existe
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
+    const user = await prisma.profile.findFirst({
+      where: { user_id: userId }
     });
 
     if (!user) {
@@ -162,7 +146,7 @@ async function verifyRegistration(
     const storedChallenge = await prisma.webauthnChallenge.findFirst({
       where: {
         challenge: challengeId,
-        user_id: user.id,
+        user_id: user.user_id,
         expires_at: { gt: new Date() }
       }
     });
@@ -179,7 +163,7 @@ async function verifyRegistration(
     // Salvar credencial WebAuthn
     const webauthnCredential = await prisma.webAuthnCredential.create({
       data: {
-        user_id: user.id,
+        user_id: user.user_id,
         credential_id: credential.id,
         public_key: credential.publicKey,
         counter: 0,
@@ -195,7 +179,7 @@ async function verifyRegistration(
         severity: 'INFO',
         description: `WebAuthn credential registered for device: ${webauthnCredential.device_name}`,
         metadata: {
-          userId: user.id,
+          userId: user.user_id,
           credentialId: webauthnCredential.id,
           deviceName: webauthnCredential.device_name
         } as any

@@ -1,0 +1,3369 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EVO Production - All 194 Lambda Functions
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+  
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+
+  LayerArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:523115032346:layer:evo-uds-v3-production-deps:3
+
+  CodeS3Bucket:
+    Type: String
+    Default: evo-sam-artifacts-523115032346
+
+  CodeS3Key:
+    Type: String
+    Default: lambda-code/lambda-code-prod-v2.zip
+
+Resources:
+  # IAM Role for all Lambdas
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+      Policies:
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:*
+                  - secretsmanager:*
+                  - cognito-idp:*
+                  - s3:*
+                  - ses:*
+                  - sts:*
+                  - ce:*
+                  - cloudwatch:*
+                  - cloudtrail:*
+                  - guardduty:*
+                  - securityhub:*
+                  - iam:*
+                  - ec2:Describe*
+                  - rds:Describe*
+                  - lambda:*
+                  - wafv2:*
+                Resource: '*'
+
+  AdminManageUserFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-admin-manage-user'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/admin-manage-user.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AutomatedCleanupStuckScansFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-automated-cleanup-stuck-scans'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/automated-cleanup-stuck-scans.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CleanupStuckScansFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/cleanup-stuck-scans.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CreateCognitoUserFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-create-cognito-user'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/create-cognito-user.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CreateUserFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-create-user'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/create-user.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DeactivateDemoModeFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-deactivate-demo-mode'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/deactivate-demo-mode.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DebugCloudtrailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-debug-cloudtrail'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/debug-cloudtrail.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DirectCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-direct-cleanup'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/direct-cleanup.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DisableCognitoUserFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-disable-cognito-user'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/disable-cognito-user.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  LogAuditFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-log-audit'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/log-audit.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ManageDemoModeFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-demo-mode'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/manage-demo-mode.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ManageEmailTemplatesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-email-templates'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/manage-email-templates.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ManageOrganizationsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-organizations'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/manage-organizations.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  RunMigrationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-run-migration'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/run-migration.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  RunSqlFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-run-sql'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/run-sql.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SetupLicenseConfigFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-setup-license-config'
+      Runtime: nodejs20.x
+      Handler: handlers/admin/setup-license-config.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  BedrockChatFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-bedrock-chat'
+      Runtime: nodejs20.x
+      Handler: handlers/ai/bedrock-chat.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CheckProactiveNotificationsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-check-proactive-notifications'
+      Runtime: nodejs20.x
+      Handler: handlers/ai/check-proactive-notifications.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GenerateResponseFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-generate-response'
+      Runtime: nodejs20.x
+      Handler: handlers/ai/generate-response.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetAiNotificationsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-ai-notifications'
+      Runtime: nodejs20.x
+      Handler: handlers/ai/get-ai-notifications.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ListAiNotificationsAdminFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-list-ai-notifications-admin'
+      Runtime: nodejs20.x
+      Handler: handlers/ai/list-ai-notifications-admin.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ManageNotificationRulesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-notification-rules'
+      Runtime: nodejs20.x
+      Handler: handlers/ai/manage-notification-rules.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SendAiNotificationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-send-ai-notification'
+      Runtime: nodejs20.x
+      Handler: handlers/ai/send-ai-notification.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  UpdateAiNotificationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-update-ai-notification'
+      Runtime: nodejs20.x
+      Handler: handlers/ai/update-ai-notification.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DeleteWebauthnCredentialFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-delete-webauthn-credential'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/delete-webauthn-credential.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ForgotPasswordFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-forgot-password'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/forgot-password.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MfaEnrollFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-enroll'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MfaCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-check'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MfaChallengeVerifyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-challenge-verify'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MfaVerifyLoginFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-verify-login'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MfaListFactorsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-list-factors'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MfaUnenrollFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-unenroll'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SelfRegisterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-self-register'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/self-register.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  VerifyTvTokenFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-verify-tv-token'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/verify-tv-token.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WebauthnAuthenticateFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-authenticate'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/webauthn-authenticate.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WebauthnCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-check'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/webauthn-check-standalone.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WebauthnRegisterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-register'
+      Runtime: nodejs20.x
+      Handler: handlers/auth/webauthn-register.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ListAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-list-aws-credentials'
+      Runtime: nodejs20.x
+      Handler: handlers/aws/list-aws-credentials.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SaveAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-save-aws-credentials'
+      Runtime: nodejs20.x
+      Handler: handlers/aws/save-aws-credentials.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  UpdateAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-update-aws-credentials'
+      Runtime: nodejs20.x
+      Handler: handlers/aws/update-aws-credentials.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureActivityLogsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-activity-logs'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-activity-logs.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureComplianceScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-compliance-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-compliance-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureCostOptimizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-cost-optimization'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-cost-optimization.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureDefenderScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-defender-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-defender-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureDetectAnomaliesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-detect-anomalies'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-detect-anomalies.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureFetchCostsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-costs'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-fetch-costs.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureFetchEdgeServicesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-edge-services'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-fetch-edge-services.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureFetchMonitorMetricsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-monitor-metrics'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-fetch-monitor-metrics.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureOauthCallbackFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-callback'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-oauth-callback.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureOauthInitiateFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-initiate'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-oauth-initiate.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureOauthRefreshFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-refresh'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-oauth-refresh.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureOauthRevokeFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-revoke'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-oauth-revoke.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureReservationsAnalyzerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-reservations-analyzer'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-reservations-analyzer.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureResourceInventoryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-resource-inventory'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-resource-inventory.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureSecurityScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-security-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-security-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AzureWellArchitectedScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-well-architected-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/azure-well-architected-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DeleteAzureCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-delete-azure-credentials'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/delete-azure-credentials.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ListAzureCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-list-azure-credentials'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/list-azure-credentials.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SaveAzureCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-save-azure-credentials'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/save-azure-credentials.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  StartAzureSecurityScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-start-azure-security-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/start-azure-security-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ValidateAzureCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-azure-credentials'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/validate-azure-credentials.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ValidateAzurePermissionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-azure-permissions'
+      Runtime: nodejs20.x
+      Handler: handlers/azure/validate-azure-permissions.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ListCloudCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-list-cloud-credentials'
+      Runtime: nodejs20.x
+      Handler: handlers/cloud/list-cloud-credentials.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AnalyzeRiSpFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-analyze-ri-sp'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/analyze-ri-sp.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  BudgetForecastFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-budget-forecast'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/budget-forecast.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CostOptimizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cost-optimization'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/cost-optimization.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  FetchDailyCostsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-fetch-daily-costs'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/fetch-daily-costs.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  FinopsCopilotFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-finops-copilot'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/finops-copilot-v2.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GenerateCostForecastFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-generate-cost-forecast'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/generate-cost-forecast.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetRiSpAnalysisFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-ri-sp-analysis'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/get-ri-sp-analysis.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetRiSpDataFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-ri-sp-data'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/get-ri-sp-data.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ListRiSpHistoryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-list-ri-sp-history'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/list-ri-sp-history.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MlWasteDetectionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ml-waste-detection'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/ml-waste-detection.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  RiSpAnalyzerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ri-sp-analyzer'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/ri-sp-analyzer.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SaveRiSpAnalysisFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-save-ri-sp-analysis'
+      Runtime: nodejs20.x
+      Handler: handlers/cost/save-ri-sp-analysis.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetExecutiveDashboardFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-executive-dashboard'
+      Runtime: nodejs20.x
+      Handler: handlers/dashboard/get-executive-dashboard.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetExecutiveDashboardPublicFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-executive-dashboard-public'
+      Runtime: nodejs20.x
+      Handler: handlers/dashboard/get-executive-dashboard-public.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ManageTvTokensFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-tv-tokens'
+      Runtime: nodejs20.x
+      Handler: handlers/dashboard/manage-tv-tokens.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CleanupCostDataFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-cost-data'
+      Runtime: nodejs20.x
+      Handler: handlers/data/cleanup-cost-data.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MutateTableFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mutate-table'
+      Runtime: nodejs20.x
+      Handler: handlers/data/mutate-table.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  QueryTableFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-query-table'
+      Runtime: nodejs20.x
+      Handler: handlers/data/query-table.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  TicketAttachmentsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ticket-attachments'
+      Runtime: nodejs20.x
+      Handler: handlers/data/ticket-attachments.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  TicketManagementFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ticket-management'
+      Runtime: nodejs20.x
+      Handler: handlers/data/ticket-management.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DiagnoseCostDashboardFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-diagnose-cost-dashboard'
+      Runtime: nodejs20.x
+      Handler: handlers/debug/diagnose-cost-dashboard.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CloudformationWebhookFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cloudformation-webhook'
+      Runtime: nodejs20.x
+      Handler: handlers/integrations/cloudformation-webhook.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CreateJiraTicketFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-create-jira-ticket'
+      Runtime: nodejs20.x
+      Handler: handlers/integrations/create-jira-ticket.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AutoCleanupStuckScansFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-auto-cleanup-stuck-scans'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/auto-cleanup-stuck-scans.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CleanupExpiredExternalIdsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-expired-external-ids'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/cleanup-expired-external-ids.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CleanupExpiredOauthStatesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-expired-oauth-states'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/cleanup-expired-oauth-states.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CleanupStuckScansJobsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans-jobs'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/cleanup-stuck-scans.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ExecuteScheduledJobFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-execute-scheduled-job'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/execute-scheduled-job.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  InitialDataLoadFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-initial-data-load'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/initial-data-load.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CancelBackgroundJobFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cancel-background-job'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/cancel-background-job.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  RetryBackgroundJobFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-retry-background-job'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/retry-background-job.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ListBackgroundJobsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-list-background-jobs'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/list-background-jobs.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ProcessBackgroundJobsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-process-background-jobs'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/process-background-jobs.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ProcessEventsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-process-events'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/process-events.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ScheduledScanExecutorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-scan-executor'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/scheduled-scan-executor.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ScheduledViewRefreshFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-view-refresh'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/scheduled-view-refresh.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SendScheduledEmailsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-send-scheduled-emails'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/send-scheduled-emails.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SyncResourceInventoryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-sync-resource-inventory'
+      Runtime: nodejs20.x
+      Handler: handlers/jobs/sync-resource-inventory.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  IncrementArticleHelpfulFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-increment-article-helpful'
+      Runtime: nodejs20.x
+      Handler: handlers/kb/increment-article-helpful.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  IncrementArticleViewsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-increment-article-views'
+      Runtime: nodejs20.x
+      Handler: handlers/kb/increment-article-views.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  KbAiSuggestionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-kb-ai-suggestions'
+      Runtime: nodejs20.x
+      Handler: handlers/kb/kb-ai-suggestions.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  KbAnalyticsDashboardFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-kb-analytics-dashboard'
+      Runtime: nodejs20.x
+      Handler: handlers/kb/kb-analytics-dashboard.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  KbArticleTrackingFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-kb-article-tracking'
+      Runtime: nodejs20.x
+      Handler: handlers/kb/kb-article-tracking.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  KbExportPdfFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-kb-export-pdf'
+      Runtime: nodejs20.x
+      Handler: handlers/kb/kb-export-pdf.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  TrackArticleViewDetailedFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-track-article-view-detailed'
+      Runtime: nodejs20.x
+      Handler: handlers/kb/track-article-view-detailed.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AdminSyncLicenseFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-admin-sync-license'
+      Runtime: nodejs20.x
+      Handler: handlers/license/admin-sync-license.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CleanupSeatsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-seats'
+      Runtime: nodejs20.x
+      Handler: handlers/license/cleanup-seats.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ConfigureLicenseFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-configure-license'
+      Runtime: nodejs20.x
+      Handler: handlers/license/configure-license.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DailyLicenseValidationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-daily-license-validation'
+      Runtime: nodejs20.x
+      Handler: handlers/license/daily-license-validation.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ManageSeatAssignmentsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-seat-assignments'
+      Runtime: nodejs20.x
+      Handler: handlers/license/manage-seat-assignments.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ManageSeatsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-seats'
+      Runtime: nodejs20.x
+      Handler: handlers/license/manage-seats.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ScheduledLicenseSyncFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-license-sync'
+      Runtime: nodejs20.x
+      Handler: handlers/license/scheduled-license-sync.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SyncLicenseFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-sync-license'
+      Runtime: nodejs20.x
+      Handler: handlers/license/sync-license.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ValidateLicenseFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-license'
+      Runtime: nodejs20.x
+      Handler: handlers/license/validate-license.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MaintenanceAutoCleanupStuckScansFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-maintenance-auto-cleanup-stuck-scans'
+      Runtime: nodejs20.x
+      Handler: handlers/maintenance/auto-cleanup-stuck-scans.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CleanupStuckScansSimpleFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans-simple'
+      Runtime: nodejs20.x
+      Handler: handlers/maintenance/cleanup-stuck-scans-simple.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AiPrioritizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-prioritization'
+      Runtime: nodejs20.x
+      Handler: handlers/ml/ai-prioritization.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DetectAnomaliesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-detect-anomalies'
+      Runtime: nodejs20.x
+      Handler: handlers/ml/detect-anomalies.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GenerateAiInsightsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-generate-ai-insights'
+      Runtime: nodejs20.x
+      Handler: handlers/ml/generate-ai-insights.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  IntelligentAlertsAnalyzerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-intelligent-alerts-analyzer'
+      Runtime: nodejs20.x
+      Handler: handlers/ml/intelligent-alerts-analyzer.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  PredictIncidentsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-predict-incidents'
+      Runtime: nodejs20.x
+      Handler: handlers/ml/predict-incidents.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AlertsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-alerts'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/alerts.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AutoAlertsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-auto-alerts'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/auto-alerts.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AwsRealtimeMetricsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-aws-realtime-metrics'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/aws-realtime-metrics.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CheckAlertRulesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-check-alert-rules'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/check-alert-rules.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  EndpointMonitorCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-endpoint-monitor-check'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/endpoint-monitor-check.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ErrorAggregatorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-error-aggregator'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/error-aggregator.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  FetchCloudwatchMetricsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudwatch-metrics'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/fetch-cloudwatch-metrics.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  FetchEdgeServicesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-fetch-edge-services'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/fetch-edge-services.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GenerateErrorFixPromptFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-generate-error-fix-prompt'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/generate-error-fix-prompt.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetLambdaHealthFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-lambda-health'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/get-lambda-health.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetPlatformMetricsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-platform-metrics'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/get-platform-metrics.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetRecentErrorsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-recent-errors'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/get-recent-errors.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  HealthCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-health-check'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/health-check.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  LambdaHealthCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-lambda-health-check'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/lambda-health-check.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  LogFrontendErrorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-log-frontend-error'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/log-frontend-error.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  MonitoredEndpointsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-monitored-endpoints'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/monitored-endpoints.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  TestLambdaMetricsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-test-lambda-metrics'
+      Runtime: nodejs20.x
+      Handler: handlers/monitoring/test-lambda-metrics.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetCommunicationLogsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-communication-logs'
+      Runtime: nodejs20.x
+      Handler: handlers/notifications/get-communication-logs.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ManageEmailPreferencesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-email-preferences'
+      Runtime: nodejs20.x
+      Handler: handlers/notifications/manage-email-preferences.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SendEmailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-send-email'
+      Runtime: nodejs20.x
+      Handler: handlers/notifications/send-email.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SendNotificationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-send-notification'
+      Runtime: nodejs20.x
+      Handler: handlers/notifications/send-notification.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CreateOrganizationAccountFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-create-organization-account'
+      Runtime: nodejs20.x
+      Handler: handlers/organizations/create-organization-account.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SyncOrganizationAccountsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-sync-organization-accounts'
+      Runtime: nodejs20.x
+      Handler: handlers/organizations/sync-organization-accounts.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CheckOrganizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-check-organization'
+      Runtime: nodejs20.x
+      Handler: handlers/profiles/check-organization.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CreateWithOrganizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-create-with-organization'
+      Runtime: nodejs20.x
+      Handler: handlers/profiles/create-with-organization.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetUserOrganizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-user-organization'
+      Runtime: nodejs20.x
+      Handler: handlers/profiles/get-user-organization.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GenerateExcelReportFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-generate-excel-report'
+      Runtime: nodejs20.x
+      Handler: handlers/reports/generate-excel-report.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GeneratePdfReportFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-generate-pdf-report'
+      Runtime: nodejs20.x
+      Handler: handlers/reports/generate-pdf-report.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GenerateRemediationScriptFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-generate-remediation-script'
+      Runtime: nodejs20.x
+      Handler: handlers/reports/generate-remediation-script.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GenerateSecurityPdfFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-generate-security-pdf'
+      Runtime: nodejs20.x
+      Handler: handlers/reports/generate-security-pdf.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SecurityScanPdfExportFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-security-scan-pdf-export'
+      Runtime: nodejs20.x
+      Handler: handlers/reports/security-scan-pdf-export.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  AnalyzeCloudtrailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-analyze-cloudtrail'
+      Runtime: nodejs20.x
+      Handler: handlers/security/analyze-cloudtrail.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ComplianceScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-compliance-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/security/compliance-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CreateRemediationTicketFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-create-remediation-ticket'
+      Runtime: nodejs20.x
+      Handler: handlers/security/create-remediation-ticket.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DriftDetectionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-drift-detection'
+      Runtime: nodejs20.x
+      Handler: handlers/security/drift-detection.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  FetchCloudtrailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudtrail'
+      Runtime: nodejs20.x
+      Handler: handlers/security/fetch-cloudtrail.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetComplianceHistoryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-history'
+      Runtime: nodejs20.x
+      Handler: handlers/security/get-compliance-history.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetComplianceScanStatusFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-scan-status'
+      Runtime: nodejs20.x
+      Handler: handlers/security/get-compliance-scan-status.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetFindingsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-findings'
+      Runtime: nodejs20.x
+      Handler: handlers/security/get-findings.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GetSecurityPostureFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-security-posture'
+      Runtime: nodejs20.x
+      Handler: handlers/security/get-security-posture.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  GuarddutyScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-guardduty-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/security/guardduty-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  IamBehaviorAnalysisFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-iam-behavior-analysis'
+      Runtime: nodejs20.x
+      Handler: handlers/security/iam-behavior-analysis.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  IamDeepAnalysisFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-iam-deep-analysis'
+      Runtime: nodejs20.x
+      Handler: handlers/security/iam-deep-analysis.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  LateralMovementDetectionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-lateral-movement-detection'
+      Runtime: nodejs20.x
+      Handler: handlers/security/lateral-movement-detection.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  SecurityScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-security-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/security/security-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  StartAnalyzeCloudtrailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-start-analyze-cloudtrail'
+      Runtime: nodejs20.x
+      Handler: handlers/security/start-analyze-cloudtrail.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  StartCloudtrailAnalysisFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-start-cloudtrail-analysis'
+      Runtime: nodejs20.x
+      Handler: handlers/security/start-cloudtrail-analysis.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  StartComplianceScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-start-compliance-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/security/start-compliance-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  StartSecurityScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-start-security-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/security/start-security-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ValidateAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-aws-credentials'
+      Runtime: nodejs20.x
+      Handler: handlers/security/validate-aws-credentials.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ValidatePermissionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-permissions'
+      Runtime: nodejs20.x
+      Handler: handlers/security/validate-permissions.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ValidateWafSecurityFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-waf-security'
+      Runtime: nodejs20.x
+      Handler: handlers/security/validate-waf-security.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WafDashboardApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-dashboard-api'
+      Runtime: nodejs20.x
+      Handler: handlers/security/waf-dashboard-api.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WafLogForwarderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-forwarder'
+      Runtime: nodejs20.x
+      Handler: handlers/security/waf-log-forwarder.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WafLogProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-processor'
+      Runtime: nodejs20.x
+      Handler: handlers/security/waf-log-processor.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WafSetupMonitoringFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-setup-monitoring'
+      Runtime: nodejs20.x
+      Handler: handlers/security/waf-setup-monitoring.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WafThreatAnalyzerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-threat-analyzer'
+      Runtime: nodejs20.x
+      Handler: handlers/security/waf-threat-analyzer.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WafUnblockExpiredFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-unblock-expired'
+      Runtime: nodejs20.x
+      Handler: handlers/security/waf-unblock-expired.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WellArchitectedScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-well-architected-scan'
+      Runtime: nodejs20.x
+      Handler: handlers/security/well-architected-scan.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  StorageDownloadFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-storage-download'
+      Runtime: nodejs20.x
+      Handler: handlers/storage/storage-handlers.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  StorageDeleteFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-storage-delete'
+      Runtime: nodejs20.x
+      Handler: handlers/storage/storage-handlers.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  UploadAttachmentFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-upload-attachment'
+      Runtime: nodejs20.x
+      Handler: handlers/storage/storage-handlers.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CheckMigrationsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-check-migrations'
+      Runtime: nodejs20.x
+      Handler: handlers/system/check-migrations.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  DbInitFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-db-init'
+      Runtime: nodejs20.x
+      Handler: handlers/system/db-init.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ListTablesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-list-tables'
+      Runtime: nodejs20.x
+      Handler: handlers/system/list-tables.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  RunMigrationsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-run-migrations'
+      Runtime: nodejs20.x
+      Handler: handlers/system/run-migrations.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  RunSqlMigrationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-run-sql-migration'
+      Runtime: nodejs20.x
+      Handler: handlers/system/run-sql-migration.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  NotificationSettingsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-notification-settings'
+      Runtime: nodejs20.x
+      Handler: handlers/user/notification-settings.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WebsocketConnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-websocket-connect'
+      Runtime: nodejs20.x
+      Handler: handlers/websocket/connect.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WebsocketDisconnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-websocket-disconnect'
+      Runtime: nodejs20.x
+      Handler: handlers/websocket/disconnect.handler
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Layers:
+        - !Ref LayerArn
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+Outputs:
+  LambdaExecutionRoleArn:
+    Value: !GetAtt LambdaExecutionRole.Arn
+  LayerArn:
+    Value: !Ref LayerArn

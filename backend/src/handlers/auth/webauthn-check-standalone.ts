@@ -112,18 +112,18 @@ async function handleWebAuthnCheck(body: CheckRequest): Promise<any> {
     };
   }
 
-  // Find user by email
-  const user = await prisma.user.findUnique({
+  // Find user by email in profiles table
+  const profile = await prisma.profile.findFirst({
     where: { email }
   });
 
   console.log('🔐 User lookup result:', { 
     email, 
-    userFound: !!user, 
-    userId: user?.id 
+    userFound: !!profile, 
+    userId: profile?.user_id 
   });
 
-  if (!user) {
+  if (!profile) {
     // User not found - no WebAuthn
     const response: CheckResponse = {
       hasWebAuthn: false,
@@ -142,11 +142,11 @@ async function handleWebAuthnCheck(body: CheckRequest): Promise<any> {
 
   // Check for WebAuthn credentials
   const webauthnCredentials = await prisma.webAuthnCredential.findMany({
-    where: { user_id: user.id }
+    where: { user_id: profile.user_id }
   });
 
   console.log('🔐 WebAuthn credentials found:', {
-    userId: user.id,
+    userId: profile.user_id,
     credentialsCount: webauthnCredentials.length,
     credentials: webauthnCredentials.map(c => ({
       id: c.id,
@@ -213,27 +213,20 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Pr
   }
 
   if (action === 'request') {
-    // Verificar se o usuário existe no banco de dados
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
-
-    let userProfile = null;
-    if (user) {
-      userProfile = await prisma.profile.findFirst({
-        where: { user_id: user.id },
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true
-            }
+    // Verificar se o usuário existe no banco de dados (profiles table)
+    const profile = await prisma.profile.findFirst({
+      where: { email },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true
           }
         }
-      });
-    }
+      }
+    });
 
-    if (!user) {
+    if (!profile) {
       // Por segurança, não revelamos se o usuário existe ou não
       console.log('🔐 Password reset requested for non-existent user:', email);
       return {
@@ -256,7 +249,7 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Pr
       }));
 
       // Registrar evento de segurança
-      const organizationId = userProfile?.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
+      const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
       
       await prisma.securityEvent.create({
         data: {
@@ -266,14 +259,14 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Pr
           description: 'Password reset requested',
           metadata: { 
             email,
-            userId: user.id,
+            userId: profile.user_id,
             requestIp: event.requestContext?.identity?.sourceIp || event.headers?.['x-forwarded-for']?.split(',')[0],
             userAgent: event.headers?.['user-agent']
           }
         }
       });
 
-      console.log('✅ Password reset email sent:', { email, userId: user.id });
+      console.log('✅ Password reset email sent:', { email, userId: profile.user_id });
 
       return {
         statusCode: 200,
@@ -358,21 +351,16 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Pr
         Password: newPassword
       }));
 
-      // Buscar usuário para logging
-      const user = await prisma.user.findUnique({
-        where: { email }
+      // Buscar usuário para logging (profiles table)
+      const profile = await prisma.profile.findFirst({
+        where: { email },
+        include: {
+          organization: true
+        }
       });
 
-      let userProfile = null;
-      if (user) {
-        userProfile = await prisma.profile.findFirst({
-          where: { user_id: user.id },
-          include: {
-            organization: true
-          }
-        });
-
-        const organizationId = userProfile?.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
+      if (profile) {
+        const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
         
         // Registrar evento de segurança
         await prisma.securityEvent.create({
@@ -383,7 +371,7 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Pr
             description: 'Password reset completed successfully',
             metadata: { 
               email,
-              userId: user.id,
+              userId: profile.user_id,
               requestIp: event.requestContext?.identity?.sourceIp || event.headers?.['x-forwarded-for']?.split(',')[0],
               userAgent: event.headers?.['user-agent']
             }

@@ -494,18 +494,18 @@ async function handleWebAuthnCheck(email: string, origin: string): Promise<APIGa
     
     const prisma = getPrismaClient();
     
-    // Find user by email
-    const user = await prisma.user.findUnique({
+    // Find user by email in profiles table
+    const profile = await prisma.profile.findFirst({
       where: { email }
     });
 
     logger.info('🔐 User lookup result', { 
       email, 
-      userFound: !!user, 
-      userId: user?.id 
+      userFound: !!profile, 
+      userId: profile?.user_id 
     });
 
-    if (!user) {
+    if (!profile) {
       // User not found - no WebAuthn
       return success({
         hasWebAuthn: false,
@@ -515,11 +515,11 @@ async function handleWebAuthnCheck(email: string, origin: string): Promise<APIGa
 
     // Check for WebAuthn credentials
     const webauthnCredentials = await prisma.webAuthnCredential.findMany({
-      where: { user_id: user.id }
+      where: { user_id: profile.user_id }
     });
 
     logger.info('🔐 WebAuthn credentials found', {
-      userId: user.id,
+      userId: profile.user_id,
       credentialsCount: webauthnCredentials.length,
       credentials: webauthnCredentials.map(c => ({
         id: c.id,

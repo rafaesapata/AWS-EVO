@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: EVO Production - Test Deploy (1 Lambda)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+  
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: Password for RDS PostgreSQL database
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - arm64
+
+Resources:
+  # Layer com dependências
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub '${ProjectName}-${Environment}-deps'
+      ContentUri: ../backend/layers/dependencies/
+      CompatibleRuntimes:
+        - nodejs20.x
+      CompatibleArchitectures:
+        - arm64
+    Metadata:
+      BuildArchitecture: arm64
+
+  # Test Lambda
+  TestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-test'
+      CodeUri: ../backend/
+      Handler: dist/handlers/debug/check-daily-costs.handler
+      Layers:
+        - !Ref DependenciesLayer
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  # IAM Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+Outputs:
+  TestFunctionArn:
+    Value: !GetAtt TestFunction.Arn
+  LayerArn:
+    Value: !Ref DependenciesLayer

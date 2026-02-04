@@ -154,11 +154,11 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
 
   if (email) {
     // Buscar credenciais do usuário específico
-    let user = await prisma.user.findUnique({
+    let user = await prisma.profile.findFirst({
       where: { email }
     });
 
-    logger.info('🔐 User lookup result', { email, userFound: !!user, userId: user?.id });
+    logger.info('🔐 User lookup result', { email, userFound: !!user, userId: user?.user_id });
 
     if (!user) {
       logger.info('🔐 User not found in database, checking if exists in Cognito', { email });
@@ -174,21 +174,21 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
       }, 200, origin);
     }
 
-    userId = user.id;
+    userId = user.user_id;
 
     // Buscar credenciais WebAuthn separadamente
     const webauthnCredentials = await prisma.webAuthnCredential.findMany({
-      where: { user_id: user.id }
+      where: { user_id: user.user_id }
     });
 
     logger.info('🔐 WebAuthn credentials lookup', { 
-      userId: user.id, 
+      userId: user.user_id, 
       credentialsCount: webauthnCredentials.length,
       credentials: webauthnCredentials.map(c => ({ id: c.id, device_name: c.device_name, created_at: c.created_at }))
     });
 
     if (webauthnCredentials.length === 0) {
-      logger.info('🔐 No WebAuthn credentials found - user can proceed with normal login', { email, userId: user.id });
+      logger.info('🔐 No WebAuthn credentials found - user can proceed with normal login', { email, userId: user.user_id });
       // Return a clear response indicating no WebAuthn is required
       return success({ 
         hasWebAuthn: false,
@@ -203,7 +203,7 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
 
     logger.info('🔐 WebAuthn credentials found', { 
       email, 
-      userId: user.id, 
+      userId: user.user_id, 
       credentialsCount: allowCredentials.length 
     });
   }
@@ -286,8 +286,8 @@ async function finishAuthentication(
   }
 
   // Fetch user data from database
-  const credentialUser = await prisma.user.findUnique({
-    where: { id: credential.user_id }
+  const credentialUser = await prisma.profile.findFirst({
+    where: { user_id: credential.user_id }
   });
 
   if (!credentialUser) {
@@ -432,9 +432,9 @@ async function finishAuthentication(
       sessionToken,
       expiresAt: sessionExpiry.toISOString(),
       user: {
-        id: credentialUser.id,
-        email: credentialUser.email,
-        name: credentialUser.full_name || credentialUser.email.split('@')[0],
+        id: credentialUser.user_id,
+        email: credentialUser.email || '',
+        name: credentialUser.full_name || credentialUser.email?.split('@')[0] || 'User',
         role: userProfile?.role || 'user',
         organizationId: userOrganizationId,
         organizationName: userProfile?.organization?.name || 'Organization'

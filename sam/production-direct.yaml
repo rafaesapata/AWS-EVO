@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EVO Production - Direct Deploy (1 Lambda Test)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+  
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+
+Resources:
+  # Layer
+  DependenciesLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub '${ProjectName}-${Environment}-deps'
+      Content:
+        S3Bucket: evo-sam-artifacts-523115032346
+        S3Key: layers/layer-prod.zip
+      CompatibleRuntimes:
+        - nodejs20.x
+      CompatibleArchitectures:
+        - arm64
+
+  # Test Lambda
+  TestFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-test'
+      Runtime: nodejs20.x
+      Handler: handlers/debug/check-daily-costs.handler
+      Code:
+        S3Bucket: evo-sam-artifacts-523115032346
+        S3Key: lambda-code/lambda-code-prod.zip
+      Layers:
+        - !Ref DependenciesLayer
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  # IAM Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+Outputs:
+  TestFunctionArn:
+    Value: !GetAtt TestFunction.Arn
+  LayerArn:
+    Value: !Ref DependenciesLayer

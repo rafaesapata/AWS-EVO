@@ -402,7 +402,6 @@ export class TenantIsolatedPrisma {
   private _driftDetection: any;
   private _driftDetectionHistory: any;
   private _securityPosture: any;
-  private _user: any;
   private _auditLog: any;
   private _tvDisplayToken: any;
   private _tvTokenUsage: any;
@@ -531,13 +530,6 @@ export class TenantIsolatedPrisma {
       this._securityPosture = createTenantIsolatedModel(this.client.securityPosture, this.organizationId);
     }
     return this._securityPosture;
-  }
-
-  get user() {
-    if (!this._user) {
-      this._user = createTenantIsolatedModel(this.client.user, this.organizationId);
-    }
-    return this._user;
   }
 
   get auditLog() {

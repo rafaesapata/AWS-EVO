@@ -101,6 +101,7 @@ export async function handler(
       profile = await prisma.profile.create({
         data: {
           user_id: targetUserId,
+          email: user.email || `${targetUserId}@placeholder.local`,
           organization_id: organizationId,
           full_name: userName,
           role: userRole,

@@ -70,7 +70,24 @@ curl -X OPTIONS https://api.evo.nuevacore.com/api/functions/self-register \
 
 ## ✅ Completed Fixes
 
-### 1. Cognito User Pool Custom Attributes
+### 1. Missing Database Tables (users, webauthn_credentials)
+**Status**: ✅ Fixed (2026-02-04 22:50 UTC)
+**Issue**: Lambda `webauthn-check` was failing with "table users does not exist"
+**Solution**: Created migration and executed via Bastion
+**Tables Created**:
+- `users` (id, email, full_name, avatar_url, is_active, created_at, updated_at)
+- `webauthn_credentials` (id, user_id, credential_id, public_key, counter, device_name, created_at, last_used_at)
+**Migration**: `20260204_add_users_and_webauthn_tables`
+**Verification**: Endpoint `POST /api/functions/webauthn-check` now returns 200 OK
+
+### 2. Missing API Route for webauthn-check
+**Status**: ✅ Fixed (2026-02-04 22:45 UTC)
+**Issue**: Frontend calling `/api/functions/webauthn-check` but route didn't exist (404)
+**Solution**: Created API Gateway integration and route
+**Route**: `POST /api/functions/webauthn-check` (no auth required)
+**Integration**: `tq7n5z5` → Lambda `evo-uds-v3-production-webauthn-check`
+
+### 3. Cognito User Pool Custom Attributes
 **Status**: ✅ Fixed
 **Solution**: Added custom attributes via AWS CLI
 **Attributes Added**:
@@ -80,12 +97,12 @@ curl -X OPTIONS https://api.evo.nuevacore.com/api/functions/self-register \
 - `custom:organization_name`
 - `custom:organization_id` (legacy)
 
-### 2. Missing API Route for self-register
+### 4. Missing API Route for self-register
 **Status**: ✅ Fixed
 **Solution**: Created route via `scripts/create-missing-public-routes.sh`
 **Route**: `POST /api/functions/self-register` (no auth required)
 
-### 2. Missing Cognito Environment Variables
+### 5. Missing Cognito Environment Variables
 **Status**: ✅ Fixed
 **Solution**: Added via `scripts/configure-lambda-env-vars.sh`
 **Variables Added**:

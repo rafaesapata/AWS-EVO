@@ -76,28 +76,20 @@ export async function handler(
     logger.info('🔐 Forgot password request', { action, email });
 
     if (action === 'request') {
-      // Verificar se o usuário existe no banco de dados
-      const user = await prisma.user.findUnique({
-        where: { email }
-      });
-
-      // Buscar profile do usuário para obter organização
-      let userProfile = null;
-      if (user) {
-        userProfile = await prisma.profile.findFirst({
-          where: { user_id: user.id },
-          include: {
-            organization: {
-              select: {
-                id: true,
-                name: true
-              }
+      // Verificar se o usuário existe no banco de dados (profiles table)
+      const profile = await prisma.profile.findFirst({
+        where: { email },
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true
             }
           }
-        });
-      }
+        }
+      });
 
-      if (!user) {
+      if (!profile) {
         // Por segurança, não revelamos se o usuário existe ou não
         // Sempre retornamos sucesso para evitar enumeração de usuários
         logger.info('🔐 Password reset requested for non-existent user', { email });
@@ -114,7 +106,7 @@ export async function handler(
         }));
 
         // Registrar evento de segurança
-        const organizationId = userProfile?.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
+        const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
         
         await prisma.securityEvent.create({
           data: {
@@ -124,14 +116,14 @@ export async function handler(
             description: 'Password reset requested',
             metadata: { 
               email,
-              userId: user.id,
+              userId: profile.user_id,
               requestIp: event.requestContext?.identity?.sourceIp || event.headers?.['x-forwarded-for']?.split(',')[0],
               userAgent: event.headers?.['user-agent']
             }
           }
         });
 
-        logger.info('✅ Password reset email sent', { email, userId: user.id });
+        logger.info('✅ Password reset email sent', { email, userId: profile.user_id });
 
         return success({
           message: 'Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.'
@@ -181,23 +173,16 @@ export async function handler(
           Password: newPassword
         }));
 
-        // Buscar usuário para logging
-        const user = await prisma.user.findUnique({
-          where: { email }
+        // Buscar usuário para logging (profiles table)
+        const profile = await prisma.profile.findFirst({
+          where: { email },
+          include: {
+            organization: true
+          }
         });
 
-        let userProfile = null;
-        if (user) {
-          userProfile = await prisma.profile.findFirst({
-            where: { user_id: user.id },
-            include: {
-              organization: true
-            }
-          });
-        }
-
-        if (user) {
-          const organizationId = userProfile?.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
+        if (profile) {
+          const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
           
           // Registrar evento de segurança
           await prisma.securityEvent.create({
@@ -208,7 +193,7 @@ export async function handler(
               description: 'Password reset completed successfully',
               metadata: { 
                 email,
-                userId: user.id,
+                userId: profile.user_id,
                 requestIp: event.requestContext?.identity?.sourceIp || event.headers?.['x-forwarded-for']?.split(',')[0],
                 userAgent: event.headers?.['user-agent']
               }

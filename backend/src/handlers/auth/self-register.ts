@@ -492,10 +492,11 @@ export async function handler(
 
     // Create profile
     await prisma.$executeRaw`
-      INSERT INTO profiles (id, user_id, organization_id, full_name, role, created_at, updated_at)
+      INSERT INTO profiles (id, user_id, email, organization_id, full_name, role, created_at, updated_at)
       VALUES (
         ${randomUUID()}::uuid,
-        ${userId}::uuid,
+        ${userId},
+        ${email},
         ${organizationId}::uuid,
         ${fullName},
         'org_admin',
