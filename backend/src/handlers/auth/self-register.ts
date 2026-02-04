@@ -647,6 +647,41 @@ export async function handler(
     });
 
   } catch (err) {
+    const prismaError = err as any;
+    
+    // Handle Prisma unique constraint violations
+    if (prismaError.code === 'P2002' || 
+        (prismaError.message && prismaError.message.includes('23505')) ||
+        (prismaError.message && prismaError.message.includes('already exists'))) {
+      
+      // Extract which field caused the duplicate
+      const message = prismaError.message || '';
+      
+      if (message.includes('email')) {
+        logger.warn('Duplicate email detected', { error: message });
+        return error('This email is already registered. Please use a different email or try logging in.', 409);
+      }
+      
+      if (message.includes('slug') || message.includes('organization')) {
+        logger.warn('Duplicate organization detected', { error: message });
+        return error('An organization with this name already exists. Please use a different company name.', 409);
+      }
+      
+      if (message.includes('license_key')) {
+        logger.warn('Duplicate license key detected', { error: message });
+        return error('A license conflict occurred. Please try again.', 409);
+      }
+      
+      // Generic duplicate error
+      logger.warn('Duplicate entry detected', { error: message });
+      return error('This information is already registered. Please check your details and try again.', 409);
+    }
+    
+    // Handle Cognito errors
+    if (prismaError.name === 'UsernameExistsException') {
+      return error('This email is already registered. Please use a different email or try logging in.', 409);
+    }
+    
     logger.error('Self-registration failed', err as Error);
     return error('Registration failed. Please try again or contact support.', 500);
   }
