@@ -786,9 +786,6 @@ Resources:
       CompatibleArchitectures:
         - arm64
       RetentionPolicy: Retain
-    Metadata:
-      BuildMethod: nodejs18.x
-      BuildArchitecture: arm64
 
   # ==========================================================================
   # IAM ROLE - Lambda Execution Role
