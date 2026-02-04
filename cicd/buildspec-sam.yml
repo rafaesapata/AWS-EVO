@@ -1,7 +1,7 @@
 version: 0.2
 
-# AWS CodeBuild - SAM Package and Deploy
-# Deploys complete EVO Platform infrastructure via SAM
+# AWS CodeBuild - SAM Deploy
+# Uses existing Lambda stack + deploys frontend infrastructure
 
 env:
   variables:
@@ -26,55 +26,38 @@ phases:
       - echo "Determining environment..."
       - export ENV="sandbox"
       - export AWS_ACCOUNT="971354623291"
-      - export STACK_NAME="evo-uds-v3-sandbox"
+      - export LAMBDA_STACK="evo-uds-v3-sandbox-lambdas"
+      - export FRONTEND_STACK="evo-uds-v3-sandbox-frontend"
       - echo "Environment is $ENV"
-      - echo "Stack is $STACK_NAME"
-      - echo "Account is $AWS_ACCOUNT"
-      - echo "Getting database password from SSM..."
-      - export DB_PASSWORD=$(aws ssm get-parameter --name "/evo/sandbox/database-password" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "DefaultPassword123!")
+      - echo "Lambda Stack is $LAMBDA_STACK"
+      - echo "Frontend Stack is $FRONTEND_STACK"
 
   build:
     commands:
       - echo "Building TypeScript..."
       - npm run build --prefix backend
       - npm run build
-      - echo "Generating SAM template..."
-      - npx tsx scripts/generate-sam-template.ts
-      - echo "Preparing Lambda layer..."
-      - mkdir -p backend/layers/dependencies/nodejs/node_modules
-      - cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
-      - cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
-      - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
-      - find backend/layers/dependencies/nodejs/node_modules -name "*.map" -delete 2>/dev/null || true
-      - find backend/layers/dependencies/nodejs/node_modules -name "*.md" -delete 2>/dev/null || true
-      - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin*.node 2>/dev/null || true
-      - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-debian*.node 2>/dev/null || true
-      - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-rhel*.node 2>/dev/null || true
-      - echo "Layer size:"
-      - du -sh backend/layers/dependencies/nodejs/
-      - echo "Packaging SAM application..."
-      - sam package --template-file sam/template.yaml --output-template-file packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix $STACK_NAME --region us-east-1
+      - echo "Deploying Frontend Stack..."
+      - aws cloudformation deploy --template-file sam/frontend-stack.yaml --stack-name $FRONTEND_STACK --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" --capabilities CAPABILITY_IAM --region us-east-1 --no-fail-on-empty-changeset
 
   post_build:
     commands:
-      - echo "Checking stack status..."
-      - export STACK_STATUS=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
-      - echo "Stack status is $STACK_STATUS"
-      - echo "Deploying SAM application..."
-      - sam deploy --template-file packaged.yaml --stack-name $STACK_NAME --region us-east-1 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "DatabasePassword=$DB_PASSWORD" --no-confirm-changeset --no-fail-on-empty-changeset
-      - echo "Getting stack outputs..."
-      - export FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
-      - export CF_DIST_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+      - echo "Getting Frontend Stack outputs..."
+      - export FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
+      - export CF_DIST_ID=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+      - export CF_DOMAIN=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDomainName`].OutputValue' --output text)
       - echo "Frontend bucket is $FRONTEND_BUCKET"
       - echo "CloudFront ID is $CF_DIST_ID"
-      - echo "Deploying Frontend..."
-      - aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete || echo "Frontend deploy skipped"
-      - aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || echo "CloudFront invalidation skipped"
+      - echo "CloudFront Domain is $CF_DOMAIN"
+      - echo "Deploying Frontend files..."
+      - aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
+      - echo "Invalidating CloudFront cache..."
+      - aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*"
       - echo "Deployment completed!"
+      - echo "Frontend URL https://$CF_DOMAIN"
 
 artifacts:
   files:
-    - packaged.yaml
     - dist/**/*
   discard-paths: no
 
