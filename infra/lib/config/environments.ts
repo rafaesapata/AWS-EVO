@@ -97,18 +97,18 @@ export const environments: Record<EnvironmentName, EnvironmentConfig> = {
     stackPrefix: 'EvoUdsProd',
     
     // AWS Account - Production (perfil EVO_PRODUCTION)
-    account: 'PRODUCTION_ACCOUNT_ID', // TODO: Atualizar com o ID da conta de produção
+    account: '523115032346',
     region: 'us-east-1',
     profile: 'EVO_PRODUCTION',
     
     // Domínios de produção
-    domain: 'evo.ai.udstec.io',
-    apiDomain: 'api-evo.ai.udstec.io',
+    domain: 'evo.nuevacore.com',
+    apiDomain: 'api.evo.nuevacore.com',
     
-    // Cognito será criado no deploy de produção
+    // Cognito existente em produção
     cognito: {
-      userPoolId: undefined,
-      userPoolClientId: undefined,
+      userPoolId: 'us-east-1_WVljEXXs9',
+      userPoolClientId: undefined, // Será preenchido após verificar
     },
     
     // Recursos robustos para produção
