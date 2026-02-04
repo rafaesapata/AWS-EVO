@@ -73,6 +73,7 @@ phases:
         sam build \
           --template-file sam/template.yaml \
           --build-dir .aws-sam/build \
+          --base-dir . \
           --parallel \
           --cached
       
