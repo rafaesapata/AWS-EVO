@@ -281,6 +281,8 @@ export interface CORSConfig {
 
 export const SECURE_CORS_CONFIG: CORSConfig = {
   allowedOrigins: [
+    'https://evo.nuevacore.com',
+    'https://api.evo.nuevacore.com',
     'https://evo.ai.udstec.io',
     'https://api-evo.ai.udstec.io',
     'https://app.evo-uds.com',
@@ -349,11 +351,11 @@ export function generateCORSHeaders(
       }
     } else {
       // Unknown origin in dev - use first allowed origin (no credentials)
-      headers['Access-Control-Allow-Origin'] = config.allowedOrigins[0] || 'https://evo.ai.udstec.io';
+      headers['Access-Control-Allow-Origin'] = config.allowedOrigins[0] || 'https://evo.nuevacore.com';
     }
   } else {
     // Production with unknown origin - use primary domain (no credentials)
-    headers['Access-Control-Allow-Origin'] = 'https://evo.ai.udstec.io';
+    headers['Access-Control-Allow-Origin'] = 'https://evo.nuevacore.com';
   }
 
   headers['Access-Control-Allow-Methods'] = config.allowedMethods.join(', ');
