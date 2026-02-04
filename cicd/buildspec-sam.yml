@@ -138,10 +138,15 @@ phases:
         fi
         
         if [ -n "$FRONTEND_BUCKET" ]; then
-          aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
-          
-          if [ -n "$CF_DIST_ID" ]; then
-            aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*"
+          # Check if bucket exists before syncing
+          if aws s3 ls "s3://$FRONTEND_BUCKET" 2>/dev/null; then
+            aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
+            
+            if [ -n "$CF_DIST_ID" ]; then
+              aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
+            fi
+          else
+            echo "⚠️ Frontend bucket $FRONTEND_BUCKET does not exist, skipping frontend deploy"
           fi
         fi
       
