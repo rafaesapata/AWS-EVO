@@ -18,8 +18,8 @@ phases:
       - echo "Installing SAM CLI..."
       - pip install aws-sam-cli
       - echo "Installing dependencies..."
-      - npm ci
-      - npm ci --prefix backend
+      - npm install
+      - npm install --prefix backend
       - echo "Generating Prisma client for ARM64..."
       - cd backend && npx prisma generate && cd ..
 
@@ -45,11 +45,11 @@ phases:
           export DB_PASSWORD="${SANDBOX_DB_PASSWORD:-SandboxPassword2026}"
         fi
       - echo "=========================================="
-      - echo "Environment     \$ENV"
-      - echo "AWS Account     \$AWS_ACCOUNT"
-      - echo "Stack Name      \$STACK_NAME"
-      - echo "Frontend Domain \$FRONTEND_DOMAIN"
-      - echo "API Domain      \$API_DOMAIN"
+      - echo "Environment     $ENV"
+      - echo "AWS Account     $AWS_ACCOUNT"
+      - echo "Stack Name      $STACK_NAME"
+      - echo "Frontend Domain $FRONTEND_DOMAIN"
+      - echo "API Domain      $API_DOMAIN"
       - echo "=========================================="
 
   build:
@@ -82,50 +82,50 @@ phases:
       - |
         sam deploy \
           --template-file .aws-sam/build/template.yaml \
-          --stack-name \$STACK_NAME \
-          --s3-bucket evo-sam-artifacts-\$AWS_ACCOUNT \
-          --s3-prefix \$STACK_NAME \
+          --stack-name $STACK_NAME \
+          --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT \
+          --s3-prefix $STACK_NAME \
           --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
           --region us-east-1 \
           --no-confirm-changeset \
           --no-fail-on-empty-changeset \
           --parameter-overrides \
-            "Environment=\$ENV" \
+            "Environment=$ENV" \
             "ProjectName=evo-uds-v3" \
-            "DatabasePassword=\$DB_PASSWORD" || echo "SAM deploy completed"
+            "DatabasePassword=$DB_PASSWORD" || echo "SAM deploy completed"
 
   post_build:
     commands:
       - echo "=========================================="
       - echo "STEP 3 - Getting Stack Outputs..."
       - echo "=========================================="
-      - export API_ID=\$(aws cloudformation describe-stacks --stack-name \$STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`ApiId\`].OutputValue' --output text 2>/dev/null || echo "")
-      - export API_ENDPOINT=\$(aws cloudformation describe-stacks --stack-name \$STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`ApiEndpoint\`].OutputValue' --output text 2>/dev/null || echo "")
-      - export USER_POOL_ID=\$(aws cloudformation describe-stacks --stack-name \$STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`UserPoolId\`].OutputValue' --output text 2>/dev/null || echo "")
-      - export USER_POOL_CLIENT_ID=\$(aws cloudformation describe-stacks --stack-name \$STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`UserPoolClientId\`].OutputValue' --output text 2>/dev/null || echo "")
-      - export DB_ENDPOINT=\$(aws cloudformation describe-stacks --stack-name \$STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`DatabaseEndpoint\`].OutputValue' --output text 2>/dev/null || echo "")
-      - export DB_SECRET_ARN=\$(aws cloudformation describe-stacks --stack-name \$STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`DatabaseSecretArn\`].OutputValue' --output text 2>/dev/null || echo "")
-      - export FRONTEND_BUCKET=\$(aws cloudformation describe-stacks --stack-name \$STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`FrontendBucketName\`].OutputValue' --output text 2>/dev/null || echo "")
-      - export CF_DIST_ID=\$(aws cloudformation describe-stacks --stack-name \$STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`CloudFrontDistributionId\`].OutputValue' --output text 2>/dev/null || echo "")
-      - export CF_DOMAIN=\$(aws cloudformation describe-stacks --stack-name \$STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`CloudFrontDomainName\`].OutputValue' --output text 2>/dev/null || echo "")
+      - export API_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiId`].OutputValue' --output text 2>/dev/null || echo "")
+      - export API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text 2>/dev/null || echo "")
+      - export USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text 2>/dev/null || echo "")
+      - export USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text 2>/dev/null || echo "")
+      - export DB_ENDPOINT=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`DatabaseEndpoint`].OutputValue' --output text 2>/dev/null || echo "")
+      - export DB_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretArn`].OutputValue' --output text 2>/dev/null || echo "")
+      - export FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text 2>/dev/null || echo "")
+      - export CF_DIST_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text 2>/dev/null || echo "")
+      - export CF_DOMAIN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDomainName`].OutputValue' --output text 2>/dev/null || echo "")
       
       - echo "Stack Outputs:"
-      - echo "  API Gateway ID    \$API_ID"
-      - echo "  API Endpoint      \$API_ENDPOINT"
-      - echo "  Cognito Pool ID   \$USER_POOL_ID"
-      - echo "  Cognito Client    \$USER_POOL_CLIENT_ID"
-      - echo "  Database          \$DB_ENDPOINT"
-      - echo "  Frontend Bucket   \$FRONTEND_BUCKET"
-      - echo "  CloudFront ID     \$CF_DIST_ID"
-      - echo "  CloudFront Domain \$CF_DOMAIN"
+      - echo "  API Gateway ID    $API_ID"
+      - echo "  API Endpoint      $API_ENDPOINT"
+      - echo "  Cognito Pool ID   $USER_POOL_ID"
+      - echo "  Cognito Client    $USER_POOL_CLIENT_ID"
+      - echo "  Database          $DB_ENDPOINT"
+      - echo "  Frontend Bucket   $FRONTEND_BUCKET"
+      - echo "  CloudFront ID     $CF_DIST_ID"
+      - echo "  CloudFront Domain $CF_DOMAIN"
       
       - echo "=========================================="
       - echo "STEP 4 - Syncing Frontend Files to S3..."
       - echo "=========================================="
       - |
-        if [ -n "\$FRONTEND_BUCKET" ]; then
-          aws s3 sync dist/ s3://\$FRONTEND_BUCKET/ --delete
-          aws cloudfront create-invalidation --distribution-id \$CF_DIST_ID --paths "/*"
+        if [ -n "$FRONTEND_BUCKET" ]; then
+          aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
+          aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*"
         else
           echo "Frontend bucket not found, skipping sync"
         fi
@@ -134,11 +134,11 @@ phases:
       - echo "STEP 5 - Running Database Migrations..."
       - echo "=========================================="
       - |
-        if [ -n "\$DB_SECRET_ARN" ]; then
-          export DATABASE_URL=\$(aws secretsmanager get-secret-value --secret-id \$DB_SECRET_ARN --region us-east-1 --query 'SecretString' --output text | jq -r '.DATABASE_URL')
-          if [ -n "\$DATABASE_URL" ] && [ "\$DATABASE_URL" != "null" ]; then
+        if [ -n "$DB_SECRET_ARN" ]; then
+          export DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id $DB_SECRET_ARN --region us-east-1 --query 'SecretString' --output text | jq -r '.DATABASE_URL')
+          if [ -n "$DATABASE_URL" ] && [ "$DATABASE_URL" != "null" ]; then
             echo "Running Prisma migrations..."
-            cd backend && DATABASE_URL="\$DATABASE_URL" npx prisma migrate deploy && cd ..
+            cd backend && DATABASE_URL="$DATABASE_URL" npx prisma migrate deploy && cd ..
             echo "Migrations completed!"
           else
             echo "DATABASE_URL not found in secret, skipping migrations"
@@ -151,24 +151,24 @@ phases:
       - echo "STEP 6 - Configuring API Gateway Custom Domain..."
       - echo "=========================================="
       - |
-        if [ -n "\$API_DOMAIN" ] && [ -n "\$API_ID" ]; then
+        if [ -n "$API_DOMAIN" ] && [ -n "$API_ID" ]; then
           echo "Deploying API Custom Domain Stack..."
           aws cloudformation deploy \
             --template-file sam/api-custom-domain.yaml \
-            --stack-name \${STACK_NAME}-api-domain \
+            --stack-name ${STACK_NAME}-api-domain \
             --parameter-overrides \
-              "Environment=\$ENV" \
+              "Environment=$ENV" \
               "ProjectName=evo-uds-v3" \
-              "ApiDomain=\$API_DOMAIN" \
-              "CertificateArn=\$CERTIFICATE_ARN" \
-              "ApiId=\$API_ID" \
+              "ApiDomain=$API_DOMAIN" \
+              "CertificateArn=$CERTIFICATE_ARN" \
+              "ApiId=$API_ID" \
               "StageName=prod" \
             --capabilities CAPABILITY_IAM \
             --region us-east-1 \
             --no-fail-on-empty-changeset || echo "API Custom Domain deployment completed"
           
-          export API_DOMAIN_TARGET=\$(aws cloudformation describe-stacks --stack-name \${STACK_NAME}-api-domain --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==\`ApiCustomDomainTarget\`].OutputValue' --output text 2>/dev/null || echo "")
-          echo "API Custom Domain Target: \$API_DOMAIN_TARGET"
+          export API_DOMAIN_TARGET=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME}-api-domain --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiCustomDomainTarget`].OutputValue' --output text 2>/dev/null || echo "")
+          echo "API Custom Domain Target: $API_DOMAIN_TARGET"
         else
           echo "Skipping API Custom Domain (no domain configured or API not deployed)"
         fi
@@ -177,15 +177,15 @@ phases:
       - echo "DEPLOYMENT COMPLETE!"
       - echo "=========================================="
       - echo ""
-      - echo "Frontend URL     https://\${FRONTEND_DOMAIN:-\$CF_DOMAIN}"
-      - echo "API URL          https://\${API_DOMAIN:-\$API_ENDPOINT}"
-      - echo "Cognito Pool ID  \$USER_POOL_ID"
-      - echo "Cognito Client   \$USER_POOL_CLIENT_ID"
-      - echo "Database         \$DB_ENDPOINT"
+      - echo "Frontend URL     https://${FRONTEND_DOMAIN:-$CF_DOMAIN}"
+      - echo "API URL          https://${API_DOMAIN:-$API_ENDPOINT}"
+      - echo "Cognito Pool ID  $USER_POOL_ID"
+      - echo "Cognito Client   $USER_POOL_CLIENT_ID"
+      - echo "Database         $DB_ENDPOINT"
       - echo ""
       - echo "DNS RECORDS REQUIRED (if using custom domains):"
-      - echo "  \$FRONTEND_DOMAIN -> \$CF_DOMAIN"
-      - echo "  \$API_DOMAIN -> \$API_DOMAIN_TARGET"
+      - echo "  $FRONTEND_DOMAIN -> $CF_DOMAIN"
+      - echo "  $API_DOMAIN -> $API_DOMAIN_TARGET"
       - echo "=========================================="
 
 artifacts:
