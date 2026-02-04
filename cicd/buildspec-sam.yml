@@ -1,13 +1,7 @@
 version: 0.2
-
-# AWS CodeBuild - FAST DEPLOY with COMPLETE LAYER
-# Includes ALL dependencies: AWS SDK v3, Azure SDK, Prisma, etc
-# ALL LAMBDAS USE ARM64 ARCHITECTURE (Graviton2)
-
 env:
   variables:
     SAM_CLI_TELEMETRY: 0
-
 phases:
   install:
     runtime-versions:
@@ -17,66 +11,29 @@ phases:
       - echo "Installing dependencies..."
       - npm install
       - npm install --prefix backend
-      - echo "Generating Prisma client for ARM64..."
       - npx prisma generate --schema=backend/prisma/schema.prisma
-
   pre_build:
     commands:
       - echo "Determining environment..."
-      - |
-        if [ "$ENVIRONMENT" = "production" ]; then
-          export ENV="production"
-          export AWS_ACCOUNT="523115032346"
-          export STACK_NAME="evo-uds-v3-prod-lambdas"
-          export CERTIFICATE_ARN="arn:aws:acm:us-east-1:523115032346:certificate/9df982f9-7993-4454-8887-a33e1298b568"
-          export FRONTEND_DOMAIN="evo.nuevacore.com"
-          export API_DOMAIN="api.evo.nuevacore.com"
-          export DB_PASSWORD="${PROD_DB_PASSWORD:-EvoProduction2026SecurePass}"
-        else
-          export ENV="sandbox"
-          export AWS_ACCOUNT="971354623291"
-          export STACK_NAME="evo-uds-v3-sandbox-lambdas"
-          export CERTIFICATE_ARN=""
-          export FRONTEND_DOMAIN=""
-          export API_DOMAIN=""
-          export DB_PASSWORD="${SANDBOX_DB_PASSWORD:-SandboxPassword2026}"
-        fi
+      - if [ "$ENVIRONMENT" = "production" ]; then export ENV="production"; export AWS_ACCOUNT="523115032346"; export STACK_NAME="evo-uds-v3-prod-lambdas"; export CERTIFICATE_ARN="arn:aws:acm:us-east-1:523115032346:certificate/9df982f9-7993-4454-8887-a33e1298b568"; export FRONTEND_DOMAIN="evo.nuevacore.com"; export API_DOMAIN="api.evo.nuevacore.com"; export DB_PASSWORD="${PROD_DB_PASSWORD:-EvoProduction2026SecurePass}"; else export ENV="sandbox"; export AWS_ACCOUNT="971354623291"; export STACK_NAME="evo-uds-v3-sandbox-lambdas"; export CERTIFICATE_ARN=""; export FRONTEND_DOMAIN=""; export API_DOMAIN=""; export DB_PASSWORD="${SANDBOX_DB_PASSWORD:-SandboxPassword2026}"; fi
       - export S3_BUCKET="evo-sam-artifacts-$AWS_ACCOUNT"
       - echo "Environment $ENV | Account $AWS_ACCOUNT | Stack $STACK_NAME"
-
   build:
     commands:
-      - echo "=== Step 1: Build TypeScript backend ==="
+      - echo "Step 1 - Build TypeScript backend"
       - npm run build --prefix backend
-      
-      - echo "=== Step 2: Build Frontend ==="
+      - echo "Step 2 - Build Frontend"
       - npm run build
-      
-      - echo "=== Step 3: Create COMPLETE Lambda Layer (ALL DEPENDENCIES) ==="
+      - echo "Step 3 - Create Lambda Layer"
       - mkdir -p /tmp/layer/nodejs/node_modules
-      
-      # AWS SDK v3 (NOT included in Node.js 18+ runtime!)
-      - echo "Copying AWS SDK v3 packages..."
       - cp -r backend/node_modules/@aws-sdk /tmp/layer/nodejs/node_modules/
       - cp -r backend/node_modules/@smithy /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/@aws-crypto /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
-      
-      # Prisma (Database ORM)
-      - echo "Copying Prisma..."
       - cp -r backend/node_modules/@prisma /tmp/layer/nodejs/node_modules/
       - cp -r backend/node_modules/.prisma /tmp/layer/nodejs/node_modules/
-      
-      # Azure SDK (Multi-cloud support)
-      - echo "Copying Azure SDK..."
       - cp -r backend/node_modules/@azure /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/@typespec /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
-      
-      # Validation & Schema
-      - echo "Copying Zod..."
       - cp -r backend/node_modules/zod /tmp/layer/nodejs/node_modules/
-      
-      # JWT & Authentication
-      - echo "Copying JWT packages..."
       - cp -r backend/node_modules/jsonwebtoken /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/bcryptjs /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/jws /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
@@ -84,122 +41,62 @@ phases:
       - cp -r backend/node_modules/buffer-equal-constant-time /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/ecdsa-sig-formatter /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/safe-buffer /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
-      
-      # Lodash (Azure SDK dependency)
       - cp -r backend/node_modules/lodash /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/lodash.* /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
-      
-      # PDF Generation
       - cp -r backend/node_modules/pdfkit /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/fontkit /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/linebreak /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/png-js /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
-      
-      # Database (PostgreSQL)
       - cp -r backend/node_modules/pg /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/pg-* /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
-      
-      # Redis
       - cp -r backend/node_modules/ioredis /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
-      
-      # X-Ray
+      - cp -r backend/node_modules/denque /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/aws-xray-sdk-core /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
-      
-      # Common Utilities
       - cp -r backend/node_modules/uuid /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/ms /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/tslib /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/fast-xml-parser /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
       - cp -r backend/node_modules/bowser /tmp/layer/nodejs/node_modules/ 2>/dev/null || true
-      
-      # Clean up
       - find /tmp/layer -name "*.map" -delete 2>/dev/null || true
       - find /tmp/layer -name "*.md" -delete 2>/dev/null || true
       - find /tmp/layer -name "*darwin*" -delete 2>/dev/null || true
       - find /tmp/layer -name "*win32*" -delete 2>/dev/null || true
       - rm -rf /tmp/layer/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
-      
-      - echo "Layer size:" && du -sh /tmp/layer/
-      
-      - echo "=== Step 4: Create Layer ZIP ==="
-      - pushd /tmp/layer && zip -rq /tmp/lambda-layer.zip . && popd
+      - du -sh /tmp/layer/
+      - echo "Step 4 - Create Layer ZIP"
+      - cd /tmp/layer && zip -rq /tmp/lambda-layer.zip .
       - ls -lh /tmp/lambda-layer.zip
-      
-      - echo "=== Step 5: Upload Layer to S3 and Publish ==="
+      - echo "Step 5 - Upload Layer to S3 and Publish"
       - aws s3 cp /tmp/lambda-layer.zip s3://$S3_BUCKET/$STACK_NAME/lambda-layer.zip
-      - |
-        LAYER_VERSION=$(aws lambda publish-layer-version \
-          --layer-name "${STACK_NAME}-deps" \
-          --description "Complete deps: AWS SDK v3, Azure SDK, Prisma, JWT, PDF, PG, Redis" \
-          --content S3Bucket=$S3_BUCKET,S3Key=$STACK_NAME/lambda-layer.zip \
-          --compatible-runtimes nodejs18.x nodejs20.x \
-          --compatible-architectures arm64 \
-          --region us-east-1 \
-          --query 'Version' --output text)
-        echo "Layer ARN: arn:aws:lambda:us-east-1:$AWS_ACCOUNT:layer:${STACK_NAME}-deps:$LAYER_VERSION"
-      
-      - echo "=== Step 6: Prepare Layer for SAM ==="
+      - LAYER_VERSION=$(aws lambda publish-layer-version --layer-name "${STACK_NAME}-deps" --description "Complete deps AWS SDK v3 Azure Prisma JWT PDF PG Redis" --content S3Bucket=$S3_BUCKET,S3Key=$STACK_NAME/lambda-layer.zip --compatible-runtimes nodejs18.x nodejs20.x --compatible-architectures arm64 --region us-east-1 --query 'Version' --output text)
+      - echo "Layer ARN arn:aws:lambda:us-east-1:$AWS_ACCOUNT:layer:${STACK_NAME}-deps:$LAYER_VERSION"
+      - echo "Step 6 - Prepare Layer for SAM"
       - mkdir -p backend/layers/dependencies/nodejs
       - cp -r /tmp/layer/nodejs/node_modules backend/layers/dependencies/nodejs/
-      
-      - echo "=== Step 7: Deploy SAM Stack ==="
+      - echo "Step 7 - Deploy SAM Stack"
       - sam build --template-file sam/template.yaml --build-dir .aws-sam/build --parallel --cached
-      - |
-        sam deploy \
-          --template-file .aws-sam/build/template.yaml \
-          --stack-name $STACK_NAME \
-          --s3-bucket $S3_BUCKET \
-          --s3-prefix $STACK_NAME \
-          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
-          --region us-east-1 \
-          --no-confirm-changeset \
-          --no-fail-on-empty-changeset \
-          --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "DatabasePassword=$DB_PASSWORD"
-
+      - sam deploy --template-file .aws-sam/build/template.yaml --stack-name $STACK_NAME --s3-bucket $S3_BUCKET --s3-prefix $STACK_NAME --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM --region us-east-1 --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "DatabasePassword=$DB_PASSWORD"
   post_build:
     commands:
-      - echo "=== Getting Stack Outputs ==="
+      - echo "Getting Stack Outputs"
       - export FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text 2>/dev/null || echo "")
       - export CF_DIST_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text 2>/dev/null || echo "")
       - export DB_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretArn`].OutputValue' --output text 2>/dev/null || echo "")
       - export API_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiId`].OutputValue' --output text 2>/dev/null || echo "")
-      
-      - echo "=== Syncing Frontend to S3 ==="
-      - |
-        if [ -n "$FRONTEND_BUCKET" ]; then
-          aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
-          aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
-        fi
-      
-      - echo "=== Running Database Migrations ==="
-      - |
-        if [ -n "$DB_SECRET_ARN" ]; then
-          export DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id $DB_SECRET_ARN --region us-east-1 --query 'SecretString' --output text | jq -r '.DATABASE_URL' 2>/dev/null)
-          if [ -n "$DATABASE_URL" ] && [ "$DATABASE_URL" != "null" ]; then
-            npx prisma migrate deploy --schema=backend/prisma/schema.prisma
-          fi
-        fi
-      
-      - echo "=== Configuring API Custom Domain ==="
-      - |
-        if [ -n "$API_DOMAIN" ] && [ -n "$API_ID" ]; then
-          aws cloudformation deploy \
-            --template-file sam/api-custom-domain.yaml \
-            --stack-name ${STACK_NAME}-api-domain \
-            --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "ApiDomain=$API_DOMAIN" "CertificateArn=$CERTIFICATE_ARN" "ApiId=$API_ID" "StageName=prod" \
-            --capabilities CAPABILITY_IAM --region us-east-1 --no-fail-on-empty-changeset || true
-        fi
-      
-      - echo "=== DEPLOYMENT COMPLETE ==="
+      - echo "Syncing Frontend to S3"
+      - if [ -n "$FRONTEND_BUCKET" ]; then aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete; aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true; fi
+      - echo "Running Database Migrations"
+      - if [ -n "$DB_SECRET_ARN" ]; then export DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id $DB_SECRET_ARN --region us-east-1 --query 'SecretString' --output text | jq -r '.DATABASE_URL' 2>/dev/null); if [ -n "$DATABASE_URL" ] && [ "$DATABASE_URL" != "null" ]; then npx prisma migrate deploy --schema=backend/prisma/schema.prisma; fi; fi
+      - echo "Configuring API Custom Domain"
+      - if [ -n "$API_DOMAIN" ] && [ -n "$API_ID" ]; then aws cloudformation deploy --template-file sam/api-custom-domain.yaml --stack-name ${STACK_NAME}-api-domain --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "ApiDomain=$API_DOMAIN" "CertificateArn=$CERTIFICATE_ARN" "ApiId=$API_ID" "StageName=prod" --capabilities CAPABILITY_IAM --region us-east-1 --no-fail-on-empty-changeset || true; fi
+      - echo "DEPLOYMENT COMPLETE"
       - echo "Frontend https://${FRONTEND_DOMAIN:-CloudFront}"
       - echo "API https://${API_DOMAIN:-API_Gateway}"
-
 artifacts:
   files:
     - dist/**/*
-
 cache:
   paths:
-    - 'backend/node_modules/**/*'
-    - 'node_modules/**/*'
-    - '.aws-sam/cache/**/*'
+    - backend/node_modules/**/*
+    - node_modules/**/*
+    - .aws-sam/cache/**/*
