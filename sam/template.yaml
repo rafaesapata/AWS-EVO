@@ -25,7 +25,7 @@ Globals:
         COGNITO_USER_POOL_ID: !Ref UserPool
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
     Layers:
-      - !Ref DependenciesLayer
+      - arn:aws:lambda:us-east-1:971354623291:layer:evo-uds-v3-sandbox-deps:8
 
 Parameters:
   Environment:
@@ -464,19 +464,11 @@ Resources:
           Value: !Sub '${ProjectName}-${Environment}-attachments'
 
   # ==========================================================================
-  # LAMBDA LAYER - Prisma + zod (AWS SDK is in Lambda runtime)
+  # LAMBDA LAYER - Using pre-built layer v8
+  # Layer v8: Prisma + Zod + JWT + bcrypt + @smithy + AWS SDK (cognito, sts, secrets)
   # ==========================================================================
-  DependenciesLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: !Sub '${ProjectName}-${Environment}-deps'
-      Description: Prisma Client + zod for EVO Platform
-      ContentUri: backend/layers/dependencies/
-      CompatibleRuntimes:
-        - nodejs18.x
-      CompatibleArchitectures:
-        - arm64
-      RetentionPolicy: Retain
+  # DependenciesLayer is now referenced directly by ARN in Globals.Function.Layers
+  # Layer ARN: arn:aws:lambda:us-east-1:971354623291:layer:evo-uds-v3-sandbox-deps:8
 
   # ==========================================================================
   # IAM ROLE - Lambda Execution Role

@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  EVO Platform - API Gateway Custom Domain
+  Maps api.evo.nuevacore.com to API Gateway
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [sandbox, production]
+  
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+
+  ApiDomain:
+    Type: String
+    Default: 'api.evo.nuevacore.com'
+    Description: Custom domain for API Gateway
+
+  CertificateArn:
+    Type: String
+    Default: 'arn:aws:acm:us-east-1:523115032346:certificate/9df982f9-7993-4454-8887-a33e1298b568'
+    Description: ACM Certificate ARN for custom domain
+
+  ApiId:
+    Type: String
+    Description: API Gateway REST API ID
+
+  StageName:
+    Type: String
+    Default: prod
+    Description: API Gateway stage name
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref ApiDomain, '']]
+
+Resources:
+  # ==========================================================================
+  # API Gateway Custom Domain
+  # ==========================================================================
+  ApiCustomDomain:
+    Type: AWS::ApiGateway::DomainName
+    Condition: HasCustomDomain
+    Properties:
+      DomainName: !Ref ApiDomain
+      RegionalCertificateArn: !Ref CertificateArn
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      SecurityPolicy: TLS_1_2
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-api-domain'
+
+  ApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: HasCustomDomain
+    DependsOn: ApiCustomDomain
+    Properties:
+      DomainName: !Ref ApiDomain
+      RestApiId: !Ref ApiId
+      Stage: !Ref StageName
+
+Outputs:
+  ApiCustomDomainName:
+    Condition: HasCustomDomain
+    Description: API Gateway Custom Domain Name
+    Value: !Ref ApiDomain
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-api-custom-domain'
+
+  ApiCustomDomainTarget:
+    Condition: HasCustomDomain
+    Description: API Gateway Custom Domain Target (for DNS CNAME)
+    Value: !GetAtt ApiCustomDomain.RegionalDomainName
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-api-domain-target'
+
+  ApiCustomDomainHostedZoneId:
+    Condition: HasCustomDomain
+    Description: API Gateway Custom Domain Hosted Zone ID (for Route53 Alias)
+    Value: !GetAtt ApiCustomDomain.RegionalHostedZoneId
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-api-domain-zone-id'
