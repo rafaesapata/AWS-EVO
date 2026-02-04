@@ -59,7 +59,7 @@ phases:
       - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
       - rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
       - echo "=== Step 5 Deploy SAM Stack ==="
-      - sam build --template-file sam/template.yaml --build-dir .aws-sam/build --parallel --cached
+      - sam build --template-file sam/template.yaml --build-dir .aws-sam/build --base-dir . --parallel --cached
       - |
         sam deploy \
           --template-file .aws-sam/build/template.yaml \
