@@ -20,10 +20,11 @@
 - [x] Default organization created (ID: d9bf1d85-fd0e-4fd6-b32b-92a6c015cff1)
 
 ### API Gateway
-- [x] 155 API routes created
+- [x] 156 API routes created (including self-register)
 - [x] JWT Authorizer configured (aahy54)
 - [x] Custom domain configured: api.evo.nuevacore.com
 - [x] Domain mapping verified
+- [x] Public routes configured (no auth required)
 
 ### DNS & Domains
 - [x] Route 53 Hosted Zone created (Z09955541YLXVD4MBX1EH)
@@ -72,10 +73,21 @@ dig api.evo.nuevacore.com
 ```
 
 ### 2. Deploy CORS Changes via CI/CD
-The CORS configuration has been updated in code but needs to be deployed to all Lambdas.
+The CORS configuration has been updated in code and needs to be deployed to all Lambdas.
 
-**Status**: Code committed to `production` branch
-**Action Required**: Trigger CI/CD pipeline or wait for automatic deployment
+**Status**: Code committed to `production` branch (commit 99d1f07)
+**Action Required**: 
+- Check if CodePipeline exists for production branch
+- If not, trigger manual deployment or wait for next deployment cycle
+- After deployment, verify CORS headers return `https://evo.nuevacore.com` instead of `*`
+
+**Verification:**
+```bash
+curl -X OPTIONS https://api.evo.nuevacore.com/api/functions/self-register \
+  -H "Origin: https://evo.nuevacore.com" \
+  -v 2>&1 | grep "access-control-allow-origin"
+# Should return: < access-control-allow-origin: https://evo.nuevacore.com
+```
 
 ### 3. Create First Admin User
 After DNS propagation, create the first admin user in Cognito.
