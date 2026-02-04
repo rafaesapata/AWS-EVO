@@ -91,35 +91,22 @@ postgresql://evoadmin:%29V7%3F9ygLec%3FAMSqn%29.UIU4%24vOfRl%2C%24%5EL@evo-uds-v
 ## Lambda Layers
 
 ### Layers Atuais
-| Versão | Uso | Descrição |
-|--------|-----|-----------|
-| **92** | AWS + SES | Prisma + Zod + AWS SDK (SES, STS, WAFV2, Bedrock, Lambda, Cognito) |
-| **91** | Azure | Prisma + Zod + Azure SDK + jsonwebtoken + lodash |
-| **65** | AWS | Prisma + Zod + AWS SDK completo |
+| Versão | Nome | Descrição |
+|--------|------|-----------|
+| **1** | `evo-uds-v3-sandbox-deps` | Prisma + Zod (criada pelo SAM) |
 
 ### ARNs
 ```
-arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92  # AWS+SES
-arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:91  # Azure
-arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:65  # AWS
+arn:aws:lambda:us-east-1:971354623291:layer:evo-uds-v3-sandbox-deps:1  # Sandbox
 ```
 
-### Checklist para Novo Layer
+### Conteúdo da Layer
+A layer é criada automaticamente pelo SAM e contém apenas:
+- `@prisma/client` - Prisma Client
+- `.prisma/client` - Prisma Engine (linux-arm64)
+- `zod` - Validação de schemas
 
-**AWS SDK (obrigatório):**
-- [ ] `@prisma/client`, `.prisma/client`
-- [ ] `zod`
-- [ ] `@aws-sdk/client-sts`, `@aws-sdk/client-wafv2`, `@aws-sdk/client-bedrock-runtime`
-- [ ] `@aws-sdk/client-lambda`, `@aws-sdk/client-cognito-identity-provider`
-- [ ] Todas dependências `@smithy/*` (80+ pacotes)
-- [ ] `tslib`, `uuid`, `fast-xml-parser`
-
-**Azure SDK (se necessário):**
-- [ ] `@azure/identity`, `@azure/arm-resources`, `@azure/arm-*`
-- [ ] `@azure/msal-node`, `@azure/msal-common`
-- [ ] `@typespec/ts-http-runtime` + arquivos em `internal/`
-- [ ] `jsonwebtoken` + dependências
-- [ ] `lodash.*` (includes, camelcase, defaults, isinteger, etc.)
+O AWS SDK não é incluído na layer porque já está disponível no runtime do Lambda.
 
 ---
 
