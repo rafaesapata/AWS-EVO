@@ -103,10 +103,7 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
-                  - cloudfront:CreateDistribution
-                  - cloudfront:UpdateDistribution
-                  - cloudfront:CreateInvalidation
-                  - cloudfront:GetDistribution
+                  - cloudfront:*
                 Resource: '*'
               - Effect: Allow
                 Action:
