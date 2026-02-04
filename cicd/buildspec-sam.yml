@@ -23,12 +23,21 @@ phases:
 
   pre_build:
     commands:
-      - echo "Determining environment..."
-      - export ENV="sandbox"
-      - export AWS_ACCOUNT="971354623291"
-      - export LAMBDA_STACK="evo-uds-v3-sandbox-lambdas"
-      - export FRONTEND_STACK="evo-uds-v3-sandbox-frontend"
+      - echo "Determining environment from ENVIRONMENT variable..."
+      - |
+        if [ "$ENVIRONMENT" = "production" ]; then
+          export ENV="production"
+          export AWS_ACCOUNT="523115032346"
+          export LAMBDA_STACK="evo-uds-v3-prod-lambdas"
+          export FRONTEND_STACK="evo-uds-v3-prod-frontend"
+        else
+          export ENV="sandbox"
+          export AWS_ACCOUNT="971354623291"
+          export LAMBDA_STACK="evo-uds-v3-sandbox-lambdas"
+          export FRONTEND_STACK="evo-uds-v3-sandbox-frontend"
+        fi
       - echo "Environment is $ENV"
+      - echo "AWS Account is $AWS_ACCOUNT"
       - echo "Lambda Stack is $LAMBDA_STACK"
       - echo "Frontend Stack is $FRONTEND_STACK"
 
