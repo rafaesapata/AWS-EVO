@@ -50,13 +50,15 @@ phases:
       - npm run build --prefix backend
       - echo "=== Step 2 Build Frontend ==="
       - npm run build
-      - echo "=== Step 3 Prepare Layer (Prisma + Zod only) ==="
+      - echo "=== Step 3 Prepare Backend for SAM (copy dist to src) ==="
+      - cp -r backend/dist backend/src
+      - echo "=== Step 4 Prepare Layer (Prisma + Zod only) ==="
       - mkdir -p backend/layers/dependencies/nodejs/node_modules
       - cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
       - cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
       - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
       - rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
-      - echo "=== Step 4 Deploy SAM Stack ==="
+      - echo "=== Step 5 Deploy SAM Stack ==="
       - sam build --template-file sam/template.yaml --build-dir .aws-sam/build --parallel --cached
       - |
         sam deploy \
