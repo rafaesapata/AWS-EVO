@@ -1,7 +1,7 @@
 version: 0.2
 
 # AWS CodeBuild - SAM Build and Deploy
-# Deploys Lambda functions using existing infrastructure
+# Deploys complete EVO Platform infrastructure via SAM
 
 env:
   variables:
@@ -17,8 +17,8 @@ phases:
       - pip install aws-sam-cli
       
       - echo "📦 Installing dependencies..."
-      - npm install
-      - npm install --prefix backend
+      - npm ci
+      - npm ci --prefix backend
       
       - echo "🔧 Generating Prisma client..."
       - cd backend && npx prisma generate && cd ..
@@ -30,27 +30,23 @@ phases:
         if [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/production" ] || [ "$BRANCH_NAME" = "production" ]; then
           export ENV="production"
           export AWS_ACCOUNT="523115032346"
-          # Production infrastructure values
-          export COGNITO_USER_POOL_ID="us-east-1_WVljEXXs9"
-          export LAMBDA_SG_ID="sg-07ea931d32276e039"
-          export PRIVATE_SUBNET_1="subnet-0af7face420b9f317"
-          export PRIVATE_SUBNET_2="subnet-099b0fbc0a342fb0f"
-          export LAYER_ARN="arn:aws:lambda:us-east-1:523115032346:layer:evo-prisma-deps-layer:1"
-          export DATABASE_URL=$(aws ssm get-parameter --name "/evo/production/database-url" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         else
           export ENV="sandbox"
           export AWS_ACCOUNT="971354623291"
-          # Sandbox infrastructure values (existing)
-          export COGNITO_USER_POOL_ID="us-east-1_cnesJ48lR"
-          export LAMBDA_SG_ID="sg-0f14fd661fc5c41ba"
-          export PRIVATE_SUBNET_1="subnet-0edbe4968ff3a5a9e"
-          export PRIVATE_SUBNET_2="subnet-01931c820b0b0e864"
-          export LAYER_ARN="arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92"
-          export DATABASE_URL=$(aws ssm get-parameter --name "/evo/sandbox/database-url" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         fi
+        export STACK_NAME="evo-uds-v3-$ENV"
         echo "🌍 Environment: $ENV"
-        echo "📦 Using existing infrastructure"
-        echo "🔗 Layer: $LAYER_ARN"
+        echo "📦 Stack: $STACK_NAME"
+        echo "🔢 Account: $AWS_ACCOUNT"
+
+      - echo "🔐 Getting database password from SSM..."
+      - |
+        export DB_PASSWORD=$(aws ssm get-parameter --name "/evo/$ENV/database-password" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+        if [ -z "$DB_PASSWORD" ]; then
+          echo "⚠️ Database password not found in SSM, generating new one..."
+          export DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
+          aws ssm put-parameter --name "/evo/$ENV/database-password" --value "$DB_PASSWORD" --type SecureString --overwrite || true
+        fi
 
   build:
     commands:
@@ -89,13 +85,12 @@ phases:
       - du -sh backend/layers/dependencies/nodejs/
       
       - echo "🏗️ Building SAM application..."
-      - sam build --template-file template.yaml
+      - sam build --template-file sam/template.yaml --use-container
 
   post_build:
     commands:
       - echo "🔍 Checking stack status..."
       - |
-        STACK_NAME="evo-uds-v3-$ENV-lambdas"
         STACK_STATUS=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
         echo "Stack status: $STACK_STATUS"
         
@@ -111,46 +106,78 @@ phases:
       - |
         sam deploy \
           --template-file .aws-sam/build/template.yaml \
-          --stack-name evo-uds-v3-$ENV-lambdas \
+          --stack-name $STACK_NAME \
           --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT \
-          --s3-prefix evo-uds-v3-$ENV \
+          --s3-prefix $STACK_NAME \
           --region us-east-1 \
-          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+          --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
           --parameter-overrides \
             "Environment=$ENV" \
             "ProjectName=evo-uds-v3" \
-            "DatabaseUrl=$DATABASE_URL" \
-            "CognitoUserPoolId=$COGNITO_USER_POOL_ID" \
-            "LambdaSecurityGroupId=$LAMBDA_SG_ID" \
-            "PrivateSubnet1Id=$PRIVATE_SUBNET_1" \
-            "PrivateSubnet2Id=$PRIVATE_SUBNET_2" \
+            "DatabasePassword=$DB_PASSWORD" \
           --no-confirm-changeset \
           --no-fail-on-empty-changeset
       
+      - echo "📤 Getting stack outputs..."
+      - |
+        # Get outputs from CloudFormation
+        export FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
+        export CF_DIST_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+        export API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
+        export USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)
+        export USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
+        export CF_DOMAIN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDomainName`].OutputValue' --output text)
+        
+        echo "📋 Stack Outputs:"
+        echo "   Frontend Bucket: $FRONTEND_BUCKET"
+        echo "   CloudFront ID: $CF_DIST_ID"
+        echo "   CloudFront Domain: $CF_DOMAIN"
+        echo "   API Endpoint: $API_ENDPOINT"
+        echo "   User Pool ID: $USER_POOL_ID"
+        echo "   User Pool Client ID: $USER_POOL_CLIENT_ID"
+      
       - echo "🌐 Deploying Frontend..."
       - |
-        if [ "$ENV" = "sandbox" ]; then
-          FRONTEND_BUCKET="evo-uds-v3-production-frontend-971354623291"
-          CF_DIST_ID="E1PY7U3VNT6P1R"
+        if [ -n "$FRONTEND_BUCKET" ] && [ "$FRONTEND_BUCKET" != "None" ]; then
+          echo "📤 Uploading frontend to s3://$FRONTEND_BUCKET/"
+          aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
+          
+          if [ -n "$CF_DIST_ID" ] && [ "$CF_DIST_ID" != "None" ]; then
+            echo "🔄 Invalidating CloudFront cache..."
+            aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
+          fi
+          echo "✅ Frontend deployed!"
         else
-          FRONTEND_BUCKET="evo-uds-v3-prod-frontend-523115032346"
-          CF_DIST_ID=""
+          echo "⚠️ Frontend bucket not found in outputs, skipping frontend deploy"
         fi
-        
-        if [ -n "$FRONTEND_BUCKET" ]; then
-          # Check if bucket exists before syncing
-          if aws s3 ls "s3://$FRONTEND_BUCKET" 2>/dev/null; then
-            aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
-            
-            if [ -n "$CF_DIST_ID" ]; then
-              aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
-            fi
-          else
-            echo "⚠️ Frontend bucket $FRONTEND_BUCKET does not exist, skipping frontend deploy"
+      
+      - echo "📊 Saving outputs to SSM..."
+      - |
+        aws ssm put-parameter --name "/evo/$ENV/api-endpoint" --value "$API_ENDPOINT" --type String --overwrite || true
+        aws ssm put-parameter --name "/evo/$ENV/user-pool-id" --value "$USER_POOL_ID" --type String --overwrite || true
+        aws ssm put-parameter --name "/evo/$ENV/user-pool-client-id" --value "$USER_POOL_CLIENT_ID" --type String --overwrite || true
+        aws ssm put-parameter --name "/evo/$ENV/frontend-bucket" --value "$FRONTEND_BUCKET" --type String --overwrite || true
+        aws ssm put-parameter --name "/evo/$ENV/cloudfront-id" --value "$CF_DIST_ID" --type String --overwrite || true
+        aws ssm put-parameter --name "/evo/$ENV/cloudfront-domain" --value "$CF_DOMAIN" --type String --overwrite || true
+      
+      - echo "🔄 Running database migrations..."
+      - |
+        # Get DATABASE_URL from secrets manager
+        DB_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretArn`].OutputValue' --output text)
+        if [ -n "$DB_SECRET_ARN" ] && [ "$DB_SECRET_ARN" != "None" ]; then
+          export DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id $DB_SECRET_ARN --query 'SecretString' --output text | jq -r '.DATABASE_URL')
+          if [ -n "$DATABASE_URL" ]; then
+            echo "📦 Running Prisma migrations..."
+            cd backend && npx prisma migrate deploy && cd ..
+            echo "✅ Migrations completed!"
           fi
         fi
       
       - echo "✅ Deployment completed!"
+      - echo ""
+      - echo "🎉 EVO Platform deployed successfully!"
+      - echo "   Frontend: https://$CF_DOMAIN"
+      - echo "   API: $API_ENDPOINT"
 
 artifacts:
   files:

@@ -1,9 +1,15 @@
 #!/usr/bin/env npx tsx
 /**
- * EVO Platform - SAM Template Generator
+ * EVO Platform - Complete SAM Template Generator
  * 
- * Generates AWS SAM template for Lambda functions using existing infrastructure.
- * This approach avoids the 500 resource limit by not recreating VPC, RDS, Cognito.
+ * Generates AWS SAM template with COMPLETE infrastructure:
+ * - VPC, Subnets, NAT Gateway, Internet Gateway
+ * - RDS PostgreSQL
+ * - Cognito User Pool
+ * - S3 + CloudFront for Frontend
+ * - API Gateway with Cognito Authorizer
+ * - Lambda Layer (Prisma + zod)
+ * - All Lambda Functions (200+)
  * 
  * Usage: npx tsx scripts/generate-sam-template.ts
  */
@@ -23,11 +29,12 @@ interface HandlerConfig {
   memory?: number;
   auth?: 'COGNITO' | 'NONE';
   scheduled?: boolean;
+  httpMethod?: 'GET' | 'POST' | 'PUT' | 'DELETE';
 }
 
 // All handlers grouped by category
 const HANDLERS: HandlerConfig[] = [
-  // ADMIN (13)
+  // ADMIN (16)
   { name: 'admin-manage-user', path: 'admin', handler: 'admin-manage-user' },
   { name: 'automated-cleanup-stuck-scans', path: 'admin', handler: 'automated-cleanup-stuck-scans', timeout: 300, scheduled: true },
   { name: 'cleanup-stuck-scans', path: 'admin', handler: 'cleanup-stuck-scans', timeout: 300, scheduled: true },
@@ -71,7 +78,7 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'list-aws-credentials', path: 'aws', handler: 'list-aws-credentials' },
   { name: 'save-aws-credentials', path: 'aws', handler: 'save-aws-credentials' },
   { name: 'update-aws-credentials', path: 'aws', handler: 'update-aws-credentials' },
-  // AZURE (24)
+  // AZURE (22)
   { name: 'azure-activity-logs', path: 'azure', handler: 'azure-activity-logs', timeout: 60 },
   { name: 'azure-compliance-scan', path: 'azure', handler: 'azure-compliance-scan', timeout: 300, memory: 1024 },
   { name: 'azure-cost-optimization', path: 'azure', handler: 'azure-cost-optimization', timeout: 120, memory: 512 },
@@ -124,13 +131,15 @@ const HANDLERS: HandlerConfig[] = [
   // INTEGRATIONS (2)
   { name: 'cloudformation-webhook', path: 'integrations', handler: 'cloudformation-webhook', auth: 'NONE' },
   { name: 'create-jira-ticket', path: 'integrations', handler: 'create-jira-ticket', timeout: 60 },
-  // JOBS (13)
+  // JOBS (15)
   { name: 'auto-cleanup-stuck-scans', path: 'jobs', handler: 'auto-cleanup-stuck-scans', timeout: 300, scheduled: true },
   { name: 'cleanup-expired-external-ids', path: 'jobs', handler: 'cleanup-expired-external-ids', timeout: 60, scheduled: true },
   { name: 'cleanup-expired-oauth-states', path: 'jobs', handler: 'cleanup-expired-oauth-states', timeout: 60, scheduled: true },
   { name: 'cleanup-stuck-scans-jobs', path: 'jobs', handler: 'cleanup-stuck-scans', timeout: 300, scheduled: true },
   { name: 'execute-scheduled-job', path: 'jobs', handler: 'execute-scheduled-job', timeout: 300, memory: 512 },
   { name: 'initial-data-load', path: 'jobs', handler: 'initial-data-load', timeout: 300, scheduled: true },
+  { name: 'cancel-background-job', path: 'jobs', handler: 'cancel-background-job' },
+  { name: 'retry-background-job', path: 'jobs', handler: 'retry-background-job' },
   { name: 'list-background-jobs', path: 'jobs', handler: 'list-background-jobs' },
   { name: 'process-background-jobs', path: 'jobs', handler: 'process-background-jobs', timeout: 300, memory: 512 },
   { name: 'process-events', path: 'jobs', handler: 'process-events', timeout: 300, scheduled: true },
@@ -157,7 +166,7 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'sync-license', path: 'license', handler: 'sync-license', timeout: 60 },
   { name: 'validate-license', path: 'license', handler: 'validate-license' },
   // MAINTENANCE (2)
-  { name: 'maintenance-auto-cleanup', path: 'maintenance', handler: 'auto-cleanup-stuck-scans', timeout: 300, scheduled: true },
+  { name: 'maintenance-auto-cleanup-stuck-scans', path: 'maintenance', handler: 'auto-cleanup-stuck-scans', timeout: 300, scheduled: true },
   { name: 'cleanup-stuck-scans-simple', path: 'maintenance', handler: 'cleanup-stuck-scans-simple', timeout: 300, scheduled: true },
   // ML (5)
   { name: 'ai-prioritization', path: 'ml', handler: 'ai-prioritization', timeout: 120, memory: 512, scheduled: true },
@@ -255,28 +264,54 @@ function generateFunction(h: HandlerConfig): string {
   const name = toPascalCase(h.name);
   const timeout = h.timeout || 30;
   const memory = h.memory || 256;
+  const isScheduled = h.scheduled === true;
+  const noAuth = h.auth === 'NONE';
   
-  // Use pre-compiled code from backend/dist/
-  // This is faster than esbuild because tsc already compiled everything
+  let events = '';
+  if (!isScheduled) {
+    const authConfig = noAuth ? `
+            Auth:
+              Authorizer: NONE` : '';
+    events = `
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/functions/${h.name}
+            Method: POST${authConfig}`;
+  }
+  
+  let extraProps = '';
+  if (timeout !== 30) {
+    extraProps += `
+      Timeout: ${timeout}`;
+  }
+  if (memory !== 256) {
+    extraProps += `
+      MemorySize: ${memory}`;
+  }
+  
   return `
   ${name}Function:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '\${ProjectName}-\${Environment}-${h.name}'
-      CodeUri: backend/dist/
-      Handler: handlers/${h.path}/${h.handler}.handler
-      Timeout: ${timeout}
-      MemorySize: ${memory}`;
+      CodeUri: backend/
+      Handler: dist/handlers/${h.path}/${h.handler}.handler${extraProps}${events}`;
 }
+
 
 function generateTemplate(): string {
   const functions = HANDLERS.map(h => generateFunction(h)).join('\n');
+  const apiEndpoints = HANDLERS.filter(h => !h.scheduled).length;
+  const scheduledFunctions = HANDLERS.filter(h => h.scheduled).length;
   
   return `AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: |
-  EVO Platform - Lambda Functions Only
-  ${HANDLERS.length} Lambda Functions using existing infrastructure
+  EVO Platform - Complete Serverless Application
+  ${HANDLERS.length} Lambda Functions + Complete Infrastructure
   Generated by scripts/generate-sam-template.ts
 
 Globals:
@@ -288,18 +323,18 @@ Globals:
       - arm64
     VpcConfig:
       SecurityGroupIds:
-        - !Ref LambdaSecurityGroupId
+        - !Ref LambdaSecurityGroup
       SubnetIds:
-        - !Ref PrivateSubnet1Id
-        - !Ref PrivateSubnet2Id
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
     Environment:
       Variables:
         NODE_PATH: /opt/nodejs/node_modules
-        DATABASE_URL: !Ref DatabaseUrl
-        COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+        DATABASE_URL: !Sub '{{resolve:secretsmanager:\${DatabaseSecret}:SecretString:DATABASE_URL}}'
+        COGNITO_USER_POOL_ID: !Ref UserPool
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
     Layers:
-      - !If [CreateLayer, !Ref DependenciesLayer, !Ref DependenciesLayerArn]
+      - !Ref DependenciesLayer
 
 Parameters:
   Environment:
@@ -311,44 +346,440 @@ Parameters:
     Type: String
     Default: evo-uds-v3
 
-  DatabaseUrl:
+  DatabasePassword:
     Type: String
     NoEcho: true
-    Description: PostgreSQL connection string
-
-  CognitoUserPoolId:
-    Type: String
-    Description: Existing Cognito User Pool ID
-
-  LambdaSecurityGroupId:
-    Type: String
-    Description: Existing Lambda Security Group ID
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: Existing Private Subnet 1 ID
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: Existing Private Subnet 2 ID
-
-  DependenciesLayerArn:
-    Type: String
-    Description: Lambda Layer ARN with dependencies (created by SAM or existing)
-    Default: ''
-
-Conditions:
-  CreateLayer: !Equals [!Ref DependenciesLayerArn, '']
+    MinLength: 16
+    Description: Password for RDS PostgreSQL database
 
 Resources:
   # ==========================================================================
-  # LAMBDA LAYER (only Prisma + zod - AWS SDK is in Lambda runtime)
+  # NETWORKING - VPC, Subnets, NAT Gateway, Internet Gateway
+  # ==========================================================================
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-vpc'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-igw'
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-public-1'
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-public-2'
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.10.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-private-1'
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.11.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-private-2'
+
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-nat-eip'
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-nat'
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-public-rt'
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-private-rt'
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ==========================================================================
+  # SECURITY GROUPS
+  # ==========================================================================
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions
+      GroupName: !Sub '\${ProjectName}-\${Environment}-lambda-sg'
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-lambda-sg'
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS PostgreSQL
+      GroupName: !Sub '\${ProjectName}-\${Environment}-rds-sg'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-rds-sg'
+
+  # ==========================================================================
+  # DATABASE - RDS PostgreSQL
+  # ==========================================================================
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS PostgreSQL
+      DBSubnetGroupName: !Sub '\${ProjectName}-\${Environment}-db-subnet-group'
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-db-subnet-group'
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub '\${ProjectName}-\${Environment}-postgres'
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      EngineVersion: '15'
+      AllocatedStorage: 20
+      MaxAllocatedStorage: 100
+      StorageType: gp3
+      DBName: evouds
+      MasterUsername: evoadmin
+      MasterUserPassword: !Ref DatabasePassword
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+      MultiAZ: false
+      StorageEncrypted: true
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-postgres'
+
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '\${ProjectName}/\${Environment}/database'
+      Description: Database connection string for EVO Platform
+      SecretString: !Sub |
+        {
+          "DATABASE_URL": "postgresql://evoadmin:\${DatabasePassword}@\${Database.Endpoint.Address}:5432/evouds?schema=public",
+          "DB_HOST": "\${Database.Endpoint.Address}",
+          "DB_PORT": "5432",
+          "DB_NAME": "evouds",
+          "DB_USER": "evoadmin"
+        }
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-db-secret'
+
+  # ==========================================================================
+  # COGNITO - User Pool and Client
+  # ==========================================================================
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '\${ProjectName}-\${Environment}-users'
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireUppercase: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      UserPoolTags:
+        Name: !Sub '\${ProjectName}-\${Environment}-users'
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub '\${ProjectName}-\${Environment}-web'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      PreventUserExistenceErrors: ENABLED
+      SupportedIdentityProviders:
+        - COGNITO
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+
+  # ==========================================================================
+  # FRONTEND - S3 Bucket + CloudFront Distribution
+  # ==========================================================================
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '\${ProjectName}-\${Environment}-frontend-\${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-frontend'
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '\${FrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::\${AWS::AccountId}:distribution/\${CloudFrontDistribution}'
+
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '\${ProjectName}-\${Environment}-oac'
+        Description: OAC for EVO Platform Frontend
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub '\${ProjectName}-\${Environment} Frontend Distribution'
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref CloudFrontOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          Compress: true
+          DefaultTTL: 86400
+          MaxTTL: 31536000
+          MinTTL: 0
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+        PriceClass: PriceClass_100
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-cloudfront'
+
+  # ==========================================================================
+  # STORAGE - S3 Bucket for Attachments
+  # ==========================================================================
+  AttachmentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '\${ProjectName}-\${Environment}-attachments-\${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, POST, DELETE, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldAttachments
+            Status: Enabled
+            ExpirationInDays: 365
+      Tags:
+        - Key: Name
+          Value: !Sub '\${ProjectName}-\${Environment}-attachments'
+
+  # ==========================================================================
+  # LAMBDA LAYER - Prisma + zod (AWS SDK is in Lambda runtime)
   # ==========================================================================
   DependenciesLayer:
     Type: AWS::Serverless::LayerVersion
-    Condition: CreateLayer
     Properties:
       LayerName: !Sub '\${ProjectName}-\${Environment}-deps'
+      Description: Prisma Client + zod for EVO Platform
       ContentUri: backend/layers/dependencies/
       CompatibleRuntimes:
         - nodejs18.x
@@ -360,15 +791,213 @@ Resources:
       BuildArchitecture: arm64
 
   # ==========================================================================
-  # LAMBDA FUNCTIONS (\${HANDLERS.length} total)
+  # IAM ROLE - Lambda Execution Role
+  # ==========================================================================
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '\${ProjectName}-\${Environment}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+      Policies:
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DatabaseSecret
+              - Effect: Allow
+                Action:
+                  - cognito-idp:*
+                Resource: !GetAtt UserPool.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt AttachmentsBucket.Arn
+                  - !Sub '\${AttachmentsBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ce:*
+                  - cloudwatch:*
+                  - cloudtrail:*
+                  - guardduty:*
+                  - securityhub:*
+                  - iam:*
+                  - ec2:Describe*
+                  - rds:Describe*
+                  - s3:List*
+                  - s3:GetBucket*
+                  - lambda:List*
+                  - lambda:Get*
+                  - wafv2:*
+                Resource: '*'
+
+  # ==========================================================================
+  # API GATEWAY - REST API with Cognito Authorizer
+  # ==========================================================================
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub '\${ProjectName}-\${Environment}-api'
+      StageName: prod
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+        AllowOrigin: "'*'"
+        MaxAge: "'600'"
+      EndpointConfiguration:
+        Type: REGIONAL
+      TracingEnabled: true
+      Tags:
+        Name: !Sub '\${ProjectName}-\${Environment}-api'
+
+  # ==========================================================================
+  # LAMBDA FUNCTIONS (${HANDLERS.length} total - ${apiEndpoints} API, ${scheduledFunctions} scheduled)
   # ==========================================================================
 ${functions}
 
+  # ==========================================================================
+  # OUTPUTS
+  # ==========================================================================
 Outputs:
+  # API Gateway
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://\${Api}.execute-api.\${AWS::Region}.amazonaws.com/prod'
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-api-endpoint'
+
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref Api
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-api-id'
+
+  # Cognito
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-user-pool-id'
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-user-pool-client-id'
+
+  UserPoolArn:
+    Description: Cognito User Pool ARN
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-user-pool-arn'
+
+  # Database
+  DatabaseEndpoint:
+    Description: RDS PostgreSQL endpoint
+    Value: !GetAtt Database.Endpoint.Address
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-db-endpoint'
+
+  DatabaseSecretArn:
+    Description: Database secret ARN
+    Value: !Ref DatabaseSecret
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-db-secret-arn'
+
+  # VPC
+  VpcId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-vpc-id'
+
+  PrivateSubnet1Id:
+    Description: Private Subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-private-subnet-1'
+
+  PrivateSubnet2Id:
+    Description: Private Subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-private-subnet-2'
+
+  LambdaSecurityGroupId:
+    Description: Lambda Security Group ID
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-lambda-sg'
+
+  # Frontend
+  FrontendBucketName:
+    Description: S3 bucket for frontend
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-frontend-bucket'
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-cloudfront-id'
+
+  CloudFrontDomainName:
+    Description: CloudFront domain name
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-cloudfront-domain'
+
+  # Storage
+  AttachmentsBucketName:
+    Description: S3 bucket for attachments
+    Value: !Ref AttachmentsBucket
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-attachments-bucket'
+
+  # Lambda Layer
   DependenciesLayerArn:
     Description: Dependencies Layer ARN
-    Value: !If [CreateLayer, !Ref DependenciesLayer, !Ref DependenciesLayerArn]
+    Value: !Ref DependenciesLayer
+    Export:
+      Name: !Sub '\${ProjectName}-\${Environment}-deps-layer'
 
+  # Summary
   FunctionCount:
     Description: Number of Lambda functions deployed
     Value: ${HANDLERS.length}
@@ -376,20 +1005,31 @@ Outputs:
 }
 
 async function main(): Promise<void> {
-  console.log('🚀 EVO Platform - SAM Template Generator');
-  console.log('='.repeat(50));
+  console.log('🚀 EVO Platform - Complete SAM Template Generator');
+  console.log('='.repeat(60));
   console.log(`📊 Total handlers: ${HANDLERS.length}`);
   console.log(`🌐 API endpoints: ${HANDLERS.filter(h => !h.scheduled).length}`);
   console.log(`⏰ Scheduled: ${HANDLERS.filter(h => h.scheduled).length}`);
+  console.log(`🔓 No auth: ${HANDLERS.filter(h => h.auth === 'NONE').length}`);
   
   const template = generateTemplate();
   
-  // Write to root directory
-  const outputPath = path.join(__dirname, '..', 'template.yaml');
+  // Write to sam directory
+  const outputPath = path.join(__dirname, '..', 'sam', 'template.yaml');
   fs.writeFileSync(outputPath, template, 'utf8');
   
   console.log(`\n✅ Generated: ${outputPath}`);
   console.log(`📄 Size: ${(template.length / 1024).toFixed(1)} KB`);
+  console.log(`\n📋 Infrastructure included:`);
+  console.log(`   - VPC with public/private subnets`);
+  console.log(`   - NAT Gateway + Internet Gateway`);
+  console.log(`   - RDS PostgreSQL (db.t3.micro)`);
+  console.log(`   - Cognito User Pool + Client`);
+  console.log(`   - S3 + CloudFront for Frontend`);
+  console.log(`   - S3 for Attachments`);
+  console.log(`   - API Gateway with Cognito Authorizer`);
+  console.log(`   - Lambda Layer (Prisma + zod)`);
+  console.log(`   - IAM Role for Lambda execution`);
 }
 
 main().catch(console.error);
