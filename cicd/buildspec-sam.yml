@@ -16,8 +16,8 @@ phases:
       - echo "Installing SAM CLI..."
       - pip install aws-sam-cli
       - echo "Installing dependencies..."
-      - npm ci
-      - npm ci --prefix backend
+      - npm install
+      - npm install --prefix backend
       - echo "Generating Prisma client..."
       - cd backend && npx prisma generate && cd ..
 
