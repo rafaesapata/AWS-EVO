@@ -1,6 +1,6 @@
 version: 0.2
 
-# AWS CodeBuild - SAM Build and Deploy
+# AWS CodeBuild - SAM Package and Deploy
 # Deploys complete EVO Platform infrastructure via SAM
 
 env:
@@ -52,8 +52,8 @@ phases:
       - rm -f backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-rhel*.node 2>/dev/null || true
       - echo "Layer size:"
       - du -sh backend/layers/dependencies/nodejs/
-      - echo "Building SAM application..."
-      - sam build --template-file sam/template.yaml
+      - echo "Packaging SAM application..."
+      - sam package --template-file sam/template.yaml --output-template-file packaged.yaml --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix $STACK_NAME --region us-east-1
 
   post_build:
     commands:
@@ -61,7 +61,7 @@ phases:
       - export STACK_STATUS=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
       - echo "Stack status is $STACK_STATUS"
       - echo "Deploying SAM application..."
-      - sam deploy --template-file .aws-sam/build/template.yaml --stack-name $STACK_NAME --s3-bucket evo-sam-artifacts-$AWS_ACCOUNT --s3-prefix $STACK_NAME --region us-east-1 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "DatabasePassword=$DB_PASSWORD" --no-confirm-changeset --no-fail-on-empty-changeset
+      - sam deploy --template-file packaged.yaml --stack-name $STACK_NAME --region us-east-1 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "DatabasePassword=$DB_PASSWORD" --no-confirm-changeset --no-fail-on-empty-changeset
       - echo "Getting stack outputs..."
       - export FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
       - export CF_DIST_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
@@ -74,7 +74,7 @@ phases:
 
 artifacts:
   files:
-    - .aws-sam/build/template.yaml
+    - packaged.yaml
     - dist/**/*
   discard-paths: no
 
