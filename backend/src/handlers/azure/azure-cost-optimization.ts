@@ -40,6 +40,13 @@ function extractResourceType(resourceId: string): string {
   return match ? match[1] : 'Unknown';
 }
 
+// Impact levels as constants for consistency
+const IMPACT = {
+  HIGH: 'High',
+  MEDIUM: 'Medium',
+  LOW: 'Low',
+} as const;
+
 // Helper to map impact to priority
 function mapImpactToPriority(impact: string): number {
   switch (impact?.toLowerCase()) {
@@ -50,15 +57,44 @@ function mapImpactToPriority(impact: string): number {
   }
 }
 
-// Helper to map impact to recommendation type
-function mapImpactToRecommendationType(impact: string, category: string): string {
-  if (category === 'Cost') {
-    switch (impact?.toLowerCase()) {
-      case 'high': return 'terminate';
-      case 'medium': return 'downsize';
-      default: return 'optimize';
-    }
+// Helper to map Azure Advisor recommendation to action type
+// NOTE: Azure Advisor "High Impact" means high savings potential, NOT that resource should be terminated
+function mapRecommendationToActionType(rec: any): string {
+  const problem = (rec.shortDescription?.problem || '').toLowerCase();
+  const solution = (rec.shortDescription?.solution || '').toLowerCase();
+  const recommendationTypeId = (rec.recommendationTypeId || '').toLowerCase();
+  
+  // Reserved Instance / Savings Plan recommendations = purchase/optimize
+  if (problem.includes('reserved instance') || 
+      solution.includes('reserved instance') ||
+      problem.includes('savings plan') ||
+      solution.includes('savings plan') ||
+      recommendationTypeId.includes('reservedinstance') ||
+      recommendationTypeId.includes('savingsplan')) {
+    return 'purchase'; // New type for RI/SP recommendations
   }
+  
+  // Shutdown/Delete recommendations
+  if (problem.includes('shut down') || 
+      problem.includes('delete') ||
+      problem.includes('unused') ||
+      problem.includes('idle') ||
+      solution.includes('shut down') ||
+      solution.includes('delete')) {
+    return 'terminate';
+  }
+  
+  // Resize/Downsize recommendations
+  if (problem.includes('right-size') || 
+      problem.includes('resize') ||
+      problem.includes('downsize') ||
+      problem.includes('underutilized') ||
+      solution.includes('resize') ||
+      solution.includes('smaller')) {
+    return 'downsize';
+  }
+  
+  // Default to optimize for other cost recommendations
   return 'optimize';
 }
 
@@ -225,6 +261,9 @@ export async function handler(
           implementationComplexity: rec.risk === 'None' ? 'low' : rec.risk === 'Low' ? 'low' : 'medium',
           riskAssessment: rec.risk?.toLowerCase() || 'low',
           
+          // Action type based on recommendation content (NOT just impact level)
+          actionType: mapRecommendationToActionType(rec),
+          
           // Metadata
           lastUpdated: rec.lastUpdated,
           recommendationTypeId: rec.recommendationTypeId,
@@ -270,9 +309,9 @@ export async function handler(
       totalRecommendations: recommendations.length,
       totalPotentialSavings,
       byImpact: {
-        high: recommendations.filter(r => r.impact === 'High').length,
-        medium: recommendations.filter(r => r.impact === 'Medium').length,
-        low: recommendations.filter(r => r.impact === 'Low').length,
+        high: recommendations.filter(r => r.impact === IMPACT.HIGH).length,
+        medium: recommendations.filter(r => r.impact === IMPACT.MEDIUM).length,
+        low: recommendations.filter(r => r.impact === IMPACT.LOW).length,
       },
       byCategory: categories.reduce((acc, cat) => {
         acc[cat] = recommendations.filter(r => r.category === cat).length;
@@ -299,7 +338,7 @@ export async function handler(
           resource_type: rec.resourceType || 'Azure Resource',
           resource_id: rec.resourceId || rec.id,
           resource_name: rec.resourceName || 'Unknown',
-          optimization_type: mapImpactToRecommendationType(rec.impact, rec.category),
+          optimization_type: mapRecommendationToActionType(rec),
           current_cost: rec.currentMonthlyCost || 0,
           optimized_cost: rec.currentMonthlyCost ? (rec.currentMonthlyCost - rec.potentialSavings) : 0,
           potential_savings: rec.potentialSavings || 0,

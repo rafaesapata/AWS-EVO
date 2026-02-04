@@ -448,7 +448,7 @@
 
 - [x] 20.3 Build and deploy frontend
   - Build frontend: `npm run build`
-  - Deploy to S3: `aws s3 sync dist/ s3://evo-uds-v3-production-frontend-383234048592 --delete`
+  - Deploy to S3: `aws s3 sync dist/ s3://evo-uds-v3-sandbox-frontend-971354623291 --delete`
   - Create CloudFront invalidation: `aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"`
   - _Requirements: US-001_
 

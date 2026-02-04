@@ -14,6 +14,33 @@ import { parseAndValidateBody } from '../../lib/validation.js';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 
+// SES Configuration from environment variables
+const SES_CONFIG = {
+  region: process.env.AWS_SES_REGION || process.env.AWS_REGION || 'us-east-1',
+  fromEmail: process.env.AWS_SES_FROM_EMAIL || 'evo@udstec.io',
+  fromName: process.env.AWS_SES_FROM_NAME || 'EVO Platform',
+  accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY,
+};
+
+/**
+ * Create SES client with optional dedicated credentials
+ */
+function createSESClient(): SESClient {
+  const config: any = {
+    region: SES_CONFIG.region,
+  };
+
+  if (SES_CONFIG.accessKeyId && SES_CONFIG.secretAccessKey) {
+    config.credentials = {
+      accessKeyId: SES_CONFIG.accessKeyId,
+      secretAccessKey: SES_CONFIG.secretAccessKey,
+    };
+  }
+
+  return new SESClient(config);
+}
+
 export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
@@ -53,17 +80,20 @@ export async function handler(
     
     switch (channel) {
       case 'email': {
-        const sesClient = new SESClient({ region: process.env.AWS_REGION || 'us-east-1' });
+        const sesClient = createSESClient();
+        const fromAddress = SES_CONFIG.fromName 
+          ? `${SES_CONFIG.fromName} <${SES_CONFIG.fromEmail}>`
+          : SES_CONFIG.fromEmail;
         
         const emailResponse = await sesClient.send(
           new SendEmailCommand({
-            Source: process.env.FROM_EMAIL || 'noreply@evo-uds.com',
+            Source: fromAddress,
             Destination: {
               ToAddresses: [recipient],
             },
             Message: {
               Subject: {
-                Data: subject || 'EVO UDS Notification',
+                Data: subject || 'EVO Platform Notification',
               },
               Body: {
                 Text: {
@@ -73,7 +103,7 @@ export async function handler(
                   Data: `
                     <html>
                       <body>
-                        <h2>${subject || 'EVO UDS Notification'}</h2>
+                        <h2>${subject || 'EVO Platform Notification'}</h2>
                         <p>${message}</p>
                         ${metadata ? `<pre>${JSON.stringify(metadata, null, 2)}</pre>` : ''}
                       </body>

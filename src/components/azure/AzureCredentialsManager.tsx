@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Cloud, CheckCircle, XCircle, RefreshCw, MoreVertical } from 'lucide-react';
+import { Plus, Trash2, Cloud, CheckCircle, XCircle, RefreshCw, MoreVertical, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -65,6 +65,7 @@ export function AzureCredentialsManager() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showQuickConnect, setShowQuickConnect] = useState(false);
   const [deleteCredentialId, setDeleteCredentialId] = useState<string | null>(null);
+  const [validatingCredentialId, setValidatingCredentialId] = useState<string | null>(null);
 
   // Fetch Azure credentials
   const { data: credentials = [], isLoading, error, refetch } = useQuery({
@@ -107,6 +108,63 @@ export function AzureCredentialsManager() {
       toast.error(err.message);
     },
   });
+
+  // Validate permissions mutation
+  const validatePermissionsMutation = useMutation({
+    mutationFn: async (credentialId: string) => {
+      const result = await apiClient.invoke<any>('validate-azure-permissions', {
+        body: {
+          credentialId,
+        },
+      });
+      
+      if (result.error) {
+        throw new Error(result.error.message || 'Failed to validate permissions');
+      }
+      
+      return result.data;
+    },
+    onSuccess: (data) => {
+      setValidatingCredentialId(null);
+      
+      const missingPermissions = data.missingPermissions || [];
+      const warnings = data.warnings || [];
+      
+      if (missingPermissions.length === 0 && warnings.length === 0) {
+        toast.success(
+          t('azure.permissionsValid', 'All permissions are correctly configured!'),
+          {
+            description: t('azure.permissionsValidDescription', 'Your Azure credentials have all required permissions.'),
+          }
+        );
+      } else if (missingPermissions.length > 0) {
+        toast.error(
+          t('azure.permissionsMissing', 'Missing required permissions'),
+          {
+            description: `${missingPermissions.length} ${t('azure.permissionsMissingCount', 'permission(s) missing')}`,
+          }
+        );
+      } else {
+        toast.warning(
+          t('azure.permissionsWarnings', 'Permissions validated with warnings'),
+          {
+            description: `${warnings.length} ${t('azure.permissionsWarningsCount', 'warning(s) found')}`,
+          }
+        );
+      }
+    },
+    onError: (err: Error) => {
+      setValidatingCredentialId(null);
+      toast.error(t('azure.validationFailed', 'Validation failed'), {
+        description: err.message,
+      });
+    },
+  });
+
+  const handleValidatePermissions = (credentialId: string) => {
+    setValidatingCredentialId(credentialId);
+    validatePermissionsMutation.mutate(credentialId);
+  };
 
   const handleAddSuccess = () => {
     setShowAddDialog(false);
@@ -258,6 +316,17 @@ export function AzureCredentialsManager() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => handleValidatePermissions(credential.id)}
+                          disabled={validatingCredentialId === credential.id}
+                        >
+                          {validatingCredentialId === credential.id ? (
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                          )}
+                          {t('azure.validatePermissions', 'Validate Permissions')}
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => setDeleteCredentialId(credential.id)}

@@ -279,7 +279,7 @@ class PrerequisiteChecker {
             
           case 'env-file':
             console.log('   Criando arquivo .env...');
-            const envContent = `# EVO UDS Environment Configuration
+            const envContent = `# EVO Platform Environment Configuration
 NODE_ENV=development
 AWS_REGION=us-east-1
 DATABASE_URL=postgresql://localhost:5432/evouds
@@ -308,7 +308,7 @@ async function main(): Promise<void> {
   
   if (args.includes('--help') || args.includes('-h')) {
     console.log(`
-🔍 Verificador de Pré-requisitos EVO UDS
+🔍 Verificador de Pré-requisitos EVO Platform
 
 Uso: npm run check-prerequisites [opções]
 

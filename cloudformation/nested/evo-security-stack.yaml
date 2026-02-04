@@ -1,0 +1,1809 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EVO Platform - Nested Stack
+
+Parameters:
+  ProjectName:
+    Type: String
+  Environment:
+    Type: String
+  RestApiId:
+    Type: String
+  FunctionsResourceId:
+    Type: String
+  AuthorizerId:
+    Type: String
+  LambdaCodeBucket:
+    Type: String
+  LambdaExecutionRoleArn:
+    Type: String
+  LambdaSecurityGroupIds:
+    Type: CommaDelimitedList
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+  LambdaLayerArn:
+    Type: String
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+  CognitoUserPoolId:
+    Type: String
+
+Resources:
+  AnalyzeCloudtrailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-analyze-cloudtrail'
+      Runtime: nodejs18.x
+      Handler: analyze-cloudtrail.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/analyze-cloudtrail.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  ComplianceScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-compliance-scan'
+      Runtime: nodejs18.x
+      Handler: compliance-scan.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/compliance-scan.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  CreateRemediationTicketFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-create-remediation-ticket'
+      Runtime: nodejs18.x
+      Handler: create-remediation-ticket.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/create-remediation-ticket.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  DriftDetectionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-drift-detection'
+      Runtime: nodejs18.x
+      Handler: drift-detection.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/drift-detection.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 120
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  FetchCloudtrailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudtrail'
+      Runtime: nodejs18.x
+      Handler: fetch-cloudtrail.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/fetch-cloudtrail.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  GetComplianceHistoryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-history'
+      Runtime: nodejs18.x
+      Handler: get-compliance-history.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/get-compliance-history.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  GetComplianceScanStatusFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-scan-status'
+      Runtime: nodejs18.x
+      Handler: get-compliance-scan-status.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/get-compliance-scan-status.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  GetFindingsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-findings'
+      Runtime: nodejs18.x
+      Handler: get-findings.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/get-findings.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  GetSecurityPostureFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-security-posture'
+      Runtime: nodejs18.x
+      Handler: get-security-posture.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/get-security-posture.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  GuarddutyScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-guardduty-scan'
+      Runtime: nodejs18.x
+      Handler: guardduty-scan.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/guardduty-scan.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 120
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  IamBehaviorAnalysisFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-iam-behavior-analysis'
+      Runtime: nodejs18.x
+      Handler: iam-behavior-analysis.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/iam-behavior-analysis.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 120
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  IamDeepAnalysisFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-iam-deep-analysis'
+      Runtime: nodejs18.x
+      Handler: iam-deep-analysis.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/iam-deep-analysis.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 120
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  LateralMovementDetectionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-lateral-movement-detection'
+      Runtime: nodejs18.x
+      Handler: lateral-movement-detection.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/lateral-movement-detection.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 120
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  SecurityScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-security-scan'
+      Runtime: nodejs18.x
+      Handler: security-scan.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/security-scan.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  StartAnalyzeCloudtrailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-start-analyze-cloudtrail'
+      Runtime: nodejs18.x
+      Handler: start-analyze-cloudtrail.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/start-analyze-cloudtrail.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  StartCloudtrailAnalysisFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-start-cloudtrail-analysis'
+      Runtime: nodejs18.x
+      Handler: start-cloudtrail-analysis.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/start-cloudtrail-analysis.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  StartComplianceScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-start-compliance-scan'
+      Runtime: nodejs18.x
+      Handler: start-compliance-scan.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/start-compliance-scan.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  StartSecurityScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-start-security-scan'
+      Runtime: nodejs18.x
+      Handler: start-security-scan.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/start-security-scan.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  ValidateAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-aws-credentials'
+      Runtime: nodejs18.x
+      Handler: validate-aws-credentials.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/validate-aws-credentials.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  ValidatePermissionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-permissions'
+      Runtime: nodejs18.x
+      Handler: validate-permissions.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/validate-permissions.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  ValidateWafSecurityFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-waf-security'
+      Runtime: nodejs18.x
+      Handler: validate-waf-security.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/validate-waf-security.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  WafDashboardApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-dashboard-api'
+      Runtime: nodejs18.x
+      Handler: waf-dashboard-api.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/waf-dashboard-api.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  WafLogForwarderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-forwarder'
+      Runtime: nodejs18.x
+      Handler: waf-log-forwarder.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/waf-log-forwarder.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  WafLogProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-processor'
+      Runtime: nodejs18.x
+      Handler: waf-log-processor.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/waf-log-processor.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  WafSetupMonitoringFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-setup-monitoring'
+      Runtime: nodejs18.x
+      Handler: waf-setup-monitoring.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/waf-setup-monitoring.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  WafThreatAnalyzerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-threat-analyzer'
+      Runtime: nodejs18.x
+      Handler: waf-threat-analyzer.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/waf-threat-analyzer.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  WafUnblockExpiredFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-unblock-expired'
+      Runtime: nodejs18.x
+      Handler: waf-unblock-expired.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/waf-unblock-expired.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  WellArchitectedScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-well-architected-scan'
+      Runtime: nodejs18.x
+      Handler: well-architected-scan.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/well-architected-scan.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  AnalyzeCloudtrailResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: analyze-cloudtrail
+
+  AnalyzeCloudtrailOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AnalyzeCloudtrailResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  AnalyzeCloudtrailPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AnalyzeCloudtrailResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AnalyzeCloudtrailFunction.Arn}/invocations'
+
+  AnalyzeCloudtrailPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AnalyzeCloudtrailFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/analyze-cloudtrail'
+  ComplianceScanResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: compliance-scan
+
+  ComplianceScanOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ComplianceScanResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ComplianceScanPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ComplianceScanResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ComplianceScanFunction.Arn}/invocations'
+
+  ComplianceScanPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ComplianceScanFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/compliance-scan'
+  DriftDetectionResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: drift-detection
+
+  DriftDetectionOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DriftDetectionResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  DriftDetectionPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DriftDetectionResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DriftDetectionFunction.Arn}/invocations'
+
+  DriftDetectionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DriftDetectionFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/drift-detection'
+  FetchCloudtrailResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: fetch-cloudtrail
+
+  FetchCloudtrailOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref FetchCloudtrailResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  FetchCloudtrailPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref FetchCloudtrailResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FetchCloudtrailFunction.Arn}/invocations'
+
+  FetchCloudtrailPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FetchCloudtrailFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/fetch-cloudtrail'
+  GetComplianceHistoryResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: get-compliance-history
+
+  GetComplianceHistoryOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GetComplianceHistoryResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  GetComplianceHistoryPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GetComplianceHistoryResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetComplianceHistoryFunction.Arn}/invocations'
+
+  GetComplianceHistoryPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetComplianceHistoryFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/get-compliance-history'
+  GetComplianceScanStatusResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: get-compliance-scan-status
+
+  GetComplianceScanStatusOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GetComplianceScanStatusResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  GetComplianceScanStatusPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GetComplianceScanStatusResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetComplianceScanStatusFunction.Arn}/invocations'
+
+  GetComplianceScanStatusPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetComplianceScanStatusFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/get-compliance-scan-status'
+  GetFindingsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: get-findings
+
+  GetFindingsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GetFindingsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  GetFindingsPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GetFindingsResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetFindingsFunction.Arn}/invocations'
+
+  GetFindingsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetFindingsFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/get-findings'
+  GetSecurityPostureResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: get-security-posture
+
+  GetSecurityPostureOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GetSecurityPostureResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  GetSecurityPosturePostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GetSecurityPostureResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetSecurityPostureFunction.Arn}/invocations'
+
+  GetSecurityPosturePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetSecurityPostureFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/get-security-posture'
+  GuarddutyScanResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: guardduty-scan
+
+  GuarddutyScanOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GuarddutyScanResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  GuarddutyScanPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref GuarddutyScanResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GuarddutyScanFunction.Arn}/invocations'
+
+  GuarddutyScanPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GuarddutyScanFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/guardduty-scan'
+  IamDeepAnalysisResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: iam-deep-analysis
+
+  IamDeepAnalysisOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref IamDeepAnalysisResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  IamDeepAnalysisPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref IamDeepAnalysisResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${IamDeepAnalysisFunction.Arn}/invocations'
+
+  IamDeepAnalysisPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref IamDeepAnalysisFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/iam-deep-analysis'
+  LateralMovementDetectionResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: lateral-movement-detection
+
+  LateralMovementDetectionOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref LateralMovementDetectionResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  LateralMovementDetectionPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref LateralMovementDetectionResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LateralMovementDetectionFunction.Arn}/invocations'
+
+  LateralMovementDetectionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LateralMovementDetectionFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/lateral-movement-detection'
+  SecurityScanResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: security-scan
+
+  SecurityScanOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref SecurityScanResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  SecurityScanPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref SecurityScanResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SecurityScanFunction.Arn}/invocations'
+
+  SecurityScanPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SecurityScanFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/security-scan'
+  StartCloudtrailAnalysisResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: start-cloudtrail-analysis
+
+  StartCloudtrailAnalysisOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref StartCloudtrailAnalysisResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  StartCloudtrailAnalysisPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref StartCloudtrailAnalysisResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${StartCloudtrailAnalysisFunction.Arn}/invocations'
+
+  StartCloudtrailAnalysisPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StartCloudtrailAnalysisFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/start-cloudtrail-analysis'
+  StartComplianceScanResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: start-compliance-scan
+
+  StartComplianceScanOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref StartComplianceScanResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  StartComplianceScanPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref StartComplianceScanResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${StartComplianceScanFunction.Arn}/invocations'
+
+  StartComplianceScanPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StartComplianceScanFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/start-compliance-scan'
+  StartSecurityScanResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: start-security-scan
+
+  StartSecurityScanOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref StartSecurityScanResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  StartSecurityScanPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref StartSecurityScanResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${StartSecurityScanFunction.Arn}/invocations'
+
+  StartSecurityScanPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StartSecurityScanFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/start-security-scan'
+  ValidateAwsCredentialsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: validate-aws-credentials
+
+  ValidateAwsCredentialsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ValidateAwsCredentialsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ValidateAwsCredentialsPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ValidateAwsCredentialsResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ValidateAwsCredentialsFunction.Arn}/invocations'
+
+  ValidateAwsCredentialsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ValidateAwsCredentialsFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/validate-aws-credentials'
+  ValidatePermissionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: validate-permissions
+
+  ValidatePermissionsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ValidatePermissionsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ValidatePermissionsPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ValidatePermissionsResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ValidatePermissionsFunction.Arn}/invocations'
+
+  ValidatePermissionsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ValidatePermissionsFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/validate-permissions'
+  WafDashboardApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: waf-dashboard-api
+
+  WafDashboardApiOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref WafDashboardApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  WafDashboardApiPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref WafDashboardApiResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WafDashboardApiFunction.Arn}/invocations'
+
+  WafDashboardApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WafDashboardApiFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/waf-dashboard-api'
+  WafSetupMonitoringResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: waf-setup-monitoring
+
+  WafSetupMonitoringOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref WafSetupMonitoringResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  WafSetupMonitoringPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref WafSetupMonitoringResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WafSetupMonitoringFunction.Arn}/invocations'
+
+  WafSetupMonitoringPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WafSetupMonitoringFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/waf-setup-monitoring'
+  WellArchitectedScanResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: well-architected-scan
+
+  WellArchitectedScanOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref WellArchitectedScanResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  WellArchitectedScanPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref WellArchitectedScanResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WellArchitectedScanFunction.Arn}/invocations'
+
+  WellArchitectedScanPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WellArchitectedScanFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/well-architected-scan'
+
+Outputs:
+  AnalyzeCloudtrailFunctionArn:
+    Value: !GetAtt AnalyzeCloudtrailFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-analyze-cloudtrail-arn'
+  ComplianceScanFunctionArn:
+    Value: !GetAtt ComplianceScanFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-compliance-scan-arn'
+  CreateRemediationTicketFunctionArn:
+    Value: !GetAtt CreateRemediationTicketFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-create-remediation-ticket-arn'
+  DriftDetectionFunctionArn:
+    Value: !GetAtt DriftDetectionFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-drift-detection-arn'
+  FetchCloudtrailFunctionArn:
+    Value: !GetAtt FetchCloudtrailFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-fetch-cloudtrail-arn'
+  GetComplianceHistoryFunctionArn:
+    Value: !GetAtt GetComplianceHistoryFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-get-compliance-history-arn'
+  GetComplianceScanStatusFunctionArn:
+    Value: !GetAtt GetComplianceScanStatusFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-get-compliance-scan-status-arn'
+  GetFindingsFunctionArn:
+    Value: !GetAtt GetFindingsFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-get-findings-arn'
+  GetSecurityPostureFunctionArn:
+    Value: !GetAtt GetSecurityPostureFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-get-security-posture-arn'
+  GuarddutyScanFunctionArn:
+    Value: !GetAtt GuarddutyScanFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-guardduty-scan-arn'
+  IamBehaviorAnalysisFunctionArn:
+    Value: !GetAtt IamBehaviorAnalysisFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-iam-behavior-analysis-arn'
+  IamDeepAnalysisFunctionArn:
+    Value: !GetAtt IamDeepAnalysisFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-iam-deep-analysis-arn'
+  LateralMovementDetectionFunctionArn:
+    Value: !GetAtt LateralMovementDetectionFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-lateral-movement-detection-arn'
+  SecurityScanFunctionArn:
+    Value: !GetAtt SecurityScanFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-security-scan-arn'
+  StartAnalyzeCloudtrailFunctionArn:
+    Value: !GetAtt StartAnalyzeCloudtrailFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-start-analyze-cloudtrail-arn'
+  StartCloudtrailAnalysisFunctionArn:
+    Value: !GetAtt StartCloudtrailAnalysisFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-start-cloudtrail-analysis-arn'
+  StartComplianceScanFunctionArn:
+    Value: !GetAtt StartComplianceScanFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-start-compliance-scan-arn'
+  StartSecurityScanFunctionArn:
+    Value: !GetAtt StartSecurityScanFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-start-security-scan-arn'
+  ValidateAwsCredentialsFunctionArn:
+    Value: !GetAtt ValidateAwsCredentialsFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-validate-aws-credentials-arn'
+  ValidatePermissionsFunctionArn:
+    Value: !GetAtt ValidatePermissionsFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-validate-permissions-arn'
+  ValidateWafSecurityFunctionArn:
+    Value: !GetAtt ValidateWafSecurityFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-validate-waf-security-arn'
+  WafDashboardApiFunctionArn:
+    Value: !GetAtt WafDashboardApiFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-dashboard-api-arn'
+  WafLogForwarderFunctionArn:
+    Value: !GetAtt WafLogForwarderFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-log-forwarder-arn'
+  WafLogProcessorFunctionArn:
+    Value: !GetAtt WafLogProcessorFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-log-processor-arn'
+  WafSetupMonitoringFunctionArn:
+    Value: !GetAtt WafSetupMonitoringFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-setup-monitoring-arn'
+  WafThreatAnalyzerFunctionArn:
+    Value: !GetAtt WafThreatAnalyzerFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-threat-analyzer-arn'
+  WafUnblockExpiredFunctionArn:
+    Value: !GetAtt WafUnblockExpiredFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-unblock-expired-arn'
+  WellArchitectedScanFunctionArn:
+    Value: !GetAtt WellArchitectedScanFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-well-architected-scan-arn'

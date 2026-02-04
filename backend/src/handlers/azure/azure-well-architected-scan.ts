@@ -19,17 +19,37 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
+// Valid pillar names (must match PILLAR_CHECKS keys)
+const VALID_PILLARS = [
+  'reliability', 
+  'security', 
+  'cost_optimization', 
+  'operational_excellence', 
+  'performance_efficiency',
+  'sustainability',
+] as const;
+
+type PillarName = typeof VALID_PILLARS[number];
+
+interface PillarRecommendation {
+  pillar: PillarName;
+  checkId: string;
+  checkName: string;
+  severity: 'high' | 'medium' | 'low';
+  recommendation: string;
+  impact: number;
+  status: 'needs_review' | 'passed' | 'failed';
+}
+
 const wellArchScanSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
-  pillars: z.array(z.enum([
-    'RELIABILITY', 'SECURITY', 'COST_OPTIMIZATION', 
-    'OPERATIONAL_EXCELLENCE', 'PERFORMANCE_EFFICIENCY'
-  ])).optional(),
+  pillars: z.array(z.enum(VALID_PILLARS)).optional(),
 });
 
 // Azure Well-Architected Framework pillars and checks
+// NOTE: Pillar names MUST match frontend expectations (snake_case lowercase)
 const PILLAR_CHECKS = {
-  RELIABILITY: [
+  reliability: [
     { id: 'RE-01', name: 'Use availability zones', weight: 10 },
     { id: 'RE-02', name: 'Implement health probes', weight: 8 },
     { id: 'RE-03', name: 'Use managed disks', weight: 7 },
@@ -39,7 +59,7 @@ const PILLAR_CHECKS = {
     { id: 'RE-07', name: 'Configure disaster recovery', weight: 10 },
     { id: 'RE-08', name: 'Monitor resource health', weight: 7 },
   ],
-  SECURITY: [
+  security: [
     { id: 'SE-01', name: 'Enable Azure Defender', weight: 10 },
     { id: 'SE-02', name: 'Use managed identities', weight: 9 },
     { id: 'SE-03', name: 'Encrypt data at rest', weight: 10 },
@@ -49,7 +69,7 @@ const PILLAR_CHECKS = {
     { id: 'SE-07', name: 'Enable MFA for all users', weight: 10 },
     { id: 'SE-08', name: 'Configure NSG rules properly', weight: 8 },
   ],
-  COST_OPTIMIZATION: [
+  cost_optimization: [
     { id: 'CO-01', name: 'Right-size resources', weight: 9 },
     { id: 'CO-02', name: 'Use reserved instances', weight: 8 },
     { id: 'CO-03', name: 'Implement auto-shutdown', weight: 7 },
@@ -59,7 +79,7 @@ const PILLAR_CHECKS = {
     { id: 'CO-07', name: 'Use cost management alerts', weight: 7 },
     { id: 'CO-08', name: 'Optimize data transfer costs', weight: 7 },
   ],
-  OPERATIONAL_EXCELLENCE: [
+  operational_excellence: [
     { id: 'OE-01', name: 'Use Infrastructure as Code', weight: 9 },
     { id: 'OE-02', name: 'Implement CI/CD pipelines', weight: 8 },
     { id: 'OE-03', name: 'Configure monitoring and alerting', weight: 9 },
@@ -69,7 +89,7 @@ const PILLAR_CHECKS = {
     { id: 'OE-07', name: 'Configure diagnostic settings', weight: 8 },
     { id: 'OE-08', name: 'Implement runbooks', weight: 7 },
   ],
-  PERFORMANCE_EFFICIENCY: [
+  performance_efficiency: [
     { id: 'PE-01', name: 'Use appropriate VM sizes', weight: 9 },
     { id: 'PE-02', name: 'Implement caching', weight: 8 },
     { id: 'PE-03', name: 'Use CDN for static content', weight: 7 },
@@ -78,6 +98,16 @@ const PILLAR_CHECKS = {
     { id: 'PE-06', name: 'Implement load balancing', weight: 8 },
     { id: 'PE-07', name: 'Monitor performance metrics', weight: 8 },
     { id: 'PE-08', name: 'Use premium storage for I/O intensive', weight: 7 },
+  ],
+  sustainability: [
+    { id: 'SU-01', name: 'Use efficient VM sizes', weight: 8 },
+    { id: 'SU-02', name: 'Optimize resource utilization', weight: 9 },
+    { id: 'SU-03', name: 'Use serverless where applicable', weight: 7 },
+    { id: 'SU-04', name: 'Implement auto-scaling', weight: 8 },
+    { id: 'SU-05', name: 'Choose sustainable regions', weight: 6 },
+    { id: 'SU-06', name: 'Minimize data transfer', weight: 7 },
+    { id: 'SU-07', name: 'Use managed services', weight: 8 },
+    { id: 'SU-08', name: 'Implement lifecycle policies', weight: 7 },
   ],
 };
 
@@ -102,7 +132,7 @@ export async function handler(
       return validation.error;
     }
 
-    const { credentialId, pillars = Object.keys(PILLAR_CHECKS) as any[] } = validation.data;
+    const { credentialId, pillars = VALID_PILLARS as unknown as PillarName[] } = validation.data;
 
 
     // Fetch Azure credential
@@ -119,16 +149,23 @@ export async function handler(
     }
 
     const startTime = Date.now();
-    const pillarScores: Record<string, any> = {};
-    const allRecommendations: any[] = [];
+    const pillarScores: Record<PillarName, {
+      score: number;
+      checksPassed: number;
+      checksFailed: number;
+      totalChecks: number;
+      recommendations: PillarRecommendation[];
+    }> = {} as any;
+    const allRecommendations: PillarRecommendation[] = [];
 
     // Create scan record
+    // NOTE: Using 'well_architected' scan_type to match AWS scans and frontend queries
     const scan = await prisma.securityScan.create({
       data: {
         organization_id: organizationId,
         cloud_provider: 'AZURE',
         azure_credential_id: credentialId,
-        scan_type: 'azure-well-architected',
+        scan_type: 'well_architected',
         status: 'running',
         scan_config: { pillars, cloudProvider: 'AZURE' },
         started_at: new Date(),
@@ -137,15 +174,19 @@ export async function handler(
 
     // Analyze each pillar
     for (const pillar of pillars) {
-      const checks = PILLAR_CHECKS[pillar as keyof typeof PILLAR_CHECKS] || [];
+      const checks = PILLAR_CHECKS[pillar];
+      if (!checks) continue;
+      
       let totalWeight = 0;
       let passedWeight = 0;
-      const pillarRecommendations: any[] = [];
+      const pillarRecommendations: PillarRecommendation[] = [];
 
       for (const check of checks) {
         totalWeight += check.weight;
-        // Simulate check result (in production, would query Azure resources)
-        const passed = Math.random() > 0.35;
+        // TODO: Implement real Azure resource checks using Azure Advisor API
+        // For now, mark all checks as needing review (conservative approach)
+        // This ensures no false positives and prompts users to verify their configuration
+        const passed = false; // All checks require manual verification until real API integration
         
         if (passed) {
           passedWeight += check.weight;
@@ -155,8 +196,9 @@ export async function handler(
             checkId: check.id,
             checkName: check.name,
             severity: check.weight >= 9 ? 'high' : check.weight >= 7 ? 'medium' : 'low',
-            recommendation: `Implement ${check.name.toLowerCase()} to improve ${pillar.toLowerCase().replace('_', ' ')}`,
+            recommendation: `Review and implement: ${check.name.toLowerCase()} to improve ${pillar.replace(/_/g, ' ')}`,
             impact: check.weight,
+            status: 'needs_review', // Indicates manual verification required
           });
         }
       }
@@ -197,11 +239,11 @@ export async function handler(
       where: { id: scan.id },
       data: {
         status: 'completed',
-        results: {
+        results: JSON.parse(JSON.stringify({
           overallScore,
           pillarScores,
           totalRecommendations: allRecommendations.length,
-        },
+        })),
         findings_count: allRecommendations.length,
         critical_count: allRecommendations.filter(r => r.severity === 'high').length,
         high_count: allRecommendations.filter(r => r.severity === 'high').length,

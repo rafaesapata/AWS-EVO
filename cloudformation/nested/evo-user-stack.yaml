@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EVO Platform - Nested Stack
+
+Parameters:
+  ProjectName:
+    Type: String
+  Environment:
+    Type: String
+  RestApiId:
+    Type: String
+  FunctionsResourceId:
+    Type: String
+  AuthorizerId:
+    Type: String
+  LambdaCodeBucket:
+    Type: String
+  LambdaExecutionRoleArn:
+    Type: String
+  LambdaSecurityGroupIds:
+    Type: CommaDelimitedList
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+  LambdaLayerArn:
+    Type: String
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+  CognitoUserPoolId:
+    Type: String
+
+Resources:
+  NotificationSettingsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-notification-settings'
+      Runtime: nodejs18.x
+      Handler: notification-settings.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/notification-settings.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  NotificationSettingsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: notification-settings
+
+  NotificationSettingsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref NotificationSettingsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  NotificationSettingsPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref NotificationSettingsResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NotificationSettingsFunction.Arn}/invocations'
+
+  NotificationSettingsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref NotificationSettingsFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/notification-settings'
+
+Outputs:
+  NotificationSettingsFunctionArn:
+    Value: !GetAtt NotificationSettingsFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-notification-settings-arn'

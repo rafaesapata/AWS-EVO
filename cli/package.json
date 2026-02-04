@@ -1,7 +1,7 @@
 {
   "name": "evo-cli",
   "version": "3.0.0",
-  "description": "EVO UDS Command Line Interface (AWS)",
+  "description": "EVO Platform Command Line Interface (AWS)",
   "type": "module",
   "main": "dist/evo-cli.js",
   "bin": {

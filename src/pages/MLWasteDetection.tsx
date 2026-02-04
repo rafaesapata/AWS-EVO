@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/integrations/aws/api-client";
-import { Brain, TrendingDown, Zap, BarChart3, Clock, AlertCircle, Trash2, Copy, ExternalLink, ChevronDown, ChevronUp, Terminal, AlertTriangle, Shield, History, Play, CheckCircle2, XCircle, Loader2, Eye, Filter, ArrowUpDown, Info, HelpCircle } from "lucide-react";
+import { Brain, TrendingDown, Zap, BarChart3, Clock, AlertCircle, Trash2, Copy, ExternalLink, ChevronDown, ChevronUp, Terminal, AlertTriangle, Shield, History, Play, CheckCircle2, XCircle, Loader2, Eye, Filter, ArrowUpDown, Info, HelpCircle, DollarSign } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
@@ -109,7 +109,7 @@ const AZURE_ANALYSIS_STAGES = [
 
 type SortField = 'savings' | 'priority' | 'complexity' | 'confidence' | 'type';
 type SortOrder = 'asc' | 'desc';
-type FilterType = 'all' | 'terminate' | 'downsize' | 'auto-scale' | 'optimize' | 'migrate';
+type FilterType = 'all' | 'terminate' | 'downsize' | 'auto-scale' | 'optimize' | 'migrate' | 'purchase';
 type FilterRisk = 'all' | 'high' | 'medium' | 'low';
 type FilterComplexity = 'all' | 'low' | 'medium' | 'high';
 
@@ -333,7 +333,9 @@ export default function MLWasteDetection() {
  region: 'Azure',
  current_size: rec.currentSize,
  current_monthly_cost: rec.currentMonthlyCost,
- recommendation_type: rec.impact === 'High' ? 'terminate' : rec.impact === 'Medium' ? 'downsize' : 'optimize',
+ // Use actionType from backend (correctly mapped based on recommendation content)
+ // NOT based on impact level - "High Impact" means high savings, not terminate!
+ recommendation_type: rec.actionType || 'optimize',
  recommendation_priority: rec.impact === 'High' ? 5 : rec.impact === 'Medium' ? 4 : 3,
  recommended_size: rec.recommendedSize,
  potential_monthly_savings: rec.potentialSavings || 0,
@@ -524,10 +526,19 @@ export default function MLWasteDetection() {
  return filtered;
  })();
 
- const totalSavings = mlRecommendations?.reduce((sum, r) => sum + (r.potential_monthly_savings || 0), 0) || 0;
- const downsizeCount = mlRecommendations?.filter(r => r.recommendation_type === 'downsize').length || 0;
- const autoScaleEligible = mlRecommendations?.filter(r => r.auto_scaling_eligible).length || 0;
- const terminateCount = mlRecommendations?.filter(r => r.recommendation_type === 'terminate').length || 0;
+ // Compute summary metrics in a single pass for better performance
+ const summaryMetrics = (() => {
+   if (!mlRecommendations) return { totalSavings: 0, downsizeCount: 0, autoScaleEligible: 0, terminateCount: 0, purchaseCount: 0 };
+   return mlRecommendations.reduce((acc, r) => {
+     acc.totalSavings += r.potential_monthly_savings || 0;
+     if (r.recommendation_type === 'downsize') acc.downsizeCount++;
+     if (r.recommendation_type === 'terminate') acc.terminateCount++;
+     if (r.recommendation_type === 'purchase') acc.purchaseCount++;
+     if (r.auto_scaling_eligible) acc.autoScaleEligible++;
+     return acc;
+   }, { totalSavings: 0, downsizeCount: 0, autoScaleEligible: 0, terminateCount: 0, purchaseCount: 0 });
+ })();
+ const { totalSavings, downsizeCount, autoScaleEligible, terminateCount, purchaseCount } = summaryMetrics;
 
  // Script explanation helper
  const getScriptExplanation = (step: MLImplementationStep) => {
@@ -680,6 +691,17 @@ export default function MLWasteDetection() {
 
  <Card>
  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+ <CardTitle className="text-sm font-medium">{t('mlWaste.purchase', 'Reserve/Savings Plan')}</CardTitle>
+ <DollarSign className="h-4 w-4 text-blue-500" />
+ </CardHeader>
+ <CardContent>
+ <div className="text-2xl font-semibold">{purchaseCount}</div>
+ <p className="text-xs text-muted-foreground">{t('mlWaste.riSpOpportunities', 'RI/SP opportunities')}</p>
+ </CardContent>
+ </Card>
+
+ <Card>
+ <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
  <CardTitle className="text-sm font-medium">{t('mlWaste.downsize', 'Downsize')}</CardTitle>
  <BarChart3 className="h-4 w-4 text-primary" />
  </CardHeader>
@@ -737,6 +759,7 @@ export default function MLWasteDetection() {
  <SelectItem value="auto-scale">{t('mlWaste.autoScale', 'Auto-Scale')}</SelectItem>
  <SelectItem value="optimize">{t('mlWaste.optimize', 'Optimize')}</SelectItem>
  <SelectItem value="migrate">{t('mlWaste.migrate', 'Migrate')}</SelectItem>
+ <SelectItem value="purchase">{t('mlWaste.purchase', 'Reserve/Savings Plan')}</SelectItem>
  </SelectContent>
  </Select>
 
@@ -873,9 +896,12 @@ export default function MLWasteDetection() {
  <Badge variant={
  rec.recommendation_type === 'terminate' ? 'destructive' :
  rec.recommendation_type === 'downsize' ? 'default' :
- rec.recommendation_type === 'auto-scale' ? 'secondary' : 'outline'
- }>
- {rec.recommendation_type?.replace('-', ' ').toUpperCase()}
+ rec.recommendation_type === 'auto-scale' ? 'secondary' :
+ rec.recommendation_type === 'purchase' ? 'default' : 'outline'
+ } className={rec.recommendation_type === 'purchase' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}>
+ {rec.recommendation_type === 'purchase' 
+ ? t('mlWaste.reserveOrSavingsPlan', 'RESERVE/SAVINGS PLAN')
+ : rec.recommendation_type?.replace('-', ' ').toUpperCase()}
  </Badge>
  </div>
 

@@ -95,7 +95,6 @@ export default function SuperAdminOrganizationSwitcher({
         return;
       }
 
-      // Filter only active organizations
       const activeOrgs = (response.data || []).filter(
         (org: Organization) => org.status === 'active'
       );

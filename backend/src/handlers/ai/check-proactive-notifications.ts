@@ -4,11 +4,13 @@
  * Executado via EventBridge Schedule (ex: a cada hora)
  * 
  * ATUALIZADO: Agora usa regras configuráveis do banco de dados
+ * ATUALIZADO: Envia emails para notificações de alta prioridade
  */
 
 import type { LambdaContext } from '../../types/lambda.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { EmailService } from '../../lib/email-service.js';
 
 interface NotificationData {
   title: string;
@@ -345,6 +347,126 @@ export async function handler(
               type: rule.rule_type,
               priority,
             });
+
+            // Send email for high/critical priority notifications
+            if (priority === 'high' || priority === 'critical') {
+              try {
+                // Check if organization has proactive_notification emails enabled
+                const emailSetting = await prisma.organizationEmailSettings.findFirst({
+                  where: {
+                    organization_id: org.id,
+                    notification_type: 'proactive_notification',
+                    is_enabled: true,
+                  },
+                });
+
+                if (emailSetting) {
+                  // Get template from database
+                  const template = await prisma.emailTemplate.findUnique({
+                    where: { template_type: 'proactive_notification' },
+                  });
+
+                  if (template && template.is_active) {
+                    const emailService = new EmailService();
+                    const recipients = emailSetting.recipients || [];
+
+                    // If no custom recipients, get org admins
+                    let emailRecipients: string[] = recipients;
+                    if (emailRecipients.length === 0) {
+                      const admins = await prisma.profile.findMany({
+                        where: {
+                          organization_id: org.id,
+                          role: { in: ['org_admin', 'super_admin'] },
+                        },
+                        take: 5,
+                      });
+                      // We need to get emails from Cognito or stored somewhere
+                      // For now, skip if no recipients configured
+                      logger.warn('No email recipients configured for proactive notifications', {
+                        organizationId: org.id,
+                      });
+                    }
+
+                    for (const recipientEmail of emailRecipients) {
+                      try {
+                        // Process template
+                        let subject = template.subject
+                          .replace('{title}', notificationData.title)
+                          .replace('{priority}', priority);
+                        let htmlBody = template.html_body
+                          .replace('{title}', notificationData.title)
+                          .replace('{message}', notificationData.message)
+                          .replace('{suggested_action}', notificationData.suggested_action)
+                          .replace('{priority}', priority)
+                          .replace('{organizationName}', org.name)
+                          .replace('{dashboardUrl}', 'https://evo.ai.udstec.io/dashboard');
+
+                        const emailResult = await emailService.sendEmail({
+                          to: { email: recipientEmail },
+                          subject,
+                          htmlBody,
+                          textBody: `${notificationData.title}\n\n${notificationData.message}\n\nAção sugerida: ${notificationData.suggested_action}`,
+                        });
+
+                        // Log to communication_logs
+                        await prisma.communicationLog.create({
+                          data: {
+                            organization_id: org.id,
+                            channel: 'email',
+                            recipient: recipientEmail,
+                            subject,
+                            message: `Proactive notification: ${notificationData.title}`,
+                            status: 'sent',
+                            metadata: {
+                              messageId: emailResult.messageId,
+                              template_type: 'proactive_notification',
+                              notification_type: rule.rule_type,
+                              priority,
+                              is_automated: true,
+                            },
+                          },
+                        });
+
+                        logger.info('Proactive notification email sent', {
+                          organizationId: org.id,
+                          recipient: recipientEmail,
+                          notificationType: rule.rule_type,
+                          messageId: emailResult.messageId,
+                        });
+                      } catch (emailErr) {
+                        // Log failed email
+                        await prisma.communicationLog.create({
+                          data: {
+                            organization_id: org.id,
+                            channel: 'email',
+                            recipient: recipientEmail,
+                            subject: `[${priority.toUpperCase()}] ${notificationData.title}`,
+                            message: `Failed proactive notification: ${notificationData.title}`,
+                            status: 'failed',
+                            metadata: {
+                              error: (emailErr as Error).message,
+                              template_type: 'proactive_notification',
+                              notification_type: rule.rule_type,
+                              is_automated: true,
+                            },
+                          },
+                        });
+
+                        logger.error('Failed to send proactive notification email', emailErr as Error, {
+                          organizationId: org.id,
+                          recipient: recipientEmail,
+                        });
+                      }
+                    }
+                  }
+                }
+              } catch (emailSetupErr) {
+                logger.warn('Error checking email settings for proactive notification', {
+                  organizationId: org.id,
+                  error: (emailSetupErr as Error).message,
+                });
+              }
+            }
           }
 
           // Atualizar última execução da regra

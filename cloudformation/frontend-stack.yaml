@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - Frontend Stack - S3 + CloudFront Distribution'
+Description: 'EVO Platform - Frontend Stack - S3 + CloudFront Distribution'
 
 Parameters:
   Environment:
@@ -193,7 +193,7 @@ Resources:
     Properties:
       CachePolicyConfig:
         Name: !Sub '${ProjectName}-${Environment}-cache-policy'
-        Comment: Cache policy for EVO UDS frontend
+        Comment: Cache policy for EVO Platform frontend
         DefaultTTL: 86400
         MaxTTL: 31536000
         MinTTL: 0

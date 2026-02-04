@@ -21,6 +21,16 @@ import {
   MessageActionType
 } from '@aws-sdk/client-cognito-identity-provider';
 import { randomUUID } from 'crypto';
+import { EmailService } from '../../lib/email-service.js';
+
+// Trial configuration constants
+const TRIAL_DURATION_DAYS = 14;
+const TRIAL_MAX_ACCOUNTS = 2;
+const TRIAL_MAX_USERS = 3;
+const TRIAL_FEATURES = ['security_scan', 'cost_analysis', 'compliance_basic'];
+
+// Application URLs
+const EVO_LOGIN_URL = 'https://evo.ai.udstec.io/auth';
 
 // Validation schema
 const addressSchema = z.object({
@@ -60,6 +70,20 @@ const LICENSE_API_KEY = process.env.LICENSE_API_KEY || 'nck_59707b56bf8def71dfb6
 const cognitoClient = new CognitoIdentityProviderClient({ region: COGNITO_REGION });
 
 /**
+ * Generate a local fallback trial license when external API fails
+ */
+function generateFallbackLicense(): { licenseKey: string; customerId: string; validUntil: Date } {
+  const validUntil = new Date();
+  validUntil.setDate(validUntil.getDate() + TRIAL_DURATION_DAYS);
+  
+  return {
+    licenseKey: `TRIAL-${randomUUID().slice(0, 8).toUpperCase()}`,
+    customerId: `CUST-${randomUUID().slice(0, 8).toUpperCase()}`,
+    validUntil
+  };
+}
+
+/**
  * Create trial license via external API
  */
 async function createTrialLicense(
@@ -71,19 +95,12 @@ async function createTrialLicense(
   country: string,
   website?: string
 ): Promise<{ licenseKey: string; customerId: string; validUntil: Date; externalApiSuccess: boolean }> {
-  // Calculate trial end date (14 days from now)
-  const validUntil = new Date();
-  validUntil.setDate(validUntil.getDate() + 14);
+  const fallback = generateFallbackLicense();
   
   // If no external API configured, create a local trial license
   if (!LICENSE_API_KEY) {
     logger.warn('No LICENSE_API_KEY configured, creating local trial license');
-    return {
-      licenseKey: `TRIAL-${randomUUID().slice(0, 8).toUpperCase()}`,
-      customerId: `CUST-${randomUUID().slice(0, 8).toUpperCase()}`,
-      validUntil,
-      externalApiSuccess: false
-    };
+    return { ...fallback, externalApiSuccess: false };
   }
 
   try {
@@ -120,83 +137,24 @@ async function createTrialLicense(
 
     const responseText = await response.text();
     
-    // Log the raw response for debugging
     logger.info('License API response', { 
       status: response.status, 
       ok: response.ok,
       responseLength: responseText.length 
     });
 
-    // Check HTTP status
     if (!response.ok) {
       logger.error('License API HTTP error', { 
         status: response.status, 
         statusText: response.statusText,
         response: responseText.slice(0, 500) 
       });
-      // Return local license on HTTP error
-      return {
-        licenseKey: `TRIAL-${randomUUID().slice(0, 8).toUpperCase()}`,
-        customerId: `CUST-${randomUUID().slice(0, 8).toUpperCase()}`,
-        validUntil,
-        externalApiSuccess: false
-      };
+      return { ...fallback, externalApiSuccess: false };
     }
 
-    // Parse JSON response
-    let data: {
-      success?: boolean;
-      license_key?: string;
-      licenseKey?: string;
-      customer_id?: string;
-      customerId?: string;
-      valid_until?: string;
-      validUntil?: string;
-      trial_id?: string;
-      error?: string;
-      message?: string;
-      // Nested license object from external API
-      license?: {
-        license_key?: string;
-        customer_id?: string;
-        valid_until?: string;
-        valid_from?: string;
-        product_type?: string;
-        total_seats?: number;
-      };
-      // Nested user object
-      user?: {
-        id?: string;
-        email?: string;
-      };
-    };
-
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      logger.error('License API response is not valid JSON', { 
-        response: responseText.slice(0, 500) 
-      });
-      return {
-        licenseKey: `TRIAL-${randomUUID().slice(0, 8).toUpperCase()}`,
-        customerId: `CUST-${randomUUID().slice(0, 8).toUpperCase()}`,
-        validUntil,
-        externalApiSuccess: false
-      };
-    }
-
-    // Check if API returned success: false
-    if (data.success === false) {
-      logger.error('License API returned success: false', { 
-        error: data.error || data.message,
-        response: data 
-      });
-      return {
-        licenseKey: `TRIAL-${randomUUID().slice(0, 8).toUpperCase()}`,
-        customerId: `CUST-${randomUUID().slice(0, 8).toUpperCase()}`,
-        validUntil,
-        externalApiSuccess: false
-      };
+    const data = parseLicenseApiResponse(responseText);
+    if (!data) {
+      return { ...fallback, externalApiSuccess: false };
     }
 
     // Extract license data from response (check nested 'license' object first)
@@ -204,52 +162,24 @@ async function createTrialLicense(
     const customerId = data.license?.customer_id || data.user?.id || data.customer_id || data.customerId;
     const apiValidUntil = data.license?.valid_until || data.valid_until || data.validUntil;
 
-    // Validate that we got the required fields
     if (!licenseKey && !customerId) {
-      logger.warn('License API response missing license_key and customer_id', { 
-        response: data 
-      });
-      return {
-        licenseKey: `TRIAL-${randomUUID().slice(0, 8).toUpperCase()}`,
-        customerId: `CUST-${randomUUID().slice(0, 8).toUpperCase()}`,
-        validUntil,
-        externalApiSuccess: false
-      };
+      logger.warn('License API response missing license_key and customer_id', { response: data });
+      return { ...fallback, externalApiSuccess: false };
     }
     
     logger.info('Trial license created via external API successfully', { 
-      licenseKey: licenseKey,
-      customerId: customerId,
+      licenseKey,
+      customerId,
       trialId: data.trial_id,
       hasLicenseKey: !!licenseKey
     });
     
-    // Parse valid_until date if provided by API
-    // IMPORTANT: Always ensure minimum 14 days trial period
-    // The external API sometimes returns incorrect/short validity periods
-    let parsedValidUntil = validUntil; // Default: 14 days from now
-    if (apiValidUntil) {
-      const parsed = new Date(apiValidUntil);
-      if (!isNaN(parsed.getTime())) {
-        // Only use API date if it's at least 14 days from now
-        const minValidUntil = new Date();
-        minValidUntil.setDate(minValidUntil.getDate() + 14);
-        
-        if (parsed >= minValidUntil) {
-          parsedValidUntil = parsed;
-        } else {
-          logger.warn('External API returned short validity period, using default 14 days', {
-            apiValidUntil: parsed.toISOString(),
-            usingValidUntil: validUntil.toISOString()
-          });
-        }
-      }
-    }
+    const validUntil = parseValidUntilDate(apiValidUntil, fallback.validUntil);
 
     return {
-      licenseKey: licenseKey || `TRIAL-${randomUUID().slice(0, 8).toUpperCase()}`,
-      customerId: customerId || `CUST-${randomUUID().slice(0, 8).toUpperCase()}`,
-      validUntil: parsedValidUntil,
+      licenseKey: licenseKey || fallback.licenseKey,
+      customerId: customerId || fallback.customerId,
+      validUntil,
       externalApiSuccess: true
     };
   } catch (err) {
@@ -257,14 +187,82 @@ async function createTrialLicense(
       error: (err as Error).message,
       stack: (err as Error).stack 
     });
-    // Return local license on network error
-    return {
-      licenseKey: `TRIAL-${randomUUID().slice(0, 8).toUpperCase()}`,
-      customerId: `CUST-${randomUUID().slice(0, 8).toUpperCase()}`,
-      validUntil,
-      externalApiSuccess: false
-    };
+    return { ...fallback, externalApiSuccess: false };
   }
+}
+
+/**
+ * Parse and validate license API response
+ */
+function parseLicenseApiResponse(responseText: string): LicenseApiResponse | null {
+  let data: LicenseApiResponse;
+  
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    logger.error('License API response is not valid JSON', { 
+      response: responseText.slice(0, 500) 
+    });
+    return null;
+  }
+
+  if (data.success === false) {
+    logger.error('License API returned success: false', { 
+      error: data.error || data.message,
+      response: data 
+    });
+    return null;
+  }
+
+  return data;
+}
+
+interface LicenseApiResponse {
+  success?: boolean;
+  license_key?: string;
+  licenseKey?: string;
+  customer_id?: string;
+  customerId?: string;
+  valid_until?: string;
+  validUntil?: string;
+  trial_id?: string;
+  error?: string;
+  message?: string;
+  license?: {
+    license_key?: string;
+    customer_id?: string;
+    valid_until?: string;
+    valid_from?: string;
+    product_type?: string;
+    total_seats?: number;
+  };
+  user?: {
+    id?: string;
+    email?: string;
+  };
+}
+
+/**
+ * Parse valid_until date ensuring minimum trial period
+ */
+function parseValidUntilDate(apiValidUntil: string | undefined, defaultDate: Date): Date {
+  if (!apiValidUntil) return defaultDate;
+  
+  const parsed = new Date(apiValidUntil);
+  if (isNaN(parsed.getTime())) return defaultDate;
+  
+  const minValidUntil = new Date();
+  minValidUntil.setDate(minValidUntil.getDate() + TRIAL_DURATION_DAYS);
+  
+  if (parsed >= minValidUntil) {
+    return parsed;
+  }
+  
+  logger.warn('External API returned short validity period, using default', {
+    apiValidUntil: parsed.toISOString(),
+    usingValidUntil: defaultDate.toISOString()
+  });
+  return defaultDate;
 }
 
 /**
@@ -332,6 +330,81 @@ function generateSlug(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 50) + '-' + randomUUID().slice(0, 8);
+}
+
+/**
+ * Send welcome email and log to communication_logs
+ * Email failure does not block registration
+ */
+async function sendWelcomeEmailToUser(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string,
+  email: string,
+  fullName: string,
+  companyName: string
+): Promise<void> {
+  const emailService = new EmailService();
+  const subject = `Bem-vindo ao EVO-UDS, ${fullName}!`;
+  
+  try {
+    const emailResult = await emailService.sendWelcomeEmail(
+      { email, name: fullName },
+      { name: fullName, organizationName: companyName, loginUrl: EVO_LOGIN_URL }
+    );
+
+    await logCommunication(prisma, organizationId, email, subject, 'sent', {
+      messageId: emailResult.messageId,
+      template_type: 'welcome',
+      is_automated: true,
+    });
+
+    logger.info('Welcome email sent successfully', { email, messageId: emailResult.messageId });
+  } catch (emailErr) {
+    logger.error('Failed to send welcome email', emailErr as Error, { email });
+    
+    await logCommunication(prisma, organizationId, email, subject, 'failed', {
+      error: (emailErr as Error).message,
+      template_type: 'welcome',
+      is_automated: true,
+    });
+  }
+}
+
+/**
+ * Log email communication (success or failure)
+ */
+async function logCommunication(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string,
+  recipient: string,
+  subject: string,
+  status: 'sent' | 'failed',
+  metadata: Record<string, unknown>
+): Promise<void> {
+  const message = status === 'sent' 
+    ? 'Welcome email sent after self-registration'
+    : 'Welcome email failed after self-registration';
+  
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO communication_logs (
+        id, organization_id, channel, recipient, subject, message, status, metadata, created_at
+      )
+      VALUES (
+        ${randomUUID()}::uuid,
+        ${organizationId}::uuid,
+        'email',
+        ${recipient},
+        ${subject},
+        ${message},
+        ${status},
+        ${JSON.stringify(metadata)}::jsonb,
+        NOW()
+      )
+    `;
+  } catch (logErr) {
+    logger.warn('Failed to log communication', { error: (logErr as Error).message, status });
+  }
 }
 
 export async function handler(
@@ -460,17 +533,17 @@ export async function handler(
         ${licenseData.customerId},
         'trial',
         'evo',
-        2,
-        3,
+        ${TRIAL_MAX_ACCOUNTS},
+        ${TRIAL_MAX_USERS},
         1,
-        2,
-        ARRAY['security_scan', 'cost_analysis', 'compliance_basic'],
+        ${TRIAL_MAX_USERS - 1},
+        ${TRIAL_FEATURES},
         NOW(),
         ${licenseData.validUntil},
         true,
         true,
         false,
-        14,
+        ${TRIAL_DURATION_DAYS},
         NOW(),
         NOW()
       )
@@ -519,6 +592,41 @@ export async function handler(
 
     // Store company details (could be in a separate table, for now in organization metadata)
     // This could be extended to store in a dedicated company_details table
+
+    // Create default email notification settings for the new organization
+    const emailNotificationTypes = [
+      'welcome', 'daily_summary', 'weekly_report', 'critical_alert',
+      'security_notification', 'proactive_notification', 'cost_alert'
+    ];
+    
+    for (const notificationType of emailNotificationTypes) {
+      try {
+        await prisma.$executeRaw`
+          INSERT INTO organization_email_settings (
+            id, organization_id, notification_type, is_enabled, frequency, recipients, created_at, updated_at
+          )
+          VALUES (
+            ${randomUUID()}::uuid,
+            ${organizationId}::uuid,
+            ${notificationType},
+            true,
+            ${notificationType === 'weekly_report' ? 'weekly' : notificationType === 'daily_summary' ? 'daily' : 'immediate'},
+            ARRAY[${email}]::text[],
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT (organization_id, notification_type) DO NOTHING
+        `;
+      } catch (settingsErr) {
+        logger.warn('Failed to create email setting', { notificationType, error: (settingsErr as Error).message });
+      }
+    }
+
+    logger.info('Email notification settings created for organization', { organizationId });
+
+    // Send welcome email (fire-and-forget, don't block registration)
+    sendWelcomeEmailToUser(prisma, organizationId, email, fullName, company.name)
+      .catch(err => logger.warn('Welcome email error', { error: (err as Error).message }));
 
     const duration = Date.now() - startTime;
     logger.info('Self-registration completed successfully', { 

@@ -1,5 +1,5 @@
 /**
- * Production-ready logging system for EVO UDS Backend
+ * Production-ready logging system for EVO Platform Backend
  * Supports multiple log levels, structured logging, and AWS CloudWatch integration
  */
 

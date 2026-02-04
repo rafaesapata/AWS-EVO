@@ -140,7 +140,7 @@ Update any frontend code that directly references `account_id` to use `aws_accou
 model AwsAccount {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
-  account_id        String   // 12-digit AWS account number (e.g., "383234048592")
+  account_id        String   // 12-digit AWS account number (e.g., "971354623291")
   account_name      String
   // ...
 }

@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { apiClient } from '@/integrations/aws/api-client';
 import { MetricsPeriod, PERIOD_CONFIG } from '@/components/dashboard/resource-monitoring/MetricsPeriodSelector';
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
 
 interface Metric {
   id: string;
@@ -10,7 +11,9 @@ interface Metric {
   metric_value: number;
   metric_unit: string;
   timestamp: string;
-  aws_account_id: string;
+  aws_account_id?: string;
+  azure_credential_id?: string;
+  cloud_provider?: 'AWS' | 'AZURE';
   organization_id: string;
 }
 
@@ -42,6 +45,9 @@ export function useMetricsCache() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
+  
+  // Get cloud provider context for multi-cloud support
+  const { selectedProvider } = useCloudAccount();
 
   /**
    * Verifica se um período já foi carregado para uma conta
@@ -146,10 +152,15 @@ export function useMetricsCache() {
     setIsLoading(true);
     
     try {
-      // Construir query com filtro opcional por tipo de recurso
+      // Construir query com filtro baseado no provider (multi-cloud support)
+      const isAzure = selectedProvider === 'AZURE';
       const queryFilters: any = {
         organization_id: organizationId,
-        aws_account_id: accountId
+        // Use azure_credential_id for Azure, aws_account_id for AWS
+        ...(isAzure 
+          ? { azure_credential_id: accountId }
+          : { aws_account_id: accountId }
+        )
       };
       
       if (resourceType) {
@@ -165,7 +176,7 @@ export function useMetricsCache() {
       
       const newMetrics = (metricsResponse.data || []) as Metric[];
       
-      console.log(`[MetricsCache] Fetched ${newMetrics.length} metrics for account ${accountId}${resourceType ? ` (${resourceType})` : ''}`);
+      console.log(`[MetricsCache] Fetched ${newMetrics.length} metrics for ${isAzure ? 'Azure' : 'AWS'} account ${accountId}${resourceType ? ` (${resourceType})` : ''}`);
       
       // Atualizar cache
       const existingCache = cacheRef.current.byAccount.get(accountId);
@@ -232,7 +243,7 @@ export function useMetricsCache() {
     } finally {
       setIsLoading(false);
     }
-  }, [calculateFetchRange]);
+  }, [calculateFetchRange, selectedProvider]);
 
   /**
    * Obtém métricas do cache sem fazer fetch

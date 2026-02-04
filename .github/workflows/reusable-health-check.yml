@@ -1,0 +1,63 @@
+# Workflow reutilizável para health checks
+# Extrai lógica duplicada de verificação de saúde das Lambdas
+
+name: Reusable Health Check
+
+on:
+  workflow_call:
+    inputs:
+      lambda_prefix:
+        required: true
+        type: string
+        description: 'Lambda function prefix'
+      aws_region:
+        required: true
+        type: string
+        description: 'AWS Region'
+      critical_lambdas:
+        required: false
+        type: string
+        default: 'save-aws-credentials,validate-aws-credentials,security-scan,mfa-enroll,mfa-verify-login'
+        description: 'Comma-separated list of critical lambdas to check'
+
+jobs:
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run health checks
+        run: |
+          echo "🏥 Running health checks..."
+          FAILED=0
+          
+          # Convert comma-separated to array
+          IFS=',' read -ra LAMBDAS <<< "${{ inputs.critical_lambdas }}"
+          
+          for lambda in "${LAMBDAS[@]}"; do
+            FULL_NAME="${{ inputs.lambda_prefix }}-${lambda}"
+            echo "Testing $FULL_NAME..."
+            
+            RESPONSE=$(aws lambda invoke \
+              --function-name "$FULL_NAME" \
+              --payload '{"requestContext":{"http":{"method":"OPTIONS"}}}' \
+              --region ${{ inputs.aws_region }} \
+              /tmp/health_${lambda}.json 2>&1 || echo "INVOKE_FAILED")
+            
+            if echo "$RESPONSE" | grep -q "INVOKE_FAILED"; then
+              echo "❌ $FULL_NAME - invoke failed"
+              FAILED=$((FAILED + 1))
+            elif grep -q '"statusCode":200' /tmp/health_${lambda}.json 2>/dev/null; then
+              echo "✅ $FULL_NAME - healthy"
+            else
+              echo "⚠️ $FULL_NAME - unexpected response"
+              cat /tmp/health_${lambda}.json 2>/dev/null || true
+              FAILED=$((FAILED + 1))
+            fi
+          done
+          
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ $FAILED health checks failed!"
+            exit 1
+          fi
+          echo "✅ All health checks passed"

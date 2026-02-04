@@ -124,6 +124,11 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   'cloudtrail_analyses': { },
   'cost_optimizations': { },
   
+  // Monitored resources and metrics - support both AWS and Azure
+  // azure_credential_id is a valid field in these tables, don't map it
+  'monitored_resources': { 'azure_credential_id': 'azure_credential_id' },
+  'resource_metrics': { 'azure_credential_id': 'azure_credential_id' },
+  
   // Alerts - is_resolved não existe, usar resolved_at IS NULL/NOT NULL
   'alerts': { 'aws_account_id': null, 'is_resolved': null },
   'security_alerts': { 'aws_account_id': null, 'is_resolved': null },

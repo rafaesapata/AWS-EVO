@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# EVO UDS - Complete Infrastructure Deployment Script
+# EVO Platform - Complete Infrastructure Deployment Script
 # Usage: ./deploy-infrastructure.sh <environment> <admin-email>
 
 set -e
@@ -37,7 +37,7 @@ PROJECT_NAME="evo-uds"
 REGION=${AWS_REGION:-us-east-1}
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
-log_info "Starting EVO UDS Infrastructure Deployment"
+log_info "Starting EVO Platform Infrastructure Deployment"
 log_info "Environment: $ENVIRONMENT"
 log_info "Admin Email: $ADMIN_EMAIL"
 log_info "AWS Account: $AWS_ACCOUNT_ID"

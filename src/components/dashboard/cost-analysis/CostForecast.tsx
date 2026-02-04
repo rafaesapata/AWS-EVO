@@ -1,27 +1,43 @@
 import { useQuery } from "@tanstack/react-query";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
 import { TrendingUp, AlertTriangle, Info } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDateBR } from "@/lib/utils";
 
+// Constants
+const HISTORY_DAYS = 90;
+const FORECAST_DAYS = 30;
+const MIN_DAYS_FOR_FORECAST = 7;
+const CACHE_TIME_MS = 60 * 60 * 1000; // 1 hour
+const CONFIDENCE_Z_SCORE = 1.96; // 95% confidence interval
+
 interface Props {
-  accountId: string;
+  accountId: string; // Kept for backwards compatibility, but we use context
 }
 
 export function CostForecast({ accountId }: Props) {
   // Get user's organization to ensure proper cache isolation
   const { data: organizationId } = useOrganization();
+  
+  // Use global account context for multi-account isolation
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
+  const { shouldEnableAccountQuery } = useDemoAwareQuery();
+  
+  // Use context account instead of prop for consistency
+  const effectiveAccountId = selectedAccountId || accountId;
 
   const { data: historicalCosts, isLoading: loadingHistory } = useQuery({
-    queryKey: ['daily-costs-history', organizationId, accountId],
-    enabled: !!accountId && accountId !== 'all' && !!organizationId,
+    queryKey: ['daily-costs-history', organizationId, effectiveAccountId, selectedProvider],
+    enabled: shouldEnableAccountQuery() && effectiveAccountId !== 'all',
     staleTime: Infinity, // Manter cache até invalidação manual
     gcTime: 60 * 60 * 1000, // Garbage collection após 1 hora
     refetchOnWindowFocus: false,
@@ -42,15 +58,19 @@ export function CostForecast({ accountId }: Props) {
 
       console.log('CostForecast: Fetching with params:', {
         organizationId,
-        accountId,
+        effectiveAccountId,
+        selectedProvider,
         startDateStr
       });
+
+      // Use getAccountFilter() for proper multi-account isolation
+      const accountFilter = getAccountFilter();
 
       const response = await apiClient.select('daily_costs', {
         select: '*',
         eq: { 
           organization_id: organizationId,
-          aws_account_id: accountId 
+          ...accountFilter
         },
         gte: { date: startDateStr },
         order: { column: 'date', ascending: true },
@@ -176,7 +196,7 @@ export function CostForecast({ accountId }: Props) {
     return predictions;
   })() : null;
 
-  if (accountId === 'all') {
+  if (effectiveAccountId === 'all') {
     return (
       <Card>
         <CardHeader>

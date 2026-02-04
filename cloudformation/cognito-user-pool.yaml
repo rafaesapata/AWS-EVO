@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS v3 - Cognito User Pool with Custom Attributes (Correct Implementation)'
+Description: 'EVO Platform v3 - Cognito User Pool with Custom Attributes (Correct Implementation)'
 
 Parameters:
   Environment:
@@ -49,7 +49,7 @@ Resources:
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: false
         InviteMessageTemplate:
-          EmailSubject: 'Bem-vindo ao EVO UDS'
+          EmailSubject: 'Bem-vindo ao EVO Platform'
           EmailMessage: 'Seu usuário foi criado. Username: {username} Senha temporária: {####}'
       
       # Account Recovery

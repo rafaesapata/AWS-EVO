@@ -58,10 +58,10 @@ export const environments: Record<EnvironmentName, EnvironmentConfig> = {
     envName: 'development',
     stackPrefix: 'EvoUdsDev',
     
-    // AWS Account - Development (perfil default)
-    account: '383234048592',
+    // AWS Account - Sandbox (perfil EVO_SANDBOX)
+    account: '971354623291',
     region: 'us-east-1',
-    profile: 'default',
+    profile: 'EVO_SANDBOX',
     
     // Domínios de desenvolvimento
     domain: 'dev-evo.ai.udstec.io',

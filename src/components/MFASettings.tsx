@@ -189,7 +189,7 @@ export default function MFASettings() {
       const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
         challenge: Uint8Array.from(challengeStr, c => c.charCodeAt(0)),
         rp: {
-          name: challengeData.rpName || 'EVO UDS Platform',
+          name: challengeData.rpName || 'EVO Platform',
           id: 'evo.ai.udstec.io',
         },
         user: {

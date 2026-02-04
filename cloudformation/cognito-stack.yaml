@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - Cognito Stack - User Pool and Identity Pool'
+Description: 'EVO Platform - Cognito Stack - User Pool and Identity Pool'
 
 Parameters:
   Environment:

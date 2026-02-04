@@ -754,7 +754,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  
  {/* Previsão e Tendências */}
  <div className="grid gap-4 md:grid-cols-2">
- <CostForecast accountId={selectedAccountId === 'all' ? (allAccounts?.[0]?.id || 'all') : selectedAccountId} />
+ <CostForecast accountId={selectedAccountId} />
  <CostTrends accountId={selectedAccountId} costs={costs || []} />
  </div>
 

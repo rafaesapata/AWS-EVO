@@ -6,6 +6,45 @@
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import { logger } from './logging.js';
 
+// SES Configuration from environment variables
+const SES_CONFIG = {
+  region: process.env.AWS_SES_REGION || process.env.AWS_REGION || 'us-east-1',
+  fromEmail: process.env.AWS_SES_FROM_EMAIL || 'evo@udstec.io',
+  fromName: process.env.AWS_SES_FROM_NAME || 'EVO Platform',
+  domain: process.env.AWS_SES_DOMAIN || 'udstec.io',
+  // Optional dedicated credentials for SES
+  accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY,
+};
+
+/**
+ * Create SES client with optional dedicated credentials
+ */
+function createSESClient(): SESClient {
+  const config: any = {
+    region: SES_CONFIG.region,
+  };
+
+  // Use dedicated SES credentials if provided
+  if (SES_CONFIG.accessKeyId && SES_CONFIG.secretAccessKey) {
+    config.credentials = {
+      accessKeyId: SES_CONFIG.accessKeyId,
+      secretAccessKey: SES_CONFIG.secretAccessKey,
+    };
+    logger.info('SES client initialized with dedicated credentials', {
+      region: SES_CONFIG.region,
+      fromEmail: SES_CONFIG.fromEmail,
+    });
+  } else {
+    logger.info('SES client initialized with default AWS credentials', {
+      region: SES_CONFIG.region,
+      fromEmail: SES_CONFIG.fromEmail,
+    });
+  }
+
+  return new SESClient(config);
+}
+
 export interface EmailAddress {
   email: string;
   name?: string;
@@ -67,11 +106,18 @@ export class EmailService {
   private templates: Map<string, EmailTemplate> = new Map();
 
   constructor(
-    fromAddress: EmailAddress,
-    region: string = process.env.AWS_REGION || 'us-east-1'
+    fromAddress?: EmailAddress,
+    region?: string
   ) {
-    this.sesClient = new SESClient({ region });
-    this.fromAddress = fromAddress;
+    // Use provided values or fall back to environment config
+    this.fromAddress = fromAddress || {
+      email: SES_CONFIG.fromEmail,
+      name: SES_CONFIG.fromName,
+    };
+    
+    // Create SES client (uses dedicated credentials if available)
+    this.sesClient = createSESClient();
+    
     this.loadDefaultTemplates();
   }
 
@@ -822,28 +868,35 @@ Please investigate this alert and take appropriate action if necessary.
   }
 }
 
-// Global email service instance
-export const emailService = new EmailService(
-  {
-    email: process.env.FROM_EMAIL || 'noreply@evo-uds.com',
-    name: process.env.FROM_NAME || 'EVO-UDS',
-  },
-  process.env.AWS_REGION || 'us-east-1'
-);
+// Global email service instance (uses environment configuration)
+export const emailService = new EmailService();
 
 /**
  * Email service factory for different environments
  */
-export function createEmailService(config: {
-  fromEmail: string;
+export function createEmailService(config?: {
+  fromEmail?: string;
   fromName?: string;
   region?: string;
 }): EmailService {
   return new EmailService(
-    {
+    config?.fromEmail ? {
       email: config.fromEmail,
       name: config.fromName,
-    },
-    config.region
+    } : undefined,
+    config?.region
   );
+}
+
+/**
+ * Get current SES configuration (for debugging/logging)
+ */
+export function getSESConfig() {
+  return {
+    region: SES_CONFIG.region,
+    fromEmail: SES_CONFIG.fromEmail,
+    fromName: SES_CONFIG.fromName,
+    domain: SES_CONFIG.domain,
+    hasCredentials: !!(SES_CONFIG.accessKeyId && SES_CONFIG.secretAccessKey),
+  };
 }

@@ -1,6 +1,13 @@
-import { useState } from "react";
+/**
+ * Remediation Tickets Page v2.0
+ * Features: List view, Create ticket, SLA indicators, Filters
+ * Design: Light theme matching Executive Dashboard (#003C7D accent, #F9FAFB background)
+ */
+
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,35 +16,28 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
 import { 
-  Ticket, 
-  Plus, 
-  RefreshCw,
-  Clock,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  User,
-  Calendar,
-  MessageSquare,
-  Settings,
-  Play,
-  Pause
+  Ticket, Plus, RefreshCw, Clock, CheckCircle, XCircle, User, Calendar,
+  MessageSquare, AlertTriangle, Paperclip, ListChecks, Timer, AlertCircle,
+  Search, Filter, ChevronRight, ArrowUpRight, Shield, DollarSign, Settings,
+  Zap, TrendingUp
 } from "lucide-react";
+
+// ==================== TYPES ====================
 
 interface RemediationTicket {
   id: string;
   title: string;
   description: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
-  status: 'open' | 'in_progress' | 'resolved' | 'closed' | 'cancelled';
+  status: 'open' | 'in_progress' | 'pending_review' | 'blocked' | 'resolved' | 'closed' | 'cancelled' | 'reopened';
   priority: 'urgent' | 'high' | 'medium' | 'low';
   category: 'security' | 'compliance' | 'cost_optimization' | 'performance' | 'configuration';
   assigned_to: string | null;
@@ -50,609 +50,711 @@ interface RemediationTicket {
   automation_available: boolean;
   estimated_effort_hours: number;
   business_impact: string;
+  sla_due_at: string | null;
+  sla_breached: boolean;
+  first_response_at: string | null;
+  escalation_level: number;
+  _count?: {
+    comments: number;
+    checklist_items: number;
+    attachments: number;
+  };
 }
 
-interface TicketComment {
-  id: string;
-  ticket_id: string;
-  user_id: string;
-  user_name: string;
-  comment: string;
-  created_at: string;
+// ==================== CONSTANTS ====================
+
+const SEVERITY_CONFIG = {
+  critical: { color: 'bg-red-500', textColor: 'text-red-700', bgLight: 'bg-red-50', label: 'Crítico' },
+  high: { color: 'bg-orange-500', textColor: 'text-orange-700', bgLight: 'bg-orange-50', label: 'Alto' },
+  medium: { color: 'bg-yellow-500', textColor: 'text-yellow-700', bgLight: 'bg-yellow-50', label: 'Médio' },
+  low: { color: 'bg-green-500', textColor: 'text-green-700', bgLight: 'bg-green-50', label: 'Baixo' },
+};
+
+const STATUS_CONFIG = {
+  open: { color: 'bg-blue-500', label: 'Aberto', icon: AlertCircle },
+  in_progress: { color: 'bg-purple-500', label: 'Em Progresso', icon: Zap },
+  pending_review: { color: 'bg-yellow-500', label: 'Aguardando Revisão', icon: Clock },
+  blocked: { color: 'bg-red-500', label: 'Bloqueado', icon: XCircle },
+  resolved: { color: 'bg-green-500', label: 'Resolvido', icon: CheckCircle },
+  closed: { color: 'bg-gray-500', label: 'Fechado', icon: CheckCircle },
+  cancelled: { color: 'bg-gray-400', label: 'Cancelado', icon: XCircle },
+  reopened: { color: 'bg-orange-500', label: 'Reaberto', icon: AlertTriangle },
+};
+
+const CATEGORY_CONFIG = {
+  security: { icon: Shield, label: 'Segurança', color: 'text-red-600' },
+  compliance: { icon: CheckCircle, label: 'Compliance', color: 'text-blue-600' },
+  cost_optimization: { icon: DollarSign, label: 'Otimização de Custos', color: 'text-green-600' },
+  performance: { icon: Zap, label: 'Performance', color: 'text-purple-600' },
+  configuration: { icon: Settings, label: 'Configuração', color: 'text-gray-600' },
+};
+
+const PRIORITY_CONFIG = {
+  urgent: { color: 'bg-red-600', label: 'Urgente' },
+  high: { color: 'bg-orange-500', label: 'Alta' },
+  medium: { color: 'bg-yellow-500', label: 'Média' },
+  low: { color: 'bg-green-500', label: 'Baixa' },
+};
+
+// ==================== HELPER FUNCTIONS ====================
+
+function formatDate(dateString: string | null): string {
+  if (!dateString) return '-';
+  return new Date(dateString).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
-export default function RemediationTickets() {
+function formatDateTime(dateString: string | null): string {
+  if (!dateString) return '-';
+  return new Date(dateString).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getSlaStatus(ticket: RemediationTicket): { status: string; color: string; label: string } {
+  if (!ticket.sla_due_at) return { status: 'no_sla', color: 'text-gray-400', label: 'Sem SLA' };
+  if (ticket.sla_breached) return { status: 'breached', color: 'text-red-600', label: 'SLA Violado' };
+  
+  const now = new Date();
+  const dueAt = new Date(ticket.sla_due_at);
+  const hoursRemaining = (dueAt.getTime() - now.getTime()) / (1000 * 60 * 60);
+  
+  if (hoursRemaining < 0) return { status: 'breached', color: 'text-red-600', label: 'SLA Violado' };
+  if (hoursRemaining < 2) return { status: 'at_risk', color: 'text-orange-600', label: 'Em Risco' };
+  return { status: 'on_track', color: 'text-green-600', label: 'No Prazo' };
+}
+
+function getTimeRemaining(dateString: string | null): string {
+  if (!dateString) return '-';
+  const now = new Date();
+  const target = new Date(dateString);
+  const diff = target.getTime() - now.getTime();
+  
+  if (diff < 0) {
+    const hours = Math.abs(Math.floor(diff / (1000 * 60 * 60)));
+    return `${hours}h atrasado`;
+  }
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  if (hours < 24) return `${hours}h restantes`;
+  const days = Math.floor(hours / 24);
+  return `${days}d restantes`;
+}
+
+
+// ==================== TICKET CARD COMPONENT ====================
+
+function TicketCard({ ticket, onClick }: { ticket: RemediationTicket; onClick: () => void }) {
+  const slaStatus = getSlaStatus(ticket);
+  const StatusIcon = STATUS_CONFIG[ticket.status]?.icon || AlertCircle;
+  const CategoryIcon = CATEGORY_CONFIG[ticket.category]?.icon || Settings;
+  
+  return (
+    <div 
+      onClick={onClick}
+      className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md hover:border-[#003C7D]/20 transition-all cursor-pointer group"
+    >
+      <div className="flex items-start justify-between gap-4">
+        {/* Left: Main Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2">
+            <div className={`w-2 h-2 rounded-full ${SEVERITY_CONFIG[ticket.severity]?.color}`} />
+            <span className="text-xs font-medium text-gray-500 uppercase">
+              {ticket.id.slice(0, 8)}
+            </span>
+            <Badge variant="outline" className={`text-xs ${CATEGORY_CONFIG[ticket.category]?.color}`}>
+              <CategoryIcon className="h-3 w-3 mr-1" />
+              {CATEGORY_CONFIG[ticket.category]?.label}
+            </Badge>
+          </div>
+          
+          <h3 className="font-medium text-[#1F2937] mb-1 line-clamp-1 group-hover:text-[#003C7D] transition-colors">
+            {ticket.title}
+          </h3>
+          
+          <p className="text-sm text-gray-500 line-clamp-2 mb-3">
+            {ticket.description || 'Sem descrição'}
+          </p>
+          
+          {/* Meta Info */}
+          <div className="flex items-center gap-4 text-xs text-gray-400">
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {formatDate(ticket.created_at)}
+            </span>
+            {ticket.assigned_to && (
+              <span className="flex items-center gap-1">
+                <User className="h-3 w-3" />
+                Atribuído
+              </span>
+            )}
+            {ticket._count && (
+              <>
+                {ticket._count.comments > 0 && (
+                  <span className="flex items-center gap-1">
+                    <MessageSquare className="h-3 w-3" />
+                    {ticket._count.comments}
+                  </span>
+                )}
+                {ticket._count.checklist_items > 0 && (
+                  <span className="flex items-center gap-1">
+                    <ListChecks className="h-3 w-3" />
+                    {ticket._count.checklist_items}
+                  </span>
+                )}
+                {ticket._count.attachments > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Paperclip className="h-3 w-3" />
+                    {ticket._count.attachments}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        
+        {/* Right: Status & SLA */}
+        <div className="flex flex-col items-end gap-2">
+          <Badge className={`${STATUS_CONFIG[ticket.status]?.color} text-white text-xs`}>
+            <StatusIcon className="h-3 w-3 mr-1" />
+            {STATUS_CONFIG[ticket.status]?.label}
+          </Badge>
+          
+          <Badge variant="outline" className={`${PRIORITY_CONFIG[ticket.priority]?.color} text-white text-xs`}>
+            {PRIORITY_CONFIG[ticket.priority]?.label}
+          </Badge>
+          
+          {ticket.sla_due_at && (
+            <div className={`flex items-center gap-1 text-xs ${slaStatus.color}`}>
+              <Timer className="h-3 w-3" />
+              <span>{getTimeRemaining(ticket.sla_due_at)}</span>
+            </div>
+          )}
+          
+          <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-[#003C7D] transition-colors" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ==================== STATS CARDS ====================
+
+function StatsCards({ tickets }: { tickets: RemediationTicket[] }) {
+  const stats = useMemo(() => {
+    const open = tickets.filter(t => ['open', 'in_progress', 'pending_review', 'blocked', 'reopened'].includes(t.status)).length;
+    const resolved = tickets.filter(t => ['resolved', 'closed'].includes(t.status)).length;
+    const breached = tickets.filter(t => t.sla_breached).length;
+    const critical = tickets.filter(t => t.severity === 'critical' && !['resolved', 'closed', 'cancelled'].includes(t.status)).length;
+    
+    return { open, resolved, breached, critical, total: tickets.length };
+  }, [tickets]);
+  
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-50 rounded-lg">
+            <AlertCircle className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-semibold text-[#1F2937]">{stats.open}</p>
+            <p className="text-xs text-gray-500">Tickets Abertos</p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-green-50 rounded-lg">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-semibold text-[#1F2937]">{stats.resolved}</p>
+            <p className="text-xs text-gray-500">Resolvidos</p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-red-50 rounded-lg">
+            <AlertTriangle className="h-5 w-5 text-red-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-semibold text-[#1F2937]">{stats.critical}</p>
+            <p className="text-xs text-gray-500">Críticos</p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-orange-50 rounded-lg">
+            <Timer className="h-5 w-5 text-orange-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-semibold text-[#1F2937]">{stats.breached}</p>
+            <p className="text-xs text-gray-500">SLA Violado</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ==================== CREATE TICKET DIALOG ====================
+
+function CreateTicketDialog({ 
+  open, 
+  onOpenChange, 
+  onSuccess 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}) {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { selectedAccountId } = useCloudAccount();
-  const { getAccountFilter } = useAccountFilter();
-  const { data: organizationId } = useOrganization();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
-  const [newTicket, setNewTicket] = useState({
+  const [formData, setFormData] = useState({
     title: '',
     description: '',
     severity: 'medium' as const,
     priority: 'medium' as const,
     category: 'security' as const,
-    due_date: '',
-    business_impact: '',
     estimated_effort_hours: 0,
-    affected_resources: [] as string[]
+    business_impact: '',
+    due_date: '',
   });
-
-  // Get remediation tickets
-  const { data: tickets, isLoading, refetch } = useQuery({
-    queryKey: ['remediation-tickets', organizationId, selectedAccountId, selectedStatus, selectedSeverity],
-    enabled: !!organizationId,
-    staleTime: 1 * 60 * 1000,
-    queryFn: async () => {
-      let filters: any = { 
-        organization_id: organizationId
-      };
-
-      // Only filter by account if one is selected
-      if (selectedAccountId) {
-        const accountFilter = getAccountFilter();
-        filters = { ...filters, ...accountFilter };
-      }
-
-      if (selectedStatus !== 'all') {
-        filters.status = selectedStatus;
-      }
-
-      if (selectedSeverity !== 'all') {
-        filters.severity = selectedSeverity;
-      }
-
-      const response = await apiClient.select('remediation_tickets', {
-        select: '*',
-        eq: filters,
-        order: { column: 'created_at', ascending: false }
+  
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const response = await apiClient.post('/api/functions/mutate-table', {
+        table: 'remediation_tickets',
+        operation: 'create',
+        data: {
+          ...data,
+          status: 'open',
+          due_date: data.due_date ? new Date(data.due_date).toISOString() : null,
+        },
       });
-
-      if (response.error) {
-        throw new Error(getErrorMessage(response.error));
-      }
-
-      return response.data || [];
-    },
-  });
-
-  // Create ticket
-  const createTicketMutation = useMutation({
-    mutationFn: async (ticketData: typeof newTicket) => {
-      // Clean up data before sending
-      const cleanData = {
-        ...ticketData,
-        organization_id: organizationId,
-        ...getAccountFilter(), // Multi-cloud compatible
-        status: 'open',
-        created_by: 'current_user',
-        automation_available: false,
-        // Convert empty string to null for optional fields
-        due_date: ticketData.due_date || null,
-        business_impact: ticketData.business_impact || null,
-      };
-
-      const response = await apiClient.insert('remediation_tickets', cleanData);
-
-      if (response.error) {
-        throw new Error(getErrorMessage(response.error));
-      }
-
       return response.data;
     },
     onSuccess: () => {
-      toast({
-        title: t('remediationTickets.ticketCreated', 'Ticket created successfully'),
-        description: t('remediationTickets.ticketCreatedDesc', 'The remediation ticket was created successfully.'),
-      });
-      setIsCreateDialogOpen(false);
-      setNewTicket({
+      toast({ title: 'Ticket criado com sucesso', variant: 'default' });
+      onOpenChange(false);
+      onSuccess();
+      setFormData({
         title: '',
         description: '',
         severity: 'medium',
         priority: 'medium',
         category: 'security',
-        due_date: '',
-        business_impact: '',
         estimated_effort_hours: 0,
-        affected_resources: []
+        business_impact: '',
+        due_date: '',
       });
-      refetch();
     },
-    onError: (error) => {
-      toast({
-        title: t('remediationTickets.ticketCreateError', 'Error creating ticket'),
-        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
-        variant: "destructive"
-      });
-    }
+    onError: (err) => {
+      toast({ title: 'Erro ao criar ticket', description: getErrorMessage(err), variant: 'destructive' });
+    },
   });
-
-  // Update ticket status
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const response = await apiClient.update('remediation_tickets', {
-        status,
-        updated_at: new Date().toISOString()
-      }, { id });
-
-      if (response.error) {
-        throw new Error(getErrorMessage(response.error));
-      }
-
-      return response.data;
-    },
-    onSuccess: () => {
-      toast({
-        title: t('remediationTickets.statusUpdated', 'Status updated'),
-        description: t('remediationTickets.statusUpdatedDesc', 'The ticket status was updated successfully.'),
-      });
-      refetch();
-    },
-    onError: (error) => {
-      toast({
-        title: t('remediationTickets.updateError', 'Error updating'),
-        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
-        variant: "destructive"
-      });
-    }
-  });
-
-  const handleCreateTicket = () => {
-    if (!newTicket.title || !newTicket.description) {
-      toast({
-        title: t('remediationTickets.requiredFields', 'Required fields'),
-        description: t('remediationTickets.requiredFieldsDesc', 'Title and description are required.'),
-        variant: "destructive"
-      });
-      return;
-    }
-
-    createTicketMutation.mutate(newTicket);
-  };
-
-  const handleRefresh = async () => {
-    try {
-      await refetch();
-      toast({
-        title: t('remediationTickets.dataUpdated', 'Data updated'),
-        description: t('remediationTickets.dataUpdatedDesc', 'The tickets were updated.'),
-      });
-    } catch (error) {
-      toast({
-        title: t('remediationTickets.updateError', 'Error updating'),
-        description: t('remediationTickets.updateErrorDesc', 'Could not update the data.'),
-        variant: "destructive"
-      });
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'open': return <Badge variant="outline">{t('remediationTickets.statusOpen', 'Open')}</Badge>;
-      case 'in_progress': return <Badge className="bg-blue-500">{t('remediationTickets.inProgress', 'In Progress')}</Badge>;
-      case 'resolved': return <Badge className="bg-green-500">{t('remediationTickets.resolved', 'Resolved')}</Badge>;
-      case 'closed': return <Badge variant="secondary">{t('remediationTickets.statusClosed', 'Closed')}</Badge>;
-      case 'cancelled': return <Badge variant="destructive">{t('remediationTickets.statusCancelled', 'Cancelled')}</Badge>;
-      default: return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getSeverityBadge = (severity: string) => {
-    switch (severity) {
-      case 'critical': return <Badge variant="destructive">{t('remediationTickets.severityCritical', 'Critical')}</Badge>;
-      case 'high': return <Badge variant="destructive">{t('remediationTickets.severityHigh', 'High')}</Badge>;
-      case 'medium': return <Badge variant="secondary">{t('remediationTickets.severityMedium', 'Medium')}</Badge>;
-      case 'low': return <Badge variant="outline">{t('remediationTickets.severityLow', 'Low')}</Badge>;
-      default: return <Badge variant="outline">{severity}</Badge>;
-    }
-  };
-
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return <Badge variant="destructive">{t('remediationTickets.priorityUrgent', 'Urgent')}</Badge>;
-      case 'high': return <Badge className="bg-orange-500">{t('remediationTickets.priorityHigh', 'High')}</Badge>;
-      case 'medium': return <Badge variant="secondary">{t('remediationTickets.priorityMedium', 'Medium')}</Badge>;
-      case 'low': return <Badge variant="outline">{t('remediationTickets.priorityLow', 'Low')}</Badge>;
-      default: return <Badge variant="outline">{priority}</Badge>;
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'open': return <Clock className="h-4 w-4 text-blue-500" />;
-      case 'in_progress': return <Play className="h-4 w-4 text-yellow-500" />;
-      case 'resolved': return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'closed': return <XCircle className="h-4 w-4 text-gray-500" />;
-      case 'cancelled': return <XCircle className="h-4 w-4 text-red-500" />;
-      default: return <Clock className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
-  // Calculate summary metrics
-  const totalTickets = tickets?.length || 0;
-  const openTickets = tickets?.filter(t => t.status === 'open').length || 0;
-  const inProgressTickets = tickets?.filter(t => t.status === 'in_progress').length || 0;
-  const criticalTickets = tickets?.filter(t => t.severity === 'critical').length || 0;
-  const overdueTickets = tickets?.filter(t => 
-    t.due_date && new Date(t.due_date) < new Date() && !['resolved', 'closed'].includes(t.status)
-  ).length || 0;
-
-  const categories = [
-    { value: 'security', label: t('remediationTickets.categorySecurity', 'Security') },
-    { value: 'compliance', label: t('remediationTickets.categoryCompliance', 'Compliance') },
-    { value: 'cost_optimization', label: t('remediationTickets.categoryCostOptimization', 'Cost Optimization') },
-    { value: 'performance', label: t('remediationTickets.categoryPerformance', 'Performance') },
-    { value: 'configuration', label: t('remediationTickets.categoryConfiguration', 'Configuration') }
-  ];
-
+  
   return (
-    <Layout 
-      title={t('sidebar.remediationTickets', 'Tickets de Remediação')} 
-      description={t('remediationTickets.description', 'Sistema de workflow para rastreamento e resolução de problemas')}
-      icon={<Ticket className="h-5 w-5" />}
-    >
-      <div className="space-y-6">
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.totalTickets', 'Total Tickets')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-8 w-12" />
-            ) : (
-              <div className="text-2xl font-semibold">{totalTickets}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.statusOpen', 'Open')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-8 w-12" />
-            ) : (
-              <div className="text-2xl font-semibold text-blue-500">{openTickets}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.inProgress', 'In Progress')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-8 w-12" />
-            ) : (
-              <div className="text-2xl font-semibold text-yellow-500">{inProgressTickets}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.criticals', 'Critical')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-8 w-12" />
-            ) : (
-              <div className="text-2xl font-semibold text-red-500">{criticalTickets}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('remediationTickets.overdue', 'Overdue')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-8 w-12" />
-            ) : (
-              <div className="text-2xl font-semibold text-red-600">{overdueTickets}</div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <Card >
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger >
-                <SelectValue placeholder={t('remediationTickets.filterByStatus', 'Filter by status')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('remediationTickets.allStatuses', 'All Statuses')}</SelectItem>
-                <SelectItem value="open">{t('remediationTickets.statusOpen', 'Open')}</SelectItem>
-                <SelectItem value="in_progress">{t('remediationTickets.inProgress', 'In Progress')}</SelectItem>
-                <SelectItem value="resolved">{t('remediationTickets.resolved', 'Resolved')}</SelectItem>
-                <SelectItem value="closed">{t('remediationTickets.statusClosed', 'Closed')}</SelectItem>
-                <SelectItem value="cancelled">{t('remediationTickets.statusCancelled', 'Cancelled')}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
-              <SelectTrigger >
-                <SelectValue placeholder={t('remediationTickets.filterBySeverity', 'Filter by severity')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('remediationTickets.allSeverities', 'All Severities')}</SelectItem>
-                <SelectItem value="critical">{t('remediationTickets.severityCritical', 'Critical')}</SelectItem>
-                <SelectItem value="high">{t('remediationTickets.severityHigh', 'High')}</SelectItem>
-                <SelectItem value="medium">{t('remediationTickets.severityMedium', 'Medium')}</SelectItem>
-                <SelectItem value="low">{t('remediationTickets.severityLow', 'Low')}</SelectItem>
-              </SelectContent>
-            </Select>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="h-5 w-5 text-[#003C7D]" />
+            Criar Novo Ticket
+          </DialogTitle>
+          <DialogDescription>
+            Crie um ticket de remediação para rastrear e resolver problemas
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="title">Título *</Label>
+            <Input
+              id="title"
+              placeholder="Descreva brevemente o problema"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Tickets List */}
-      <Card >
-        <CardHeader>
-          <CardTitle>{t('remediationTickets.ticketsList', 'Tickets List')}</CardTitle>
-          <CardDescription>{t('remediationTickets.ticketsListDesc', 'All remediation tickets')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-32 w-full" />
-              ))}
-            </div>
-          ) : tickets && tickets.length > 0 ? (
-            <div className="space-y-4">
-              {tickets.map((ticket) => (
-                <div key={ticket.id} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      {getStatusIcon(ticket.status)}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-sm">{ticket.title}</h4>
-                          {getSeverityBadge(ticket.severity)}
-                          {getPriorityBadge(ticket.priority)}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{ticket.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            <span>{t('remediationTickets.createdBy', 'Created by')}: {ticket.created_by}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            <span>{new Date(ticket.created_at).toLocaleDateString('pt-BR')}</span>
-                          </div>
-                          {ticket.due_date && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              <span>{t('remediationTickets.dueDate', 'Due')}: {new Date(ticket.due_date).toLocaleDateString('pt-BR')}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right space-y-2">
-                      {getStatusBadge(ticket.status)}
-                      <div className="text-sm text-muted-foreground">
-                        {ticket.category.replace('_', ' ')}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {ticket.business_impact && (
-                    <div className="bg-muted/30 rounded p-3">
-                      <p className="text-sm font-medium mb-1">{t('remediationTickets.businessImpact', 'Business Impact')}:</p>
-                      <p className="text-sm text-muted-foreground">{ticket.business_impact}</p>
-                    </div>
-                  )}
-                  
-                  {ticket.affected_resources && ticket.affected_resources.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">{t('remediationTickets.affectedResources', 'Affected Resources')}:</p>
-                      <div className="flex gap-2 flex-wrap">
-                        {ticket.affected_resources.map((resource, idx) => (
-                          <Badge key={idx} variant="outline" className="text-xs">
-                            {resource}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-sm">
-                      {ticket.estimated_effort_hours > 0 && (
-                        <span className="text-muted-foreground">
-                          {t('remediationTickets.effort', 'Effort')}: {ticket.estimated_effort_hours}h
-                        </span>
-                      )}
-                      {ticket.automation_available && (
-                        <Badge variant="outline" className="gap-1">
-                          <Settings className="h-3 w-3" />
-                          {t('remediationTickets.automationAvailable', 'Automation Available')}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      {ticket.status === 'open' && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => updateStatusMutation.mutate({ id: ticket.id, status: 'in_progress' })}
-                        >
-                          <Play className="h-4 w-4 mr-1" />
-                          {t('remediationTickets.start', 'Start')}
-                        </Button>
-                      )}
-                      {ticket.status === 'in_progress' && (
-                        <Button 
-                          size="sm"
-                          onClick={() => updateStatusMutation.mutate({ id: ticket.id, status: 'resolved' })}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          {t('remediationTickets.resolve', 'Resolve')}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <Ticket className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-xl font-semibold mb-2">{t('remediationTickets.noTicketsFound', 'No tickets found')}</h3>
-              <p className="text-muted-foreground mb-4">
-                {selectedStatus !== 'all' || selectedSeverity !== 'all' 
-                  ? t('remediationTickets.noTicketsWithFilters', 'No tickets match the applied filters.')
-                  : t('remediationTickets.createFirstTicketDesc', 'Create your first remediation ticket.')
-                }
-              </p>
-              {selectedStatus === 'all' && selectedSeverity === 'all' && (
-                <Button onClick={() => setIsCreateDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  {t('remediationTickets.createFirstTicket', 'Create First Ticket')}
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Create Ticket Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{t('remediationTickets.createNewTicket', 'Create New Ticket')}</DialogTitle>
-            <DialogDescription>
-              {t('remediationTickets.createNewTicketDesc', 'Create a new remediation ticket to track issues')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
+          
+          <div className="space-y-2">
+            <Label htmlFor="description">Descrição</Label>
+            <Textarea
+              id="description"
+              placeholder="Detalhes do problema, impacto, recursos afetados..."
+              rows={4}
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="title">{t('remediationTickets.ticketTitle', 'Title')}</Label>
+              <Label>Severidade</Label>
+              <Select value={formData.severity} onValueChange={(v: any) => setFormData({ ...formData, severity: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="critical">Crítico</SelectItem>
+                  <SelectItem value="high">Alto</SelectItem>
+                  <SelectItem value="medium">Médio</SelectItem>
+                  <SelectItem value="low">Baixo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Prioridade</Label>
+              <Select value={formData.priority} onValueChange={(v: any) => setFormData({ ...formData, priority: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent">Urgente</SelectItem>
+                  <SelectItem value="high">Alta</SelectItem>
+                  <SelectItem value="medium">Média</SelectItem>
+                  <SelectItem value="low">Baixa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Categoria</Label>
+              <Select value={formData.category} onValueChange={(v: any) => setFormData({ ...formData, category: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="security">Segurança</SelectItem>
+                  <SelectItem value="compliance">Compliance</SelectItem>
+                  <SelectItem value="cost_optimization">Otimização de Custos</SelectItem>
+                  <SelectItem value="performance">Performance</SelectItem>
+                  <SelectItem value="configuration">Configuração</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Data Limite</Label>
               <Input
-                id="title"
-                value={newTicket.title}
-                onChange={(e) => setNewTicket(prev => ({ ...prev, title: e.target.value }))}
-                placeholder={t('remediationTickets.ticketTitlePlaceholder', 'Problem title')}
+                type="date"
+                value={formData.due_date}
+                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Esforço Estimado (horas)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={formData.estimated_effort_hours}
+                onChange={(e) => setFormData({ ...formData, estimated_effort_hours: parseInt(e.target.value) || 0 })}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="description">{t('remediationTickets.ticketDescription', 'Description')}</Label>
-              <Textarea
-                id="description"
-                value={newTicket.description}
-                onChange={(e) => setNewTicket(prev => ({ ...prev, description: e.target.value }))}
-                placeholder={t('remediationTickets.ticketDescriptionPlaceholder', 'Describe the problem in detail')}
-                rows={4}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="severity">{t('remediationTickets.severity', 'Severity')}</Label>
-                <Select value={newTicket.severity} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, severity: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">{t('remediationTickets.severityLow', 'Low')}</SelectItem>
-                    <SelectItem value="medium">{t('remediationTickets.severityMedium', 'Medium')}</SelectItem>
-                    <SelectItem value="high">{t('remediationTickets.severityHigh', 'High')}</SelectItem>
-                    <SelectItem value="critical">{t('remediationTickets.severityCritical', 'Critical')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="priority">{t('remediationTickets.priority', 'Priority')}</Label>
-                <Select value={newTicket.priority} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, priority: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">{t('remediationTickets.priorityLow', 'Low')}</SelectItem>
-                    <SelectItem value="medium">{t('remediationTickets.priorityMedium', 'Medium')}</SelectItem>
-                    <SelectItem value="high">{t('remediationTickets.priorityHigh', 'High')}</SelectItem>
-                    <SelectItem value="urgent">{t('remediationTickets.priorityUrgent', 'Urgent')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">{t('remediationTickets.category', 'Category')}</Label>
-                <Select value={newTicket.category} onValueChange={(value: any) => setNewTicket(prev => ({ ...prev, category: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="due_date">{t('remediationTickets.dueDateLabel', 'Due Date')}</Label>
-                <Input
-                  id="due_date"
-                  type="date"
-                  value={newTicket.due_date}
-                  onChange={(e) => setNewTicket(prev => ({ ...prev, due_date: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="effort">{t('remediationTickets.estimatedEffort', 'Estimated Effort (hours)')}</Label>
-                <Input
-                  id="effort"
-                  type="number"
-                  value={newTicket.estimated_effort_hours}
-                  onChange={(e) => setNewTicket(prev => ({ ...prev, estimated_effort_hours: Number(e.target.value) }))}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="business_impact">{t('remediationTickets.businessImpact', 'Business Impact')}</Label>
-              <Textarea
-                id="business_impact"
-                value={newTicket.business_impact}
-                onChange={(e) => setNewTicket(prev => ({ ...prev, business_impact: e.target.value }))}
-                placeholder={t('remediationTickets.businessImpactPlaceholder', 'Describe the business impact')}
-                rows={2}
+              <Label>Impacto no Negócio</Label>
+              <Input
+                placeholder="Ex: Afeta produção, compliance..."
+                value={formData.business_impact}
+                onChange={(e) => setFormData({ ...formData, business_impact: e.target.value })}
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-              {t('common.cancel', 'Cancel')}
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={() => createMutation.mutate(formData)}
+            disabled={!formData.title || createMutation.isPending}
+            className="bg-[#003C7D] hover:bg-[#002d5c]"
+          >
+            {createMutation.isPending ? 'Criando...' : 'Criar Ticket'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+// ==================== MAIN PAGE COMPONENT ====================
+
+export default function RemediationTickets() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { selectedAccount } = useCloudAccount();
+  
+  // State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  
+  // Fetch tickets
+  const { data: ticketsData, isLoading, refetch } = useQuery({
+    queryKey: ['remediation-tickets', selectedAccount?.id],
+    queryFn: async () => {
+      const response = await apiClient.post('/api/functions/query-table', {
+        table: 'remediation_tickets',
+        orderBy: { created_at: 'desc' },
+        include: {
+          _count: {
+            select: {
+              comments: true,
+              checklist_items: true,
+              attachments: true,
+            },
+          },
+        },
+      });
+      return response.data;
+    },
+  });
+  
+  const tickets: RemediationTicket[] = ticketsData?.data || [];
+  
+  // Filter tickets
+  const filteredTickets = useMemo(() => {
+    return tickets.filter(ticket => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        if (!ticket.title.toLowerCase().includes(query) && 
+            !ticket.description?.toLowerCase().includes(query) &&
+            !ticket.id.toLowerCase().includes(query)) {
+          return false;
+        }
+      }
+      
+      // Status filter
+      if (statusFilter !== 'all' && ticket.status !== statusFilter) return false;
+      
+      // Severity filter
+      if (severityFilter !== 'all' && ticket.severity !== severityFilter) return false;
+      
+      // Category filter
+      if (categoryFilter !== 'all' && ticket.category !== categoryFilter) return false;
+      
+      return true;
+    });
+  }, [tickets, searchQuery, statusFilter, severityFilter, categoryFilter]);
+  
+  const handleTicketClick = (ticketId: string) => {
+    navigate(`/tickets/${ticketId}`);
+  };
+  
+  return (
+    <Layout
+      title={t('tickets.title', 'Tickets de Remediação')}
+      description={t('tickets.description', 'Gerencie e acompanhe tickets de remediação de segurança e compliance')}
+      icon={<Ticket className="h-4 w-4 text-white" />}
+    >
+      <div className="space-y-6">
+        {/* Stats Cards */}
+        {!isLoading && tickets.length > 0 && <StatsCards tickets={tickets} />}
+        
+        {/* Header Actions */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar tickets..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              className="glass hover-glow"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Atualizar
             </Button>
-            <Button onClick={handleCreateTicket} disabled={createTicketMutation.isPending}>
-              {createTicketMutation.isPending ? t('remediationTickets.creating', 'Creating...') : t('remediationTickets.createTicket', 'Create Ticket')}
+            
+            <Button
+              size="sm"
+              onClick={() => setCreateDialogOpen(true)}
+              className="bg-[#003C7D] hover:bg-[#002d5c]"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Ticket
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+        
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-400" />
+            <span className="text-sm text-gray-500">Filtros:</span>
+          </div>
+          
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[150px] h-8 text-sm">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos Status</SelectItem>
+              <SelectItem value="open">Aberto</SelectItem>
+              <SelectItem value="in_progress">Em Progresso</SelectItem>
+              <SelectItem value="pending_review">Aguardando Revisão</SelectItem>
+              <SelectItem value="blocked">Bloqueado</SelectItem>
+              <SelectItem value="resolved">Resolvido</SelectItem>
+              <SelectItem value="closed">Fechado</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select value={severityFilter} onValueChange={setSeverityFilter}>
+            <SelectTrigger className="w-[140px] h-8 text-sm">
+              <SelectValue placeholder="Severidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="critical">Crítico</SelectItem>
+              <SelectItem value="high">Alto</SelectItem>
+              <SelectItem value="medium">Médio</SelectItem>
+              <SelectItem value="low">Baixo</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-[160px] h-8 text-sm">
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="security">Segurança</SelectItem>
+              <SelectItem value="compliance">Compliance</SelectItem>
+              <SelectItem value="cost_optimization">Custos</SelectItem>
+              <SelectItem value="performance">Performance</SelectItem>
+              <SelectItem value="configuration">Configuração</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {(statusFilter !== 'all' || severityFilter !== 'all' || categoryFilter !== 'all' || searchQuery) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setStatusFilter('all');
+                setSeverityFilter('all');
+                setCategoryFilter('all');
+                setSearchQuery('');
+              }}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Limpar filtros
+            </Button>
+          )}
+        </div>
+        
+        {/* Tickets List */}
+        <div className="space-y-3">
+          {isLoading ? (
+            // Loading skeletons
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-2 w-2 rounded-full" />
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-5 w-24" />
+                    </div>
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <div className="flex gap-4">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <Skeleton className="h-6 w-24" />
+                    <Skeleton className="h-5 w-16" />
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : filteredTickets.length === 0 ? (
+            <Card className="glass border-primary/20">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Ticket className="h-12 w-12 text-gray-300 mb-4" />
+                <h3 className="text-lg font-medium text-gray-600 mb-2">
+                  {tickets.length === 0 ? 'Nenhum ticket encontrado' : 'Nenhum ticket corresponde aos filtros'}
+                </h3>
+                <p className="text-sm text-gray-400 mb-4">
+                  {tickets.length === 0 
+                    ? 'Crie seu primeiro ticket de remediação'
+                    : 'Tente ajustar os filtros de busca'}
+                </p>
+                {tickets.length === 0 && (
+                  <Button onClick={() => setCreateDialogOpen(true)} className="bg-[#003C7D] hover:bg-[#002d5c]">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Criar Ticket
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            filteredTickets.map(ticket => (
+              <TicketCard 
+                key={ticket.id} 
+                ticket={ticket} 
+                onClick={() => handleTicketClick(ticket.id)} 
+              />
+            ))
+          )}
+        </div>
+        
+        {/* Results count */}
+        {!isLoading && filteredTickets.length > 0 && (
+          <p className="text-sm text-gray-400 text-center">
+            Mostrando {filteredTickets.length} de {tickets.length} tickets
+          </p>
+        )}
       </div>
+      
+      {/* Create Ticket Dialog */}
+      <CreateTicketDialog 
+        open={createDialogOpen} 
+        onOpenChange={setCreateDialogOpen}
+        onSuccess={() => refetch()}
+      />
     </Layout>
   );
 }

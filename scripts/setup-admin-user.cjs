@@ -39,7 +39,7 @@ async function setupAdminUser() {
       console.log('🏢 Criando organização padrão...');
       const createOrgResult = await client.query(`
         INSERT INTO organizations (id, name, slug, created_at, updated_at) 
-        VALUES (gen_random_uuid(), 'EVO UDS Admin', 'evo-uds-admin', NOW(), NOW())
+        VALUES (gen_random_uuid(), 'EVO Platform Admin', 'evo-platform-admin', NOW(), NOW())
         RETURNING id
       `);
       organizationId = createOrgResult.rows[0].id;

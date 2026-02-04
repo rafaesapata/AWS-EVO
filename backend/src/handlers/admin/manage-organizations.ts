@@ -356,10 +356,11 @@ export async function handler(
           demo_activated_at: org.demo_activated_at,
           demo_expires_at: org.demo_expires_at,
           demo_activated_by: org.demo_activated_by,
+          // Status field from database
+          status: (org as any).status || 'active',
           // Default values for fields not in schema
           description: '',
           domain: org.slug,
-          status: 'active',
           monthly_cost: 0,
           billing_email: '',
           admin_users: [],
@@ -623,6 +624,12 @@ export async function handler(
           return badRequest('Organization not found', undefined, origin);
         }
 
+        // Atualizar status da organização para suspended
+        await prisma.organization.update({
+          where: { id: body.id },
+          data: { status: 'suspended' }
+        });
+
         // Desativar todas as licenças da organização
         await prisma.license.updateMany({
           where: { organization_id: body.id },
@@ -677,6 +684,12 @@ export async function handler(
         if (!orgToUnsuspend) {
           return badRequest('Organization not found', undefined, origin);
         }
+
+        // Atualizar status da organização para active
+        await prisma.organization.update({
+          where: { id: body.id },
+          data: { status: 'active' }
+        });
 
         // Reativar licenças que não estão expiradas
         const now = new Date();

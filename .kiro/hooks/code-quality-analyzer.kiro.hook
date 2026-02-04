@@ -1,0 +1,28 @@
+{
+  "enabled": true,
+  "name": "Code Quality Analyzer",
+  "description": "Analyzes modified source code files for potential improvements including code smells, design patterns, best practices, readability, maintainability, and performance optimizations",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.ts",
+      "*.tsx",
+      "*.js",
+      "*.jsx",
+      "*.py",
+      "*.java",
+      "*.go",
+      "*.rs",
+      "*.cpp",
+      "*.c",
+      "*.h"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Analyze the edited file for code quality improvements. Look for:\n1.⁠ ⁠Code smells (long methods, duplicate code, magic numbers, etc.)\n2.⁠ ⁠Design pattern opportunities\n3.⁠ ⁠Best practices violations\n4.⁠ ⁠Readability improvements (naming, comments, structure)\n5.⁠ ⁠Maintainability concerns\n6.⁠ ⁠Performance optimizations\n7.⁠ ⁠Ensure the code uses no simulated, mocked, or synthetic data, except for testing scripts\nIf you find improvements, execute specific changes with code examples. Maintain existing functionality - only improve code quality. Be concise and actionable"
+  },
+  "workspaceFolderName": "AWS-EVO",
+  "shortName": "code-quality-analyzer"
+}

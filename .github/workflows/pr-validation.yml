@@ -1,0 +1,109 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main, production]
+    paths:
+      - 'backend/**'
+      - 'src/**'
+      - 'package.json'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  validate-backend:
+    name: Validate Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test -- --run --passWithNoTests
+        env:
+          NODE_ENV: test
+
+      - name: Build
+        run: npm run build
+
+      - name: Check for console.log in handlers
+        run: |
+          if grep -r "console\.log" src/handlers/ --include="*.ts" | grep -v "// DEBUG" | grep -v "test"; then
+            echo "⚠️ Found console.log statements in handlers (use logger instead)"
+            exit 1
+          fi
+        continue-on-error: true
+
+  validate-frontend:
+    name: Validate Frontend
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.changed_files, 'src/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Build frontend
+        run: npm run build
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run npm audit
+        run: |
+          cd backend && npm audit --audit-level=high || true
+          npm audit --audit-level=high || true
+        continue-on-error: true
+
+      - name: Check for hardcoded secrets
+        run: |
+          # Check for potential secrets in code
+          if grep -rE "(password|secret|api_key|apikey|token).*=.*['\"][^'\"]{8,}['\"]" \
+            --include="*.ts" --include="*.tsx" --include="*.js" \
+            --exclude-dir=node_modules --exclude-dir=dist \
+            backend/src/ src/ 2>/dev/null; then
+            echo "⚠️ Potential hardcoded secrets found"
+          fi
+        continue-on-error: true

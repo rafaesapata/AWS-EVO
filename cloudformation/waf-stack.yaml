@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - WAF Rules for Military-Grade Protection'
+Description: 'EVO Platform - WAF Rules for Military-Grade Protection'
 
 Parameters:
   ProjectName:

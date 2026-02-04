@@ -6,7 +6,7 @@ This feature standardizes the AWS account reference fields across all database t
 
 ## Glossary
 
-- **AWS_Account_Number**: The 12-digit AWS account identifier (e.g., "383234048592")
+- **AWS_Account_Number**: The 12-digit AWS account identifier (e.g., "971354623291")
 - **AWS_Account_UUID**: The internal UUID primary key from the `aws_accounts` table
 - **Organization_ID**: The UUID identifying the tenant organization
 - **Migration_Handler**: A Lambda function that performs database schema and data migrations

@@ -25,6 +25,7 @@ model Organization {
   id                String   @id @default(uuid()) @db.Uuid
   name              String
   slug              String   @unique
+  status            String   @default("active") // active, suspended, inactive
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   updated_at        DateTime @updatedAt @db.Timestamptz(6)
   
@@ -49,6 +50,7 @@ model Organization {
   demo_mode_audits  DemoModeAudit[]
   
   @@index([demo_mode])
+  @@index([status])
   @@map("organizations")
 }
 
@@ -1188,41 +1190,49 @@ model ComplianceScan {
 // ==================== RESOURCE MONITORING ====================
 
 model MonitoredResource {
-  id                String   @id @default(uuid()) @db.Uuid
-  organization_id   String   @db.Uuid
-  aws_account_id    String   @db.Uuid
-  resource_id       String
-  resource_name     String
-  resource_type     String
-  region            String
-  status            String   @default("unknown")
-  metadata          Json?
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  id                  String        @id @default(uuid()) @db.Uuid
+  organization_id     String        @db.Uuid
+  aws_account_id      String?       @db.Uuid
+  azure_credential_id String?       @db.Uuid
+  cloud_provider      CloudProvider @default(AWS)
+  resource_id         String
+  resource_name       String
+  resource_type       String
+  region              String
+  status              String        @default("unknown")
+  metadata            Json?
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime      @updatedAt @db.Timestamptz(6)
   
   @@unique([organization_id, aws_account_id, resource_id, resource_type])
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
+  @@index([cloud_provider])
   @@index([resource_type])
   @@map("monitored_resources")
 }
 
 model ResourceMetric {
-  id                String   @id @default(uuid()) @db.Uuid
-  organization_id   String   @db.Uuid
-  aws_account_id    String   @db.Uuid
-  resource_id       String
-  resource_name     String?
-  resource_type     String
-  metric_name       String
-  metric_value      Float
-  metric_unit       String?
-  timestamp         DateTime @db.Timestamptz(6)
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  id                  String        @id @default(uuid()) @db.Uuid
+  organization_id     String        @db.Uuid
+  aws_account_id      String?       @db.Uuid
+  azure_credential_id String?       @db.Uuid
+  cloud_provider      CloudProvider @default(AWS)
+  resource_id         String
+  resource_name       String?
+  resource_type       String
+  metric_name         String
+  metric_value        Float
+  metric_unit         String?
+  timestamp           DateTime      @db.Timestamptz(6)
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
   
   @@unique([organization_id, aws_account_id, resource_id, metric_name, timestamp])
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
+  @@index([cloud_provider])
   @@index([resource_id])
   @@index([timestamp])
   @@map("resource_metrics")
@@ -1498,7 +1508,7 @@ model RemediationTicket {
   description             String?
   severity                String   @default("medium") // low, medium, high, critical
   priority                String   @default("medium") // low, medium, high, urgent
-  status                  String   @default("open") // open, in_progress, resolved, closed, cancelled
+  status                  String   @default("open") // open, in_progress, pending_review, blocked, resolved, closed, cancelled, reopened
   category                String   @default("security") // security, compliance, cost_optimization, performance, configuration
   created_by              String
   assigned_to             String?  @db.Uuid
@@ -1515,7 +1525,27 @@ model RemediationTicket {
   created_at              DateTime @default(now()) @db.Timestamptz(6)
   updated_at              DateTime @updatedAt @db.Timestamptz(6)
   
+  // SLA Fields
+  sla_policy_id           String?  @db.Uuid
+  sla_due_at              DateTime? @db.Timestamptz(6)  // Prazo do SLA baseado na política
+  sla_breached            Boolean  @default(false)
+  sla_breach_notified     Boolean  @default(false)
+  first_response_at       DateTime? @db.Timestamptz(6)
+  time_to_first_response  Int?     // minutos
+  time_to_resolution      Int?     // minutos
+  escalation_level        Int      @default(0)
+  escalated_at            DateTime? @db.Timestamptz(6)
+  
   organization            Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  sla_policy              SlaPolicy? @relation(fields: [sla_policy_id], references: [id])
+  
+  // Relations
+  history                 TicketHistory[]
+  comments                TicketComment[]
+  checklist_items         TicketChecklistItem[]
+  source_relations        TicketRelation[] @relation("SourceTicket")
+  target_relations        TicketRelation[] @relation("TargetTicket")
+  attachments             TicketAttachment[]
   
   @@index([organization_id])
   @@index([aws_account_id])
@@ -1525,7 +1555,169 @@ model RemediationTicket {
   @@index([severity])
   @@index([created_by])
   @@index([assigned_to])
+  @@index([sla_due_at])
+  @@index([sla_breached])
+  @@index([sla_policy_id])
   @@map("remediation_tickets")
+}
+
+// ==================== TICKET HISTORY (Audit Trail) ====================
+
+model TicketHistory {
+  id              String   @id @default(uuid()) @db.Uuid
+  ticket_id       String   @db.Uuid
+  user_id         String   @db.Uuid
+  user_name       String?
+  user_email      String?
+  action          String   // created, status_changed, assigned, commented, priority_changed, severity_changed, sla_breached, escalated, resolved, reopened, checklist_updated
+  field_changed   String?  // status, priority, assigned_to, severity, etc.
+  old_value       String?
+  new_value       String?
+  comment         String?  // Optional comment with the action
+  metadata        Json?    // Additional context
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  
+  ticket          RemediationTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  
+  @@index([ticket_id])
+  @@index([user_id])
+  @@index([action])
+  @@index([created_at])
+  @@map("ticket_history")
+}
+
+// ==================== TICKET COMMENTS ====================
+
+model TicketComment {
+  id              String   @id @default(uuid()) @db.Uuid
+  ticket_id       String   @db.Uuid
+  user_id         String   @db.Uuid
+  user_name       String?
+  user_email      String?
+  content         String
+  is_internal     Boolean  @default(false)  // Internal comments not visible to all users
+  is_resolution   Boolean  @default(false)  // Marked as resolution comment
+  attachments     String[] @default([])     // Array of attachment URLs
+  parent_id       String?  @db.Uuid         // For threaded comments
+  mentions        String[] @default([])     // Array of mentioned user IDs
+  edited          Boolean  @default(false)
+  edited_at       DateTime? @db.Timestamptz(6)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  
+  ticket          RemediationTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  
+  @@index([ticket_id])
+  @@index([user_id])
+  @@index([parent_id])
+  @@index([created_at])
+  @@map("ticket_comments")
+}
+
+// ==================== SLA POLICIES ====================
+
+model SlaPolicy {
+  id                        String   @id @default(uuid()) @db.Uuid
+  organization_id           String   @db.Uuid
+  name                      String
+  description               String?
+  severity                  String   // critical, high, medium, low
+  category                  String?  // Optional: apply only to specific category
+  response_time_minutes     Int      // Time to first response
+  resolution_time_minutes   Int      // Time to resolution
+  escalation_enabled        Boolean  @default(true)
+  escalation_after_minutes  Int?     // Escalate after X minutes without response
+  escalation_to             String?  @db.Uuid  // User to escalate to
+  notify_on_breach          Boolean  @default(true)
+  notify_before_breach_minutes Int?  // Notify X minutes before breach
+  is_active                 Boolean  @default(true)
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+  
+  tickets                   RemediationTicket[]
+  
+  @@unique([organization_id, severity, category])
+  @@index([organization_id])
+  @@index([severity])
+  @@index([is_active])
+  @@map("sla_policies")
+}
+
+// ==================== TICKET CHECKLIST ====================
+
+model TicketChecklistItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  ticket_id       String   @db.Uuid
+  title           String
+  description     String?
+  is_completed    Boolean  @default(false)
+  completed_by    String?  @db.Uuid
+  completed_by_name String?
+  completed_at    DateTime? @db.Timestamptz(6)
+  order_index     Int      @default(0)
+  is_required     Boolean  @default(false)  // Blocks resolution if not completed
+  due_date        DateTime? @db.Timestamptz(6)
+  created_by      String?  @db.Uuid
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  
+  ticket          RemediationTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  
+  @@index([ticket_id])
+  @@index([is_completed])
+  @@index([order_index])
+  @@map("ticket_checklist_items")
+}
+
+// ==================== TICKET RELATIONS ====================
+
+model TicketRelation {
+  id                String   @id @default(uuid()) @db.Uuid
+  source_ticket_id  String   @db.Uuid
+  target_ticket_id  String   @db.Uuid
+  relation_type     String   // blocks, blocked_by, duplicates, duplicate_of, related_to, parent_of, child_of, caused_by, causes
+  created_by        String   @db.Uuid
+  created_by_name   String?
+  notes             String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  
+  source_ticket     RemediationTicket @relation("SourceTicket", fields: [source_ticket_id], references: [id], onDelete: Cascade)
+  target_ticket     RemediationTicket @relation("TargetTicket", fields: [target_ticket_id], references: [id], onDelete: Cascade)
+  
+  @@unique([source_ticket_id, target_ticket_id, relation_type])
+  @@index([source_ticket_id])
+  @@index([target_ticket_id])
+  @@index([relation_type])
+  @@map("ticket_relations")
+}
+
+// ==================== TICKET ATTACHMENTS ====================
+
+model TicketAttachment {
+  id              String   @id @default(uuid()) @db.Uuid
+  ticket_id       String   @db.Uuid
+  comment_id      String?  @db.Uuid  // Optional: attachment can be linked to a comment
+  file_name       String
+  original_name   String
+  file_size       Int      // bytes
+  mime_type       String
+  s3_key          String   // S3 object key
+  s3_bucket       String   // S3 bucket name
+  uploaded_by     String   @db.Uuid
+  uploaded_by_name String?
+  description     String?
+  is_deleted      Boolean  @default(false)  // Soft delete
+  deleted_at      DateTime? @db.Timestamptz(6)
+  deleted_by      String?  @db.Uuid
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  
+  ticket          RemediationTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  
+  @@index([ticket_id])
+  @@index([comment_id])
+  @@index([uploaded_by])
+  @@index([is_deleted])
+  @@map("ticket_attachments")
 }
 
 // ==================== USER ROLES ====================
@@ -2203,4 +2395,54 @@ model AiNotification {
   @@index([type])
   @@index([priority])
   @@map("ai_notifications")
+}
+
+
+// ==================== EMAIL NOTIFICATION SYSTEM ====================
+// Sistema de templates de email e configurações por organização
+
+model EmailTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  template_type   String   @unique // 'welcome', 'daily_summary', 'weekly_report', 'critical_alert', etc.
+  name            String
+  description     String?
+  subject         String
+  html_body       String   @db.Text
+  text_body       String?  @db.Text
+  variables       String[] @default([]) // Variables that can be used in template
+  category        String   @default("general") // 'onboarding', 'reports', 'alerts', 'security', 'costs', 'ai'
+  is_active       Boolean  @default(true)
+  is_system       Boolean  @default(false) // System templates cannot be deleted
+  created_by      String?  @db.Uuid
+  updated_by      String?  @db.Uuid
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@index([template_type])
+  @@index([category])
+  @@index([is_active])
+  @@map("email_templates")
+}
+
+model OrganizationEmailSettings {
+  id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
+  notification_type String   // 'daily_summary', 'weekly_report', 'critical_alert', etc.
+  is_enabled        Boolean  @default(true)
+  frequency         String   @default("daily") // 'immediate', 'daily', 'weekly', 'monthly'
+  send_time         DateTime? @db.Time // Preferred time to send (for scheduled emails)
+  timezone          String   @default("America/Sao_Paulo")
+  recipients        String[] @default([]) // Additional recipients (empty = org admins)
+  last_sent_at      DateTime? @db.Timestamptz(6)
+  next_scheduled_at DateTime? @db.Timestamptz(6)
+  send_count        Int      @default(0)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  
+  @@unique([organization_id, notification_type])
+  @@index([organization_id])
+  @@index([notification_type])
+  @@index([is_enabled])
+  @@index([next_scheduled_at])
+  @@map("organization_email_settings")
 }

@@ -271,7 +271,7 @@ aws lambda get-function-configuration \\
 
 2. Atualizar para layer versão 47 (com Azure SDK + @typespec):
 \`\`\`bash
-LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:47"
+LAYER_ARN="arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92"
 
 aws lambda update-function-configuration \\
  --function-name evo-uds-v3-production-{nome} \\
@@ -554,54 +554,54 @@ export default function ErrorMonitoring() {
  // Alarms with detailed info
  setAlarms([
  {
- name: 'evo-production-lambda-5xx-errors',
+ name: 'evo-sandbox-lambda-5xx-errors',
  state: 'OK',
  reason: 'Threshold Crossed: 3 datapoints were not greater than the threshold (5.0)',
  timestamp: new Date().toISOString(),
  metric: 'AWS/Lambda Errors',
  threshold: 5,
  currentValue: 3,
- actions: ['arn:aws:sns:us-east-1:383234048592:evo-production-error-alerts'],
+ actions: ['arn:aws:sns:us-east-1:971354623291:evo-sandbox-error-alerts'],
  },
  {
- name: 'evo-production-api-gateway-5xx-errors',
+ name: 'evo-sandbox-api-gateway-5xx-errors',
  state: 'OK',
  reason: 'Threshold Crossed: 2 datapoints were not greater than the threshold (10.0)',
  timestamp: new Date().toISOString(),
  metric: 'AWS/ApiGateway 5XXError',
  threshold: 10,
  currentValue: 2,
- actions: ['arn:aws:sns:us-east-1:383234048592:evo-production-error-alerts'],
+ actions: ['arn:aws:sns:us-east-1:971354623291:evo-sandbox-error-alerts'],
  },
  {
- name: 'evo-production-frontend-errors',
+ name: 'evo-sandbox-frontend-errors',
  state: 'OK',
  reason: 'Threshold Crossed: 5 datapoints were not greater than the threshold (10.0)',
  timestamp: new Date().toISOString(),
  metric: 'EVO/Frontend ErrorCount',
  threshold: 10,
  currentValue: 5,
- actions: ['arn:aws:sns:us-east-1:383234048592:evo-production-error-alerts'],
+ actions: ['arn:aws:sns:us-east-1:971354623291:evo-sandbox-error-alerts'],
  },
  {
- name: 'evo-production-frontend-critical-errors',
+ name: 'evo-sandbox-frontend-critical-errors',
  state: 'OK',
  reason: 'Threshold Crossed: 0 datapoints were not greater than the threshold (3.0)',
  timestamp: new Date().toISOString(),
  metric: 'EVO/Frontend CriticalErrorCount',
  threshold: 3,
  currentValue: 0,
- actions: ['arn:aws:sns:us-east-1:383234048592:evo-production-error-alerts'],
+ actions: ['arn:aws:sns:us-east-1:971354623291:evo-sandbox-error-alerts'],
  },
  {
- name: 'evo-production-critical-error-rate',
+ name: 'evo-sandbox-critical-error-rate',
  state: 'OK',
  reason: 'Threshold Crossed: 6 datapoints were not greater than the threshold (20.0)',
  timestamp: new Date().toISOString(),
  metric: 'Combined Error Rate',
  threshold: 20,
  currentValue: 6,
- actions: ['arn:aws:sns:us-east-1:383234048592:evo-production-error-alerts'],
+ actions: ['arn:aws:sns:us-east-1:971354623291:evo-sandbox-error-alerts'],
  },
  ]);
 

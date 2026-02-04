@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - API Gateway Stack - REST API with Cognito Authorization'
+Description: 'EVO Platform - API Gateway Stack - REST API with Cognito Authorization'
 
 Parameters:
   Environment:
@@ -19,7 +19,7 @@ Resources:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: !Sub '${ProjectName}-${Environment}-api'
-      Description: EVO UDS System API
+      Description: EVO Platform API
       EndpointConfiguration:
         Types:
           - REGIONAL

@@ -61,7 +61,7 @@ The script will create/update a secret named: evo-uds/{environment}/app-secrets
     process.exit(0);
   }
   
-  console.log('🔐 EVO UDS Secrets Deployment');
+  console.log('🔐 EVO Platform Secrets Deployment');
   console.log('═'.repeat(50));
   console.log(`📁 Environment file: ${envFile}`);
   console.log(`🌍 Target environment: ${environment}`);

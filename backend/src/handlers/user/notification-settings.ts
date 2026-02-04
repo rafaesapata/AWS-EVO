@@ -181,3 +181,29 @@ export async function deleteHandler(
     return error('Failed to delete notification settings', 500, undefined, origin);
   }
 }
+
+/**
+ * Main handler - routes to appropriate method handler
+ */
+export async function handler(
+  event: AuthorizedEvent,
+  context: LambdaContext
+): Promise<APIGatewayProxyResultV2> {
+  const httpMethod = event.httpMethod || event.requestContext?.http?.method;
+  const origin = getOrigin(event);
+  
+  if (httpMethod === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+  
+  switch (httpMethod) {
+    case 'GET':
+      return getHandler(event, context);
+    case 'POST':
+      return postHandler(event, context);
+    case 'DELETE':
+      return deleteHandler(event, context);
+    default:
+      return error(`Method ${httpMethod} not allowed`, 405, undefined, origin);
+  }
+}

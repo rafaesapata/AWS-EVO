@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - Monitoring Stack - CloudWatch Alarms and Dashboards'
+Description: 'EVO Platform - Monitoring Stack - CloudWatch Alarms and Dashboards'
 
 Parameters:
   Environment:
@@ -19,7 +19,7 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: !Sub '${ProjectName}-${Environment}-alarms'
-      DisplayName: EVO UDS Alarms
+      DisplayName: EVO Platform Alarms
       Tags:
         - Key: Name
           Value: !Sub '${ProjectName}-${Environment}-alarms'

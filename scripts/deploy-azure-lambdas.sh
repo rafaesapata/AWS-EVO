@@ -5,11 +5,11 @@
 set -e
 
 REGION="us-east-1"
-ROLE_ARN="arn:aws:iam::383234048592:role/evo-uds-v3-production-lambda-nodejs-role"
-LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:34"
+ROLE_ARN="arn:aws:iam::971354623291:role/evo-uds-v3-sandbox-lambda-nodejs-role"
+LAYER_ARN="arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92"
 SUBNET_IDS="subnet-0dbb444e4ef54d211,subnet-05383447666913b7b"
 SECURITY_GROUP="sg-04eb71f681cc651ae"
-PREFIX="evo-uds-v3-production"
+PREFIX="evo-uds-v3-sandbox"
 
 # Environment variables
 DATABASE_URL='postgresql://evoadmin:%29V7%3F9ygLec%3FAMSqn%29.UIU4%24vOfRl%2C%24%5EL@evo-uds-v3-production-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public'

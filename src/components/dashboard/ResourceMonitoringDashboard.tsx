@@ -522,9 +522,23 @@ export const ResourceMonitoringDashboard = () => {
     try {
       // Multi-cloud: Call appropriate Lambda based on provider
       const lambdaName = isAzure ? 'azure-fetch-monitor-metrics' : 'fetch-cloudwatch-metrics';
-      const bodyParam = isAzure 
-        ? { credentialId: selectedAccountId }
-        : { accountId: selectedAccountId };
+      
+      // For Azure, we need to find the credential ID from the subscription ID
+      let bodyParam;
+      if (isAzure) {
+        // Find the Azure credential by subscription ID (accountId)
+        const azureAccount = accounts.find(acc => 
+          acc.provider === 'AZURE' && acc.accountId === selectedAccountId
+        );
+        
+        if (!azureAccount) {
+          throw new Error(t('resourceMonitoring.azureCredentialNotFound', 'Azure credential not found'));
+        }
+        
+        bodyParam = { credentialId: azureAccount.id };
+      } else {
+        bodyParam = { accountId: selectedAccountId };
+      }
       
       const response = await apiClient.invoke<any>(lambdaName, {
         body: bodyParam
@@ -950,7 +964,7 @@ export const ResourceMonitoringDashboard = () => {
       {selectedAccountId && (
         <>
           {/* Alerta de Permissões Faltantes */}
-          <AWSPermissionError errors={permissionErrors} />
+          <AWSPermissionError errors={permissionErrors} cloudProvider={selectedProvider} />
 
           {/* Resumo por tipo de recurso */}
           {loadingResources || loadingMetrics || isRefreshing ? (

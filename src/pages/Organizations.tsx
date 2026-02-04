@@ -65,7 +65,7 @@ export default function Organizations() {
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active'); // Default to active organizations
   const [demoFilter, setDemoFilter] = useState('all');
   const [hasAwsFilter, setHasAwsFilter] = useState('all');
   const [hasUsersFilter, setHasUsersFilter] = useState('all');

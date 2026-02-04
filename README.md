@@ -150,7 +150,7 @@ TOTAL:              ~$242/month
 
 ## 📊 Deployment Status
 
-### Account: 383234048592 ✅ Partial Deployment
+### Account: 971354623291 (Sandbox) ✅ Partial Deployment
 
 | Stack | Status | Resources |
 |-------|--------|-----------|
@@ -168,9 +168,9 @@ TOTAL:              ~$242/month
 ### Current Resources
 
 - **VPC**: `vpc-09773244a2156129c`
-- **Database**: `evo-uds-production-db.c070y4ceohf7.us-east-1.rds.amazonaws.com`
-- **User Pool**: `us-east-1_ruVeVdK4z`
-- **Tables**: `evo-uds-production-organizations`, `evo-uds-production-profiles`
+- **Database**: `evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com`
+- **User Pool**: `us-east-1_cnesJ48lR`
+- **Tables**: `evo-uds-v3-sandbox-organizations`, `evo-uds-v3-sandbox-profiles`
 
 ## 🛠️ Development
 
@@ -287,9 +287,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Version**: 1.0.0  
-**Last Updated**: 2024-12-16  
+**Last Updated**: 2026-02-03  
 **Status**: ✅ Production Ready (Partial Deployment)  
-**Account**: 383234048592  
+**Sandbox Account**: 971354623291  
+**Production Account**: 523115032346  
 
 ---
 

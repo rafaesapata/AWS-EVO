@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Feature Code Review",
+  "description": "After completing a feature, performs a comprehensive code review checking for code smells, design patterns, best practices, readability, maintainability, performance, and ensures no mocked data is used in production code. Executes specific improvements while maintaining existing functionality.",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the code changes just made and check for:\n1. Code smells (long methods, duplicate code, magic numbers)\n2. Design pattern opportunities\n3. Best practices violations\n4. Readability improvements (naming, comments, structure)\n5. Maintainability concerns\n6. Performance optimizations\n7. Ensure no simulated, mocked, or synthetic data in production code (only allowed in test scripts)\n\nIf improvements are found, execute specific changes with code examples. Maintain existing functionality - only improve code quality. Be concise and actionable."
+  }
+}

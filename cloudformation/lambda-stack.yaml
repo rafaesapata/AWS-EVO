@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - Lambda Stack - Lambda Functions and IAM Roles'
+Description: 'EVO Platform - Lambda Stack - Lambda Functions and IAM Roles'
 
 Parameters:
   Environment:
@@ -149,7 +149,7 @@ Resources:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub '${ProjectName}-${Environment}-common-layer'
-      Description: Common dependencies for EVO UDS Lambda functions
+      Description: Common dependencies for EVO Platform Lambda functions
       Content:
         S3Bucket: !Sub '${ProjectName}-lambda-code-${AWS::AccountId}'
         S3Key: layers/common-layer.zip

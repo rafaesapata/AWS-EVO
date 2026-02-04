@@ -29,9 +29,42 @@ import {
   ChevronRight,
   Server,
   Database,
-  Info
+  Info,
+  LucideIcon
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+
+// Constants for recommendation types
+const RECOMMENDATION_TYPES = {
+  RESERVED_INSTANCE: 'reserved_instance',
+  RI_PURCHASE: 'ri_purchase',
+  SP_PURCHASE: 'sp_purchase',
+  RIGHT_SIZING: 'right_sizing',
+  SPOT_INSTANCES: 'spot_instances',
+} as const;
+
+// Helper to get icon and color for recommendation type
+const getRecommendationStyle = (type: string): { icon: LucideIcon; bgColor: string; iconColor: string } => {
+  switch (type) {
+    case RECOMMENDATION_TYPES.RESERVED_INSTANCE:
+    case RECOMMENDATION_TYPES.RI_PURCHASE:
+      return { icon: Clock, bgColor: 'bg-purple-100', iconColor: 'text-purple-600' };
+    case RECOMMENDATION_TYPES.RIGHT_SIZING:
+      return { icon: TrendingDown, bgColor: 'bg-amber-100', iconColor: 'text-amber-600' };
+    case RECOMMENDATION_TYPES.SPOT_INSTANCES:
+      return { icon: TrendingUp, bgColor: 'bg-green-100', iconColor: 'text-green-600' };
+    default:
+      return { icon: Zap, bgColor: 'bg-blue-100', iconColor: 'text-blue-600' };
+  }
+};
+
+// Helper to format currency
+const formatCurrency = (value: number, decimals = 0): string => {
+  return value.toLocaleString('en-US', { 
+    minimumFractionDigits: decimals, 
+    maximumFractionDigits: decimals 
+  });
+};
 
 // Interface for RI/SP analysis data from Lambda
 interface RiSpAnalysisData {
@@ -357,6 +390,23 @@ export const RiSpAnalysis = () => {
     );
   }
 
+  // Show message when no specific account is selected
+  if (!selectedAccountId || selectedAccountId === 'all') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            Reserved Instances & Savings Plans
+          </CardTitle>
+          <CardDescription>
+            Selecione uma conta específica no header para ver a análise de RI/SP
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   // Normalize data from Lambda response format
   const ri = analysisData?.reservedInstances;
   const sp = analysisData?.savingsPlans;
@@ -381,8 +431,8 @@ export const RiSpAnalysis = () => {
   // Helper function to get default implementation steps based on recommendation type
   const getDefaultSteps = (type: string): string[] => {
     switch (type) {
-      case 'ri_purchase':
-      case 'reserved_instance':
+      case RECOMMENDATION_TYPES.RI_PURCHASE:
+      case RECOMMENDATION_TYPES.RESERVED_INSTANCE:
         return [
           'Acesse o AWS Cost Explorer em console.aws.amazon.com/cost-management',
           'Navegue até "Reservations" > "Recommendations" no menu lateral',
@@ -393,7 +443,7 @@ export const RiSpAnalysis = () => {
           'Revise o resumo e confirme a compra',
           'Configure alertas de utilização de RI no CloudWatch para monitorar o uso'
         ];
-      case 'sp_purchase':
+      case RECOMMENDATION_TYPES.SP_PURCHASE:
         return [
           'Acesse o AWS Cost Management em console.aws.amazon.com/cost-management',
           'Navegue até "Savings Plans" > "Recommendations"',
@@ -404,7 +454,7 @@ export const RiSpAnalysis = () => {
           'Escolha a opção de pagamento',
           'Confirme a compra e monitore a utilização mensalmente'
         ];
-      case 'right_sizing':
+      case RECOMMENDATION_TYPES.RIGHT_SIZING:
         return [
           'Acesse o AWS Compute Optimizer em console.aws.amazon.com/compute-optimizer',
           'Revise as recomendações de right-sizing para suas instâncias',
@@ -415,7 +465,7 @@ export const RiSpAnalysis = () => {
           'Agende a mudança para um período de baixo tráfego',
           'Monitore a performance após a mudança por pelo menos 1 semana'
         ];
-      case 'spot_instances':
+      case RECOMMENDATION_TYPES.SPOT_INSTANCES:
         return [
           'Identifique workloads tolerantes a interrupções (dev, test, batch processing)',
           'Acesse o EC2 Console e navegue até "Spot Requests"',
@@ -713,6 +763,10 @@ export const RiSpAnalysis = () => {
                       return parts.join(' • ') || rec.description?.substring(0, 80) || '';
                     };
                     
+                    const { icon: RecIcon, bgColor, iconColor } = getRecommendationStyle(rec.type);
+                    const annualSavings = rec.potentialSavings?.annual || rec.annualSavings || 0;
+                    const monthlySavings = rec.potentialSavings?.monthly || annualSavings / 12;
+                    
                     return (
                       <div 
                         key={idx} 
@@ -723,25 +777,12 @@ export const RiSpAnalysis = () => {
                         }}
                       >
                         <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <div className={`p-2 rounded-full shrink-0 ${
-                            rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? 'bg-purple-100' : 
-                            rec.type === 'right_sizing' ? 'bg-amber-100' :
-                            rec.type === 'spot_instances' ? 'bg-green-100' :
-                            'bg-blue-100'
-                          }`}>
-                            {rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? (
-                              <Clock className="h-4 w-4 text-purple-600" />
-                            ) : rec.type === 'right_sizing' ? (
-                              <TrendingDown className="h-4 w-4 text-amber-600" />
-                            ) : rec.type === 'spot_instances' ? (
-                              <TrendingUp className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <Zap className="h-4 w-4 text-blue-600" />
-                            )}
+                          <div className={`p-2 rounded-full shrink-0 ${bgColor}`}>
+                            <RecIcon className={`h-4 w-4 ${iconColor}`} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="font-medium text-sm flex items-center gap-2">
-                              {rec.title || (rec.type === 'reserved_instance' ? 'Reserved Instance' : 'Savings Plan')}
+                              {rec.title || (rec.type === RECOMMENDATION_TYPES.RESERVED_INSTANCE ? 'Reserved Instance' : 'Savings Plan')}
                               <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                             <div className="text-xs text-muted-foreground mt-0.5">
@@ -756,10 +797,10 @@ export const RiSpAnalysis = () => {
                         </div>
                         <div className="text-right shrink-0 ml-3">
                           <div className="font-semibold text-green-600">
-                            ${(rec.potentialSavings?.annual || rec.annualSavings || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/ano
+                            ${formatCurrency(annualSavings)}/ano
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            ${(rec.potentialSavings?.monthly || (rec.annualSavings || 0) / 12 || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/mês
+                            ${formatCurrency(monthlySavings)}/mês
                           </div>
                           <Badge variant={rec.priority === 1 || rec.priority === 'critical' || rec.priority === 'high' ? 'default' : 'secondary'} className="text-xs mt-1">
                             {typeof rec.priority === 'string' ? rec.priority.toUpperCase() : `P${rec.priority}`}
@@ -778,15 +819,10 @@ export const RiSpAnalysis = () => {
             <DialogContent className="max-w-3xl max-h-[90vh]">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  {selectedRecommendation?.type === 'reserved_instance' || selectedRecommendation?.type === 'ri_purchase' ? (
-                    <Clock className="h-5 w-5 text-purple-600" />
-                  ) : selectedRecommendation?.type === 'right_sizing' ? (
-                    <TrendingDown className="h-5 w-5 text-amber-600" />
-                  ) : selectedRecommendation?.type === 'spot_instances' ? (
-                    <TrendingUp className="h-5 w-5 text-green-600" />
-                  ) : (
-                    <Zap className="h-5 w-5 text-blue-600" />
-                  )}
+                  {(() => {
+                    const { icon: ModalIcon, iconColor } = getRecommendationStyle(selectedRecommendation?.type);
+                    return <ModalIcon className={`h-5 w-5 ${iconColor}`} />;
+                  })()}
                   {selectedRecommendation?.title || 'Detalhes da Recomendação'}
                 </DialogTitle>
                 <DialogDescription>
@@ -801,7 +837,7 @@ export const RiSpAnalysis = () => {
                     <Card className="bg-green-50 border-green-200">
                       <CardContent className="p-4 text-center">
                         <div className="text-2xl font-bold text-green-600">
-                          ${(selectedRecommendation?.potentialSavings?.annual || selectedRecommendation?.annualSavings || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          ${formatCurrency(selectedRecommendation?.potentialSavings?.annual || selectedRecommendation?.annualSavings || 0)}
                         </div>
                         <div className="text-xs text-green-700">Economia Anual</div>
                       </CardContent>
@@ -809,7 +845,7 @@ export const RiSpAnalysis = () => {
                     <Card className="bg-blue-50 border-blue-200">
                       <CardContent className="p-4 text-center">
                         <div className="text-2xl font-bold text-blue-600">
-                          ${(selectedRecommendation?.potentialSavings?.monthly || (selectedRecommendation?.annualSavings || 0) / 12 || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          ${formatCurrency(selectedRecommendation?.potentialSavings?.monthly || (selectedRecommendation?.annualSavings || 0) / 12)}
                         </div>
                         <div className="text-xs text-blue-700">Economia Mensal</div>
                       </CardContent>
@@ -949,7 +985,7 @@ export const RiSpAnalysis = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      {selectedRecommendation?.type === 'ri_purchase' || selectedRecommendation?.type === 'reserved_instance' ? (
+                      {selectedRecommendation?.type === RECOMMENDATION_TYPES.RI_PURCHASE || selectedRecommendation?.type === RECOMMENDATION_TYPES.RESERVED_INSTANCE ? (
                         <>
                           <Button 
                             variant="outline" 
@@ -970,7 +1006,7 @@ export const RiSpAnalysis = () => {
                             EC2 Console - Reserved Instances
                           </Button>
                         </>
-                      ) : selectedRecommendation?.type === 'sp_purchase' ? (
+                      ) : selectedRecommendation?.type === RECOMMENDATION_TYPES.SP_PURCHASE ? (
                         <>
                           <Button 
                             variant="outline" 
@@ -982,7 +1018,7 @@ export const RiSpAnalysis = () => {
                             AWS Cost Management - Savings Plans
                           </Button>
                         </>
-                      ) : selectedRecommendation?.type === 'right_sizing' ? (
+                      ) : selectedRecommendation?.type === RECOMMENDATION_TYPES.RIGHT_SIZING ? (
                         <>
                           <Button 
                             variant="outline" 
@@ -1175,8 +1211,8 @@ export const RiSpAnalysis = () => {
                                 {typeof rec.priority === 'string' ? rec.priority.toUpperCase() : `Prioridade ${rec.priority}`}
                               </Badge>
                               <Badge variant="outline">
-                                {rec.type === 'reserved_instance' || rec.type === 'ri_purchase' ? 'Reserved Instance' : 
-                                 rec.type === 'sp_purchase' ? 'Savings Plan' : rec.service || rec.type}
+                                {rec.type === RECOMMENDATION_TYPES.RESERVED_INSTANCE || rec.type === RECOMMENDATION_TYPES.RI_PURCHASE ? 'Reserved Instance' : 
+                                 rec.type === RECOMMENDATION_TYPES.SP_PURCHASE ? 'Savings Plan' : rec.service || rec.type}
                               </Badge>
                             </div>
                             <h4 className="font-semibold">

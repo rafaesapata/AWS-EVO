@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Deploy Autônomo 100% - EVO UDS System
+ * Deploy Autônomo 100% - EVO Platform
  * Este script vai criar toda a infraestrutura necessária e fazer o deploy completo
  */
 
@@ -49,7 +49,7 @@ class DeployManager {
    * Executa o deploy completo
    */
   async deploy(): Promise<void> {
-    this.log('🚀 Iniciando Deploy Autônomo EVO UDS System', 'info');
+    this.log('🚀 Iniciando Deploy Autônomo EVO Platform', 'info');
     this.log(`📋 Deployment ID: ${this.deploymentId}`, 'info');
     this.log(`🌍 Environment: ${this.config.environment}`, 'info');
     this.log(`📍 Region: ${this.config.region}`, 'info');
@@ -606,7 +606,7 @@ class DeployManager {
       }
     });
     
-    this.log('\n🚀 Sistema EVO UDS está online e pronto para uso!', 'success');
+    this.log('\n🚀 Sistema EVO Platform está online e pronto para uso!', 'success');
   }
 
   /**
@@ -770,7 +770,7 @@ async function main() {
   // Ajuda
   if (args.includes('--help') || args.includes('-h')) {
     console.log(`
-🚀 Deploy Autônomo EVO UDS System
+🚀 Deploy Autônomo EVO Platform
 
 Uso: npm run deploy [opções]
 

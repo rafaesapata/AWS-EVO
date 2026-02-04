@@ -2149,7 +2149,14 @@
     "statusCompleted": "Concluído",
     "statusFailed": "Falhou",
     "noHistoryYet": "Nenhum histórico de análise ainda.",
-    "runFirstAnalysis": "Execute sua primeira análise ML para ver o histórico de execução aqui."
+    "runFirstAnalysis": "Execute sua primeira análise ML para ver o histórico de execução aqui.",
+    "purchase": "Reserva/Savings Plan",
+    "riSpOpportunities": "Oportunidades de RI/SP",
+    "reserveOrSavingsPlan": "RESERVA/SAVINGS PLAN",
+    "whyThisRecommendation": "Por que esta recomendação?",
+    "issue": "Problema",
+    "reason": "Motivo",
+    "solution": "Solução"
   },
   "costOptimization": {
     "title": "Otimização de Custos AWS",
@@ -2898,6 +2905,14 @@
     "securityScanningDesc": "VMs, Storage, SQL, Key Vault, NSGs",
     "costAnalysis": "Análise de Custos",
     "costAnalysisDesc": "Custos diários, tendências, previsões",
+    "validatePermissions": "Validar Permissões",
+    "permissionsValid": "Todas as permissões estão configuradas corretamente!",
+    "permissionsValidDescription": "Suas credenciais Azure possuem todas as permissões necessárias.",
+    "permissionsMissing": "Permissões obrigatórias ausentes",
+    "permissionsMissingCount": "permissão(ões) ausente(s)",
+    "permissionsWarnings": "Permissões validadas com avisos",
+    "permissionsWarningsCount": "aviso(s) encontrado(s)",
+    "validationFailed": "Validação falhou",
     "resourceInventory": "Inventário de Recursos",
     "resourceInventoryDesc": "Todos os recursos Azure",
     "activityMonitoring": "Monitoramento de Atividades",
@@ -2975,7 +2990,18 @@
     "noAccounts": "Nenhuma conta",
     "selectAccount": "Selecionar conta...",
     "searchAccounts": "Buscar contas...",
-    "noAccountsFound": "Nenhuma conta encontrada."
+    "noAccountsFound": "Nenhuma conta encontrada.",
+    "awsPermissionsMissing": "⚠️ Permissões AWS Faltantes",
+    "awsPermissionsDescription": "Alguns recursos não puderam ser acessados devido a permissões faltantes. Configure as permissões no IAM da AWS.",
+    "goToAwsSettings": "Ir para Configurações AWS",
+    "awsPermissionsGuide": "Guia de Permissões AWS",
+    "azurePermissionsMissing": "⚠️ Permissões Azure Faltantes",
+    "azurePermissionsDescription": "Alguns recursos não puderam ser acessados devido a permissões faltantes. Configure as permissões no Azure RBAC.",
+    "goToAzureSettings": "Ir para Configurações Azure",
+    "azurePermissionsGuide": "Guia de Permissões Azure",
+    "requiredPermissions": "Permissões necessárias:",
+    "clickToCopy": "Clique para copiar",
+    "clickToCopyHint": "Clique em qualquer permissão para copiá-la"
   },
   "cloudCredentials": {
     "title": "Credenciais Cloud",
@@ -3255,6 +3281,7 @@
     "clickRefreshToFetch": "Clique em \"Atualizar\" para buscar recursos",
     "showing": "Mostrando {{start}}-{{end}} de {{total}} recursos",
     "avgCpu": "CPU Média",
+    "azureCredentialNotFound": "Credencial Azure não encontrada",
     "resourceTypes": {
       "ec2": "EC2 Instances",
       "rds": "RDS Databases",

@@ -18,7 +18,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
-import { validateServicePrincipalCredentials } from '../../lib/azure-helpers.js';
+import { validateServicePrincipalCredentials, getAzureCredentialWithToken } from '../../lib/azure-helpers.js';
 import { runAllAzureScanners, azureScannerMetadata } from '../../lib/security-engine/scanners/azure/index.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import type { AzureScanContext } from '../../lib/security-engine/scanners/azure/types.js';
@@ -93,7 +93,6 @@ export async function handler(
     let spCredentials: any;
     
     if (credential.auth_type === 'oauth') {
-      const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
       const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
       
       if (!tokenResult.success) {

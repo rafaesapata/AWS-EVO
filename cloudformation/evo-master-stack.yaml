@@ -1,0 +1,2432 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO Platform - Master Stack - Complete Infrastructure Deployment v2.0'
+
+# =============================================================================
+# METADATA - Parameter Groups for Console UI
+# =============================================================================
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - Environment
+          - ProjectName
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VpcCidr
+          - EnableNatGateway
+      - Label:
+          default: "Database Configuration"
+        Parameters:
+          - DBInstanceClass
+          - DBAllocatedStorage
+          - DBMasterUsername
+      - Label:
+          default: "Lambda Configuration"
+        Parameters:
+          - LambdaDefaultTimeout
+          - LambdaDefaultMemory
+      - Label:
+          default: "Frontend Configuration"
+        Parameters:
+          - DomainName
+          - CertificateArn
+      - Label:
+          default: "Notification Configuration"
+        Parameters:
+          - AlertEmail
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [development, staging, production]
+    Description: Environment name
+
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+    Description: Project name prefix for all resources
+
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block for VPC
+
+  EnableNatGateway:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable NAT Gateway for private subnets (required for Lambda internet access)
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t4g.small
+    AllowedValues: 
+      # Graviton (ARM) instances - RDS Proxy compatible, better price/performance
+      - db.t4g.micro
+      - db.t4g.small
+      - db.t4g.medium
+      - db.t4g.large
+      - db.r6g.large
+      - db.r6g.xlarge
+      - db.r6g.2xlarge
+      - db.r7g.large
+      - db.r7g.xlarge
+      - db.r7g.2xlarge
+    Description: RDS instance class (Graviton/ARM for RDS Proxy compatibility)
+
+  EnableRDSProxy:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable RDS Proxy for connection pooling (recommended for Lambda)
+
+  DBAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 1000
+    Description: Database storage in GB
+
+  DBMasterUsername:
+    Type: String
+    Default: evoadmin
+    NoEcho: true
+    Description: Database master username
+
+  LambdaDefaultTimeout:
+    Type: Number
+    Default: 30
+    MinValue: 3
+    MaxValue: 900
+    Description: Default Lambda timeout in seconds
+
+  LambdaDefaultMemory:
+    Type: Number
+    Default: 256
+    AllowedValues: [128, 256, 512, 1024, 2048, 3008]
+    Description: Default Lambda memory in MB
+
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Custom domain name (optional)
+
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM Certificate ARN for custom domain (optional)
+
+  AlertEmail:
+    Type: String
+    Default: admin@example.com
+    Description: Email for CloudWatch alerts
+
+# =============================================================================
+# CONDITIONS
+# =============================================================================
+Conditions:
+  HasNatGateway: !Equals [!Ref EnableNatGateway, 'true']
+  HasCustomDomain: !Not [!Equals [!Ref DomainName, '']]
+  HasCertificate: !Not [!Equals [!Ref CertificateArn, '']]
+  IsProduction: !Equals [!Ref Environment, 'production']
+  IsDevelopment: !Equals [!Ref Environment, 'development']
+  HasRDSProxy: !Equals [!Ref EnableRDSProxy, 'true']
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+Resources:
+
+  # ===========================================================================
+  # NETWORK STACK - VPC, Subnets, NAT Gateway, Route Tables
+  # ===========================================================================
+  
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-vpc'
+        - Key: Environment
+          Value: !Ref Environment
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-igw'
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public Subnets (for NAT Gateway and ALB)
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 8, 8]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-public-1'
+        - Key: Type
+          Value: Public
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 8, 8]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-public-2'
+        - Key: Type
+          Value: Public
+
+  # Private Subnets (for Lambda functions)
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCidr, 8, 8]]
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-private-1'
+        - Key: Type
+          Value: Private
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Select [3, !Cidr [!Ref VpcCidr, 8, 8]]
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-private-2'
+        - Key: Type
+          Value: Private
+
+  # Database Subnets (isolated, no internet access)
+  DatabaseSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Select [4, !Cidr [!Ref VpcCidr, 8, 8]]
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-db-1'
+        - Key: Type
+          Value: Database
+
+  DatabaseSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Select [5, !Cidr [!Ref VpcCidr, 8, 8]]
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-db-2'
+        - Key: Type
+          Value: Database
+
+  # NAT Gateway (required for Lambda to access AWS APIs)
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Condition: HasNatGateway
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-nat-eip'
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Condition: HasNatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-nat'
+
+  # Route Tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-public-rt'
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-private-rt'
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Condition: HasNatGateway
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # VPC Endpoints (Gateway type - no cost)
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+
+  DynamoDBEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.dynamodb'
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+
+  # Security Groups
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectName}-${Environment}-lambda-sg'
+      GroupDescription: Security group for Lambda functions
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-lambda-sg'
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectName}-${Environment}-rds-sg'
+      GroupDescription: Security group for RDS database
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: Allow PostgreSQL from Lambda
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-rds-sg'
+
+
+  # ===========================================================================
+  # DATABASE STACK - RDS PostgreSQL, Secrets Manager
+  # ===========================================================================
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub '${ProjectName}-${Environment}-db-subnet-group'
+      DBSubnetGroupDescription: Subnet group for EVO database
+      SubnetIds:
+        - !Ref DatabaseSubnet1
+        - !Ref DatabaseSubnet2
+
+  DBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-db-secret'
+      Description: EVO Platform database credentials
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "${DBMasterUsername}"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\'''
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub '${ProjectName}-${Environment}-postgres'
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: postgres
+      EngineVersion: '15.10'
+      AllocatedStorage: !Ref DBAllocatedStorage
+      MaxAllocatedStorage: 1000
+      StorageType: gp3
+      StorageEncrypted: true
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+      DBName: evouds
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      MultiAZ: !If [IsProduction, true, false]
+      BackupRetentionPeriod: !If [IsProduction, 30, 7]
+      DeletionProtection: !If [IsProduction, true, false]
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
+      MonitoringInterval: 60
+      MonitoringRoleArn: !GetAtt RDSMonitoringRole.Arn
+      EnableCloudwatchLogsExports:
+        - postgresql
+      CopyTagsToSnapshot: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-postgres'
+        - Key: Environment
+          Value: !Ref Environment
+
+  RDSMonitoringRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-rds-monitoring-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: monitoring.rds.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+
+  # ===========================================================================
+  # RDS PROXY - Connection Pooling for Lambda
+  # ===========================================================================
+
+  RDSProxySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: HasRDSProxy
+    Properties:
+      GroupName: !Sub '${ProjectName}-${Environment}-rds-proxy-sg'
+      GroupDescription: Security group for RDS Proxy
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: Allow PostgreSQL from Lambda
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          DestinationSecurityGroupId: !Ref RDSSecurityGroup
+          Description: Allow PostgreSQL to RDS
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-rds-proxy-sg'
+
+  # Allow RDS Proxy to connect to RDS
+  RDSSecurityGroupIngressFromProxy:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: HasRDSProxy
+    Properties:
+      GroupId: !Ref RDSSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref RDSProxySecurityGroup
+      Description: Allow PostgreSQL from RDS Proxy
+
+  RDSProxyRole:
+    Type: AWS::IAM::Role
+    Condition: HasRDSProxy
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-rds-proxy-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: RDSProxySecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Ref DBSecret
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 'secretsmanager.${AWS::Region}.amazonaws.com'
+
+  RDSProxy:
+    Type: AWS::RDS::DBProxy
+    Condition: HasRDSProxy
+    DependsOn: RDSInstance
+    Properties:
+      DBProxyName: !Sub '${ProjectName}-${Environment}-proxy'
+      EngineFamily: POSTGRESQL
+      RoleArn: !GetAtt RDSProxyRole.Arn
+      Auth:
+        - AuthScheme: SECRETS
+          SecretArn: !Ref DBSecret
+          IAMAuth: DISABLED
+      VpcSecurityGroupIds:
+        - !Ref RDSProxySecurityGroup
+      VpcSubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      RequireTLS: true
+      IdleClientTimeout: 1800
+      DebugLogging: !If [IsProduction, false, true]
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-proxy'
+        - Key: Environment
+          Value: !Ref Environment
+
+  RDSProxyTargetGroup:
+    Type: AWS::RDS::DBProxyTargetGroup
+    Condition: HasRDSProxy
+    Properties:
+      DBProxyName: !Ref RDSProxy
+      TargetGroupName: default
+      DBInstanceIdentifiers:
+        - !Ref RDSInstance
+      ConnectionPoolConfig:
+        MaxConnectionsPercent: 100
+        MaxIdleConnectionsPercent: 50
+        ConnectionBorrowTimeout: 120
+
+  # ===========================================================================
+  # COGNITO AUTHENTICATION
+  # ===========================================================================
+
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${ProjectName}-${Environment}-users'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      MfaConfiguration: OPTIONAL
+      EnabledMfas:
+        - SOFTWARE_TOKEN_MFA
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          TemporaryPasswordValidityDays: 7
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: organization_id
+          AttributeDataType: String
+          Mutable: true
+        - Name: organization_name
+          AttributeDataType: String
+          Mutable: true
+        - Name: roles
+          AttributeDataType: String
+          Mutable: true
+        - Name: tenant_id
+          AttributeDataType: String
+          Mutable: true
+      UserPoolTags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub '${ProjectName}-${Environment}-client'
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+      ReadAttributes:
+        - email
+        - name
+        - custom:organization_id
+        - custom:organization_name
+        - custom:roles
+        - custom:tenant_id
+      WriteAttributes:
+        - email
+        - name
+        - custom:organization_id
+        - custom:organization_name
+        - custom:roles
+        - custom:tenant_id
+
+  # ===========================================================================
+  # S3 BUCKETS
+  # ===========================================================================
+
+  LambdaCodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${Environment}-lambda-code-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${Environment}-frontend-${AWS::AccountId}'
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  AttachmentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${Environment}-attachments-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 90
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, POST]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+
+
+  # ===========================================================================
+  # LAMBDA LAYER - Dependencies (Prisma, Zod, AWS SDK, Azure SDK)
+  # ===========================================================================
+
+  LambdaDepsLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub '${ProjectName}-${Environment}-deps-layer'
+      Description: Prisma, Zod, AWS SDK, Azure SDK dependencies
+      CompatibleRuntimes:
+        - nodejs18.x
+        - nodejs20.x
+      Content:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: layers/deps-layer.zip
+
+  # ===========================================================================
+  # LAMBDA EXECUTION ROLE - Comprehensive permissions
+  # ===========================================================================
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Ref DBSecret
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminDeleteUser
+                  - cognito-idp:AdminDisableUser
+                  - cognito-idp:AdminEnableUser
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminUpdateUserAttributes
+                  - cognito-idp:AdminSetUserPassword
+                  - cognito-idp:AdminResetUserPassword
+                  - cognito-idp:AdminInitiateAuth
+                  - cognito-idp:ListUsers
+                Resource: !GetAtt CognitoUserPool.Arn
+        - PolicyName: STSAssumeRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'sts:ExternalId': '*'
+        - PolicyName: CloudWatchAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:DescribeAlarms
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:FilterLogEvents
+                  - logs:GetLogEvents
+                Resource: '*'
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: '*'
+        - PolicyName: SESAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                  - ses:SendTemplatedEmail
+                Resource: '*'
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt AttachmentsBucket.Arn
+                  - !Sub '${AttachmentsBucket.Arn}/*'
+        - PolicyName: LambdaInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-${Environment}-*'
+
+  # ===========================================================================
+  # CLOUDFRONT & WAF
+  # ===========================================================================
+
+  CloudFrontOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub 'OAI for ${ProjectName}-${Environment}'
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              CanonicalUser: !GetAtt CloudFrontOAI.S3CanonicalUserId
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-waf'
+      Scope: CLOUDFRONT
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub '${ProjectName}-${Environment}-waf'
+      Rules:
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 1
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesCommon
+        - Name: AWSManagedRulesKnownBadInputsRuleSet
+          Priority: 2
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesKnownBadInputs
+        - Name: AWSManagedRulesSQLiRuleSet
+          Priority: 3
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesSQLiRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesSQLi
+        - Name: RateLimitRule
+          Priority: 4
+          Action:
+            Block:
+              CustomResponse:
+                ResponseCode: 429
+          Statement:
+            RateBasedStatement:
+              Limit: 2000
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimit
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_100
+        HttpVersion: http2and3
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudFrontOAI}'
+          - Id: ApiOrigin
+            DomainName: !Sub '${RestApi}.execute-api.${AWS::Region}.amazonaws.com'
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+            OriginPath: /prod
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        Aliases: !If
+          - HasCustomDomain
+          - [!Ref DomainName]
+          - !Ref AWS::NoValue
+        ViewerCertificate: !If
+          - HasCertificate
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        WebACLId: !GetAtt WebACL.Arn
+
+
+  # ===========================================================================
+  # API GATEWAY
+  # ===========================================================================
+
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-api'
+      Description: EVO Platform REST API
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  ApiGatewayAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: CognitoAuthorizer
+      Type: COGNITO_USER_POOLS
+      RestApiId: !Ref RestApi
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs:
+        - !GetAtt CognitoUserPool.Arn
+
+  # API Resources hierarchy: /api/functions/{endpoint}
+  ApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: api
+
+  FunctionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref ApiResource
+      PathPart: functions
+
+  # ===========================================================================
+  # LAMBDA FUNCTIONS - Using a common configuration pattern
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # DATA HANDLERS
+  # ---------------------------------------------------------------------------
+
+  QueryTableFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-query-table'
+      Runtime: nodejs18.x
+      Handler: query-table.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/data/query-table.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  MutateTableFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mutate-table'
+      Runtime: nodejs18.x
+      Handler: mutate-table.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/data/mutate-table.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  # ---------------------------------------------------------------------------
+  # SECURITY HANDLERS
+  # ---------------------------------------------------------------------------
+
+  SecurityScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-security-scan'
+      Runtime: nodejs18.x
+      Handler: security-scan.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/security/security-scan.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  ComplianceScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-compliance-scan'
+      Runtime: nodejs18.x
+      Handler: compliance-scan.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/security/compliance-scan.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  WellArchitectedScanFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-well-architected-scan'
+      Runtime: nodejs18.x
+      Handler: well-architected-scan.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/security/well-architected-scan.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  ValidateAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-aws-credentials'
+      Runtime: nodejs18.x
+      Handler: validate-aws-credentials.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/security/validate-aws-credentials.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  # ---------------------------------------------------------------------------
+  # COST HANDLERS
+  # ---------------------------------------------------------------------------
+
+  FetchDailyCostsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-fetch-daily-costs'
+      Runtime: nodejs18.x
+      Handler: fetch-daily-costs.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/cost/fetch-daily-costs.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  RiSpAnalyzerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ri-sp-analyzer'
+      Runtime: nodejs18.x
+      Handler: ri-sp-analyzer.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/cost/ri-sp-analyzer.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  CostOptimizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-cost-optimization'
+      Runtime: nodejs18.x
+      Handler: cost-optimization.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/cost/cost-optimization.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+
+  # ---------------------------------------------------------------------------
+  # AUTH HANDLERS
+  # ---------------------------------------------------------------------------
+
+  MfaEnrollFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-enroll'
+      Runtime: nodejs18.x
+      Handler: mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/auth/mfa-handlers.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  MfaCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-check'
+      Runtime: nodejs18.x
+      Handler: mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/auth/mfa-handlers.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  WebAuthnRegisterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-register'
+      Runtime: nodejs18.x
+      Handler: webauthn-register.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/auth/webauthn-register.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          WEBAUTHN_RP_ID: !If [HasCustomDomain, !Ref DomainName, !GetAtt CloudFrontDistribution.DomainName]
+          WEBAUTHN_RP_NAME: EVO Cloud Intelligence
+
+  SelfRegisterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-self-register'
+      Runtime: nodejs18.x
+      Handler: self-register.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/auth/self-register.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  # ---------------------------------------------------------------------------
+  # AI HANDLERS
+  # ---------------------------------------------------------------------------
+
+  BedrockChatFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-bedrock-chat'
+      Runtime: nodejs18.x
+      Handler: bedrock-chat.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/ai/bedrock-chat.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 120
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  # ---------------------------------------------------------------------------
+  # AWS CREDENTIALS HANDLERS
+  # ---------------------------------------------------------------------------
+
+  SaveAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-save-aws-credentials'
+      Runtime: nodejs18.x
+      Handler: save-aws-credentials.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/aws/save-aws-credentials.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  ListAwsCredentialsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-list-aws-credentials'
+      Runtime: nodejs18.x
+      Handler: list-aws-credentials.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/aws/list-aws-credentials.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  # ---------------------------------------------------------------------------
+  # DASHBOARD HANDLERS
+  # ---------------------------------------------------------------------------
+
+  GetExecutiveDashboardFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-executive-dashboard'
+      Runtime: nodejs18.x
+      Handler: get-executive-dashboard.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/dashboard/get-executive-dashboard.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  # ---------------------------------------------------------------------------
+  # ADMIN HANDLERS
+  # ---------------------------------------------------------------------------
+
+  AdminManageUserFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-admin-manage-user'
+      Runtime: nodejs18.x
+      Handler: admin-manage-user.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/admin/admin-manage-user.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  CreateUserFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-create-user'
+      Runtime: nodejs18.x
+      Handler: create-user.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/admin/create-user.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  # ---------------------------------------------------------------------------
+  # LICENSE HANDLERS
+  # ---------------------------------------------------------------------------
+
+  ValidateLicenseFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-validate-license'
+      Runtime: nodejs18.x
+      Handler: validate-license.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/license/validate-license.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  # ---------------------------------------------------------------------------
+  # NOTIFICATION HANDLERS
+  # ---------------------------------------------------------------------------
+
+  SendEmailFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-send-email'
+      Runtime: nodejs18.x
+      Handler: send-email.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/notifications/send-email.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: !Ref LambdaDefaultTimeout
+      MemorySize: !Ref LambdaDefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+  # ---------------------------------------------------------------------------
+  # DATABASE INITIALIZATION HANDLER
+  # ---------------------------------------------------------------------------
+
+  DbInitFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-db-init'
+      Runtime: nodejs18.x
+      Handler: db-init.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/system/db-init.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+        SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      Layers: [!Ref LambdaDepsLayer]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+              Host: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
+
+  # ===========================================================================
+  # API GATEWAY ENDPOINTS - Using a reusable pattern
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # QUERY-TABLE ENDPOINT
+  # ---------------------------------------------------------------------------
+  QueryTableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref FunctionsResource
+      PathPart: query-table
+
+  QueryTableOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref QueryTableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  QueryTablePostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref QueryTableResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QueryTableFunction.Arn}/invocations'
+
+  QueryTableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref QueryTableFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/POST/api/functions/query-table'
+
+  # ---------------------------------------------------------------------------
+  # MUTATE-TABLE ENDPOINT
+  # ---------------------------------------------------------------------------
+  MutateTableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref FunctionsResource
+      PathPart: mutate-table
+
+  MutateTableOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref MutateTableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  MutateTablePostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref MutateTableResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MutateTableFunction.Arn}/invocations'
+
+  MutateTableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MutateTableFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/POST/api/functions/mutate-table'
+
+  # ---------------------------------------------------------------------------
+  # SECURITY-SCAN ENDPOINT
+  # ---------------------------------------------------------------------------
+  SecurityScanResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref FunctionsResource
+      PathPart: security-scan
+
+  SecurityScanOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref SecurityScanResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  SecurityScanPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref SecurityScanResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SecurityScanFunction.Arn}/invocations'
+
+  SecurityScanLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SecurityScanFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/POST/api/functions/security-scan'
+
+  # ---------------------------------------------------------------------------
+  # SAVE-AWS-CREDENTIALS ENDPOINT
+  # ---------------------------------------------------------------------------
+  SaveAwsCredentialsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref FunctionsResource
+      PathPart: save-aws-credentials
+
+  SaveAwsCredentialsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref SaveAwsCredentialsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  SaveAwsCredentialsPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref SaveAwsCredentialsResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SaveAwsCredentialsFunction.Arn}/invocations'
+
+  SaveAwsCredentialsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SaveAwsCredentialsFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/POST/api/functions/save-aws-credentials'
+
+  # ---------------------------------------------------------------------------
+  # BEDROCK-CHAT ENDPOINT
+  # ---------------------------------------------------------------------------
+  BedrockChatResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref FunctionsResource
+      PathPart: bedrock-chat
+
+  BedrockChatOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref BedrockChatResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  BedrockChatPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref BedrockChatResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BedrockChatFunction.Arn}/invocations'
+
+  BedrockChatLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BedrockChatFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/POST/api/functions/bedrock-chat'
+
+  # ---------------------------------------------------------------------------
+  # SELF-REGISTER ENDPOINT (PUBLIC - No Auth)
+  # ---------------------------------------------------------------------------
+  SelfRegisterResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref FunctionsResource
+      PathPart: self-register
+
+  SelfRegisterOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref SelfRegisterResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  SelfRegisterPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref SelfRegisterResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SelfRegisterFunction.Arn}/invocations'
+
+  SelfRegisterLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SelfRegisterFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/POST/api/functions/self-register'
+
+
+  # ===========================================================================
+  # API GATEWAY DEPLOYMENT
+  # ===========================================================================
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - QueryTablePostMethod
+      - MutateTablePostMethod
+      - SecurityScanPostMethod
+      - SaveAwsCredentialsPostMethod
+      - BedrockChatPostMethod
+      - SelfRegisterPostMethod
+    Properties:
+      RestApiId: !Ref RestApi
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: prod
+      RestApiId: !Ref RestApi
+      DeploymentId: !Ref ApiDeployment
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingRateLimit: 1000
+          ThrottlingBurstLimit: 2000
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ===========================================================================
+  # CLOUDWATCH MONITORING
+  # ===========================================================================
+
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-${Environment}-alerts'
+      DisplayName: EVO Platform Alerts
+
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # API Gateway Alarms
+  ApiErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-api-5xx-errors'
+      AlarmDescription: API Gateway 5XX errors exceeded threshold
+      MetricName: 5XXError
+      Namespace: AWS/ApiGateway
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub '${ProjectName}-${Environment}-api'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      TreatMissingData: notBreaching
+
+  ApiLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-api-latency'
+      AlarmDescription: API Gateway latency exceeded threshold
+      MetricName: Latency
+      Namespace: AWS/ApiGateway
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub '${ProjectName}-${Environment}-api'
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 5000
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      TreatMissingData: notBreaching
+
+  # Database Alarms
+  DatabaseCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-db-cpu'
+      AlarmDescription: Database CPU utilization high
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref RDSInstance
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      TreatMissingData: notBreaching
+
+  DatabaseConnectionsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-db-connections'
+      AlarmDescription: Database connections high
+      MetricName: DatabaseConnections
+      Namespace: AWS/RDS
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref RDSInstance
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      TreatMissingData: notBreaching
+
+  DatabaseStorageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-db-storage'
+      AlarmDescription: Database free storage low
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref RDSInstance
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5368709120
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      TreatMissingData: notBreaching
+
+  # CloudWatch Dashboard
+  MonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-${Environment}-dashboard'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "API Gateway - Requests & Errors",
+                "metrics": [
+                  ["AWS/ApiGateway", "Count", "ApiName", "${ProjectName}-${Environment}-api", {"label": "Requests"}],
+                  [".", "5XXError", ".", ".", {"label": "5XX Errors", "color": "#d62728"}],
+                  [".", "4XXError", ".", ".", {"label": "4XX Errors", "color": "#ff7f0e"}]
+                ],
+                "region": "${AWS::Region}",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "API Gateway - Latency",
+                "metrics": [
+                  ["AWS/ApiGateway", "Latency", "ApiName", "${ProjectName}-${Environment}-api", {"label": "Average Latency"}],
+                  [".", "IntegrationLatency", ".", ".", {"label": "Integration Latency"}]
+                ],
+                "region": "${AWS::Region}",
+                "period": 300,
+                "stat": "Average"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Database - Performance",
+                "metrics": [
+                  ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", "${ProjectName}-${Environment}-postgres", {"label": "CPU %"}],
+                  [".", "DatabaseConnections", ".", ".", {"label": "Connections", "yAxis": "right"}]
+                ],
+                "region": "${AWS::Region}",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Database - I/O",
+                "metrics": [
+                  ["AWS/RDS", "ReadLatency", "DBInstanceIdentifier", "${ProjectName}-${Environment}-postgres", {"label": "Read Latency"}],
+                  [".", "WriteLatency", ".", ".", {"label": "Write Latency"}],
+                  [".", "ReadIOPS", ".", ".", {"label": "Read IOPS", "yAxis": "right"}],
+                  [".", "WriteIOPS", ".", ".", {"label": "Write IOPS", "yAxis": "right"}]
+                ],
+                "region": "${AWS::Region}",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 12,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "title": "Lambda Functions - Invocations & Errors",
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${ProjectName}-${Environment}-query-table"],
+                  [".", ".", ".", "${ProjectName}-${Environment}-security-scan"],
+                  [".", ".", ".", "${ProjectName}-${Environment}-bedrock-chat"],
+                  [".", "Errors", ".", "${ProjectName}-${Environment}-query-table", {"color": "#d62728"}],
+                  [".", ".", ".", "${ProjectName}-${Environment}-security-scan", {"color": "#d62728"}]
+                ],
+                "region": "${AWS::Region}",
+                "period": 300,
+                "stat": "Sum"
+              }
+            }
+          ]
+        }
+
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+Outputs:
+  # Network Outputs
+  VpcId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-VpcId'
+
+  PrivateSubnet1Id:
+    Description: Private Subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-PrivateSubnet1Id'
+
+  PrivateSubnet2Id:
+    Description: Private Subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-PrivateSubnet2Id'
+
+  LambdaSecurityGroupId:
+    Description: Lambda Security Group ID
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-LambdaSecurityGroupId'
+
+  # Database Outputs
+  DatabaseEndpoint:
+    Description: RDS Database Endpoint (direct)
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-DatabaseEndpoint'
+
+  DatabasePort:
+    Description: RDS Database Port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-DatabasePort'
+
+  # RDS Proxy Outputs
+  RDSProxyEndpoint:
+    Condition: HasRDSProxy
+    Description: RDS Proxy Endpoint
+    Value: !GetAtt RDSProxy.Endpoint
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-RDSProxyEndpoint'
+
+  DatabaseConnectionEndpoint:
+    Description: Database Connection Endpoint (Proxy if enabled, otherwise direct RDS)
+    Value: !If [HasRDSProxy, !GetAtt RDSProxy.Endpoint, !GetAtt RDSInstance.Endpoint.Address]
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-DatabaseConnectionEndpoint'
+
+  RDSProxyArn:
+    Condition: HasRDSProxy
+    Description: RDS Proxy ARN
+    Value: !GetAtt RDSProxy.DBProxyArn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-RDSProxyArn'
+
+  DatabaseSecretArn:
+    Description: Database Secret ARN
+    Value: !Ref DBSecret
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-DatabaseSecretArn'
+
+  DatabaseUrl:
+    Description: Database URL (without password - use Secrets Manager)
+    Value: !Sub 'postgresql://${DBMasterUsername}:***@${RDSInstance.Endpoint.Address}:5432/evouds?schema=public'
+
+  # Authentication Outputs
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref CognitoUserPool
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-UserPoolId'
+
+  CognitoUserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref CognitoUserPoolClient
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-UserPoolClientId'
+
+  CognitoUserPoolArn:
+    Description: Cognito User Pool ARN
+    Value: !GetAtt CognitoUserPool.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-UserPoolArn'
+
+  # API Gateway Outputs
+  ApiGatewayUrl:
+    Description: API Gateway URL
+    Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ApiUrl'
+
+  ApiGatewayId:
+    Description: API Gateway ID
+    Value: !Ref RestApi
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ApiId'
+
+  ApiGatewayAuthorizerId:
+    Description: API Gateway Cognito Authorizer ID
+    Value: !Ref ApiGatewayAuthorizer
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-AuthorizerId'
+
+  # CloudFront Outputs
+  CloudFrontDistributionId:
+    Description: CloudFront Distribution ID
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-CloudFrontDistributionId'
+
+  CloudFrontDomainName:
+    Description: CloudFront Domain Name
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-CloudFrontDomainName'
+
+  FrontendUrl:
+    Description: Frontend URL
+    Value: !If
+      - HasCustomDomain
+      - !Sub 'https://${DomainName}'
+      - !Sub 'https://${CloudFrontDistribution.DomainName}'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-FrontendUrl'
+
+  # S3 Bucket Outputs
+  FrontendBucketName:
+    Description: Frontend S3 Bucket Name
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-FrontendBucketName'
+
+  LambdaCodeBucketName:
+    Description: Lambda Code S3 Bucket Name
+    Value: !Ref LambdaCodeBucket
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-LambdaCodeBucketName'
+
+  AttachmentsBucketName:
+    Description: Attachments S3 Bucket Name
+    Value: !Ref AttachmentsBucket
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-AttachmentsBucketName'
+
+  # Lambda Outputs
+  LambdaLayerArn:
+    Description: Lambda Dependencies Layer ARN
+    Value: !Ref LambdaDepsLayer
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-LambdaLayerArn'
+
+  LambdaExecutionRoleArn:
+    Description: Lambda Execution Role ARN
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-LambdaExecutionRoleArn'
+
+  # WAF Outputs
+  WebACLArn:
+    Description: WAF Web ACL ARN
+    Value: !GetAtt WebACL.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-WebACLArn'
+
+  # Monitoring Outputs
+  AlertTopicArn:
+    Description: SNS Alert Topic ARN
+    Value: !Ref AlertTopic
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-AlertTopicArn'
+
+  DashboardUrl:
+    Description: CloudWatch Dashboard URL
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-${Environment}-dashboard'
+
+  # Environment Variables for Frontend
+  FrontendEnvVars:
+    Description: Environment variables for frontend .env file
+    Value: !Sub |
+      VITE_COGNITO_USER_POOL_ID=${CognitoUserPool}
+      VITE_COGNITO_CLIENT_ID=${CognitoUserPoolClient}
+      VITE_API_URL=https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+      VITE_REGION=${AWS::Region}

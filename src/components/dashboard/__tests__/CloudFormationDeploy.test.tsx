@@ -23,7 +23,7 @@ describe('CloudFormationDeploy Helper Functions', () => {
   const EXTERNAL_ID_PREFIX = 'evo';
   const EXTERNAL_ID_ENTROPY_BYTES = 16;
   const EXTERNAL_ID_TTL_HOURS = 24;
-  const EVO_PLATFORM_ACCOUNT_ID = '383234048592';
+  const EVO_PLATFORM_ACCOUNT_ID = '971354623291';
 
   // Helper functions extracted from the component
   const generateSecureExternalId = (): string => {
@@ -291,7 +291,7 @@ describe('CloudFormationDeploy Helper Functions', () => {
 
 describe('CloudFormation Template Validation', () => {
   const TEMPLATE_EXTERNAL_ID_PATTERN = /^evo-[a-z0-9]+-[a-z0-9]+$/;
-  const EVO_PLATFORM_ACCOUNT_ID = '383234048592';
+  const EVO_PLATFORM_ACCOUNT_ID = '971354623291';
 
   describe('External ID Pattern', () => {
     it('should match generated External IDs', () => {
@@ -330,7 +330,7 @@ describe('CloudFormation Template Validation', () => {
 
     it('should be consistent across components', () => {
       // This ensures the constant is the same in CloudFormationDeploy and QuickCreateLink
-      expect(EVO_PLATFORM_ACCOUNT_ID).toBe('383234048592');
+      expect(EVO_PLATFORM_ACCOUNT_ID).toBe('971354623291');
     });
   });
 });
@@ -363,14 +363,14 @@ describe('Quick Create URL Generation', () => {
       'https://example.com/template.yaml',
       'evo-abc123-def456',
       'Test Account',
-      '383234048592'
+      '971354623291'
     );
 
     expect(url).toContain('us-east-1.console.aws.amazon.com');
     expect(url).toContain('quickcreate');
     expect(url).toContain('param_ExternalId=evo-abc123-def456');
     expect(url).toContain('param_AccountName=Test+Account');
-    expect(url).toContain('param_EVOPlatformAccountId=383234048592');
+    expect(url).toContain('param_EVOPlatformAccountId=971354623291');
   });
 
   it('should use default account name when empty', () => {
@@ -379,7 +379,7 @@ describe('Quick Create URL Generation', () => {
       'https://example.com/template.yaml',
       'evo-abc123-def456',
       '',
-      '383234048592'
+      '971354623291'
     );
 
     expect(url).toContain('param_AccountName=AWS+Account');
@@ -391,7 +391,7 @@ describe('Quick Create URL Generation', () => {
       'https://example.com/template.yaml',
       'evo-abc123-def456',
       'My Account & Test',
-      '383234048592'
+      '971354623291'
     );
 
     expect(url).not.toContain(' ');
@@ -404,7 +404,7 @@ describe('Quick Create URL Generation', () => {
       'https://example.com/template.yaml',
       'evo-abc123-def456',
       'Test',
-      '383234048592'
+      '971354623291'
     );
 
     expect(url).toContain('stackName=EVO-Platform-');

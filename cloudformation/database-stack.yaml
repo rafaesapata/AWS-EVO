@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - Database Stack - RDS PostgreSQL'
+Description: 'EVO Platform - Database Stack - RDS PostgreSQL'
 
 Parameters:
   Environment:

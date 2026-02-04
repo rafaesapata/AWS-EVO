@@ -95,15 +95,22 @@ class OAuthTokenCredential {
 export class AzureProvider implements ICloudProvider {
   readonly providerType: CloudProviderType = 'AZURE';
   
-  private _organizationId: string;
-  private credentials: AzureCredentials;
+  private readonly organizationId: string;
+  private readonly credentials: AzureCredentials;
+  private readonly authType: 'service_principal' | 'oauth';
   private tokenCredential: any = null;
-  private authType: 'service_principal' | 'oauth';
 
   constructor(organizationId: string, credentials: AzureCredentials) {
-    this._organizationId = organizationId;
+    this.organizationId = organizationId;
     this.credentials = credentials;
     this.authType = isOAuthCredentials(credentials) ? 'oauth' : 'service_principal';
+  }
+
+  /**
+   * Get the organization ID
+   */
+  get organization(): string {
+    return this.organizationId;
   }
 
   /**
@@ -126,18 +133,40 @@ export class AzureProvider implements ICloudProvider {
    */
   async getAccessToken(): Promise<string | null> {
     try {
+      logger.debug('Getting Azure access token', {
+        authType: this.authType,
+        subscriptionId: this.credentials.subscriptionId,
+        isOAuth: isOAuthCredentials(this.credentials),
+      });
+
       const credential = await this.getTokenCredential();
       
       // For OAuth credentials, we already have the token
       if (isOAuthCredentials(this.credentials)) {
+        logger.debug('Using OAuth access token');
         return this.credentials.accessToken;
       }
       
       // For Service Principal, get a token from the credential
+      logger.debug('Getting token from Service Principal credential');
       const tokenResponse = await credential.getToken('https://management.azure.com/.default');
-      return tokenResponse?.token || null;
+      
+      if (!tokenResponse?.token) {
+        logger.error('No token returned from Service Principal credential');
+        return null;
+      }
+      
+      logger.debug('Token obtained successfully', { tokenLength: tokenResponse.token.length });
+      return tokenResponse.token;
     } catch (error: any) {
-      logger.error('Failed to get Azure access token', { error: error.message });
+      logger.error('Failed to get Azure access token', { 
+        error: {
+          message: error?.message || 'Unknown error',
+          code: error?.code,
+          name: error?.name,
+          stack: error?.stack?.split('\n').slice(0, 3).join('\n'),
+        }
+      });
       return null;
     }
   }
@@ -151,54 +180,99 @@ export class AzureProvider implements ICloudProvider {
       return this.tokenCredential;
     }
 
-    try {
-      if (isOAuthCredentials(this.credentials)) {
-        // Use OAuth access token
-        this.tokenCredential = new OAuthTokenCredential(
-          this.credentials.accessToken,
-          this.credentials.expiresAt
-        );
-        
-        logger.debug('Using OAuth token credential', {
-          subscriptionId: this.credentials.subscriptionId,
-          tenantId: this.credentials.tenantId,
-        });
-      } else if (isServicePrincipalCredentials(this.credentials)) {
-        // Use Service Principal credentials
-        const { ClientSecretCredential } = await import('@azure/identity');
-        
-        this.tokenCredential = new ClientSecretCredential(
-          this.credentials.tenantId,
-          this.credentials.clientId,
-          this.credentials.clientSecret
-        );
-        
-        logger.debug('Using Service Principal credential', {
-          subscriptionId: this.credentials.subscriptionId,
-          tenantId: this.credentials.tenantId,
-          clientId: this.credentials.clientId,
-        });
-      } else {
-        throw new CloudProviderError(
-          'Invalid Azure credentials format',
-          'AZURE',
-          'INVALID_CREDENTIALS',
-          400
-        );
-      }
+    const credentialInfo = {
+      isOAuth: isOAuthCredentials(this.credentials),
+      isServicePrincipal: isServicePrincipalCredentials(this.credentials),
+      subscriptionId: this.credentials.subscriptionId,
+    };
 
+    logger.debug('Creating token credential', credentialInfo);
+
+    try {
+      this.tokenCredential = await this.createTokenCredential();
       return this.tokenCredential;
     } catch (error: any) {
-      if (error.code === 'ERR_MODULE_NOT_FOUND' || error.code === 'MODULE_NOT_FOUND') {
-        throw new CloudProviderError(
-          'Azure SDK not installed. Run: npm install @azure/identity @azure/arm-resources @azure/arm-compute @azure/arm-storage @azure/arm-costmanagement',
-          'AZURE',
-          'SDK_NOT_INSTALLED',
-          500
-        );
-      }
-      throw error;
+      this.handleCredentialError(error);
+      throw error; // Re-throw if not handled
     }
+  }
+
+  /**
+   * Create the appropriate token credential based on credential type
+   */
+  private async createTokenCredential(): Promise<any> {
+    if (isOAuthCredentials(this.credentials)) {
+      return this.createOAuthCredential();
+    }
+    
+    if (isServicePrincipalCredentials(this.credentials)) {
+      return this.createServicePrincipalCredential();
+    }
+    
+    logger.error('Invalid Azure credentials format', {
+      credentialKeys: Object.keys(this.credentials),
+    });
+    throw new CloudProviderError(
+      'Invalid Azure credentials format',
+      'AZURE',
+      'INVALID_CREDENTIALS',
+      400
+    );
+  }
+
+  /**
+   * Create OAuth token credential
+   */
+  private createOAuthCredential(): OAuthTokenCredential {
+    const creds = this.credentials as AzureOAuthCredentials;
+    
+    logger.debug('Using OAuth token credential', {
+      subscriptionId: creds.subscriptionId,
+      tenantId: creds.tenantId,
+    });
+    
+    return new OAuthTokenCredential(creds.accessToken, creds.expiresAt);
+  }
+
+  /**
+   * Create Service Principal credential
+   */
+  private async createServicePrincipalCredential(): Promise<any> {
+    const creds = this.credentials as AzureServicePrincipalCredentials;
+    
+    logger.debug('Creating Service Principal credential', {
+      tenantId: creds.tenantId,
+      clientId: creds.clientId,
+    });
+    
+    const { ClientSecretCredential } = await import('@azure/identity');
+    
+    const credential = new ClientSecretCredential(
+      creds.tenantId,
+      creds.clientId,
+      creds.clientSecret
+    );
+    
+    logger.debug('Service Principal credential created successfully');
+    return credential;
+  }
+
+  /**
+   * Handle credential creation errors
+   */
+  private handleCredentialError(error: any): never {
+    const isModuleNotFound = error.code === 'ERR_MODULE_NOT_FOUND' || error.code === 'MODULE_NOT_FOUND';
+    
+    if (isModuleNotFound) {
+      throw new CloudProviderError(
+        'Azure SDK not installed. Run: npm install @azure/identity @azure/arm-resources @azure/arm-compute @azure/arm-storage @azure/arm-costmanagement',
+        'AZURE',
+        'SDK_NOT_INSTALLED',
+        500
+      );
+    }
+    
+    throw error;
   }
 
   /**
@@ -488,139 +562,233 @@ export class AzureProvider implements ICloudProvider {
 
   /**
    * Get Azure cost data using Cost Management API
+   * Uses direct REST API call instead of SDK for better reliability
    */
   async getCosts(params: CostQueryParams): Promise<CostData[]> {
-    const costs: CostData[] = [];
+    const accessToken = await this.getAccessToken();
+    if (!accessToken) {
+      logger.error('Failed to get Azure access token for cost query');
+      return [];
+    }
+
+    const apiUrl = this.buildCostManagementUrl();
+    const requestBody = this.buildCostQueryRequest(params);
+
+    logger.debug('Calling Azure Cost Management API', {
+      subscriptionId: this.credentials.subscriptionId,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      granularity: params.granularity,
+    });
 
     try {
-      const credential = await this.getTokenCredential();
-      const { CostManagementClient } = await import('@azure/arm-costmanagement');
-      
-      const costClient = new CostManagementClient(credential);
-      const scope = `/subscriptions/${this.credentials.subscriptionId}`;
-
-      // Query cost data
-      const query = await costClient.query.usage(scope, {
-        type: 'ActualCost',
-        timeframe: 'Custom',
-        timePeriod: {
-          from: new Date(params.startDate),
-          to: new Date(params.endDate),
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
         },
-        dataset: {
-          granularity: params.granularity === 'MONTHLY' ? 'Monthly' : 'Daily',
-          aggregation: {
-            totalCost: {
-              name: 'Cost',
-              function: 'Sum',
-            },
-          },
-          grouping: [
-            {
-              type: 'Dimension',
-              name: 'ServiceName',
-            },
-          ],
-        },
+        body: JSON.stringify(requestBody),
       });
 
-      // Parse results
-      // Azure Cost Management API returns columns in order based on query configuration:
-      // - First: aggregation columns (Cost)
-      // - Then: grouping columns (ServiceName)
-      // - Then: date column (UsageDate as number YYYYMMDD)
-      // - Finally: Currency
-      // Actual row format: [cost, date (YYYYMMDD number), serviceName, currency]
-      if (query.rows) {
-        logger.info('Azure Cost API response', {
-          rowCount: query.rows.length,
-          columns: query.columns?.map(c => c.name),
-          sampleRow: query.rows[0],
-        });
-        
-        // Determine column order from response columns
-        const columns = query.columns || [];
-        let costIndex = 0;
-        let dateIndex = 1;
-        let serviceIndex = 2;
-        let currencyIndex = 3;
-        
-        // Map column names to indices
-        columns.forEach((col, idx) => {
-          const name = col.name?.toLowerCase() || '';
-          if (name === 'cost' || name === 'totalcost' || name === 'precost') {
-            costIndex = idx;
-          } else if (name === 'usagedate' || name === 'billingperiod' || name.includes('date')) {
-            dateIndex = idx;
-          } else if (name === 'servicename' || name === 'service') {
-            serviceIndex = idx;
-          } else if (name === 'currency') {
-            currencyIndex = idx;
-          }
-        });
-        
-        for (const row of query.rows) {
-          const cost = parseFloat(String(row[costIndex])) || 0;
-          
-          // Parse date - Azure returns as number (YYYYMMDD) or string
-          let dateStr = params.startDate;
-          const rawDate = row[dateIndex];
-          if (rawDate) {
-            const dateNum = String(rawDate);
-            // Convert YYYYMMDD to YYYY-MM-DD
-            if (/^\d{8}$/.test(dateNum)) {
-              dateStr = `${dateNum.slice(0, 4)}-${dateNum.slice(4, 6)}-${dateNum.slice(6, 8)}`;
-            } else if (/^\d{4}-\d{2}-\d{2}/.test(dateNum)) {
-              dateStr = dateNum.slice(0, 10);
-            } else {
-              // Try to parse as date
-              const parsed = new Date(rawDate as any);
-              if (!isNaN(parsed.getTime())) {
-                dateStr = parsed.toISOString().slice(0, 10);
-              }
-            }
-          }
-          
-          const service = String(row[serviceIndex] || 'Unknown');
-          const currency = String(row[currencyIndex] || 'USD');
-
-          costs.push({
-            date: dateStr,
-            service,
-            cost,
-            currency,
-            provider: 'AZURE',
-            accountId: this.credentials.subscriptionId,
-          });
-        }
+      if (!response.ok) {
+        await this.handleCostApiError(response);
+        return [];
       }
 
-      logger.info('Azure costs retrieved', {
+      const responseData = await this.parseCostApiResponse(response);
+      if (!responseData) {
+        return [];
+      }
+
+      const costs = this.transformCostData(responseData, params.startDate);
+
+      logger.info('Azure costs retrieved successfully', {
         count: costs.length,
         startDate: params.startDate,
         endDate: params.endDate,
+        totalCost: costs.reduce((sum, c) => sum + c.cost, 0),
       });
-    } catch (error: any) {
-      // Properly serialize the error for logging
-      const errorDetails = {
-        message: error?.message || 'Unknown error',
-        code: error?.code,
-        statusCode: error?.statusCode,
-        name: error?.name,
-        details: error?.details,
-        stack: error?.stack?.split('\n').slice(0, 3).join('\n'),
-      };
-      
-      logger.error('Failed to get Azure costs', { error: JSON.stringify(errorDetails) });
-      
-      // Return empty array instead of throwing for cost retrieval failures
-      // This allows the system to continue working even if cost data is unavailable
-      if (error.statusCode === 403) {
-        logger.warn('Cost Management API access denied - Service Principal may need Cost Management Reader role');
-      }
-    }
 
-    return costs;
+      return costs;
+    } catch (error: unknown) {
+      this.logCostApiError(error);
+      return [];
+    }
+  }
+
+  /**
+   * Build the Cost Management API URL
+   */
+  private buildCostManagementUrl(): string {
+    const API_VERSION = '2023-11-01';
+    const scope = `/subscriptions/${this.credentials.subscriptionId}`;
+    return `https://management.azure.com${scope}/providers/Microsoft.CostManagement/query?api-version=${API_VERSION}`;
+  }
+
+  /**
+   * Build the cost query request body
+   */
+  private buildCostQueryRequest(params: CostQueryParams): object {
+    return {
+      type: 'ActualCost',
+      timeframe: 'Custom',
+      timePeriod: {
+        from: params.startDate,
+        to: params.endDate,
+      },
+      dataset: {
+        granularity: params.granularity === 'MONTHLY' ? 'Monthly' : 'Daily',
+        aggregation: {
+          totalCost: { name: 'Cost', function: 'Sum' },
+        },
+        grouping: [{ type: 'Dimension', name: 'ServiceName' }],
+      },
+    };
+  }
+
+  /**
+   * Handle Cost Management API error responses
+   */
+  private async handleCostApiError(response: Response): Promise<void> {
+    const responseText = await response.text();
+    let errorDetails: unknown;
+    
+    try {
+      errorDetails = JSON.parse(responseText);
+    } catch {
+      errorDetails = { rawText: responseText.substring(0, 500) };
+    }
+    
+    logger.error('Azure Cost Management API error', {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorDetails,
+    });
+    
+    if (response.status === 403) {
+      logger.warn('Cost Management API access denied - ensure Cost Management Reader role is assigned');
+    }
+  }
+
+  /**
+   * Parse and validate Cost API response
+   */
+  private async parseCostApiResponse(response: Response): Promise<{ rows: unknown[]; columns: Array<{ name: string }> } | null> {
+    const responseText = await response.text();
+    
+    try {
+      const data = JSON.parse(responseText);
+      const rows = data.properties?.rows || [];
+      const columns = data.properties?.columns || [];
+
+      logger.debug('Azure Cost API response parsed', {
+        rowCount: rows.length,
+        columns: columns.map((c: { name: string }) => c.name),
+      });
+
+      if (rows.length === 0) {
+        logger.info('No cost data returned from Azure for the specified period');
+        return null;
+      }
+
+      return { rows, columns };
+    } catch (parseError) {
+      logger.error('Failed to parse Azure Cost API response', { 
+        error: parseError instanceof Error ? parseError.message : 'Unknown parse error',
+        responseText: responseText.substring(0, 500),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Transform raw API response into CostData array
+   */
+  private transformCostData(
+    responseData: { rows: unknown[]; columns: Array<{ name: string }> },
+    defaultDate: string
+  ): CostData[] {
+    const columnIndices = this.mapColumnIndices(responseData.columns);
+    
+    return responseData.rows.map((row: unknown) => {
+      const rowArray = row as unknown[];
+      return {
+        date: this.parseAzureDate(rowArray[columnIndices.date], defaultDate),
+        service: String(rowArray[columnIndices.service] || 'Unknown'),
+        cost: parseFloat(String(rowArray[columnIndices.cost])) || 0,
+        currency: String(rowArray[columnIndices.currency] || 'USD'),
+        provider: 'AZURE' as const,
+        accountId: this.credentials.subscriptionId,
+      };
+    });
+  }
+
+  /**
+   * Map column names to their indices in the response
+   */
+  private mapColumnIndices(columns: Array<{ name: string }>): { cost: number; date: number; service: number; currency: number } {
+    const indices = { cost: 0, date: 1, service: 2, currency: 3 };
+    
+    columns.forEach((col, idx) => {
+      const name = (col.name || '').toLowerCase();
+      if (name === 'cost' || name === 'totalcost' || name === 'precost') {
+        indices.cost = idx;
+      } else if (name === 'usagedate' || name === 'billingperiod' || name.includes('date')) {
+        indices.date = idx;
+      } else if (name === 'servicename' || name === 'service') {
+        indices.service = idx;
+      } else if (name === 'currency') {
+        indices.currency = idx;
+      }
+    });
+    
+    return indices;
+  }
+
+  /**
+   * Parse Azure date format (YYYYMMDD number or string) to ISO date string
+   */
+  private parseAzureDate(rawDate: unknown, defaultDate: string): string {
+    if (!rawDate) {
+      return defaultDate;
+    }
+    
+    const dateStr = String(rawDate);
+    
+    // YYYYMMDD format
+    if (/^\d{8}$/.test(dateStr)) {
+      return `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+    }
+    
+    // Already ISO format
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      return dateStr.slice(0, 10);
+    }
+    
+    // Try parsing as Date
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    
+    return defaultDate;
+  }
+
+  /**
+   * Log cost API errors with proper serialization
+   */
+  private logCostApiError(error: unknown): void {
+    const err = error as { message?: string; code?: string; statusCode?: number; name?: string; stack?: string };
+    const errorDetails = {
+      message: err?.message || 'Unknown error',
+      code: err?.code,
+      statusCode: err?.statusCode,
+      name: err?.name,
+      stack: err?.stack?.split('\n').slice(0, 3).join('\n'),
+    };
+    
+    logger.error('Failed to get Azure costs', { error: errorDetails });
   }
 
   /**

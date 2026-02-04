@@ -121,31 +121,41 @@ export async function handler(
 
         // Create or update monitored resource entry
         const mappedType = mapResourceType(resource.type);
-        await prisma.monitoredResource.upsert({
+        
+        // For Azure, we need to find by azure_credential_id since the unique constraint uses aws_account_id
+        const existingResource = await prisma.monitoredResource.findFirst({
           where: {
-            organization_id_aws_account_id_resource_id_resource_type: {
-              organization_id: organizationId,
-              aws_account_id: credentialId,
-              resource_id: resource.id,
-              resource_type: mappedType,
-            },
-          },
-          update: {
-            resource_name: resource.name,
-            region: resource.location,
-            status: 'active',
-            updated_at: new Date(),
-          },
-          create: {
             organization_id: organizationId,
-            aws_account_id: credentialId,
+            azure_credential_id: credentialId,
             resource_id: resource.id,
-            resource_name: resource.name,
             resource_type: mappedType,
-            region: resource.location,
-            status: 'active',
           },
         });
+        
+        if (existingResource) {
+          await prisma.monitoredResource.update({
+            where: { id: existingResource.id },
+            data: {
+              resource_name: resource.name,
+              region: resource.location,
+              status: 'active',
+              updated_at: new Date(),
+            },
+          });
+        } else {
+          await prisma.monitoredResource.create({
+            data: {
+              organization_id: organizationId,
+              azure_credential_id: credentialId,
+              cloud_provider: 'AZURE',
+              resource_id: resource.id,
+              resource_name: resource.name,
+              resource_type: mappedType,
+              region: resource.location,
+              status: 'active',
+            },
+          });
+        }
 
         const metrics = await fetchResourceMetrics(
           accessToken,
@@ -160,32 +170,41 @@ export async function handler(
 
         // Store metrics in database
         for (const metric of metrics) {
-          await prisma.resourceMetric.upsert({
+          // For Azure, we need to find by azure_credential_id since the unique constraint uses aws_account_id
+          const existingMetric = await prisma.resourceMetric.findFirst({
             where: {
-              organization_id_aws_account_id_resource_id_metric_name_timestamp: {
-                organization_id: organizationId,
-                aws_account_id: credentialId, // Using credentialId as account identifier
-                resource_id: resource.id,
-                metric_name: metric.name,
-                timestamp: metric.timestamp,
-              },
-            },
-            update: {
-              metric_value: metric.value,
-              metric_unit: metric.unit,
-            },
-            create: {
               organization_id: organizationId,
-              aws_account_id: credentialId, // Using credentialId as account identifier
+              azure_credential_id: credentialId,
               resource_id: resource.id,
-              resource_name: resource.name,
-              resource_type: mapResourceType(resource.type),
               metric_name: metric.name,
-              metric_value: metric.value,
-              metric_unit: metric.unit,
               timestamp: metric.timestamp,
             },
           });
+          
+          if (existingMetric) {
+            await prisma.resourceMetric.update({
+              where: { id: existingMetric.id },
+              data: {
+                metric_value: metric.value,
+                metric_unit: metric.unit,
+              },
+            });
+          } else {
+            await prisma.resourceMetric.create({
+              data: {
+                organization_id: organizationId,
+                azure_credential_id: credentialId,
+                cloud_provider: 'AZURE',
+                resource_id: resource.id,
+                resource_name: resource.name,
+                resource_type: mapResourceType(resource.type),
+                metric_name: metric.name,
+                metric_value: metric.value,
+                metric_unit: metric.unit,
+                timestamp: metric.timestamp,
+              },
+            });
+          }
           metricsCollected++;
         }
 

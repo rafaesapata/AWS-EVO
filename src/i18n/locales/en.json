@@ -1889,7 +1889,14 @@
     "statusCompleted": "Completed",
     "statusFailed": "Failed",
     "noHistoryYet": "No analysis history yet.",
-    "runFirstAnalysis": "Run your first ML analysis to see execution history here."
+    "runFirstAnalysis": "Run your first ML analysis to see execution history here.",
+    "purchase": "Reserve/Savings Plan",
+    "riSpOpportunities": "RI/SP opportunities",
+    "reserveOrSavingsPlan": "RESERVE/SAVINGS PLAN",
+    "whyThisRecommendation": "Why this recommendation?",
+    "issue": "Issue",
+    "reason": "Reason",
+    "solution": "Solution"
   },
   "costOptimization": {
     "title": "AWS Cost Optimization",
@@ -2629,6 +2636,14 @@
     "securityScanningDesc": "VMs, Storage, SQL, Key Vault, NSGs",
     "costAnalysis": "Cost Analysis",
     "costAnalysisDesc": "Daily costs, trends, forecasts",
+    "validatePermissions": "Validate Permissions",
+    "permissionsValid": "All permissions are correctly configured!",
+    "permissionsValidDescription": "Your Azure credentials have all required permissions.",
+    "permissionsMissing": "Missing required permissions",
+    "permissionsMissingCount": "permission(s) missing",
+    "permissionsWarnings": "Permissions validated with warnings",
+    "permissionsWarningsCount": "warning(s) found",
+    "validationFailed": "Validation failed",
     "resourceInventory": "Resource Inventory",
     "resourceInventoryDesc": "All Azure resources",
     "activityMonitoring": "Activity Monitoring",
@@ -2706,7 +2721,18 @@
     "noAccounts": "No accounts",
     "selectAccount": "Select account...",
     "searchAccounts": "Search accounts...",
-    "noAccountsFound": "No accounts found."
+    "noAccountsFound": "No accounts found.",
+    "awsPermissionsMissing": "⚠️ Missing AWS Permissions",
+    "awsPermissionsDescription": "Some resources could not be accessed due to missing permissions. Configure permissions in AWS IAM.",
+    "goToAwsSettings": "Go to AWS Settings",
+    "awsPermissionsGuide": "AWS Permissions Guide",
+    "azurePermissionsMissing": "⚠️ Missing Azure Permissions",
+    "azurePermissionsDescription": "Some resources could not be accessed due to missing permissions. Configure permissions in Azure RBAC.",
+    "goToAzureSettings": "Go to Azure Settings",
+    "azurePermissionsGuide": "Azure Permissions Guide",
+    "requiredPermissions": "Required permissions:",
+    "clickToCopy": "Click to copy",
+    "clickToCopyHint": "Click on any permission to copy it"
   },
   "cloudCredentials": {
     "title": "Cloud Credentials",
@@ -2986,6 +3012,7 @@
     "clickRefreshToFetch": "Click \"Refresh\" to fetch resources",
     "showing": "Showing {{start}}-{{end}} of {{total}} resources",
     "avgCpu": "Average CPU",
+    "azureCredentialNotFound": "Azure credential not found",
     "resourceTypes": {
       "ec2": "EC2 Instances",
       "rds": "RDS Databases",

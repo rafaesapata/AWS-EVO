@@ -342,8 +342,8 @@ export class APIDocumentationGenerator extends DocumentationGenerator {
     const content = this.endpoints.map(endpoint => this.renderEndpointHTML(endpoint)).join('\n');
     
     const html = this.replaceTemplateVariables(template, {
-      title: 'EVO UDS API Documentation',
-      description: 'Comprehensive API documentation for the EVO UDS system',
+      title: 'EVO Platform API Documentation',
+      description: 'Comprehensive API documentation for the EVO Platform system',
       content,
     });
 
@@ -408,8 +408,8 @@ export class APIDocumentationGenerator extends DocumentationGenerator {
     const content = this.endpoints.map(endpoint => this.renderEndpointMarkdown(endpoint)).join('\n\n');
     
     const markdown = this.replaceTemplateVariables(template, {
-      title: 'EVO UDS API Documentation',
-      description: 'Comprehensive API documentation for the EVO UDS system',
+      title: 'EVO Platform API Documentation',
+      description: 'Comprehensive API documentation for the EVO Platform system',
       content,
     });
 
@@ -471,21 +471,21 @@ ${JSON.stringify(example.value, null, 2)}
     const openApiSpec = {
       openapi: '3.0.3',
       info: {
-        title: 'EVO UDS API',
-        description: 'Comprehensive API for the EVO UDS system',
+        title: 'EVO Platform API',
+        description: 'Comprehensive API for the EVO Platform system',
         version: '1.0.0',
         contact: {
-          name: 'EVO UDS Team',
-          email: 'api@evo-uds.com',
+          name: 'EVO Platform Team',
+          email: 'api@evo-platform.com',
         },
       },
       servers: [
         {
-          url: 'https://api.evo-uds.com/v1',
+          url: 'https://api.evo-platform.com/v1',
           description: 'Production server',
         },
         {
-          url: 'https://staging-api.evo-uds.com/v1',
+          url: 'https://staging-api.evo-platform.com/v1',
           description: 'Staging server',
         },
       ],
@@ -542,8 +542,8 @@ ${JSON.stringify(example.value, null, 2)}
 
   private async generateJSON(): Promise<void> {
     const apiDoc = {
-      title: 'EVO UDS API Documentation',
-      description: 'Comprehensive API documentation for the EVO UDS system',
+      title: 'EVO Platform API Documentation',
+      description: 'Comprehensive API documentation for the EVO Platform system',
       version: '1.0.0',
       endpoints: this.endpoints,
       generatedAt: new Date().toISOString(),
@@ -874,8 +874,8 @@ ${example.code}
 
   private async generateJSON(): Promise<void> {
     const codeDoc = {
-      title: 'EVO UDS Code Documentation',
-      description: 'Comprehensive code documentation for the EVO UDS system',
+      title: 'EVO Platform Code Documentation',
+      description: 'Comprehensive code documentation for the EVO Platform system',
       files: this.codeDocumentation,
       generatedAt: new Date().toISOString(),
     };
@@ -938,7 +938,7 @@ export class DocumentationManager {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>EVO UDS Documentation</title>
+    <title>EVO Platform Documentation</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
         .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
@@ -949,8 +949,8 @@ export class DocumentationManager {
     </style>
 </head>
 <body>
-    <h1>EVO UDS Documentation</h1>
-    <p>Welcome to the comprehensive documentation for the EVO UDS system.</p>
+    <h1>EVO Platform Documentation</h1>
+    <p>Welcome to the comprehensive documentation for the EVO Platform system.</p>
     
     ${this.config.sections.filter(s => s.enabled).map(section => `
     <div class="section">

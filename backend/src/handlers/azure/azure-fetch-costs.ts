@@ -2,6 +2,7 @@
  * Azure Fetch Costs Handler
  * 
  * Fetches cost data from Azure Cost Management API and stores in database.
+ * Uses direct REST API calls for reliability (same approach as debug-azure-costs).
  */
 
 // Ensure crypto is available globally for Azure SDK
@@ -16,11 +17,12 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
-import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
-import { validateServicePrincipalCredentials } from '../../lib/azure-helpers.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
-import type { CostQueryParams } from '../../types/cloud.js';
 import { z } from 'zod';
+
+// Constants
+const AZURE_MANAGEMENT_SCOPE = 'https://management.azure.com/.default';
+const COST_MANAGEMENT_API_VERSION = '2023-11-01';
 
 // Validation schema
 const azureFetchCostsSchema = z.object({
@@ -29,6 +31,170 @@ const azureFetchCostsSchema = z.object({
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be YYYY-MM-DD'),
   granularity: z.enum(['DAILY', 'MONTHLY']).optional().default('DAILY'),
 });
+
+/**
+ * Azure credential from database
+ */
+interface AzureCredentialRecord {
+  id: string;
+  organization_id: string;
+  subscription_id: string;
+  subscription_name: string | null;
+  auth_type: string | null;
+  tenant_id: string | null;
+  client_id: string | null;
+  client_secret: string | null;
+}
+
+/**
+ * Column definition from Azure API
+ */
+interface ColumnDefinition {
+  name: string;
+  type?: string;
+}
+
+/**
+ * Get access token for Azure - handles both OAuth and Service Principal
+ */
+async function getAccessToken(
+  credential: AzureCredentialRecord,
+  prisma: ReturnType<typeof getPrismaClient>
+): Promise<{ success: true; token: string } | { success: false; error: string }> {
+  try {
+    if (credential.auth_type === 'oauth') {
+      // OAuth flow - use existing helper
+      const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+      const tokenResult = await getAzureCredentialWithToken(prisma, credential.id, credential.organization_id);
+      
+      if (!tokenResult.success) {
+        return { success: false, error: tokenResult.error };
+      }
+      return { success: true, token: tokenResult.accessToken };
+    }
+    
+    // Service Principal flow - direct approach (same as debug-azure-costs)
+    if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
+      return { success: false, error: 'Missing Service Principal credentials (tenant_id, client_id, or client_secret)' };
+    }
+    
+    const { ClientSecretCredential } = await import('@azure/identity');
+    const spCredential = new ClientSecretCredential(
+      credential.tenant_id,
+      credential.client_id,
+      credential.client_secret
+    );
+    
+    const tokenResponse = await spCredential.getToken(AZURE_MANAGEMENT_SCOPE);
+    return { success: true, token: tokenResponse.token };
+  } catch (err: unknown) {
+    const errorDetails = err instanceof Error 
+      ? { message: err.message, code: (err as NodeJS.ErrnoException).code, name: err.name }
+      : { message: 'Unknown error' };
+    logger.error('Failed to get Azure access token', { error: errorDetails });
+    return { success: false, error: `Failed to get access token: ${errorDetails.message}` };
+  }
+}
+
+/**
+ * Build cost query request body
+ */
+function buildCostQueryRequest(startDate: string, endDate: string, granularity: string) {
+  return {
+    type: 'ActualCost',
+    timeframe: 'Custom',
+    timePeriod: { from: startDate, to: endDate },
+    dataset: {
+      granularity: granularity === 'MONTHLY' ? 'Monthly' : 'Daily',
+      aggregation: {
+        totalCost: { name: 'Cost', function: 'Sum' },
+      },
+      grouping: [{ type: 'Dimension', name: 'ServiceName' }],
+    },
+  };
+}
+
+/**
+ * Query Azure Cost Management API directly
+ */
+async function queryCostManagementApi(
+  subscriptionId: string,
+  accessToken: string,
+  requestBody: object
+): Promise<{ success: true; rows: unknown[][]; columns: ColumnDefinition[] } | { success: false; error: string; status?: number }> {
+  const scope = `/subscriptions/${subscriptionId}`;
+  const apiUrl = `https://management.azure.com${scope}/providers/Microsoft.CostManagement/query?api-version=${COST_MANAGEMENT_API_VERSION}`;
+  
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+    
+    const responseText = await response.text();
+    
+    logger.info('Cost Management API response', {
+      status: response.status,
+      statusText: response.statusText,
+      responseLength: responseText.length,
+    });
+    
+    let responseData: { properties?: { rows?: unknown[][]; columns?: ColumnDefinition[] }; rawText?: string };
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      responseData = { rawText: responseText.substring(0, 1000) };
+    }
+    
+    if (!response.ok) {
+      logger.error('Cost Management API error', {
+        status: response.status,
+        statusText: response.statusText,
+        error: responseData,
+      });
+      return {
+        success: false,
+        error: `Cost Management API error: ${response.status} ${response.statusText}`,
+        status: response.status,
+      };
+    }
+    
+    return {
+      success: true,
+      rows: responseData.properties?.rows || [],
+      columns: responseData.properties?.columns || [],
+    };
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    logger.error('Cost Management API request failed', { error: errorMessage });
+    return { success: false, error: `API request failed: ${errorMessage}` };
+  }
+}
+
+/**
+ * Parse Azure date format (YYYYMMDD number) to ISO date string
+ */
+function parseAzureDate(rawDate: unknown, defaultDate: string): string {
+  if (!rawDate) return defaultDate;
+  
+  const dateStr = String(rawDate);
+  
+  // YYYYMMDD format
+  if (/^\d{8}$/.test(dateStr)) {
+    return `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+  }
+  
+  // Already ISO format
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    return dateStr.slice(0, 10);
+  }
+  
+  return defaultDate;
+}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -52,7 +218,7 @@ export async function handler(
       return validation.error;
     }
 
-    const { credentialId, startDate, endDate, granularity } = validation.data;
+    const { credentialId, startDate, endDate, granularity = 'DAILY' } = validation.data;
 
     // Fetch Azure credential
     const credential = await prisma.azureCredential.findFirst({
@@ -67,52 +233,66 @@ export async function handler(
       return error('Azure credential not found or inactive', 404);
     }
 
-    // Handle both OAuth and Service Principal credentials
-    let azureProvider: AzureProvider;
-    
-    if (credential.auth_type === 'oauth') {
-      // Use getAzureCredentialWithToken for OAuth
-      const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
-      const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
-      
-      if (!tokenResult.success) {
-        return error(tokenResult.error, 400);
-      }
-      
-      // Create provider with OAuth token
-      azureProvider = AzureProvider.withOAuthToken(
-        organizationId,
-        credential.subscription_id,
-        credential.subscription_name || undefined,
-        credential.oauth_tenant_id || credential.tenant_id || '',
-        tokenResult.accessToken,
-        new Date(Date.now() + 3600 * 1000) // 1 hour expiry
-      );
-    } else {
-      // Validate Service Principal credentials
-      const spValidation = validateServicePrincipalCredentials(credential);
-      if (!spValidation.valid) {
-        return error(spValidation.error, 400);
-      }
-      
-      // Create Azure provider with Service Principal
-      azureProvider = new AzureProvider(organizationId, spValidation.credentials);
+    logger.info('Credential found', {
+      id: credential.id,
+      subscriptionId: credential.subscription_id,
+      authType: credential.auth_type,
+    });
+
+    // Get access token (handles both OAuth and Service Principal)
+    const tokenResult = await getAccessToken(credential, prisma);
+    if (!tokenResult.success) {
+      return error(tokenResult.error, 400);
     }
 
-    const costParams: CostQueryParams = {
-      startDate,
-      endDate,
-      granularity,
-    };
+    logger.info('Token obtained', { tokenLength: tokenResult.token.length });
 
-    const costs = await azureProvider.getCosts(costParams);
+    // Ensure subscription_id is present
+    if (!credential.subscription_id) {
+      return error('Azure credential is missing subscription_id', 400);
+    }
 
-    logger.info('Azure costs fetched', {
-      organizationId,
-      credentialId,
-      subscriptionId: credential.subscription_id,
-      costRecords: costs.length,
+    // Build and execute cost query
+    const requestBody = buildCostQueryRequest(startDate, endDate, granularity ?? 'DAILY');
+    const costResult = await queryCostManagementApi(
+      credential.subscription_id,
+      tokenResult.token,
+      requestBody
+    );
+
+    if (!costResult.success) {
+      return error(costResult.error, costResult.status || 500);
+    }
+
+    const { rows, columns } = costResult;
+
+    logger.info('Cost data retrieved', {
+      rowCount: rows.length,
+      columns: columns.map((c) => c.name),
     });
+
+    // Map column indices
+    const columnIndices = { cost: 0, date: 1, service: 2, currency: 3 };
+    columns.forEach((col, idx) => {
+      const name = (col.name || '').toLowerCase();
+      if (name === 'cost' || name === 'totalcost' || name === 'precost') {
+        columnIndices.cost = idx;
+      } else if (name === 'usagedate' || name === 'billingperiod' || name.includes('date')) {
+        columnIndices.date = idx;
+      } else if (name === 'servicename' || name === 'service') {
+        columnIndices.service = idx;
+      } else if (name === 'currency') {
+        columnIndices.currency = idx;
+      }
+    });
+
+    // Transform rows to cost data
+    const costs = rows.map((row) => ({
+      date: parseAzureDate(row[columnIndices.date], startDate),
+      service: String(row[columnIndices.service] || 'Unknown'),
+      cost: parseFloat(String(row[columnIndices.cost])) || 0,
+      currency: String(row[columnIndices.currency] || 'BRL'),
+    }));
 
     // Store costs in database
     let savedCount = 0;
@@ -120,14 +300,13 @@ export async function handler(
 
     for (const cost of costs) {
       try {
-        // Upsert cost record
         await prisma.dailyCost.upsert({
           where: {
             organization_id_aws_account_id_date_service: {
               organization_id: organizationId,
-              aws_account_id: credentialId, // Reusing field for Azure credential ID
+              aws_account_id: credentialId,
               date: new Date(cost.date),
-              service: cost.service || 'Unknown',
+              service: cost.service,
             },
           },
           update: {
@@ -142,15 +321,16 @@ export async function handler(
             cloud_provider: 'AZURE',
             azure_credential_id: credentialId,
             date: new Date(cost.date),
-            service: cost.service || 'Unknown',
+            service: cost.service,
             cost: cost.cost,
             currency: cost.currency,
           },
         });
         savedCount++;
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         logger.warn('Failed to save cost record', { 
-          error: err.message,
+          error: errorMessage,
           date: cost.date,
           service: cost.service,
         });
@@ -167,10 +347,10 @@ export async function handler(
 
     // Calculate totals
     const totalCost = costs.reduce((sum, c) => sum + c.cost, 0);
-    const byService = costs.reduce((acc, c) => {
+    const byService = costs.reduce<Record<string, number>>((acc, c) => {
       acc[c.service] = (acc[c.service] || 0) + c.cost;
       return acc;
-    }, {} as Record<string, number>);
+    }, {});
 
     return success({
       subscriptionId: credential.subscription_id,
@@ -182,15 +362,20 @@ export async function handler(
       },
       summary: {
         totalCost,
-        currency: 'USD',
+        currency: costs[0]?.currency || 'BRL',
         recordCount: costs.length,
         savedCount,
         skippedCount,
       },
       byService,
     });
-  } catch (err: any) {
-    logger.error('Error fetching Azure costs', { error: err.message });
-    return error(err.message || 'Failed to fetch Azure costs', 500);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Failed to fetch Azure costs';
+    const errorStack = err instanceof Error ? err.stack?.split('\n').slice(0, 3).join('\n') : undefined;
+    logger.error('Error fetching Azure costs', { 
+      error: errorMessage,
+      stack: errorStack,
+    });
+    return error(errorMessage, 500);
   }
 }

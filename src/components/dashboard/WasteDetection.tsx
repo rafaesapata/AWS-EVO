@@ -158,7 +158,7 @@ export default function WasteDetection() {
       });
 
       // Call waste detection edge function with account context
-      const data = await apiClient.lambda('waste-detection', {
+      const data = await apiClient.lambda('ml-waste-detection', {
         body: { accountId: selectedAccountId }
       });
 

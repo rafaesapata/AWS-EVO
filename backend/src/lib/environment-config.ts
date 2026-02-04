@@ -308,7 +308,7 @@ export class EnvironmentConfigManager {
     return {
       environment: (env.NODE_ENV as Environment) || 'development',
       app: {
-        name: env.APP_NAME || 'EVO UDS',
+        name: env.APP_NAME || 'EVO Platform',
         version: env.APP_VERSION || '1.0.0',
         port: parseInt(env.PORT || '3000'),
         baseUrl: env.BASE_URL || 'http://localhost:3000',
@@ -481,7 +481,7 @@ export class EnvironmentConfigManager {
     return {
       environment: 'development',
       app: {
-        name: 'EVO UDS',
+        name: 'EVO Platform',
         version: '1.0.0',
         port: 3000,
         baseUrl: 'http://localhost:3000',
@@ -491,7 +491,7 @@ export class EnvironmentConfigManager {
         locale: 'en',
       },
       database: {
-        url: 'postgresql://localhost:5432/evo_uds',
+        url: 'postgresql://localhost:5432/evo_platform',
         maxConnections: 10,
         connectionTimeout: 30000,
         queryTimeout: 60000,

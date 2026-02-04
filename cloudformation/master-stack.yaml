@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - Master Stack - Complete Infrastructure Deployment'
+Description: 'EVO Platform - Master Stack - Complete Infrastructure Deployment'
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -324,7 +324,7 @@ Outputs:
   DeploymentSummary:
     Description: Deployment Summary
     Value: !Sub |
-      EVO UDS ${Environment} Environment Deployed Successfully!
+      EVO Platform ${Environment} Environment Deployed Successfully!
       
       Frontend: https://${FrontendStack.Outputs.CloudFrontDomain}
       API: ${ApiGatewayStack.Outputs.ApiUrl}

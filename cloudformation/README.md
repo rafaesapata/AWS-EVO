@@ -1,6 +1,6 @@
-# 🚀 EVO UDS - CloudFormation Infrastructure
+# 🚀 EVO Platform - CloudFormation Infrastructure
 
-Complete infrastructure-as-code for deploying EVO UDS to AWS.
+Complete infrastructure-as-code for deploying EVO Platform to AWS.
 
 ## 📦 What's Included
 

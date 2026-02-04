@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'ElastiCache Redis for EVO UDS v3 - Metrics Cache'
+Description: 'ElastiCache Redis for EVO Platform v3 - Metrics Cache'
 
 Parameters:
   Environment:
@@ -65,7 +65,7 @@ Resources:
     Type: AWS::ElastiCache::SubnetGroup
     Properties:
       CacheSubnetGroupName: !Sub 'evo-uds-${Environment}-redis-subnet-group'
-      Description: Subnet group for EVO UDS Redis
+      Description: Subnet group for EVO Platform Redis
       SubnetIds: !Ref SubnetIds
       Tags:
         - Key: Name
@@ -78,7 +78,7 @@ Resources:
     Type: AWS::ElastiCache::ParameterGroup
     Properties:
       CacheParameterGroupFamily: redis7
-      Description: Parameter group for EVO UDS Redis
+      Description: Parameter group for EVO Platform Redis
       Properties:
         maxmemory-policy: allkeys-lru
         timeout: '300'
@@ -121,7 +121,7 @@ Resources:
       Name: !Sub '/evo-uds/${Environment}/redis/endpoint'
       Type: String
       Value: !GetAtt RedisCluster.RedisEndpoint.Address
-      Description: ElastiCache Redis endpoint for EVO UDS
+      Description: ElastiCache Redis endpoint for EVO Platform
       Tags:
         Environment: !Ref Environment
         Project: evo-uds-v3
@@ -133,7 +133,7 @@ Resources:
       Name: !Sub '/evo-uds/${Environment}/redis/port'
       Type: String
       Value: !GetAtt RedisCluster.RedisEndpoint.Port
-      Description: ElastiCache Redis port for EVO UDS
+      Description: ElastiCache Redis port for EVO Platform
       Tags:
         Environment: !Ref Environment
         Project: evo-uds-v3

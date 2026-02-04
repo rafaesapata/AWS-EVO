@@ -77,14 +77,14 @@ class CloudFrontInvalidator {
       // Se não encontrar, lista todas as distribuições
       this.log('🔍 Buscando distribuições do CloudFront...', 'info');
       
-      const result = execSync('aws cloudfront list-distributions --query "DistributionList.Items[?Comment==\'EVO UDS Frontend Distribution\' || contains(Comment, \'evo-uds\')].{Id:Id,Comment:Comment,DomainName:DomainName}" --output json', {
+      const result = execSync('aws cloudfront list-distributions --query "DistributionList.Items[?Comment==\'EVO Platform Frontend Distribution\' || contains(Comment, \'evo-platform\') || contains(Comment, \'evo-uds\')].{Id:Id,Comment:Comment,DomainName:DomainName}" --output json', {
         stdio: 'pipe'
       }).toString();
 
       const distributions = JSON.parse(result);
       
       if (distributions.length === 0) {
-        throw new Error('Nenhuma distribuição CloudFront encontrada para EVO UDS');
+        throw new Error('Nenhuma distribuição CloudFront encontrada para EVO Platform');
       }
 
       if (distributions.length === 1) {
@@ -306,7 +306,7 @@ async function main() {
   // Comandos especiais
   if (args.includes('--help') || args.includes('-h')) {
     console.log(`
-🔄 Invalidação de Cache do CloudFront - EVO UDS
+🔄 Invalidação de Cache do CloudFront - EVO Platform
 
 Uso: npm run invalidate-cloudfront [opções]
 

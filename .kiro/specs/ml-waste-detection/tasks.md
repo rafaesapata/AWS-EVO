@@ -291,7 +291,7 @@ aws lambda update-function-code \
 **Commands:**
 ```bash
 npm run build
-aws s3 sync dist/ s3://evo-uds-v3-production-frontend-383234048592 --delete
+aws s3 sync dist/ s3://evo-uds-v3-sandbox-frontend-971354623291 --delete
 aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"
 ```
 
@@ -351,9 +351,9 @@ aws lambda publish-layer-version \
   --region us-east-1
 
 # Update Lambdas with new layer
-LAYER_ARN="arn:aws:lambda:us-east-1:383234048592:layer:evo-prisma-deps-layer:4"
+LAYER_ARN="arn:aws:lambda:us-east-1:971354623291:layer:evo-prisma-deps-layer:92"
 aws lambda update-function-configuration \
-  --function-name evo-uds-v3-production-ml-waste-detection \
+  --function-name evo-uds-v3-sandbox-ml-waste-detection \
   --layers "$LAYER_ARN" \
   --region us-east-1
 ```
@@ -390,6 +390,6 @@ aws lambda update-function-code \
 
 # Rollback Frontend
 git checkout HEAD~1 -- dist/
-aws s3 sync dist/ s3://evo-uds-v3-production-frontend-383234048592 --delete
+aws s3 sync dist/ s3://evo-uds-v3-sandbox-frontend-971354623291 --delete
 aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"
 ```

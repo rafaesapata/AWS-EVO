@@ -39,6 +39,7 @@ import CopilotAI from "./pages/CopilotAI";
 import SecurityPosture from "./pages/SecurityPosture";
 import IntelligentAlerts from "./pages/IntelligentAlerts";
 import RemediationTickets from "./pages/RemediationTickets";
+import TicketDetails from "./pages/TicketDetails";
 import CostOptimization from "./pages/CostOptimization";
 import RISavingsPlans from "./pages/RISavingsPlans";
 import SecurityScans from "./pages/SecurityScans";
@@ -292,6 +293,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <RemediationTickets />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/tickets/:ticketId" 
+                element={
+                  <ProtectedRoute>
+                    <TicketDetails />
                   </ProtectedRoute>
                 } 
               />

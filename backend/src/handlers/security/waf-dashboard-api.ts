@@ -1485,7 +1485,7 @@ async function handleDiagnose(
         })
       );
       
-      const evoDestinationArn = `arn:aws:logs:${region}:${process.env.AWS_ACCOUNT_ID || '383234048592'}:destination:evo-uds-v3-production-waf-logs-destination`;
+      const evoDestinationArn = `arn:aws:logs:${region}:${process.env.AWS_ACCOUNT_ID || '971354623291'}:destination:evo-uds-v3-sandbox-waf-logs-destination`;
       
       if (filtersResponse.subscriptionFilters && filtersResponse.subscriptionFilters.length > 0) {
         const evoFilter = filtersResponse.subscriptionFilters.find(
@@ -1713,7 +1713,7 @@ async function handleFixSubscription(
     }));
     
     const evoFilterName = 'evo-waf-monitoring';
-    const evoDestinationArn = `arn:aws:logs:${region}:383234048592:destination:evo-uds-v3-production-waf-logs-destination`;
+    const evoDestinationArn = `arn:aws:logs:${region}:971354623291:destination:evo-uds-v3-sandbox-waf-logs-destination`;
     
     // Check if EVO filter already exists
     const existingEvoFilter = existingFilters.subscriptionFilters?.find(

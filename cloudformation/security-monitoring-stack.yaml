@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - Security Monitoring Stack - Military Grade'
+Description: 'EVO Platform - Security Monitoring Stack - Military Grade'
 
 Parameters:
   ProjectName:

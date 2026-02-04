@@ -1,0 +1,141 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EVO Platform - Lambda Functions Stack - All 140+ Lambda Functions'
+
+# =============================================================================
+# This nested stack creates all Lambda functions for the EVO Platform
+# Deploy after the master stack to add all Lambda functions
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+    
+  Environment:
+    Type: String
+    Default: production
+    
+  LambdaCodeBucket:
+    Type: String
+    Description: S3 bucket containing Lambda code
+    
+  LambdaLayerArn:
+    Type: String
+    Description: Lambda dependencies layer ARN
+    
+  LambdaExecutionRoleArn:
+    Type: String
+    Description: Lambda execution role ARN
+    
+  LambdaSecurityGroupId:
+    Type: String
+    Description: Lambda security group ID
+    
+  PrivateSubnet1Id:
+    Type: String
+    Description: Private subnet 1 ID
+    
+  PrivateSubnet2Id:
+    Type: String
+    Description: Private subnet 2 ID
+    
+  DatabaseSecretArn:
+    Type: String
+    Description: Database secret ARN for credentials
+    
+  DatabaseEndpoint:
+    Type: String
+    Description: RDS database endpoint
+    
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID
+
+  DefaultTimeout:
+    Type: Number
+    Default: 30
+    
+  DefaultMemory:
+    Type: Number
+    Default: 256
+
+Resources:
+
+  # ===========================================================================
+  # AUTH HANDLERS - MFA, WebAuthn, Self-Register
+  # ===========================================================================
+
+  MfaEnrollFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-enroll'
+      Runtime: nodejs18.x
+      Handler: mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/auth/mfa-handlers.zip
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: !Ref DefaultTimeout
+      MemorySize: !Ref DefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroupId]
+        SubnetIds: [!Ref PrivateSubnet1Id, !Ref PrivateSubnet2Id]
+      Layers: [!Ref LambdaLayerArn]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://{{resolve:secretsmanager:${Secret}:SecretString:username}}:{{resolve:secretsmanager:${Secret}:SecretString:password}}@${Host}:5432/evouds?schema=public'
+            - Secret: !Ref DatabaseSecretArn
+              Host: !Ref DatabaseEndpoint
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+
+  MfaCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-check'
+      Runtime: nodejs18.x
+      Handler: mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/auth/mfa-handlers.zip
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: !Ref DefaultTimeout
+      MemorySize: !Ref DefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroupId]
+        SubnetIds: [!Ref PrivateSubnet1Id, !Ref PrivateSubnet2Id]
+      Layers: [!Ref LambdaLayerArn]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://{{resolve:secretsmanager:${Secret}:SecretString:username}}:{{resolve:secretsmanager:${Secret}:SecretString:password}}@${Host}:5432/evouds?schema=public'
+            - Secret: !Ref DatabaseSecretArn
+              Host: !Ref DatabaseEndpoint
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+
+  MfaChallengeVerifyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-mfa-challenge-verify'
+      Runtime: nodejs18.x
+      Handler: mfa-handlers.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/auth/mfa-handlers.zip
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: !Ref DefaultTimeout
+      MemorySize: !Ref DefaultMemory
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroupId]
+        SubnetIds: [!Ref PrivateSubnet1Id, !Ref PrivateSubnet2Id]
+      Layers: [!Ref LambdaLayerArn]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://{{resolve:secretsmanager:${Secret}:SecretString:username}}:{{resolve:secretsmanager:${Secret}:SecretString:password}}@${Host}:5432/evouds?schema=public'
+            - Secret: !Ref DatabaseSecretArn
+              Host: !Ref DatabaseEndpoint
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId

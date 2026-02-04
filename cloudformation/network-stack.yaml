@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EVO UDS - Network Stack - VPC, Subnets, NAT Gateway'
+Description: 'EVO Platform - Network Stack - VPC, Subnets, NAT Gateway'
 
 Parameters:
   Environment:

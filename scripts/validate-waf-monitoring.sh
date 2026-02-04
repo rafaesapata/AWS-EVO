@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 # Configuration
 WAF_ACL_ARN="${1}"
 REGION="${2:-us-east-1}"
-EVO_ACCOUNT="383234048592"
+EVO_ACCOUNT="971354623291"
 
 if [ -z "$WAF_ACL_ARN" ]; then
     echo -e "${RED}Error: WAF ACL ARN is required${NC}"

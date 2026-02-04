@@ -1,0 +1,514 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  EVO Platform - Master Stack with Nested Stacks
+  Total handlers: 203
+  Categories: 26
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+  Environment:
+    Type: String
+    Default: sandbox
+    AllowedValues: [sandbox, production]
+  TemplatesBucket:
+    Type: String
+    Description: S3 bucket containing nested stack templates
+  RestApiId:
+    Type: String
+  FunctionsResourceId:
+    Type: String
+  AuthorizerId:
+    Type: String
+  LambdaCodeBucket:
+    Type: String
+  LambdaExecutionRoleArn:
+    Type: String
+  LambdaSecurityGroupIds:
+    Type: CommaDelimitedList
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+  LambdaLayerArn:
+    Type: String
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+  CognitoUserPoolId:
+    Type: String
+
+Resources:
+
+  AdminStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-admin-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  AiStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-ai-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  AuthStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-auth-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  AwsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-aws-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  AzureStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-azure-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  CloudStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-cloud-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  CostStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-cost-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  DashboardStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-dashboard-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  DataStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-data-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  DebugStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-debug-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  IntegrationsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-integrations-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  JobsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-jobs-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  KbStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-kb-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  LicenseStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-license-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  MaintenanceStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-maintenance-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  MlStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-ml-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  MonitoringStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-monitoring-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  NotificationsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-notifications-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  OrganizationsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-organizations-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  ProfilesStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-profiles-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  ReportsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-reports-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  SecurityStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-security-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  StorageStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-storage-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  SystemStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-system-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  UserStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-user-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  WebsocketStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${TemplatesBucket}.s3.amazonaws.com/nested/evo-websocket-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !Ref RestApiId
+        FunctionsResourceId: !Ref FunctionsResourceId
+        AuthorizerId: !Ref AuthorizerId
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+        LambdaExecutionRoleArn: !Ref LambdaExecutionRoleArn
+        LambdaSecurityGroupIds: !Join [',', !Ref LambdaSecurityGroupIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LambdaLayerArn: !Ref LambdaLayerArn
+        DatabaseUrl: !Ref DatabaseUrl
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+Outputs:
+  TotalHandlers:
+    Value: '203'
+  TotalCategories:
+    Value: '26'
