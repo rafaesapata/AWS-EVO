@@ -11,19 +11,12 @@ inclusion: always
 | **Sandbox** | `971354623291` | `main` | `evo-uds-v3-sandbox-*` | `EVO_SANDBOX` |
 | **Production** | `523115032346` | `production` | `evo-uds-v3-prod-*` | `EVO_PRODUCTION` |
 
-### CI/CD Pipeline (SAM)
-Deploy automático via CodePipeline + SAM: `GitHub Push → CodePipeline → CodeBuild → SAM Deploy`
+## Domínios (nuevacore.com)
 
-**Arquivos SAM:**
-- `sam/template.yaml` - Template SAM com 203 funções Lambda
-- `sam/samconfig.toml` - Configuração para sandbox e production
-- `cicd/buildspec-sam.yml` - BuildSpec do CodeBuild
-- `cicd/cloudformation/sam-pipeline-stack.yaml` - Stack do Pipeline
-
-**Regenerar template SAM:**
-```bash
-npx tsx scripts/generate-sam-template.ts
-```
+| Ambiente | Frontend | API |
+|----------|----------|-----|
+| **Sandbox** | `evo.sandbox.nuevacore.com` | `api.evo.sandbox.nuevacore.com` |
+| **Production** | `evo.nuevacore.com` | `api.evo.nuevacore.com` |
 
 ---
 
@@ -33,16 +26,15 @@ npx tsx scripts/generate-sam-template.ts
 
 | Recurso | Valor |
 |---------|-------|
-| **API Gateway ID** | `3l66kn0eaj` |
+| **API Gateway ID (HTTP API)** | `igyifo56v7` |
+| **API Gateway URL** | `https://igyifo56v7.execute-api.us-east-1.amazonaws.com/prod` |
 | **Stage** | `prod` |
-| **Custom Domain** | `api-evo.ai.udstec.io` |
-| **Authorizer ID** | `joelbs` (Cognito) |
-| **Functions Resource ID** | `n9gxy9` |
-| **CloudFront Distribution** | `E1PY7U3VNT6P1R` |
-| **Frontend Domain** | `evo.ai.udstec.io` |
-| **S3 Frontend** | `evo-uds-v3-production-frontend-971354623291` |
-| **Cognito User Pool ID** | `us-east-1_cnesJ48lR` |
-| **Cognito Client ID** | `4p0okvsr983v2f8rrvgpls76d6` |
+| **Authorizer ID** | `shn0ze` (JWT/Cognito) |
+| **CloudFront Distribution** | `E93EL7AJZ6QAQ` |
+| **CloudFront Domain** | `dikd2ie8x3ihv.cloudfront.net` |
+| **S3 Frontend** | `evo-uds-v3-sandbox-frontend-971354623291` |
+| **Cognito User Pool ID** | `us-east-1_HPU98xnmT` |
+| **Cognito Client ID** | `6gls4r44u96v6o0mkm1l6sbmgd` |
 | **VPC ID** | `vpc-0c55e2a97fd92a5ca` |
 | **Private Subnets** | `subnet-0edbe4968ff3a5a9e`, `subnet-01931c820b0b0e864` |
 | **Security Group** | `sg-0f14fd661fc5c41ba` |
@@ -81,11 +73,6 @@ npx tsx scripts/generate-sam-template.ts
 postgresql://evoadmin:%29V7%3F9ygLec%3FAMSqn%29.UIU4%24vOfRl%2C%24%5EL@evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public
 ```
 
-### ⛔ NUNCA USAR
-```
-❌ evo-uds-v3-nodejs-infra-rdsinstance-*.rds.amazonaws.com (não existe)
-```
-
 ---
 
 ## Lambda Layers
@@ -100,50 +87,26 @@ postgresql://evoadmin:%29V7%3F9ygLec%3FAMSqn%29.UIU4%24vOfRl%2C%24%5EL@evo-uds-v
 arn:aws:lambda:us-east-1:971354623291:layer:evo-uds-v3-sandbox-deps:1  # Sandbox
 ```
 
-### Conteúdo da Layer
-A layer é criada automaticamente pelo SAM e contém apenas:
-- `@prisma/client` - Prisma Client
-- `.prisma/client` - Prisma Engine (linux-arm64)
-- `zod` - Validação de schemas
-
-O AWS SDK não é incluído na layer porque já está disponível no runtime do Lambda.
-
 ---
 
-## Migrações de Banco
+## CI/CD Pipeline
 
-### 🚨 REGRA: Migrações APENAS no CI/CD
+Deploy automático via CodePipeline + CodeBuild: `GitHub Push → CodePipeline → CodeBuild → Deploy`
 
-**NUNCA** execute migrações em runtime de Lambda!
-
-```bash
-# Desenvolvimento local
-cd backend && npx prisma migrate dev --name <nome>
-
-# CI/CD aplica automaticamente
-npx prisma migrate deploy
-```
-
-### Verificar Status
-```bash
-npx prisma migrate status
-npx prisma generate
-```
+**Arquivos:**
+- `sam/frontend-stack.yaml` - Stack CloudFormation do Frontend (S3 + CloudFront)
+- `cicd/buildspec-sam.yml` - BuildSpec do CodeBuild
+- `cicd/cloudformation/sam-pipeline-stack.yaml` - Stack do Pipeline
 
 ---
 
 ## Comandos Úteis
 
-### Deploy Frontend
+### Deploy Frontend (Manual)
 ```bash
 npm run build
-AWS_PROFILE=EVO_SANDBOX aws s3 sync dist/ s3://evo-uds-v3-production-frontend-971354623291 --delete
-AWS_PROFILE=EVO_SANDBOX aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"
-```
-
-### Deploy API Gateway
-```bash
-aws apigateway create-deployment --rest-api-id 3l66kn0eaj --stage-name prod --region us-east-1
+AWS_PROFILE=EVO_SANDBOX aws s3 sync dist/ s3://evo-uds-v3-sandbox-frontend-971354623291 --delete
+AWS_PROFILE=EVO_SANDBOX aws cloudfront create-invalidation --distribution-id E93EL7AJZ6QAQ --paths "/*"
 ```
 
 ### Verificar Lambda
@@ -151,20 +114,9 @@ aws apigateway create-deployment --rest-api-id 3l66kn0eaj --stage-name prod --re
 aws lambda get-function-configuration --function-name LAMBDA_NAME --region us-east-1 --query '{Handler: Handler, Layers: Layers[*].Arn}'
 ```
 
-### Atualizar DATABASE_URL
+### Listar Rotas da API
 ```bash
-aws lambda update-function-configuration \
-  --function-name NOME_DA_LAMBDA \
-  --environment 'Variables={DATABASE_URL="postgresql://...",NODE_PATH="/opt/nodejs/node_modules"}' \
-  --region us-east-1
-```
-
-### Configurar VPC em Lambda
-```bash
-aws lambda update-function-configuration \
-  --function-name LAMBDA_NAME \
-  --vpc-config "SubnetIds=subnet-0edbe4968ff3a5a9e,subnet-01931c820b0b0e864,SecurityGroupIds=sg-0f14fd661fc5c41ba" \
-  --region us-east-1
+AWS_PROFILE=EVO_SANDBOX aws apigatewayv2 get-routes --api-id igyifo56v7 --region us-east-1 --no-cli-pager
 ```
 
 ---
@@ -172,18 +124,13 @@ aws lambda update-function-configuration \
 ## Troubleshooting
 
 ### "Can't reach database server"
-1. Verificar DATABASE_URL: `aws lambda get-function-configuration --query 'Environment.Variables.DATABASE_URL'`
-2. Verificar VPC: `aws lambda get-function-configuration --query 'VpcConfig'`
+1. Verificar DATABASE_URL
+2. Verificar VPC config da Lambda
 3. Lambda DEVE estar na VPC se usa Prisma
 
 ### "Cannot find module"
 1. Verificar layer anexado
-2. Verificar handler path (deve ser `handler.handler`, não `handlers/xxx/handler.handler`)
-3. Refazer deploy seguindo processo correto
-
-### "Azure SDK not installed"
-1. Atualizar para layer 91 (com Azure SDK)
-2. Verificar se tem `jsonwebtoken` e `lodash.*`
+2. Verificar handler path
 
 ### Lambda 504 Timeout
 1. Verificar NAT Gateway ativo
@@ -191,4 +138,4 @@ aws lambda update-function-configuration \
 
 ---
 
-**Última atualização:** 2026-02-03
+**Última atualização:** 2026-02-04
