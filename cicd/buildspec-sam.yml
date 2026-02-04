@@ -53,7 +53,7 @@ phases:
       - echo "Layer size:"
       - du -sh backend/layers/dependencies/nodejs/
       - echo "Building SAM application..."
-      - sam build --template-file sam/template.yaml --use-container
+      - sam build --template-file sam/template.yaml
 
   post_build:
     commands:
