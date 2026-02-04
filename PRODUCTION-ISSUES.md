@@ -5,35 +5,26 @@
 
 ## 🚨 Critical Issues
 
-### 1. Cognito User Pool Missing Custom Attributes
+### 1. Prisma Client Outdated in Lambda Layer
 
-**Issue**: The production Cognito User Pool (`us-east-1_BUJecylbm`) is missing custom attributes required by the self-register Lambda.
+**Issue**: The Prisma Client in the Lambda Layer is outdated and doesn't match the current database schema. The `profiles` table has `full_name` column but Prisma Client is looking for old column names.
 
 **Error**:
 ```
-InvalidParameterException: Attributes did not conform to the schema: 
-Type for attribute {custom:roles} could not be determined
+PrismaClientKnownRequestError: column "full_name" of relation "profiles" does not exist
 ```
 
-**Required Custom Attributes**:
-- `custom:roles` (String)
-- `custom:organizationId` (String)
-- `custom:profileId` (String)
+**Root Cause**: Lambda Layer was created before recent schema changes. The Prisma Client needs to be regenerated with the latest schema and deployed.
 
-**Solution**: Add custom attributes to Cognito User Pool via AWS Console or CloudFormation.
+**Solution**: Regenerate Prisma Client and create new Lambda Layer version.
 
 **Steps to Fix**:
-1. Go to AWS Console → Cognito → User Pools → `us-east-1_BUJecylbm`
-2. Navigate to "Sign-up experience" → "Attributes"
-3. Add custom attributes:
-   - Name: `roles`, Type: String, Mutable: Yes
-   - Name: `organizationId`, Type: String, Mutable: Yes
-   - Name: `profileId`, Type: String, Mutable: Yes
+1. Run `npm run prisma:generate` in backend directory
+2. Create new Lambda Layer with updated Prisma Client
+3. Update all Lambdas to use new Layer version
+4. OR trigger CI/CD pipeline to rebuild and deploy
 
-**⚠️ IMPORTANT**: Custom attributes CANNOT be added after users exist in the pool. If users already exist, you'll need to:
-- Create a new User Pool with the correct attributes
-- Migrate users
-- Update all Lambda environment variables with new User Pool ID
+**Status**: ⚠️ BLOCKED - Self-registration cannot complete until fixed
 
 ---
 
@@ -79,7 +70,17 @@ curl -X OPTIONS https://api.evo.nuevacore.com/api/functions/self-register \
 
 ## ✅ Completed Fixes
 
-### 1. Missing API Route for self-register
+### 1. Cognito User Pool Custom Attributes
+**Status**: ✅ Fixed
+**Solution**: Added custom attributes via AWS CLI
+**Attributes Added**:
+- `custom:roles`
+- `custom:organizationId`
+- `custom:profileId`
+- `custom:organization_name`
+- `custom:organization_id` (legacy)
+
+### 2. Missing API Route for self-register
 **Status**: ✅ Fixed
 **Solution**: Created route via `scripts/create-missing-public-routes.sh`
 **Route**: `POST /api/functions/self-register` (no auth required)
