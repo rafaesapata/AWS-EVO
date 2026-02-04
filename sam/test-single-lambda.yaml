@@ -1,0 +1,24 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Test single Lambda - Quick validation
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - arm64
+
+Resources:
+  TestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: evo-uds-v3-prod-test-function
+      CodeUri: backend/
+      Handler: dist/handlers/admin/admin-manage-user.handler
+
+Outputs:
+  TestFunctionArn:
+    Value: !GetAtt TestFunction.Arn
+    Description: Test Lambda ARN
