@@ -11,7 +11,7 @@ phases:
       - echo "Installing dependencies..."
       - npm install
       - npm install --prefix backend
-      - npx prisma generate --schema=backend/prisma/schema.prisma
+      - cd backend && ./node_modules/.bin/prisma generate && cd ..
   pre_build:
     commands:
       - echo "Determining environment..."
