@@ -3,8 +3,16 @@ name: Deploy to Production
 on:
   push:
     branches: [production]
-    paths:
-      - 'backend/**'
+  workflow_dispatch:
+    inputs:
+      deploy_all:
+        description: 'Deploy all Lambdas'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 env:
   NODE_VERSION: '18'
@@ -48,6 +56,13 @@ jobs:
       - name: Detect changed files
         id: changes
         run: |
+          # Se workflow_dispatch com deploy_all=true, fazer deploy de tudo
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.deploy_all }}" = "true" ]; then
+            echo "deploy_all=true" >> $GITHUB_OUTPUT
+            echo "handlers=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD)
           CORE_PATTERN="^backend/src/(lib|types)/|^backend/prisma/|^backend/package"
           
