@@ -146,18 +146,14 @@ jobs:
           STATUS="${{ job.status }}"
           if [ "$STATUS" = "success" ]; then
             SUBJECT="✅ EVO Production Deploy Successful"
-            MESSAGE="Deploy completed. All health checks passed."
+            MESSAGE="Deploy completed. All health checks passed. Commit: ${{ github.sha }} Author: ${{ github.actor }} Branch: ${{ github.ref_name }}"
           else
             SUBJECT="🚨 EVO Production Deploy FAILED"
-            MESSAGE="CRITICAL: Deploy failed! Check: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            MESSAGE="CRITICAL: Deploy failed! Check: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} Commit: ${{ github.sha }} Author: ${{ github.actor }}"
           fi
           
           aws sns publish \
             --topic-arn "${{ env.SNS_TOPIC_ARN }}" \
             --subject "$SUBJECT" \
-            --message "$MESSAGE
-
-Commit: ${{ github.sha }}
-Author: ${{ github.actor }}
-Branch: ${{ github.ref_name }}" \
+            --message "$MESSAGE" \
             --region ${{ env.AWS_REGION }}
