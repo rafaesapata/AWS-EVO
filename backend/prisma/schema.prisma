@@ -179,6 +179,7 @@ model OAuthState {
 
 model Finding {
   id                String   @id @default(uuid()) @db.Uuid
+  scan_id           String?  @db.Uuid  // Reference to security_scans.id
   organization_id   String?  @db.Uuid
   aws_account_id    String?  @db.Uuid
   cloud_provider    CloudProvider @default(AWS)
