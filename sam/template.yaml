@@ -67,7 +67,7 @@ Resources:
     Properties:
       LayerName: !Sub '${ProjectName}-${Environment}-deps'
       Description: Prisma Client + zod for EVO Platform
-      ContentUri: backend/layers/dependencies/
+      ContentUri: ../backend/layers/dependencies/
       CompatibleRuntimes:
         - nodejs20.x
       CompatibleArchitectures:
