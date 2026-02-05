@@ -100,12 +100,55 @@ SecurityScanFunction:
 ## Próximos Passos
 
 1. ✅ Documentar problema
-2. ⏳ Fazer commit para trigger CI/CD
-3. ⏳ Aguardar deploy
+2. ✅ Fazer commit para trigger CI/CD (commit 1a742f9)
+3. ⏳ Aguardar deploy (em progresso - Build stage)
 4. ⏳ Verificar fix
 5. ⏳ Testar security scan no frontend
+
+## Monitorar Deploy
+
+```bash
+# Verificar status do pipeline
+AWS_PROFILE=EVO_PRODUCTION aws codepipeline get-pipeline-state \
+  --name evo-sam-pipeline-production \
+  --region us-east-1 \
+  --no-cli-pager | jq -r '.stageStates[] | "\(.stageName): \(.latestExecution.status)"'
+
+# Ou usar o script de monitoramento
+./scripts/monitor-pipeline.sh evo-sam-pipeline-production
+```
+
+## Após Deploy Completar
+
+```bash
+# 1. Verificar handler path corrigido
+AWS_PROFILE=EVO_PRODUCTION aws lambda get-function-configuration \
+  --function-name evo-uds-v3-production-security-scan \
+  --region us-east-1 \
+  --query 'Handler' \
+  --output text
+
+# Esperado: "security-scan.handler"
+
+# 2. Testar invocação
+echo '{"requestContext":{"http":{"method":"OPTIONS"}}}' > /tmp/payload.json
+AWS_PROFILE=EVO_PRODUCTION aws lambda invoke \
+  --function-name evo-uds-v3-production-security-scan \
+  --payload file:///tmp/payload.json \
+  --region us-east-1 \
+  /tmp/response.json && cat /tmp/response.json
+
+# 3. Verificar logs
+AWS_PROFILE=EVO_PRODUCTION aws logs tail \
+  "/aws/lambda/evo-uds-v3-production-security-scan" \
+  --since 5m \
+  --region us-east-1 \
+  --follow
+```
 
 ---
 
 **Data:** 2026-02-05
-**Status:** Identificado - Aguardando Fix
+**Status:** Deploy em Progresso (Build stage)
+**Commit:** 1a742f9
+**Pipeline:** evo-sam-pipeline-production
