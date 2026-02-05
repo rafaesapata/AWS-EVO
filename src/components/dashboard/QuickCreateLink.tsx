@@ -18,7 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useCloudFrontDomain } from "@/hooks/useCloudFrontDomain";
 import { 
   Zap, 
   Copy, 
@@ -37,17 +36,30 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 // Uses environment variable to support both sandbox and production environments
 const EVO_PLATFORM_ACCOUNT_ID = import.meta.env.VITE_AWS_ACCOUNT_ID || '971354623291';
 
-// Template URL paths
-const CLOUDFRONT_TEMPLATE_PATH = '/cloudformation/evo-platform-role.yaml';
-const LOCAL_TEMPLATE_PATH = '/cloudformation/evo-platform-role.yaml';
+// Template URL paths - CloudFormation Quick Create requires S3 URL (not HTTPS)
+const TEMPLATE_S3_PATH = 'cloudformation/evo-platform-role.yaml';
 
-// Get template URL based on environment
-const getTemplateUrl = (cloudFrontDomain: string | null, isLocal: boolean): string => {
-  if (isLocal || !cloudFrontDomain) {
-    return `${window.location.origin}${LOCAL_TEMPLATE_PATH}`;
+// S3 bucket names per environment
+const S3_BUCKETS = {
+  production: 'evo-uds-v3-production-frontend-523115032346',
+  sandbox: 'evo-uds-v3-sandbox-frontend-971354623291',
+};
+
+// Get template URL based on environment - MUST be S3 URL for CloudFormation Quick Create
+const getTemplateUrl = (isLocal: boolean): string => {
+  if (isLocal) {
+    // For local development, use sandbox S3 bucket
+    return `https://${S3_BUCKETS.sandbox}.s3.amazonaws.com/${TEMPLATE_S3_PATH}`;
   }
-  // Use CloudFront domain for production (template is served from frontend bucket)
-  return `https://${cloudFrontDomain}${CLOUDFRONT_TEMPLATE_PATH}`;
+  
+  // Determine environment from hostname
+  const isProduction = window.location.hostname === 'evo.nuevacore.com' || 
+                       window.location.hostname.includes('production');
+  
+  const bucket = isProduction ? S3_BUCKETS.production : S3_BUCKETS.sandbox;
+  
+  // CloudFormation Quick Create requires S3 URL format
+  return `https://${bucket}.s3.amazonaws.com/${TEMPLATE_S3_PATH}`;
 };
 
 // AWS Regions for Quick Create
@@ -115,7 +127,8 @@ export const QuickCreateLink = ({
   onLinkOpened
 }: QuickCreateLinkProps) => {
   const { toast } = useToast();
-  const { cloudFrontDomain, loading: domainLoading, isLocal } = useCloudFrontDomain();
+  // Detect if running locally for template URL selection
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const [open, setOpen] = useState(false);
   const [region, setRegion] = useState(initialRegion);
   // Auto-generate account name based on region for better UX
@@ -131,10 +144,10 @@ export const QuickCreateLink = ({
     }
   }, [region, isAccountNameManuallySet]);
   
-  // Generate the Quick Create URL - uses CloudFront for production
+  // Generate the Quick Create URL - uses S3 URL for CloudFormation compatibility
   const quickCreateUrl = useMemo(() => {
-    // Use CloudFront URL for production, local for development
-    const templateUrl = getTemplateUrl(cloudFrontDomain, isLocal);
+    // CloudFormation Quick Create requires S3 URL (not HTTPS/CloudFront)
+    const templateUrl = getTemplateUrl(isLocal);
     
     return generateQuickCreateUrl(
       region,
@@ -143,7 +156,7 @@ export const QuickCreateLink = ({
       accountName,
       EVO_PLATFORM_ACCOUNT_ID
     );
-  }, [region, externalId, accountName, cloudFrontDomain]);
+  }, [region, externalId, accountName, isLocal]);
   
   /**
    * Copy Quick Create URL to clipboard
