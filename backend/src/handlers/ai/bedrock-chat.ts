@@ -23,7 +23,11 @@ const bedrockChatSchema = z.object({
   context: z.any().optional(),
   accountId: z.string().uuid().optional(),
   organizationId: z.string().uuid().optional(),
-  language: z.enum(['pt', 'en']).default('pt'),
+  // Accept language variants (pt-BR, en-US, etc.) and normalize to pt/en
+  language: z.string().default('pt').transform(lang => {
+    const normalized = lang.toLowerCase().split('-')[0];
+    return normalized === 'en' ? 'en' : 'pt';
+  }),
 });
 
 interface PlatformContext {
