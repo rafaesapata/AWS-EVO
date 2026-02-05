@@ -37,14 +37,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 // Uses environment variable to support both sandbox and production environments
 const EVO_PLATFORM_ACCOUNT_ID = import.meta.env.VITE_AWS_ACCOUNT_ID || '971354623291';
 
-// Template URL - S3 bucket with public access for CloudFormation
-// Dynamic based on environment
-const getS3TemplateUrl = () => {
-  const accountId = import.meta.env.VITE_AWS_ACCOUNT_ID || '971354623291';
-  return `https://evo-uds-cloudformation-${accountId}.s3.amazonaws.com/evo-platform-role.yaml`;
-};
+// Template URL paths
 const CLOUDFRONT_TEMPLATE_PATH = '/cloudformation/evo-platform-role.yaml';
 const LOCAL_TEMPLATE_PATH = '/cloudformation/evo-platform-role.yaml';
+
+// Get template URL based on environment
+const getTemplateUrl = (cloudFrontDomain: string | null, isLocal: boolean): string => {
+  if (isLocal || !cloudFrontDomain) {
+    return `${window.location.origin}${LOCAL_TEMPLATE_PATH}`;
+  }
+  // Use CloudFront domain for production (template is served from frontend bucket)
+  return `https://${cloudFrontDomain}${CLOUDFRONT_TEMPLATE_PATH}`;
+};
 
 // AWS Regions for Quick Create
 const AWS_REGIONS = [
@@ -127,12 +131,10 @@ export const QuickCreateLink = ({
     }
   }, [region, isAccountNameManuallySet]);
   
-  // Generate the Quick Create URL - uses S3 public bucket for CloudFormation
+  // Generate the Quick Create URL - uses CloudFront for production
   const quickCreateUrl = useMemo(() => {
-    // Use S3 public URL for production, local for development
-    const templateUrl = cloudFrontDomain 
-      ? getS3TemplateUrl()  // Use S3 public bucket for production
-      : `${window.location.origin}${LOCAL_TEMPLATE_PATH}`;  // Local for development
+    // Use CloudFront URL for production, local for development
+    const templateUrl = getTemplateUrl(cloudFrontDomain, isLocal);
     
     return generateQuickCreateUrl(
       region,
