@@ -20,7 +20,7 @@ phases:
       - npm install
       - npm install --prefix backend
       - echo "Generating Prisma client for ARM64..."
-      - cd backend && ./node_modules/.bin/prisma generate && cd ..
+      - npm run prisma:generate --prefix backend
 
   pre_build:
     commands:
