@@ -209,6 +209,7 @@ Resources:
                 BranchName: !Ref GitHubBranch
                 OutputArtifactFormat: CODE_ZIP
                 DetectChanges: true
+                GitCloneDepth: 0
               OutputArtifacts:
                 - Name: SourceOutput
               RunOrder: 1
