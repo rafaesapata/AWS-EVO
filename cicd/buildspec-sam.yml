@@ -30,18 +30,26 @@ phases:
           export ENV="production"
           export AWS_ACCOUNT="523115032346"
           export STACK_NAME="evo-uds-v3-prod-lambdas"
-          export CERTIFICATE_ARN="arn:aws:acm:us-east-1:523115032346:certificate/9df982f9-7993-4454-8887-a33e1298b568"
-          export FRONTEND_DOMAIN="evo.nuevacore.com"
-          export API_DOMAIN="api.evo.nuevacore.com"
-          export DB_PASSWORD="${PROD_DB_PASSWORD:-EvoProduction2026SecurePass}"
+          export COGNITO_USER_POOL_ID="us-east-1_WVljEXXs9"
+          export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:523115032346:userpool/us-east-1_WVljEXXs9"
+          export LAMBDA_SG="sg-07ea931d32276e039"
+          export PRIVATE_SUBNET_1="subnet-0af7face420b9f317"
+          export PRIVATE_SUBNET_2="subnet-099b0fbc0a342fb0f"
+          export DATABASE_URL="postgresql://evoadmin:xJB8g6z84PzUYRhWMM8QkkQb@evo-uds-v3-production-postgres.cib8kysoo015.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
+          export FRONTEND_BUCKET="evo-uds-v3-prod-frontend-523115032346"
+          export CF_DIST_ID="E2NW0IZ2OX493I"
         else
           export ENV="sandbox"
           export AWS_ACCOUNT="971354623291"
           export STACK_NAME="evo-uds-v3-sandbox-lambdas"
-          export CERTIFICATE_ARN=""
-          export FRONTEND_DOMAIN=""
-          export API_DOMAIN=""
-          export DB_PASSWORD="${SANDBOX_DB_PASSWORD:-SandboxPassword2026}"
+          export COGNITO_USER_POOL_ID="us-east-1_HPU98xnmT"
+          export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:971354623291:userpool/us-east-1_HPU98xnmT"
+          export LAMBDA_SG="sg-0f14fd661fc5c41ba"
+          export PRIVATE_SUBNET_1="subnet-0edbe4968ff3a5a9e"
+          export PRIVATE_SUBNET_2="subnet-01931c820b0b0e864"
+          export DATABASE_URL="postgresql://evoadmin:%29V7%3F9ygLec%3FAMSqn%29.UIU4%24vOfRl%2C%24%5EL@evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
+          export FRONTEND_BUCKET="evo-uds-v3-sandbox-frontend-971354623291"
+          export CF_DIST_ID="E93EL7AJZ6QAQ"
         fi
       - export S3_BUCKET="evo-sam-artifacts-$AWS_ACCOUNT"
       - echo "Environment $ENV | Account $AWS_ACCOUNT | Stack $STACK_NAME"
@@ -52,17 +60,15 @@ phases:
       - npm run build --prefix backend
       - echo "=== Step 2 Build Frontend ==="
       - npm run build
-      - echo "=== Step 3 Prepare Backend for SAM (copy dist to src) ==="
-      - cp -r backend/dist backend/src
-      - echo "=== Step 4 Prepare Layer (Prisma + Zod only) ==="
+      - echo "=== Step 3 Prepare Layer (Prisma + Zod only) ==="
       - mkdir -p backend/layers/dependencies/nodejs/node_modules
       - cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
       - cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
       - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
       - rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
+      - echo "=== Step 4 SAM Build (esbuild for all lambdas) ==="
+      - sam build --template-file sam/template.yaml --build-dir .aws-sam/build --parallel --cached
       - echo "=== Step 5 Deploy SAM Stack ==="
-      - cp sam/template.yaml ./template-temp.yaml
-      - sam build --template-file ./template-temp.yaml --build-dir .aws-sam/build --parallel --cached
       - |
         sam deploy \
           --template-file .aws-sam/build/template.yaml \
@@ -73,41 +79,18 @@ phases:
           --region us-east-1 \
           --no-confirm-changeset \
           --no-fail-on-empty-changeset \
-          --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "DatabasePassword=$DB_PASSWORD"
+          --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "DatabaseUrl=$DATABASE_URL" "CognitoUserPoolId=$COGNITO_USER_POOL_ID" "CognitoUserPoolArn=$COGNITO_USER_POOL_ARN" "LambdaSecurityGroupId=$LAMBDA_SG" "PrivateSubnet1Id=$PRIVATE_SUBNET_1" "PrivateSubnet2Id=$PRIVATE_SUBNET_2"
 
   post_build:
     commands:
-      - echo "=== Getting Stack Outputs ==="
-      - export FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text 2>/dev/null || echo "")
-      - export CF_DIST_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text 2>/dev/null || echo "")
-      - export DB_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretArn`].OutputValue' --output text 2>/dev/null || echo "")
-      - export API_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiId`].OutputValue' --output text 2>/dev/null || echo "")
       - echo "=== Syncing Frontend to S3 ==="
-      - |
-        if [ -n "$FRONTEND_BUCKET" ]; then
-          aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
-          aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
-        fi
+      - aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
+      - echo "=== Invalidating CloudFront ==="
+      - aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
       - echo "=== Running Database Migrations ==="
-      - |
-        if [ -n "$DB_SECRET_ARN" ]; then
-          export DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id $DB_SECRET_ARN --region us-east-1 --query 'SecretString' --output text | jq -r '.DATABASE_URL' 2>/dev/null)
-          if [ -n "$DATABASE_URL" ] && [ "$DATABASE_URL" != "null" ]; then
-            cd backend && ./node_modules/.bin/prisma migrate deploy && cd ..
-          fi
-        fi
-      - echo "=== Configuring API Custom Domain ==="
-      - |
-        if [ -n "$API_DOMAIN" ] && [ -n "$API_ID" ]; then
-          aws cloudformation deploy \
-            --template-file sam/api-custom-domain.yaml \
-            --stack-name ${STACK_NAME}-api-domain \
-            --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "ApiDomain=$API_DOMAIN" "CertificateArn=$CERTIFICATE_ARN" "ApiId=$API_ID" "StageName=prod" \
-            --capabilities CAPABILITY_IAM --region us-east-1 --no-fail-on-empty-changeset || true
-        fi
+      - cd backend && ./node_modules/.bin/prisma migrate deploy && cd ..
       - echo "=== DEPLOYMENT COMPLETE ==="
-      - echo "Frontend https://${FRONTEND_DOMAIN:-CloudFront}"
-      - echo "API https://${API_DOMAIN:-API_Gateway}"
+      - echo "Lambdas deployed to stack $STACK_NAME"
 
 artifacts:
   files:
