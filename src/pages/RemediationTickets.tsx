@@ -339,7 +339,7 @@ function CreateTicketDialog({
     mutationFn: async (data: typeof formData) => {
       const response = await apiClient.post('/api/functions/mutate-table', {
         table: 'remediation_tickets',
-        operation: 'create',
+        operation: 'insert',
         data: {
           ...data,
           status: 'open',
