@@ -23,8 +23,7 @@ import {
   Copy, 
   CheckCircle2, 
   ExternalLink,
-  Info,
-  AlertTriangle
+  Info
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -39,27 +38,13 @@ const EVO_PLATFORM_ACCOUNT_ID = import.meta.env.VITE_AWS_ACCOUNT_ID || '97135462
 // Template URL paths - CloudFormation Quick Create requires S3 URL (not HTTPS)
 const TEMPLATE_S3_PATH = 'cloudformation/evo-platform-role.yaml';
 
-// S3 bucket names per environment
-const S3_BUCKETS = {
-  production: 'evo-uds-v3-production-frontend-523115032346',
-  sandbox: 'evo-uds-v3-sandbox-frontend-971354623291',
-};
+// Public S3 bucket for CloudFormation templates (accessible without authentication)
+const PUBLIC_TEMPLATES_BUCKET = 'evo-public-templates-523115032346';
 
-// Get template URL based on environment - MUST be S3 URL for CloudFormation Quick Create
-const getTemplateUrl = (isLocal: boolean): string => {
-  if (isLocal) {
-    // For local development, use sandbox S3 bucket
-    return `https://${S3_BUCKETS.sandbox}.s3.amazonaws.com/${TEMPLATE_S3_PATH}`;
-  }
-  
-  // Determine environment from hostname
-  const isProduction = window.location.hostname === 'evo.nuevacore.com' || 
-                       window.location.hostname.includes('production');
-  
-  const bucket = isProduction ? S3_BUCKETS.production : S3_BUCKETS.sandbox;
-  
-  // CloudFormation Quick Create requires S3 URL format
-  return `https://${bucket}.s3.amazonaws.com/${TEMPLATE_S3_PATH}`;
+// Get template URL - uses dedicated public bucket for CloudFormation Quick Create
+const getTemplateUrl = (): string => {
+  // CloudFormation Quick Create requires publicly accessible S3 URL
+  return `https://${PUBLIC_TEMPLATES_BUCKET}.s3.amazonaws.com/${TEMPLATE_S3_PATH}`;
 };
 
 // AWS Regions for Quick Create
@@ -127,8 +112,6 @@ export const QuickCreateLink = ({
   onLinkOpened
 }: QuickCreateLinkProps) => {
   const { toast } = useToast();
-  // Detect if running locally for template URL selection
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const [open, setOpen] = useState(false);
   const [region, setRegion] = useState(initialRegion);
   // Auto-generate account name based on region for better UX
@@ -144,10 +127,10 @@ export const QuickCreateLink = ({
     }
   }, [region, isAccountNameManuallySet]);
   
-  // Generate the Quick Create URL - uses S3 URL for CloudFormation compatibility
+  // Generate the Quick Create URL - uses public S3 bucket for CloudFormation compatibility
   const quickCreateUrl = useMemo(() => {
-    // CloudFormation Quick Create requires S3 URL (not HTTPS/CloudFront)
-    const templateUrl = getTemplateUrl(isLocal);
+    // CloudFormation Quick Create requires publicly accessible S3 URL
+    const templateUrl = getTemplateUrl();
     
     return generateQuickCreateUrl(
       region,
@@ -156,7 +139,7 @@ export const QuickCreateLink = ({
       accountName,
       EVO_PLATFORM_ACCOUNT_ID
     );
-  }, [region, externalId, accountName, isLocal]);
+  }, [region, externalId, accountName]);
   
   /**
    * Copy Quick Create URL to clipboard
@@ -255,26 +238,16 @@ export const QuickCreateLink = ({
           </div>
           
           {/* Template Source Alert */}
-          {isLocal ? (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Modo Desenvolvimento:</strong> O template será servido localmente. 
-                Para produção, o template é acessado via S3 público.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                <strong>🚀 Processo Quase Automático:</strong>
-                <br />1. Clique em "Conectar AWS" abaixo
-                <br />2. No CloudFormation: apenas clique em "Create stack"
-                <br />3. Aguarde 2-3 minutos para criação
-                <br />4. Copie o Role ARN gerado
-              </AlertDescription>
-            </Alert>
-          )}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <strong>🚀 Processo Quase Automático:</strong>
+              <br />1. Clique em "Conectar AWS" abaixo
+              <br />2. No CloudFormation: apenas clique em "Create stack"
+              <br />3. Aguarde 2-3 minutos para criação
+              <br />4. Copie o Role ARN gerado
+            </AlertDescription>
+          </Alert>
           
           {/* Generated URL (truncated) */}
           <div className="space-y-2">
