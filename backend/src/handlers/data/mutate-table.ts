@@ -16,7 +16,7 @@ import { parseEventBody } from '../../lib/request-parser.js';
 const TABLE_TO_MODEL: Record<string, string> = {
   'organizations': 'organization',
   'profiles': 'profile',
-  'users': 'user',
+  'users': 'profile',  // Users are managed via profiles table
   'aws_credentials': 'awsCredential',
   'aws_accounts': 'awsAccount',
   'daily_costs': 'dailyCost',
