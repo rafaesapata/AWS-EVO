@@ -21,7 +21,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { compareDates, getDayOfMonth } from "@/lib/utils";
+import { compareDates, getDayOfMonth, calculatePercentageChange } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
 
 // Define type for daily cost records
@@ -885,7 +885,7 @@ export const MonthlyInvoicesPage = () => {
               
               const prevMonth = sortedMonths[index + 1];
               const prevData = prevMonth ? monthlyData[prevMonth as keyof typeof monthlyData] : null;
-              const change = prevData ? ((data.netCost - prevData.netCost) / prevData.netCost) * 100 : 0;
+              const change = prevData ? calculatePercentageChange(data.netCost, prevData.netCost) : 0;
 
               // Badge classes with proper contrast
               const getBadgeClasses = (changeValue: number) => {
@@ -909,7 +909,7 @@ export const MonthlyInvoicesPage = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    {prevData && (
+                    {change !== 0 && (
                       <Badge variant="outline" className={`gap-1 ${getBadgeClasses(change)}`}>
                         {change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                         {change >= 0 ? '+' : ''}{change.toFixed(1)}%

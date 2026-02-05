@@ -57,3 +57,41 @@ export function getDayOfMonth(dateStr: string | Date): number {
 export function compareDates(a: string | Date, b: string | Date): number {
   return parseDateString(a).getTime() - parseDateString(b).getTime();
 }
+
+/**
+ * Calculate percentage change between two values safely.
+ * Handles edge cases like division by zero, very small values, and caps extreme percentages.
+ * 
+ * @param current - Current value
+ * @param previous - Previous value to compare against
+ * @param options - Configuration options
+ * @returns Percentage change (capped at ±999.9% by default) or 0 if calculation is invalid
+ */
+export function calculatePercentageChange(
+  current: number,
+  previous: number,
+  options: {
+    /** Minimum threshold for previous value to be considered valid (default: 0.01) */
+    minThreshold?: number;
+    /** Maximum absolute percentage to return (default: 999.9) */
+    maxPercentage?: number;
+  } = {}
+): number {
+  const { minThreshold = 0.01, maxPercentage = 999.9 } = options;
+  
+  // If previous value is too small, return 0 to avoid absurd percentages
+  if (Math.abs(previous) < minThreshold) {
+    return 0;
+  }
+  
+  const change = ((current - previous) / previous) * 100;
+  
+  // Cap extreme values
+  if (change > maxPercentage) return maxPercentage;
+  if (change < -maxPercentage) return -maxPercentage;
+  
+  // Handle NaN/Infinity
+  if (!isFinite(change)) return 0;
+  
+  return change;
+}

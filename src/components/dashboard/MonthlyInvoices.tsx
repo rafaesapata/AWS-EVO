@@ -24,7 +24,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
-import { parseDateString, compareDates, getDayOfMonth } from "@/lib/utils";
+import { parseDateString, compareDates, getDayOfMonth, calculatePercentageChange } from "@/lib/utils";
 
 export const MonthlyInvoices = () => {
   const { t, i18n } = useTranslation();
@@ -600,7 +600,7 @@ export const MonthlyInvoices = () => {
               
               const prevMonth = sortedMonths[index + 1];
               const prevData = prevMonth ? monthlyData[prevMonth] : null;
-              const change = prevData ? ((data.netCost - prevData.netCost) / prevData.netCost) * 100 : 0;
+              const change = prevData ? calculatePercentageChange(data.netCost, prevData.netCost) : 0;
 
               return (
                 <div 
@@ -616,7 +616,7 @@ export const MonthlyInvoices = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    {prevData && (
+                    {change !== 0 && (
                       <Badge variant={change >= 0 ? "destructive" : "default"} className="gap-1">
                         {change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                         {change >= 0 ? '+' : ''}{change.toFixed(1)}%

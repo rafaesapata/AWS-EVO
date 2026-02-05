@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Minus, AlertCircle, DollarSign, Activity } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { calculatePercentageChange } from "@/lib/utils";
 
 interface Props {
   accountId: string;
@@ -46,12 +47,7 @@ export function CostTrends({ accountId, costs }: Props) {
       const older = prev14Totals[service] || 0;
 
       // Calcular variação semanal
-      let weeklyChange = 0;
-      if (previous > 0.10) {
-        weeklyChange = ((current - previous) / previous) * 100;
-      } else if (current > 0.10) {
-        weeklyChange = 100;
-      }
+      const weeklyChange = calculatePercentageChange(current, previous, { minThreshold: 0.10, maxPercentage: 200 });
 
       // Calcular tendência de 3 semanas
       let trend: 'increasing' | 'decreasing' | 'stable' = 'stable';
@@ -68,7 +64,7 @@ export function CostTrends({ accountId, costs }: Props) {
         service,
         current,
         previous,
-        weeklyChange: Math.max(-200, Math.min(200, weeklyChange)),
+        weeklyChange,
         trend,
         avgDailyCost,
         isSignificant: current > 0.50, // Apenas serviços com custo > $0.50/semana

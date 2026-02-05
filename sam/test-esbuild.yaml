@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Test esbuild build for single lambda
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - arm64
+
+Resources:
+  ValidateLicenseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: test-esbuild-validate-license
+      CodeUri: ../backend/src/handlers/license/
+      Handler: validate-license.handler
+      Timeout: 30
+      MemorySize: 256
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - validate-license.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+          - '@aws-sdk/*'
+
+Outputs:
+  FunctionArn:
+    Value: !GetAtt ValidateLicenseFunction.Arn

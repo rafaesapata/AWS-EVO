@@ -17,7 +17,7 @@ import { CostForecast } from "@/components/dashboard/cost-analysis/CostForecast"
 import { CostTrends } from "@/components/dashboard/cost-analysis/CostTrends";
 import { ExportManager } from "@/components/dashboard/cost-analysis/ExportManager";
 import { RiSpAnalysis } from "@/components/cost/RiSpAnalysis";
-import { formatDateBR, compareDates } from "@/lib/utils";
+import { formatDateBR, compareDates, calculatePercentageChange } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
 
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
@@ -1062,7 +1062,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const val = Number(c.net_cost || c.total_cost);
  return sum + (isNaN(val) ? 0 : val);
  }, 0) || 0;
- const change = prevNetCost > 0 ? ((netCost - prevNetCost) / prevNetCost) * 100 : 0;
+ const change = calculatePercentageChange(netCost, prevNetCost);
 
  return (
  <>
@@ -1102,7 +1102,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  ${netCost.toFixed(2)}
  </TableCell>
  <TableCell className="text-right">
- {prevNetCost > 0 && (
+ {change !== 0 && (
  <Badge variant={change >= 0 ? "destructive" : "default"} className="gap-1">
  {change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
  {change >= 0 ? '+' : ''}{change.toFixed(1)}%

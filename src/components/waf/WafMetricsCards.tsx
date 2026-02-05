@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { calculatePercentageChange } from "@/lib/utils";
 import { 
  Shield, 
  ShieldAlert, 
@@ -43,11 +44,7 @@ interface WafMetricsCardsProps {
 }
 
 function calculateTrend(current: number, previous: number): { value: number; direction: 'up' | 'down' | 'neutral' } {
-  if (!previous || previous === 0) {
-    return { value: 0, direction: 'neutral' };
-  }
-  
-  const percentChange = ((current - previous) / previous) * 100;
+  const percentChange = calculatePercentageChange(current, previous);
   
   if (Math.abs(percentChange) < 1) {
     return { value: 0, direction: 'neutral' };

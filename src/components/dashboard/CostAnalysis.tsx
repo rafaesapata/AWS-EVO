@@ -18,7 +18,7 @@ import { ExportManager } from "./cost-analysis/ExportManager";
 import { useQueryCache, CACHE_CONFIGS } from "@/hooks/useQueryCache";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
-import { formatDateBR } from "@/lib/utils";
+import { formatDateBR, calculatePercentageChange } from "@/lib/utils";
 
 export const CostAnalysis = () => {
   const { toast } = useToast();
@@ -646,7 +646,7 @@ export const CostAnalysis = () => {
                     const prevDate = sortedDates[idx + 1];
                     const prevCosts = prevDate ? costsByDate[prevDate] : null;
                     const prevNetCost = prevCosts?.reduce((sum, c) => sum + Number(c.net_cost || c.total_cost), 0) || 0;
-                    const change = prevNetCost > 0 ? ((netCost - prevNetCost) / prevNetCost) * 100 : 0;
+                    const change = calculatePercentageChange(netCost, prevNetCost);
 
                     return (
                       <>
@@ -686,7 +686,7 @@ export const CostAnalysis = () => {
                             ${netCost.toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right">
-                            {prevNetCost > 0 && (
+                            {change !== 0 && (
                               <Badge variant={change >= 0 ? "destructive" : "default"} className="gap-1">
                                 {change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                                 {change >= 0 ? '+' : ''}{change.toFixed(1)}%
