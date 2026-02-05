@@ -50,6 +50,10 @@ Parameters:
     Type: String
     Description: Existing Cognito User Pool ARN
 
+  CognitoClientId:
+    Type: String
+    Description: Cognito User Pool Client ID for JWT audience
+
   LambdaSecurityGroupId:
     Type: String
     Description: Security Group ID for Lambda functions
@@ -181,7 +185,7 @@ Resources:
             JwtConfiguration:
               issuer: !Sub 'https://cognito-idp.us-east-1.amazonaws.com/${CognitoUserPoolId}'
               audience:
-                - !Ref CognitoUserPoolId
+                - !Ref CognitoClientId
 
   # ==========================================================================
   # ADMIN FUNCTIONS (16)
@@ -5336,6 +5340,10 @@ Outputs:
   HttpApiUrl:
     Description: HTTP API URL
     Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+  
+  HttpApiId:
+    Description: HTTP API ID for custom domain mapping
+    Value: !Ref HttpApi
   
   LambdaCount:
     Description: Total Lambda functions deployed
