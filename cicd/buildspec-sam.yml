@@ -1,9 +1,5 @@
 version: 0.2
 
-# AWS CodeBuild - SAM Deploy with Minimal Layer
-# Layer: Prisma + Zod only (AWS SDK bundled by esbuild)
-# ALL LAMBDAS USE ARM64 ARCHITECTURE (Graviton2)
-
 env:
   variables:
     SAM_CLI_TELEMETRY: 0
@@ -25,10 +21,10 @@ phases:
   pre_build:
     commands:
       - echo "Determining environment..."
+      - export ENV="${ENVIRONMENT:-sandbox}"
+      - export AWS_ACCOUNT="${AWS_ACCOUNT_ID:-971354623291}"
       - |
         if [ "$ENVIRONMENT" = "production" ]; then
-          export ENV="production"
-          export AWS_ACCOUNT="523115032346"
           export STACK_NAME="evo-uds-v3-prod-lambdas"
           export COGNITO_USER_POOL_ID="us-east-1_WVljEXXs9"
           export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:523115032346:userpool/us-east-1_WVljEXXs9"
@@ -38,21 +34,20 @@ phases:
           export DATABASE_URL="postgresql://evoadmin:xJB8g6z84PzUYRhWMM8QkkQb@evo-uds-v3-production-postgres.cib8kysoo015.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
           export FRONTEND_BUCKET="evo-uds-v3-production-frontend-523115032346"
           export CF_DIST_ID="E2NW0IZ2OX493I"
+          export S3_BUCKET="evo-sam-artifacts-523115032346"
         else
-          export ENV="sandbox"
-          export AWS_ACCOUNT="971354623291"
           export STACK_NAME="evo-uds-v3-sandbox-lambdas"
           export COGNITO_USER_POOL_ID="us-east-1_HPU98xnmT"
           export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:971354623291:userpool/us-east-1_HPU98xnmT"
           export LAMBDA_SG="sg-0f14fd661fc5c41ba"
           export PRIVATE_SUBNET_1="subnet-0edbe4968ff3a5a9e"
           export PRIVATE_SUBNET_2="subnet-01931c820b0b0e864"
-          export DATABASE_URL="postgresql://evoadmin:%29V7%3F9ygLec%3FAMSqn%29.UIU4%24vOfRl%2C%24%5EL@evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
+          export DATABASE_URL="postgresql://evoadmin:password@evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
           export FRONTEND_BUCKET="evo-uds-v3-sandbox-frontend-971354623291"
           export CF_DIST_ID="E93EL7AJZ6QAQ"
+          export S3_BUCKET="evo-sam-artifacts-971354623291"
         fi
-      - export S3_BUCKET="evo-sam-artifacts-$AWS_ACCOUNT"
-      - echo "Environment $ENV | Account $AWS_ACCOUNT | Stack $STACK_NAME"
+      - echo "Environment $ENV | Stack $STACK_NAME"
 
   build:
     commands:
@@ -69,17 +64,7 @@ phases:
       - echo "=== Step 4 SAM Build (esbuild for all lambdas) ==="
       - sam build --template-file sam/production-lambdas-only.yaml --build-dir .aws-sam/build --parallel --cached
       - echo "=== Step 5 Deploy SAM Stack ==="
-      - |
-        sam deploy \
-          --template-file .aws-sam/build/template.yaml \
-          --stack-name $STACK_NAME \
-          --s3-bucket $S3_BUCKET \
-          --s3-prefix $STACK_NAME \
-          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
-          --region us-east-1 \
-          --no-confirm-changeset \
-          --no-fail-on-empty-changeset \
-          --parameter-overrides "Environment=$ENV" "ProjectName=evo-uds-v3" "DatabaseUrl=$DATABASE_URL" "CognitoUserPoolId=$COGNITO_USER_POOL_ID" "CognitoUserPoolArn=$COGNITO_USER_POOL_ARN" "LambdaSecurityGroupId=$LAMBDA_SG" "PrivateSubnet1Id=$PRIVATE_SUBNET_1" "PrivateSubnet2Id=$PRIVATE_SUBNET_2"
+      - sam deploy --template-file .aws-sam/build/template.yaml --stack-name $STACK_NAME --s3-bucket $S3_BUCKET --s3-prefix $STACK_NAME --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM --region us-east-1 --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides Environment=$ENV ProjectName=evo-uds-v3 DatabaseUrl=$DATABASE_URL CognitoUserPoolId=$COGNITO_USER_POOL_ID CognitoUserPoolArn=$COGNITO_USER_POOL_ARN LambdaSecurityGroupId=$LAMBDA_SG PrivateSubnet1Id=$PRIVATE_SUBNET_1 PrivateSubnet2Id=$PRIVATE_SUBNET_2
 
   post_build:
     commands:
@@ -88,8 +73,6 @@ phases:
       - echo "=== Invalidating CloudFront ==="
       - aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
       - echo "=== DEPLOYMENT COMPLETE ==="
-      - echo "Lambdas deployed to stack $STACK_NAME"
-      - echo "NOTE: Database migrations must be run manually via Bastion Host"
 
 artifacts:
   files:
