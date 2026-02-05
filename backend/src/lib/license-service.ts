@@ -127,9 +127,25 @@ export async function syncOrganizationLicenses(organizationId: string): Promise<
         // IMPORTANT: Ensure minimum 14 days validity for trial licenses
         // The external API sometimes returns incorrect/short validity periods
         let validUntil = new Date(extLicense.valid_until);
-        let daysRemaining = extLicense.days_remaining;
-        let isExpired = extLicense.is_expired;
-        let isActive = extLicense.status === 'active' && !extLicense.is_expired;
+        
+        // CRITICAL: Calculate is_expired based on valid_until date, not API value
+        // The external API sometimes returns incorrect is_expired values
+        const now = new Date();
+        let isExpired = validUntil < now;
+        let daysRemaining = Math.ceil((validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        let isActive = extLicense.status === 'active' && !isExpired;
+        
+        // Log if API value differs from calculated value
+        if (extLicense.is_expired !== isExpired) {
+          logger.warn('API is_expired differs from calculated value', {
+            licenseKey: extLicense.license_key,
+            apiIsExpired: extLicense.is_expired,
+            calculatedIsExpired: isExpired,
+            validUntil: validUntil.toISOString(),
+            now: now.toISOString(),
+            daysRemaining
+          });
+        }
         
         if (extLicense.is_trial) {
           const minValidUntil = new Date();

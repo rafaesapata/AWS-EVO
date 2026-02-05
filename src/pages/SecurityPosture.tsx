@@ -532,7 +532,7 @@ export default function SecurityPosture() {
       });
       
       // Invalidate both queries to refresh the data
-      queryClient.invalidateQueries({ queryKey: ['remediation-tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['remediation-tickets'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['security-posture-page'] });
       queryClient.invalidateQueries({ queryKey: ['security-findings'] });
     } catch (err) {

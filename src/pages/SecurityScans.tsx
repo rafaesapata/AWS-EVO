@@ -562,7 +562,7 @@ export default function SecurityScans() {
  });
  
  // Invalidate queries to refresh the data
- queryClient.invalidateQueries({ queryKey: ['remediation-tickets'] });
+ queryClient.invalidateQueries({ queryKey: ['remediation-tickets'], refetchType: 'all' });
  queryClient.invalidateQueries({ queryKey: ['scan-findings'] });
  queryClient.invalidateQueries({ queryKey: ['security-findings'] });
  } catch (err) {
