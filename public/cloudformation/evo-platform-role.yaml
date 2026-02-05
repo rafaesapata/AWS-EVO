@@ -30,7 +30,7 @@ Parameters:
   EVOPlatformAccountId:
     Type: String
     Description: 'AWS Account ID of EVO Platform (provided automatically). Restricts who can assume this role.'
-    Default: '971354623291'
+    Default: '523115032346'
     AllowedPattern: '^\d{12}$'
     ConstraintDescription: 'Must be a valid 12-digit AWS Account ID'
 
