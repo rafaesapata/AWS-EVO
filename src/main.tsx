@@ -57,6 +57,7 @@ import TVDashboardManagement from "./pages/TVDashboardManagement";
 import UserManagement from "./pages/UserManagement";
 import AuditLogPage from "./pages/AuditLogPage";
 import AINotificationsAdmin from "./pages/admin/AINotificationsAdmin";
+import ApiDocs from "./pages/ApiDocs";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./i18n/config";
 import "./index.css";
@@ -429,6 +430,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <AINotificationsAdmin />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/api-docs" 
+                element={
+                  <ProtectedRoute>
+                    <ApiDocs />
                   </ProtectedRoute>
                 } 
               />
