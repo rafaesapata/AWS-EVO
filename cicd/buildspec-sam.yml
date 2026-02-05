@@ -14,6 +14,8 @@ phases:
       nodejs: 20
       python: 3.11
     commands:
+      - echo "Installing esbuild globally..."
+      - npm install -g esbuild
       - echo "Installing dependencies..."
       - npm install
       - npm install --prefix backend
