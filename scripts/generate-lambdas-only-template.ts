@@ -282,12 +282,13 @@ function generateFunction(h: HandlerConfig): string {
       MemorySize: ${memory}`;
   }
   
+  // Use ../ prefix since template is in sam/ directory
   return `
   ${name}Function:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '\${ProjectName}-\${Environment}-${h.name}'
-      CodeUri: backend/src/handlers/${h.path}/
+      CodeUri: ../backend/src/handlers/${h.path}/
       Handler: ${h.handler}.handler
       Role: !GetAtt LambdaExecutionRole.Arn${extraProps}${events}
     Metadata:
@@ -381,7 +382,7 @@ Resources:
     Properties:
       LayerName: !Sub '\${ProjectName}-\${Environment}-deps'
       Description: Prisma Client + zod for EVO Platform
-      ContentUri: backend/layers/dependencies/
+      ContentUri: ../backend/layers/dependencies/
       CompatibleRuntimes:
         - nodejs20.x
       CompatibleArchitectures:

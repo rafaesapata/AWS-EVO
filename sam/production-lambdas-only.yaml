@@ -71,7 +71,7 @@ Resources:
     Properties:
       LayerName: !Sub '${ProjectName}-${Environment}-deps'
       Description: Prisma Client + zod for EVO Platform
-      ContentUri: backend/layers/dependencies/
+      ContentUri: ../backend/layers/dependencies/
       CompatibleRuntimes:
         - nodejs20.x
       CompatibleArchitectures:
@@ -190,7 +190,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-admin-manage-user'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: admin-manage-user.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -217,7 +217,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-automated-cleanup-stuck-scans'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: automated-cleanup-stuck-scans.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -238,7 +238,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: cleanup-stuck-scans.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -259,7 +259,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-cognito-user'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: create-cognito-user.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -286,7 +286,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-user'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: create-user.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -313,7 +313,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-deactivate-demo-mode'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: deactivate-demo-mode.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -340,7 +340,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-debug-cloudtrail'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: debug-cloudtrail.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -360,7 +360,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-direct-cleanup'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: direct-cleanup.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -380,7 +380,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-disable-cognito-user'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: disable-cognito-user.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -407,7 +407,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-log-audit'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: log-audit.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -434,7 +434,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-demo-mode'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: manage-demo-mode.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -461,7 +461,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-email-templates'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: manage-email-templates.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -488,7 +488,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-organizations'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: manage-organizations.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -515,7 +515,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-migration'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: run-migration.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -536,7 +536,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-sql'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: run-sql.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -556,7 +556,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-setup-license-config'
-      CodeUri: backend/src/handlers/admin/
+      CodeUri: ../backend/src/handlers/admin/
       Handler: setup-license-config.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -579,7 +579,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-bedrock-chat'
-      CodeUri: backend/src/handlers/ai/
+      CodeUri: ../backend/src/handlers/ai/
       Handler: bedrock-chat.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -608,7 +608,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-proactive-notifications'
-      CodeUri: backend/src/handlers/ai/
+      CodeUri: ../backend/src/handlers/ai/
       Handler: check-proactive-notifications.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -629,7 +629,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-response'
-      CodeUri: backend/src/handlers/ai/
+      CodeUri: ../backend/src/handlers/ai/
       Handler: generate-response.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -651,7 +651,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-ai-notifications'
-      CodeUri: backend/src/handlers/ai/
+      CodeUri: ../backend/src/handlers/ai/
       Handler: get-ai-notifications.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -678,7 +678,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-ai-notifications-admin'
-      CodeUri: backend/src/handlers/ai/
+      CodeUri: ../backend/src/handlers/ai/
       Handler: list-ai-notifications-admin.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -705,7 +705,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-notification-rules'
-      CodeUri: backend/src/handlers/ai/
+      CodeUri: ../backend/src/handlers/ai/
       Handler: manage-notification-rules.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -732,7 +732,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-ai-notification'
-      CodeUri: backend/src/handlers/ai/
+      CodeUri: ../backend/src/handlers/ai/
       Handler: send-ai-notification.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -759,7 +759,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-update-ai-notification'
-      CodeUri: backend/src/handlers/ai/
+      CodeUri: ../backend/src/handlers/ai/
       Handler: update-ai-notification.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -789,7 +789,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-delete-webauthn-credential'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: delete-webauthn-credential.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -816,7 +816,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-forgot-password'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: forgot-password.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -845,7 +845,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-enroll'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: mfa-handlers.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -872,7 +872,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-check'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: mfa-handlers.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -899,7 +899,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-challenge-verify'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: mfa-handlers.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -926,7 +926,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-verify-login'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: mfa-handlers.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -953,7 +953,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-list-factors'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: mfa-handlers.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -980,7 +980,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mfa-unenroll'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: mfa-handlers.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1007,7 +1007,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-self-register'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: self-register.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -1037,7 +1037,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-verify-tv-token'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: verify-tv-token.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1064,7 +1064,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-authenticate'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: webauthn-authenticate.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1091,7 +1091,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-check'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: webauthn-check-standalone.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1118,7 +1118,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-webauthn-register'
-      CodeUri: backend/src/handlers/auth/
+      CodeUri: ../backend/src/handlers/auth/
       Handler: webauthn-register.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1148,7 +1148,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-aws-credentials'
-      CodeUri: backend/src/handlers/aws/
+      CodeUri: ../backend/src/handlers/aws/
       Handler: list-aws-credentials.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1175,7 +1175,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-save-aws-credentials'
-      CodeUri: backend/src/handlers/aws/
+      CodeUri: ../backend/src/handlers/aws/
       Handler: save-aws-credentials.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1202,7 +1202,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-update-aws-credentials'
-      CodeUri: backend/src/handlers/aws/
+      CodeUri: ../backend/src/handlers/aws/
       Handler: update-aws-credentials.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1232,7 +1232,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-activity-logs'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-activity-logs.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -1260,7 +1260,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-compliance-scan'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-compliance-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -1289,7 +1289,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-cost-optimization'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-cost-optimization.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -1318,7 +1318,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-defender-scan'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-defender-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -1347,7 +1347,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-detect-anomalies'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-detect-anomalies.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -1376,7 +1376,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-costs'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-fetch-costs.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -1405,7 +1405,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-edge-services'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-fetch-edge-services.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -1433,7 +1433,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-monitor-metrics'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-fetch-monitor-metrics.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -1461,7 +1461,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-callback'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-oauth-callback.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -1489,7 +1489,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-initiate'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-oauth-initiate.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1516,7 +1516,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-refresh'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-oauth-refresh.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1543,7 +1543,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-oauth-revoke'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-oauth-revoke.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1570,7 +1570,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-reservations-analyzer'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-reservations-analyzer.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -1599,7 +1599,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-resource-inventory'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-resource-inventory.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -1628,7 +1628,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-security-scan'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-security-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -1657,7 +1657,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-well-architected-scan'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: azure-well-architected-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -1686,7 +1686,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-delete-azure-credentials'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: delete-azure-credentials.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1713,7 +1713,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-azure-credentials'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: list-azure-credentials.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1740,7 +1740,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-save-azure-credentials'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: save-azure-credentials.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1767,7 +1767,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-azure-security-scan'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: start-azure-security-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -1795,7 +1795,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-azure-credentials'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: validate-azure-credentials.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -1823,7 +1823,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-azure-permissions'
-      CodeUri: backend/src/handlers/azure/
+      CodeUri: ../backend/src/handlers/azure/
       Handler: validate-azure-permissions.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -1854,7 +1854,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-cloud-credentials'
-      CodeUri: backend/src/handlers/cloud/
+      CodeUri: ../backend/src/handlers/cloud/
       Handler: list-cloud-credentials.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -1884,7 +1884,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-analyze-ri-sp'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: analyze-ri-sp.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -1913,7 +1913,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-budget-forecast'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: budget-forecast.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -1942,7 +1942,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cost-optimization'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: cost-optimization.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -1971,7 +1971,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-daily-costs'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: fetch-daily-costs.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2000,7 +2000,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-finops-copilot'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: finops-copilot-v2.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -2029,7 +2029,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-cost-forecast'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: generate-cost-forecast.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -2058,7 +2058,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-ri-sp-analysis'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: get-ri-sp-analysis.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2085,7 +2085,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-ri-sp-data'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: get-ri-sp-data.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2112,7 +2112,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-ri-sp-history'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: list-ri-sp-history.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2139,7 +2139,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ml-waste-detection'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: ml-waste-detection.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -2168,7 +2168,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ri-sp-analyzer'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: ri-sp-analyzer.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2197,7 +2197,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-save-ri-sp-analysis'
-      CodeUri: backend/src/handlers/cost/
+      CodeUri: ../backend/src/handlers/cost/
       Handler: save-ri-sp-analysis.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -2220,7 +2220,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-executive-dashboard'
-      CodeUri: backend/src/handlers/dashboard/
+      CodeUri: ../backend/src/handlers/dashboard/
       Handler: get-executive-dashboard.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -2249,7 +2249,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-executive-dashboard-public'
-      CodeUri: backend/src/handlers/dashboard/
+      CodeUri: ../backend/src/handlers/dashboard/
       Handler: get-executive-dashboard-public.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -2280,7 +2280,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-tv-tokens'
-      CodeUri: backend/src/handlers/dashboard/
+      CodeUri: ../backend/src/handlers/dashboard/
       Handler: manage-tv-tokens.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2310,7 +2310,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-cost-data'
-      CodeUri: backend/src/handlers/data/
+      CodeUri: ../backend/src/handlers/data/
       Handler: cleanup-cost-data.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2331,7 +2331,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-mutate-table'
-      CodeUri: backend/src/handlers/data/
+      CodeUri: ../backend/src/handlers/data/
       Handler: mutate-table.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2358,7 +2358,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-query-table'
-      CodeUri: backend/src/handlers/data/
+      CodeUri: ../backend/src/handlers/data/
       Handler: query-table.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2385,7 +2385,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ticket-attachments'
-      CodeUri: backend/src/handlers/data/
+      CodeUri: ../backend/src/handlers/data/
       Handler: ticket-attachments.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -2413,7 +2413,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ticket-management'
-      CodeUri: backend/src/handlers/data/
+      CodeUri: ../backend/src/handlers/data/
       Handler: ticket-management.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2443,7 +2443,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-diagnose-cost-dashboard'
-      CodeUri: backend/src/handlers/debug/
+      CodeUri: ../backend/src/handlers/debug/
       Handler: diagnose-cost-dashboard.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -2466,7 +2466,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cloudformation-webhook'
-      CodeUri: backend/src/handlers/integrations/
+      CodeUri: ../backend/src/handlers/integrations/
       Handler: cloudformation-webhook.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2495,7 +2495,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-jira-ticket'
-      CodeUri: backend/src/handlers/integrations/
+      CodeUri: ../backend/src/handlers/integrations/
       Handler: create-jira-ticket.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -2526,7 +2526,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-auto-cleanup-stuck-scans'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: auto-cleanup-stuck-scans.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2547,7 +2547,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-expired-external-ids'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: cleanup-expired-external-ids.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -2568,7 +2568,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-expired-oauth-states'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: cleanup-expired-oauth-states.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -2589,7 +2589,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans-jobs'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: cleanup-stuck-scans.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2610,7 +2610,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-execute-scheduled-job'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: execute-scheduled-job.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2639,7 +2639,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-initial-data-load'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: initial-data-load.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2660,7 +2660,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cancel-background-job'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: cancel-background-job.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2687,7 +2687,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-retry-background-job'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: retry-background-job.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2714,7 +2714,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-background-jobs'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: list-background-jobs.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2741,7 +2741,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-process-background-jobs'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: process-background-jobs.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2770,7 +2770,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-process-events'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: process-events.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2791,7 +2791,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-scan-executor'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: scheduled-scan-executor.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2820,7 +2820,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-view-refresh'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: scheduled-view-refresh.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2841,7 +2841,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-scheduled-emails'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: send-scheduled-emails.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -2862,7 +2862,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-sync-resource-inventory'
-      CodeUri: backend/src/handlers/jobs/
+      CodeUri: ../backend/src/handlers/jobs/
       Handler: sync-resource-inventory.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -2886,7 +2886,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-increment-article-helpful'
-      CodeUri: backend/src/handlers/kb/
+      CodeUri: ../backend/src/handlers/kb/
       Handler: increment-article-helpful.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2913,7 +2913,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-increment-article-views'
-      CodeUri: backend/src/handlers/kb/
+      CodeUri: ../backend/src/handlers/kb/
       Handler: increment-article-views.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2940,7 +2940,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-ai-suggestions'
-      CodeUri: backend/src/handlers/kb/
+      CodeUri: ../backend/src/handlers/kb/
       Handler: kb-ai-suggestions.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -2969,7 +2969,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-analytics-dashboard'
-      CodeUri: backend/src/handlers/kb/
+      CodeUri: ../backend/src/handlers/kb/
       Handler: kb-analytics-dashboard.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -2996,7 +2996,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-article-tracking'
-      CodeUri: backend/src/handlers/kb/
+      CodeUri: ../backend/src/handlers/kb/
       Handler: kb-article-tracking.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -3016,7 +3016,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-kb-export-pdf'
-      CodeUri: backend/src/handlers/kb/
+      CodeUri: ../backend/src/handlers/kb/
       Handler: kb-export-pdf.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -3045,7 +3045,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-track-article-view-detailed'
-      CodeUri: backend/src/handlers/kb/
+      CodeUri: ../backend/src/handlers/kb/
       Handler: track-article-view-detailed.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3075,7 +3075,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-admin-sync-license'
-      CodeUri: backend/src/handlers/license/
+      CodeUri: ../backend/src/handlers/license/
       Handler: admin-sync-license.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -3103,7 +3103,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-seats'
-      CodeUri: backend/src/handlers/license/
+      CodeUri: ../backend/src/handlers/license/
       Handler: cleanup-seats.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -3124,7 +3124,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-configure-license'
-      CodeUri: backend/src/handlers/license/
+      CodeUri: ../backend/src/handlers/license/
       Handler: configure-license.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3151,7 +3151,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-daily-license-validation'
-      CodeUri: backend/src/handlers/license/
+      CodeUri: ../backend/src/handlers/license/
       Handler: daily-license-validation.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -3172,7 +3172,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-seat-assignments'
-      CodeUri: backend/src/handlers/license/
+      CodeUri: ../backend/src/handlers/license/
       Handler: manage-seat-assignments.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -3192,7 +3192,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-seats'
-      CodeUri: backend/src/handlers/license/
+      CodeUri: ../backend/src/handlers/license/
       Handler: manage-seats.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3219,7 +3219,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-scheduled-license-sync'
-      CodeUri: backend/src/handlers/license/
+      CodeUri: ../backend/src/handlers/license/
       Handler: scheduled-license-sync.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -3240,7 +3240,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-sync-license'
-      CodeUri: backend/src/handlers/license/
+      CodeUri: ../backend/src/handlers/license/
       Handler: sync-license.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -3268,7 +3268,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-license'
-      CodeUri: backend/src/handlers/license/
+      CodeUri: ../backend/src/handlers/license/
       Handler: validate-license.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3298,7 +3298,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-maintenance-auto-cleanup-stuck-scans'
-      CodeUri: backend/src/handlers/maintenance/
+      CodeUri: ../backend/src/handlers/maintenance/
       Handler: auto-cleanup-stuck-scans.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -3319,7 +3319,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-cleanup-stuck-scans-simple'
-      CodeUri: backend/src/handlers/maintenance/
+      CodeUri: ../backend/src/handlers/maintenance/
       Handler: cleanup-stuck-scans-simple.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -3343,7 +3343,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-ai-prioritization'
-      CodeUri: backend/src/handlers/ml/
+      CodeUri: ../backend/src/handlers/ml/
       Handler: ai-prioritization.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -3365,7 +3365,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-detect-anomalies'
-      CodeUri: backend/src/handlers/ml/
+      CodeUri: ../backend/src/handlers/ml/
       Handler: detect-anomalies.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -3394,7 +3394,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-ai-insights'
-      CodeUri: backend/src/handlers/ml/
+      CodeUri: ../backend/src/handlers/ml/
       Handler: generate-ai-insights.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -3416,7 +3416,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-intelligent-alerts-analyzer'
-      CodeUri: backend/src/handlers/ml/
+      CodeUri: ../backend/src/handlers/ml/
       Handler: intelligent-alerts-analyzer.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -3445,7 +3445,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-predict-incidents'
-      CodeUri: backend/src/handlers/ml/
+      CodeUri: ../backend/src/handlers/ml/
       Handler: predict-incidents.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -3477,7 +3477,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-alerts'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: alerts.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3504,7 +3504,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-auto-alerts'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: auto-alerts.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3531,7 +3531,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-aws-realtime-metrics'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: aws-realtime-metrics.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -3560,7 +3560,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-alert-rules'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: check-alert-rules.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3587,7 +3587,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-endpoint-monitor-check'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: endpoint-monitor-check.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3614,7 +3614,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-error-aggregator'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: error-aggregator.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -3634,7 +3634,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudwatch-metrics'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: fetch-cloudwatch-metrics.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -3662,7 +3662,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-edge-services'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: fetch-edge-services.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -3690,7 +3690,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-error-fix-prompt'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: generate-error-fix-prompt.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3717,7 +3717,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-lambda-health'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: get-lambda-health.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3744,7 +3744,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-platform-metrics'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: get-platform-metrics.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -3772,7 +3772,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-recent-errors'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: get-recent-errors.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3799,7 +3799,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-health-check'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: health-check.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -3819,7 +3819,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-lambda-health-check'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: lambda-health-check.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -3839,7 +3839,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-log-frontend-error'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: log-frontend-error.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3868,7 +3868,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-monitored-endpoints'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: monitored-endpoints.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3895,7 +3895,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-test-lambda-metrics'
-      CodeUri: backend/src/handlers/monitoring/
+      CodeUri: ../backend/src/handlers/monitoring/
       Handler: test-lambda-metrics.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -3918,7 +3918,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-communication-logs'
-      CodeUri: backend/src/handlers/notifications/
+      CodeUri: ../backend/src/handlers/notifications/
       Handler: get-communication-logs.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3945,7 +3945,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-manage-email-preferences'
-      CodeUri: backend/src/handlers/notifications/
+      CodeUri: ../backend/src/handlers/notifications/
       Handler: manage-email-preferences.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3972,7 +3972,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-email'
-      CodeUri: backend/src/handlers/notifications/
+      CodeUri: ../backend/src/handlers/notifications/
       Handler: send-email.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -3999,7 +3999,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-send-notification'
-      CodeUri: backend/src/handlers/notifications/
+      CodeUri: ../backend/src/handlers/notifications/
       Handler: send-notification.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4029,7 +4029,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-organization-account'
-      CodeUri: backend/src/handlers/organizations/
+      CodeUri: ../backend/src/handlers/organizations/
       Handler: create-organization-account.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4056,7 +4056,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-sync-organization-accounts'
-      CodeUri: backend/src/handlers/organizations/
+      CodeUri: ../backend/src/handlers/organizations/
       Handler: sync-organization-accounts.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4087,7 +4087,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-organization'
-      CodeUri: backend/src/handlers/profiles/
+      CodeUri: ../backend/src/handlers/profiles/
       Handler: check-organization.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4114,7 +4114,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-with-organization'
-      CodeUri: backend/src/handlers/profiles/
+      CodeUri: ../backend/src/handlers/profiles/
       Handler: create-with-organization.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4141,7 +4141,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-user-organization'
-      CodeUri: backend/src/handlers/profiles/
+      CodeUri: ../backend/src/handlers/profiles/
       Handler: get-user-organization.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4171,7 +4171,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-excel-report'
-      CodeUri: backend/src/handlers/reports/
+      CodeUri: ../backend/src/handlers/reports/
       Handler: generate-excel-report.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -4200,7 +4200,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-pdf-report'
-      CodeUri: backend/src/handlers/reports/
+      CodeUri: ../backend/src/handlers/reports/
       Handler: generate-pdf-report.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -4229,7 +4229,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-remediation-script'
-      CodeUri: backend/src/handlers/reports/
+      CodeUri: ../backend/src/handlers/reports/
       Handler: generate-remediation-script.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4257,7 +4257,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-generate-security-pdf'
-      CodeUri: backend/src/handlers/reports/
+      CodeUri: ../backend/src/handlers/reports/
       Handler: generate-security-pdf.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -4286,7 +4286,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-security-scan-pdf-export'
-      CodeUri: backend/src/handlers/reports/
+      CodeUri: ../backend/src/handlers/reports/
       Handler: security-scan-pdf-export.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -4318,7 +4318,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-analyze-cloudtrail'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: analyze-cloudtrail.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -4347,7 +4347,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-compliance-scan'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: compliance-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -4376,7 +4376,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-create-remediation-ticket'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: create-remediation-ticket.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -4396,7 +4396,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-drift-detection'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: drift-detection.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -4425,7 +4425,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-fetch-cloudtrail'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: fetch-cloudtrail.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4453,7 +4453,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-history'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: get-compliance-history.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4480,7 +4480,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-compliance-scan-status'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: get-compliance-scan-status.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4507,7 +4507,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-findings'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: get-findings.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4534,7 +4534,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-get-security-posture'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: get-security-posture.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4561,7 +4561,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-guardduty-scan'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: guardduty-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -4590,7 +4590,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-iam-behavior-analysis'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: iam-behavior-analysis.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -4612,7 +4612,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-iam-deep-analysis'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: iam-deep-analysis.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -4641,7 +4641,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-lateral-movement-detection'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: lateral-movement-detection.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
@@ -4670,7 +4670,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-security-scan'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: security-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -4699,7 +4699,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-analyze-cloudtrail'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: start-analyze-cloudtrail.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4720,7 +4720,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-cloudtrail-analysis'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: start-cloudtrail-analysis.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4748,7 +4748,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-compliance-scan'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: start-compliance-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4776,7 +4776,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-start-security-scan'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: start-security-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4804,7 +4804,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-aws-credentials'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: validate-aws-credentials.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4832,7 +4832,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-permissions'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: validate-permissions.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4860,7 +4860,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-waf-security'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: validate-waf-security.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -4880,7 +4880,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-dashboard-api'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: waf-dashboard-api.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -4907,7 +4907,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-forwarder'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: waf-log-forwarder.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -4927,7 +4927,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-log-processor'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: waf-log-processor.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -4947,7 +4947,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-setup-monitoring'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: waf-setup-monitoring.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -4975,7 +4975,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-threat-analyzer'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: waf-threat-analyzer.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -4995,7 +4995,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-unblock-expired'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: waf-unblock-expired.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -5016,7 +5016,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-well-architected-scan'
-      CodeUri: backend/src/handlers/security/
+      CodeUri: ../backend/src/handlers/security/
       Handler: well-architected-scan.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -5048,7 +5048,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-storage-download'
-      CodeUri: backend/src/handlers/storage/
+      CodeUri: ../backend/src/handlers/storage/
       Handler: storage-handlers.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -5076,7 +5076,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-storage-delete'
-      CodeUri: backend/src/handlers/storage/
+      CodeUri: ../backend/src/handlers/storage/
       Handler: storage-handlers.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -5103,7 +5103,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-upload-attachment'
-      CodeUri: backend/src/handlers/storage/
+      CodeUri: ../backend/src/handlers/storage/
       Handler: storage-handlers.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
@@ -5134,7 +5134,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-check-migrations'
-      CodeUri: backend/src/handlers/system/
+      CodeUri: ../backend/src/handlers/system/
       Handler: check-migrations.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -5154,7 +5154,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-db-init'
-      CodeUri: backend/src/handlers/system/
+      CodeUri: ../backend/src/handlers/system/
       Handler: db-init.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -5183,7 +5183,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-list-tables'
-      CodeUri: backend/src/handlers/system/
+      CodeUri: ../backend/src/handlers/system/
       Handler: list-tables.handler
       Role: !GetAtt LambdaExecutionRole.Arn
     Metadata:
@@ -5203,7 +5203,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-migrations'
-      CodeUri: backend/src/handlers/system/
+      CodeUri: ../backend/src/handlers/system/
       Handler: run-migrations.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -5224,7 +5224,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-run-sql-migration'
-      CodeUri: backend/src/handlers/system/
+      CodeUri: ../backend/src/handlers/system/
       Handler: run-sql-migration.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
@@ -5248,7 +5248,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-notification-settings'
-      CodeUri: backend/src/handlers/user/
+      CodeUri: ../backend/src/handlers/user/
       Handler: notification-settings.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -5278,7 +5278,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-websocket-connect'
-      CodeUri: backend/src/handlers/websocket/
+      CodeUri: ../backend/src/handlers/websocket/
       Handler: connect.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -5307,7 +5307,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-websocket-disconnect'
-      CodeUri: backend/src/handlers/websocket/
+      CodeUri: ../backend/src/handlers/websocket/
       Handler: disconnect.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
