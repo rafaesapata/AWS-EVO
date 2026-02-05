@@ -50,15 +50,15 @@ Parameters:
   LambdaSecurityGroupId:
     Type: String
     Description: Security Group for Lambda functions
-    Default: sg-07ea931d32276e039
+    Default: sg-066e845f73d46814d
   PrivateSubnet1Id:
     Type: String
     Description: Private Subnet 1
-    Default: subnet-0af7face420b9f317
+    Default: subnet-0494b6594914ba898
   PrivateSubnet2Id:
     Type: String
     Description: Private Subnet 2
-    Default: subnet-099b0fbc0a342fb0f
+    Default: subnet-0f68017cc0b95edda
 
 Resources:
   # Lambda Layer - Prisma + Zod

@@ -45,9 +45,12 @@ inclusion: always
 |---------|-------|
 | **Lambda Prefix** | `evo-uds-v3-prod-*` |
 | **Cognito User Pool ID** | `us-east-1_WVljEXXs9` |
-| **VPC ID** | `vpc-06bce393935428844` |
-| **Private Subnets** | `subnet-0af7face420b9f317`, `subnet-099b0fbc0a342fb0f` |
-| **Security Group** | `sg-07ea931d32276e039` |
+| **VPC ID** | `vpc-07424c3d1d6fb2dc6` |
+| **Private Subnets** | `subnet-0494b6594914ba898`, `subnet-0f68017cc0b95edda` |
+| **Security Group (Lambda)** | `sg-066e845f73d46814d` |
+| **Security Group (RDS)** | `sg-098e3163e78182351` |
+| **CloudFront Distribution** | `E2NW0IZ2OX493I` |
+| **S3 Frontend** | `evo-uds-v3-production-frontend-523115032346` |
 
 ---
 
