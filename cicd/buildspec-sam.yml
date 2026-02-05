@@ -1,8 +1,9 @@
 version: 0.2
 
-# AWS CodeBuild - SAM Deploy with Minimal Layer
-# Layer: Prisma + Zod only (AWS SDK bundled by esbuild)
+# AWS CodeBuild - SAM Deploy with esbuild
+# Layer: Prisma + Zod only (all other deps bundled by esbuild)
 # ALL LAMBDAS USE ARM64 ARCHITECTURE (Graviton2)
+# esbuild bundles TypeScript directly - no manual tsc build needed
 
 env:
   variables:
@@ -46,21 +47,17 @@ phases:
 
   build:
     commands:
-      - echo "=== Step 1 Build TypeScript backend ==="
-      - npm run build --prefix backend
-      - echo "=== Step 2 Build Frontend ==="
+      - echo "=== Step 1 Build Frontend ==="
       - npm run build
-      - echo "=== Step 3 Prepare Backend for SAM (copy dist to src) ==="
-      - cp -r backend/dist backend/src
-      - echo "=== Step 4 Prepare Layer (Prisma + Zod only) ==="
+      - echo "=== Step 2 Prepare Layer (Prisma + Zod only) ==="
       - mkdir -p backend/layers/dependencies/nodejs/node_modules
       - cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
       - cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
       - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
       - rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
-      - echo "=== Step 5 Deploy SAM Stack ==="
-      - cp sam/template.yaml ./template-temp.yaml
-      - sam build --template-file ./template-temp.yaml --build-dir .aws-sam/build --parallel --cached
+      - echo "=== Step 3 SAM Build with esbuild (bundles TypeScript directly) ==="
+      - sam build --template-file sam/template.yaml --build-dir .aws-sam/build --parallel --cached
+      - echo "=== Step 4 Deploy SAM Stack ==="
       - |
         sam deploy \
           --template-file .aws-sam/build/template.yaml \
