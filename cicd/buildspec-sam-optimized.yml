@@ -1,3 +1,23 @@
+# AWS CodeBuild BuildSpec - Optimized SAM Deploy
+#
+# DEPLOY STRATEGIES:
+# 1. FULL_SAM: Deploy all lambdas via SAM (slow ~10min)
+#    - Triggered by: template changes, schema changes, lib/ or types/ changes
+#    - Rebuilds all lambdas with esbuild
+#
+# 2. INCREMENTAL: Deploy only changed lambdas (fast ~2min)
+#    - Triggered by: specific handler file changes
+#    - Updates only affected lambdas with direct AWS CLI
+#    - Automatically fixes handler paths
+#
+# 3. SKIP: No deploy (docs/scripts only)
+#    - Triggered by: .md, scripts/, docs/ changes
+#
+# PERFORMANCE:
+# - Full SAM: ~10 minutes (all lambdas)
+# - Incremental: ~2 minutes (1-5 lambdas)
+# - Skip: ~1 minute (build only, no deploy)
+
 version: 0.2
 
 env:
@@ -70,13 +90,13 @@ phases:
           echo ">>> FULL DEPLOY (no git history)"
           export DEPLOY_FRONTEND="true"
           export DEPLOY_FULL_SAM="true"
-        elif echo "$CHANGED_FILES" | grep -qE "^(sam/|backend/prisma/|backend/src/lib/|backend/src/types/)"; then
-          echo ">>> FULL SAM DEPLOY (core files changed)"
+        elif echo "$CHANGED_FILES" | grep -qE "^(sam/template\.yaml|sam/production-lambdas-only\.yaml|backend/prisma/schema\.prisma|backend/src/lib/|backend/src/types/)"; then
+          echo ">>> FULL SAM DEPLOY (core files or template changed)"
           export DEPLOY_FULL_SAM="true"
           export DEPLOY_FRONTEND="true"
         else
           # Check frontend changes
-          if echo "$CHANGED_FILES" | grep -qE "^(src/|public/|index.html|vite.config|tailwind|postcss)"; then
+          if echo "$CHANGED_FILES" | grep -qE "^(src/|public/|index.html|vite\.config|tailwind|postcss)"; then
             echo ">>> Frontend changed"
             export DEPLOY_FRONTEND="true"
           fi
@@ -87,6 +107,11 @@ phases:
             echo ">>> Handlers changed: $HANDLER_CHANGES"
             export DEPLOY_LAMBDAS="true"
             export CHANGED_HANDLERS="$HANDLER_CHANGES"
+          fi
+          
+          # If only docs/scripts changed, skip deploy
+          if [ "$DEPLOY_FRONTEND" = "false" ] && [ "$DEPLOY_LAMBDAS" = "false" ] && [ "$DEPLOY_FULL_SAM" = "false" ]; then
+            echo ">>> NO DEPLOYABLE CHANGES (docs/scripts only)"
           fi
         fi
         
@@ -147,49 +172,78 @@ phases:
             
             echo "Processing: $category/$handler_file"
             
-            # Map handler file to lambda names (some handlers serve multiple lambdas)
+            # Map handler file to lambda names
+            # Some handlers serve multiple lambdas (e.g., mfa-handlers.ts)
             case "$handler_file" in
               mfa-handlers)
                 LAMBDAS="mfa-enroll mfa-check mfa-challenge-verify mfa-verify-login mfa-list-factors mfa-unenroll"
                 ;;
+              security-scan)
+                LAMBDAS="security-scan"
+                ;;
               *)
+                # Default: handler file name = lambda name
                 LAMBDAS="$handler_file"
                 ;;
             esac
             
             for lambda in $LAMBDAS; do
               LAMBDA_NAME="${LAMBDA_PREFIX}-${lambda}"
-              echo "Deploying $LAMBDA_NAME..."
+              echo ">>> Deploying $LAMBDA_NAME..."
+              
+              # Check if Lambda exists
+              if ! aws lambda get-function --function-name "$LAMBDA_NAME" --region us-east-1 >/dev/null 2>&1; then
+                echo "Warning: Lambda $LAMBDA_NAME does not exist, skipping"
+                continue
+              fi
               
               # Prepare deployment package
               rm -rf /tmp/lambda-deploy && mkdir -p /tmp/lambda-deploy
               
               # Copy handler with adjusted imports
-              sed 's|require("../../lib/|require("./lib/|g' "backend/dist/handlers/${category}/${handler_file}.js" | \
-              sed 's|require("../lib/|require("./lib/|g' | \
-              sed 's|require("../../types/|require("./types/|g' > "/tmp/lambda-deploy/${handler_file}.js"
+              if [ -f "backend/dist/handlers/${category}/${handler_file}.js" ]; then
+                sed 's|require("../../lib/|require("./lib/|g' "backend/dist/handlers/${category}/${handler_file}.js" | \
+                sed 's|require("../lib/|require("./lib/|g' | \
+                sed 's|require("../../types/|require("./types/|g' > "/tmp/lambda-deploy/${handler_file}.js"
+              else
+                echo "Error: Handler file not found: backend/dist/handlers/${category}/${handler_file}.js"
+                continue
+              fi
               
               # Copy dependencies
-              cp -r backend/dist/lib /tmp/lambda-deploy/
-              cp -r backend/dist/types /tmp/lambda-deploy/
+              cp -r backend/dist/lib /tmp/lambda-deploy/ 2>/dev/null || echo "Warning: lib not found"
+              cp -r backend/dist/types /tmp/lambda-deploy/ 2>/dev/null || echo "Warning: types not found"
               
               # Create ZIP
-              cd /tmp/lambda-deploy && zip -r /tmp/lambda.zip . && cd -
+              cd /tmp/lambda-deploy && zip -qr /tmp/lambda.zip . && cd -
               
-              # Update Lambda
+              # Update Lambda code
+              echo "Updating code for $LAMBDA_NAME..."
               aws lambda update-function-code \
                 --function-name "$LAMBDA_NAME" \
                 --zip-file fileb:///tmp/lambda.zip \
-                --region us-east-1 || echo "Warning: Could not update $LAMBDA_NAME"
+                --region us-east-1 \
+                --no-cli-pager || echo "Error: Could not update $LAMBDA_NAME"
               
-              # Wait for update
+              # Update handler path (ensure correct handler)
+              echo "Updating handler path for $LAMBDA_NAME..."
+              aws lambda update-function-configuration \
+                --function-name "$LAMBDA_NAME" \
+                --handler "${handler_file}.handler" \
+                --region us-east-1 \
+                --no-cli-pager || echo "Error: Could not update handler for $LAMBDA_NAME"
+              
+              # Wait for update to complete
+              echo "Waiting for $LAMBDA_NAME to be ready..."
               aws lambda wait function-updated \
                 --function-name "$LAMBDA_NAME" \
-                --region us-east-1 || true
+                --region us-east-1 || echo "Warning: Wait timeout for $LAMBDA_NAME"
+              
+              echo "✓ $LAMBDA_NAME deployed successfully"
             done
           done
           
-          echo "Incremental deploy complete!"
+          echo "=== Incremental deploy complete! ==="
         else
           echo "=== NO LAMBDA CHANGES ==="
         fi

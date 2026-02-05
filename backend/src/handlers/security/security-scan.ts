@@ -4,6 +4,8 @@
  * Suporte a 6 frameworks de compliance: CIS, Well-Architected, PCI-DSS, NIST, LGPD, SOC2
  * 
  * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
+ * 
+ * @version 3.0.1
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
