@@ -4,7 +4,6 @@ Description: |
   EVO Platform - Lambda Functions Only (194 total)
   Uses existing VPC, RDS, Cognito infrastructure
   All functions use ARM64 + esbuild for fast builds
-
 Globals:
   Function:
     Runtime: nodejs20.x
@@ -26,7 +25,6 @@ Globals:
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
     Layers:
       - !Ref DependenciesLayer
-
 Parameters:
   Environment:
     Type: String
@@ -36,36 +34,28 @@ Parameters:
   ProjectName:
     Type: String
     Default: evo-uds-v3
-
   DatabaseUrl:
     Type: String
     NoEcho: true
     Description: PostgreSQL connection string
-
   CognitoUserPoolId:
     Type: String
     Description: Existing Cognito User Pool ID
-
   CognitoUserPoolArn:
     Type: String
     Description: Existing Cognito User Pool ARN
-
   CognitoClientId:
     Type: String
     Description: Cognito User Pool Client ID for JWT audience
-
   LambdaSecurityGroupId:
     Type: String
     Description: Security Group ID for Lambda functions
-
   PrivateSubnet1Id:
     Type: String
     Description: Private Subnet 1 ID
-
   PrivateSubnet2Id:
     Type: String
     Description: Private Subnet 2 ID
-
 Resources:
   # ==========================================================================
   # LAMBDA LAYER - Prisma + zod (AWS SDK bundled by esbuild)
@@ -81,7 +71,6 @@ Resources:
       CompatibleArchitectures:
         - arm64
       RetentionPolicy: Retain
-
   # ==========================================================================
   # IAM ROLE - Lambda Execution Role
   # ==========================================================================
@@ -146,7 +135,6 @@ Resources:
                   - lambda:Get*
                   - wafv2:*
                 Resource: '*'
-
   # ==========================================================================
   # API GATEWAY - HTTP API with JWT Authorizer
   # ==========================================================================
@@ -184,7 +172,6 @@ Resources:
               issuer: !Sub 'https://cognito-idp.us-east-1.amazonaws.com/${CognitoUserPoolId}'
               audience:
                 - !Ref CognitoClientId
-
   # ==========================================================================
   # ADMIN FUNCTIONS (16)
   # ==========================================================================
@@ -213,8 +200,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AutomatedCleanupStuckScansFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -234,8 +219,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CleanupStuckScansFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -255,8 +238,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CreateCognitoUserFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -282,8 +263,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CreateUserFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -309,8 +288,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   DeactivateDemoModeFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -336,8 +313,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   DebugCloudtrailFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -356,8 +331,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   DirectCleanupFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -376,8 +349,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   DisableCognitoUserFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -403,8 +374,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   LogAuditFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -430,8 +399,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ManageDemoModeFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -457,8 +424,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ManageEmailTemplatesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -484,8 +449,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ManageOrganizationsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -511,8 +474,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   RunMigrationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -532,8 +493,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   RunSqlFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -552,8 +511,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SetupLicenseConfigFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -572,8 +529,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # AI FUNCTIONS (8)
   # ==========================================================================
@@ -604,8 +559,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CheckProactiveNotificationsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -625,8 +578,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GenerateResponseFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -647,8 +598,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetAiNotificationsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -674,8 +623,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ListAiNotificationsAdminFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -701,8 +648,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ManageNotificationRulesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -728,8 +673,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SendAiNotificationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -755,8 +698,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   UpdateAiNotificationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -782,8 +723,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # AUTH FUNCTIONS (13)
   # ==========================================================================
@@ -812,8 +751,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ForgotPasswordFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -841,8 +778,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   MfaEnrollFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -868,8 +803,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   MfaCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -895,8 +828,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   MfaChallengeVerifyFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -922,8 +853,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   MfaVerifyLoginFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -949,8 +878,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   MfaListFactorsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -976,8 +903,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   MfaUnenrollFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1003,8 +928,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SelfRegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1033,8 +956,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   VerifyTvTokenFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1060,8 +981,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WebauthnAuthenticateFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1087,8 +1006,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WebauthnCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1114,8 +1031,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WebauthnRegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1141,8 +1056,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # AWS FUNCTIONS (3)
   # ==========================================================================
@@ -1171,8 +1084,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SaveAwsCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1198,8 +1109,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   UpdateAwsCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1225,8 +1134,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # AZURE FUNCTIONS (22)
   # ==========================================================================
@@ -1256,8 +1163,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureComplianceScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1285,8 +1190,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureCostOptimizationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1314,8 +1217,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureDefenderScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1343,8 +1244,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureDetectAnomaliesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1372,8 +1271,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureFetchCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1401,8 +1298,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureFetchEdgeServicesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1429,8 +1324,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureFetchMonitorMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1457,8 +1350,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureOauthCallbackFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1485,8 +1376,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureOauthInitiateFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1512,8 +1401,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureOauthRefreshFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1539,8 +1426,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureOauthRevokeFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1566,8 +1451,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureReservationsAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1595,8 +1478,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureResourceInventoryFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1624,8 +1505,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureSecurityScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1653,8 +1532,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AzureWellArchitectedScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1682,8 +1559,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   DeleteAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1709,8 +1584,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ListAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1736,8 +1609,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SaveAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1763,8 +1634,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   StartAzureSecurityScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1791,8 +1660,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ValidateAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1819,8 +1686,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ValidateAzurePermissionsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1847,8 +1712,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # CLOUD FUNCTIONS (1)
   # ==========================================================================
@@ -1877,8 +1740,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # COST FUNCTIONS (12)
   # ==========================================================================
@@ -1909,8 +1770,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   BudgetForecastFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1938,8 +1797,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CostOptimizationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1967,8 +1824,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   FetchDailyCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1996,8 +1851,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   FinopsCopilotFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2025,8 +1878,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GenerateCostForecastFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2054,8 +1905,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetRiSpAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2081,8 +1930,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetRiSpDataFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2108,8 +1955,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ListRiSpHistoryFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2135,8 +1980,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   MlWasteDetectionFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2164,8 +2007,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   RiSpAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2193,8 +2034,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SaveRiSpAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2213,8 +2052,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # DASHBOARD FUNCTIONS (3)
   # ==========================================================================
@@ -2245,8 +2082,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetExecutiveDashboardPublicFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2276,8 +2111,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ManageTvTokensFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2303,8 +2136,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # DATA FUNCTIONS (5)
   # ==========================================================================
@@ -2327,8 +2158,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   MutateTableFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2354,8 +2183,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   QueryTableFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2381,8 +2208,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   TicketAttachmentsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2409,8 +2234,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   TicketManagementFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2436,8 +2259,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # DEBUG FUNCTIONS (1)
   # ==========================================================================
@@ -2459,8 +2280,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # INTEGRATIONS FUNCTIONS (2)
   # ==========================================================================
@@ -2491,8 +2310,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CreateJiraTicketFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2519,8 +2336,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # JOBS FUNCTIONS (15)
   # ==========================================================================
@@ -2543,8 +2358,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CleanupExpiredExternalIdsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2564,8 +2377,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CleanupExpiredOauthStatesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2585,8 +2396,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CleanupStuckScansJobsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2606,8 +2415,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ExecuteScheduledJobFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2635,8 +2442,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   InitialDataLoadFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2656,8 +2461,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CancelBackgroundJobFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2683,8 +2486,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   RetryBackgroundJobFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2710,8 +2511,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ListBackgroundJobsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2737,8 +2536,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ProcessBackgroundJobsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2766,8 +2563,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ProcessEventsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2787,8 +2582,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ScheduledScanExecutorFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2816,8 +2609,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ScheduledViewRefreshFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2837,8 +2628,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SendScheduledEmailsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2858,8 +2647,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SyncResourceInventoryFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2879,8 +2666,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # KB FUNCTIONS (7)
   # ==========================================================================
@@ -2909,8 +2694,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   IncrementArticleViewsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2936,8 +2719,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   KbAiSuggestionsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2965,8 +2746,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   KbAnalyticsDashboardFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2992,8 +2771,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   KbArticleTrackingFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3012,8 +2789,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   KbExportPdfFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3041,8 +2816,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   TrackArticleViewDetailedFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3068,8 +2841,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # LICENSE FUNCTIONS (9)
   # ==========================================================================
@@ -3099,8 +2870,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CleanupSeatsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3120,8 +2889,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ConfigureLicenseFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3147,8 +2914,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   DailyLicenseValidationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3168,8 +2933,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ManageSeatAssignmentsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3188,8 +2951,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ManageSeatsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3215,8 +2976,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ScheduledLicenseSyncFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3236,8 +2995,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SyncLicenseFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3264,8 +3021,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ValidateLicenseFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3291,8 +3046,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # MAINTENANCE FUNCTIONS (2)
   # ==========================================================================
@@ -3315,8 +3068,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CleanupStuckScansSimpleFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3336,8 +3087,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # ML FUNCTIONS (5)
   # ==========================================================================
@@ -3361,8 +3110,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   DetectAnomaliesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3390,8 +3137,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GenerateAiInsightsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3412,8 +3157,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   IntelligentAlertsAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3441,8 +3184,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   PredictIncidentsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3470,8 +3211,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # MONITORING FUNCTIONS (17)
   # ==========================================================================
@@ -3500,8 +3239,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AutoAlertsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3527,8 +3264,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   AwsRealtimeMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3556,8 +3291,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CheckAlertRulesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3583,8 +3316,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   EndpointMonitorCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3610,8 +3341,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ErrorAggregatorFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3630,8 +3359,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   FetchCloudwatchMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3658,8 +3385,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   FetchEdgeServicesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3686,8 +3411,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GenerateErrorFixPromptFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3713,8 +3436,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetLambdaHealthFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3740,8 +3461,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetPlatformMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3768,8 +3487,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetRecentErrorsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3795,8 +3512,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   HealthCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3815,8 +3530,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   LambdaHealthCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3835,8 +3548,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   LogFrontendErrorFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3864,8 +3575,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   MonitoredEndpointsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3891,8 +3600,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   TestLambdaMetricsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3911,8 +3618,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # NOTIFICATIONS FUNCTIONS (4)
   # ==========================================================================
@@ -3941,8 +3646,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ManageEmailPreferencesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3968,8 +3671,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SendEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3995,8 +3696,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SendNotificationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4022,8 +3721,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # ORGANIZATIONS FUNCTIONS (2)
   # ==========================================================================
@@ -4052,8 +3749,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SyncOrganizationAccountsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4080,8 +3775,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # PROFILES FUNCTIONS (3)
   # ==========================================================================
@@ -4110,8 +3803,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CreateWithOrganizationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4137,8 +3828,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetUserOrganizationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4164,8 +3853,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # REPORTS FUNCTIONS (5)
   # ==========================================================================
@@ -4196,8 +3883,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GeneratePdfReportFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4225,8 +3910,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GenerateRemediationScriptFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4253,8 +3936,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GenerateSecurityPdfFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4282,8 +3963,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SecurityScanPdfExportFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4311,8 +3990,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # SECURITY FUNCTIONS (28)
   # ==========================================================================
@@ -4343,8 +4020,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ComplianceScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4372,8 +4047,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   CreateRemediationTicketFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4392,8 +4065,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   DriftDetectionFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4421,8 +4092,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   FetchCloudtrailFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4449,8 +4118,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetComplianceHistoryFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4476,8 +4143,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetComplianceScanStatusFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4503,8 +4168,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetFindingsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4530,8 +4193,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GetSecurityPostureFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4557,8 +4218,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   GuarddutyScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4586,8 +4245,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   IamBehaviorAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4608,8 +4265,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   IamDeepAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4637,8 +4292,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   LateralMovementDetectionFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4666,8 +4319,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   SecurityScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4695,8 +4346,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   StartAnalyzeCloudtrailFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4716,8 +4365,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   StartCloudtrailAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4744,8 +4391,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   StartComplianceScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4772,8 +4417,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   StartSecurityScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4800,8 +4443,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ValidateAwsCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4828,8 +4469,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ValidatePermissionsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4856,8 +4495,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ValidateWafSecurityFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4876,8 +4513,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WafDashboardApiFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4903,8 +4538,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WafLogForwarderFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4923,8 +4556,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WafLogProcessorFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4943,8 +4574,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WafSetupMonitoringFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4971,8 +4600,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WafThreatAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -4991,8 +4618,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WafUnblockExpiredFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -5012,8 +4637,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WellArchitectedScanFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -5041,8 +4664,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # STORAGE FUNCTIONS (3)
   # ==========================================================================
@@ -5072,8 +4693,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   StorageDeleteFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -5099,8 +4718,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   UploadAttachmentFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -5127,8 +4744,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # SYSTEM FUNCTIONS (5)
   # ==========================================================================
@@ -5150,8 +4765,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   DbInitFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -5179,8 +4792,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   ListTablesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -5199,8 +4810,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   RunMigrationsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -5220,8 +4829,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   RunSqlMigrationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -5241,8 +4848,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # USER FUNCTIONS (1)
   # ==========================================================================
@@ -5271,8 +4876,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   # ==========================================================================
   # WEBSOCKET FUNCTIONS (2)
   # ==========================================================================
@@ -5303,8 +4906,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
   WebsocketDisconnectFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -5332,8 +4933,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
-
 Outputs:
   HttpApiUrl:
     Description: HTTP API URL
