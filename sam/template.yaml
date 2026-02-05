@@ -22,13 +22,19 @@ Parameters:
     Type: String
     Default: evo-uds-v3
 
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    Default: "placeholder"
+    Description: Database password (not used in this test)
+
 Resources:
   # Single Lambda for testing esbuild
   ValidateLicenseFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-prod-validate-license'
-      CodeUri: ../backend/src/handlers/license/
+      FunctionName: !Sub '${ProjectName}-prod-validate-license-test'
+      CodeUri: backend/src/handlers/license/
       Handler: validate-license.handler
       Timeout: 30
       MemorySize: 256
