@@ -292,13 +292,28 @@ function generateFunction(h: HandlerConfig): string {
       MemorySize: ${memory}`;
   }
   
+  // esbuild Metadata for fast builds
+  const esbuildMetadata = `
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - ${h.handler}.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+          - '@aws-sdk/*'`;
+  
   return `
   ${name}Function:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '\${ProjectName}-\${Environment}-${h.name}'
-      CodeUri: backend/
-      Handler: dist/handlers/${h.path}/${h.handler}.handler${extraProps}${events}`;
+      CodeUri: backend/src/handlers/${h.path}/
+      Handler: ${h.handler}.handler${extraProps}${events}${esbuildMetadata}`;
 }
 
 
@@ -316,7 +331,7 @@ Description: |
 
 Globals:
   Function:
-    Runtime: nodejs18.x
+    Runtime: nodejs20.x
     Timeout: 30
     MemorySize: 256
     Architectures:
