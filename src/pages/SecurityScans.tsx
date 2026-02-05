@@ -296,6 +296,7 @@ export default function SecurityScans() {
  // Invalidate and refetch immediately to show the pending scan
  // The refetchInterval will auto-refresh every 5 seconds while scan is pending/running
  queryClient.invalidateQueries({ queryKey: ['security-scans'] });
+ queryClient.invalidateQueries({ queryKey: ['security-scan-history'] });
  refetch();
  },
  onError: (error) => {

@@ -43,10 +43,10 @@ export const SecurityScanHistory = ({ organizationId, accountId, onViewScan }: S
     enabled: !!organizationId,
     staleTime: 10 * 1000, // 10 seconds
     refetchInterval: (query) => {
-      // Auto-refresh every 5 seconds if there are running scans
+      // Auto-refresh every 5 seconds if there are running or pending scans
       const data = query.state.data as { scans: SecurityScan[], total: number } | undefined;
-      const hasRunningScans = data?.scans?.some(scan => scan.status === 'running');
-      return hasRunningScans ? 5000 : false;
+      const hasActiveScans = data?.scans?.some(scan => scan.status === 'running' || scan.status === 'pending');
+      return hasActiveScans ? 5000 : false;
     },
     queryFn: async () => {
       let cutoffDate: string | null = null;
