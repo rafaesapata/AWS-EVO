@@ -534,6 +534,7 @@ export default function SecurityPosture() {
       // Invalidate both queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['remediation-tickets'] });
       queryClient.invalidateQueries({ queryKey: ['security-posture-page'] });
+      queryClient.invalidateQueries({ queryKey: ['security-findings'] });
     } catch (err) {
       console.error('Error creating ticket:', err);
       toast({ 

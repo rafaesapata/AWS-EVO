@@ -950,6 +950,7 @@ export default function CostOptimization() {
       // Invalidate both queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['remediation-tickets'] });
       queryClient.invalidateQueries({ queryKey: ['cost-optimization'] });
+      queryClient.invalidateQueries({ queryKey: ['cost-recommendations'] });
     } catch (err) {
       console.error('Error creating ticket:', err);
       toast({ 
