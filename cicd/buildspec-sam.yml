@@ -67,7 +67,7 @@ phases:
       - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
       - rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
       - echo "=== Step 4 SAM Build (esbuild for all lambdas) ==="
-      - sam build --template-file sam/template.yaml --build-dir .aws-sam/build --parallel --cached
+      - sam build --template-file sam/production-lambdas-only.yaml --build-dir .aws-sam/build --parallel --cached
       - echo "=== Step 5 Deploy SAM Stack ==="
       - |
         sam deploy \
@@ -87,10 +87,9 @@ phases:
       - aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
       - echo "=== Invalidating CloudFront ==="
       - aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
-      - echo "=== Running Database Migrations ==="
-      - cd backend && ./node_modules/.bin/prisma migrate deploy && cd ..
       - echo "=== DEPLOYMENT COMPLETE ==="
       - echo "Lambdas deployed to stack $STACK_NAME"
+      - echo "NOTE: Database migrations must be run manually via Bastion Host"
 
 artifacts:
   files:
