@@ -127,11 +127,13 @@ export async function handler(
 
   let organizationId: string;
   let userId: string;
+  let userEmail: string = '';
   let userRoles: string[] = [];
 
   try {
     const user = getUserFromEvent(event);
     userId = user.sub || user.id || 'unknown';
+    userEmail = user.email || '';
     // Use impersonation-aware function for super admins
     organizationId = getOrganizationIdWithImpersonation(event, user);
     
@@ -309,6 +311,29 @@ export async function handler(
             };
           } else if (!where.user_id_organization_id) {
             where.organization_id = organizationId;
+          }
+        }
+        
+        // Special handling for profiles - email is required for create
+        if (body.table === 'profiles' && !createData.email) {
+          // Try to get email from the data or fetch from existing profile or use authenticated user's email
+          if (createData.user_id) {
+            // Try to find existing profile with email for this user
+            const existingProfile = await prisma.profile.findFirst({
+              where: { user_id: createData.user_id },
+              select: { email: true }
+            });
+            if (existingProfile?.email) {
+              createData.email = existingProfile.email;
+            } else if (userEmail) {
+              // Use authenticated user's email as fallback
+              createData.email = userEmail;
+            } else {
+              // Generate a placeholder email based on user_id
+              createData.email = `user-${createData.user_id.substring(0, 8)}@placeholder.local`;
+            }
+          } else if (userEmail) {
+            createData.email = userEmail;
           }
         }
         

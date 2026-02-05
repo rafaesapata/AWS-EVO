@@ -196,6 +196,7 @@ export default function UserManagement() {
           data: {
             user_id: cognitoResponse.data.userId,
             organization_id: targetOrgId,
+            email: userData.email,
             full_name: userData.name,
             role: userData.role,
           }
@@ -267,6 +268,7 @@ export default function UserManagement() {
               data: {
                 user_id: userData.user_id,
                 organization_id: orgId,
+                email: userData.email,
                 full_name: userData.name,
                 role: userData.role || 'user',
               }
