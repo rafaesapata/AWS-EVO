@@ -19,7 +19,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 Alerts handler started');
   
-  const method = getHttpMethod(event);
+  let method = getHttpMethod(event);
   
   if (method === 'OPTIONS') {
     return corsOptions();
@@ -29,6 +29,21 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
+    
+    // Support method override via body for HTTP API (which only supports POST)
+    if (method === 'POST' && event.body) {
+      try {
+        const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+        if (body._method) {
+          method = body._method.toUpperCase();
+        } else if (body.action && (body.action === 'acknowledge' || body.action === 'resolve')) {
+          // If action is provided, treat as PUT
+          method = 'PUT';
+        }
+      } catch {
+        // Ignore parse errors, continue with original method
+      }
+    }
     
     // ========================================
     // DEMO MODE CHECK - FAIL-SAFE (only for GET)

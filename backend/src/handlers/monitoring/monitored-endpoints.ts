@@ -19,7 +19,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 Monitored Endpoints handler started');
   
-  const method = getHttpMethod(event);
+  let method = getHttpMethod(event);
   
   if (method === 'OPTIONS') {
     return corsOptions();
@@ -29,6 +29,30 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const prisma = getPrismaClient();
+    
+    // Support method override via body for HTTP API (which only supports POST)
+    if (method === 'POST' && event.body) {
+      try {
+        const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+        if (body._method) {
+          method = body._method.toUpperCase();
+        } else if (body.name && body.url) {
+          // If creating new endpoint, keep as POST
+          method = 'POST';
+        } else if (body.id && !body.name && !body.url) {
+          // If only id provided, treat as DELETE
+          method = 'DELETE';
+        } else if (body.id) {
+          // If id with other fields, treat as PUT
+          method = 'PUT';
+        } else if (Object.keys(body).length === 0) {
+          // Empty body = GET (list)
+          method = 'GET';
+        }
+      } catch {
+        // Ignore parse errors, continue with original method
+      }
+    }
     
     // ============================================
     // DEMO MODE CHECK - Return demo data if enabled (GET only)
