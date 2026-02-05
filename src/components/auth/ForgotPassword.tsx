@@ -60,7 +60,7 @@ export default function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
     setLoading(true);
 
     try {
-      const result = await apiClient.invoke('webauthn-check', {
+      const result = await apiClient.invokePublic('forgot-password', {
         body: {
           action: 'request',
           email: email.toLowerCase().trim()
@@ -105,7 +105,7 @@ export default function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
     setLoading(true);
 
     try {
-      const result = await apiClient.invoke('webauthn-check', {
+      const result = await apiClient.invokePublic('forgot-password', {
         body: {
           action: 'confirm',
           email: email.toLowerCase().trim(),

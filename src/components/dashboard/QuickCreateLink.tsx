@@ -34,10 +34,15 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 // ============================================================================
 
 // EVO Platform AWS Account ID - used to restrict IAM Role trust policy
-const EVO_PLATFORM_ACCOUNT_ID = '971354623291';
+// Uses environment variable to support both sandbox and production environments
+const EVO_PLATFORM_ACCOUNT_ID = import.meta.env.VITE_AWS_ACCOUNT_ID || '971354623291';
 
 // Template URL - S3 bucket with public access for CloudFormation
-const S3_TEMPLATE_URL = 'https://evo-uds-cloudformation-971354623291.s3.amazonaws.com/evo-platform-role.yaml';
+// Dynamic based on environment
+const getS3TemplateUrl = () => {
+  const accountId = import.meta.env.VITE_AWS_ACCOUNT_ID || '971354623291';
+  return `https://evo-uds-cloudformation-${accountId}.s3.amazonaws.com/evo-platform-role.yaml`;
+};
 const CLOUDFRONT_TEMPLATE_PATH = '/cloudformation/evo-platform-role.yaml';
 const LOCAL_TEMPLATE_PATH = '/cloudformation/evo-platform-role.yaml';
 
@@ -126,7 +131,7 @@ export const QuickCreateLink = ({
   const quickCreateUrl = useMemo(() => {
     // Use S3 public URL for production, local for development
     const templateUrl = cloudFrontDomain 
-      ? S3_TEMPLATE_URL  // Use S3 public bucket for production
+      ? getS3TemplateUrl()  // Use S3 public bucket for production
       : `${window.location.origin}${LOCAL_TEMPLATE_PATH}`;  // Local for development
     
     return generateQuickCreateUrl(

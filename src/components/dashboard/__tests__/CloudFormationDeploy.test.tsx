@@ -328,9 +328,10 @@ describe('CloudFormation Template Validation', () => {
       expect(EVO_PLATFORM_ACCOUNT_ID).toMatch(/^\d{12}$/);
     });
 
-    it('should be consistent across components', () => {
-      // This ensures the constant is the same in CloudFormationDeploy and QuickCreateLink
-      expect(EVO_PLATFORM_ACCOUNT_ID).toBe('971354623291');
+    it('should be a valid AWS account ID format', () => {
+      // Account ID should be 12 digits (sandbox: 971354623291, production: 523115032346)
+      expect(EVO_PLATFORM_ACCOUNT_ID.length).toBe(12);
+      expect(/^\d+$/.test(EVO_PLATFORM_ACCOUNT_ID)).toBe(true);
     });
   });
 });

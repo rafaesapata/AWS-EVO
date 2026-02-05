@@ -12,10 +12,10 @@ import { mfaEnrollSchema, mfaVerifySchema, mfaUnenrollSchema } from '../../lib/s
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { logger } from '../../lib/logging.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
-import { CognitoIdentityProviderClient, AdminSetUserMFAPreferenceCommand, AdminGetUserCommand, AssociateSoftwareTokenCommand, VerifySoftwareTokenCommand } from '@aws-sdk/client-cognito-identity-provider';
 import * as crypto from 'crypto';
 
-const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION || 'us-east-1' });
+// NOTE: MFA is implemented locally using TOTP, not via Cognito MFA
+// The Cognito SDK is NOT needed for this handler
 const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'us-east-1_cnesJ48lR';
 
 // MFA List Factors Handler
