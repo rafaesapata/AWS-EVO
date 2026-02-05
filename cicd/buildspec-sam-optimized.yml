@@ -1,9 +1,5 @@
 version: 0.2
 
-# AWS CodeBuild - OPTIMIZED BUILD (No Disk Space Issues)
-# Strategy: Build ONCE locally, upload to S3, reference in all Lambdas
-# ALL LAMBDAS USE ARM64 ARCHITECTURE (Graviton2) + Node.js 20
-
 env:
   variables:
     SAM_CLI_TELEMETRY: 0
@@ -14,179 +10,218 @@ phases:
       nodejs: 20
       python: 3.11
     commands:
+      - echo "Installing esbuild globally..."
+      - npm install -g esbuild
       - echo "Installing dependencies..."
       - npm install
       - npm install --prefix backend
       - echo "Generating Prisma client for ARM64..."
-      - cd backend && ./node_modules/.bin/prisma generate && cd ..
+      - npm run prisma:generate --prefix backend
 
   pre_build:
     commands:
-      - echo "Determining environment..."
+      - echo "=== Determining environment ==="
+      - export ENV="${ENVIRONMENT:-sandbox}"
       - |
         if [ "$ENVIRONMENT" = "production" ]; then
-          export ENV="production"
-          export AWS_ACCOUNT="523115032346"
           export STACK_NAME="evo-uds-v3-prod-lambdas"
-          export CERTIFICATE_ARN="arn:aws:acm:us-east-1:523115032346:certificate/9df982f9-7993-4454-8887-a33e1298b568"
-          export FRONTEND_DOMAIN="evo.nuevacore.com"
-          export API_DOMAIN="api.evo.nuevacore.com"
-          export DB_PASSWORD="${PROD_DB_PASSWORD:-EvoProduction2026SecurePass}"
+          export COGNITO_USER_POOL_ID="us-east-1_BUJecylbm"
+          export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:523115032346:userpool/us-east-1_BUJecylbm"
+          export COGNITO_CLIENT_ID="a761ofnfjjo7u5mhpe2r54b7j"
+          export LAMBDA_SG="sg-066e845f73d46814d"
+          export PRIVATE_SUBNET_1="subnet-0494b6594914ba898"
+          export PRIVATE_SUBNET_2="subnet-0f68017cc0b95edda"
+          export DATABASE_URL="postgresql://evoadmin:xJB8g6z84PzUYRhWMM8QkkQb@evo-uds-v3-production-postgres.cib8kysoo015.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
+          export FRONTEND_BUCKET="evo-uds-v3-production-frontend-523115032346"
+          export CF_DIST_ID="E2NW0IZ2OX493I"
+          export S3_BUCKET="evo-sam-artifacts-523115032346"
+          export LAMBDA_PREFIX="evo-uds-v3-production"
         else
-          export ENV="sandbox"
-          export AWS_ACCOUNT="971354623291"
           export STACK_NAME="evo-uds-v3-sandbox-lambdas"
-          export CERTIFICATE_ARN=""
-          export FRONTEND_DOMAIN=""
-          export API_DOMAIN=""
-          export DB_PASSWORD="${SANDBOX_DB_PASSWORD:-SandboxPassword2026}"
+          export COGNITO_USER_POOL_ID="us-east-1_HPU98xnmT"
+          export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:971354623291:userpool/us-east-1_HPU98xnmT"
+          export COGNITO_CLIENT_ID="6gls4r44u96v6o0mkm1l6sbmgd"
+          export LAMBDA_SG="sg-0f14fd661fc5c41ba"
+          export PRIVATE_SUBNET_1="subnet-0edbe4968ff3a5a9e"
+          export PRIVATE_SUBNET_2="subnet-01931c820b0b0e864"
+          export DATABASE_URL="postgresql://evoadmin:password@evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
+          export FRONTEND_BUCKET="evo-uds-v3-sandbox-frontend-971354623291"
+          export CF_DIST_ID="E93EL7AJZ6QAQ"
+          export S3_BUCKET="evo-sam-artifacts-971354623291"
+          export LAMBDA_PREFIX="evo-uds-v3-sandbox"
         fi
-      - export S3_BUCKET="evo-sam-artifacts-$AWS_ACCOUNT"
-      - echo "Environment $ENV | Account $AWS_ACCOUNT | Stack $STACK_NAME"
+      - echo "Environment $ENV | Stack $STACK_NAME"
+      
+      - echo "=== Analyzing changed files ==="
+      - |
+        # Get changed files from last 2 commits (current and previous)
+        CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FULL_DEPLOY")
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+        
+        # Determine deploy strategy
+        export DEPLOY_FRONTEND="false"
+        export DEPLOY_LAMBDAS="false"
+        export DEPLOY_FULL_SAM="false"
+        export CHANGED_HANDLERS=""
+        
+        # Check what changed
+        if echo "$CHANGED_FILES" | grep -q "FULL_DEPLOY"; then
+          echo ">>> FULL DEPLOY (no git history)"
+          export DEPLOY_FRONTEND="true"
+          export DEPLOY_FULL_SAM="true"
+        elif echo "$CHANGED_FILES" | grep -qE "^(sam/|backend/prisma/|backend/src/lib/|backend/src/types/)"; then
+          echo ">>> FULL SAM DEPLOY (core files changed)"
+          export DEPLOY_FULL_SAM="true"
+          export DEPLOY_FRONTEND="true"
+        else
+          # Check frontend changes
+          if echo "$CHANGED_FILES" | grep -qE "^(src/|public/|index.html|vite.config|tailwind|postcss)"; then
+            echo ">>> Frontend changed"
+            export DEPLOY_FRONTEND="true"
+          fi
+          
+          # Check specific handler changes
+          HANDLER_CHANGES=$(echo "$CHANGED_FILES" | grep "^backend/src/handlers/" | sed 's|backend/src/handlers/||' || true)
+          if [ -n "$HANDLER_CHANGES" ]; then
+            echo ">>> Handlers changed: $HANDLER_CHANGES"
+            export DEPLOY_LAMBDAS="true"
+            export CHANGED_HANDLERS="$HANDLER_CHANGES"
+          fi
+        fi
+        
+        echo "Deploy strategy: FRONTEND=$DEPLOY_FRONTEND | LAMBDAS=$DEPLOY_LAMBDAS | FULL_SAM=$DEPLOY_FULL_SAM"
 
   build:
     commands:
-      - echo "=== Checking disk space ==="
-      - df -h
-      
-      - echo "=== Step 1 Build TypeScript backend ==="
+      - echo "=== Building Backend TypeScript ==="
       - npm run build --prefix backend
       
-      - echo "=== Step 2 Build Frontend ==="
+      - echo "=== Building Frontend ==="
       - npm run build
       
-      - echo "=== Step 3 Create Lambda Layer (Prisma + Zod ONLY) ==="
-      - mkdir -p backend/layers/dependencies/nodejs/node_modules
-      - cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
-      - cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
-      - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
-      - rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
-      - du -sh backend/layers/dependencies/nodejs/node_modules
-      
-      - echo "=== Step 4 Create Lambda Code Package (handlers + lib + types) ==="
-      - mkdir -p /tmp/lambda-package
-      - cp -r backend/dist/handlers /tmp/lambda-package/
-      - cp -r backend/dist/lib /tmp/lambda-package/
-      - cp -r backend/dist/types /tmp/lambda-package/
-      
-      - echo "=== Step 5 Add ALL dependencies to Lambda package (AWS SDK v3 + Azure SDK) ==="
-      - mkdir -p /tmp/lambda-package/node_modules
       - |
-        # Copy ONLY essential packages (not all node_modules)
-        for pkg in @aws-sdk @smithy @azure zod jsonwebtoken bcryptjs uuid; do
-          if [ -d "backend/node_modules/$pkg" ]; then
-            cp -r backend/node_modules/$pkg /tmp/lambda-package/node_modules/
-          fi
-        done
-      
-      - echo "=== Step 6 Create ZIP and upload to S3 ==="
-      - cd /tmp/lambda-package && zip -r -q /tmp/lambda-code.zip . && cd -
-      - du -sh /tmp/lambda-code.zip
-      - aws s3 cp /tmp/lambda-code.zip s3://$S3_BUCKET/lambda-code/lambda-code-${CODEBUILD_RESOLVED_SOURCE_VERSION}.zip
-      - export LAMBDA_CODE_S3_KEY="lambda-code/lambda-code-${CODEBUILD_RESOLVED_SOURCE_VERSION}.zip"
-      
-      - echo "=== Step 7 Clean up to save disk space ==="
-      - rm -rf backend/node_modules
-      - rm -rf node_modules
-      - rm -rf /tmp/lambda-package
-      - df -h
-      
-      - echo "=== Step 8 Generate minimal SAM template (references S3 code) ==="
-      - |
-        cat > sam/production-minimal.yaml << 'EOFTEMPLATE'
-        AWSTemplateFormatVersion: '2010-09-09'
-        Transform: AWS::Serverless-2016-10-31
-        Description: EVO Production - Minimal Lambda Deploy
-
-        Parameters:
-          Environment:
-            Type: String
-            Default: production
-          ProjectName:
-            Type: String
-            Default: evo-uds-v3
-          DatabasePassword:
-            Type: String
-            NoEcho: true
-          LambdaCodeS3Bucket:
-            Type: String
-          LambdaCodeS3Key:
-            Type: String
-
-        Globals:
-          Function:
-            Runtime: nodejs20.x
-            Timeout: 30
-            MemorySize: 256
-            Architectures:
-              - arm64
-            CodeUri:
-              Bucket: !Ref LambdaCodeS3Bucket
-              Key: !Ref LambdaCodeS3Key
-            Layers:
-              - !Ref DependenciesLayer
-
-        Resources:
-          DependenciesLayer:
-            Type: AWS::Serverless::LayerVersion
-            Properties:
-              LayerName: !Sub '${ProjectName}-${Environment}-deps'
-              ContentUri: backend/layers/dependencies/
-              CompatibleRuntimes:
-                - nodejs20.x
-              CompatibleArchitectures:
-                - arm64
-            Metadata:
-              BuildArchitecture: arm64
-
-          # Test Lambda
-          TestFunction:
-            Type: AWS::Serverless::Function
-            Properties:
-              FunctionName: !Sub '${ProjectName}-${Environment}-test'
-              Handler: handlers/debug/check-daily-costs.handler
-
-        Outputs:
-          LayerArn:
-            Value: !Ref DependenciesLayer
-          TestFunctionArn:
-            Value: !GetAtt TestFunction.Arn
-        EOFTEMPLATE
-      
-      - echo "=== Step 9 SAM Build (minimal template, no code copy) ==="
-      - sam build --template-file sam/production-minimal.yaml --build-dir .aws-sam/build
-      
-      - echo "=== Step 10 SAM Deploy ==="
-      - |
-        sam deploy \
-          --template-file .aws-sam/build/template.yaml \
-          --stack-name ${STACK_NAME}-test \
-          --s3-bucket $S3_BUCKET \
-          --s3-prefix ${STACK_NAME}-test \
-          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
-          --region us-east-1 \
-          --no-confirm-changeset \
-          --no-fail-on-empty-changeset \
-          --parameter-overrides \
-            "Environment=$ENV" \
-            "ProjectName=evo-uds-v3" \
-            "DatabasePassword=$DB_PASSWORD" \
-            "LambdaCodeS3Bucket=$S3_BUCKET" \
-            "LambdaCodeS3Key=$LAMBDA_CODE_S3_KEY"
+        if [ "$DEPLOY_FULL_SAM" = "true" ]; then
+          echo "=== FULL SAM DEPLOY ==="
+          
+          echo "Preparing Layer..."
+          mkdir -p backend/layers/dependencies/nodejs/node_modules
+          cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
+          cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
+          cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
+          rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
+          
+          echo "SAM Build (all lambdas)..."
+          sam build --template-file sam/production-lambdas-only.yaml --build-dir .aws-sam/build --parallel --cached
+          
+          echo "SAM Deploy..."
+          sam deploy --template-file .aws-sam/build/template.yaml \
+            --stack-name $STACK_NAME \
+            --s3-bucket $S3_BUCKET \
+            --s3-prefix $STACK_NAME \
+            --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
+            --region us-east-1 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              Environment=$ENV \
+              ProjectName=evo-uds-v3 \
+              DatabaseUrl=$DATABASE_URL \
+              CognitoUserPoolId=$COGNITO_USER_POOL_ID \
+              CognitoUserPoolArn=$COGNITO_USER_POOL_ARN \
+              CognitoClientId=$COGNITO_CLIENT_ID \
+              LambdaSecurityGroupId=$LAMBDA_SG \
+              PrivateSubnet1Id=$PRIVATE_SUBNET_1 \
+              PrivateSubnet2Id=$PRIVATE_SUBNET_2
+              
+        elif [ "$DEPLOY_LAMBDAS" = "true" ]; then
+          echo "=== INCREMENTAL LAMBDA DEPLOY ==="
+          echo "Changed handlers: $CHANGED_HANDLERS"
+          
+          # Deploy only changed lambdas
+          for handler_path in $CHANGED_HANDLERS; do
+            # Extract category and handler name
+            # e.g., "auth/mfa-handlers.ts" -> category=auth, handler=mfa-handlers
+            category=$(dirname "$handler_path")
+            handler_file=$(basename "$handler_path" .ts)
+            
+            echo "Processing: $category/$handler_file"
+            
+            # Map handler file to lambda names (some handlers serve multiple lambdas)
+            case "$handler_file" in
+              mfa-handlers)
+                LAMBDAS="mfa-enroll mfa-check mfa-challenge-verify mfa-verify-login mfa-list-factors mfa-unenroll"
+                ;;
+              *)
+                LAMBDAS="$handler_file"
+                ;;
+            esac
+            
+            for lambda in $LAMBDAS; do
+              LAMBDA_NAME="${LAMBDA_PREFIX}-${lambda}"
+              echo "Deploying $LAMBDA_NAME..."
+              
+              # Prepare deployment package
+              rm -rf /tmp/lambda-deploy && mkdir -p /tmp/lambda-deploy
+              
+              # Copy handler with adjusted imports
+              sed 's|require("../../lib/|require("./lib/|g' "backend/dist/handlers/${category}/${handler_file}.js" | \
+              sed 's|require("../lib/|require("./lib/|g' | \
+              sed 's|require("../../types/|require("./types/|g' > "/tmp/lambda-deploy/${handler_file}.js"
+              
+              # Copy dependencies
+              cp -r backend/dist/lib /tmp/lambda-deploy/
+              cp -r backend/dist/types /tmp/lambda-deploy/
+              
+              # Create ZIP
+              cd /tmp/lambda-deploy && zip -r /tmp/lambda.zip . && cd -
+              
+              # Update Lambda
+              aws lambda update-function-code \
+                --function-name "$LAMBDA_NAME" \
+                --zip-file fileb:///tmp/lambda.zip \
+                --region us-east-1 || echo "Warning: Could not update $LAMBDA_NAME"
+              
+              # Wait for update
+              aws lambda wait function-updated \
+                --function-name "$LAMBDA_NAME" \
+                --region us-east-1 || true
+            done
+          done
+          
+          echo "Incremental deploy complete!"
+        else
+          echo "=== NO LAMBDA CHANGES ==="
+        fi
 
   post_build:
     commands:
-      - echo "=== Test Lambda ==="
       - |
-        aws lambda invoke \
-          --function-name evo-uds-v3-${ENV}-test \
-          --region us-east-1 \
-          /tmp/test-response.json || true
-        cat /tmp/test-response.json || true
+        if [ "$DEPLOY_FRONTEND" = "true" ]; then
+          echo "=== Syncing Frontend to S3 ==="
+          aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
+          
+          echo "=== Invalidating CloudFront ==="
+          aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
+        else
+          echo "=== Skipping Frontend Deploy (no changes) ==="
+        fi
+      
+      - |
+        if [ "$DEPLOY_FULL_SAM" = "true" ] && [ "$ENVIRONMENT" = "production" ]; then
+          echo "=== Updating API Gateway Custom Domain Mapping ==="
+          API_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`HttpApiId`].OutputValue' --output text 2>/dev/null || echo "")
+          if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
+            echo "Updating custom domain mapping to API: $API_ID"
+            MAPPING_ID=$(aws apigatewayv2 get-api-mappings --domain-name api.evo.nuevacore.com --region us-east-1 --query 'Items[0].ApiMappingId' --output text 2>/dev/null || echo "")
+            if [ -n "$MAPPING_ID" ] && [ "$MAPPING_ID" != "None" ]; then
+              aws apigatewayv2 update-api-mapping --domain-name api.evo.nuevacore.com --api-mapping-id $MAPPING_ID --api-id $API_ID --stage prod --region us-east-1 || echo "Warning: Could not update API mapping"
+            fi
+          fi
+        fi
       
       - echo "=== DEPLOYMENT COMPLETE ==="
-      - echo "Lambda Code S3 Key $LAMBDA_CODE_S3_KEY"
-      - df -h
+      - echo "Strategy used: FRONTEND=$DEPLOY_FRONTEND | LAMBDAS=$DEPLOY_LAMBDAS | FULL_SAM=$DEPLOY_FULL_SAM"
 
 artifacts:
   files:
@@ -194,4 +229,6 @@ artifacts:
 
 cache:
   paths:
+    - backend/node_modules/**/*
+    - node_modules/**/*
     - .aws-sam/cache/**/*
