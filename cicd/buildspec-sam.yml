@@ -55,9 +55,19 @@ phases:
       - cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
       - cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
       - rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
-      - echo "=== Step 3 SAM Build with esbuild (bundles TypeScript directly) ==="
-      - sam build --template-file sam/template.yaml --build-dir .aws-sam/build --parallel --cached
-      - echo "=== Step 4 Deploy SAM Stack ==="
+      - echo "=== Step 3 Clean up to free disk space ==="
+      - rm -rf node_modules/.cache 2>/dev/null || true
+      - rm -rf backend/node_modules/.cache 2>/dev/null || true
+      - rm -rf .aws-sam/cache 2>/dev/null || true
+      - rm -rf /tmp/* 2>/dev/null || true
+      - df -h
+      - echo "=== Step 4 SAM Build with esbuild (bundles TypeScript directly) ==="
+      - sam build --template-file sam/template.yaml --build-dir .aws-sam/build --parallel
+      - echo "=== Step 5 Clean build artifacts before deploy ==="
+      - find .aws-sam/build -name "*.map" -delete 2>/dev/null || true
+      - find .aws-sam/build -name "*.d.ts" -delete 2>/dev/null || true
+      - df -h
+      - echo "=== Step 6 Deploy SAM Stack ==="
       - |
         sam deploy \
           --template-file .aws-sam/build/template.yaml \
@@ -103,13 +113,15 @@ phases:
       - echo "=== DEPLOYMENT COMPLETE ==="
       - echo "Frontend https://${FRONTEND_DOMAIN:-CloudFront}"
       - echo "API https://${API_DOMAIN:-API_Gateway}"
+      - echo "=== Cleanup to free disk space ==="
+      - rm -rf .aws-sam/build 2>/dev/null || true
 
 artifacts:
+  discard-paths: yes
   files:
-    - dist/**/*
+    - 'version.json'
 
 cache:
   paths:
     - backend/node_modules/**/*
     - node_modules/**/*
-    - .aws-sam/cache/**/*
