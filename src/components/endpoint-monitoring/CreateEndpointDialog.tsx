@@ -5,7 +5,6 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
-import { useOrganization } from "@/hooks/useOrganization";
 import {
   Dialog,
   DialogContent,
@@ -45,7 +44,6 @@ export function CreateEndpointDialog() {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: organizationId } = useOrganization();
 
   const form = useForm<CreateEndpointForm>({
     resolver: zodResolver(createEndpointSchema),
@@ -62,10 +60,7 @@ export function CreateEndpointDialog() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CreateEndpointForm) => {
-      const response = await apiClient.post('/monitored_endpoints', {
-        ...data,
-        organization_id: organizationId,
-      });
+      const response = await apiClient.post('/api/functions/monitored-endpoints', data);
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));

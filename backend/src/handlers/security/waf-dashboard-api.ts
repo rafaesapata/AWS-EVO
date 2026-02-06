@@ -238,10 +238,12 @@ function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
       return success({
         _isDemo: true,
         events: demoEvents,
-        total: demoEvents.length,
-        page: 1,
-        limit: 50,
-        hasMore: false
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: demoEvents.length,
+          totalPages: 1,
+        },
       });
       
     case 'metrics':
@@ -253,17 +255,32 @@ function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
       
       return success({
         _isDemo: true,
-        totalRequests: demoEvents.length,
-        blockedRequests: blocked,
-        allowedRequests: allowed,
-        countedRequests: counted,
-        uniqueIps,
-        uniqueCountries,
-        criticalThreats: 3,
-        highThreats: 8,
-        mediumThreats: 15,
-        lowThreats: 24,
-        activeCampaigns: 2
+        metrics: {
+          totalRequests: demoEvents.length,
+          blockedRequests: blocked,
+          allowedRequests: allowed,
+          countedRequests: counted,
+          uniqueIps,
+          uniqueCountries,
+          criticalThreats: demoEvents.filter(e => e.severity === 'critical').length,
+          highThreats: demoEvents.filter(e => e.severity === 'high').length,
+          mediumThreats: demoEvents.filter(e => e.severity === 'medium').length,
+          lowThreats: demoEvents.filter(e => e.severity === 'low').length,
+          activeCampaigns: 2,
+        },
+        previousPeriod: {
+          totalRequests: Math.floor(demoEvents.length * 0.85),
+          blockedRequests: Math.floor(blocked * 0.7),
+          allowedRequests: Math.floor(allowed * 0.9),
+          countedRequests: Math.floor(counted * 0.8),
+          uniqueIps: Math.floor(uniqueIps * 0.6),
+          uniqueCountries: Math.floor(uniqueCountries * 0.8),
+          criticalThreats: 2,
+          highThreats: 5,
+          mediumThreats: 12,
+          lowThreats: 20,
+        },
+        period: '24h',
       });
       
     case 'timeline':
@@ -273,13 +290,12 @@ function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
       for (let i = 23; i >= 0; i--) {
         const hour = new Date(now - i * 60 * 60 * 1000);
         timeline.push({
-          timestamp: hour.toISOString(),
+          hour: hour.toISOString(),
           blocked: Math.floor(Math.random() * 20) + 5,
           allowed: Math.floor(Math.random() * 100) + 50,
-          counted: Math.floor(Math.random() * 10)
         });
       }
-      return success({ _isDemo: true, timeline });
+      return success({ _isDemo: true, timeline, period: '24h' });
       
     case 'top-attackers':
       const attackerCounts: Record<string, number> = {};
@@ -287,31 +303,30 @@ function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
         attackerCounts[e.source_ip] = (attackerCounts[e.source_ip] || 0) + 1;
       });
       const topAttackers = Object.entries(attackerCounts)
-        .map(([ip, count]) => ({ ip, count, country: demoEvents.find(e => e.source_ip === ip)?.country || 'XX' }))
-        .sort((a, b) => b.count - a.count)
+        .map(([ip, count]) => ({ sourceIp: ip, blockedRequests: count, country: demoEvents.find(e => e.source_ip === ip)?.country || 'XX' }))
+        .sort((a, b) => b.blockedRequests - a.blockedRequests)
         .slice(0, 10);
-      return success({ _isDemo: true, topAttackers });
+      return success({ _isDemo: true, topAttackers, period: '24h' });
       
     case 'attack-types':
       const ruleCounts: Record<string, number> = {};
       demoEvents.filter(e => e.action === 'BLOCK').forEach(e => {
-        ruleCounts[e.rule_id] = (ruleCounts[e.rule_id] || 0) + 1;
+        const threatType = e.threat_type || e.rule_id || 'unknown';
+        ruleCounts[threatType] = (ruleCounts[threatType] || 0) + 1;
       });
       const attackTypes = Object.entries(ruleCounts)
-        .map(([rule, count]) => ({ rule, count, percentage: 0 }));
-      const total = attackTypes.reduce((sum, t) => sum + t.count, 0);
-      attackTypes.forEach(t => t.percentage = Math.round((t.count / total) * 100));
-      return success({ _isDemo: true, attackTypes });
+        .map(([type, count]) => ({ type, count }));
+      return success({ _isDemo: true, attackTypes, period: '24h' });
       
     case 'geo-distribution':
       const countryCounts: Record<string, number> = {};
-      demoEvents.forEach(e => {
+      demoEvents.filter(e => e.action === 'BLOCK').forEach(e => {
         countryCounts[e.country] = (countryCounts[e.country] || 0) + 1;
       });
       const geoDistribution = Object.entries(countryCounts)
-        .map(([country, count]) => ({ country, count }))
-        .sort((a, b) => b.count - a.count);
-      return success({ _isDemo: true, geoDistribution });
+        .map(([country, blockedRequests]) => ({ country, blockedRequests }))
+        .sort((a, b) => b.blockedRequests - a.blockedRequests);
+      return success({ _isDemo: true, geoDistribution, period: '24h' });
       
     case 'blocked-ips':
       return success({
@@ -333,6 +348,19 @@ function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
       });
       
     case 'config':
+      return success({
+        _isDemo: true,
+        config: {
+          snsEnabled: false,
+          slackEnabled: false,
+          inAppEnabled: true,
+          campaignThreshold: 10,
+          campaignWindowMins: 5,
+          autoBlockEnabled: false,
+          autoBlockThreshold: 50,
+          blockDurationHours: 24,
+        },
+      });
     case 'get-configs':
     case 'get-monitoring-configs':
       return success({
@@ -341,12 +369,14 @@ function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
           id: 'demo-config',
           webAclArn: 'arn:aws:wafv2:us-east-1:123456789012:regional/webacl/demo-waf/demo-id',
           webAclName: 'Demo WAF',
-          region: 'us-east-1',
+          filterMode: 'block_only',
           isActive: true,
-          autoBlockEnabled: true,
-          blockThreshold: 10,
-          blockDuration: 3600
-        }]
+          lastEventAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+          eventsToday: 250,
+          blockedToday: 180,
+          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        }],
+        hasActiveConfig: true,
       });
       
     case 'get-latest-analysis':
@@ -1032,8 +1062,18 @@ async function handleUnblockIp(
   prisma: ReturnType<typeof getPrismaClient>,
   organizationId: string
 ): Promise<APIGatewayProxyResultV2> {
+  // Support both query params (DELETE) and body (POST via action routing)
   const params = event.queryStringParameters || {};
-  const { ipAddress, accountId } = params;
+  let bodyParams: any = {};
+  if (event.body) {
+    try {
+      bodyParams = JSON.parse(event.body);
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  const ipAddress = params.ipAddress || bodyParams.ipAddress;
+  const accountId = params.accountId || bodyParams.accountId;
   
   if (!ipAddress) {
     return error('Missing required parameter: ipAddress');

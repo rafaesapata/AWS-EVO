@@ -80,28 +80,17 @@ export function WafEventsFeed({
 
   // Update internal filters when external filters change
   useEffect(() => {
-    console.log('🔄 External filters changed:', {
-      externalSeverityFilter,
-      externalActionFilter,
-      externalCampaignFilter
-    });
-    
     if (externalSeverityFilter !== undefined) {
       setSeverityFilter(externalSeverityFilter);
     } else {
-      setSeverityFilter("all"); // Reset if not provided
+      setSeverityFilter("all");
     }
     
     if (externalActionFilter !== undefined) {
       setActionFilter(externalActionFilter);
     } else {
-      setActionFilter("all"); // Reset if not provided
+      setActionFilter("all");
     }
-    
-    console.log('✅ Filters set to:', {
-      severityFilter: externalSeverityFilter || "all",
-      actionFilter: externalActionFilter || "all"
-    });
   }, [externalSeverityFilter, externalActionFilter]);
 
   const filteredEvents = events.filter(event => {
@@ -113,29 +102,6 @@ export function WafEventsFeed({
     const matchesSeverity = severityFilter === "all" || event.severity?.toLowerCase() === severityFilter.toLowerCase();
     const matchesAction = actionFilter === "all" || event.action?.toUpperCase() === actionFilter.toUpperCase();
     const matchesCampaign = externalCampaignFilter === undefined || event.is_campaign === externalCampaignFilter;
-    
-    // Debug logging for first event to understand filtering
-    if (event === events[0]) {
-      console.log('🔍 Filtering first event:', {
-        event: {
-          severity: event.severity,
-          action: event.action,
-          is_campaign: event.is_campaign
-        },
-        filters: {
-          severityFilter,
-          actionFilter,
-          externalCampaignFilter
-        },
-        matches: {
-          matchesSearch,
-          matchesSeverity,
-          matchesAction,
-          matchesCampaign
-        },
-        willShow: matchesSearch && matchesSeverity && matchesAction && matchesCampaign
-      });
-    }
     
     return matchesSearch && matchesSeverity && matchesAction && matchesCampaign;
   });

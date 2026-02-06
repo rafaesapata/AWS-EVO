@@ -48,6 +48,12 @@ interface DemoWafEvent {
   source_ip: string;
   country: string;
   uri: string;
+  http_method: string;
+  severity: string;
+  threat_type: string;
+  rule_matched: string;
+  is_campaign: boolean;
+  user_agent: string;
   _isDemo: true;
 }
 
@@ -225,21 +231,44 @@ export function generateDemoWafEvents(count: number = 50): DemoWafEvent[] {
   const rules = ['SQLi-Rule', 'XSS-Rule', 'RateLimit-Rule', 'GeoBlock-Rule', 'Bot-Control'];
   const countries = ['BR', 'US', 'CN', 'RU', 'DE', 'FR', 'JP', 'IN'];
   const uris = ['/api/login', '/api/users', '/admin', '/wp-admin', '/.env', '/api/data'];
+  const httpMethods = ['GET', 'POST', 'PUT', 'DELETE'];
+  const severities = ['critical', 'high', 'medium', 'low'];
+  const threatTypes = ['sql_injection', 'xss', 'bot', 'rate_limit', 'geo_block', 'path_traversal'];
+  const userAgents = [
+    'Mozilla/5.0 (compatible; Googlebot/2.1)',
+    'python-requests/2.28.0',
+    'curl/7.88.1',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    'sqlmap/1.7',
+    'Nikto/2.1.6',
+  ];
 
   const events: DemoWafEvent[] = [];
   const now = Date.now();
 
   for (let i = 0; i < count; i++) {
     const timestamp = new Date(now - Math.random() * 24 * 60 * 60 * 1000).toISOString();
+    const action = actions[Math.floor(Math.random() * actions.length)];
+    const rule = rules[Math.floor(Math.random() * rules.length)];
+    // Blocked requests get higher severity
+    const severity = action === 'BLOCK' 
+      ? severities[Math.floor(Math.random() * 2)] // critical or high
+      : severities[2 + Math.floor(Math.random() * 2)]; // medium or low
     
     events.push({
       id: `${DEMO_ID_PREFIX}waf-${i.toString().padStart(4, '0')}`,
       timestamp,
-      action: actions[Math.floor(Math.random() * actions.length)],
-      rule_id: rules[Math.floor(Math.random() * rules.length)],
+      action,
+      rule_id: rule,
+      rule_matched: rule,
       source_ip: `${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`,
       country: countries[Math.floor(Math.random() * countries.length)],
       uri: uris[Math.floor(Math.random() * uris.length)],
+      http_method: httpMethods[Math.floor(Math.random() * httpMethods.length)],
+      severity,
+      threat_type: action === 'BLOCK' ? threatTypes[Math.floor(Math.random() * threatTypes.length)] : threatTypes[Math.floor(Math.random() * threatTypes.length)],
+      is_campaign: Math.random() < 0.15, // 15% chance of being part of a campaign
+      user_agent: userAgents[Math.floor(Math.random() * userAgents.length)],
       _isDemo: true
     });
   }
