@@ -58,10 +58,12 @@ export function WafConfigPanel({ accountId }: WafConfigPanelProps) {
   });
 
   const [config, setConfig] = useState<WafConfig | null>(null);
+  const [configInitializedFor, setConfigInitializedFor] = useState<string | undefined>(undefined);
 
-  // Initialize local state when data loads
-  if (configData && !config) {
+  // Initialize/reset local state when data loads or account changes
+  if (configData && (!config || configInitializedFor !== accountId)) {
     setConfig(configData);
+    setConfigInitializedFor(accountId);
   }
 
   // Update config mutation

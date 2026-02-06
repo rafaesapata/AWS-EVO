@@ -1238,7 +1238,7 @@ async function handleUpdateConfig(
       sns_enabled: body.snsEnabled ?? false,
       sns_topic_arn: body.snsTopicArn,
       slack_enabled: body.slackEnabled ?? false,
-      slack_webhook_url: body.slackWebhookUrl,
+      slack_webhook_url: body.slackWebhookUrl === '***' ? undefined : body.slackWebhookUrl,
       in_app_enabled: body.inAppEnabled ?? true,
       campaign_threshold: body.campaignThreshold ?? 10,
       campaign_window_mins: body.campaignWindowMins ?? 5,
@@ -1250,7 +1250,8 @@ async function handleUpdateConfig(
       sns_enabled: body.snsEnabled,
       sns_topic_arn: body.snsTopicArn,
       slack_enabled: body.slackEnabled,
-      slack_webhook_url: body.slackWebhookUrl,
+      // Skip update if masked value '***' is sent back — preserve the real URL
+      slack_webhook_url: body.slackWebhookUrl === '***' ? undefined : body.slackWebhookUrl,
       in_app_enabled: body.inAppEnabled,
       campaign_threshold: body.campaignThreshold,
       campaign_window_mins: body.campaignWindowMins,
