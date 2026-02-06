@@ -504,6 +504,18 @@ class CognitoAuthService {
       
       // Check if session is still valid
       if (this.isTokenExpired(session.accessToken)) {
+        // Try to refresh the session before signing out
+        if (session.refreshToken) {
+          try {
+            const refreshed = await this.refreshSession();
+            if (refreshed) {
+              return refreshed;
+            }
+          } catch (refreshError) {
+            console.warn('🔐 CognitoAuth: Token refresh failed during getCurrentSession', refreshError);
+          }
+        }
+        // Refresh failed or no refresh token — sign out
         await this.signOut();
         return null;
       }
@@ -516,8 +528,6 @@ class CognitoAuthService {
           console.error('🔐 CognitoAuth: getCurrentSession - INVALID organization ID format!', orgId);
           console.error('🔐 CognitoAuth: Forcing logout to get new token...');
           await this.signOut();
-          // Don't redirect here - let the calling code handle the null session
-          // This prevents redirect loops when multiple components check session simultaneously
           return null;
         }
       }
@@ -758,8 +768,15 @@ class CognitoAuthService {
 
   async refreshSession(): Promise<AuthSession | null> {
     try {
-      const currentSession = await this.getCurrentSession();
-      if (!currentSession || !currentSession.refreshToken) {
+      // Read directly from storage to avoid infinite recursion with getCurrentSession
+      const stored = secureStorage.getItem('evo-auth');
+      if (!stored) {
+        await this.signOut();
+        return null;
+      }
+
+      const currentSession: AuthSession = JSON.parse(stored);
+      if (!currentSession.refreshToken) {
         await this.signOut();
         return null;
       }

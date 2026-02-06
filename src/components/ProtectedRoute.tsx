@@ -53,14 +53,40 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   // Loading state - license validation (includes retry state)
-  if (isLicenseLoading || licenseError) {
-    // If there's an error, it might be because session wasn't ready yet
-    // The hook will retry automatically, so show loading state
+  if (isLicenseLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="text-slate-300">Validando licença...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // License validation error — treat as no license rather than infinite loading
+  if (licenseError && !licenseStatus) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 max-w-md w-full text-center space-y-6">
+          <AlertTriangle className="h-16 w-16 text-yellow-500 mx-auto" />
+          <h1 className="text-2xl font-semibold text-white">Erro ao validar licença</h1>
+          <p className="text-slate-300">Não foi possível verificar sua licença. Tente novamente.</p>
+          <div className="flex flex-col gap-3">
+            <Button onClick={() => window.location.reload()} className="w-full">
+              Tentar novamente
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                cognitoAuth.signOut();
+                window.location.href = '/';
+              }}
+              className="w-full"
+            >
+              Sair
+            </Button>
+          </div>
         </div>
       </div>
     );

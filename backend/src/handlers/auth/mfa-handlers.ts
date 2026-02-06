@@ -155,14 +155,14 @@ export async function enrollHandler(
           userId: user.sub 
         });
         
-        // Audit log
+        // Audit log — factor is still pending verification, not yet enabled
         logAuditAsync({
           organizationId: getOrganizationId(user),
           userId: user.sub,
           action: 'MFA_ENABLED',
           resourceType: 'mfa',
           resourceId: factorId,
-          details: { factor_type: 'totp' },
+          details: { factor_type: 'totp', status: 'pending_verification' },
           ipAddress: getIpFromEvent(event),
           userAgent: getUserAgentFromEvent(event),
         });
@@ -319,7 +319,6 @@ export async function verifyHandler(
       logger.info('🔐 MFA Verify: TOTP verification result', { 
         factorId, 
         isValid,
-        codeProvided: code
       });
       
       if (!isValid) {
@@ -340,6 +339,18 @@ export async function verifyHandler(
       });
       
       logger.info('🔐 MFA Verify: Factor verified successfully', { factorId, userId: user.sub });
+      
+      // Audit log — MFA is now truly enabled after verification
+      logAuditAsync({
+        organizationId: getOrganizationId(user),
+        userId: user.sub,
+        action: 'MFA_VERIFIED',
+        resourceType: 'mfa',
+        resourceId: factorId,
+        details: { factor_type: 'totp', status: 'verified' },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
+      });
       
       return success({
         verified: true,

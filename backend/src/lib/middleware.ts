@@ -6,7 +6,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2, CognitoUser } from '../types/lambda.js';
 import { getUserFromEvent, getOrganizationId, hasRole, requireRole } from './auth.js';
 import { checkRateLimit, validateOrganizationContext } from './validation.js';
-import { error, badRequest, forbidden, corsOptions } from './response.js';
+import { error, badRequest, forbidden, corsOptions, clearRequestContext, setRequestContext } from './response.js';
 import { TenantIsolatedPrisma } from './database.js';
 
 /**
@@ -60,6 +60,10 @@ export function withMiddleware(
     const requestId = context.awsRequestId;
     const httpMethod = getHttpMethod(event);
     const httpPath = getHttpPath(event);
+    
+    // Clear stale request context from previous warm-start invocation
+    clearRequestContext();
+    setRequestContext(requestId, event.headers?.['x-correlation-id'] || event.headers?.['X-Correlation-ID'] || requestId);
     
     console.log(`🚀 Request started: ${httpMethod} ${httpPath} [${requestId}]`);
     

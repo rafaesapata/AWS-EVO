@@ -256,7 +256,8 @@ export function withRequestId<T extends (...args: any[]) => any>(
     });
     
     // Import and set request context for response headers
-    const { setRequestContext } = await import('./response.js');
+    const { clearRequestContext, setRequestContext } = await import('./response.js');
+    clearRequestContext();
     setRequestContext(requestId, correlationId);
     
     const startTime = Date.now();

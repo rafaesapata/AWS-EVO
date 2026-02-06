@@ -145,11 +145,15 @@ async function securityScanHandler(
     }, 200, origin);
   }
 
+  // Track scanId outside try scope for error handling in catch block
+  let currentScanId: string | undefined;
+
   try {
     const bodyValidation = parseAndValidateBody(securityScanSchema, event.body || null);
     if (!bodyValidation.success) return bodyValidation.error;
     
-    const { accountId, scanLevel, scanId } = bodyValidation.data;
+    const { accountId, scanLevel, scanId: inputScanId } = bodyValidation.data;
+    currentScanId = inputScanId;
     
     const credential = await prisma.awsCredential.findFirst({
       where: { 
@@ -199,16 +203,16 @@ async function securityScanHandler(
     
     // Create or update scan record
     let scan;
-    if (scanId) {
+    if (inputScanId) {
       // Update existing scan record
       scan = await prisma.securityScan.update({
-        where: { id: scanId },
+        where: { id: inputScanId },
         data: {
           status: 'running',
           started_at: new Date(),
         },
       });
-      logger.info('Updated existing scan record', { scanId });
+      logger.info('Updated existing scan record', { scanId: inputScanId });
     } else {
       // Create new scan record (fallback for backward compatibility)
       scan = await prisma.securityScan.create({
@@ -222,6 +226,8 @@ async function securityScanHandler(
       });
       logger.info('Created new scan record', { scanId: scan.id });
     }
+    // Update currentScanId so catch block can reference it
+    currentScanId = scan.id;
     
     // Resolve AWS credentials
     const resolvedCreds = await resolveAwsCredentials(credential, 'us-east-1');
@@ -407,22 +413,21 @@ async function securityScanHandler(
     logger.error('Security scan failed', { error: (err as Error).message, stack: (err as Error).stack });
     
     // Update scan status to failed if we have a scan record
-    try {
-      const prisma = getPrismaClient();
-      const bodyValidation = parseAndValidateBody(securityScanSchema, event.body || null);
-      if (bodyValidation.success && bodyValidation.data.scanId) {
+    if (currentScanId) {
+      try {
+        const prisma = getPrismaClient();
         await prisma.securityScan.update({
-          where: { id: bodyValidation.data.scanId },
+          where: { id: currentScanId },
           data: {
             status: 'failed',
             completed_at: new Date(),
             results: { error: (err as Error).message }
           }
         });
-        logger.info('Updated scan status to failed', { scanId: bodyValidation.data.scanId });
+        logger.info('Updated scan status to failed', { scanId: currentScanId });
+      } catch (updateErr) {
+        logger.warn('Could not update scan status to failed', { error: (updateErr as Error).message });
       }
-    } catch (updateErr) {
-      logger.warn('Could not update scan status to failed', { error: (updateErr as Error).message });
     }
     
     return error('Security scan failed. Please try again.', 500, undefined, origin);

@@ -171,8 +171,23 @@ export async function syncOrganizationLicenses(organizationId: string): Promise<
           }
         }
         
-        // IMPORTANT: Update organization_id in the update clause to handle
-        // cases where the same license_key exists but belongs to a different org
+        // SECURITY: Check if license already belongs to a different organization
+        // before upserting — prevent one org from stealing another org's license
+        const existingLicense = await prisma.license.findUnique({
+          where: { license_key: extLicense.license_key },
+          select: { organization_id: true },
+        });
+        
+        if (existingLicense && existingLicense.organization_id !== organizationId) {
+          logger.warn('License key belongs to a different organization, skipping', {
+            licenseKey: extLicense.license_key,
+            existingOrgId: existingLicense.organization_id,
+            requestingOrgId: organizationId,
+          });
+          errors.push(`License ${extLicense.license_key} belongs to another organization`);
+          continue;
+        }
+        
         await prisma.license.upsert({
           where: { license_key: extLicense.license_key },
           create: {
@@ -195,7 +210,6 @@ export async function syncOrganizationLicenses(organizationId: string): Promise<
             last_sync_at: new Date(),
           },
           update: {
-            organization_id: organizationId, // CRITICAL: Update org_id to current org
             customer_id: config.customer_id,
             product_type: extLicense.product_type,
             plan_type: extLicense.product_type,
@@ -424,12 +438,14 @@ function getProductFeatures(productType: string): string[] {
 
 export async function hasValidLicense(organizationId: string): Promise<boolean> {
   const prisma = getPrismaClient() as any;
-  // Only consider EVO licenses as valid
+  // Only consider EVO licenses as valid — also verify valid_until date
+  // to avoid stale is_expired values from sync delays
   const license = await prisma.license.findFirst({
     where: {
       organization_id: organizationId,
       is_active: true,
       is_expired: false,
+      valid_until: { gte: new Date() },
       product_type: {
         contains: 'evo',
         mode: 'insensitive'

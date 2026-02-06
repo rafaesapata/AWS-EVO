@@ -4,6 +4,7 @@
  */
 
 import type { APIGatewayProxyResultV2 } from '../../types/lambda.js';
+import { success, error } from '../../lib/response.js';
 import { execSync } from 'child_process';
 
 export async function handler(): Promise<APIGatewayProxyResultV2> {
@@ -23,22 +24,15 @@ export async function handler(): Promise<APIGatewayProxyResultV2> {
     
     console.log('Migration output:', result);
     
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        message: 'Migrations completed successfully',
-        output: result,
-      }),
-    };
-  } catch (error) {
-    console.error('Migration failed:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }),
-    };
+    return success({
+      message: 'Migrations completed successfully',
+      output: result,
+    });
+  } catch (err) {
+    console.error('Migration failed:', err);
+    return error(
+      err instanceof Error ? err.message : 'Unknown migration error',
+      500
+    );
   }
 }

@@ -351,7 +351,7 @@ function createTenantIsolatedModel<T extends Record<string, any>>(
         };
       }
       
-      // Upsert: inject in both where and create
+      // Upsert: inject in where, create, and update
       if (prop === 'upsert') {
         return (args: any = {}) => {
           const isolatedArgs = {
@@ -362,6 +362,11 @@ function createTenantIsolatedModel<T extends Record<string, any>>(
             },
             create: {
               ...args?.create,
+              [orgFieldName]: organizationId,
+            },
+            update: {
+              ...args?.update,
+              // Ensure update cannot change the organization_id
               [orgFieldName]: organizationId,
             },
           };

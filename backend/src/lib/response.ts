@@ -14,16 +14,28 @@ const BASE_HEADERS = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
 };
 
-// Request context for tracking
+// Request context for tracking — reset at the start of each invocation
+// to prevent state leaking between Lambda warm-start invocations
 let currentRequestId: string | undefined;
 let currentCorrelationId: string | undefined;
 
 /**
- * Set request context for response headers
+ * Set request context for response headers.
+ * MUST be called at the start of every Lambda invocation to avoid
+ * stale tracking headers from a previous warm-start request.
  */
 export function setRequestContext(requestId?: string, correlationId?: string): void {
   currentRequestId = requestId;
   currentCorrelationId = correlationId;
+}
+
+/**
+ * Clear request context — call at the beginning of each handler
+ * to guarantee no state leaks from previous Lambda warm-start invocations.
+ */
+export function clearRequestContext(): void {
+  currentRequestId = undefined;
+  currentCorrelationId = undefined;
 }
 
 /**
