@@ -268,6 +268,7 @@ async function securityScanHandler(
     const findingsData = scanResult.findings.map(finding => ({
       organization_id: organizationId,
       aws_account_id: credential.id,
+      scan_id: scanRecord.id, // Link findings to scan
       title: finding.title,
       severity: finding.severity,
       description: `${finding.title}\n\n${finding.description}\n\n${finding.analysis}`,
