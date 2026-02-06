@@ -146,6 +146,47 @@ npx tsc --noEmit -p backend/tsconfig.json
 
 ---
 
+## 🚨 REGRA CRÍTICA: Testar Build Local ANTES de Push
+
+### ⛔ NUNCA faça push sem testar o build localmente
+
+**SEMPRE execute o build local antes de fazer commit/push:**
+
+```bash
+# Backend (TypeScript)
+npm run build --prefix backend
+
+# Frontend
+npm run build
+```
+
+### Por que isso é CRÍTICO?
+
+1. **Evita falhas no CI/CD** - Pipeline leva 15-20 minutos para falhar
+2. **Detecta erros de compilação** - TypeScript, imports, variáveis não definidas
+3. **Economiza tempo** - 30 segundos local vs 15 minutos no pipeline
+4. **Mantém histórico limpo** - Sem commits quebrados
+
+### Checklist Antes de Push
+
+- [ ] `npm run build --prefix backend` executado com sucesso
+- [ ] `npm run build` executado com sucesso (se alterou frontend)
+- [ ] Nenhum erro de TypeScript
+- [ ] Nenhum erro de imports
+- [ ] Código testado localmente (se possível)
+
+### ⛔ NUNCA confie apenas em:
+- ❌ Syntax highlighting do editor
+- ❌ "Parece correto"
+- ❌ "É só uma linha"
+
+### ✅ SEMPRE:
+- ✅ Execute o build completo
+- ✅ Verifique a saída do comando
+- ✅ Confirme que não há erros ou warnings críticos
+
+---
+
 ## Estrutura de Diretórios
 
 ```
@@ -161,4 +202,4 @@ npx tsc --noEmit -p backend/tsconfig.json
 
 ---
 
-**Última atualização:** 2026-02-03
+**Última atualização:** 2026-02-05
