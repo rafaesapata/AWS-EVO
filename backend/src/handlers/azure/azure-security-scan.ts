@@ -292,6 +292,7 @@ export async function handler(
 
       await prisma.finding.createMany({
         data: allFindings,
+        skipDuplicates: true,
       });
     }
 

@@ -30,7 +30,7 @@ export async function handler(
     const findings = await prisma.finding.findMany({
       where: {
         organization_id: organizationId,
-        status: 'ACTIVE',
+        status: { in: ['open', 'pending'] },
       },
       take: 100,
     });

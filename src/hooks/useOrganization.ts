@@ -3,6 +3,10 @@ import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
 import { apiClient } from '@/integrations/aws/api-client';
 import { CACHE_CONFIGS } from './useQueryCache';
 import { useTVDashboard } from '@/contexts/TVDashboardContext';
+import { useLocation } from 'react-router-dom';
+
+// Public routes that should NOT trigger organization/auth queries
+const PUBLIC_PATHS = ['/', '/auth', '/register', '/features', '/terms', '/404'];
 
 /**
  * Result type for useOrganization hook
@@ -26,6 +30,10 @@ interface UseOrganizationResult {
  */
 export const useOrganization = (): UseOrganizationResult => {
   const { organizationId: tvOrgId, isTVMode } = useTVDashboard();
+  const location = useLocation();
+  
+  // Check if we're on a public page - skip auth queries to avoid 401 loops
+  const isPublicPage = PUBLIC_PATHS.includes(location.pathname) || location.pathname.startsWith('/tv/');
   
   // Always call useQuery to follow React hooks rules
   // Use 'enabled' option to control when the query runs
@@ -63,7 +71,7 @@ export const useOrganization = (): UseOrganizationResult => {
       await cognitoAuth.signOut();
       throw new Error('Organization not found');
     },
-    enabled: !isTVMode, // Disable query in TV mode
+    enabled: !isTVMode && !isPublicPage, // Disable query in TV mode and on public pages
     ...CACHE_CONFIGS.SETTINGS, // 5 minutos de cache
     retry: 0, // Don't retry - if org is invalid, logout immediately
     placeholderData: (previousData) => previousData,
@@ -81,12 +89,24 @@ export const useOrganization = (): UseOrganizationResult => {
     };
   }
   
-  // Handle redirect on specific errors
+  // On public pages, return null org without triggering any auth flow
+  if (isPublicPage) {
+    return {
+      data: null,
+      isLoading: false,
+      isError: false,
+      isSuccess: false,
+      error: null,
+      refetch: () => Promise.resolve({ data: null }),
+    };
+  }
+  
+  // Handle redirect on specific errors (only on protected pages)
   if (query.error) {
     const errorMessage = query.error.message;
     if (errorMessage.includes('Session expired') || errorMessage.includes('Organization not found')) {
       const reason = errorMessage.includes('Session expired') ? 'session_expired' : 'no_organization';
-      window.location.href = `/login?reason=${reason}`;
+      window.location.href = `/auth?reason=${reason}`;
     }
   }
   

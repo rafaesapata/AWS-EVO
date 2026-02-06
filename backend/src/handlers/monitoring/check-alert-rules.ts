@@ -73,9 +73,9 @@ export async function handler(
             data: {
               organization_id: organizationId,
               rule_id: rule.id,
-              severity: rule.severity,
+              severity: rule.severity ?? 'medium',
               title: rule.name,
-              message: `Alert triggered: ${rule.description}`,
+              message: `Alert triggered: ${rule.description ?? rule.name}`,
               metadata: triggered.metadata,
               triggered_at: new Date(),
             },
@@ -156,7 +156,7 @@ async function checkCostThreshold(prisma: any, rule: any): Promise<{ metadata: a
   
   const costs = await prisma.dailyCost.aggregate({
     where: {
-      organizationId,
+      organization_id: organizationId,
       date: {
         gte: thirtyDaysAgo,
       },
@@ -187,9 +187,9 @@ async function checkSecurityFindings(prisma: any, rule: any): Promise<{ metadata
   
   const findings = await prisma.finding.count({
     where: {
-      organizationId,
+      organization_id: organizationId,
       severity: condition.severity || 'CRITICAL',
-      status: 'ACTIVE',
+      status: 'open',
     },
   });
   
@@ -215,7 +215,7 @@ async function checkDriftDetection(prisma: any, rule: any): Promise<{ metadata: 
   
   const drifts = await prisma.driftDetection.count({
     where: {
-      organizationId,
+      organization_id: organizationId,
       detected_at: {
         gte: oneDayAgo,
       },
@@ -239,7 +239,7 @@ async function checkComplianceViolation(prisma: any, rule: any): Promise<{ metad
   
   const violations = await prisma.complianceViolation.count({
     where: {
-      organizationId,
+      organization_id: organizationId,
       framework: condition.framework,
       status: 'OPEN',
     },

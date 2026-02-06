@@ -225,8 +225,8 @@ async function detectDriftsInRegion(
     // Obter estado esperado do inventário
     const expectedResources = await prisma.resourceInventory.findMany({
       where: {
-        awsAccountId: accountId,
-        resourceType: 'EC2::Instance',
+        aws_account_id: accountId,
+        resource_type: 'EC2::Instance',
         region,
       },
     });
@@ -234,7 +234,7 @@ async function detectDriftsInRegion(
     // Comparar estado atual vs esperado
     for (const current of currentInstances) {
       const expected = expectedResources.find(
-        (r: any) => r.resourceId === current.InstanceId
+        (r: any) => r.resource_id === current.InstanceId
       );
       
       if (!expected) {
@@ -266,7 +266,7 @@ async function detectDriftsInRegion(
             aws_account_id: accountId,
             resource_id: current.InstanceId!,
             resource_type: 'EC2::Instance',
-            resource_name: current.Tags?.find((t: any) => t.Key === 'Name')?.Value || expected.resourceName,
+            resource_name: current.Tags?.find((t: any) => t.Key === 'Name')?.Value || expected.resource_name,
             drift_type: 'configuration_drift',
             detected_at: new Date(),
             severity: 'medium',
@@ -287,13 +287,13 @@ async function detectDriftsInRegion(
     
     // Verificar recursos deletados (existem no inventário mas não na AWS)
     for (const expected of expectedResources) {
-      const exists = currentInstances.some((c: any) => c.InstanceId === expected.resourceId);
+      const exists = currentInstances.some((c: any) => c.InstanceId === expected.resource_id);
       if (!exists) {
         drifts.push({
           aws_account_id: accountId,
-          resource_id: expected.resourceId,
+          resource_id: expected.resource_id,
           resource_type: 'EC2::Instance',
-          resource_name: expected.resourceName,
+          resource_name: expected.resource_name,
           drift_type: 'deleted',
           detected_at: new Date(),
           severity: 'critical',

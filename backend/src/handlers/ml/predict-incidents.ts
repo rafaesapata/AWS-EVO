@@ -131,6 +131,7 @@ export async function handler(
       where: {
         status: 'down',
         checked_at: { gte: thirtyDaysAgo },
+        endpoint: { organization_id: organizationId },
       },
     });
     

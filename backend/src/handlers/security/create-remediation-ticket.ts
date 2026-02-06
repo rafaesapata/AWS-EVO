@@ -61,6 +61,7 @@ export async function handler(
       select: {
         id: true,
         severity: true,
+        title: true,
         description: true,
         resource_id: true,
         service: true,
@@ -100,7 +101,7 @@ export async function handler(
       ticketDescription += `Severidades: ${Object.entries(severityCounts).map(([sev, count]) => `${count} ${sev}`).join(', ')}\n`;
       ticketDescription += `Serviços afetados: ${services.join(', ')}\n`;
       ticketDescription += `Categorias: ${categories.join(', ')}\n\n`;
-      ticketDescription += `Achados incluídos:\n${findings.map(f => `- ${f.resource_id}: ${f.description.substring(0, 100)}...`).join('\n')}`;
+      ticketDescription += `Achados incluídos:\n${findings.map(f => `- ${f.resource_id}: ${(f.description ?? f.title ?? '').substring(0, 100)}...`).join('\n')}`;
     }
 
     // Create the remediation ticket

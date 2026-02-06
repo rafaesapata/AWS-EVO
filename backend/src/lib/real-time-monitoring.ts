@@ -164,6 +164,7 @@ class RealTimeMonitoringService extends EventEmitter {
           organization_id: rule.organizationId,
           name: rule.name,
           rule_type: 'metric_threshold',
+          condition_type: 'threshold',
           condition: {
             metricName: rule.metricName,
             condition: rule.condition,
@@ -171,7 +172,7 @@ class RealTimeMonitoringService extends EventEmitter {
           },
           severity: rule.severity,
           is_active: rule.enabled,
-          notification_channels: rule.notificationChannels,
+          notification_channels: rule.notificationChannels as any,
         },
       });
 
@@ -185,7 +186,7 @@ class RealTimeMonitoringService extends EventEmitter {
         severity: rule.severity,
         enabled: alertRule.is_active,
         cooldownMinutes: rule.cooldownMinutes,
-        notificationChannels: alertRule.notification_channels,
+        notificationChannels: alertRule.notification_channels as string[] ?? [],
       };
 
       this.alertRules.set(newRule.id, newRule);
@@ -220,7 +221,7 @@ class RealTimeMonitoringService extends EventEmitter {
           severity: rule.severity as any,
           enabled: rule.is_active,
           cooldownMinutes: 15, // Default cooldown
-          notificationChannels: rule.notification_channels,
+          notificationChannels: rule.notification_channels as string[] ?? [],
         };
 
         this.alertRules.set(alertRule.id, alertRule);

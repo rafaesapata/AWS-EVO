@@ -150,7 +150,7 @@ class ApiClient {
       // Refresh failed - redirect to login
       console.log('🔐 Token refresh failed, redirecting to login...');
       await cognitoAuth.signOut();
-      window.location.href = '/login?reason=session_expired';
+      window.location.href = '/auth?reason=session_expired';
       return {
         data: null,
         error: {
@@ -199,7 +199,7 @@ class ApiClient {
         const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
         if (orgId && !uuidRegex.test(orgId)) {
           await cognitoAuth.signOut();
-          window.location.href = '/login?reason=session_expired';
+          window.location.href = '/auth?reason=session_expired';
           throw new Error('Session expired. Please login again.');
         }
       }

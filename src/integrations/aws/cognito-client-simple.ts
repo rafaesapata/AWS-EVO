@@ -478,7 +478,7 @@ class CognitoAuthService {
           await this.signOut();
           // Redirect to login with reason
           if (typeof window !== 'undefined') {
-            window.location.href = '/login?reason=session_expired';
+            window.location.href = '/auth?reason=session_expired';
           }
           return null;
         }
@@ -515,7 +515,7 @@ class CognitoAuthService {
           console.error('🔐 CognitoAuth: Forcing logout to get new token...');
           await this.signOut();
           if (typeof window !== 'undefined') {
-            window.location.href = '/login?reason=session_expired';
+            window.location.href = '/auth?reason=session_expired';
           }
           return null;
         }

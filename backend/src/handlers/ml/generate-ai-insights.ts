@@ -99,8 +99,8 @@ async function generateCostInsights(
   const costs = await prisma.dailyCost.groupBy({
     by: ['service'],
     where: {
-      organizationId,
-      ...(accountId && { accountId }),
+      organization_id: organizationId,
+      ...(accountId && { aws_account_id: accountId }),
       date: { gte: thirtyDaysAgo },
     },
     _sum: { cost: true },
@@ -138,10 +138,10 @@ async function generateSecurityInsights(
   // Analisar findings críticos
   const criticalFindings = await prisma.finding.count({
     where: {
-      organizationId,
-      ...(accountId && { accountId }),
-      severity: 'CRITICAL',
-      status: 'ACTIVE',
+      organization_id: organizationId,
+      ...(accountId && { aws_account_id: accountId }),
+      severity: { in: ['critical', 'CRITICAL'] },
+      status: { in: ['open', 'pending'] },
     },
   });
   
@@ -169,9 +169,9 @@ async function generatePerformanceInsights(
   // Analisar waste detection
   const wasteItems = await prisma.wasteDetection.count({
     where: {
-      organizationId,
-      ...(accountId && { accountId }),
-      wasteType: 'zombie',
+      organization_id: organizationId,
+      ...(accountId && { aws_account_id: accountId }),
+      waste_type: 'zombie',
     },
   });
   

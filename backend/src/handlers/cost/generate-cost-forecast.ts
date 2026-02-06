@@ -60,7 +60,7 @@ export async function handler(
       by: ['date'],
       where: {
         organization_id: organizationId,
-        ...(accountId && { account_id: accountId }),
+        ...(accountId && { aws_account_id: accountId }),
         date: {
           gte: ninetyDaysAgo,
         },

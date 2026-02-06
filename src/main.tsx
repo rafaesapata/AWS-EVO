@@ -96,11 +96,11 @@ createRoot(document.getElementById("root")!).render(
   <GlobalErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <DefaultTVProvider>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AwsAccountProvider>
           <CloudAccountProvider>
             <DemoModeProvider>
               <TrialLicenseProvider>
-              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/" element={<Auth />} />
               <Route path="/auth" element={<Auth />} />
@@ -474,11 +474,11 @@ createRoot(document.getElementById("root")!).render(
             <Toaster />
             <SonnerToaster />
             <UnifiedCopilotWrapper />
-          </BrowserRouter>
               </TrialLicenseProvider>
             </DemoModeProvider>
           </CloudAccountProvider>
         </AwsAccountProvider>
+        </BrowserRouter>
       </DefaultTVProvider>
     </QueryClientProvider>
   </GlobalErrorBoundary>

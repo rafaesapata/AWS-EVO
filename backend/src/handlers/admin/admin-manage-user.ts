@@ -63,7 +63,7 @@ export async function handler(
         // Verificar que o usuário pertence à mesma organização (segurança multi-tenant)
         const targetProfile = await prisma.profile.findFirst({
           where: {
-            user_id: email,
+            email: email,
             organization_id: organizationId,
           },
         });
@@ -117,7 +117,7 @@ export async function handler(
         // Verificar que o usuário pertence à mesma organização (segurança multi-tenant)
         const targetProfile = await prisma.profile.findFirst({
           where: {
-            user_id: email,
+            email: email,
             organization_id: organizationId,
           },
         });
@@ -137,7 +137,7 @@ export async function handler(
         // Deletar profile do banco
         await prisma.profile.deleteMany({
           where: {
-            user_id: email,
+            email: email,
             organization_id: organizationId,
           },
         });
@@ -157,6 +157,14 @@ export async function handler(
       }
       
       case 'enable': {
+        // Verificar que o usuário pertence à mesma organização
+        const enableProfile = await prisma.profile.findFirst({
+          where: { email, organization_id: organizationId },
+        });
+        if (!enableProfile) {
+          return forbidden('Cannot enable user from another organization');
+        }
+        
         await cognitoClient.send(
           new AdminEnableUserCommand({
             UserPoolId: userPoolId,
@@ -168,6 +176,14 @@ export async function handler(
       }
       
       case 'disable': {
+        // Verificar que o usuário pertence à mesma organização
+        const disableProfile = await prisma.profile.findFirst({
+          where: { email, organization_id: organizationId },
+        });
+        if (!disableProfile) {
+          return forbidden('Cannot disable user from another organization');
+        }
+        
         await cognitoClient.send(
           new AdminDisableUserCommand({
             UserPoolId: userPoolId,
@@ -181,6 +197,14 @@ export async function handler(
       case 'reset_password': {
         if (!password) {
           return badRequest('password is required for reset_password action');
+        }
+        
+        // Verificar que o usuário pertence à mesma organização
+        const resetProfile = await prisma.profile.findFirst({
+          where: { email, organization_id: organizationId },
+        });
+        if (!resetProfile) {
+          return forbidden('Cannot reset password for user from another organization');
         }
         
         await cognitoClient.send(
