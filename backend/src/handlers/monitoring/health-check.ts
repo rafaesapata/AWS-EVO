@@ -2,6 +2,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler para health check
  * AWS Lambda Handler for health-check
+ * Last verified: 2026-02-05
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
