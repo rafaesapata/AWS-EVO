@@ -244,7 +244,7 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
                 </CardHeader>
                 <CardContent>
                   <div className={`text-2xl font-semibold ${getUtilizationColor(analysis.summary.averageUtilization)}`}>
-                    {analysis.summary.averageUtilization}%
+                    {analysis.summary.averageUtilization.toFixed(1)}%
                   </div>
                   <Progress value={analysis.summary.averageUtilization} className="mt-2" />
                 </CardContent>
@@ -330,7 +330,7 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
                         <CardDescription>{reservation.skuDescription}</CardDescription>
                       </div>
                       <Badge variant={reservation.utilizationPercentage >= 80 ? 'default' : reservation.utilizationPercentage >= 50 ? 'secondary' : 'destructive'}>
-                        {reservation.utilizationPercentage}% utilização
+                        {reservation.utilizationPercentage.toFixed(1)}% utilização
                       </Badge>
                     </div>
                   </CardHeader>
@@ -357,7 +357,7 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
                       <div className="flex items-center justify-between text-sm mb-1">
                         <span className="text-muted-foreground">{t('azureReservations.utilization', 'Utilização')}</span>
                         <span className={getUtilizationColor(reservation.utilizationPercentage)}>
-                          {reservation.utilizationPercentage}%
+                          {reservation.utilizationPercentage.toFixed(1)}%
                         </span>
                       </div>
                       <Progress value={reservation.utilizationPercentage} />

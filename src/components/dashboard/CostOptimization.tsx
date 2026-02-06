@@ -323,11 +323,11 @@ export const CostOptimization = ({ onAnalysisComplete }: CostOptimizationProps) 
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">{t('costOptimization.monthlySavings')}</p>
-                  <p className="text-2xl font-semibold text-success">${selectedRec.projected_savings_monthly}</p>
+                  <p className="text-2xl font-semibold text-success">${Number(selectedRec.projected_savings_monthly).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">{t('costOptimization.yearlySavings')}</p>
-                  <p className="text-2xl font-semibold text-success">${selectedRec.projected_savings_yearly}</p>
+                  <p className="text-2xl font-semibold text-success">${Number(selectedRec.projected_savings_yearly).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
               </div>
 
