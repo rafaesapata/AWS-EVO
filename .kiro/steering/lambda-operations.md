@@ -4,59 +4,24 @@ inclusion: always
 
 # Lambda Operations - Deploy, Layers e Troubleshooting
 
-## 🚨 Processo de Deploy (OBRIGATÓRIO)
+## 🚨 Processo de Deploy (CI/CD OBRIGATÓRIO)
 
-O código TypeScript compilado usa imports relativos (`../../lib/xxx.js`). Deploy incorreto causa erro 502.
+⛔ **NUNCA fazer deploy manual de lambdas.** Todo deploy é via CI/CD.
 
-### Opção 1: Script de Deploy (Recomendado)
-```bash
-./scripts/deploy-lambda.sh <handler-path> <lambda-name>
+O pipeline (`cicd/buildspec-sam.yml`) detecta automaticamente o que mudou e faz deploy SOMENTE das lambdas afetadas. Basta fazer commit e push.
 
-# Exemplos:
-./scripts/deploy-lambda.sh cost/fetch-daily-costs fetch-daily-costs
-./scripts/deploy-lambda.sh security/security-scan security-scan
-```
-
-### Opção 2: Deploy Manual
-```bash
-# 1. Build
-npm run build --prefix backend
-
-# 2. Preparar
-rm -rf /tmp/lambda-deploy && mkdir -p /tmp/lambda-deploy
-
-# 3. Copiar e ajustar imports
-sed 's|require("../../lib/|require("./lib/|g' backend/dist/handlers/{categoria}/{handler}.js | \
-sed 's|require("../lib/|require("./lib/|g' | \
-sed 's|require("../../types/|require("./types/|g' > /tmp/lambda-deploy/{handler}.js
-
-# 4. Copiar dependências
-cp -r backend/dist/lib /tmp/lambda-deploy/
-cp -r backend/dist/types /tmp/lambda-deploy/
-
-# 5. Criar ZIP e deploy
-cd /tmp/lambda-deploy && zip -r /tmp/lambda.zip . && cd -
-aws lambda update-function-code --function-name evo-uds-v3-sandbox-{nome} --zip-file fileb:///tmp/lambda.zip --region us-east-1
-
-# 6. CRÍTICO: Atualizar handler path
-aws lambda update-function-configuration --function-name evo-uds-v3-sandbox-{nome} --handler {handler}.handler --region us-east-1
-
-# 7. Aguardar
-aws lambda wait function-updated --function-name evo-uds-v3-sandbox-{nome} --region us-east-1
-```
+### Como funciona internamente (referência, NÃO executar manualmente):
+- O CI/CD usa `cicd/scripts/deploy-changed-lambdas.sh` com mapeamento handler→lambda
+- Imports são ajustados automaticamente (`../../lib/` → `./lib/`)
+- lib/ e types/ são incluídos no ZIP automaticamente
+- Handler path é configurado corretamente (`handler.handler`, não `handlers/xxx/handler.handler`)
 
 ### ⛔ NUNCA FAZER
 ```bash
-❌ --handler handlers/xxx/xxx.handler  # ERRADO
-✅ --handler xxx.handler               # CORRETO
-```
-
-### Estrutura do ZIP
-```
-lambda.zip
-├── {handler}.js      # Imports ajustados (./lib/)
-├── lib/              # Bibliotecas compartilhadas
-└── types/            # Tipos compilados
+❌ ./scripts/deploy-lambda.sh ...           # Deploy manual proibido
+❌ ./scripts/deploy-all-lambdas.sh          # Deploy manual proibido
+❌ aws lambda update-function-code ...       # Deploy manual proibido
+✅ git add . && git commit && git push      # CI/CD faz o deploy
 ```
 
 ---

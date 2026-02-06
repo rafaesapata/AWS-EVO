@@ -6,14 +6,16 @@ inclusion: always
 
 ## Scripts Disponíveis
 
-### Deploy
-| Script | Uso |
-|--------|-----|
-| `deploy-lambda.sh` | `./scripts/deploy-lambda.sh <handler-path> <lambda-name>` |
-| `deploy-all-lambdas.sh` | Deploy de TODAS as Lambdas |
-| `deploy-all-aws-lambdas.sh` | Deploy de Lambdas AWS (não Azure) |
-| `deploy-azure-lambdas.sh` | Deploy de Lambdas Azure |
-| `deploy-frontend.sh` | Build e deploy do frontend |
+### Deploy (⛔ Apenas via CI/CD - NUNCA executar localmente)
+| Script | Uso | Contexto |
+|--------|-----|----------|
+| `deploy-lambda.sh` | Deploy de uma Lambda | Usado APENAS pelo CI/CD |
+| `deploy-all-lambdas.sh` | Deploy de TODAS as Lambdas | Usado APENAS pelo CI/CD |
+| `deploy-all-aws-lambdas.sh` | Deploy de Lambdas AWS | Usado APENAS pelo CI/CD |
+| `deploy-azure-lambdas.sh` | Deploy de Lambdas Azure | Usado APENAS pelo CI/CD |
+| `deploy-frontend.sh` | Build e deploy do frontend | Usado APENAS pelo CI/CD |
+
+⛔ **NUNCA executar estes scripts localmente.** O pipeline CI/CD (`cicd/buildspec-sam.yml`) gerencia todo o deploy automaticamente via `cicd/scripts/deploy-changed-lambdas.sh`.
 
 ### Validação
 | Script | Uso |

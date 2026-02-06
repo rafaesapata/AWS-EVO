@@ -1,8 +1,8 @@
 {
   "enabled": true,
   "name": "Lambda Deploy Reminder",
-  "description": "Reminds about the correct Lambda deploy process when backend handler files are edited, to prevent import errors",
-  "version": "1",
+  "description": "Reminds that Lambda deploys are handled by CI/CD pipeline, not manually. Only commit and push.",
+  "version": "2",
   "when": {
     "type": "fileEdited",
     "patterns": [
@@ -11,6 +11,6 @@
   },
   "then": {
     "type": "askAgent",
-    "prompt": "A Lambda handler file was edited. If this needs to be deployed, remember to use the correct deploy process:\n\n1. Use `./scripts/deploy-lambda.sh <handler-path> <lambda-name>` for single Lambda deploy\n2. Or follow the manual process in `.kiro/steering/lambda-deploy-process.md`\n\nCRITICAL: Never just copy the .js file - always include lib/ and types/ directories and adjust imports from ../../lib/ to ./lib/\n\nDo you want me to deploy this Lambda now?"
+    "prompt": "A Lambda handler file was edited. REMEMBER:\n\n⛔ NEVER deploy lambdas manually (no aws lambda update-function-code, no ./scripts/deploy-*.sh)\n✅ All deploys go through CI/CD pipeline automatically on git push\n✅ The pipeline will detect ONLY the changed handler and deploy ONLY that lambda\n✅ Just commit and push to the correct branch (main=sandbox, production=production)\n\nDo NOT offer to deploy. Do NOT run deploy scripts. Just continue with the code changes."
   }
 }
