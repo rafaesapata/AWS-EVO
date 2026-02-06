@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
+import { AwsAccountProvider } from "@/contexts/AwsAccountContext";
 import { CloudAccountProvider } from "@/contexts/CloudAccountContext";
 import { TVDashboardProvider } from "@/contexts/TVDashboardContext";
 import { DemoModeProvider } from "@/contexts/DemoModeContext";
@@ -96,6 +97,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <DefaultTVProvider>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AwsAccountProvider>
           <CloudAccountProvider>
             <DemoModeProvider>
               <TrialLicenseProvider>
@@ -475,6 +477,7 @@ createRoot(document.getElementById("root")!).render(
               </TrialLicenseProvider>
             </DemoModeProvider>
           </CloudAccountProvider>
+        </AwsAccountProvider>
         </BrowserRouter>
       </DefaultTVProvider>
     </QueryClientProvider>

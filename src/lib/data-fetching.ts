@@ -111,7 +111,7 @@ export function usePaginatedFetch<TData = unknown>(
     ...initialFilters,
   });
 
-  const stableBaseKey = useMemo(() => baseQueryKey, [baseQueryKey.join(',')]);
+  const stableBaseKey = useMemo(() => baseQueryKey, [JSON.stringify(baseQueryKey)]);
 
   const queryKey = useMemo(() => [
     ...stableBaseKey,
