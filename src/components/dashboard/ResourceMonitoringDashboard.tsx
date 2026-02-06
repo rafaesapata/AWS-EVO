@@ -526,9 +526,9 @@ export const ResourceMonitoringDashboard = () => {
       // For Azure, we need to find the credential ID from the subscription ID
       let bodyParam;
       if (isAzure) {
-        // Find the Azure credential by subscription ID (accountId)
+        // Find the Azure credential by credential ID
         const azureAccount = accounts.find(acc => 
-          acc.provider === 'AZURE' && acc.accountId === selectedAccountId
+          acc.provider === 'AZURE' && acc.id === selectedAccountId
         );
         
         if (!azureAccount) {
