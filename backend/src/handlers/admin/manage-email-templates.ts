@@ -390,6 +390,6 @@ export async function handler(
     }
   } catch (err) {
     logger.error('❌ Manage email templates error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('Failed to manage email templates. Please try again.', 500);
   }
 }

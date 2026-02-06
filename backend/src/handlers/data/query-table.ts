@@ -91,12 +91,14 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'performance_metrics': 'monitoredEndpoint',
   'waste_detection': 'wasteDetection',
   'waste_detection_history': 'mLAnalysisHistory',
-  // user_roles não existe no banco - retornar vazio
-  // 'user_roles': 'userRole',  // REMOVIDO - tabela não existe
+  // user_roles - tabela EXISTE no banco
+  'user_roles': 'userRole',
   'knowledge_base_favorites': 'knowledgeBaseFavorite',
   'knowledge_base_comments': 'knowledgeBaseComment',
   'scan_schedules': 'scanSchedule',
   'scheduled_scans': 'scanSchedule',
+  'resource_comments': 'resourceComment',
+  'mention_notifications': 'mentionNotification',
 };
 
 // Mapeamento de campos do frontend para campos do Prisma

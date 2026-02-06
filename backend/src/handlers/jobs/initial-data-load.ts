@@ -94,11 +94,10 @@ export async function handler(
     // Criar registro de job
     const job = await prisma.backgroundJob.create({
       data: {
-        organization_id: organizationId,  // Use organizationId from auth
+        organization_id: organizationId,
         job_type: 'INITIAL_DATA_LOAD',
-        job_name: 'Initial Data Load',
         status: 'RUNNING',
-        parameters: { regions, resourceTypes: typesToLoad } as any,
+        payload: { regions, resourceTypes: typesToLoad } as any,
         started_at: new Date()
       }
     });

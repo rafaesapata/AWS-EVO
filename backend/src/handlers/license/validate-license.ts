@@ -236,7 +236,7 @@ export async function handler(
 
         if (availableLicense) {
           const usedSeats = availableLicense.seat_assignments.length;
-          const availableSeats = availableLicense.max_users - usedSeats;
+          const availableSeats = (availableLicense.max_users ?? 0) - usedSeats;
 
           logger.info(`Found license ${availableLicense.id}: max_users=${availableLicense.max_users}, used=${usedSeats}, available=${availableSeats}`);
 

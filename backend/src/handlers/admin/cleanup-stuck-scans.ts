@@ -35,7 +35,12 @@ export async function handler(
   }
 
   // Verificar se o usuário tem permissão de admin
-  const userRoles = user['custom:roles'] ? JSON.parse(user['custom:roles']) : [];
+  let userRoles: string[] = [];
+  try {
+    userRoles = user['custom:roles'] ? JSON.parse(user['custom:roles']) : [];
+  } catch {
+    userRoles = [];
+  }
   const isAdmin = userRoles.includes('admin') || userRoles.includes('org_admin') || userRoles.includes('super_admin');
   
   if (!isAdmin) {

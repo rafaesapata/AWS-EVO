@@ -61,6 +61,6 @@ export async function handler(
 
   } catch (err) {
     logger.error('❌ Log audit error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('Failed to create audit log', 500, undefined, origin);
   }
 }

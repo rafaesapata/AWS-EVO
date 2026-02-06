@@ -114,7 +114,7 @@ export async function handler(
       where: { organization_id: organizationId, is_active: true }
     });
 
-    if (license && userCount >= license.max_users) {
+    if (license && userCount >= (license.max_users ?? 0)) {
       return forbidden('User limit reached for this organization', origin);
     }
 

@@ -40,7 +40,12 @@ export async function handler(
   });
   
   try {
-    const body: ValidateCredentialsRequest = event.body ? JSON.parse(event.body) : {};
+    let body: ValidateCredentialsRequest;
+    try {
+      body = event.body ? JSON.parse(event.body) : {};
+    } catch (parseError) {
+      return badRequest('Invalid JSON in request body');
+    }
     const { credentialId, roleArn, externalId, accessKeyId, secretAccessKey } = body;
     
     const prisma = getPrismaClient();

@@ -141,6 +141,6 @@ export async function handler(
 
   } catch (err) {
     logger.error('❌ Disable user error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('Failed to disable user. Please try again.', 500, undefined, origin);
   }
 }

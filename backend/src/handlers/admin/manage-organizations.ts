@@ -806,8 +806,8 @@ export async function handler(
             active_licenses: result.filter(l => l.is_active).length,
             expired_licenses: result.filter(l => l.is_expired).length,
             trial_licenses: result.filter(l => l.is_trial).length,
-            total_max_users: result.reduce((sum, l) => sum + l.max_users, 0),
-            total_used_seats: result.reduce((sum, l) => sum + l.used_seats, 0)
+            total_max_users: result.reduce((sum, l) => sum + (l.max_users ?? 0), 0),
+            total_used_seats: result.reduce((sum, l) => sum + (l.used_seats ?? 0), 0)
           }
         }, 200, origin);
       }

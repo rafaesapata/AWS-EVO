@@ -103,7 +103,7 @@ export async function handler(
         organization_id: organizationId,
         job_type: 'compliance-scan',
         status: { in: ['pending', 'running'] },
-        parameters: {
+        payload: {
           path: ['frameworkId'],
           equals: frameworkId,
         },
@@ -147,9 +147,9 @@ export async function handler(
       data: {
         organization_id: organizationId,
         job_type: 'compliance-scan',
-        job_name: `Compliance Scan - ${getFrameworkName(frameworkId)}`,
         status: 'pending',
-        parameters: {
+        payload: {
+          jobName: `Compliance Scan - ${getFrameworkName(frameworkId)}`,
           frameworkId,
           accountId: accountId || credential.id,
           organizationId,
@@ -191,7 +191,7 @@ export async function handler(
     
   } catch (err) {
     logger.error('Start compliance scan error', err as Error);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }
 

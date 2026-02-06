@@ -57,7 +57,6 @@ export async function handler(
     logger.info('Executing scheduled job', { 
       organizationId, 
       jobId, 
-      jobName: job.job_name, 
       jobType: job.job_type 
     });
     
@@ -76,16 +75,16 @@ export async function handler(
       
       switch (job.job_type) {
         case 'security_scan':
-          result = await invokeLambda('SecurityScan', job.parameters);
+          result = await invokeLambda('SecurityScan', job.payload || {});
           break;
         case 'compliance_scan':
-          result = await invokeLambda('ComplianceScan', job.parameters);
+          result = await invokeLambda('ComplianceScan', job.payload || {});
           break;
         case 'guardduty_scan':
-          result = await invokeLambda('GuardDutyScan', job.parameters);
+          result = await invokeLambda('GuardDutyScan', job.payload || {});
           break;
         case 'cost_analysis':
-          result = await invokeLambda('FinopsCopilot', job.parameters);
+          result = await invokeLambda('FinopsCopilot', job.payload || {});
           break;
         case 'sync_accounts':
           result = await invokeLambda('SyncOrganizationAccounts', {});
@@ -107,7 +106,6 @@ export async function handler(
       logger.info('Scheduled job completed successfully', { 
         organizationId, 
         jobId, 
-        jobName: job.job_name, 
         jobType: job.job_type 
       });
       
@@ -137,7 +135,7 @@ export async function handler(
       userId: user.sub,
       requestId: context.awsRequestId 
     });
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('An unexpected error occurred. Please try again.', 500);
   }
 }
 

@@ -207,7 +207,7 @@ export async function handler(
   } catch (err) {
     logger.error('Cost optimization error', err as Error, { organizationId });
     await businessMetrics.errorOccurred('cost_optimization_error', 'cost-optimization', organizationId);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('An unexpected error occurred. Please try again.', 500);
   }
 }
 

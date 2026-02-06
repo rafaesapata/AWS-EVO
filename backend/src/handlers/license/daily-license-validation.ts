@@ -73,9 +73,9 @@ export async function handler(
       const issues: string[] = [];
       let status: ValidationResult['status'] = 'VALID';
 
-      const daysUntilExpiration = Math.ceil(
+      const daysUntilExpiration = license.valid_until ? Math.ceil(
         (license.valid_until.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-      );
+      ) : 0;
 
       if (daysUntilExpiration <= 0) {
         status = 'EXPIRED';
@@ -92,15 +92,17 @@ export async function handler(
       }
 
       const userCount = license.organization.profiles.length;
-      if (userCount > license.max_users) {
+      const maxUsers = license.max_users ?? 0;
+      if (userCount > maxUsers) {
         status = status === 'VALID' ? 'EXCEEDED_LIMITS' : status;
-        issues.push(`User limit exceeded: ${userCount}/${license.max_users}`);
+        issues.push(`User limit exceeded: ${userCount}/${maxUsers}`);
       }
 
       const accountCount = license.organization.aws_accounts.length;
-      if (accountCount > license.max_accounts) {
+      const maxAccounts = license.max_accounts ?? 0;
+      if (accountCount > maxAccounts) {
         status = status === 'VALID' ? 'EXCEEDED_LIMITS' : status;
-        issues.push(`AWS account limit exceeded: ${accountCount}/${license.max_accounts}`);
+        issues.push(`AWS account limit exceeded: ${accountCount}/${maxAccounts}`);
       }
 
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -125,8 +127,8 @@ export async function handler(
         issues,
         daysUntilExpiration: daysUntilExpiration > 0 ? daysUntilExpiration : 0,
         usageStats: {
-          users: { current: userCount, limit: license.max_users },
-          accounts: { current: accountCount, limit: license.max_accounts },
+          users: { current: userCount, limit: maxUsers },
+          accounts: { current: accountCount, limit: maxAccounts },
           scans: { current: scanCount, limit: maxScansPerMonth }
         }
       };

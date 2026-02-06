@@ -159,7 +159,7 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
     return success({ success: true, scan_id: scan.id, overall_score: overallScore, pillars: pillarScores });
   } catch (err) {
     logger.error('Well-Architected Scan error', err as Error, { organizationId });
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('An unexpected error occurred. Please try again.', 500);
   }
 }
 

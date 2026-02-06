@@ -142,6 +142,6 @@ export async function handler(
     
   } catch (err) {
     console.error('❌ Get User Organization error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('An unexpected error occurred. Please try again.', 500);
   }
 }

@@ -133,7 +133,7 @@ export async function handler(
     
   } catch (err) {
     logger.error('RI/SP Analysis error', err as Error, { requestId: context.awsRequestId });
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }
 

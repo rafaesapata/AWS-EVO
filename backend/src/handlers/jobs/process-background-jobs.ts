@@ -197,12 +197,12 @@ export async function handler(
     
   } catch (err) {
     logger.error('Process Background Jobs error', err as Error, { requestId: context.awsRequestId });
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('An unexpected error occurred. Please try again.', 500);
   }
 }
 
 async function processJob(prisma: any, lambdaClient: LambdaClient, job: any): Promise<any> {
-  const params = job.parameters || {};
+  const params = job.payload || {};
   
   // Map job types to Lambda functions for scan-related jobs
   const scanJobMapping: Record<string, string> = {

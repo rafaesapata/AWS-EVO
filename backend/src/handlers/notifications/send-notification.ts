@@ -51,8 +51,16 @@ export async function handler(
     return corsOptions(origin);
   }
   
-  const user = getUserFromEvent(event);
-  const organizationId = getOrganizationIdWithImpersonation(event, user);
+  let user: ReturnType<typeof getUserFromEvent>;
+  let organizationId: string;
+  
+  try {
+    user = getUserFromEvent(event);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
+  } catch (authError) {
+    logger.error('Authentication error in send-notification', authError);
+    return error('Unauthorized', 401, undefined, origin);
+  }
   
   logger.info('Send notification started', { 
     organizationId,
@@ -211,6 +219,6 @@ export async function handler(
       logger.error('Failed to log notification error', logError as Error, { organizationId });
     }
     
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('Failed to send notification. Please try again.', 500, undefined, origin);
   }
 }

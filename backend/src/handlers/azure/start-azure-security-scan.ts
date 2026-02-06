@@ -88,8 +88,8 @@ export async function handler(
       data: {
         organization_id: organizationId,
         job_type: 'azure-security-scan',
-        job_name: `Azure Security Scan - ${credential.subscription_name || credential.subscription_id}`,
-        parameters: {
+        payload: {
+          jobName: `Azure Security Scan - ${credential.subscription_name || credential.subscription_id}`,
           scanId: scan.id,
           credentialId,
           scanLevel,

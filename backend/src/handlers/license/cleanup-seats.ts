@@ -137,7 +137,7 @@ export async function handler(
         where: { id: license.id },
         data: {
           used_seats: remainingSeats,
-          available_seats: license.max_users - remainingSeats
+          available_seats: (license.max_users ?? 0) - remainingSeats
         }
       });
       
@@ -147,7 +147,7 @@ export async function handler(
         licenseId: license.id,
         removedSeats: deleteResult.count,
         remainingSeats,
-        availableSeats: license.max_users - remainingSeats
+        availableSeats: (license.max_users ?? 0) - remainingSeats
       });
     }
     

@@ -298,6 +298,6 @@ export async function handler(
     
   } catch (err) {
     logger.error('❌ Manage user error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('Failed to manage user. Please try again.', 500);
   }
 }

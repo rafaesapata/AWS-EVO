@@ -254,6 +254,6 @@ export async function handler(
       return error('Organization not found. Please contact support.', 500, undefined, origin);
     }
     
-    return error(err instanceof Error ? err.message : 'Failed to save AWS credentials', 500, undefined, origin);
+    return error('Failed to save AWS credentials. Please try again.', 500, undefined, origin);
   }
 }

@@ -141,6 +141,11 @@ export async function handler(
     
   } catch (err) {
     logger.error('SQL error', err as Error, { requestId: context.awsRequestId });
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    const errMsg = err instanceof Error ? err.message : 'Unknown error';
+    // Don't expose raw SQL errors in production - could leak schema info
+    const safeMessage = process.env.NODE_ENV === 'production' 
+      ? 'SQL query execution failed' 
+      : errMsg;
+    return error(safeMessage, 500);
   }
 }

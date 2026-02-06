@@ -100,14 +100,14 @@ export async function handler(
         where: { id: license.id },
         data: {
           used_seats: remainingSeats,
-          available_seats: license.max_users - remainingSeats
+          available_seats: (license.max_users ?? 0) - remainingSeats
         }
       });
       
       logger.info('Cleanup completed', { 
         removed: deleteResult.count,
         remaining: remainingSeats,
-        available: license.max_users - remainingSeats
+        available: (license.max_users ?? 0) - remainingSeats
       });
     }
     
@@ -115,6 +115,6 @@ export async function handler(
     
   } catch (err: any) {
     logger.error('Direct cleanup error', err, { requestId: context.awsRequestId });
-    return error(err instanceof Error ? err.message : 'Cleanup failed', 500, undefined, origin);
+    return error('Cleanup failed. Check logs for details.', 500, undefined, origin);
   }
 }

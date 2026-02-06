@@ -435,6 +435,6 @@ export async function handler(
     
   } catch (err) {
     logger.error('❌ Predict Incidents error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('An unexpected error occurred. Please try again.', 500);
   }
 }

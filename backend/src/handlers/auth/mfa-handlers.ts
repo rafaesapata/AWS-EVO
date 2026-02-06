@@ -96,7 +96,7 @@ export async function listFactorsHandler(
     
   } catch (err) {
     logger.error('MFA List Factors error', err as Error);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }
 
@@ -189,7 +189,7 @@ export async function enrollHandler(
     
   } catch (err) {
     logger.error('MFA Enroll error', err as Error);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }
 
@@ -352,7 +352,7 @@ export async function verifyHandler(
     
   } catch (err) {
     logger.error('MFA Verify error', err as Error);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }
 
@@ -411,7 +411,7 @@ export async function unenrollHandler(
     
   } catch (err) {
     logger.error('MFA Unenroll error', err as Error);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }
 
@@ -520,7 +520,7 @@ export async function checkHandler(
     
   } catch (err) {
     logger.error('MFA Check error', err as Error);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }
 
@@ -642,7 +642,7 @@ export async function verifyLoginHandler(
     
   } catch (err) {
     logger.error('MFA Verify Login error', err as Error);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }
 

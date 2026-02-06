@@ -23,8 +23,16 @@ export async function handler(
     return corsOptions();
   }
   
-  const user = getUserFromEvent(event);
-  const organizationId = getOrganizationIdWithImpersonation(event, user);
+  let user: ReturnType<typeof getUserFromEvent>;
+  let organizationId: string;
+  
+  try {
+    user = getUserFromEvent(event);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
+  } catch (authError) {
+    logger.error('Authentication error in generate-pdf-report', authError);
+    return error('Unauthorized', 401);
+  }
   
   logger.info('Generate PDF report started', { 
     organizationId,
@@ -182,7 +190,7 @@ export async function handler(
       userId: user.sub,
       requestId: context.awsRequestId 
     });
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('Failed to generate report. Please try again.', 500);
   }
 }
 

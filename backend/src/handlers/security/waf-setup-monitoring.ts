@@ -457,7 +457,7 @@ export async function handler(
       userId: user.sub,
       requestId: context.awsRequestId 
     });
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('An unexpected error occurred. Please try again.', 500);
   }
 }
 

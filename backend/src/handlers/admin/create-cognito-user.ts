@@ -236,6 +236,6 @@ export async function handler(
       return error('Invalid parameters: ' + err.message, 400);
     }
     
-    return error(err instanceof Error ? err.message : 'Internal server error', 500);
+    return error('Failed to create user. Please try again.', 500);
   }
 }

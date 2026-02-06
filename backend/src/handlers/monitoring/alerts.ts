@@ -164,6 +164,6 @@ export async function handler(
     
   } catch (err) {
     logger.error('❌ Alerts error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }

@@ -120,6 +120,6 @@ export async function handler(
     
   } catch (err) {
     logger.error('Migration error', err as Error, { requestId: context.awsRequestId });
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('Migration failed. Check logs for details.', 500);
   }
 }

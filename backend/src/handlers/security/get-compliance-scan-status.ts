@@ -88,7 +88,7 @@ export async function handler(
     
     return success({
       job_id: job.id,
-      job_name: job.job_name,
+      job_name: (job.payload as any)?.jobName || job.job_type,
       status: job.status,
       progress: result.progress || 0,
       message: result.message || '',
@@ -97,12 +97,12 @@ export async function handler(
       started_at: job.started_at,
       completed_at: job.completed_at,
       error: job.error,
-      parameters: job.parameters,
+      parameters: job.payload,
       scan_results: scanResults,
     }, 200, origin);
     
   } catch (err) {
     logger.error('Get compliance scan status error', err as Error);
-    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }

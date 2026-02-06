@@ -54,6 +54,6 @@ export async function handler(
     
   } catch (err) {
     logger.error('❌ Health check error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error', 503);
+    return error('Service temporarily unavailable', 503);
   }
 }

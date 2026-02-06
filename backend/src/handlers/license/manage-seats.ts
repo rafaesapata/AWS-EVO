@@ -261,7 +261,7 @@ export async function handler(
         
         const currentSeats = allSeats.filter((s: any) => !superAdminIds.has(s.user_id)).length;
         
-        if (currentSeats >= license.max_users) {
+        if (currentSeats >= (license.max_users ?? 0)) {
           return badRequest('No available seats. All seats are allocated.', undefined, origin);
         }
         
@@ -280,7 +280,7 @@ export async function handler(
           where: { id: license.id },
           data: {
             used_seats: currentSeats + 1,
-            available_seats: license.max_users - (currentSeats + 1)
+            available_seats: (license.max_users ?? 0) - (currentSeats + 1)
           }
         });
         
@@ -334,7 +334,7 @@ export async function handler(
           where: { id: seatAssignment.license.id },
           data: {
             used_seats: remainingSeats,
-            available_seats: seatAssignment.license.max_users - remainingSeats
+            available_seats: (seatAssignment.license.max_users ?? 0) - remainingSeats
           }
         });
         
@@ -396,7 +396,7 @@ export async function handler(
             where: { id: license.id },
             data: {
               used_seats: remainingSeats,
-              available_seats: license.max_users - remainingSeats
+              available_seats: (license.max_users ?? 0) - remainingSeats
             }
           });
         }

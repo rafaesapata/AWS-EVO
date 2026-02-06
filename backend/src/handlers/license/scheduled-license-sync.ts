@@ -137,7 +137,7 @@ async function checkExpiringLicenses(): Promise<void> {
 
   for (const license of expiringLicenses) {
     const daysRemaining = Math.ceil(
-      (license.valid_until.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      ((license.valid_until?.getTime() ?? Date.now()) - Date.now()) / (1000 * 60 * 60 * 24)
     );
 
     // Determine severity based on days remaining
@@ -168,12 +168,12 @@ async function checkExpiringLicenses(): Promise<void> {
           organization_id: license.organization_id,
           severity,
           title: `License Expiring in ${daysRemaining} days`,
-          message: `Your ${license.product_type || license.plan_type} license (${license.license_key}) will expire on ${license.valid_until.toISOString().split('T')[0]}. Please renew to avoid service interruption.`,
+          message: `Your ${license.product_type || license.plan_type} license (${license.license_key}) will expire on ${license.valid_until?.toISOString().split('T')[0] ?? 'N/A'}. Please renew to avoid service interruption.`,
           metadata: {
             license_id: license.id,
             license_key: license.license_key,
             product_type: license.product_type,
-            valid_until: license.valid_until.toISOString(),
+            valid_until: license.valid_until?.toISOString() ?? null,
             days_remaining: daysRemaining,
           } as any,
         },
@@ -255,7 +255,7 @@ async function cleanupOrphanSeatAssignments(): Promise<void> {
     );
     
     const expectedUsedSeats = nonSuperAdminSeats.length;
-    const expectedAvailableSeats = license.max_users - nonSuperAdminSeats.length;
+    const expectedAvailableSeats = (license.max_users ?? 0) - nonSuperAdminSeats.length;
 
     if (license.used_seats !== expectedUsedSeats || license.available_seats !== expectedAvailableSeats) {
       await prisma.license.update({

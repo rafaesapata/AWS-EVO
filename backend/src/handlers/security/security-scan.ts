@@ -425,7 +425,7 @@ async function securityScanHandler(
       logger.warn('Could not update scan status to failed', { error: (updateErr as Error).message });
     }
     
-    return error('Security scan failed: ' + (err as Error).message, 500, undefined, origin);
+    return error('Security scan failed. Please try again.', 500, undefined, origin);
   }
 }
 
