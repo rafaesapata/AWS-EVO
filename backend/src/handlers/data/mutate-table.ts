@@ -95,6 +95,9 @@ const TABLES_WITH_ORG_ID = new Set([
 // Tabelas que requerem permissão de admin para modificar
 const ADMIN_ONLY_TABLES = new Set([
   'organizations', 'users', 'profiles',
+  'audit_logs', 'security_events', 'security_findings',
+  'licenses', 'license_seat_assignments', 'organization_license_configs',
+  'webauthn_credentials',
 ]);
 
 interface MutateRequest {

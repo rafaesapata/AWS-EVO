@@ -221,7 +221,13 @@ export async function handler(
   const body = parseEventBody<QueryRequest & { action?: string; email?: string }>(event, {} as QueryRequest, 'query-table');
   
   // Special case: WebAuthn check without authentication
+  // SECURITY: Rate limit this to prevent user enumeration
   if (body.action === 'check-webauthn' && body.email) {
+    // Validate email format to prevent abuse
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(body.email)) {
+      return badRequest('Invalid email format', undefined, origin);
+    }
     return await handleWebAuthnCheck(body.email, origin);
   }
 

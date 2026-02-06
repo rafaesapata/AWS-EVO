@@ -56,14 +56,15 @@ model Organization {
 
 model Profile {
   id                String   @id @default(uuid()) @db.Uuid
-  user_id           String   @db.Uuid
+  user_id           String   // Cognito user ID (text, not uuid)
   email             String
+  name              String?  // Legacy column - use full_name instead
   organization_id   String   @db.Uuid
-  full_name         String?
-  avatar_url        String?
-  role              String?  @default("user")
+  role              String   @default("user")
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  full_name         String?
+  avatar_url        String?
   
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   
@@ -373,10 +374,8 @@ model BackgroundJob {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
   job_type          String
-  job_name          String
-  schedule          String?
-  parameters        Json?
   status            String   @default("pending")
+  payload           Json?
   result            Json?
   error             String?
   started_at        DateTime? @db.Timestamptz(6)
@@ -456,25 +455,25 @@ model KnowledgeBaseComment {
 model License {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
-  license_key       String   @unique
   customer_id       String?
-  plan_type         String
+  license_key       String   @unique
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  plan_type         String?
   product_type      String?  // pilotone, enterprise, etc.
-  max_accounts      Int
-  max_users         Int      // total_seats from external API
-  used_seats        Int      @default(0)
-  available_seats   Int      @default(0)
+  max_accounts      Int?
+  max_users         Int?     // total_seats from external API
+  used_seats        Int?     @default(0)
+  available_seats   Int?     @default(0)
   features          String[]
-  valid_from        DateTime @db.Timestamptz(6)
-  valid_until       DateTime @db.Timestamptz(6)
+  valid_from        DateTime? @db.Timestamptz(6)
+  valid_until       DateTime? @db.Timestamptz(6)
   is_active         Boolean  @default(true)
   is_trial          Boolean  @default(false)
   is_expired        Boolean  @default(false)
   days_remaining    Int?
   last_sync_at      DateTime? @db.Timestamptz(6)
   sync_error        String?
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime @updatedAt @db.Timestamptz(6)
   
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   seat_assignments  LicenseSeatAssignment[]
@@ -556,14 +555,15 @@ model DailyCost {
   id              String   @id @default(uuid()) @db.Uuid
   organization_id String   @db.Uuid
   aws_account_id  String   @db.Uuid
-  cloud_provider  CloudProvider @default(AWS)
-  azure_credential_id String? @db.Uuid
   date            DateTime @db.Date
   service         String
   cost            Float    @default(0)
-  usage           Float?   @default(0)
-  currency        String?  @default("USD")
+  region          String?
   created_at      DateTime @default(now()) @db.Timestamptz(6)
+  cloud_provider  CloudProvider? @default(AWS)
+  azure_credential_id String? @db.Uuid
+  usage           Float?   @default(0)
+  currency        String?  @default("USD") @db.VarChar
   
   @@unique([organization_id, aws_account_id, date, service])
   @@index([organization_id])
@@ -1344,16 +1344,16 @@ model MLAnalysisHistory {
 
 model MfaFactor {
   id                String   @id @default(uuid()) @db.Uuid
-  user_id           String   @db.Uuid
+  user_id           String   // Cognito user ID (text, not uuid)
   factor_type       String   // 'totp', 'sms', 'email'
-  friendly_name     String?
   secret            String
-  status            String   @default("pending") // 'pending', 'verified', 'disabled'
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  friendly_name     String?  @db.VarChar
+  status            String?  @db.VarChar // 'pending', 'verified', 'disabled'
   is_active         Boolean  @default(true)
   verified_at       DateTime? @db.Timestamptz(6)
   deactivated_at    DateTime? @db.Timestamptz(6)
   last_used_at      DateTime? @db.Timestamptz(6)
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
   
   @@index([user_id])
   @@index([is_active])
@@ -2443,4 +2443,44 @@ model OrganizationEmailSettings {
   @@index([is_enabled])
   @@index([next_scheduled_at])
   @@map("organization_email_settings")
+}
+
+// ==================== RESOURCE COMMENTS ====================
+// Comentários em recursos (findings, tickets, etc.)
+
+model ResourceComment {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  resource_type   String
+  resource_id     String
+  user_id         String   @db.Uuid
+  content         String
+  parent_id       String?  @db.Uuid
+  mentions        Json?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+  
+  mention_notifications MentionNotification[]
+  
+  @@index([organization_id])
+  @@index([resource_type, resource_id])
+  @@map("resource_comments")
+}
+
+// ==================== MENTION NOTIFICATIONS ====================
+// Notificações de menções em comentários
+
+model MentionNotification {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  user_id         String   @db.Uuid
+  comment_id      String   @db.Uuid
+  is_read         Boolean  @default(false)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  
+  comment         ResourceComment @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([is_read])
+  @@map("mention_notifications")
 }

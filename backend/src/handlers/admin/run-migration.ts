@@ -5,10 +5,11 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, corsOptions, unauthorized } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
+import { getUserFromEvent, isSuperAdmin } from '../../lib/auth.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -22,6 +23,14 @@ export async function handler(
   }
   
   try {
+    // CRITICAL: Only super_admin can run migrations
+    const user = getUserFromEvent(event);
+    if (!isSuperAdmin(user)) {
+      logger.warn('Unauthorized migration attempt', { userId: user.sub, email: user.email });
+      return unauthorized('Only super_admin can run database migrations', origin);
+    }
+    
+    logger.info('Migration authorized', { userId: user.sub });
     const prisma = getPrismaClient();
     const results: string[] = [];
     

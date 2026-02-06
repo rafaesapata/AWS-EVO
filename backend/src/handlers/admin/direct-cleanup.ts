@@ -3,9 +3,10 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, corsOptions, unauthorized } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { getUserFromEvent, isSuperAdmin } from '../../lib/auth.js';
 
 function getOriginFromEvent(event: AuthorizedEvent): string {
   const headers = event.headers || {};
@@ -24,7 +25,14 @@ export async function handler(
   }
 
   try {
-    logger.info('Direct cleanup started', { requestId: context.awsRequestId });
+    // CRITICAL: Only super_admin can run direct cleanup
+    const user = getUserFromEvent(event);
+    if (!isSuperAdmin(user)) {
+      logger.warn('Unauthorized direct-cleanup attempt', { userId: user.sub });
+      return unauthorized('Only super_admin can run direct cleanup', origin);
+    }
+    
+    logger.info('Direct cleanup started', { requestId: context.awsRequestId, userId: user.sub });
     
     const prisma = getPrismaClient();
     

@@ -47,17 +47,9 @@ export async function handler(
     return corsOptions(origin);
   }
 
-  // DEBUG: Log the entire authorizer context to understand the structure
-  logger.info('DEBUG: Event authorizer context', {
+  // Log minimal auth context for debugging (no sensitive data)
+  logger.info('Save AWS credentials request', {
     hasAuthorizer: !!event.requestContext?.authorizer,
-    authorizerKeys: event.requestContext?.authorizer ? Object.keys(event.requestContext.authorizer) : [],
-    hasClaims: !!event.requestContext?.authorizer?.claims,
-    hasJwtClaims: !!event.requestContext?.authorizer?.jwt?.claims,
-    claimsKeys: event.requestContext?.authorizer?.claims ? Object.keys(event.requestContext.authorizer.claims) : [],
-    jwtClaimsKeys: event.requestContext?.authorizer?.jwt?.claims ? Object.keys(event.requestContext.authorizer.jwt.claims) : [],
-    // Log specific claim values
-    orgIdFromClaims: event.requestContext?.authorizer?.claims?.['custom:organization_id'],
-    orgIdFromJwt: event.requestContext?.authorizer?.jwt?.claims?.['custom:organization_id'],
     origin: origin,
   });
 
@@ -66,12 +58,6 @@ export async function handler(
 
   try {
     const user = getUserFromEvent(event);
-    logger.info('DEBUG: User from event', {
-      sub: user.sub,
-      email: user.email,
-      orgId: user['custom:organization_id'],
-      userKeys: Object.keys(user),
-    });
     userId = user.sub || user.id || 'unknown';
     organizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (authError: any) {
@@ -111,7 +97,7 @@ export async function handler(
     if (body.secret_access_key.startsWith('EXTERNAL_ID:')) {
       actualExternalId = body.secret_access_key.substring(12); // Extract external_id after "EXTERNAL_ID:"
       actualSecretAccessKey = ''; // Clear secret since we're using role
-      logger.info('Extracted external_id from secret_access_key', { externalId: actualExternalId });
+      logger.info('Extracted external_id from secret_access_key');
     }
     
     const prisma = getPrismaClient();

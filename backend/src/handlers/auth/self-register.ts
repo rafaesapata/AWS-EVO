@@ -447,9 +447,11 @@ export async function handler(
     }
 
     // Check if company with same tax ID already exists
+    // Escape LIKE special characters to prevent pattern injection
+    const escapedTaxId = company.taxId.replace(/[%_\\]/g, '\\$&');
     const existingOrg = await prisma.$queryRaw<any[]>`
       SELECT id FROM organizations 
-      WHERE slug LIKE ${`%${company.taxId}%`}
+      WHERE slug LIKE ${'%' + escapedTaxId + '%'}
       LIMIT 1
     `;
 

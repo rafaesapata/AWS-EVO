@@ -144,7 +144,7 @@ export async function handler(
           { Name: 'custom:tenant_id', Value: organizationId }
         ],
         TemporaryPassword: password,
-        MessageAction: sendInvite ? 'RESEND' : 'SUPPRESS'
+        MessageAction: sendInvite ? undefined : 'SUPPRESS'
       }));
 
       cognitoUserId = cognitoResponse.User?.Username;
@@ -358,17 +358,12 @@ async function performRollback(rollbackData: {
       
       // Use transaction to ensure all database cleanup happens atomically
       await prisma.$transaction(async (tx) => {
-        // Delete profile first (foreign key constraint)
-        await tx.profile.deleteMany({
-          where: { user_id: databaseUserId }
-        });
-        
-        // Delete audit logs
+        // Delete audit logs first
         await tx.auditLog.deleteMany({
           where: { resource_id: databaseUserId, resource_type: 'USER' }
         });
         
-        // Delete profile (não mais tabela users)
+        // Delete profile
         await tx.profile.deleteMany({
           where: { user_id: databaseUserId }
         });

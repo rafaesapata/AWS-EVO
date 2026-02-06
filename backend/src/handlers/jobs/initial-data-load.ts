@@ -68,9 +68,15 @@ export async function handler(
     // Usar regiões solicitadas ou padrão
     const regions = requestedRegions || ['us-east-1'];
 
-    // Assume role
+    // Assume role - use the AWS account ID (12-digit number), not the database UUID
+    // awsAccount.account_id should be the AWS account number from the aws_accounts table
+    const awsAccountNumber = awsAccount.account_id;
+    if (!awsAccountNumber || !/^\d{12}$/.test(awsAccountNumber)) {
+      return badRequest('Invalid AWS account ID format. Expected 12-digit AWS account number.', undefined, origin);
+    }
+    
     const assumeRoleResponse = await stsClient.send(new AssumeRoleCommand({
-      RoleArn: `arn:aws:iam::${awsAccount.account_id}:role/EvoUdsRole`,
+      RoleArn: `arn:aws:iam::${awsAccountNumber}:role/EvoUdsRole`,
       RoleSessionName: 'InitialDataLoadSession',
       DurationSeconds: 3600
     }));

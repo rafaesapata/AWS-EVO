@@ -231,8 +231,10 @@ async function processJob(prisma: any, lambdaClient: LambdaClient, job: any): Pr
       requestContext: {
         authorizer: {
           claims: {
-            sub: 'background-job-processor',
-            'custom:organization_id': job.organization_id
+            sub: `system-job-${job.id}`,
+            email: 'system@evo-platform.internal',
+            'custom:organization_id': job.organization_id,
+            'custom:roles': '["system"]'
           }
         },
         http: { method: 'POST' }

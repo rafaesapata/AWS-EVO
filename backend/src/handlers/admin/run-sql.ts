@@ -92,10 +92,35 @@ export async function handler(
       }
     }
 
+    // MILITARY GRADE: Validate that query only references allowed tables
+    const sqlLower = sql.toLowerCase();
+    const tablePattern = /(?:from|join|into|update|table)\s+([a-z_][a-z0-9_]*)/gi;
+    let tableMatch;
+    const referencedTables: string[] = [];
+    while ((tableMatch = tablePattern.exec(sqlLower)) !== null) {
+      referencedTables.push(tableMatch[1]);
+    }
+    
+    const disallowedTables = referencedTables.filter(t => !ALLOWED_TABLES.includes(t));
+    if (disallowedTables.length > 0) {
+      logger.warn('SQL references disallowed tables', { 
+        userId: user.sub, 
+        disallowedTables,
+        sql: sql.substring(0, 200) 
+      });
+      return badRequest(`Query references restricted tables: ${disallowedTables.join(', ')}`);
+    }
+
+    // MILITARY GRADE: Block semicolons entirely to prevent statement chaining
+    if (sql.includes(';')) {
+      return badRequest('Multiple statements are not allowed');
+    }
+
     // MILITARY GRADE: Audit log the query
     logger.info('Admin SQL query executed', { 
       userId: user.sub, 
       sql: sql.substring(0, 500),
+      referencedTables,
       requestId: context.awsRequestId 
     });
     

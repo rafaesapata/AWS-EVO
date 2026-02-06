@@ -25,12 +25,18 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
   // Handle CORS preflight FIRST
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
-  const user = getUserFromEvent(event);
+  let user;
+  try {
+    user = getUserFromEvent(event);
+  } catch (authErr) {
+    return error('Authentication failed', 401, undefined, origin);
+  }
   
   logger.info('Create profile with organization started', { 
     userId: user.sub,
@@ -105,12 +111,12 @@ export async function handler(
       profileId: profile.id,
       organizationId: organization.id,
       organizationName: organization.name,
-    });
+    }, 200, origin);
   } catch (err) {
     logger.error('Create profile with organization error', err as Error, { 
       userId: user.sub,
       requestId: context.awsRequestId 
     });
-    return error('Erro ao criar profile com organização');
+    return error('Erro ao criar profile com organização', 500, undefined, origin);
   }
 }

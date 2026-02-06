@@ -144,9 +144,21 @@ export async function handler(
 async function invokeLambda(functionName: string, payload: any): Promise<any> {
   const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
   
+  // Map logical names to actual Lambda function names
+  const functionNameMap: Record<string, string> = {
+    'SecurityScan': 'security-scan',
+    'ComplianceScan': 'compliance-scan',
+    'GuardDutyScan': 'guardduty-scan',
+    'FinopsCopilot': 'cost-optimization',
+    'SyncOrganizationAccounts': 'sync-organization-accounts',
+  };
+  
+  const actualName = functionNameMap[functionName] || functionName;
+  const prefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
+  
   const response = await lambdaClient.send(
     new InvokeCommand({
-      FunctionName: `evo-uds-${process.env.ENVIRONMENT || 'dev'}-${functionName}`,
+      FunctionName: `${prefix}-${actualName}`,
       InvocationType: 'RequestResponse',
       Payload: JSON.stringify(payload),
     })

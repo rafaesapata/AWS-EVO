@@ -2,10 +2,14 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
  * Lambda handler for Process Events
  * AWS Lambda Handler for process-events
+ * 
+ * SECURITY NOTE: This handler processes events from ALL organizations.
+ * It should ONLY be triggered by EventBridge or internal invocation,
+ * NOT exposed via API Gateway to end users.
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, corsOptions, unauthorized } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 
@@ -15,6 +19,24 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
+  }
+  
+  // Only allow EventBridge or internal invocations
+  const isEventBridge = (event as any)['detail-type'] || (event as any).source === 'aws.events';
+  const isInternalInvocation = !event.requestContext?.apiId;
+  
+  if (!isEventBridge && !isInternalInvocation) {
+    // If called via API Gateway, require super_admin
+    try {
+      const { getUserFromEvent, isSuperAdmin } = await import('../../lib/auth.js');
+      const user = getUserFromEvent(event);
+      if (!isSuperAdmin(user)) {
+        logger.warn('Unauthorized process-events attempt via API', { userId: user.sub });
+        return unauthorized('Only system or super_admin can trigger event processing');
+      }
+    } catch {
+      return unauthorized('Authentication required');
+    }
   }
   
   logger.info('Process Events started', { requestId: context.awsRequestId });

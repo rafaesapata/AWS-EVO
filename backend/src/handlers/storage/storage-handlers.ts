@@ -58,7 +58,11 @@ export async function uploadHandler(
     const { fileName, contentType, content, bucket, path } = validation.data;
     
     const bucketName = bucket || DEFAULT_BUCKET;
-    const key = path || `${organizationId}/${Date.now()}-${fileName}`;
+    
+    // SECURITY: Ensure path is scoped to the organization
+    // Prevent path traversal attacks
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const key = `${organizationId}/${Date.now()}-${sanitizedFileName}`;
     
     if (content) {
       // Direct upload with content
