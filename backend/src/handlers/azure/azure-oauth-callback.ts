@@ -36,7 +36,7 @@ import { parseAndValidateBody } from '../../lib/validation.js';
 // OAuth configuration from environment
 const AZURE_OAUTH_CLIENT_ID = process.env.AZURE_OAUTH_CLIENT_ID;
 const AZURE_OAUTH_CLIENT_SECRET = process.env.AZURE_OAUTH_CLIENT_SECRET;
-const AZURE_OAUTH_REDIRECT_URI = process.env.AZURE_OAUTH_REDIRECT_URI || 'https://evo.ai.udstec.io/azure/callback';
+const AZURE_OAUTH_REDIRECT_URI = process.env.AZURE_OAUTH_REDIRECT_URI || 'https://evo.nuevacore.com/azure/callback';
 
 // Validation schema
 const callbackSchema = z.object({

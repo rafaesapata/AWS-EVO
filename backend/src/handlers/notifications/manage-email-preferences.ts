@@ -49,13 +49,14 @@ const requestSchema = z.discriminatedUnion('action', [
 ]);
 
 // Platform URLs
+const PLATFORM_BASE_URL = process.env.PLATFORM_BASE_URL || 'https://evo.nuevacore.com';
 const PLATFORM_URLS = {
-  base: 'https://evo.ai.udstec.io',
-  dashboard: 'https://evo.ai.udstec.io/dashboard',
-  reports: 'https://evo.ai.udstec.io/reports',
-  alerts: 'https://evo.ai.udstec.io/alerts',
-  securityScans: 'https://evo.ai.udstec.io/security-scans',
-  costAnalysis: 'https://evo.ai.udstec.io/cost-analysis',
+  base: PLATFORM_BASE_URL,
+  dashboard: `${PLATFORM_BASE_URL}/dashboard`,
+  reports: `${PLATFORM_BASE_URL}/reports`,
+  alerts: `${PLATFORM_BASE_URL}/alerts`,
+  securityScans: `${PLATFORM_BASE_URL}/security-scans`,
+  costAnalysis: `${PLATFORM_BASE_URL}/cost-analysis`,
 } as const;
 
 // Notification types with descriptions

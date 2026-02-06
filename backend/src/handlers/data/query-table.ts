@@ -444,7 +444,7 @@ export async function handler(
     const results = await model.findMany({
       where,
       orderBy,
-      take: body.limit || 10000, // Increased default limit for export functionality
+      take: Math.min(body.limit || 1000, 10000), // Cap at 10000 to prevent DoS
       skip: body.offset || 0,  // Add offset support for pagination
     });
     

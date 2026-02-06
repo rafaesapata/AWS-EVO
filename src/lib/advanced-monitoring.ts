@@ -92,6 +92,7 @@ export class AdvancedMonitoringManager {
   private userAnalyticsBuffer: UserAnalytics[] = [];
   private businessMetricsBuffer: BusinessMetrics[] = [];
   private isRunning = false;
+  private intervalIds: ReturnType<typeof setInterval>[] = [];
 
   constructor(config: Partial<MonitoringConfig> = {}) {
     this.config = {
@@ -403,10 +404,10 @@ export class AdvancedMonitoringManager {
   private startPerformanceMonitoring(): void {
     if (!this.config.enablePerformanceMonitoring) return;
 
-    setInterval(() => {
+    this.intervalIds.push(setInterval(() => {
       const metrics = this.collectPerformanceMetrics();
       this.recordPerformanceMetrics(metrics);
-    }, 30000); // Every 30 seconds
+    }, 30000)); // Every 30 seconds
   }
 
   /**
@@ -415,10 +416,10 @@ export class AdvancedMonitoringManager {
   private startUserAnalytics(): void {
     if (!this.config.enableUserAnalytics) return;
 
-    setInterval(() => {
+    this.intervalIds.push(setInterval(() => {
       const analytics = this.collectUserAnalytics();
       this.recordUserAnalytics(analytics);
-    }, 60000); // Every minute
+    }, 60000)); // Every minute
   }
 
   /**
@@ -427,28 +428,43 @@ export class AdvancedMonitoringManager {
   private startBusinessMetrics(): void {
     if (!this.config.enableBusinessMetrics) return;
 
-    setInterval(() => {
+    this.intervalIds.push(setInterval(() => {
       const metrics = this.collectBusinessMetrics();
       this.recordBusinessMetrics(metrics);
-    }, 300000); // Every 5 minutes
+    }, 300000)); // Every 5 minutes
   }
 
   /**
    * Start alert processing loop
    */
   private startAlertProcessing(): void {
-    setInterval(() => {
+    this.intervalIds.push(setInterval(() => {
       this.processAlerts();
-    }, 10000); // Every 10 seconds
+    }, 10000)); // Every 10 seconds
   }
 
   /**
    * Start data retention cleanup
    */
   private startDataRetention(): void {
-    setInterval(() => {
+    this.intervalIds.push(setInterval(() => {
       this.cleanupOldData();
-    }, 3600000); // Every hour
+    }, 3600000)); // Every hour
+  }
+
+  /**
+   * Destroy monitoring manager and clean up all intervals
+   */
+  destroy(): void {
+    this.intervalIds.forEach(id => clearInterval(id));
+    this.intervalIds = [];
+    this.events = [];
+    this.performanceBuffer = [];
+    this.userAnalyticsBuffer = [];
+    this.businessMetricsBuffer = [];
+    this.alerts.clear();
+    this.isRunning = false;
+    logger.info('Advanced monitoring system destroyed');
   }
 
   /**

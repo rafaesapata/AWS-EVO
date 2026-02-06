@@ -303,9 +303,10 @@ function calculateNextScheduled(frequency: string, now: Date): Date {
 }
 
 // Platform URLs
+const PLATFORM_BASE_URL = process.env.PLATFORM_BASE_URL || 'https://evo.nuevacore.com';
 const PLATFORM_URLS = {
-  dashboard: 'https://evo.ai.udstec.io/dashboard',
-  reports: 'https://evo.ai.udstec.io/reports',
+  dashboard: `${PLATFORM_BASE_URL}/dashboard`,
+  reports: `${PLATFORM_BASE_URL}/reports`,
 } as const;
 
 // Color constants for email styling

@@ -399,7 +399,7 @@ export async function handler(
                           .replace('{suggested_action}', notificationData.suggested_action)
                           .replace('{priority}', priority)
                           .replace('{organizationName}', org.name)
-                          .replace('{dashboardUrl}', 'https://evo.ai.udstec.io/dashboard');
+                          .replace('{dashboardUrl}', process.env.PLATFORM_BASE_URL ? `${process.env.PLATFORM_BASE_URL}/dashboard` : 'https://evo.nuevacore.com/dashboard');
 
                         const emailResult = await emailService.sendEmail({
                           to: { email: recipientEmail },

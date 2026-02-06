@@ -16,7 +16,7 @@ import * as crypto from 'crypto';
 
 // NOTE: MFA is implemented locally using TOTP, not via Cognito MFA
 // The Cognito SDK is NOT needed for this handler
-const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'us-east-1_cnesJ48lR';
+const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'us-east-1_HPU98xnmT';
 
 // MFA List Factors Handler
 export async function listFactorsHandler(
@@ -390,6 +390,19 @@ export async function unenrollHandler(
     const { factorId } = parseResult.data;
     const prisma = getPrismaClient();
     
+    // SECURITY: Verify the factor belongs to the authenticated user before deactivating
+    const factor = await prisma.mfaFactor.findFirst({
+      where: {
+        id: factorId,
+        user_id: user.sub
+      }
+    });
+    
+    if (!factor) {
+      logger.warn('MFA Unenroll: Factor not found or does not belong to user', { factorId, userId: user.sub });
+      return badRequest('Factor not found', undefined, origin);
+    }
+    
     // Deactivate factor using Prisma
     try {
       await prisma.mfaFactor.update({
@@ -400,7 +413,7 @@ export async function unenrollHandler(
         }
       });
     } catch (e) {
-      logger.warn('Factor not found in mfa_factors, may be webauthn');
+      logger.warn('Failed to deactivate factor', { factorId, error: (e as Error).message });
     }
     
     return success({

@@ -336,7 +336,7 @@ async function finishAuthentication(
     }
 
     // Verificar origin (proteção contra phishing)
-    const expectedOrigin = process.env.WEBAUTHN_ORIGIN || 'https://evo.ai.udstec.io';
+    const expectedOrigin = process.env.WEBAUTHN_ORIGIN || 'https://evo.nuevacore.com';
     if (clientData.origin !== expectedOrigin) {
       logger.warn('Origin mismatch in WebAuthn authentication', {
         expected: expectedOrigin,

@@ -30,7 +30,7 @@ const TRIAL_MAX_USERS = 3;
 const TRIAL_FEATURES = ['security_scan', 'cost_analysis', 'compliance_basic'];
 
 // Application URLs
-const EVO_LOGIN_URL = 'https://evo.ai.udstec.io/auth';
+const EVO_LOGIN_URL = process.env.EVO_LOGIN_URL || 'https://evo.nuevacore.com/auth';
 
 // Validation schema
 const addressSchema = z.object({
@@ -60,7 +60,7 @@ const registerSchema = z.object({
 });
 
 // Cognito configuration
-const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'us-east-1_cnesJ48lR';
+const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'us-east-1_HPU98xnmT';
 const COGNITO_REGION = process.env.AWS_REGION || 'us-east-1';
 
 // External License API configuration
@@ -68,6 +68,9 @@ const LICENSE_API_URL = process.env.LICENSE_API_URL || 'https://mhutjgpipiklepvj
 const LICENSE_API_KEY = process.env.LICENSE_API_KEY || 'nck_59707b56bf8def71dfb657bb8f2f4b9c';
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: COGNITO_REGION });
+
+// In-memory rate limiting for registration (per Lambda instance)
+const registrationAttempts = new Map<string, number[]>();
 
 /**
  * Generate a local fallback trial license when external API fails
@@ -126,14 +129,23 @@ async function createTrialLicense(
       companyName 
     });
 
-    const response = await fetch(LICENSE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': LICENSE_API_KEY
-      },
-      body: JSON.stringify(requestBody)
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+
+    let response: Response;
+    try {
+      response = await fetch(LICENSE_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': LICENSE_API_KEY
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const responseText = await response.text();
     
@@ -417,6 +429,27 @@ export async function handler(
   }
 
   const startTime = Date.now();
+  
+  // SECURITY: Basic IP-based rate limiting for public endpoint
+  const sourceIp = event.requestContext?.http?.sourceIp || event.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute window
+  const maxRequests = 3; // Max 3 registrations per minute per IP
+  
+  if (!registrationAttempts.has(sourceIp)) {
+    registrationAttempts.set(sourceIp, []);
+  }
+  const attempts = registrationAttempts.get(sourceIp)!;
+  // Clean old entries
+  const recentAttempts = attempts.filter(t => now - t < windowMs);
+  registrationAttempts.set(sourceIp, recentAttempts);
+  
+  if (recentAttempts.length >= maxRequests) {
+    logger.warn('Registration rate limit exceeded', { sourceIp, attempts: recentAttempts.length });
+    return error('Too many registration attempts. Please try again later.', 429);
+  }
+  recentAttempts.push(now);
+  
   logger.info('Self-registration request received');
 
   try {
@@ -493,19 +526,34 @@ export async function handler(
     }
 
     // Create profile
-    await prisma.$executeRaw`
-      INSERT INTO profiles (id, user_id, email, organization_id, full_name, role, created_at, updated_at)
-      VALUES (
-        ${randomUUID()}::uuid,
-        ${userId},
-        ${email},
-        ${organizationId}::uuid,
-        ${fullName},
-        'org_admin',
-        NOW(),
-        NOW()
-      )
-    `;
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO profiles (id, user_id, email, organization_id, full_name, role, created_at, updated_at)
+        VALUES (
+          ${randomUUID()}::uuid,
+          ${userId},
+          ${email},
+          ${organizationId}::uuid,
+          ${fullName},
+          'org_admin',
+          NOW(),
+          NOW()
+        )
+      `;
+    } catch (profileError: any) {
+      // Rollback: delete Cognito user and organization
+      logger.error('Failed to create profile, rolling back Cognito user and organization', { error: profileError.message });
+      try {
+        await cognitoClient.send(new (await import('@aws-sdk/client-cognito-identity-provider')).AdminDeleteUserCommand({
+          UserPoolId: COGNITO_USER_POOL_ID,
+          Username: email
+        }));
+      } catch (rollbackErr) {
+        logger.error('Failed to rollback Cognito user', { error: (rollbackErr as Error).message });
+      }
+      await prisma.$executeRaw`DELETE FROM organizations WHERE id = ${organizationId}::uuid`;
+      throw profileError;
+    }
 
     logger.info('Profile created', { userId });
 

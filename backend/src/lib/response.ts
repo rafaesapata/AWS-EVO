@@ -84,8 +84,8 @@ export function error(
 ): APIGatewayProxyResultV2 {
   console.error('Error response:', { message, statusCode, details });
   
-  // Don't expose internal details in production
-  const sanitizedDetails = process.env.NODE_ENV === 'production' ? undefined : details;
+  // Never expose internal details to clients - always sanitize
+  const sanitizedDetails = (process.env.NODE_ENV === 'development' && process.env.IS_LOCAL === 'true') ? details : undefined;
   
   return {
     statusCode,

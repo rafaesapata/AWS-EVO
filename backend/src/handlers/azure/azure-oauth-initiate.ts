@@ -31,7 +31,7 @@ import {
 
 // OAuth configuration from environment
 const AZURE_OAUTH_CLIENT_ID = process.env.AZURE_OAUTH_CLIENT_ID;
-const AZURE_OAUTH_REDIRECT_URI = process.env.AZURE_OAUTH_REDIRECT_URI || 'https://evo.ai.udstec.io/azure/callback';
+const AZURE_OAUTH_REDIRECT_URI = process.env.AZURE_OAUTH_REDIRECT_URI || 'https://evo.nuevacore.com/azure/callback';
 
 // Rate limiting configuration
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour

@@ -116,6 +116,21 @@ export async function handler(
       return badRequest('Multiple statements are not allowed');
     }
 
+    // Block subqueries that could reference restricted tables
+    const subqueryPattern = /\(\s*SELECT/i;
+    if (subqueryPattern.test(sql)) {
+      return badRequest('Subqueries are not allowed');
+    }
+
+    // Block information_schema and pg_catalog access
+    if (/information_schema|pg_catalog|pg_tables|pg_stat/i.test(sql)) {
+      return badRequest('System catalog access is not allowed');
+    }
+
+    // Enforce result limit to prevent memory exhaustion
+    const hasLimit = /\bLIMIT\s+\d+/i.test(sql);
+    const finalSql = hasLimit ? sql : `${sql} LIMIT 1000`;
+
     // MILITARY GRADE: Audit log the query
     logger.info('Admin SQL query executed', { 
       userId: user.sub, 
@@ -126,7 +141,7 @@ export async function handler(
     
     const prisma = getPrismaClient();
     
-    const results = await prisma.$queryRawUnsafe(sql);
+    const results = await prisma.$queryRawUnsafe(finalSql);
     
     logger.info('SQL completed', { 
       rowCount: Array.isArray(results) ? results.length : 1,
