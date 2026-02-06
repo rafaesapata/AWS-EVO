@@ -736,19 +736,6 @@ export const ResourceMonitoringDashboard = () => {
     setSelectedResourceType('all');
   }, [isAzure]);
 
-  // Agrupar métricas por recurso
-  const resourceMetrics = metrics?.reduce((acc: Record<string, { resource: ResourceMetric; metrics: ResourceMetric[] }>, metric: ResourceMetric) => {
-    const key = `${metric.resource_type}-${metric.resource_id}`;
-    if (!acc[key]) {
-      acc[key] = {
-        resource: metric,
-        metrics: []
-      };
-    }
-    acc[key].metrics.push(metric);
-    return acc;
-  }, {}) || {};
-
   // Estatísticas por tipo de recurso - usa tipos corretos baseado no provider
   const activeResourceTypes = useMemo(() => {
     return isAzure ? AZURE_RESOURCE_TYPES : AWS_RESOURCE_TYPES;
@@ -782,16 +769,23 @@ export const ResourceMonitoringDashboard = () => {
           .map(r => r.resource_id)
       );
       
-      // Contar quantos estão ativos/ligados
       const runningCount = activeResourceIds.size;
       
-      // Azure uses different metric names: "Percentage CPU" instead of "CPUUtilization"
+      // Calcular CPU média usando o Map pré-computado
       const cpuMetricName = isAzure ? 'Percentage CPU' : 'CPUUtilization';
-      const cpuMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
-          m.resource_type === type.value && 
-          m.metric_name === cpuMetricName &&
-          activeResourceIds.has(m.resource_id)
-        ) : [];
+      const cpuMetrics: ResourceMetric[] = [];
+      
+      for (const resId of activeResourceIds) {
+        const key = `${type.value}-${resId}`;
+        const resMetrics = metricsByResource.get(key);
+        if (resMetrics) {
+          for (const m of resMetrics) {
+            if (m.metric_name === cpuMetricName) {
+              cpuMetrics.push(m);
+            }
+          }
+        }
+      }
       
       const avgCpu = cpuMetrics.length > 0
         ? cpuMetrics.reduce((sum, m) => sum + Number(m.metric_value), 0) / cpuMetrics.length
@@ -806,7 +800,7 @@ export const ResourceMonitoringDashboard = () => {
         avgCpu: avgCpu !== null && !isNaN(avgCpu) ? avgCpu : null
       };
     });
-  }, [resources, metrics, activeResourceTypes, isAzure]);
+  }, [resources, metricsByResource, activeResourceTypes, isAzure]);
 
   // Auto-fetch: trigger refresh automatically when page loads with no data
   const hasTriggeredAutoFetch = useRef(false);
@@ -866,25 +860,28 @@ export const ResourceMonitoringDashboard = () => {
 
   // Se um recurso está selecionado, mostrar detalhamento
   if (selectedResource) {
-    // CRITICAL: Filtrar métricas com múltiplas estratégias de matching
-    const resourceSpecificMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => {
-      if (m.resource_type !== selectedResource.resource_type) return false;
-      
-      // Prioridade 1: Match exato de resource_id
-      if (m.resource_id === selectedResource.resource_id) return true;
-      
-      // Prioridade 2: Para API Gateway, verificar se resource_id começa com o apiName do metadata
+    // PERFORMANCE: Start with Map lookup O(1), then apply additional matching strategies
+    const resourceKey = `${selectedResource.resource_type}-${selectedResource.resource_id}`;
+    const directMetrics = metricsByResource.get(resourceKey) || [];
+    
+    // For most resources, direct match is sufficient
+    let resourceSpecificMetrics = directMetrics;
+    
+    // Additional matching for API Gateway and name-based matches
+    if (directMetrics.length === 0 && metrics && Array.isArray(metrics)) {
       const metadata = selectedResource.metadata as Record<string, any> | null;
-      if (selectedResource.resource_type === 'apigateway' && metadata?.apiName) {
-        if (m.resource_id.startsWith(`${metadata.apiName}::`)) return true;
-      }
-      
-      // Prioridade 3: Match por resource_name para recursos não-genéricos
       const isGenericName = ['Cluster Node', 'Worker', 'Node'].includes(selectedResource.resource_name);
-      if (!isGenericName && m.resource_name === selectedResource.resource_name) return true;
       
-      return false;
-    }) : [];
+      resourceSpecificMetrics = metrics.filter(m => {
+        if (m.resource_type !== selectedResource.resource_type) return false;
+        if (m.resource_id === selectedResource.resource_id) return true;
+        if (selectedResource.resource_type === 'apigateway' && metadata?.apiName) {
+          if (m.resource_id.startsWith(`${metadata.apiName}::`)) return true;
+        }
+        if (!isGenericName && m.resource_name === selectedResource.resource_name) return true;
+        return false;
+      });
+    }
 
     // Obter nomes únicos de métricas existentes
     const existingMetricNames = new Set(resourceSpecificMetrics.map(m => m.metric_name));
@@ -1145,17 +1142,12 @@ export const ResourceMonitoringDashboard = () => {
                 {filteredResources.map((resource: any) => {
                     const resourceKey = `${resource.resource_type}-${resource.resource_id}`;
                     
-                    // Buscar métricas deste recurso diretamente
-                    const resourceSpecificMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
-                      m.resource_id === resource.resource_id && 
-                      m.resource_type === resource.resource_type
-                    ) : [];
+                    // PERFORMANCE: Lookup O(1) via Map pré-computado
+                    const resourceSpecificMetrics = metricsByResource.get(resourceKey) || [];
                     
-                    // Definir métrica primária por tipo de recurso - com fallback para qualquer métrica
                     const primaryMetric = getPrimaryMetric(resourceSpecificMetrics, resource.resource_type);
                     const hasMetrics = resourceSpecificMetrics.length > 0;
                     
-                    // Formatar valor baseado no tipo de métrica
                     const formatPrimaryValue = () => {
                       if (!primaryMetric) return '';
                       return formatMetricValue(primaryMetric.metric_name, Number(primaryMetric.metric_value));
