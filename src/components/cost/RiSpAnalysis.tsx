@@ -643,7 +643,7 @@ export const RiSpAnalysis = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold text-green-600">
-              ${((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0) + (analysisData?.potentialSavings?.monthly || 0)).toFixed(2)}
+              ${((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Economia atual
@@ -694,7 +694,7 @@ export const RiSpAnalysis = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Utilização Média</span>
-                    <span className="text-sm font-semibold">{ri?.averageUtilization || 0}%</span>
+                    <span className="text-sm font-semibold">{(ri?.averageUtilization || 0).toFixed(1)}%</span>
                   </div>
                   <Progress value={ri?.averageUtilization || 0} />
                 </div>
@@ -717,7 +717,7 @@ export const RiSpAnalysis = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Utilização Média</span>
-                    <span className="text-sm font-semibold">{sp?.averageUtilization || 0}%</span>
+                    <span className="text-sm font-semibold">{(sp?.averageUtilization || 0).toFixed(1)}%</span>
                   </div>
                   <Progress value={sp?.averageUtilization || 0} />
                 </div>
@@ -725,7 +725,7 @@ export const RiSpAnalysis = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Cobertura Média</span>
-                    <span className="text-sm font-semibold">{sp?.averageCoverage || 0}%</span>
+                    <span className="text-sm font-semibold">{(sp?.averageCoverage || 0).toFixed(1)}%</span>
                   </div>
                   <Progress value={sp?.averageCoverage || 0} className="bg-blue-100" />
                 </div>

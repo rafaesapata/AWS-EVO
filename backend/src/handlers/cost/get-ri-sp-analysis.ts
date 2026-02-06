@@ -158,7 +158,7 @@ export async function handler(
         count: riCount,
         active: activeRiCount,
         averageUtilization: avgRiUtilization,
-        totalMonthlySavings: totalRiSavings / 12,
+        totalMonthlySavings: totalRiSavings,
         underutilized: underutilizedRis.map(ri => ({
           id: ri.reserved_instance_id,
           instanceType: ri.instance_type,
@@ -174,7 +174,7 @@ export async function handler(
         active: activeSpCount,
         averageUtilization: avgSpUtilization,
         averageCoverage: avgSpCoverage,
-        totalMonthlySavings: totalSpSavings / 12,
+        totalMonthlySavings: totalSpSavings,
         underutilized: underutilizedSps.map(sp => ({
           id: sp.savings_plan_id,
           type: sp.savings_plan_type,
