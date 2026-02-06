@@ -22,6 +22,7 @@ Globals:
         NODE_PATH: /opt/nodejs/node_modules
         DATABASE_URL: !Ref DatabaseUrl
         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+        COGNITO_CLIENT_ID: !Ref CognitoClientId
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
         LICENSE_API_URL: https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/validate-license
         LICENSE_API_KEY: nck_59707b56bf8def71dfb657bb8f2f4b9c

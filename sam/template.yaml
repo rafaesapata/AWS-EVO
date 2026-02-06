@@ -23,6 +23,7 @@ Globals:
         NODE_PATH: /opt/nodejs/node_modules
         DATABASE_URL: !Ref DatabaseUrl
         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+        COGNITO_CLIENT_ID: !Ref CognitoClientId
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
         LICENSE_API_URL: https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/validate-license
         LICENSE_API_KEY: nck_59707b56bf8def71dfb657bb8f2f4b9c
@@ -49,6 +50,10 @@ Parameters:
     Type: String
     Description: Existing Cognito User Pool ARN
     Default: arn:aws:cognito-idp:us-east-1:523115032346:userpool/us-east-1_WVljEXXs9
+  CognitoClientId:
+    Type: String
+    Description: Cognito User Pool Client ID
+    Default: a761ofnfjjo7u5mhpe2r54b7j
   LambdaSecurityGroupId:
     Type: String
     Description: Security Group for Lambda functions
