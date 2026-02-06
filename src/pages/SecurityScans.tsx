@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -213,6 +213,21 @@ export default function SecurityScans() {
  const scans: SecurityScan[] = scanData?.scans || [];
  const totalScans = scanData?.total || 0;
  const totalPages = Math.ceil(totalScans / itemsPerPage);
+
+ // Auto-refresh findings when scans transition from running/pending to completed
+ const hadActiveScansRef = useRef(false);
+ const hasActiveScans = scans.some(s => s.status === 'running' || s.status === 'pending');
+
+ useEffect(() => {
+ if (hasActiveScans) {
+   hadActiveScansRef.current = true;
+ } else if (hadActiveScansRef.current && scans.length > 0) {
+   // Scans just finished - invalidate findings so the tab shows fresh data
+   hadActiveScansRef.current = false;
+   queryClient.invalidateQueries({ queryKey: ['scan-findings'] });
+   queryClient.invalidateQueries({ queryKey: ['security-findings'] });
+ }
+ }, [hasActiveScans, scans.length, queryClient]);
 
  // Reset to first page when filters change
  const handleScanTypeChange = (scanType: string) => {

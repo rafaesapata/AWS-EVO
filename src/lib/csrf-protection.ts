@@ -36,7 +36,15 @@ export function initializeCSRF(): void {
 }
 
 export function refreshCSRFToken(): string {
-  // Generate new token and return it
+  // Generate new token and return it (call after login to prevent session fixation)
+  return generateCSRFToken();
+}
+
+/**
+ * Regenerate CSRF token after authentication state changes.
+ * Must be called after successful login to prevent session fixation attacks.
+ */
+export function regenerateCSRFOnAuth(): string {
   return generateCSRFToken();
 }
 

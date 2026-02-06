@@ -147,6 +147,8 @@ class CognitoAuthService {
     } catch (error: any) {
       console.error('🔐 Cognito error:', error.name, error.message, error);
       this.handleAuthError(error);
+      // handleAuthError always throws a user-friendly error
+      // This line is a safety net in case handleAuthError is modified
       throw error;
     }
   }

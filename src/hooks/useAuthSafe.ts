@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cognitoAuth, AuthSession, AuthUser } from '@/integrations/aws/cognito-client-simple';
+import { regenerateCSRFOnAuth } from '@/lib/csrf-protection';
 
 interface UseAuthSafeReturn {
   session: AuthSession | null;
@@ -66,6 +67,7 @@ export function useAuthSafe(): UseAuthSafeReturn {
     // Clear existing timer
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
     }
 
     try {
@@ -77,9 +79,15 @@ export function useAuthSafe(): UseAuthSafeReturn {
       const exp = payload.exp * 1000; // Convert to milliseconds
       const now = Date.now();
       
-      // Refresh 5 minutes before expiration (or immediately if less than 5 min left)
+      // If token is already expired, don't schedule (prevents tight loop)
+      if (exp <= now) {
+        console.warn('⚠️ Token already expired, skipping refresh schedule');
+        return;
+      }
+      
+      // Refresh 5 minutes before expiration (minimum 30 seconds to avoid tight loops)
       const refreshTime = exp - now - (5 * 60 * 1000);
-      const timeUntilRefresh = Math.max(refreshTime, 0);
+      const timeUntilRefresh = Math.max(refreshTime, 30 * 1000);
 
       console.log('🔄 Token refresh scheduled in', Math.round(timeUntilRefresh / 1000 / 60), 'minutes');
 
@@ -145,6 +153,9 @@ export function useAuthSafe(): UseAuthSafeReturn {
         console.log('🔐 [useAuthSafe] Login successful, setting session');
         setSession(result);
         setUser(result.user);
+        
+        // Regenerate CSRF token after successful login (prevent session fixation)
+        regenerateCSRFOnAuth();
         
         // Start auto-refresh timer
         scheduleTokenRefresh(result.accessToken);

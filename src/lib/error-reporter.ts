@@ -263,10 +263,9 @@ class ErrorReporter {
 
   private async sendError(report: ErrorReport): Promise<void> {
     try {
-      // Try to send to our logging endpoint
-      await apiClient.invoke('log-frontend-error', {
+      // Try to send to our logging endpoint (use public endpoint to avoid auth issues)
+      await apiClient.invokePublic('log-frontend-error', {
         body: report,
-        skipAuth: true, // Allow logging even when not authenticated
       });
     } catch (err) {
       // Fallback: log to console in development
@@ -277,12 +276,24 @@ class ErrorReporter {
   }
 
   private setupGlobalHandlers(): void {
-    // Capture unhandled errors
+    // Capture unhandled errors and chunk load errors in a single handler
     window.addEventListener('error', (event) => {
-      this.captureError(event.error || new Error(event.message), {
-        action: 'window.onerror',
-      });
-    });
+      // Check if it's a script/chunk load error
+      if (event.target && (event.target as HTMLElement).tagName === 'SCRIPT') {
+        const src = (event.target as HTMLScriptElement).src;
+        if (src.includes('chunk')) {
+          this.captureChunkLoadError(new Error(`Failed to load chunk: ${src}`), src);
+          return;
+        }
+      }
+      
+      // Regular error
+      if (event.error) {
+        this.captureError(event.error, {
+          action: 'window.onerror',
+        });
+      }
+    }, true); // Use capture phase to catch script errors
 
     // Capture unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
@@ -294,16 +305,6 @@ class ErrorReporter {
         action: 'unhandledrejection',
       });
     });
-
-    // Capture chunk load errors
-    window.addEventListener('error', (event) => {
-      if (event.target && (event.target as HTMLElement).tagName === 'SCRIPT') {
-        const src = (event.target as HTMLScriptElement).src;
-        if (src.includes('chunk')) {
-          this.captureChunkLoadError(new Error(`Failed to load chunk: ${src}`), src);
-        }
-      }
-    }, true);
   }
 
   private startFlushInterval(): void {

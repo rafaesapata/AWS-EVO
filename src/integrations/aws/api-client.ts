@@ -44,11 +44,19 @@ function getImpersonationOrgId(): string | null {
     if (stored) {
       const state = JSON.parse(stored);
       if (state.isImpersonating && state.impersonatedOrgId) {
+        // Validate UUID format to prevent injection
+        const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+        if (!uuidRegex.test(state.impersonatedOrgId)) {
+          console.error('🔐 Invalid impersonation org ID format, ignoring');
+          localStorage.removeItem(IMPERSONATION_KEY);
+          return null;
+        }
         return state.impersonatedOrgId;
       }
     }
   } catch {
     // Ignore parse errors
+    localStorage.removeItem(IMPERSONATION_KEY);
   }
   return null;
 }
@@ -124,7 +132,9 @@ class ApiClient {
         return false;
       } finally {
         isRefreshing = false;
-        refreshPromise = null;
+        // Delay clearing the promise so concurrent callers that just checked
+        // isRefreshing=true can still grab the promise reference
+        setTimeout(() => { refreshPromise = null; }, 100);
       }
     })();
 
@@ -211,12 +221,13 @@ class ApiClient {
       if (payload) {
         const orgId = payload['custom:organization_id'];
         
-        // CRITICAL: Validate UUID format - force logout if invalid
+        // CRITICAL: Validate UUID format - clear session if invalid
+        // Don't redirect here to avoid loops; let the caller handle null session
         const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
         if (orgId && !uuidRegex.test(orgId)) {
+          console.error('🔐 Invalid organization ID format in token, clearing session');
           await cognitoAuth.signOut();
-          window.location.href = '/auth?reason=session_expired';
-          throw new Error('Session expired. Please login again.');
+          throw new Error('Invalid session - please login again');
         }
       }
     }

@@ -111,11 +111,13 @@ export function usePaginatedFetch<TData = unknown>(
     ...initialFilters,
   });
 
+  const stableBaseKey = useMemo(() => baseQueryKey, [baseQueryKey.join(',')]);
+
   const queryKey = useMemo(() => [
-    ...baseQueryKey,
+    ...stableBaseKey,
     'paginated',
     filters,
-  ], [baseQueryKey, filters]);
+  ], [stableBaseKey, filters]);
 
   const query = useDataFetch(
     queryKey,
@@ -361,7 +363,7 @@ export function useRealtimeSubscription<TData>(
     return () => {
       clearInterval(pollInterval);
     };
-  }, [table, filter, enabled, onInsert, onUpdate, onDelete, queryClient]);
+  }, [table, filter, enabled, queryClient]);
 }
 
 /**

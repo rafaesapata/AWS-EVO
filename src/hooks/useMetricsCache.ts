@@ -119,7 +119,8 @@ export function useMetricsCache() {
     organizationId: string,
     period: MetricsPeriod,
     forceRefresh: boolean = false,
-    resourceType?: string // Novo parâmetro para filtrar por tipo de recurso
+    resourceType?: string, // Filtrar por tipo de recurso
+    resourceId?: string // Filtrar por recurso específico (detalhamento)
   ): Promise<Metric[]> => {
     // Se forceRefresh, limpar cache desta conta
     if (forceRefresh) {
@@ -140,9 +141,11 @@ export function useMetricsCache() {
           new Date(m.timestamp).getTime() >= cutoffTime
         );
         
-        // Filtrar por tipo de recurso se especificado
         if (resourceType) {
           filteredMetrics = filteredMetrics.filter(m => m.resource_type === resourceType);
+        }
+        if (resourceId) {
+          filteredMetrics = filteredMetrics.filter(m => m.resource_id === resourceId);
         }
         
         return filteredMetrics;
@@ -166,12 +169,20 @@ export function useMetricsCache() {
       if (resourceType) {
         queryFilters.resource_type = resourceType;
       }
+      if (resourceId) {
+        queryFilters.resource_id = resourceId;
+      }
       
-      // Buscar métricas do backend
+      // Calcular cutoff de timestamp baseado no período selecionado
+      const periodHours = PERIOD_CONFIG[period].hours;
+      const cutoffTime = new Date(Date.now() - (periodHours * 60 * 60 * 1000)).toISOString();
+      
+      // Buscar métricas do backend com filtro de timestamp no servidor
       const metricsResponse = await apiClient.select('resource_metrics', {
         eq: queryFilters,
+        gte: { timestamp: cutoffTime },
         order: { column: 'timestamp', ascending: false },
-        limit: resourceType ? 1000 : 2000 // Limite menor se filtrando por tipo específico
+        limit: resourceId ? 500 : resourceType ? 1000 : 2000
       });
       
       const newMetrics = (metricsResponse.data || []) as Metric[];
@@ -227,15 +238,17 @@ export function useMetricsCache() {
       setLastUpdate(Date.now());
       
       // Retornar dados filtrados pelo período solicitado
-      const periodHours = PERIOD_CONFIG[period].hours;
-      const cutoffTime = Date.now() - (periodHours * 60 * 60 * 1000);
+      const periodHoursFilter = PERIOD_CONFIG[period].hours;
+      const cutoffTimeFilter = Date.now() - (periodHoursFilter * 60 * 60 * 1000);
       let filteredMetrics = mergedMetrics.filter(m => 
-        new Date(m.timestamp).getTime() >= cutoffTime
+        new Date(m.timestamp).getTime() >= cutoffTimeFilter
       );
       
-      // Filtrar por tipo de recurso se especificado
       if (resourceType) {
         filteredMetrics = filteredMetrics.filter(m => m.resource_type === resourceType);
+      }
+      if (resourceId) {
+        filteredMetrics = filteredMetrics.filter(m => m.resource_id === resourceId);
       }
       
       return filteredMetrics;

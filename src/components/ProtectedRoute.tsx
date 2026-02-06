@@ -21,20 +21,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Verificar sessão local primeiro (fallback)
-        const localAuth = localStorage.getItem('evo-auth');
-        if (localAuth) {
-          const authData = JSON.parse(localAuth);
-          // Verificar se não expirou (24 horas)
-          if (Date.now() - authData.timestamp < 24 * 60 * 60 * 1000) {
-            console.log("✅ Local auth valid");
-            setIsAuthenticated(true);
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        // Tentar AWS Cognito
+        // Tentar AWS Cognito session (uses secureStorage internally)
         const user = await cognitoAuth.getCurrentUser();
         setIsAuthenticated(!!user);
       } catch (error) {

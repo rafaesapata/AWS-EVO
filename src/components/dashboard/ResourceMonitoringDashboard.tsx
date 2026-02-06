@@ -605,6 +605,22 @@ export const ResourceMonitoringDashboard = () => {
     return Array.from(new Set(resourceList.map(r => r.region))).sort();
   }, [resources]);
 
+  // PERFORMANCE: Pre-compute metrics lookup Map — O(1) per resource instead of O(n) filter
+  const metricsByResource = useMemo(() => {
+    const map = new Map<string, ResourceMetric[]>();
+    if (!metrics || !Array.isArray(metrics)) return map;
+    for (const m of metrics) {
+      const key = `${m.resource_type}-${m.resource_id}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.push(m);
+      } else {
+        map.set(key, [m]);
+      }
+    }
+    return map;
+  }, [metrics]);
+
   // PERFORMANCE: Memoize filtered and sorted resources
   const allFilteredResources = useMemo(() => {
     const statusOrder: Record<string, number> = {
@@ -658,15 +674,10 @@ export const ResourceMonitoringDashboard = () => {
       }
       
       // Segundo critério: quantidade de métricas disponíveis (recursos com mais dados primeiro)
-      const aMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
-        m.resource_id === a.resource_id && m.resource_type === a.resource_type
-      ) : [];
-      const bMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
-        m.resource_id === b.resource_id && m.resource_type === b.resource_type
-      ) : [];
-      
-      const aMetricsCount = aMetrics.length;
-      const bMetricsCount = bMetrics.length;
+      const aKey = `${a.resource_type}-${a.resource_id}`;
+      const bKey = `${b.resource_type}-${b.resource_id}`;
+      const aMetricsCount = metricsByResource.get(aKey)?.length || 0;
+      const bMetricsCount = metricsByResource.get(bKey)?.length || 0;
       
       if (aMetricsCount !== bMetricsCount) {
         return bMetricsCount - aMetricsCount; // Mais métricas primeiro
@@ -685,25 +696,22 @@ export const ResourceMonitoringDashboard = () => {
     });
     
     // Debug: Log ordenação para verificar se está correta
-    if (sorted.length > 0) {
+    if (sorted.length > 0 && sorted.length <= 200) {
       console.log('[ResourceMonitoring] Recursos ordenados:', 
-        sorted.slice(0, 10).map(r => {
-          const resourceMetrics = (metrics && Array.isArray(metrics)) ? metrics.filter(m => 
-            m.resource_id === r.resource_id && m.resource_type === r.resource_type
-          ) : [];
+        sorted.slice(0, 5).map(r => {
+          const key = `${r.resource_type}-${r.resource_id}`;
           return {
             name: r.resource_name,
             type: r.resource_type,
             status: r.status,
-            statusOrder: statusOrder[r.status?.toLowerCase()] ?? 4,
-            metricsCount: resourceMetrics.length
+            metricsCount: metricsByResource.get(key)?.length || 0
           };
         })
       );
     }
     
     return sorted;
-  }, [resources, selectedResourceType, selectedRegion, searchTerm, metrics]);
+  }, [resources, selectedResourceType, selectedRegion, searchTerm, metricsByResource]);
 
   // PERFORMANCE: Memoize pagination calculations
   const { totalPages, startIndex, endIndex, filteredResources } = useMemo(() => {

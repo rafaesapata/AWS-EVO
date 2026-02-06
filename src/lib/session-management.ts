@@ -99,18 +99,34 @@ export class SessionManager {
   private async createSessionInfo(session: any): Promise<void> {
     const deviceInfo = this.getDeviceInfo();
     
+    // Parse expiration from JWT access token
+    let expiresAt = new Date(Date.now() + 60 * 60 * 1000); // Default: 1 hour
+    try {
+      const token = session.accessToken || session.access_token;
+      if (token) {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          if (payload.exp) {
+            expiresAt = new Date(payload.exp * 1000);
+          }
+        }
+      }
+    } catch {
+      // Use default expiration
+    }
+    
     this.sessionInfo = {
-      id: session.access_token.substring(0, 16), // Use part of token as session ID
-      userId: session.user.id,
-      email: session.user.email,
-      createdAt: new Date(session.user.created_at),
+      id: (session.accessToken || session.access_token || '').substring(0, 16),
+      userId: session.user?.id || '',
+      email: session.user?.email || '',
+      createdAt: new Date(),
       lastActivity: new Date(),
-      expiresAt: new Date(session.expires_at * 1000),
+      expiresAt,
       isActive: true,
       deviceInfo,
       metadata: {
-        tokenType: session.token_type,
-        provider: session.user.app_metadata?.provider,
+        provider: 'cognito',
       },
     };
 
@@ -316,15 +332,25 @@ export class SessionManager {
     try {
       logger.debug('Refreshing session token');
       
-      // Cognito handles token refresh automatically
-      const session = await cognitoAuth.getCurrentSession();
+      // Refresh session via Cognito
+      const newSession = await cognitoAuth.refreshSession();
       
-      if (!session) {
+      if (!newSession) {
         throw ErrorFactory.authExpired({ cognitoError: 'Session refresh failed' });
       }
 
-      if (data.session && this.sessionInfo) {
-        this.sessionInfo.expiresAt = new Date(data.session.expires_at * 1000);
+      if (this.sessionInfo) {
+        // Parse new token expiration from the refreshed access token
+        try {
+          const parts = newSession.accessToken.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+            this.sessionInfo.expiresAt = new Date(payload.exp * 1000);
+          }
+        } catch {
+          // Fallback: extend by 1 hour if token parsing fails
+          this.sessionInfo.expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+        }
         this.sessionInfo.lastActivity = new Date();
         
         logger.info('Session refreshed successfully', {
@@ -417,7 +443,7 @@ export class SessionManager {
   }
 
   public destroy(): void {
-    this.cleanup();
+    this.cleanup().catch(() => {});
   }
 }
 

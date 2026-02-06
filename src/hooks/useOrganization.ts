@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
 import { apiClient } from '@/integrations/aws/api-client';
@@ -102,13 +103,16 @@ export const useOrganization = (): UseOrganizationResult => {
   }
   
   // Handle redirect on specific errors (only on protected pages)
-  if (query.error) {
-    const errorMessage = query.error.message;
-    if (errorMessage.includes('Session expired') || errorMessage.includes('Organization not found')) {
-      const reason = errorMessage.includes('Session expired') ? 'session_expired' : 'no_organization';
-      window.location.href = `/auth?reason=${reason}`;
+  // Must be in useEffect to avoid redirect during render
+  useEffect(() => {
+    if (query.error && !isPublicPage) {
+      const errorMessage = query.error.message;
+      if (errorMessage.includes('Session expired') || errorMessage.includes('Organization not found')) {
+        const reason = errorMessage.includes('Session expired') ? 'session_expired' : 'no_organization';
+        window.location.href = `/auth?reason=${reason}`;
+      }
     }
-  }
+  }, [query.error, isPublicPage]);
   
   return {
     data: query.data ?? null,
