@@ -3010,6 +3010,7 @@
     "noResourcesFound": "No resources found in this account",
     "noResourcesOfType": "No {{type}} resources found",
     "clickRefreshToFetch": "Click \"Refresh\" to fetch resources",
+    "fetchResources": "Fetch Resources",
     "showing": "Showing {{start}}-{{end}} of {{total}} resources",
     "avgCpu": "Average CPU",
     "azureCredentialNotFound": "Azure credential not found",

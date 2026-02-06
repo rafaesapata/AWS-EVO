@@ -800,6 +800,34 @@ export const ResourceMonitoringDashboard = () => {
     });
   }, [resources, metrics, activeResourceTypes, isAzure]);
 
+  // Auto-fetch: trigger refresh automatically when page loads with no data
+  const hasTriggeredAutoFetch = useRef(false);
+  useEffect(() => {
+    if (
+      !hasTriggeredAutoFetch.current &&
+      selectedAccountId &&
+      !isInDemoMode &&
+      !loadingResources &&
+      !isRefreshing &&
+      resources !== undefined &&
+      Array.isArray(resources) &&
+      resources.length === 0 &&
+      metrics.length === 0
+    ) {
+      hasTriggeredAutoFetch.current = true;
+      // Small delay to let the UI render first
+      const timer = setTimeout(() => {
+        handleRefresh(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedAccountId, isInDemoMode, loadingResources, isRefreshing, resources, metrics, handleRefresh]);
+
+  // Reset auto-fetch flag when account changes
+  useEffect(() => {
+    hasTriggeredAutoFetch.current = false;
+  }, [selectedAccountId]);
+
   if (!accounts || accounts.length === 0) {
     return (
       <Card>
@@ -1188,16 +1216,28 @@ export const ResourceMonitoringDashboard = () => {
                   })}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-2">
+              <div className="text-center py-12">
+                  <Server className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                  <p className="text-lg font-medium text-muted-foreground mb-2">
                     {selectedResourceType === 'all' 
-                      ? `⚠️ ${t('resourceMonitoring.noResourcesFound', 'No resources found in this account')}`
-                      : `⚠️ ${t('resourceMonitoring.noResourcesOfType', 'No {{type}} resources found', { type: t(activeResourceTypes.find(rt => rt.value === selectedResourceType)?.labelKey || '') })}`
+                      ? t('resourceMonitoring.noResourcesFound', 'No resources found in this account')
+                      : t('resourceMonitoring.noResourcesOfType', 'No {{type}} resources found', { type: t(activeResourceTypes.find(rt => rt.value === selectedResourceType)?.labelKey || '') })
                     }
                   </p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground mb-4">
                     {t('resourceMonitoring.clickRefreshToFetch', 'Click "Refresh" to fetch resources')}
                   </p>
+                  <Button 
+                    onClick={() => handleRefresh(true)} 
+                    disabled={isRefreshing || !selectedAccountId}
+                    className="gap-2"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    {isRefreshing 
+                      ? t('resourceMonitoring.collectingMetrics', 'Collecting metrics...')
+                      : t('resourceMonitoring.fetchResources', 'Fetch Resources')
+                    }
+                  </Button>
                 </div>
               )}
 

@@ -3279,6 +3279,7 @@
     "noResourcesFound": "Nenhum recurso encontrado nesta conta",
     "noResourcesOfType": "Nenhum recurso do tipo {{type}} encontrado",
     "clickRefreshToFetch": "Clique em \"Atualizar\" para buscar recursos",
+    "fetchResources": "Buscar Recursos",
     "showing": "Mostrando {{start}}-{{end}} de {{total}} recursos",
     "avgCpu": "CPU Média",
     "azureCredentialNotFound": "Credencial Azure não encontrada",
