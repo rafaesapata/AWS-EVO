@@ -207,7 +207,7 @@ Resources:
                 ConnectionArn: !Ref GitHubConnectionArn
                 FullRepositoryId: !Sub '${GitHubOwner}/${GitHubRepo}'
                 BranchName: !Ref GitHubBranch
-                OutputArtifactFormat: CODE_ZIP
+                OutputArtifactFormat: CODEBUILD_CLONE_REF
                 DetectChanges: true
               OutputArtifacts:
                 - Name: SourceOutput
