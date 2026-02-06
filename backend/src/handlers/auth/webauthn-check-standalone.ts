@@ -3,12 +3,13 @@
  * Handles WebAuthn check and forgot password functionality without requiring authentication
  */
 
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '../../lib/database.js';
 import { 
   CognitoIdentityProviderClient, 
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand
 } from '@aws-sdk/client-cognito-identity-provider';
+import { corsOptions, success, error as errorResponse } from '../../lib/response.js';
 
 interface CheckRequest {
   email: string;
@@ -25,15 +26,6 @@ interface ForgotPasswordRequest {
   confirmationCode?: string;
   newPassword?: string;
 }
-
-// Initialize clients
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL
-    }
-  }
-});
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
 
@@ -58,17 +50,12 @@ export async function handler(event: any): Promise<any> {
     body: event.body 
   });
 
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
+  const method = event.httpMethod || event.requestContext?.http?.method;
+
   // Handle CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
-        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-      },
-      body: ''
-    };
+  if (method === 'OPTIONS') {
+    return corsOptions(origin);
   }
 
   try {
@@ -76,41 +63,28 @@ export async function handler(event: any): Promise<any> {
     
     // Check if this is a forgot password request
     if (body.action === 'request' || body.action === 'confirm') {
-      return await handleForgotPassword(body, event);
+      return await handleForgotPassword(body, event, origin);
     }
     
     // Otherwise, handle WebAuthn check
-    return await handleWebAuthnCheck(body);
+    return await handleWebAuthnCheck(body, origin);
 
-  } catch (error: any) {
-    console.error('🔐 Auth handler error:', error);
-    
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+  } catch (err: any) {
+    console.error('🔐 Auth handler error:', err);
+    return errorResponse('Internal server error', 500, undefined, origin);
   }
 }
 
-async function handleWebAuthnCheck(body: CheckRequest): Promise<any> {
+async function handleWebAuthnCheck(body: CheckRequest, origin: string): Promise<any> {
   const { email } = body;
 
   console.log('🔐 Checking WebAuthn for email:', email);
 
   if (!email) {
-    return {
-      statusCode: 400,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: 'Email is required' })
-    };
+    return errorResponse('Email is required', 400, undefined, origin);
   }
+
+  const prisma = getPrismaClient();
 
   // Find user by email in profiles table
   const profile = await prisma.profile.findFirst({
@@ -124,20 +98,7 @@ async function handleWebAuthnCheck(body: CheckRequest): Promise<any> {
   });
 
   if (!profile) {
-    // User not found - no WebAuthn
-    const response: CheckResponse = {
-      hasWebAuthn: false,
-      credentialsCount: 0
-    };
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(response)
-    };
+    return success({ hasWebAuthn: false, credentialsCount: 0 }, 200, origin);
   }
 
   // Check for WebAuthn credentials
@@ -148,53 +109,25 @@ async function handleWebAuthnCheck(body: CheckRequest): Promise<any> {
   console.log('🔐 WebAuthn credentials found:', {
     userId: profile.user_id,
     credentialsCount: webauthnCredentials.length,
-    credentials: webauthnCredentials.map(c => ({
-      id: c.id,
-      device_name: c.device_name,
-      created_at: c.created_at
-    }))
   });
 
-  const response: CheckResponse = {
+  return success({
     hasWebAuthn: webauthnCredentials.length > 0,
     credentialsCount: webauthnCredentials.length
-  };
-
-  return {
-    statusCode: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(response)
-  };
+  }, 200, origin);
 }
 
-async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Promise<any> {
+async function handleForgotPassword(body: ForgotPasswordRequest, event: any, origin: string): Promise<any> {
   const { action, email, confirmationCode, newPassword } = body;
 
   console.log('🔐 Forgot password request:', { action, email });
 
   if (!action || !email) {
-    return {
-      statusCode: 400,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: 'Missing required fields: action and email' })
-    };
+    return errorResponse('Missing required fields: action and email', 400, undefined, origin);
   }
 
   if (!isValidEmail(email)) {
-    return {
-      statusCode: 400,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: 'Invalid email format' })
-    };
+    return errorResponse('Invalid email format', 400, undefined, origin);
   }
 
   const userPoolId = process.env.COGNITO_USER_POOL_ID;
@@ -202,53 +135,27 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Pr
 
   if (!userPoolId || !clientId) {
     console.error('Cognito configuration missing', { userPoolId: !!userPoolId, clientId: !!clientId });
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: 'Authentication service not configured' })
-    };
+    return errorResponse('Authentication service not configured', 500, undefined, origin);
   }
 
+  const prisma = getPrismaClient();
+
   if (action === 'request') {
-    // Verificar se o usuário existe no banco de dados (profiles table)
     const profile = await prisma.profile.findFirst({
       where: { email },
-      include: {
-        organization: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
+      include: { organization: { select: { id: true, name: true } } }
     });
 
+    const safeMessage = 'Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.';
+
     if (!profile) {
-      // Por segurança, não revelamos se o usuário existe ou não
       console.log('🔐 Password reset requested for non-existent user:', email);
-      return {
-        statusCode: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: 'Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.'
-        })
-      };
+      return success({ message: safeMessage }, 200, origin);
     }
 
     try {
-      // Solicitar reset de senha no Cognito
-      await cognitoClient.send(new ForgotPasswordCommand({
-        ClientId: clientId,
-        Username: email
-      }));
+      await cognitoClient.send(new ForgotPasswordCommand({ ClientId: clientId, Username: email }));
 
-      // Registrar evento de segurança
       const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000';
       
       await prisma.securityEvent.create({
@@ -267,83 +174,30 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Pr
       });
 
       console.log('✅ Password reset email sent:', { email, userId: profile.user_id });
-
-      return {
-        statusCode: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: 'Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.'
-        })
-      };
+      return success({ message: safeMessage }, 200, origin);
 
     } catch (cognitoError: any) {
       console.error('❌ Cognito forgot password error:', { email, error: cognitoError });
 
-      // Tratar erros específicos do Cognito
       if (cognitoError.name === 'UserNotFoundException') {
-        return {
-          statusCode: 200,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            message: 'Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.'
-          })
-        };
+        return success({ message: safeMessage }, 200, origin);
       }
-
       if (cognitoError.name === 'LimitExceededException') {
-        return {
-          statusCode: 429,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ error: 'Muitas tentativas. Tente novamente mais tarde.' })
-        };
+        return errorResponse('Muitas tentativas. Tente novamente mais tarde.', 429, undefined, origin);
       }
-
-      return {
-        statusCode: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ error: 'Erro interno do servidor' })
-      };
+      return errorResponse('Erro interno do servidor', 500, undefined, origin);
     }
 
   } else if (action === 'confirm') {
     if (!confirmationCode || !newPassword) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ error: 'Missing required fields: confirmationCode and newPassword' })
-      };
+      return errorResponse('Missing required fields: confirmationCode and newPassword', 400, undefined, origin);
     }
 
     if (!isValidPassword(newPassword)) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          error: 'A senha deve ter pelo menos 8 caracteres e incluir: maiúscula, minúscula, número e caractere especial'
-        })
-      };
+      return errorResponse('A senha deve ter pelo menos 8 caracteres e incluir: maiúscula, minúscula, número e caractere especial', 400, undefined, origin);
     }
 
     try {
-      // Confirmar reset de senha no Cognito
       await cognitoClient.send(new ConfirmForgotPasswordCommand({
         ClientId: clientId,
         Username: email,
@@ -351,18 +205,14 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Pr
         Password: newPassword
       }));
 
-      // Buscar usuário para logging (profiles table)
       const profile = await prisma.profile.findFirst({
         where: { email },
-        include: {
-          organization: true
-        }
+        include: { organization: true }
       });
 
       if (profile) {
         const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000';
         
-        // Registrar evento de segurança
         await prisma.securityEvent.create({
           data: {
             organization_id: organizationId,
@@ -380,83 +230,27 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any): Pr
       }
 
       console.log('✅ Password reset completed:', email);
-
-      return {
-        statusCode: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: 'Senha redefinida com sucesso. Você pode fazer login com sua nova senha.'
-        })
-      };
+      return success({ message: 'Senha redefinida com sucesso. Você pode fazer login com sua nova senha.' }, 200, origin);
 
     } catch (cognitoError: any) {
       console.error('❌ Cognito confirm forgot password error:', { email, error: cognitoError });
 
       if (cognitoError.name === 'CodeMismatchException') {
-        return {
-          statusCode: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ error: 'Código de confirmação inválido' })
-        };
+        return errorResponse('Código de confirmação inválido', 400, undefined, origin);
       }
-
       if (cognitoError.name === 'ExpiredCodeException') {
-        return {
-          statusCode: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ error: 'Código de confirmação expirado. Solicite um novo código.' })
-        };
+        return errorResponse('Código de confirmação expirado. Solicite um novo código.', 400, undefined, origin);
       }
-
       if (cognitoError.name === 'InvalidPasswordException') {
-        return {
-          statusCode: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ error: 'Senha não atende aos requisitos de segurança' })
-        };
+        return errorResponse('Senha não atende aos requisitos de segurança', 400, undefined, origin);
       }
-
       if (cognitoError.name === 'LimitExceededException') {
-        return {
-          statusCode: 429,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ error: 'Muitas tentativas. Tente novamente mais tarde.' })
-        };
+        return errorResponse('Muitas tentativas. Tente novamente mais tarde.', 429, undefined, origin);
       }
-
-      return {
-        statusCode: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ error: 'Erro ao redefinir senha' })
-      };
+      return errorResponse('Erro ao redefinir senha', 500, undefined, origin);
     }
 
   } else {
-    return {
-      statusCode: 400,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: 'Invalid action. Must be "request" or "confirm"' })
-    };
+    return errorResponse('Invalid action. Must be "request" or "confirm"', 400, undefined, origin);
   }
 }

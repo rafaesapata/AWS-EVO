@@ -19,10 +19,11 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 Alerts handler started');
   
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
   let method = getHttpMethod(event);
   
   if (method === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
   try {
@@ -53,7 +54,7 @@ export async function handler(
       if (isDemo === true) {
         logger.info('Returning demo alerts data', { organizationId, isDemo: true });
         const demoAlerts = generateDemoAlerts();
-        return success(demoAlerts);
+        return success(demoAlerts, 200, origin);
       }
     }
     // ========================================
@@ -82,7 +83,7 @@ export async function handler(
         },
       });
       
-      return success(alerts);
+      return success(alerts, 200, origin);
     }
     
     // PUT - Atualizar alerta (acknowledge/resolve)
@@ -99,7 +100,7 @@ export async function handler(
       });
       
       if (!existing) {
-        return error('Alerta não encontrado', 404);
+        return error('Alerta não encontrado', 404, undefined, origin);
       }
       
       const updateData: any = {};
@@ -119,7 +120,7 @@ export async function handler(
       
       logger.info(`✅ Alert ${action}d: ${alert.id}`);
       
-      return success(alert);
+      return success(alert, 200, origin);
     }
     
     // DELETE - Deletar alerta
@@ -147,7 +148,7 @@ export async function handler(
       });
       
       if (!existing) {
-        return error('Alerta não encontrado', 404);
+        return error('Alerta não encontrado', 404, undefined, origin);
       }
       
       await prisma.alert.delete({
@@ -156,13 +157,13 @@ export async function handler(
       
       logger.info(`✅ Alert deleted: ${alertId}`);
       
-      return success({ success: true, message: 'Alerta deletado com sucesso' });
+      return success({ success: true, message: 'Alerta deletado com sucesso' }, 200, origin);
     }
     
-    return error('Método não suportado', 405);
+    return error('Método não suportado', 405, undefined, origin);
     
   } catch (err) {
     logger.error('❌ Alerts error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
 }

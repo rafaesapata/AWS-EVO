@@ -283,15 +283,16 @@ export const SECURE_CORS_CONFIG: CORSConfig = {
   allowedOrigins: [
     'https://evo.nuevacore.com',
     'https://api.evo.nuevacore.com',
-    'https://evo.ai.udstec.io',
-    'https://api-evo.ai.udstec.io',
-    'https://app.evo-uds.com',
-    'https://dashboard.evo-uds.com',
     // Development origins - only in non-production
     ...(process.env.NODE_ENV !== 'production' ? [
       'http://localhost:8080',
       'http://localhost:3000',
       'http://localhost:5173',
+      'https://evo.sandbox.nuevacore.com',
+      'https://api.evo.sandbox.nuevacore.com',
+      'https://dikd2ie8x3ihv.cloudfront.net',
+      'https://evo.ai.udstec.io',
+      'https://api-evo.ai.udstec.io',
     ] : []),
   ],
   allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

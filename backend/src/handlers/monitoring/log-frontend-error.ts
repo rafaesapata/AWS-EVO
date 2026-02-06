@@ -35,10 +35,11 @@ const frontendErrorSchema = z.object({
 export async function handler(
   event: APIGatewayProxyEventV2
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
   // Check for OPTIONS using direct property access since this is a public endpoint
   const method = event.requestContext?.http?.method || 'UNKNOWN';
   if (method === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
 
   try {
@@ -99,6 +100,6 @@ export async function handler(
 
   } catch (err) {
     logger.error('Failed to log frontend error:', err);
-    return error('Failed to log error', 500);
+    return error('Failed to log error', 500, undefined, origin);
   }
 }

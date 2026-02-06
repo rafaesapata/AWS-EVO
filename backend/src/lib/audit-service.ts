@@ -51,7 +51,10 @@ export type AuditAction =
   | 'AI_NOTIFICATION_SENT'
   | 'AI_NOTIFICATION_READ'
   | 'AI_NOTIFICATION_ACTIONED'
-  | 'AI_NOTIFICATION_DISMISSED';
+  | 'AI_NOTIFICATION_DISMISSED'
+  | 'DATA_CREATE'
+  | 'DATA_UPDATE'
+  | 'DATA_UPSERT';
 
 export type AuditResourceType =
   | 'user'
@@ -72,7 +75,8 @@ export type AuditResourceType =
   | 'report'
   | 'mfa'
   | 'session'
-  | 'ai_notification';
+  | 'ai_notification'
+  | 'data';
 
 export interface AuditLogParams {
   organizationId: string;

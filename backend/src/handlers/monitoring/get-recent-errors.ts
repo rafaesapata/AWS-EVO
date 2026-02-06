@@ -125,8 +125,9 @@ export async function handler(
   event: AuthorizedEvent,
   _context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
   if (event.requestContext?.http?.method === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
 
   try {
@@ -135,12 +136,12 @@ export async function handler(
                    event.requestContext.authorizer?.jwt?.claims;
     
     if (!claims || !claims.sub) {
-      return error('Unauthorized', 401);
+      return error('Unauthorized', 401, undefined, origin);
     }
     
     const organizationId = claims['custom:organization_id'];
     if (!organizationId) {
-      return error('Organization not found', 400);
+      return error('Organization not found', 400, undefined, origin);
     }
 
     // Parse and validate body using centralized validation

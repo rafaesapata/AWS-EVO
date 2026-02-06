@@ -18,8 +18,10 @@ export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
+  
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
 
   try {
@@ -44,7 +46,7 @@ export async function handler(
       hasOrganization: true,
       organizationId,
       organizationName,
-    });
+    }, 200, origin);
   } catch (err: any) {
     logger.error('Check organization error', err, { 
       requestId: context.awsRequestId,
@@ -53,9 +55,9 @@ export async function handler(
     
     // Return specific error for organization not found
     if (err.message?.includes('Organization not found') || err.message?.includes('Invalid organization ID')) {
-      return error('Organization not found. Please logout and login again to refresh your session.', 401);
+      return error('Organization not found. Please logout and login again to refresh your session.', 401, undefined, origin);
     }
     
-    return error('Erro ao verificar vínculo de organização');
+    return error('Erro ao verificar vínculo de organização', 500, undefined, origin);
   }
 }

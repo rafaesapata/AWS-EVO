@@ -73,8 +73,9 @@ export async function handler(
   event: AuthorizedEvent,
   _context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
   if (event.requestContext?.http?.method === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
 
   try {
@@ -289,10 +290,10 @@ export async function handler(
       }
 
       default:
-        return error('Invalid action', 400);
+        return error('Invalid action', 400, undefined, origin);
     }
   } catch (err) {
     logger.error('Error managing email preferences', err as Error);
-    return error('Internal server error', 500);
+    return error('Internal server error', 500, undefined, origin);
   }
 }

@@ -101,9 +101,10 @@ export async function handler(
   _context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const method = getHttpMethod(event);
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
   
   if (method === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
 
   try {

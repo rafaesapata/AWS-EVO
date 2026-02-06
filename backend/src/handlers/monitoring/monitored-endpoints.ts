@@ -19,10 +19,11 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   logger.info('🚀 Monitored Endpoints handler started');
   
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
   let method = getHttpMethod(event);
   
   if (method === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
   
   try {
@@ -62,7 +63,7 @@ export async function handler(
       if (isDemo === true) {
         logger.info('Returning demo monitored endpoints data', { organizationId, isDemo: true });
         const demoData = generateDemoMonitoredEndpoints();
-        return success(demoData);
+        return success(demoData, 200, origin);
       }
     }
     
@@ -79,7 +80,7 @@ export async function handler(
         },
       });
       
-      return success(endpoints);
+      return success(endpoints, 200, origin);
     }
     
     // POST - Criar endpoint
@@ -105,7 +106,7 @@ export async function handler(
       
       logger.info(`✅ Endpoint created: ${endpoint.id}`);
       
-      return success(endpoint, 201);
+      return success(endpoint, 201, origin);
     }
     
     // PUT - Atualizar endpoint
@@ -122,7 +123,7 @@ export async function handler(
       });
       
       if (!existing) {
-        return error('Endpoint não encontrado', 404);
+        return error('Endpoint não encontrado', 404, undefined, origin);
       }
       
       const endpoint = await prisma.monitoredEndpoint.update({
@@ -140,7 +141,7 @@ export async function handler(
       
       logger.info(`✅ Endpoint updated: ${endpoint.id}`);
       
-      return success(endpoint);
+      return success(endpoint, 200, origin);
     }
     
     // DELETE - Deletar endpoint
@@ -167,7 +168,7 @@ export async function handler(
       });
       
       if (!existing) {
-        return error('Endpoint não encontrado', 404);
+        return error('Endpoint não encontrado', 404, undefined, origin);
       }
       
       await prisma.monitoredEndpoint.delete({
@@ -176,13 +177,13 @@ export async function handler(
       
       logger.info(`✅ Endpoint deleted: ${endpointId}`);
       
-      return success({ success: true, message: 'Endpoint deletado com sucesso' });
+      return success({ success: true, message: 'Endpoint deletado com sucesso' }, 200, origin);
     }
     
-    return error('Método não suportado', 405);
+    return error('Método não suportado', 405, undefined, origin);
     
   } catch (err) {
     logger.error('❌ Monitored Endpoints error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
 }

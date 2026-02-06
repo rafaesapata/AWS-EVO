@@ -181,9 +181,10 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   const method = getHttpMethod(event);
   const path = getHttpPath(event);
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
   
   if (method === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
 
   try {
@@ -200,7 +201,7 @@ export async function handler(
     if (action === 'add-comment') {
       const validation = addCommentSchema.safeParse(body);
       if (!validation.success) {
-        return error(`Validation error: ${validation.error.message}`, 400);
+        return error(`Validation error: ${validation.error.message}`, 400, undefined, origin);
       }
 
       const { ticketId, content, isInternal, isResolution, parentId, mentions } = validation.data;
@@ -211,7 +212,7 @@ export async function handler(
       });
 
       if (!ticket) {
-        return error('Ticket not found', 404);
+        return error('Ticket not found', 404, undefined, origin);
       }
 
       const comment = await prisma.ticketComment.create({
@@ -862,10 +863,10 @@ export async function handler(
       });
     }
 
-    return error(`Unknown action: ${action}`, 400);
+    return error(`Unknown action: ${action}`, 400, undefined, origin);
 
   } catch (err) {
     logger.error('Ticket management error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error(err instanceof Error ? err.message : 'Internal server error', 500, undefined, origin);
   }
 }

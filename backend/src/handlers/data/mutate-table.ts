@@ -11,6 +11,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 // Mapeamento de nomes de tabela do frontend para modelos Prisma
 const TABLE_TO_MODEL: Record<string, string> = {
@@ -351,6 +352,18 @@ export async function handler(
       operation: body.operation,
       organizationId,
       resultId: result?.id,
+    });
+    
+    // Audit log for all mutations (fire-and-forget)
+    logAuditAsync({
+      organizationId,
+      userId,
+      action: body.operation === 'insert' ? 'DATA_CREATE' : body.operation === 'update' ? 'DATA_UPDATE' : body.operation === 'delete' ? 'DATA_DELETE' : 'DATA_UPSERT',
+      resourceType: 'data',
+      resourceId: result?.id || 'batch',
+      details: { operation: body.operation, table: body.table },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
     });
     
     return success(result, 200, origin);

@@ -2,16 +2,7 @@
  * Setup License Config - Admin tool to configure license for organization
  */
 
-import { PrismaClient } from '@prisma/client';
-
-let prisma: PrismaClient | null = null;
-
-function getPrisma(): PrismaClient {
-  if (!prisma) {
-    prisma = new PrismaClient();
-  }
-  return prisma;
-}
+import { getPrismaClient } from '../../lib/database.js';
 
 export async function handler(event: any): Promise<{statusCode: number; body: string}> {
   const body = event.body ? JSON.parse(event.body) : event;
@@ -27,7 +18,7 @@ export async function handler(event: any): Promise<{statusCode: number; body: st
   console.log(`Setting up license config: org=${organization_id}, customer=${customer_id}`);
 
   try {
-    const db = getPrisma();
+    const db = getPrismaClient();
 
     const config = await db.organizationLicenseConfig.upsert({
       where: { organization_id },
