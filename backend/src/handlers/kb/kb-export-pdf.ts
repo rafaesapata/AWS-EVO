@@ -11,7 +11,7 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 interface KBExportPDFRequest {
@@ -70,7 +70,7 @@ export async function handler(
     
     const downloadUrl = await getSignedUrl(
       s3Client,
-      new PutObjectCommand({ Bucket: bucketName, Key: key }),
+      new GetObjectCommand({ Bucket: bucketName, Key: key }),
       { expiresIn: 3600 }
     );
     

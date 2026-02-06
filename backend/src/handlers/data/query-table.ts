@@ -74,9 +74,9 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'savings_plans': 'savingsPlan',
   
   // Aliases do frontend para tabelas reais
-  'security_alerts': 'alert',
+  'security_alerts': 'securityAlert',
   'alert_history': 'alert',
-  'aws_resources': 'resourceInventory',
+  'aws_resources': 'awsResource',
   'scan_findings': 'finding',
   'optimization_recommendations': 'costOptimization',
   'iam_behavior_analysis': 'iAMBehaviorAnomaly',

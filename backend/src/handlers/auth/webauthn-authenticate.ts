@@ -274,7 +274,7 @@ async function finishAuthentication(
     // Registrar tentativa falha - use system org for failed attempts
     await prisma.securityEvent.create({
       data: {
-        organization_id: process.env.SYSTEM_ORGANIZATION_ID || 'system',
+        organization_id: process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000',
         event_type: 'WEBAUTHN_AUTH_FAILED',
         severity: 'MEDIUM',
         description: 'WebAuthn authentication failed',
@@ -293,7 +293,7 @@ async function finishAuthentication(
   if (!credentialUser) {
     await prisma.securityEvent.create({
       data: {
-        organization_id: process.env.SYSTEM_ORGANIZATION_ID || 'system',
+        organization_id: process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000',
         event_type: 'WEBAUTHN_AUTH_FAILED',
         severity: 'HIGH',
         description: 'WebAuthn credential user not found',
@@ -318,7 +318,7 @@ async function finishAuthentication(
   });
 
   // Get organization ID from profile or use system default
-  const userOrganizationId = userProfile?.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
+  const userOrganizationId = userProfile?.organization_id || process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000';
 
   try {
     // Decodificar clientDataJSON

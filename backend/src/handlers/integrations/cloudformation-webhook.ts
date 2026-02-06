@@ -177,7 +177,7 @@ export async function handler(
       await prisma.driftDetection.create({
         data: {
           organization_id: awsAccount.organization_id,
-          aws_account_id: awsAccount.id,
+          aws_account_id: awsAccount.account_id,
           resource_id: cfEvent.LogicalResourceId,
           resource_type: cfEvent.ResourceType,
           resource_name: cfEvent.LogicalResourceId,

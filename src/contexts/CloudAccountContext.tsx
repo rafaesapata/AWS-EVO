@@ -7,6 +7,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import { apiClient } from '@/integrations/aws/api-client';
 import { useOrganization } from '@/hooks/useOrganization';
 import { ErrorHandler } from '@/lib/error-handler';
@@ -82,8 +83,16 @@ const CloudAccountContext = createContext<CloudAccountContextType>(defaultContex
 const STORAGE_KEY = 'evo_selected_cloud_account';
 const PROVIDER_FILTER_KEY = 'evo_cloud_provider_filter';
 
+// Public routes where we should NOT fetch cloud accounts
+const PUBLIC_PATHS = ['/', '/auth', '/register', '/features', '/terms', '/404'];
+
 export function CloudAccountProvider({ children }: { children: React.ReactNode }) {
   const { data: userOrganizationId, isLoading: orgLoading } = useOrganization();
+  const location = useLocation();
+  
+  // Don't fetch cloud accounts on public pages (prevents 401 loop on login page)
+  const isPublicPage = PUBLIC_PATHS.includes(location.pathname) || location.pathname.startsWith('/tv/');
+  
   // Use effective organization ID (considers impersonation for super admins)
   const organizationId = getEffectiveOrganizationId(userOrganizationId || undefined) || userOrganizationId;
   const { invalidateByTrigger } = useCacheInvalidation();
@@ -135,7 +144,12 @@ export function CloudAccountProvider({ children }: { children: React.ReactNode }
         
         if (result.error) {
           const errorMsg = result.error.message || '';
+          const errorCode = result.error.code || '';
           if (errorMsg.includes('ERR_ABORTED') || errorMsg.includes('aborted')) {
+            return [];
+          }
+          // Don't retry or fallback on auth errors - return empty and let auth flow handle it
+          if (errorCode === 'SESSION_EXPIRED' || result.error.status === 401 || result.error.status === 403) {
             return [];
           }
           // Fall back to separate endpoints if unified doesn't exist
@@ -178,13 +192,13 @@ export function CloudAccountProvider({ children }: { children: React.ReactNode }
         }
       }
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && !isPublicPage,
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
     retry: (failureCount, error) => {
       if (error instanceof Error) {
         const msg = error.message || '';
-        if (msg.includes('auth') || msg.includes('ERR_ABORTED')) {
+        if (msg.includes('auth') || msg.includes('ERR_ABORTED') || msg.includes('Session expired') || msg.includes('401')) {
           return false;
         }
       }

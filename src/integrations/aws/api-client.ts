@@ -15,6 +15,10 @@ const IMPERSONATION_KEY = 'evo-impersonation';
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
+// Auth redirect cooldown to prevent redirect loops
+let lastAuthRedirectTime = 0;
+const AUTH_REDIRECT_COOLDOWN_MS = 5000; // 5 seconds between redirects
+
 export interface ApiResponse<T = any> {
   data: T;
   error: null;
@@ -147,10 +151,22 @@ class ApiClient {
     const refreshed = await this.tryRefreshToken();
     
     if (!refreshed) {
-      // Refresh failed - redirect to login
-      console.log('🔐 Token refresh failed, redirecting to login...');
-      await cognitoAuth.signOut();
-      window.location.href = '/auth?reason=session_expired';
+      // Refresh failed - only redirect if we're NOT already on the auth page
+      // and haven't redirected recently (prevents rapid-fire redirect loops)
+      console.log('🔐 Token refresh failed');
+      const isOnAuthPage = window.location.pathname === '/' || 
+                           window.location.pathname === '/auth' || 
+                           window.location.pathname === '/register';
+      const now = Date.now();
+      const recentlyRedirected = (now - lastAuthRedirectTime) < AUTH_REDIRECT_COOLDOWN_MS;
+      
+      if (!isOnAuthPage && !recentlyRedirected) {
+        console.log('🔐 Redirecting to login...');
+        lastAuthRedirectTime = now;
+        await cognitoAuth.signOut();
+        window.location.href = '/auth?reason=session_expired';
+      }
+      
       return {
         data: null,
         error: {

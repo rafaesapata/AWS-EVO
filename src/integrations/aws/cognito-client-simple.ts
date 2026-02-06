@@ -514,9 +514,8 @@ class CognitoAuthService {
           console.error('🔐 CognitoAuth: getCurrentSession - INVALID organization ID format!', orgId);
           console.error('🔐 CognitoAuth: Forcing logout to get new token...');
           await this.signOut();
-          if (typeof window !== 'undefined') {
-            window.location.href = '/auth?reason=session_expired';
-          }
+          // Don't redirect here - let the calling code handle the null session
+          // This prevents redirect loops when multiple components check session simultaneously
           return null;
         }
       }

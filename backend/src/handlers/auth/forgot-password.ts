@@ -106,7 +106,7 @@ export async function handler(
         }));
 
         // Registrar evento de segurança
-        const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
+        const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000';
         
         await prisma.securityEvent.create({
           data: {
@@ -182,7 +182,7 @@ export async function handler(
         });
 
         if (profile) {
-          const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || 'system';
+          const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000';
           
           // Registrar evento de segurança
           await prisma.securityEvent.create({

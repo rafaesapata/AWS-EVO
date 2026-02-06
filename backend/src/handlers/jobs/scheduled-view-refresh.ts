@@ -32,19 +32,19 @@ export async function handler(
     for (const org of organizations) {
       // Calcular e atualizar security posture
       const criticalFindings = await prisma.finding.count({
-        where: { organization_id: org.id, severity: 'CRITICAL', status: 'ACTIVE' },
+        where: { organization_id: org.id, severity: { in: ['CRITICAL', 'critical'] }, status: { in: ['open', 'pending', 'active', 'ACTIVE'] } },
       });
       
       const highFindings = await prisma.finding.count({
-        where: { organization_id: org.id, severity: 'HIGH', status: 'ACTIVE' },
+        where: { organization_id: org.id, severity: { in: ['HIGH', 'high'] }, status: { in: ['open', 'pending', 'active', 'ACTIVE'] } },
       });
       
       const mediumFindings = await prisma.finding.count({
-        where: { organization_id: org.id, severity: 'MEDIUM', status: 'ACTIVE' },
+        where: { organization_id: org.id, severity: { in: ['MEDIUM', 'medium'] }, status: { in: ['open', 'pending', 'active', 'ACTIVE'] } },
       });
       
       const lowFindings = await prisma.finding.count({
-        where: { organization_id: org.id, severity: 'LOW', status: 'ACTIVE' },
+        where: { organization_id: org.id, severity: { in: ['LOW', 'low'] }, status: { in: ['open', 'pending', 'active', 'ACTIVE'] } },
       });
       
       const totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
