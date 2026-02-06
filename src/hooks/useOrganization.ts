@@ -77,6 +77,19 @@ export const useOrganization = (): UseOrganizationResult => {
     retry: 0, // Don't retry - if org is invalid, logout immediately
     placeholderData: (previousData) => previousData,
   });
+
+  // Handle redirect on specific errors (only on protected pages)
+  // Must be in useEffect to avoid redirect during render
+  // Must be BEFORE conditional returns to respect React hooks rules
+  useEffect(() => {
+    if (query.error && !isPublicPage && !isTVMode) {
+      const errorMessage = query.error.message;
+      if (errorMessage.includes('Session expired') || errorMessage.includes('Organization not found')) {
+        const reason = errorMessage.includes('Session expired') ? 'session_expired' : 'no_organization';
+        window.location.href = `/auth?reason=${reason}`;
+      }
+    }
+  }, [query.error, isPublicPage, isTVMode]);
   
   // In TV mode, return organization ID directly from context
   if (isTVMode) {
@@ -101,18 +114,6 @@ export const useOrganization = (): UseOrganizationResult => {
       refetch: () => Promise.resolve({ data: null }),
     };
   }
-  
-  // Handle redirect on specific errors (only on protected pages)
-  // Must be in useEffect to avoid redirect during render
-  useEffect(() => {
-    if (query.error && !isPublicPage) {
-      const errorMessage = query.error.message;
-      if (errorMessage.includes('Session expired') || errorMessage.includes('Organization not found')) {
-        const reason = errorMessage.includes('Session expired') ? 'session_expired' : 'no_organization';
-        window.location.href = `/auth?reason=${reason}`;
-      }
-    }
-  }, [query.error, isPublicPage]);
   
   return {
     data: query.data ?? null,
