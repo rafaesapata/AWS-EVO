@@ -157,6 +157,7 @@ export class AdvancedSecurityScanner {
           data: findings.map(f => ({
             organization_id: config.organizationId,
             severity: f.severity,
+            title: f.description?.substring(0, 200) || 'Security Finding',
             description: f.description,
             details: f as any,
             ai_analysis: f.aiAnalysis,

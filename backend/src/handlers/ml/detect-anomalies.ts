@@ -144,6 +144,7 @@ export async function handler(
           organization_id: organizationId,
           aws_account_id: awsAccountId,
           severity: anomaly.severity,
+          title: anomaly.title || `Anomaly: ${anomaly.type}`,
           description: anomaly.description,
           details: {
             type: anomaly.type,

@@ -39,7 +39,7 @@ O pipeline detecta automaticamente o que mudou via `git diff` e escolhe a estrat
 | `sam/template.yaml` ou `sam/production-lambdas-only.yaml` | FULL_SAM | ~10min | Rebuild completo via SAM + CloudFormation |
 | `backend/prisma/schema.prisma` | FULL_SAM | ~10min | Rebuild completo (Prisma client muda) |
 | Apenas `src/`, `public/`, `index.html` | FRONTEND_ONLY | ~2min | Sync S3 + invalidação CloudFront |
-| Apenas `docs/`, `scripts/`, `cicd/`, `.md` | SKIP | ~1min | Build only, sem deploy |
+| Apenas `docs/`, `scripts/`, `cicd/`, `.md` | SKIP | ~1min | Sem build, sem deploy |
 
 ### ⛔ O que NÃO dispara FULL_SAM (antes disparava):
 - Mudanças em `cicd/` (buildspec, scripts de CI)

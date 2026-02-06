@@ -21,43 +21,269 @@ phases:
   pre_build:
     commands:
       - echo "=== Fetching git history for incremental detection ==="
-      - 'if [ -d ".git" ]; then echo "Git repo detected"; git fetch --unshallow 2>/dev/null || git fetch --depth=5 origin $CODEBUILD_WEBHOOK_HEAD_REF 2>/dev/null || git fetch --depth=5 2>/dev/null || echo "Git fetch failed"; else echo "No .git directory (CODE_ZIP mode) - cloning with depth=2 for diff..."; git clone --depth=2 --branch production --single-branch https://github.com/rafaesapata/AWS-EVO.git /tmp/git-history 2>/dev/null && export GIT_CLONE_DIR="/tmp/git-history" || echo "Git clone failed"; fi'
+      - |
+        # Determine the branch we're on
+        CURRENT_BRANCH="${CODEBUILD_WEBHOOK_HEAD_REF:-}"
+        if [ -z "$CURRENT_BRANCH" ]; then
+          CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+        fi
+        # Strip refs/heads/ prefix if present
+        CURRENT_BRANCH="${CURRENT_BRANCH#refs/heads/}"
+        echo "Current branch: $CURRENT_BRANCH"
+
+        GIT_DIFF_OK="false"
+        if [ -d ".git" ]; then
+          echo "Git repo detected (CODEBUILD_CLONE_REF mode)"
+          # Try to deepen the clone to get at least 2 commits for diff
+          git fetch --deepen=2 2>/dev/null || \
+            git fetch --unshallow 2>/dev/null || \
+            git fetch --depth=5 origin "$CURRENT_BRANCH" 2>/dev/null || \
+            git fetch --depth=5 2>/dev/null || \
+            echo "WARNING: All git fetch attempts failed"
+
+          # Verify we can do HEAD~1
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            GIT_DIFF_OK="true"
+            echo "Git history OK - can diff HEAD~1..HEAD"
+          else
+            echo "WARNING: Cannot resolve HEAD~1 - shallow clone too shallow"
+          fi
+        else
+          echo "No .git directory - will do full deploy"
+        fi
+
+        # Get changed files
+        if [ "$GIT_DIFF_OK" = "true" ]; then
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FULL_DEPLOY")
+        else
+          CHANGED_FILES="FULL_DEPLOY"
+        fi
+
+        # Persist to env file for subsequent commands
+        echo "$CHANGED_FILES" > /tmp/changed_files.txt
+        echo "Changed files:"
+        cat /tmp/changed_files.txt
+
       - echo "=== Determining environment ==="
       - export ENV="${ENVIRONMENT:-sandbox}"
-      - 'if [ "$ENVIRONMENT" = "production" ]; then export STACK_NAME="evo-uds-v3-prod-lambdas"; export COGNITO_USER_POOL_ID="us-east-1_BUJecylbm"; export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:523115032346:userpool/us-east-1_BUJecylbm"; export COGNITO_CLIENT_ID="a761ofnfjjo7u5mhpe2r54b7j"; export LAMBDA_SG="sg-066e845f73d46814d"; export PRIVATE_SUBNET_1="subnet-0494b6594914ba898"; export PRIVATE_SUBNET_2="subnet-0f68017cc0b95edda"; export DATABASE_URL="postgresql://evoadmin:xJB8g6z84PzUYRhWMM8QkkQb@evo-uds-v3-production-postgres.cib8kysoo015.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"; export FRONTEND_BUCKET="evo-uds-v3-production-frontend-523115032346"; export CF_DIST_ID="E2NW0IZ2OX493I"; export S3_BUCKET="evo-sam-artifacts-523115032346"; export LAMBDA_PREFIX="evo-uds-v3-production"; else export STACK_NAME="evo-uds-v3-sandbox-lambdas"; export COGNITO_USER_POOL_ID="us-east-1_HPU98xnmT"; export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:971354623291:userpool/us-east-1_HPU98xnmT"; export COGNITO_CLIENT_ID="6gls4r44u96v6o0mkm1l6sbmgd"; export LAMBDA_SG="sg-0f14fd661fc5c41ba"; export PRIVATE_SUBNET_1="subnet-0edbe4968ff3a5a9e"; export PRIVATE_SUBNET_2="subnet-01931c820b0b0e864"; export DATABASE_URL="postgresql://evoadmin:password@evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"; export FRONTEND_BUCKET="evo-uds-v3-sandbox-frontend-971354623291"; export CF_DIST_ID="E93EL7AJZ6QAQ"; export S3_BUCKET="evo-sam-artifacts-971354623291"; export LAMBDA_PREFIX="evo-uds-v3-sandbox"; fi'
+      - |
+        if [ "$ENVIRONMENT" = "production" ]; then
+          export STACK_NAME="evo-uds-v3-prod-lambdas"
+          export COGNITO_USER_POOL_ID="us-east-1_BUJecylbm"
+          export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:523115032346:userpool/us-east-1_BUJecylbm"
+          export COGNITO_CLIENT_ID="a761ofnfjjo7u5mhpe2r54b7j"
+          export LAMBDA_SG="sg-066e845f73d46814d"
+          export PRIVATE_SUBNET_1="subnet-0494b6594914ba898"
+          export PRIVATE_SUBNET_2="subnet-0f68017cc0b95edda"
+          export DATABASE_URL="postgresql://evoadmin:xJB8g6z84PzUYRhWMM8QkkQb@evo-uds-v3-production-postgres.cib8kysoo015.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
+          export FRONTEND_BUCKET="evo-uds-v3-production-frontend-523115032346"
+          export CF_DIST_ID="E2NW0IZ2OX493I"
+          export S3_BUCKET="evo-sam-artifacts-523115032346"
+          export LAMBDA_PREFIX="evo-uds-v3-production"
+        else
+          export STACK_NAME="evo-uds-v3-sandbox-lambdas"
+          export COGNITO_USER_POOL_ID="us-east-1_HPU98xnmT"
+          export COGNITO_USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:971354623291:userpool/us-east-1_HPU98xnmT"
+          export COGNITO_CLIENT_ID="6gls4r44u96v6o0mkm1l6sbmgd"
+          export LAMBDA_SG="sg-0f14fd661fc5c41ba"
+          export PRIVATE_SUBNET_1="subnet-0edbe4968ff3a5a9e"
+          export PRIVATE_SUBNET_2="subnet-01931c820b0b0e864"
+          export DATABASE_URL="postgresql://evoadmin:password@evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
+          export FRONTEND_BUCKET="evo-uds-v3-sandbox-frontend-971354623291"
+          export CF_DIST_ID="E93EL7AJZ6QAQ"
+          export S3_BUCKET="evo-sam-artifacts-971354623291"
+          export LAMBDA_PREFIX="evo-uds-v3-sandbox"
+        fi
       - echo "Environment $ENV | Stack $STACK_NAME"
-      - echo "=== Analyzing changed files ==="
-      - 'if [ -d ".git" ]; then CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FULL_DEPLOY"); elif [ -n "$GIT_CLONE_DIR" ] && [ -d "$GIT_CLONE_DIR/.git" ]; then CHANGED_FILES=$(cd $GIT_CLONE_DIR && git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FULL_DEPLOY"); else CHANGED_FILES="FULL_DEPLOY"; fi'
-      - echo "Changed files:" && echo "$CHANGED_FILES"
-      - export DEPLOY_FRONTEND="false"
-      - export DEPLOY_FULL_SAM="false"
-      - export DEPLOY_HANDLERS="false"
-      - export DEPLOY_ALL_HANDLERS="false"
-      - export CHANGED_HANDLERS=""
-      - 'if echo "$CHANGED_FILES" | grep -q "FULL_DEPLOY"; then echo ">>> FULL DEPLOY (no git history)"; export DEPLOY_FRONTEND="true"; export DEPLOY_FULL_SAM="true"; fi'
-      - 'if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^(sam/template\.yaml|sam/production-lambdas-only\.yaml|backend/prisma/schema\.prisma)$"; then echo ">>> FULL SAM DEPLOY (SAM template or Prisma schema changed)"; export DEPLOY_FULL_SAM="true"; export DEPLOY_FRONTEND="true"; fi'
-      - 'if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^(src/|public/|index\.html|vite\.config|tailwind|postcss)"; then echo ">>> Frontend changed"; export DEPLOY_FRONTEND="true"; fi'
-      - 'if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^backend/src/(lib|types)/"; then echo ">>> Shared lib/types changed - incremental deploy of ALL handlers"; export DEPLOY_HANDLERS="true"; export DEPLOY_ALL_HANDLERS="true"; fi'
-      - 'if [ "$DEPLOY_FULL_SAM" = "false" ]; then HANDLER_CHANGES=$(echo "$CHANGED_FILES" | grep "^backend/src/handlers/" | sed "s|backend/src/handlers/||" || true); if [ -n "$HANDLER_CHANGES" ]; then echo ">>> Handlers changed: $HANDLER_CHANGES"; export DEPLOY_HANDLERS="true"; export CHANGED_HANDLERS="$HANDLER_CHANGES"; fi; fi'
-      - echo "Deploy strategy FRONTEND=$DEPLOY_FRONTEND FULL_SAM=$DEPLOY_FULL_SAM HANDLERS=$DEPLOY_HANDLERS ALL_HANDLERS=$DEPLOY_ALL_HANDLERS"
+
+      - echo "=== Analyzing deploy strategy ==="
+      - |
+        CHANGED_FILES=$(cat /tmp/changed_files.txt)
+
+        DEPLOY_FRONTEND="false"
+        DEPLOY_FULL_SAM="false"
+        DEPLOY_HANDLERS="false"
+        DEPLOY_ALL_HANDLERS="false"
+        DEPLOY_BACKEND_BUILD="false"
+        DEPLOY_FRONTEND_BUILD="false"
+        CHANGED_HANDLERS=""
+
+        # 1. No git history → full deploy
+        if echo "$CHANGED_FILES" | grep -q "FULL_DEPLOY"; then
+          echo ">>> FULL DEPLOY (no git history)"
+          DEPLOY_FRONTEND="true"
+          DEPLOY_FULL_SAM="true"
+          DEPLOY_BACKEND_BUILD="true"
+          DEPLOY_FRONTEND_BUILD="true"
+        fi
+
+        # 2. SAM template or Prisma schema changed → full SAM
+        if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^(sam/template\.yaml|sam/production-lambdas-only\.yaml|backend/prisma/schema\.prisma)$"; then
+          echo ">>> FULL SAM DEPLOY (SAM template or Prisma schema changed)"
+          DEPLOY_FULL_SAM="true"
+          DEPLOY_FRONTEND="true"
+          DEPLOY_BACKEND_BUILD="true"
+          DEPLOY_FRONTEND_BUILD="true"
+        fi
+
+        # 3. Frontend files changed
+        if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^(src/|public/|index\.html|vite\.config|tailwind|postcss)"; then
+          echo ">>> Frontend changed"
+          DEPLOY_FRONTEND="true"
+          DEPLOY_FRONTEND_BUILD="true"
+        fi
+
+        # 4. Shared backend lib/types changed → incremental deploy ALL handlers
+        if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^backend/src/(lib|types)/"; then
+          echo ">>> Shared lib/types changed - incremental deploy of ALL handlers"
+          DEPLOY_HANDLERS="true"
+          DEPLOY_ALL_HANDLERS="true"
+          DEPLOY_BACKEND_BUILD="true"
+        fi
+
+        # 5. Specific handlers changed → incremental deploy only those
+        if [ "$DEPLOY_FULL_SAM" = "false" ]; then
+          HANDLER_CHANGES=$(echo "$CHANGED_FILES" | grep "^backend/src/handlers/" | sed "s|backend/src/handlers/||" || true)
+          if [ -n "$HANDLER_CHANGES" ]; then
+            echo ">>> Handlers changed: $HANDLER_CHANGES"
+            DEPLOY_HANDLERS="true"
+            DEPLOY_BACKEND_BUILD="true"
+            CHANGED_HANDLERS="$HANDLER_CHANGES"
+          fi
+        fi
+
+        # 6. Backend package.json or tsconfig changed → need backend build
+        if echo "$CHANGED_FILES" | grep -qE "^backend/(package\.json|tsconfig\.json)"; then
+          DEPLOY_BACKEND_BUILD="true"
+        fi
+
+        # Determine if we need any build at all
+        if [ "$DEPLOY_FULL_SAM" = "false" ] && [ "$DEPLOY_HANDLERS" = "false" ] && [ "$DEPLOY_FRONTEND" = "false" ]; then
+          echo ">>> NO DEPLOY NEEDED (docs/scripts/cicd only changes)"
+        fi
+
+        echo "Deploy strategy: FRONTEND=$DEPLOY_FRONTEND FULL_SAM=$DEPLOY_FULL_SAM HANDLERS=$DEPLOY_HANDLERS ALL_HANDLERS=$DEPLOY_ALL_HANDLERS"
+        echo "Build needed: BACKEND=$DEPLOY_BACKEND_BUILD FRONTEND=$DEPLOY_FRONTEND_BUILD"
+
+        # Persist strategy to files for use in build phase
+        echo "$DEPLOY_FRONTEND" > /tmp/deploy_frontend.txt
+        echo "$DEPLOY_FULL_SAM" > /tmp/deploy_full_sam.txt
+        echo "$DEPLOY_HANDLERS" > /tmp/deploy_handlers.txt
+        echo "$DEPLOY_ALL_HANDLERS" > /tmp/deploy_all_handlers.txt
+        echo "$DEPLOY_BACKEND_BUILD" > /tmp/deploy_backend_build.txt
+        echo "$DEPLOY_FRONTEND_BUILD" > /tmp/deploy_frontend_build.txt
+        echo "$CHANGED_HANDLERS" > /tmp/changed_handlers.txt
 
   build:
     commands:
-      - echo "=== Building Backend TypeScript ==="
-      - npm run build --prefix backend
-      - echo "=== Building Frontend ==="
-      - npm run build
-      - echo "=== Executing deploy strategy ==="
-      - 'if [ "$DEPLOY_FULL_SAM" = "true" ]; then echo "=== FULL SAM DEPLOY ==="; mkdir -p backend/layers/dependencies/nodejs/node_modules; cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/; cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/; cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/; rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true; echo "SAM Build..."; sam build --template-file sam/production-lambdas-only.yaml --build-dir .aws-sam/build --parallel --cached; echo "SAM Deploy..."; sam deploy --template-file .aws-sam/build/template.yaml --stack-name $STACK_NAME --s3-bucket $S3_BUCKET --s3-prefix $STACK_NAME --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM --region us-east-1 --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides Environment=$ENV ProjectName=evo-uds-v3 DatabaseUrl=$DATABASE_URL CognitoUserPoolId=$COGNITO_USER_POOL_ID CognitoUserPoolArn=$COGNITO_USER_POOL_ARN CognitoClientId=$COGNITO_CLIENT_ID LambdaSecurityGroupId=$LAMBDA_SG PrivateSubnet1Id=$PRIVATE_SUBNET_1 PrivateSubnet2Id=$PRIVATE_SUBNET_2; fi'
-      - 'if [ "$DEPLOY_FULL_SAM" = "false" ] && [ "$DEPLOY_HANDLERS" = "true" ]; then echo "=== INCREMENTAL LAMBDA DEPLOY ==="; chmod +x cicd/scripts/deploy-changed-lambdas.sh; if [ "$DEPLOY_ALL_HANDLERS" = "true" ]; then echo ">>> Deploying ALL handlers (shared lib/types changed)"; DEPLOY_ALL=true LAMBDA_PREFIX="$LAMBDA_PREFIX" REGION=us-east-1 bash cicd/scripts/deploy-changed-lambdas.sh; else echo ">>> Deploying only changed handlers: $CHANGED_HANDLERS"; CHANGED_HANDLERS="$CHANGED_HANDLERS" LAMBDA_PREFIX="$LAMBDA_PREFIX" REGION=us-east-1 bash cicd/scripts/deploy-changed-lambdas.sh; fi; fi'
-      - 'if [ "$DEPLOY_FULL_SAM" = "false" ] && [ "$DEPLOY_HANDLERS" = "false" ]; then echo "=== NO LAMBDA CHANGES ==="; fi'
+      - |
+        DEPLOY_BACKEND_BUILD=$(cat /tmp/deploy_backend_build.txt)
+        DEPLOY_FRONTEND_BUILD=$(cat /tmp/deploy_frontend_build.txt)
+        DEPLOY_FULL_SAM=$(cat /tmp/deploy_full_sam.txt)
+        DEPLOY_HANDLERS=$(cat /tmp/deploy_handlers.txt)
+        DEPLOY_ALL_HANDLERS=$(cat /tmp/deploy_all_handlers.txt)
+        CHANGED_HANDLERS=$(cat /tmp/changed_handlers.txt)
+
+        # === Build only what's needed ===
+        if [ "$DEPLOY_BACKEND_BUILD" = "true" ]; then
+          echo "=== Building Backend TypeScript ==="
+          npm run build --prefix backend
+        else
+          echo "=== Skipping Backend Build (no backend changes) ==="
+        fi
+
+        if [ "$DEPLOY_FRONTEND_BUILD" = "true" ]; then
+          echo "=== Building Frontend ==="
+          npm run build
+        else
+          echo "=== Skipping Frontend Build (no frontend changes) ==="
+        fi
+
+        # === Execute deploy strategy ===
+        if [ "$DEPLOY_FULL_SAM" = "true" ]; then
+          echo "=== FULL SAM DEPLOY ==="
+          # Prepare layer
+          mkdir -p backend/layers/dependencies/nodejs/node_modules
+          cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
+          cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
+          cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
+          rm -rf backend/layers/dependencies/nodejs/node_modules/.prisma/client/libquery_engine-darwin* 2>/dev/null || true
+
+          echo "SAM Build..."
+          sam build --template-file sam/production-lambdas-only.yaml --build-dir .aws-sam/build --parallel --cached
+
+          echo "SAM Deploy..."
+          sam deploy \
+            --template-file .aws-sam/build/template.yaml \
+            --stack-name $STACK_NAME \
+            --s3-bucket $S3_BUCKET \
+            --s3-prefix $STACK_NAME \
+            --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
+            --region us-east-1 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              Environment=$ENV \
+              ProjectName=evo-uds-v3 \
+              DatabaseUrl=$DATABASE_URL \
+              CognitoUserPoolId=$COGNITO_USER_POOL_ID \
+              CognitoUserPoolArn=$COGNITO_USER_POOL_ARN \
+              CognitoClientId=$COGNITO_CLIENT_ID \
+              LambdaSecurityGroupId=$LAMBDA_SG \
+              PrivateSubnet1Id=$PRIVATE_SUBNET_1 \
+              PrivateSubnet2Id=$PRIVATE_SUBNET_2
+
+        elif [ "$DEPLOY_HANDLERS" = "true" ]; then
+          echo "=== INCREMENTAL LAMBDA DEPLOY ==="
+          chmod +x cicd/scripts/deploy-changed-lambdas.sh
+          if [ "$DEPLOY_ALL_HANDLERS" = "true" ]; then
+            echo ">>> Deploying ALL handlers (shared lib/types changed)"
+            DEPLOY_ALL=true LAMBDA_PREFIX="$LAMBDA_PREFIX" REGION=us-east-1 bash cicd/scripts/deploy-changed-lambdas.sh
+          else
+            echo ">>> Deploying only changed handlers: $CHANGED_HANDLERS"
+            CHANGED_HANDLERS="$CHANGED_HANDLERS" LAMBDA_PREFIX="$LAMBDA_PREFIX" REGION=us-east-1 bash cicd/scripts/deploy-changed-lambdas.sh
+          fi
+
+        else
+          echo "=== NO LAMBDA DEPLOY NEEDED ==="
+        fi
 
   post_build:
     commands:
-      - 'if [ "$DEPLOY_FRONTEND" = "true" ]; then echo "=== Syncing Frontend to S3 ==="; aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete; echo "=== Invalidating CloudFront ==="; aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true; else echo "=== Skipping Frontend Deploy (no changes) ==="; fi'
-      - 'if [ "$DEPLOY_FULL_SAM" = "true" ] && [ "$ENVIRONMENT" = "production" ]; then echo "=== Updating API Gateway Custom Domain Mapping ==="; API_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query "Stacks[0].Outputs[?OutputKey==\`HttpApiId\`].OutputValue" --output text 2>/dev/null || echo ""); if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then MAPPING_ID=$(aws apigatewayv2 get-api-mappings --domain-name api.evo.nuevacore.com --region us-east-1 --query "Items[0].ApiMappingId" --output text 2>/dev/null || echo ""); if [ -n "$MAPPING_ID" ] && [ "$MAPPING_ID" != "None" ]; then aws apigatewayv2 update-api-mapping --domain-name api.evo.nuevacore.com --api-mapping-id $MAPPING_ID --api-id $API_ID --stage prod --region us-east-1 || echo "Warning: Could not update API mapping"; fi; fi; fi'
-      - echo "=== DEPLOYMENT COMPLETE ==="
-      - echo "Strategy used FRONTEND=$DEPLOY_FRONTEND FULL_SAM=$DEPLOY_FULL_SAM HANDLERS=$DEPLOY_HANDLERS"
+      - |
+        DEPLOY_FRONTEND=$(cat /tmp/deploy_frontend.txt)
+        DEPLOY_FULL_SAM=$(cat /tmp/deploy_full_sam.txt)
+
+        if [ "$DEPLOY_FRONTEND" = "true" ]; then
+          echo "=== Syncing Frontend to S3 ==="
+          aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
+          echo "=== Invalidating CloudFront ==="
+          aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
+        else
+          echo "=== Skipping Frontend Deploy (no changes) ==="
+        fi
+
+        # Update API Gateway custom domain mapping if full SAM deploy in production
+        if [ "$DEPLOY_FULL_SAM" = "true" ] && [ "$ENVIRONMENT" = "production" ]; then
+          echo "=== Updating API Gateway Custom Domain Mapping ==="
+          API_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey==\`HttpApiId\`].OutputValue" --output text 2>/dev/null || echo "")
+          if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
+            MAPPING_ID=$(aws apigatewayv2 get-api-mappings --domain-name api.evo.nuevacore.com --region us-east-1 \
+              --query "Items[0].ApiMappingId" --output text 2>/dev/null || echo "")
+            if [ -n "$MAPPING_ID" ] && [ "$MAPPING_ID" != "None" ]; then
+              aws apigatewayv2 update-api-mapping \
+                --domain-name api.evo.nuevacore.com \
+                --api-mapping-id $MAPPING_ID \
+                --api-id $API_ID \
+                --stage prod \
+                --region us-east-1 || echo "Warning: Could not update API mapping"
+            fi
+          fi
+        fi
+
+        echo "=== DEPLOYMENT COMPLETE ==="
+        echo "Strategy used: FRONTEND=$DEPLOY_FRONTEND FULL_SAM=$DEPLOY_FULL_SAM HANDLERS=$(cat /tmp/deploy_handlers.txt)"
 
 artifacts:
   files:

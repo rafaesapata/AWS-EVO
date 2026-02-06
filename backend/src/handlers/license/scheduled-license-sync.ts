@@ -53,6 +53,7 @@ export async function handler(event: ScheduledEvent): Promise<SyncReport> {
     // Create system event for audit
     await prisma.systemEvent.create({
       data: {
+        organization_id: '00000000-0000-0000-0000-000000000000', // System-level event
         event_type: 'LICENSE_SYNC_COMPLETED',
         payload: report as any,
         processed: true,
@@ -94,6 +95,7 @@ export async function handler(event: ScheduledEvent): Promise<SyncReport> {
     // Log error event
     await prisma.systemEvent.create({
       data: {
+        organization_id: '00000000-0000-0000-0000-000000000000', // System-level event
         event_type: 'LICENSE_SYNC_FAILED',
         payload: {
           error: err instanceof Error ? err.message : String(err),
@@ -286,6 +288,7 @@ async function cleanupOrphanSeatAssignments(): Promise<void> {
   if (totalOrphansRemoved > 0 || licensesUpdated > 0) {
     await prisma.systemEvent.create({
       data: {
+        organization_id: '00000000-0000-0000-0000-000000000000', // System-level event
         event_type: 'ORPHAN_SEATS_CLEANUP',
         payload: {
           orphans_removed: totalOrphansRemoved,

@@ -223,6 +223,7 @@ export async function handler(
       cloud_provider: 'AZURE' as const,
       azure_credential_id: credentialId,
       severity: finding.severity,
+      title: finding.title || finding.description?.substring(0, 200) || 'Azure Security Finding',
       description: finding.description,
       details: JSON.parse(JSON.stringify({
         title: finding.title,
@@ -251,6 +252,7 @@ export async function handler(
       cloud_provider: 'AZURE' as const,
       azure_credential_id: credentialId,
       severity: finding.severity,
+      title: finding.title || finding.description?.substring(0, 200) || 'Azure Module Finding',
       description: finding.description,
       details: JSON.parse(JSON.stringify({
         title: finding.title,
