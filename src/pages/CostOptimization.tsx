@@ -732,7 +732,7 @@ export default function CostOptimization() {
     onSuccess: async (data) => {
       toast({
         title: t('costOptimization.analysisCompleted'),
-        description: `Encontradas ${data.optimizations?.length || 0} oportunidades de otimização com economia potencial de $${data.summary?.monthly_savings || 0}/mês.`,
+        description: t('costOptimization.optimizationsFound', 'Found {{count}} optimization opportunities with potential savings of {{amount}}/month.', { count: data.optimizations?.length || 0, amount: data.summary?.monthly_savings || 0 }),
       });
       // Invalidate all related queries to force refetch from database
       await queryClient.invalidateQueries({ queryKey: ['cost-optimization'] });
@@ -1024,7 +1024,7 @@ export default function CostOptimization() {
     if (!recommendations) return;
 
     const csvContent = [
-      'Tipo,Recurso,Custo Atual,Custo Otimizado,Economia Potencial,Confiança,Esforço,Impacto,Descrição',
+      `${t('costOptimization.csvType', 'Type')},${t('costOptimization.resource', 'Resource')},${t('costOptimization.currentCost', 'Current Cost')},${t('costOptimization.optimizedCost', 'Optimized Cost')},${t('costOptimization.potentialSavings', 'Potential Savings')},${t('costOptimization.confidence', 'Confidence')},${t('costOptimization.effort', 'Effort')},${t('costOptimization.impact', 'Impact')},${t('costOptimization.descriptionLabel', 'Description')}`,
       ...recommendations.map(rec => [
         rec.type,
         rec.resource_name,
@@ -1847,15 +1847,15 @@ export default function CostOptimization() {
                 <h4 className="font-semibold">{t('costOptimization.costAnalysis', 'Cost Analysis')}</h4>
                 <div className="grid grid-cols-3 gap-4">
                   <Card className="p-4">
-                    <p className="text-sm text-muted-foreground">Custo Atual</p>
+                    <p className="text-sm text-muted-foreground">{t('costOptimization.currentCost', 'Current Cost')}</p>
                     <p className="text-xl font-semibold">${selectedRecommendation.current_cost.toFixed(2)}</p>
                   </Card>
                   <Card className="p-4">
-                    <p className="text-sm text-muted-foreground">Custo Otimizado</p>
+                    <p className="text-sm text-muted-foreground">{t('costOptimization.optimizedCost', 'Optimized Cost')}</p>
                     <p className="text-xl font-semibold text-green-500">${selectedRecommendation.optimized_cost.toFixed(2)}</p>
                   </Card>
                   <Card className="p-4">
-                    <p className="text-sm text-muted-foreground">Economia</p>
+                    <p className="text-sm text-muted-foreground">{t('costOptimization.savings', 'Savings')}</p>
                     <p className="text-xl font-semibold text-primary">${selectedRecommendation.potential_savings.toFixed(2)}</p>
                     <p className="text-xs text-muted-foreground">{selectedRecommendation.savings_percentage.toFixed(1)}%</p>
                   </Card>
@@ -1864,22 +1864,22 @@ export default function CostOptimization() {
 
               {/* Assessment */}
               <div className="space-y-2">
-                <h4 className="font-semibold">Avaliação</h4>
+                <h4 className="font-semibold">{t('costOptimization.assessment', 'Assessment')}</h4>
                 <div className="flex gap-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Confiança:</span>
+                    <span className="text-sm text-muted-foreground">{t('costOptimization.confidence', 'Confidence')}:</span>
                     {getConfidenceBadge(selectedRecommendation.confidence)}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Esforço:</span>
+                    <span className="text-sm text-muted-foreground">{t('costOptimization.effort', 'Effort')}:</span>
                     {getEffortBadge(selectedRecommendation.effort)}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Impacto:</span>
+                    <span className="text-sm text-muted-foreground">{t('costOptimization.impact', 'Impact')}:</span>
                     {getImpactBadge(selectedRecommendation.impact)}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Risco:</span>
+                    <span className="text-sm text-muted-foreground">{t('costOptimization.risk', 'Risk')}:</span>
                     <Badge variant={selectedRecommendation.risk_level === 'low' ? 'outline' : selectedRecommendation.risk_level === 'medium' ? 'secondary' : 'destructive'}>
                       {selectedRecommendation.risk_level}
                     </Badge>
@@ -1889,7 +1889,7 @@ export default function CostOptimization() {
 
               {/* Description */}
               <div className="space-y-2">
-                <h4 className="font-semibold">Descrição</h4>
+                <h4 className="font-semibold">{t('costOptimization.descriptionLabel', 'Description')}</h4>
                 <p className="text-sm text-muted-foreground">{selectedRecommendation.description}</p>
               </div>
 
@@ -1897,7 +1897,7 @@ export default function CostOptimization() {
               <div className="space-y-2 bg-muted/30 rounded-lg p-4">
                 <h4 className="font-semibold flex items-center gap-2">
                   <Lightbulb className="h-4 w-4" />
-                  Recomendação
+                  {t('costOptimization.recommendation', 'Recommendation')}
                 </h4>
                 <p className="text-sm">{selectedRecommendation.recommendation}</p>
               </div>
@@ -1905,7 +1905,7 @@ export default function CostOptimization() {
               {/* Implementation Steps */}
               {selectedRecommendation.implementation_steps && selectedRecommendation.implementation_steps.length > 0 && (
                 <div className="space-y-2">
-                  <h4 className="font-semibold">Passos para Implementação</h4>
+                  <h4 className="font-semibold">{t('costOptimization.implementationSteps', 'Implementation Steps')}</h4>
                   <ol className="space-y-2">
                     {selectedRecommendation.implementation_steps.map((step, idx) => (
                       <li key={idx} className="flex gap-3 text-sm">
@@ -1924,7 +1924,7 @@ export default function CostOptimization() {
                 <div className="space-y-3">
                   <h4 className="font-semibold flex items-center gap-2">
                     <Terminal className="h-4 w-4" />
-                    Scripts Recomendados
+                    {t('costOptimization.recommendedScripts', 'Recommended Scripts')}
                   </h4>
                   <div className="space-y-3">
                     {selectedRecommendation.implementation_scripts.map((script, idx) => (
@@ -1940,8 +1940,8 @@ export default function CostOptimization() {
                             onClick={() => {
                               navigator.clipboard.writeText(script.command);
                               toast({
-                                title: "Comando copiado!",
-                                description: "Cole no terminal para executar.",
+                                title: t('costOptimization.commandCopied', 'Command copied!'),
+                                description: t('costOptimization.pasteInTerminal', 'Paste in terminal to execute.'),
                               });
                             }}
                           >
@@ -1996,7 +1996,7 @@ export default function CostOptimization() {
                       }}
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />
-                      Ir para Copilot
+                      {t('costOptimization.goToCopilotBtn', 'Go to Copilot')}
                     </Button>
                   </div>
                 </div>
@@ -2005,7 +2005,7 @@ export default function CostOptimization() {
               {/* Actions */}
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button variant="outline" onClick={() => setSelectedRecommendation(null)}>
-                  Fechar
+                  {t('common.close', 'Close')}
                 </Button>
                 <Button 
                   onClick={() => markAsImplementedMutation.mutate(selectedRecommendation.id)}
@@ -2014,12 +2014,12 @@ export default function CostOptimization() {
                   {markAsImplementedMutation.isPending ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Salvando...
+                      {t('common.saving', 'Saving...')}
                     </>
                   ) : (
                     <>
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      {selectedRecommendation.status === 'implemented' ? 'Já Implementado' : 'Marcar como Implementado'}
+                      {selectedRecommendation.status === 'implemented' ? t('costOptimization.alreadyImplemented', 'Already Implemented') : t('costOptimization.markAsImplemented', 'Mark as Implemented')}
                     </>
                   )}
                 </Button>

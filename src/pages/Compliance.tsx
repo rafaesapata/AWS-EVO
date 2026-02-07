@@ -308,11 +308,13 @@ export default function Compliance() {
       try {
         // Query for running compliance scan jobs
         const result = await apiClient.select('background_jobs', {
-          select: '*',
-          organization_id: organizationId,
-          job_type: 'compliance-scan',
-          status: 'in:pending,running',
-          order: { created_at: 'desc' },
+          eq: {
+            job_type: 'compliance-scan',
+          },
+          in: {
+            status: ['pending', 'running'],
+          },
+          order: { column: 'created_at', ascending: false },
           limit: 10,
         });
         
@@ -324,7 +326,8 @@ export default function Compliance() {
           const newRunningJobs = new Map<string, ScanJob>();
           
           for (const job of jobs) {
-            const frameworkId = job.parameters?.frameworkId;
+            const payload = job.payload || job.parameters || {};
+            const frameworkId = payload.frameworkId;
             if (frameworkId) {
               newRunningJobs.set(frameworkId, {
                 job_id: job.id,

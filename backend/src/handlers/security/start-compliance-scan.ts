@@ -1,6 +1,6 @@
 /**
  * Start Compliance Scan Handler (Async)
- * Creates a background job and invokes compliance-scan via HTTPS
+ * Creates a background job and invokes compliance-scan Lambda asynchronously
  */
 
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
@@ -11,51 +11,12 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
-import https from 'https';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 
 const startComplianceScanSchema = z.object({
   frameworkId: z.string().min(1),
   accountId: z.string().uuid().optional(),
 });
-
-// Helper to make async HTTPS request (fire-and-forget)
-function invokeComplianceScanAsync(
-  authToken: string,
-  body: object
-): void {
-  const postData = JSON.stringify(body);
-  
-  const options = {
-    hostname: 'api-evo.ai.udstec.io',
-    port: 443,
-    path: '/api/functions/compliance-scan',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(postData),
-      'Authorization': authToken,
-    },
-    timeout: 5000, // 5 second timeout for the initial connection
-  };
-  
-  const req = https.request(options, (res) => {
-    // We don't wait for the response - fire and forget
-    logger.info('Compliance scan invoked via HTTPS', { statusCode: res.statusCode });
-  });
-  
-  req.on('error', (err) => {
-    logger.error('HTTPS request error (non-blocking)', { error: err.message });
-  });
-  
-  req.on('timeout', () => {
-    // Timeout is expected since the scan takes a long time
-    logger.info('HTTPS request timeout (expected for long-running scan)');
-    req.destroy();
-  });
-  
-  req.write(postData);
-  req.end();
-}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -167,17 +128,46 @@ export async function handler(
       accountId: accountId || credential.id
     });
     
-    // Get authorization token from the request
-    const authToken = event.headers?.authorization || event.headers?.Authorization || '';
+    // Invoke compliance-scan Lambda asynchronously
+    const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
+    const prefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
     
-    // Invoke compliance-scan via HTTPS (fire-and-forget)
-    invokeComplianceScanAsync(authToken, {
-      frameworkId,
-      accountId: accountId || credential.id,
-      jobId: job.id,
-    });
+    const lambdaPayload = {
+      body: JSON.stringify({
+        frameworkId,
+        accountId: accountId || credential.id,
+        jobId: job.id,
+      }),
+      requestContext: {
+        http: { method: 'POST' },
+        authorizer: event.requestContext?.authorizer,
+      },
+      headers: {
+        authorization: event.headers?.authorization || event.headers?.Authorization || '',
+        'content-type': 'application/json',
+      },
+    };
     
-    logger.info('Invoked compliance-scan via HTTPS', { jobId: job.id });
+    try {
+      await lambdaClient.send(new InvokeCommand({
+        FunctionName: `${prefix}-compliance-scan`,
+        InvocationType: 'Event', // Async invocation - fire and forget
+        Payload: Buffer.from(JSON.stringify(lambdaPayload)),
+      }));
+      logger.info('Invoked compliance-scan Lambda async', { jobId: job.id, functionName: `${prefix}-compliance-scan` });
+    } catch (invokeErr: any) {
+      logger.error('Failed to invoke compliance-scan Lambda', { error: invokeErr.message });
+      // Update job as failed since we couldn't invoke the scan
+      await prisma.backgroundJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'failed',
+          error: `Failed to invoke scan: ${invokeErr.message}`,
+          completed_at: new Date(),
+        },
+      });
+      return error('Failed to start compliance scan. Please try again.', 500, undefined, origin);
+    }
     
     return success({
       job_id: job.id,

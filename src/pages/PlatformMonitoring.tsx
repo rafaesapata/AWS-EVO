@@ -166,33 +166,33 @@ export default function PlatformMonitoring() {
 
  // Generate prompt for a specific error
  const generatePromptForSpecificError = useCallback(async (error: RecentError) => {
-   const prompt = `## 🔧 Correção de Erro - ${error.errorType}
+   const prompt = `## 🔧 Error Fix - ${error.errorType}
 
-### Contexto
-- **Timestamp:** ${new Date(error.timestamp).toLocaleString('pt-BR')}
+### Context
+- **Timestamp:** ${new Date(error.timestamp).toLocaleString()}
 - **Source:** ${error.source}
 - **Status Code:** ${error.statusCode || 'N/A'}
 ${error.lambdaName ? `- **Lambda:** ${error.lambdaName}` : ''}
 ${error.endpoint ? `- **Endpoint:** ${error.endpoint}` : ''}
 
-### Erro
+### Error
 \`\`\`
 ${error.message}
 \`\`\`
 
-### Instruções
-Por favor, analise este erro e:
-1. Identifique a causa raiz do problema
-2. Verifique os arquivos relevantes no projeto
-3. Implemente a correção necessária
-4. Faça o deploy se necessário
+### Instructions
+Please analyze this error and:
+1. Identify the root cause
+2. Check the relevant files in the project
+3. Implement the necessary fix
+4. Deploy if necessary
 
-### Arquivos Relevantes
+### Relevant Files
 ${error.lambdaName ? `- \`backend/src/handlers/**/${error.lambdaName.replace('evo-uds-v3-production-', '')}.ts\`` : ''}
-- Verifique os steering files em \`.kiro/steering/\` para contexto adicional
+- Check steering files in \`.kiro/steering/\` for additional context
 
-### Prioridade
-${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando usuários' : '🟡 MÉDIA - Investigar e corrigir'}
+### Priority
+${error.statusCode && error.statusCode >= 500 ? '🔴 HIGH - 5xx error affecting users' : '🟡 MEDIUM - Investigate and fix'}
 `;
    return prompt;
  }, []);
@@ -1091,13 +1091,13 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
 
  <Card >
  <CardHeader>
- <CardTitle>Configuração de Notificações</CardTitle>
+ <CardTitle>{t('platformMonitoring.notificationConfig', 'Notification Configuration')}</CardTitle>
  </CardHeader>
  <CardContent>
  <div className="space-y-3 text-sm">
  <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
  <CheckCircle className="h-4 w-4 text-green-500" />
- <span>Email notifications: alerts@udstec.io</span>
+ <span>{t('platformMonitoring.emailNotifications', 'Email notifications')}: alerts@udstec.io</span>
  </div>
  <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
  <CheckCircle className="h-4 w-4 text-green-500" />
@@ -1105,11 +1105,11 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </div>
  <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
  <CheckCircle className="h-4 w-4 text-green-500" />
- <span>CloudWatch Dashboard ativo</span>
+ <span>{t('platformMonitoring.cloudWatchActive', 'CloudWatch Dashboard active')}</span>
  </div>
  <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
  <CheckCircle className="h-4 w-4 text-green-500" />
- <span>Frontend error logging habilitado</span>
+ <span>{t('platformMonitoring.frontendLogging', 'Frontend error logging enabled')}</span>
  </div>
  </div>
  </CardContent>

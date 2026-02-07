@@ -530,3 +530,76 @@ export async function getLicenseSummary(organizationId: string) {
     }),
   };
 }
+
+// ============================================================================
+// Report Seat Usage to External Platform
+// ============================================================================
+
+export async function reportSeatsToExternalApi(): Promise<{ reported: number; failed: number; errors: string[] }> {
+  const prisma = getPrismaClient() as any;
+  const apiKey = process.env.LICENSE_API_KEY;
+  const apiBaseUrl = process.env.LICENSE_API_URL;
+
+  if (!apiKey || !apiBaseUrl) {
+    logger.warn('License API not configured, skipping seat usage report');
+    return { reported: 0, failed: 0, errors: ['LICENSE_API_KEY or LICENSE_API_URL not configured'] };
+  }
+
+  // Derive base URL from validate-license endpoint
+  const updateSeatsUrl = apiBaseUrl.replace(/\/validate-license$/, '/update-license-seats');
+
+  // Get all active licenses with seat assignments
+  const licenses = await prisma.license.findMany({
+    where: { is_active: true },
+    select: {
+      id: true,
+      license_key: true,
+      used_seats: true,
+      organization_id: true,
+    },
+  });
+
+  let reported = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const license of licenses) {
+    if (!license.license_key) continue;
+
+    try {
+      const response = await fetch(updateSeatsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+        },
+        body: JSON.stringify({
+          license_key: license.license_key,
+          used_seats: license.used_seats ?? 0,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const msg = `Failed to report seats for ${license.license_key}: ${response.status} - ${errorText}`;
+        logger.warn(msg);
+        errors.push(msg);
+        failed++;
+      } else {
+        reported++;
+        logger.info(`Reported ${license.used_seats ?? 0} seats for license ${license.license_key}`);
+      }
+    } catch (err) {
+      const msg = `Error reporting seats for ${license.license_key}: ${err instanceof Error ? err.message : String(err)}`;
+      logger.error(msg);
+      errors.push(msg);
+      failed++;
+    }
+
+    // Rate limit between calls
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+
+  logger.info(`Seat usage report completed: ${reported} reported, ${failed} failed`);
+  return { reported, failed, errors };
+}

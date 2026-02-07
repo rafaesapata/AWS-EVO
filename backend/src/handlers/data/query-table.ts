@@ -58,6 +58,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'ml_analysis_history': 'mLAnalysisHistory',
   'edge_services': 'edgeService',
   'edge_metrics': 'edgeMetric',
+  'background_jobs': 'backgroundJob',
   
   // Predictive Incidents (ML)
   'predictive_incidents': 'predictiveIncident',
@@ -151,6 +152,7 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   'knowledge_base_comments': { 'aws_account_id': null },
   'profiles': { 'aws_account_id': null },
   'user_roles': { 'aws_account_id': null },
+  'background_jobs': { 'aws_account_id': null },
   
   // Organizations - não tem organization_id, usa id
   'organizations': { 'organization_id': null },
@@ -181,6 +183,8 @@ const TABLES_WITH_ORG_ID = new Set([
   'security_scans_history', 'security_scan_history', 'well_architected_scans_history',
   // Edge services
   'edge_services', 'edge_metrics',
+  // Background jobs
+  'background_jobs',
   // Predictive Incidents (ML)
   'predictive_incidents', 'predictive_incidents_history',
   // RI/SP Analysis
@@ -193,6 +197,7 @@ interface QueryRequest {
   table: string;
   select?: string;
   eq?: Record<string, any>;
+  in?: Record<string, any[]>;  // IN filter for arrays of values
   order?: { column: string; ascending?: boolean };
   limit?: number;
   offset?: number;  // For pagination
@@ -349,6 +354,19 @@ export async function handler(
         
         where[finalKey] = value;
         logger.info('Added filter', { originalKey: key, finalKey, value, table: body.table });
+      }
+    }
+    
+    // Add in filters (array of values)
+    if (body.in) {
+      const fieldMap = FIELD_MAPPING[body.table] || {};
+      for (const [key, values] of Object.entries(body.in)) {
+        const mappedKey = fieldMap[key];
+        if (mappedKey === null) continue;
+        if (!Array.isArray(values) || values.length === 0) continue;
+        const finalKey = mappedKey || key;
+        where[finalKey] = { in: values };
+        logger.info('Added IN filter', { originalKey: key, finalKey, values, table: body.table });
       }
     }
     

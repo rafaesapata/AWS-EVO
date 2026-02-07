@@ -6,7 +6,7 @@
 import type { ScheduledEvent } from 'aws-lambda';
 import { logger } from '../../lib/logging.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { syncAllOrganizationLicenses } from '../../lib/license-service.js';
+import { syncAllOrganizationLicenses, reportSeatsToExternalApi } from '../../lib/license-service.js';
 
 interface SyncReport {
   date: string;
@@ -86,6 +86,10 @@ export async function handler(event: ScheduledEvent): Promise<SyncReport> {
 
     // Clean up orphan seat assignments
     await cleanupOrphanSeatAssignments();
+
+    // Report seat usage to external licensing platform
+    const seatsReport = await reportSeatsToExternalApi();
+    logger.info('Seat usage report to external API', seatsReport);
 
     return report;
 

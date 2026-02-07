@@ -350,6 +350,7 @@ class ApiClient {
   async select<T>(table: string, options: {
     select?: string;
     eq?: Record<string, any>;
+    in?: Record<string, any[]>;
     order?: { column: string; ascending?: boolean };
     limit?: number;
     offset?: number;
@@ -366,6 +367,7 @@ class ApiClient {
         table,
         select: options.select,
         eq: options.eq,
+        in: options.in,
         order: options.order,
         limit: options.limit,
         offset: options.offset,

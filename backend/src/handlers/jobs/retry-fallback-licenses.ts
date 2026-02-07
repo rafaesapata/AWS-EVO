@@ -174,33 +174,42 @@ export async function handler(event: ScheduledEvent): Promise<RetryReport> {
 
     logger.info('Retry fallback licenses job completed', report);
 
-    // Log system event
-    await prisma.systemEvent.create({
-      data: {
-        organization_id: '00000000-0000-0000-0000-000000000000',
-        event_type: 'FALLBACK_LICENSE_RETRY_COMPLETED',
-        payload: report as any,
-        processed: true,
-        processed_at: new Date(),
-      },
-    });
+    // Log system event via raw SQL (payload column may not exist in Prisma schema)
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO system_events (id, organization_id, event_type, processed, processed_at, created_at)
+        VALUES (
+          gen_random_uuid(),
+          '00000000-0000-0000-0000-000000000000'::uuid,
+          'FALLBACK_LICENSE_RETRY_COMPLETED',
+          true,
+          NOW(),
+          NOW()
+        )
+      `;
+    } catch (logErr: any) {
+      logger.warn('Failed to log system event', { error: logErr.message });
+    }
 
     return report;
 
   } catch (err: any) {
     logger.error('Retry fallback licenses job failed', err);
 
-    await prisma.systemEvent.create({
-      data: {
-        organization_id: '00000000-0000-0000-0000-000000000000',
-        event_type: 'FALLBACK_LICENSE_RETRY_FAILED',
-        payload: {
-          error: err.message,
-          timestamp: new Date().toISOString(),
-        } as any,
-        processed: false,
-      },
-    });
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO system_events (id, organization_id, event_type, processed, created_at)
+        VALUES (
+          gen_random_uuid(),
+          '00000000-0000-0000-0000-000000000000'::uuid,
+          'FALLBACK_LICENSE_RETRY_FAILED',
+          false,
+          NOW()
+        )
+      `;
+    } catch (logErr: any) {
+      logger.warn('Failed to log system event', { error: logErr.message });
+    }
 
     throw err;
   }
@@ -224,9 +233,6 @@ async function retryExternalLicenseCreation(license: {
   const requestBody = {
     organization_name: license.organization_name || 'Unknown',
     contact_name: license.contact_name || 'Unknown',
-    contact_email: license.contact_email || '',
-    contact_phone: '',
-    website: '',
     product_type: 'evo',
     estimated_seats: 1,
     notes: `Retry fallback license - Organization ID: ${license.organization_id}`,
