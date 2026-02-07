@@ -95,7 +95,7 @@ Resources:
         - Key: EVOPlatformAccountId
           Value: !Ref EVOPlatformAccountId
         - Key: TemplateVersion
-          Value: '2.3.0-ri-sp-coverage-permissions'
+          Value: '2.4.0-waf-resource-policy-fix'
 
   # ----------------------------------------------------------------------------
   # Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
@@ -285,11 +285,18 @@ Resources:
               - 'logs:DeleteSubscriptionFilter'
               - 'logs:DescribeSubscriptionFilters'
               - 'logs:PutRetentionPolicy'
-              - 'logs:PutResourcePolicy'
-              - 'logs:DescribeResourcePolicies'
             Resource:
               - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*'
               - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*:*'
+          
+          # CloudWatch Logs Resource Policy (account-level API, requires * resource)
+          - Sid: CloudWatchLogsResourcePolicy
+            Effect: Allow
+            Action:
+              - 'logs:PutResourcePolicy'
+              - 'logs:DescribeResourcePolicies'
+              - 'logs:DeleteResourcePolicy'
+            Resource: '*'
           
           # CloudWatch Logs Cross-Account Subscription (for EVO WAF monitoring)
           - Sid: CloudWatchLogsCrossAccountSubscription
