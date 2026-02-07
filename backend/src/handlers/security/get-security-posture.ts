@@ -15,6 +15,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
+import { calculatePostureScore, type FindingForScoring } from '../../lib/security-engine/posture-scoring.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -96,7 +97,6 @@ export async function handler(
     // Base filter - by organization and optionally by account
     const baseFilter: any = { 
       organization_id: organizationId,
-      status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
     };
     
     // Filter by specific account if provided - multi-cloud compatible
@@ -106,8 +106,6 @@ export async function handler(
       } else if (provider === 'AWS') {
         baseFilter.aws_account_id = accountId;
       } else {
-        // No provider specified - try both (for backwards compatibility)
-        // Use OR to check both AWS and Azure credential IDs
         baseFilter.OR = [
           { aws_account_id: accountId },
           { azure_credential_id: accountId }
@@ -115,59 +113,67 @@ export async function handler(
       }
     }
     
-    // Contar findings por severidade (case-insensitive, incluindo pending e active)
-    const criticalFindings = await prisma.finding.count({
-      where: { 
-        ...baseFilter,
-        severity: { in: ['critical', 'CRITICAL'] },
+    // Fetch all findings for scoring (select only needed fields)
+    const allFindings = await prisma.finding.findMany({
+      where: baseFilter,
+      select: {
+        severity: true,
+        suppressed: true,
+        first_seen: true,
       },
     });
     
-    const highFindings = await prisma.finding.count({
-      where: { 
-        ...baseFilter,
-        severity: { in: ['high', 'HIGH'] },
-      },
+    // Get distinct services for coverage calculation
+    const serviceStats = await prisma.finding.groupBy({
+      by: ['service'],
+      where: { ...baseFilter, suppressed: false },
+    });
+    const scannedServices = serviceStats.length;
+    const totalServices = 38; // Security Engine V3 has 38 scanners
+    
+    // Get previous posture for trend calculation
+    let previousCounts = null;
+    if (!accountId) {
+      const previousPosture = await prisma.securityPosture.findFirst({
+        where: { organization_id: organizationId },
+        orderBy: { calculated_at: 'desc' },
+      });
+      if (previousPosture) {
+        previousCounts = {
+          critical: previousPosture.critical_findings,
+          high: previousPosture.high_findings,
+          medium: previousPosture.medium_findings,
+          low: previousPosture.low_findings,
+        };
+      }
+    }
+    
+    // Calculate posture score using the new scoring module
+    const findingsForScoring: FindingForScoring[] = allFindings.map(f => ({
+      severity: f.severity || 'low',
+      suppressed: f.suppressed ?? false,
+      first_seen: f.first_seen,
+    }));
+    
+    const posture = calculatePostureScore({
+      findings: findingsForScoring,
+      scannedServices,
+      totalServices,
+      previousCounts,
     });
     
-    const mediumFindings = await prisma.finding.count({
-      where: { 
-        ...baseFilter,
-        severity: { in: ['medium', 'MEDIUM'] },
-      },
-    });
-    
-    const lowFindings = await prisma.finding.count({
-      where: { 
-        ...baseFilter,
-        severity: { in: ['low', 'LOW'] },
-      },
-    });
-    
-    // Calcular score (0-100)
-    const totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
-    const weightedScore = (criticalFindings * 40) + (highFindings * 25) + (mediumFindings * 10) + (lowFindings * 5);
-    const maxPossibleScore = totalFindings > 0 ? totalFindings * 40 : 1;
-    const overallScore = Math.max(0, 100 - ((weightedScore / maxPossibleScore) * 100));
-    
-    // Determinar nível de risco
-    let riskLevel: string;
-    if (overallScore >= 80) riskLevel = 'low';
-    else if (overallScore >= 60) riskLevel = 'medium';
-    else if (overallScore >= 40) riskLevel = 'high';
-    else riskLevel = 'critical';
-    
-    // Salvar postura (only if not filtering by account - save aggregate)
+    // Save posture (only if not filtering by account - save aggregate)
     if (!accountId) {
       await prisma.securityPosture.create({
         data: {
           organization_id: organizationId,
-          overall_score: overallScore,
-          critical_findings: criticalFindings,
-          high_findings: highFindings,
-          medium_findings: mediumFindings,
-          low_findings: lowFindings,
-          risk_level: riskLevel,
+          overall_score: posture.overallScore,
+          compliance_score: posture.overallScore,
+          critical_findings: posture.counts.critical,
+          high_findings: posture.counts.high,
+          medium_findings: posture.counts.medium,
+          low_findings: posture.counts.low,
+          risk_level: posture.riskLevel,
           calculated_at: new Date(),
         },
       });
@@ -176,23 +182,27 @@ export async function handler(
     logger.info('Security posture calculated', { 
       organizationId,
       accountId: accountId || 'all',
-      overallScore: parseFloat(overallScore.toFixed(1)),
-      riskLevel,
-      totalFindings
+      overallScore: posture.overallScore,
+      riskLevel: posture.riskLevel,
+      totalFindings: posture.counts.total,
     });
     
     return success({
       success: true,
       posture: {
-        overallScore: parseFloat(overallScore.toFixed(1)),
-        riskLevel,
+        overallScore: posture.overallScore,
+        riskLevel: posture.riskLevel,
         findings: {
-          critical: criticalFindings,
-          high: highFindings,
-          medium: mediumFindings,
-          low: lowFindings,
-          total: totalFindings,
+          critical: posture.counts.critical,
+          high: posture.counts.high,
+          medium: posture.counts.medium,
+          low: posture.counts.low,
+          total: posture.counts.total,
+          suppressed: posture.counts.suppressed,
         },
+        serviceCoverage: posture.serviceCoverage,
+        trend: posture.trend,
+        breakdown: posture.breakdown,
         calculatedAt: new Date().toISOString(),
         accountId: accountId || 'all',
       },

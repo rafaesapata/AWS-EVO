@@ -1514,7 +1514,7 @@ export default function SecurityPosture() {
                   <Skeleton className="h-8 w-16" />
                 ) : (
                   <div className="text-2xl font-semibold">
-                    {complianceHistory?.summary?.current_score !== null 
+                    {complianceHistory?.summary?.current_score != null 
                       ? `${complianceHistory.summary.current_score}%` 
                       : '--'}
                   </div>
@@ -1536,10 +1536,10 @@ export default function SecurityPosture() {
                     (complianceHistory?.summary?.score_change || 0) > 0 ? 'text-green-500' :
                     (complianceHistory?.summary?.score_change || 0) < 0 ? 'text-red-500' : ''
                   }`}>
-                    {complianceHistory?.summary?.score_change !== undefined && complianceHistory.summary.score_change !== 0 ? (
+                    {complianceHistory?.summary?.score_change !== undefined && complianceHistory?.summary?.score_change !== 0 ? (
                       <>
-                        {complianceHistory.summary.score_change > 0 ? '+' : ''}
-                        {complianceHistory.summary.score_change}%
+                        {(complianceHistory?.summary?.score_change ?? 0) > 0 ? '+' : ''}
+                        {complianceHistory?.summary?.score_change}%
                       </>
                     ) : '--'}
                   </div>
