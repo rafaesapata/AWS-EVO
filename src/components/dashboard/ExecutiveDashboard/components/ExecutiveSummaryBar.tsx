@@ -67,20 +67,36 @@ export default function ExecutiveSummaryBar({ data }: Props) {
               <InfoIcon tooltip={t('executiveDashboard.uptimeSLATooltip')} />
             </div>
             
-            <p 
-              className={cn(
-                'tabular-nums mb-3',
-                data.uptimeSLA >= 99.9 ? 'text-[#00B2FF]' : 
-                data.uptimeSLA >= 99 ? 'text-[#393939]' : 'text-red-500'
-              )}
-              style={{ fontSize: '42px', lineHeight: '1', fontWeight: '300' }}
-            >
-              {data.uptimeSLA.toFixed(2)}%
-            </p>
-            
-            <p className="text-sm font-light text-[#5F5F5F]">
-              {t('executiveDashboard.target', 'Meta')}: 99.9%
-            </p>
+            {data.uptimeSLA > 0 ? (
+              <>
+                <p 
+                  className={cn(
+                    'tabular-nums mb-3',
+                    data.uptimeSLA >= 99.9 ? 'text-[#00B2FF]' : 
+                    data.uptimeSLA >= 99 ? 'text-[#393939]' : 'text-red-500'
+                  )}
+                  style={{ fontSize: '42px', lineHeight: '1', fontWeight: '300' }}
+                >
+                  {data.uptimeSLA.toFixed(2)}%
+                </p>
+                
+                <p className="text-sm font-light text-[#5F5F5F]">
+                  {t('executiveDashboard.target', 'Meta')}: 99.9%
+                </p>
+              </>
+            ) : (
+              <>
+                <p 
+                  className="text-[#393939]/40 tabular-nums mb-3"
+                  style={{ fontSize: '42px', lineHeight: '1', fontWeight: '300' }}
+                >
+                  —
+                </p>
+                <p className="text-sm font-light text-[#5F5F5F]">
+                  {t('executiveDashboard.noEndpoints', 'No endpoints monitored')}
+                </p>
+              </>
+            )}
           </div>
 
           {/* Card: Gasto MTD */}

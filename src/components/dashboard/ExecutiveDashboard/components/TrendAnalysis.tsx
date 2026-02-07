@@ -11,6 +11,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { CalendarSearch } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { 
   AreaChart, 
   Area, 
@@ -245,24 +246,32 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
         </div>
 
         {/* Activity Highlight - Large Percentage */}
-        {data.cost.length > 0 && (
+        {data.cost.length > 1 && (
           <div className="mt-6 p-5 rounded-2xl bg-[#00B2FF]/5 border border-[#00B2FF]/20">
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.periodActivity', 'Period Activity')}</span>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-[#00B2FF] tabular-nums" style={{ fontSize: '48px', lineHeight: '1', fontWeight: '300' }}>
-                    {Math.round((data.cost.reduce((sum, d) => sum + d.cost, 0) / data.cost.length) * 10) / 10}%
+                    ${Math.round(data.cost.reduce((sum, d) => sum + d.cost, 0)).toLocaleString('en-US')}
                   </span>
-                  <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.avgUtilization', 'avg utilization')}</span>
+                  <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.totalPeriodCost', 'total in period')}</span>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-1 text-[#00B2FF]">
-                  <span className="text-sm font-light">↑ 3.5%</span>
-                  <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.vsLastPeriod', 'vs last period')}</span>
-                </div>
-              </div>
+              {data.cost.length >= 2 && (() => {
+                const midpoint = Math.floor(data.cost.length / 2);
+                const firstHalf = data.cost.slice(0, midpoint).reduce((s, d) => s + d.cost, 0);
+                const secondHalf = data.cost.slice(midpoint).reduce((s, d) => s + d.cost, 0);
+                const change = firstHalf > 0 ? ((secondHalf - firstHalf) / firstHalf) * 100 : 0;
+                return change !== 0 ? (
+                  <div className="text-right">
+                    <div className={cn('flex items-center gap-1', change > 0 ? 'text-red-500' : 'text-[#00B2FF]')}>
+                      <span className="text-sm font-light">{change > 0 ? '↑' : '↓'} {Math.abs(change).toFixed(1)}%</span>
+                      <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.vsLastPeriod', 'vs last period')}</span>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
             </div>
           </div>
         )}

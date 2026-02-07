@@ -367,10 +367,10 @@ async function gatherDailySummaryData(
 ): Promise<Record<string, string | number>> {
   const [criticalFindings, highFindings, newAlerts, dailyCosts, previousDayCosts, savings] = await Promise.all([
     prisma.finding.count({
-      where: { organization_id: organizationId, severity: 'critical', status: 'pending' },
+      where: { organization_id: organizationId, severity: 'critical', status: { in: ['new', 'active', 'reopened', 'pending'] } },
     }),
     prisma.finding.count({
-      where: { organization_id: organizationId, severity: 'high', status: 'pending' },
+      where: { organization_id: organizationId, severity: 'high', status: { in: ['new', 'active', 'reopened', 'pending'] } },
     }),
     prisma.alert.count({
       where: { organization_id: organizationId, triggered_at: { gte: yesterday } },
@@ -420,7 +420,7 @@ async function gatherWeeklyReportData(
 ): Promise<Record<string, string | number>> {
   const [totalFindings, scansCompleted, findingsResolved, weeklyCosts, complianceChecks, totalChecks] = await Promise.all([
     prisma.finding.count({
-      where: { organization_id: organizationId, status: 'pending' },
+      where: { organization_id: organizationId, status: { in: ['new', 'active', 'reopened', 'pending'] } },
     }),
     prisma.securityScan.count({
       where: { organization_id: organizationId, created_at: { gte: weekAgo }, status: 'completed' },

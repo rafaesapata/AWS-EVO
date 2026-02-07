@@ -161,7 +161,7 @@ export class AdvancedSecurityScanner {
             description: f.description,
             details: f as any,
             ai_analysis: f.aiAnalysis,
-            status: 'pending',
+            status: 'new',
             source: 'advanced_security_scan',
             resource_id: f.resourceId,
             resource_arn: f.resourceArn,

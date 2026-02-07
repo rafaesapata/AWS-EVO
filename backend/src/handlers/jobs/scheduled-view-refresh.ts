@@ -32,19 +32,19 @@ export async function handler(
     for (const org of organizations) {
       // Calcular e atualizar security posture
       const criticalFindings = await prisma.finding.count({
-        where: { organization_id: org.id, severity: { in: ['CRITICAL', 'critical'] }, status: { in: ['open', 'pending', 'active', 'ACTIVE'] } },
+        where: { organization_id: org.id, severity: { in: ['CRITICAL', 'critical'] }, status: { in: ['new', 'active', 'reopened', 'open', 'pending', 'ACTIVE'] } },
       });
       
       const highFindings = await prisma.finding.count({
-        where: { organization_id: org.id, severity: { in: ['HIGH', 'high'] }, status: { in: ['open', 'pending', 'active', 'ACTIVE'] } },
+        where: { organization_id: org.id, severity: { in: ['HIGH', 'high'] }, status: { in: ['new', 'active', 'reopened', 'open', 'pending', 'ACTIVE'] } },
       });
       
       const mediumFindings = await prisma.finding.count({
-        where: { organization_id: org.id, severity: { in: ['MEDIUM', 'medium'] }, status: { in: ['open', 'pending', 'active', 'ACTIVE'] } },
+        where: { organization_id: org.id, severity: { in: ['MEDIUM', 'medium'] }, status: { in: ['new', 'active', 'reopened', 'open', 'pending', 'ACTIVE'] } },
       });
       
       const lowFindings = await prisma.finding.count({
-        where: { organization_id: org.id, severity: { in: ['LOW', 'low'] }, status: { in: ['open', 'pending', 'active', 'ACTIVE'] } },
+        where: { organization_id: org.id, severity: { in: ['LOW', 'low'] }, status: { in: ['new', 'active', 'reopened', 'open', 'pending', 'ACTIVE'] } },
       });
       
       const totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;

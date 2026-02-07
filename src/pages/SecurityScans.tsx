@@ -439,7 +439,7 @@ export default function SecurityScans() {
  escapeCSV(finding.resource_arn || 'N/A'),
  escapeCSV(getRegion(finding)),
  escapeCSV(getCompliance(finding)),
- escapeCSV(finding.status || 'pending'),
+ escapeCSV(finding.status || 'new'),
  escapeCSV(getRemediation(finding)),
  escapeCSV(finding.risk_vector || 'N/A'),
  escapeCSV(finding.created_at ? new Date(finding.created_at).toLocaleString('pt-BR') : 'N/A')
@@ -1484,11 +1484,11 @@ export default function SecurityScans() {
  <Badge variant="outline" className="text-xs">{finding.category}</Badge>
  </>
  )}
- {finding.status && finding.status !== 'pending' && (
+ {finding.status && (
  <>
  <span>•</span>
- <Badge variant={finding.status === 'resolved' ? 'default' : 'secondary'} className="text-xs">
- {finding.status}
+ <Badge variant={finding.status === 'resolved' ? 'default' : finding.status === 'new' ? 'outline' : 'secondary'} className="text-xs">
+ {finding.status === 'new' ? 'New' : finding.status === 'active' ? 'Active' : finding.status === 'reopened' ? 'Reopened' : finding.status === 'resolved' ? 'Resolved' : finding.status}
  </Badge>
  </>
  )}

@@ -212,14 +212,33 @@ model Finding {
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   updated_at        DateTime? @default(now()) @db.Timestamptz(6)
   
+  // Finding fingerprinting & lifecycle
+  fingerprint           String?   @db.VarChar(64)
+  first_seen            DateTime? @db.Timestamptz(6)
+  last_seen             DateTime? @db.Timestamptz(6)
+  resolved_at           DateTime? @db.Timestamptz(6)
+  occurrence_count      Int       @default(1)
+  
+  // False positive suppression
+  suppressed            Boolean   @default(false)
+  suppressed_by         String?   @db.VarChar(255)
+  suppressed_at         DateTime? @db.Timestamptz(6)
+  suppression_reason    String?
+  suppression_expires_at DateTime? @db.Timestamptz(6)
+  
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   
+  @@unique([organization_id, aws_account_id, fingerprint], name: "uq_finding_fingerprint")
   @@index([status])
   @@index([severity])
   @@index([event_time])
   @@index([organization_id])
   @@index([aws_account_id])
   @@index([cloud_provider])
+  @@index([fingerprint])
+  @@index([suppressed])
+  @@index([first_seen])
+  @@index([last_seen])
   @@map("findings")
 }
 

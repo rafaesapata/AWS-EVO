@@ -547,7 +547,7 @@ async function getSecurityData(
     by: ['severity'],
     where: {
       ...baseFilter,
-      status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+      status: { in: ['new', 'active', 'reopened', 'pending', 'ACTIVE', 'PENDING'] }
     },
     _count: true
   });
@@ -675,10 +675,10 @@ async function getOperationsData(
     }
   });
 
-  // Calculate uptime
+  // Calculate uptime - 0 when no endpoints are monitored (showing 100% with nothing monitored is misleading)
   const uptime = endpointStats.total > 0 
     ? ((endpointStats.healthy + endpointStats.degraded * 0.5) / endpointStats.total) * 100
-    : 100;
+    : 0;
 
   // Active alerts
   let activeAlerts: any[] = [];
@@ -805,7 +805,7 @@ async function getInsightsData(
       where: {
         ...baseFilter,
         severity: { in: ['critical', 'CRITICAL'] },
-        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+        status: { in: ['new', 'active', 'reopened', 'pending', 'ACTIVE', 'PENDING'] }
       }
     });
 
@@ -827,7 +827,7 @@ async function getInsightsData(
       where: {
         ...baseFilter,
         severity: { in: ['high', 'HIGH'] },
-        status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] }
+        status: { in: ['new', 'active', 'reopened', 'pending', 'ACTIVE', 'PENDING'] }
       }
     });
 
@@ -1174,23 +1174,41 @@ function calculateExecutiveSummary(
   // Financial score (0-100)
   const financialScore = Math.max(0, 100 - (financial.budgetUtilization - 80));
   
-  // Operational score (0-100)
-  const operationalScore = operations.uptime.current;
+  // Operational score (0-100) - treat "no endpoints" as neutral (not penalizing)
+  const hasEndpoints = operations.endpoints.total > 0;
+  const operationalScore = hasEndpoints ? operations.uptime.current : -1;
   
   // Security score - handle "no data" case (score = -1)
-  const securityScore = security.score === -1 ? 0 : security.score;
+  const securityScore = security.score === -1 ? -1 : security.score;
   
-  // Overall weighted score - if security has no data, weight differently
-  const overallScore = security.score === -1 
-    ? Math.round(
-        (Math.min(100, financialScore) * 0.5) +
-        (operationalScore * 0.5)
-      )
-    : Math.round(
-        (securityScore * 0.4) + 
-        (Math.min(100, financialScore) * 0.3) +
-        (operationalScore * 0.3)
-      );
+  // Overall weighted score - adjust weights based on available data
+  const hasSecurityData = security.score !== -1;
+  const hasOperationalData = hasEndpoints;
+  
+  let overallScore: number;
+  if (!hasSecurityData && !hasOperationalData) {
+    // Only financial data available
+    overallScore = Math.round(Math.min(100, financialScore));
+  } else if (!hasSecurityData) {
+    // Financial + operational
+    overallScore = Math.round(
+      (Math.min(100, financialScore) * 0.5) +
+      (operationalScore * 0.5)
+    );
+  } else if (!hasOperationalData) {
+    // Financial + security
+    overallScore = Math.round(
+      (securityScore * 0.5) +
+      (Math.min(100, financialScore) * 0.5)
+    );
+  } else {
+    // All data available
+    overallScore = Math.round(
+      (securityScore * 0.4) + 
+      (Math.min(100, financialScore) * 0.3) +
+      (operationalScore * 0.3)
+    );
+  }
 
   return {
     overallScore,

@@ -110,27 +110,53 @@ export default function OperationsCenterCard({ data }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <div className="p-4 rounded-xl bg-white border border-gray-200">
             <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.uptime', 'Uptime')}</span>
-            <p className={cn('tabular-nums mt-1', getUptimeColor(data.uptime.current))} style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
-              {data.uptime.current.toFixed(2)}%
-            </p>
-            <span className="text-sm font-light text-[#5F5F5F]">
-              {t('executiveDashboard.target', 'Meta')}: {data.uptime.target}%
-            </span>
+            {data.endpoints.total > 0 ? (
+              <>
+                <p className={cn('tabular-nums mt-1', getUptimeColor(data.uptime.current))} style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
+                  {data.uptime.current.toFixed(2)}%
+                </p>
+                <span className="text-sm font-light text-[#5F5F5F]">
+                  {t('executiveDashboard.target', 'Meta')}: {data.uptime.target}%
+                </span>
+              </>
+            ) : (
+              <>
+                <p className="text-[#393939]/40 tabular-nums mt-1" style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
+                  —
+                </p>
+                <span className="text-sm font-light text-[#5F5F5F]">
+                  {t('executiveDashboard.noEndpoints', 'No endpoints monitored')}
+                </span>
+              </>
+            )}
           </div>
           <div className="p-4 rounded-xl bg-white border border-gray-200">
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-[#5F5F5F]" />
               <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.avgResponse', 'Avg Response')}</span>
             </div>
-            <p className="text-[#393939] tabular-nums mt-1" style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
-              {data.responseTime.avg}ms
-            </p>
-            <span className={cn(
-              "text-sm font-light",
-              data.responseTime.avg < 500 ? 'text-[#00B2FF]' : data.responseTime.avg < 1000 ? 'text-amber-500' : 'text-red-500'
-            )}>
-              {data.responseTime.avg < 500 ? t('executiveDashboard.responseGood', 'Good') : data.responseTime.avg < 1000 ? t('executiveDashboard.responseFair', 'Fair') : t('executiveDashboard.responseSlow', 'Slow')}
-            </span>
+            {data.endpoints.total > 0 ? (
+              <>
+                <p className="text-[#393939] tabular-nums mt-1" style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
+                  {data.responseTime.avg}ms
+                </p>
+                <span className={cn(
+                  "text-sm font-light",
+                  data.responseTime.avg < 500 ? 'text-[#00B2FF]' : data.responseTime.avg < 1000 ? 'text-amber-500' : 'text-red-500'
+                )}>
+                  {data.responseTime.avg < 500 ? t('executiveDashboard.responseGood', 'Good') : data.responseTime.avg < 1000 ? t('executiveDashboard.responseFair', 'Fair') : t('executiveDashboard.responseSlow', 'Slow')}
+                </span>
+              </>
+            ) : (
+              <>
+                <p className="text-[#393939]/40 tabular-nums mt-1" style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
+                  —
+                </p>
+                <span className="text-sm font-light text-[#5F5F5F]">
+                  {t('executiveDashboard.noEndpoints', 'No endpoints monitored')}
+                </span>
+              </>
+            )}
           </div>
         </div>
 

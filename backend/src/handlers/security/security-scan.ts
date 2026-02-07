@@ -21,6 +21,8 @@ import { getOrigin } from '../../lib/middleware.js';
 import { runSecurityScan, type ScanContext, type ScanLevel, resetGlobalCache } from '../../lib/security-engine/index.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
+import { computeFingerprint, computeFallbackFingerprint } from '../../lib/security-engine/fingerprint.js';
+import { classifyFindings, computeLifecycleTransition, type NewScanFinding } from '../../lib/security-engine/delta-sync.js';
 
 async function securityScanHandler(
   event: AuthorizedEvent,
@@ -255,59 +257,208 @@ async function securityScanHandler(
     logger.info('Running Security Engine', { regions, scanLevel, scanId: scan.id });
     const scanResult = await runSecurityScan(scanContext);
     
-    // Save findings to database using batch insert for efficiency
-    // Strategy: Delete old pending findings from this scan source and create new ones
-    // This ensures we don't accumulate duplicate findings across scans
+    // === Delta Sync: fingerprint-based upsert instead of delete+recreate ===
+    const now = new Date();
     
-    // Delete old pending findings from security-engine for this account
-    const deletedCount = await prisma.finding.deleteMany({
+    // Compute fingerprints for all scan findings
+    const newFindings: NewScanFinding[] = scanResult.findings.map(finding => {
+      const fingerprint = finding.resource_arn
+        ? computeFingerprint(finding.resource_arn, finding.scan_type, finding.title)
+        : computeFallbackFingerprint(finding.scan_type, finding.title, finding.resource_id);
+      
+      return {
+        fingerprint,
+        title: finding.title,
+        severity: finding.severity,
+        description: `${finding.title}\n\n${finding.description}\n\n${finding.analysis}`,
+        resource_id: finding.resource_id,
+        resource_arn: finding.resource_arn,
+        service: finding.service,
+        category: finding.category,
+        scan_type: finding.scan_type,
+        region: finding.region,
+        compliance: finding.compliance?.map(c => `${c.framework} ${c.control_id}: ${c.control_title}`) || [],
+        remediation: finding.remediation ? JSON.stringify(finding.remediation) : undefined,
+        evidence: finding.evidence || {},
+        risk_vector: finding.risk_vector,
+        details: {
+          title: finding.title,
+          analysis: finding.analysis,
+          region: finding.region,
+          risk_score: finding.risk_score,
+          attack_vectors: finding.attack_vectors,
+          business_impact: finding.business_impact,
+        },
+        source: 'security-engine',
+      };
+    });
+    
+    // Fetch existing findings for this org+account from security-engine
+    const existingFindings = await prisma.finding.findMany({
       where: {
         organization_id: organizationId,
         aws_account_id: credential.id,
         source: 'security-engine',
-        status: 'pending',
+      },
+      select: {
+        id: true,
+        fingerprint: true,
+        status: true,
+        first_seen: true,
+        last_seen: true,
+        resolved_at: true,
+        occurrence_count: true,
+        suppressed: true,
+        suppression_expires_at: true,
       },
     });
-    logger.info('Deleted old pending findings', { deletedCount: deletedCount.count });
     
-    // Prepare findings data for batch insert
-    const findingsData = scanResult.findings.map(finding => ({
-      organization_id: organizationId,
-      aws_account_id: credential.id,
-      scan_id: scan.id, // Link findings to scan
-      title: finding.title,
-      severity: finding.severity,
-      description: `${finding.title}\n\n${finding.description}\n\n${finding.analysis}`,
-      details: {
-        title: finding.title,
-        analysis: finding.analysis,
-        region: finding.region,
-        risk_score: finding.risk_score,
-        attack_vectors: finding.attack_vectors,
-        business_impact: finding.business_impact,
-      },
-      resource_id: finding.resource_id,
-      resource_arn: finding.resource_arn,
-      service: finding.service,
-      category: finding.category,
-      scan_type: finding.scan_type,
-      compliance: finding.compliance?.map(c => `${c.framework} ${c.control_id}: ${c.control_title}`) || [],
-      remediation: finding.remediation ? JSON.stringify(finding.remediation) : undefined,
-      evidence: finding.evidence,
-      risk_vector: finding.risk_vector,
-      source: 'security-engine',
-      status: 'pending',
-    }));
+    // Classify findings into create/update/resolve/expired buckets
+    const delta = classifyFindings(newFindings, existingFindings, now);
     
-    // Batch insert - much more efficient than individual creates
+    logger.info('Delta sync classification', {
+      toCreate: delta.toCreate.length,
+      toUpdate: delta.toUpdate.length,
+      toResolve: delta.toResolve.length,
+      expiredSuppressions: delta.expiredSuppressions.length,
+    });
+    
+    // Execute delta sync in a transaction
     let savedFindingsCount = 0;
-    if (findingsData.length > 0) {
-      const batchResult = await prisma.finding.createMany({
-        data: findingsData,
-        skipDuplicates: true,
+    try {
+      await prisma.$transaction(async (tx) => {
+        // 1. Create new findings
+        if (delta.toCreate.length > 0) {
+          await tx.finding.createMany({
+            data: delta.toCreate.map(f => ({
+              organization_id: organizationId,
+              aws_account_id: credential.id,
+              scan_id: scan.id,
+              fingerprint: f.fingerprint,
+              title: f.title,
+              severity: f.severity,
+              description: f.description,
+              details: f.details,
+              resource_id: f.resource_id,
+              resource_arn: f.resource_arn,
+              service: f.service,
+              category: f.category,
+              scan_type: f.scan_type,
+              compliance: f.compliance,
+              remediation: f.remediation,
+              evidence: f.evidence,
+              risk_vector: f.risk_vector,
+              source: 'security-engine',
+              status: 'new',
+              first_seen: now,
+              last_seen: now,
+              occurrence_count: 1,
+              suppressed: false,
+            })),
+            skipDuplicates: true,
+          });
+        }
+        
+        // 2. Update existing findings (re-detected)
+        for (const { existing, newData } of delta.toUpdate) {
+          const newStatus = computeLifecycleTransition(existing.status, true);
+          await tx.finding.update({
+            where: { id: existing.id },
+            data: {
+              scan_id: scan.id,
+              last_seen: now,
+              occurrence_count: existing.occurrence_count + 1,
+              status: newStatus,
+              resolved_at: newStatus === 'reopened' ? null : existing.resolved_at,
+              // Update description/details with latest scan data
+              severity: newData.severity,
+              description: newData.description,
+              details: newData.details,
+              evidence: newData.evidence,
+              remediation: newData.remediation,
+            },
+          });
+        }
+        
+        // 3. Resolve missing findings
+        if (delta.toResolve.length > 0) {
+          await tx.finding.updateMany({
+            where: { id: { in: delta.toResolve.map(f => f.id) } },
+            data: {
+              status: 'resolved',
+              resolved_at: now,
+            },
+          });
+        }
+        
+        // 4. Clear expired suppressions
+        if (delta.expiredSuppressions.length > 0) {
+          await tx.finding.updateMany({
+            where: { id: { in: delta.expiredSuppressions.map(f => f.id) } },
+            data: {
+              suppressed: false,
+              suppressed_by: null,
+              suppressed_at: null,
+              suppression_reason: null,
+              suppression_expires_at: null,
+            },
+          });
+        }
       });
-      savedFindingsCount = batchResult.count;
-      logger.info('Batch inserted findings', { count: savedFindingsCount });
+      
+      savedFindingsCount = delta.toCreate.length + delta.toUpdate.length;
+      logger.info('Delta sync completed', {
+        created: delta.toCreate.length,
+        updated: delta.toUpdate.length,
+        resolved: delta.toResolve.length,
+        expiredSuppressionsCleared: delta.expiredSuppressions.length,
+      });
+    } catch (deltaSyncError) {
+      // Fallback to legacy delete+create on transaction failure
+      logger.error('Delta sync failed, falling back to legacy mode', deltaSyncError as Error);
+      
+      await prisma.finding.deleteMany({
+        where: {
+          organization_id: organizationId,
+          aws_account_id: credential.id,
+          source: 'security-engine',
+          status: 'pending',
+        },
+      });
+      
+      const findingsData = newFindings.map(f => ({
+        organization_id: organizationId,
+        aws_account_id: credential.id,
+        scan_id: scan.id,
+        fingerprint: f.fingerprint,
+        title: f.title,
+        severity: f.severity,
+        description: f.description,
+        details: f.details,
+        resource_id: f.resource_id,
+        resource_arn: f.resource_arn,
+        service: f.service,
+        category: f.category,
+        scan_type: f.scan_type,
+        compliance: f.compliance,
+        remediation: f.remediation,
+        evidence: f.evidence,
+        risk_vector: f.risk_vector,
+        source: 'security-engine',
+        status: 'pending',
+        first_seen: now,
+        last_seen: now,
+        occurrence_count: 1,
+        suppressed: false,
+      }));
+      
+      if (findingsData.length > 0) {
+        const batchResult = await prisma.finding.createMany({
+          data: findingsData,
+          skipDuplicates: true,
+        });
+        savedFindingsCount = batchResult.count;
+      }
     }
     
     // Fetch the saved findings for the response
@@ -316,10 +467,10 @@ async function securityScanHandler(
         organization_id: organizationId,
         aws_account_id: credential.id,
         source: 'security-engine',
-        status: 'pending',
+        status: { in: ['new', 'active', 'reopened'] },
       },
       orderBy: { created_at: 'desc' },
-      take: findingsData.length,
+      take: newFindings.length || 50,
     });
     
     // Update scan status

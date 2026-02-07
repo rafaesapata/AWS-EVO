@@ -53,7 +53,7 @@ interface SecurityFinding {
   title?: string;  // May not exist - use description as fallback
   description: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
-  status: 'active' | 'resolved' | 'suppressed' | 'pending';
+  status: 'new' | 'active' | 'resolved' | 'reopened' | 'suppressed' | 'pending';
   resource?: string;  // Legacy field
   resource_id?: string;  // Actual DB field
   resource_arn?: string;  // Actual DB field
@@ -1072,10 +1072,11 @@ export default function SecurityPosture() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">{t('common.all', 'Todos')}</SelectItem>
+                        <SelectItem value="new">{t('status.new', 'Novo')}</SelectItem>
                         <SelectItem value="active">{t('status.active', 'Ativo')}</SelectItem>
-                        <SelectItem value="pending">{t('status.pending', 'Pendente')}</SelectItem>
+                        <SelectItem value="reopened">{t('status.reopened', 'Reaberto')}</SelectItem>
                         <SelectItem value="resolved">{t('status.resolved', 'Resolvido')}</SelectItem>
-                        <SelectItem value="suppressed">{t('status.suppressed', 'Suprimido')}</SelectItem>
+                        <SelectItem value="pending">{t('status.pending', 'Pendente')}</SelectItem>
                       </SelectContent>
                     </Select>
                     

@@ -202,7 +202,7 @@ async function getSecurityData(prisma: any, organizationId: string) {
 
   const findingsBySeverity = await prisma.finding.groupBy({
     by: ['severity'],
-    where: { organization_id: organizationId, status: { in: ['pending', 'active', 'ACTIVE', 'PENDING'] } },
+    where: { organization_id: organizationId, status: { in: ['new', 'active', 'reopened', 'pending', 'ACTIVE', 'PENDING'] } },
     _count: true
   });
 
@@ -247,7 +247,7 @@ async function getOperationsData(prisma: any, organizationId: string) {
     if (m.last_response_time > 0) { totalResponseTime += m.last_response_time; responseTimeCount++; }
   });
 
-  const uptime = stats.total > 0 ? ((stats.healthy + stats.degraded * 0.5) / stats.total) * 100 : 100;
+  const uptime = stats.total > 0 ? ((stats.healthy + stats.degraded * 0.5) / stats.total) * 100 : 0;
 
   return {
     endpoints: stats,
@@ -261,12 +261,31 @@ async function getOperationsData(prisma: any, organizationId: string) {
 
 function calculateExecutiveSummary(financial: any, security: any, operations: any) {
   const financialScore = Math.max(0, 100 - (financial.budgetUtilization - 80));
-  const operationalScore = operations.uptime.current;
-  const securityScore = security.score === -1 ? 0 : security.score;
   
-  const overallScore = security.score === -1 
-    ? Math.round((Math.min(100, financialScore) * 0.5) + (operationalScore * 0.5))
-    : Math.round((securityScore * 0.4) + (Math.min(100, financialScore) * 0.3) + (operationalScore * 0.3));
+  // Operational score - treat "no endpoints" as neutral (not penalizing)
+  const hasEndpoints = operations.endpoints.total > 0;
+  const operationalScore = hasEndpoints ? operations.uptime.current : -1;
+  
+  const hasSecurityData = security.score !== -1;
+  const hasOperationalData = hasEndpoints;
+  const securityScore = security.score === -1 ? -1 : security.score;
+  
+  let overallScore: number;
+  if (!hasSecurityData && !hasOperationalData) {
+    overallScore = Math.round(Math.min(100, financialScore));
+  } else if (!hasSecurityData) {
+    overallScore = Math.round(
+      (Math.min(100, financialScore) * 0.5) + (operationalScore * 0.5)
+    );
+  } else if (!hasOperationalData) {
+    overallScore = Math.round(
+      (securityScore * 0.5) + (Math.min(100, financialScore) * 0.5)
+    );
+  } else {
+    overallScore = Math.round(
+      (securityScore * 0.4) + (Math.min(100, financialScore) * 0.3) + (operationalScore * 0.3)
+    );
+  }
 
   return {
     overallScore,

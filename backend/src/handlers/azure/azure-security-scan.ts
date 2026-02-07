@@ -24,6 +24,8 @@ import { parseAndValidateBody } from '../../lib/validation.js';
 import type { AzureScanContext } from '../../lib/security-engine/scanners/azure/types.js';
 import type { ScanConfig } from '../../types/cloud.js';
 import { z } from 'zod';
+import { computeFingerprint, computeFallbackFingerprint } from '../../lib/security-engine/fingerprint.js';
+import { classifyFindings, computeLifecycleTransition, type NewScanFinding } from '../../lib/security-engine/delta-sync.js';
 
 // Validation schema
 const azureSecurityScanSchema = z.object({
@@ -218,82 +220,241 @@ export async function handler(
     const result = providerResult;
 
     // Store findings - convert to plain JSON objects for Prisma
-    const findingsToCreate = result.findings.map(finding => ({
-      organization_id: organizationId,
-      cloud_provider: 'AZURE' as const,
-      azure_credential_id: credentialId,
-      severity: finding.severity,
-      title: finding.title || finding.description?.substring(0, 200) || 'Azure Security Finding',
-      description: finding.description,
-      details: JSON.parse(JSON.stringify({
-        title: finding.title,
-        resourceId: finding.resourceId,
-        resourceUri: finding.resourceUri,
+    // Build NewScanFinding[] for delta sync
+    const now = new Date();
+    
+    const azureFindings: NewScanFinding[] = result.findings.map(finding => {
+      const resourceArn = finding.resourceUri || finding.resourceId || '';
+      const title = finding.title || finding.description?.substring(0, 200) || 'Azure Security Finding';
+      const fp = resourceArn
+        ? computeFingerprint(resourceArn, `azure-security-${scanLevel}`, title)
+        : computeFallbackFingerprint(`azure-security-${scanLevel}`, title, finding.resourceId || '');
+      
+      return {
+        fingerprint: fp,
+        title,
+        severity: finding.severity,
+        description: finding.description,
+        resource_id: finding.resourceId,
+        resource_arn: finding.resourceUri || '',
         service: finding.service,
         category: finding.category,
-        compliance: finding.compliance,
-        remediation: finding.remediation,
-        evidence: finding.evidence,
-      })),
-      resource_id: finding.resourceId,
-      resource_arn: finding.resourceUri,
-      service: finding.service,
-      category: finding.category,
-      compliance: finding.compliance.map(c => `${c.framework}:${c.controlId}`),
-      remediation: finding.remediation.description,
-      status: 'pending',
-      source: 'azure-security-scan',
-      scan_type: `azure-security-${scanLevel}`,
-    }));
+        scan_type: `azure-security-${scanLevel}`,
+        region: '',
+        compliance: finding.compliance.map(c => `${c.framework}:${c.controlId}`),
+        remediation: finding.remediation.description,
+        evidence: {},
+        risk_vector: '',
+        details: JSON.parse(JSON.stringify({
+          title: finding.title,
+          resourceId: finding.resourceId,
+          resourceUri: finding.resourceUri,
+          service: finding.service,
+          category: finding.category,
+          compliance: finding.compliance,
+          remediation: finding.remediation,
+          evidence: finding.evidence,
+        })),
+        source: 'azure-security-scan',
+      };
+    });
 
     // Add findings from module scanners
-    const moduleFindingsToCreate = moduleScannerFindings.map(finding => ({
-      organization_id: organizationId,
-      cloud_provider: 'AZURE' as const,
-      azure_credential_id: credentialId,
-      severity: finding.severity,
-      title: finding.title || finding.description?.substring(0, 200) || 'Azure Module Finding',
-      description: finding.description,
-      details: JSON.parse(JSON.stringify({
-        title: finding.title,
-        resourceId: finding.resourceId,
-        resourceName: finding.resourceName,
-        resourceGroup: finding.resourceGroup,
-        region: finding.region,
-        remediation: finding.remediation,
-        complianceFrameworks: finding.complianceFrameworks,
-        metadata: finding.metadata,
-      })),
-      resource_id: finding.resourceId,
-      resource_arn: finding.resourceId,
-      service: finding.resourceType?.split('/')[0] || 'Azure',
-      category: finding.resourceType?.split('/')[1] || 'General',
-      compliance: finding.complianceFrameworks || [],
-      remediation: finding.remediation || '',
-      status: 'pending',
-      source: 'azure-module-scanner',
-      scan_type: `azure-security-${scanLevel}`,
-    }));
+    const moduleFindings: NewScanFinding[] = moduleScannerFindings.map(finding => {
+      const resourceId = finding.resourceId || '';
+      const title = finding.title || finding.description?.substring(0, 200) || 'Azure Module Finding';
+      const fp = resourceId
+        ? computeFingerprint(resourceId, `azure-security-${scanLevel}`, title)
+        : computeFallbackFingerprint(`azure-security-${scanLevel}`, title, resourceId);
+      
+      return {
+        fingerprint: fp,
+        title,
+        severity: finding.severity,
+        description: finding.description,
+        resource_id: resourceId,
+        resource_arn: resourceId,
+        service: finding.resourceType?.split('/')[0] || 'Azure',
+        category: finding.resourceType?.split('/')[1] || 'General',
+        scan_type: `azure-security-${scanLevel}`,
+        region: finding.region || '',
+        compliance: finding.complianceFrameworks || [],
+        remediation: finding.remediation || '',
+        evidence: {},
+        risk_vector: '',
+        details: JSON.parse(JSON.stringify({
+          title: finding.title,
+          resourceId: finding.resourceId,
+          resourceName: finding.resourceName,
+          resourceGroup: finding.resourceGroup,
+          region: finding.region,
+          remediation: finding.remediation,
+          complianceFrameworks: finding.complianceFrameworks,
+          metadata: finding.metadata,
+        })),
+        source: 'azure-module-scanner',
+      };
+    });
 
-    const allFindings = [...findingsToCreate, ...moduleFindingsToCreate];
+    const allNewFindings = [...azureFindings, ...moduleFindings];
 
-    if (allFindings.length > 0) {
-      // Delete old pending findings from Azure scans for this credential
-      // This prevents accumulating duplicate findings across scans
-      const deletedCount = await prisma.finding.deleteMany({
+    if (allNewFindings.length > 0) {
+      // Fetch existing findings for this org+credential from Azure scans
+      const existingFindings = await prisma.finding.findMany({
         where: {
           organization_id: organizationId,
           azure_credential_id: credentialId,
           source: { in: ['azure-security-scan', 'azure-module-scanner'] },
-          status: 'pending',
+        },
+        select: {
+          id: true,
+          fingerprint: true,
+          status: true,
+          first_seen: true,
+          last_seen: true,
+          resolved_at: true,
+          occurrence_count: true,
+          suppressed: true,
+          suppression_expires_at: true,
         },
       });
-      logger.info('Deleted old pending Azure findings', { deletedCount: deletedCount.count });
 
-      await prisma.finding.createMany({
-        data: allFindings,
-        skipDuplicates: true,
+      // Classify findings into create/update/resolve/expired buckets
+      const delta = classifyFindings(allNewFindings, existingFindings, now);
+
+      logger.info('Azure delta sync classification', {
+        toCreate: delta.toCreate.length,
+        toUpdate: delta.toUpdate.length,
+        toResolve: delta.toResolve.length,
+        expiredSuppressions: delta.expiredSuppressions.length,
       });
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          // 1. Create new findings
+          if (delta.toCreate.length > 0) {
+            await tx.finding.createMany({
+              data: delta.toCreate.map(f => ({
+                organization_id: organizationId,
+                cloud_provider: 'AZURE' as const,
+                azure_credential_id: credentialId,
+                scan_id: scan.id,
+                fingerprint: f.fingerprint,
+                title: f.title,
+                severity: f.severity,
+                description: f.description,
+                details: f.details,
+                resource_id: f.resource_id,
+                resource_arn: f.resource_arn,
+                service: f.service,
+                category: f.category,
+                scan_type: f.scan_type,
+                compliance: f.compliance,
+                remediation: f.remediation,
+                evidence: f.evidence,
+                risk_vector: f.risk_vector,
+                source: f.source,
+                status: 'new',
+                first_seen: now,
+                last_seen: now,
+                occurrence_count: 1,
+                suppressed: false,
+              })),
+              skipDuplicates: true,
+            });
+          }
+
+          // 2. Update existing findings (re-detected)
+          for (const { existing, newData } of delta.toUpdate) {
+            const newStatus = computeLifecycleTransition(existing.status, true);
+            await tx.finding.update({
+              where: { id: existing.id },
+              data: {
+                scan_id: scan.id,
+                last_seen: now,
+                occurrence_count: existing.occurrence_count + 1,
+                status: newStatus,
+                resolved_at: newStatus === 'reopened' ? null : existing.resolved_at,
+                severity: newData.severity,
+                description: newData.description,
+                details: newData.details,
+                evidence: newData.evidence,
+                remediation: newData.remediation,
+              },
+            });
+          }
+
+          // 3. Resolve missing findings
+          if (delta.toResolve.length > 0) {
+            await tx.finding.updateMany({
+              where: { id: { in: delta.toResolve.map(f => f.id) } },
+              data: { status: 'resolved', resolved_at: now },
+            });
+          }
+
+          // 4. Clear expired suppressions
+          if (delta.expiredSuppressions.length > 0) {
+            await tx.finding.updateMany({
+              where: { id: { in: delta.expiredSuppressions.map(f => f.id) } },
+              data: {
+                suppressed: false,
+                suppressed_by: null,
+                suppressed_at: null,
+                suppression_reason: null,
+                suppression_expires_at: null,
+              },
+            });
+          }
+        });
+
+        logger.info('Azure delta sync completed', {
+          created: delta.toCreate.length,
+          updated: delta.toUpdate.length,
+          resolved: delta.toResolve.length,
+        });
+      } catch (deltaSyncError) {
+        // Fallback to legacy delete+create
+        logger.error('Azure delta sync failed, falling back to legacy mode', deltaSyncError as Error);
+
+        await prisma.finding.deleteMany({
+          where: {
+            organization_id: organizationId,
+            azure_credential_id: credentialId,
+            source: { in: ['azure-security-scan', 'azure-module-scanner'] },
+            status: { in: ['pending', 'new'] },
+          },
+        });
+
+        await prisma.finding.createMany({
+          data: allNewFindings.map(f => ({
+            organization_id: organizationId,
+            cloud_provider: 'AZURE' as const,
+            azure_credential_id: credentialId,
+            scan_id: scan.id,
+            fingerprint: f.fingerprint,
+            title: f.title,
+            severity: f.severity,
+            description: f.description,
+            details: f.details,
+            resource_id: f.resource_id,
+            resource_arn: f.resource_arn,
+            service: f.service,
+            category: f.category,
+            scan_type: f.scan_type,
+            compliance: f.compliance,
+            remediation: f.remediation,
+            evidence: f.evidence,
+            risk_vector: f.risk_vector,
+            source: f.source,
+            status: 'new',
+            first_seen: now,
+            last_seen: now,
+            occurrence_count: 1,
+            suppressed: false,
+          })),
+          skipDuplicates: true,
+        });
+      }
     }
 
     // Calculate combined summary

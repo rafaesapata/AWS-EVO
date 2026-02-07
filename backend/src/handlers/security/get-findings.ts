@@ -12,6 +12,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient, withTenantIsolation } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 interface GetFindingsRequest {
   severity?: string;
@@ -19,10 +20,15 @@ interface GetFindingsRequest {
   service?: string;
   category?: string;
   scan_type?: string;
+  suppressed?: boolean;
   limit?: number;
   offset?: number;
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
+  action?: 'suppress' | 'unsuppress';
+  findingId?: string;
+  reason?: string;
+  expiresAt?: string;
 }
 
 export async function handler(
@@ -127,14 +133,88 @@ export async function handler(
       service,
       category,
       scan_type,
+      suppressed,
       limit = 50,
       offset = 0,
       sort_by = 'created_at',
       sort_order = 'desc',
+      action,
+      findingId,
+      reason,
+      expiresAt,
     } = params as GetFindingsRequest;
     
+    // Handle suppress/unsuppress actions
+    if (action === 'suppress' && findingId) {
+      const finding = await prisma.finding.findFirst({
+        where: { id: findingId, organization_id: organizationId },
+      });
+      if (!finding) {
+        return error('Finding not found', 404);
+      }
+      
+      await prisma.finding.update({
+        where: { id: findingId },
+        data: {
+          suppressed: true,
+          suppressed_by: user.sub,
+          suppressed_at: new Date(),
+          suppression_reason: reason || 'No reason provided',
+          suppression_expires_at: expiresAt ? new Date(expiresAt) : null,
+        },
+      });
+      
+      logAuditAsync({
+        organizationId,
+        userId: user.sub,
+        action: 'SETTINGS_UPDATE',
+        resourceType: 'security_scan',
+        resourceId: findingId,
+        details: { action: 'suppress', reason, expiresAt },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
+      });
+      
+      logger.info('Finding suppressed', { findingId, userId: user.sub, reason });
+      return success({ success: true, action: 'suppress', findingId });
+    }
+    
+    if (action === 'unsuppress' && findingId) {
+      const finding = await prisma.finding.findFirst({
+        where: { id: findingId, organization_id: organizationId },
+      });
+      if (!finding) {
+        return error('Finding not found', 404);
+      }
+      
+      await prisma.finding.update({
+        where: { id: findingId },
+        data: {
+          suppressed: false,
+          suppressed_by: null,
+          suppressed_at: null,
+          suppression_reason: null,
+          suppression_expires_at: null,
+        },
+      });
+      
+      logAuditAsync({
+        organizationId,
+        userId: user.sub,
+        action: 'SETTINGS_UPDATE',
+        resourceType: 'security_scan',
+        resourceId: findingId,
+        details: { action: 'unsuppress' },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
+      });
+      
+      logger.info('Finding unsuppressed', { findingId, userId: user.sub });
+      return success({ success: true, action: 'unsuppress', findingId });
+    }
+    
     // Build where clause with tenant isolation
-    const where = {
+    const where: any = {
       organization_id: organizationId,
       ...(severity && { severity }),
       ...(status && { status }),
@@ -142,6 +222,11 @@ export async function handler(
       ...(category && { category }),
       ...(scan_type && { scan_type }),
     };
+    
+    // Filter by suppressed state if specified
+    if (suppressed !== undefined) {
+      where.suppressed = suppressed;
+    }
     
     // Get findings with pagination
     const [findings, total] = await Promise.all([

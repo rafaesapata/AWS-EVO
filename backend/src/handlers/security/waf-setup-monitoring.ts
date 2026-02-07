@@ -57,26 +57,41 @@ const EVO_WAF_DESTINATION_NAME = 'evo-uds-v3-sandbox-waf-logs-destination';
 const EVO_ACCOUNT_ID = '971354623291';
 
 // Supported regions for WAF monitoring
+// Must include ALL regions where customers may have WAF resources
 const SUPPORTED_REGIONS = [
   'us-east-1',      // N. Virginia
+  'us-east-2',      // Ohio
+  'us-west-1',      // N. California
   'us-west-2',      // Oregon
+  'ca-central-1',   // Canada
   'eu-west-1',      // Ireland
+  'eu-west-2',      // London
+  'eu-west-3',      // Paris
+  'eu-central-1',   // Frankfurt
+  'eu-north-1',     // Stockholm
+  'eu-south-1',     // Milan
   'ap-southeast-1', // Singapore
+  'ap-southeast-2', // Sydney
+  'ap-northeast-1', // Tokyo
+  'ap-northeast-2', // Seoul
+  'ap-northeast-3', // Osaka
+  'ap-south-1',     // Mumbai
   'sa-east-1',      // São Paulo
+  'me-south-1',     // Bahrain
+  'af-south-1',     // Cape Town
 ];
 
 /**
  * Get the destination ARN for a specific region
  * The destination must be in the same region as the log group
- * @throws Error if region is not supported
+ * For unsupported regions, falls back to us-east-1 destination
  */
 function getDestinationArn(region: string): string {
-  if (!SUPPORTED_REGIONS.includes(region)) {
-    throw new Error(
-      `Region ${region} not supported for WAF monitoring. Supported regions: ${SUPPORTED_REGIONS.join(', ')}`
-    );
+  const effectiveRegion = SUPPORTED_REGIONS.includes(region) ? region : 'us-east-1';
+  if (effectiveRegion !== region) {
+    logger.warn(`Region ${region} not in pre-configured list, using us-east-1 destination as fallback`);
   }
-  return `arn:aws:logs:${region}:${EVO_ACCOUNT_ID}:destination:${EVO_WAF_DESTINATION_NAME}`;
+  return `arn:aws:logs:${effectiveRegion}:${EVO_ACCOUNT_ID}:destination:${EVO_WAF_DESTINATION_NAME}`;
 }
 
 // Subscription filter name
@@ -763,10 +778,45 @@ async function handleListWafs(
     return error('AWS account not found');
   }
   
-  // Get all regions to scan
-  const regions = account.regions || ['us-east-1'];
+  // Get all regions to scan - use account regions, fallback to common regions
+  // Empty array check: account.regions could be [] which is truthy
+  const accountRegions = account.regions && account.regions.length > 0 
+    ? account.regions 
+    : ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1'];
+  
+  // Ensure us-east-1 is always included (needed for CLOUDFRONT scope WAFs)
+  const regions = accountRegions.includes('us-east-1') 
+    ? accountRegions 
+    : ['us-east-1', ...accountRegions];
+  
   const allWebAcls: any[] = [];
   
+  // First: Always scan CLOUDFRONT WAFs from us-east-1 (they are global)
+  try {
+    const globalCreds = await resolveAwsCredentials(account, 'us-east-1');
+    const globalCredentials = toAwsCredentials(globalCreds);
+    const globalWafClient = new WAFV2Client({ region: 'us-east-1', credentials: globalCredentials });
+    
+    try {
+      const cloudfrontWafs = await globalWafClient.send(new ListWebACLsCommand({
+        Scope: 'CLOUDFRONT',
+      }));
+      
+      if (cloudfrontWafs.WebACLs) {
+        allWebAcls.push(...cloudfrontWafs.WebACLs.map(waf => ({
+          ...waf,
+          Scope: 'CLOUDFRONT',
+          Region: 'global',
+        })));
+      }
+    } catch (err) {
+      logger.warn('Failed to list CLOUDFRONT WAFs', { error: err });
+    }
+  } catch (err) {
+    logger.warn('Failed to get credentials for us-east-1 (CLOUDFRONT WAFs)', { error: err });
+  }
+  
+  // Second: Scan REGIONAL WAFs in each region
   for (const region of regions) {
     try {
       const resolvedCreds = await resolveAwsCredentials(account, region);
@@ -789,25 +839,6 @@ async function handleListWafs(
       } catch (err) {
         logger.warn('Failed to list REGIONAL WAFs', { region, error: err });
       }
-      
-      // List CLOUDFRONT WAFs (only in us-east-1)
-      if (region === 'us-east-1') {
-        try {
-          const cloudfrontWafs = await wafClient.send(new ListWebACLsCommand({
-            Scope: 'CLOUDFRONT',
-          }));
-          
-          if (cloudfrontWafs.WebACLs) {
-            allWebAcls.push(...cloudfrontWafs.WebACLs.map(waf => ({
-              ...waf,
-              Scope: 'CLOUDFRONT',
-              Region: 'global',
-            })));
-          }
-        } catch (err) {
-          logger.warn('Failed to list CLOUDFRONT WAFs', { error: err });
-        }
-      }
     } catch (err) {
       logger.warn('Failed to scan region for WAFs', { region, error: err });
     }
@@ -826,9 +857,9 @@ async function handleListWafs(
     isMonitored: monitoredArns.has(waf.ARN),
   }));
   
-  logger.info('Listed WAFs', { organizationId, count: wafsWithStatus.length });
+  logger.info('Listed WAFs', { organizationId, count: wafsWithStatus.length, regionsScanned: regions });
   
-  return success({ webAcls: wafsWithStatus });
+  return success({ webAcls: wafsWithStatus, regionsScanned: regions });
 }
 
 /**

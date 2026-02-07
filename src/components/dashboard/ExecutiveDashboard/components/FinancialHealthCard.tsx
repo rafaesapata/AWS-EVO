@@ -8,7 +8,7 @@
  *   - Border: border-gray-200
  */
 
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import InfoIcon from './InfoIcon';
@@ -20,6 +20,8 @@ interface Props {
 
 export default function FinancialHealthCard({ data }: Props) {
   const { t } = useTranslation();
+
+  const hasNoCostData = data.mtdCost === 0 && data.ytdCost === 0 && data.budget === 0;
 
   const getBudgetColor = (utilization: number) => {
     if (utilization >= 90) return 'text-red-500';
@@ -46,6 +48,20 @@ export default function FinancialHealthCard({ data }: Props) {
       </div>
 
       <div className="p-6 space-y-5">
+        {hasNoCostData ? (
+          <div className="text-center py-8 space-y-4">
+            <div className="p-6 rounded-2xl bg-white border border-gray-200">
+              <DollarSign className="h-14 w-14 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-sm font-light text-[#393939] mb-2">
+                {t('executiveDashboard.noFinancialData', 'No Cost Data Yet')}
+              </h3>
+              <p className="text-xs font-light text-[#5F5F5F] max-w-xs mx-auto">
+                {t('executiveDashboard.noFinancialDataDesc', 'Cost data will appear once your cloud accounts start reporting usage.')}
+              </p>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Cost Summary - 2x2 Grid */}
         <div className="grid grid-cols-2 gap-4">
           <div className="p-4 rounded-xl bg-white border border-gray-200">
@@ -164,6 +180,8 @@ export default function FinancialHealthCard({ data }: Props) {
             <span>{t('executiveDashboard.estimatedValuesWarning', 'Estimated values based on current usage patterns')}</span>
           </p>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

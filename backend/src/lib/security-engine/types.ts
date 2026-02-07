@@ -45,6 +45,10 @@ export interface Finding {
   cve?: string[];
   first_seen?: Date;
   last_seen?: Date;
+  fingerprint?: string;
+  occurrence_count?: number;
+  suppressed?: boolean;
+  resolved_at?: Date | null;
 }
 
 export interface ScanResult {

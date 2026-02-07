@@ -63,7 +63,7 @@ export async function handler(
         where: {
           organization_id: organizationId,
           ...(accountId && { aws_account_id: accountId }),
-          status: 'pending',
+          status: { in: ['new', 'active', 'reopened', 'pending'] },
         },
         orderBy: { created_at: 'desc' },
         take: 100,
