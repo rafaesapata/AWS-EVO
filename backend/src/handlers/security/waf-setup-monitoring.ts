@@ -778,16 +778,10 @@ async function handleListWafs(
     return error('AWS account not found');
   }
   
-  // Get all regions to scan - use account regions, fallback to common regions
-  // Empty array check: account.regions could be [] which is truthy
-  const accountRegions = account.regions && account.regions.length > 0 
-    ? account.regions 
-    : ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1'];
-  
-  // Ensure us-east-1 is always included (needed for CLOUDFRONT scope WAFs)
-  const regions = accountRegions.includes('us-east-1') 
-    ? accountRegions 
-    : ['us-east-1', ...accountRegions];
+  // Scan ALL supported regions to find WAFs
+  // account.regions may be empty, incomplete, or not include WAF regions
+  // Use parallel scanning for performance (20 regions in ~2-3s instead of ~20s sequential)
+  const regions = [...SUPPORTED_REGIONS];
   
   const allWebAcls: any[] = [];
   
@@ -816,31 +810,30 @@ async function handleListWafs(
     logger.warn('Failed to get credentials for us-east-1 (CLOUDFRONT WAFs)', { error: err });
   }
   
-  // Second: Scan REGIONAL WAFs in each region
-  for (const region of regions) {
-    try {
+  // Second: Scan REGIONAL WAFs in ALL regions in parallel
+  const regionalResults = await Promise.allSettled(
+    regions.map(async (region) => {
       const resolvedCreds = await resolveAwsCredentials(account, region);
       const credentials = toAwsCredentials(resolvedCreds);
       const wafClient = new WAFV2Client({ region, credentials });
       
-      // List REGIONAL WAFs
-      try {
-        const regionalWafs = await wafClient.send(new ListWebACLsCommand({
-          Scope: 'REGIONAL',
-        }));
-        
-        if (regionalWafs.WebACLs) {
-          allWebAcls.push(...regionalWafs.WebACLs.map(waf => ({
-            ...waf,
-            Scope: 'REGIONAL',
-            Region: region,
-          })));
-        }
-      } catch (err) {
-        logger.warn('Failed to list REGIONAL WAFs', { region, error: err });
-      }
-    } catch (err) {
-      logger.warn('Failed to scan region for WAFs', { region, error: err });
+      const regionalWafs = await wafClient.send(new ListWebACLsCommand({
+        Scope: 'REGIONAL',
+      }));
+      
+      return (regionalWafs.WebACLs || []).map(waf => ({
+        ...waf,
+        Scope: 'REGIONAL',
+        Region: region,
+      }));
+    })
+  );
+  
+  for (const result of regionalResults) {
+    if (result.status === 'fulfilled' && result.value.length > 0) {
+      allWebAcls.push(...result.value);
+    } else if (result.status === 'rejected') {
+      logger.warn('Failed to scan region for WAFs', { error: result.reason });
     }
   }
   
