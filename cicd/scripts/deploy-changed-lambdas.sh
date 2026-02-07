@@ -172,6 +172,7 @@ declare -A HANDLER_MAP=(
   ["license/daily-license-validation"]="daily-license-validation"
   ["license/scheduled-license-sync"]="scheduled-license-sync"
   ["license/cleanup-seats"]="cleanup-seats"
+  ["jobs/retry-fallback-licenses"]="retry-fallback-licenses"
   
   # Profiles
   ["profiles/check-organization"]="check-organization"

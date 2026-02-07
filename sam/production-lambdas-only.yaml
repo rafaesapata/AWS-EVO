@@ -2998,6 +2998,25 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+  RetryFallbackLicensesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-retry-fallback-licenses'
+      CodeUri: ../backend/src/handlers/jobs/
+      Handler: retry-fallback-licenses.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 120
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - retry-fallback-licenses.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
   SyncLicenseFunction:
     Type: AWS::Serverless::Function
     Properties:
