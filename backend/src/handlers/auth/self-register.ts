@@ -498,11 +498,12 @@ export async function handler(
     const slug = generateSlug(company.name);
 
     await prisma.$executeRaw`
-      INSERT INTO organizations (id, name, slug, created_at, updated_at)
+      INSERT INTO organizations (id, name, slug, contact_email, created_at, updated_at)
       VALUES (
         ${organizationId}::uuid,
         ${company.name},
         ${slug},
+        ${email},
         NOW(),
         NOW()
       )
