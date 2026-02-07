@@ -86,8 +86,8 @@ export async function handler(event: ScheduledEvent): Promise<RetryReport> {
         l.is_active,
         o.name as organization_name,
         o.slug,
-        p.full_name as contact_name,
-        p.email as contact_email
+        COALESCE(p.full_name, 'Unknown') as contact_name,
+        COALESCE(o.contact_email, p.email, '') as contact_email
       FROM licenses l
       JOIN organizations o ON o.id = l.organization_id
       LEFT JOIN profiles p ON p.organization_id = l.organization_id AND p.role = 'org_admin'
@@ -233,6 +233,7 @@ async function retryExternalLicenseCreation(license: {
   const requestBody = {
     organization_name: license.organization_name || 'Unknown',
     contact_name: license.contact_name || 'Unknown',
+    contact_email: license.contact_email || '',
     product_type: 'evo',
     estimated_seats: 1,
     notes: `Retry fallback license - Organization ID: ${license.organization_id}`,
