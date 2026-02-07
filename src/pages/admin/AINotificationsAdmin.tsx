@@ -50,6 +50,8 @@ import {
   Sparkles,
   Building2,
   Loader2,
+  User,
+  Users,
 } from 'lucide-react';
 import { apiClient } from '@/integrations/aws/api-client';
 import { toast } from 'sonner';
@@ -61,6 +63,15 @@ interface Organization {
   name: string;
   slug?: string;
   user_count?: number;
+}
+
+interface OrgUser {
+  id: string;
+  user_id: string;
+  full_name: string;
+  email?: string;
+  role: string;
+  avatar_url?: string;
 }
 
 interface NotificationStats {
@@ -178,6 +189,21 @@ export default function AINotificationsAdmin() {
     },
   });
 
+  // Fetch users for selected organization
+  const { data: orgUsersData, isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['admin-org-users', formData.target_organization_id],
+    queryFn: async () => {
+      const response = await apiClient.invoke<OrgUser[]>('manage-organizations', {
+        body: { action: 'list_users', id: formData.target_organization_id },
+      });
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to load users');
+      }
+      return Array.isArray(response.data) ? response.data : [];
+    },
+    enabled: !!formData.target_organization_id,
+  });
+
   // Fetch notifications
   const { data: notificationsData, isLoading: isLoadingNotifications, refetch } = useQuery({
     queryKey: ['admin-ai-notifications', statusFilter],
@@ -264,6 +290,7 @@ export default function AINotificationsAdmin() {
   };
 
   const organizations: Organization[] = orgsData || [];
+  const orgUsers: OrgUser[] = orgUsersData || [];
   const notifications: AdminNotification[] = notificationsData?.notifications || [];
   const stats: NotificationStats = notificationsData?.stats || {
     pending: 0,
@@ -335,7 +362,7 @@ export default function AINotificationsAdmin() {
                       </label>
                       <Select
                         value={formData.target_organization_id || 'all'}
-                        onValueChange={v => setFormData(prev => ({ ...prev, target_organization_id: v === 'all' ? '' : v }))}
+                        onValueChange={v => setFormData(prev => ({ ...prev, target_organization_id: v === 'all' ? '' : v, target_user_id: '' }))}
                         disabled={isLoadingOrgs}
                       >
                         <SelectTrigger>
@@ -390,11 +417,53 @@ export default function AINotificationsAdmin() {
                       <label className="text-sm font-medium">
                         {t('admin.targetUser', 'Usuário Específico (opcional)')}
                       </label>
-                      <Input
-                        placeholder={t('admin.userIdPlaceholder', 'UUID do usuário (deixe vazio para todos)')}
-                        value={formData.target_user_id}
-                        onChange={e => setFormData(prev => ({ ...prev, target_user_id: e.target.value }))}
-                      />
+                      <Select
+                        value={formData.target_user_id || 'all'}
+                        onValueChange={v => setFormData(prev => ({ ...prev, target_user_id: v === 'all' ? '' : v }))}
+                        disabled={!formData.target_organization_id || isLoadingUsers}
+                      >
+                        <SelectTrigger>
+                          {isLoadingUsers ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>{t('common.loading', 'Loading...')}</span>
+                            </div>
+                          ) : (
+                            <SelectValue placeholder={
+                              !formData.target_organization_id
+                                ? t('admin.selectOrgFirst', 'Selecione uma organização primeiro')
+                                : t('admin.selectUser', 'Selecione um usuário')
+                            } />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4" />
+                              {t('admin.allUsers', 'Todos os usuários da organização')}
+                            </div>
+                          </SelectItem>
+                          {orgUsers.map(user => (
+                            <SelectItem key={user.user_id} value={user.user_id}>
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <span>{user.full_name || t('admin.unnamed', 'Sem nome')}</span>
+                                {user.email && (
+                                  <span className="text-xs text-muted-foreground">({user.email})</span>
+                                )}
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 ml-1">
+                                  {user.role}
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          ))}
+                          {!isLoadingUsers && orgUsers.length === 0 && formData.target_organization_id && (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                              {t('admin.noUsersFound', 'Nenhum usuário encontrado')}
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
