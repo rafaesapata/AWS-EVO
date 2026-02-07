@@ -146,6 +146,7 @@ model AzureCredential {
   
   organization          Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   security_scans        SecurityScan[] @relation("AzureSecurityScans")
+  scan_schedules        ScanSchedule[] @relation("AzureScanSchedules")
   activity_events       AzureActivityEvent[]
   defender_findings     AzureDefenderFinding[]
   reservations          AzureReservation[]
@@ -275,24 +276,29 @@ model SecurityScan {
 }
 
 model ScanSchedule {
-  id                String   @id @default(uuid()) @db.Uuid
-  organization_id   String   @db.Uuid
-  aws_account_id    String   @db.Uuid
-  scan_type         String
-  schedule_type     String   // daily, weekly, monthly
-  schedule_config   Json?
-  is_active         Boolean  @default(true)
-  last_run_at       DateTime? @db.Timestamptz(6)
-  next_run_at       DateTime? @db.Timestamptz(6)
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  id                  String        @id @default(uuid()) @db.Uuid
+  organization_id     String        @db.Uuid
+  aws_account_id      String?       @db.Uuid  // Optional - null for Azure scans
+  cloud_provider      CloudProvider @default(AWS)
+  azure_credential_id String?       @db.Uuid  // For Azure multi-cloud support
+  scan_type           String
+  schedule_type       String        // daily, weekly, monthly
+  schedule_config     Json?
+  is_active           Boolean       @default(true)
+  last_run_at         DateTime?     @db.Timestamptz(6)
+  next_run_at         DateTime?     @db.Timestamptz(6)
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime      @updatedAt @db.Timestamptz(6)
   
-  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  aws_credential    AwsCredential @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)
+  organization        Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  aws_credential      AwsCredential? @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)
+  azure_credential    AzureCredential? @relation("AzureScanSchedules", fields: [azure_credential_id], references: [id], onDelete: Cascade)
   
   @@index([organization_id])
   @@index([is_active])
   @@index([next_run_at])
+  @@index([cloud_provider])
+  @@index([azure_credential_id])
   @@map("scan_schedules")
 }
 
@@ -573,7 +579,7 @@ model CommunicationLog {
 model DailyCost {
   id              String   @id @default(uuid()) @db.Uuid
   organization_id String   @db.Uuid
-  aws_account_id  String   @db.Uuid
+  aws_account_id  String?  @db.Uuid  // Optional - null for Azure costs
   date            DateTime @db.Date
   service         String
   cost            Float    @default(0)
@@ -590,6 +596,7 @@ model DailyCost {
   @@index([organization_id, date])
   @@index([aws_account_id])
   @@index([cloud_provider])
+  @@index([azure_credential_id])
   @@map("daily_costs")
 }
 
@@ -660,7 +667,7 @@ model DriftDetectionHistory {
 model ResourceInventory {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
-  aws_account_id    String
+  aws_account_id    String?  // Optional - null for Azure resources
   cloud_provider    CloudProvider @default(AWS)
   azure_credential_id String? @db.Uuid
   resource_id       String
@@ -675,6 +682,7 @@ model ResourceInventory {
   @@index([organization_id])
   @@index([resource_type])
   @@index([cloud_provider])
+  @@index([azure_credential_id])
   @@map("resource_inventory")
 }
 
@@ -1189,17 +1197,21 @@ model CopilotInteraction {
 // ==================== COMPLIANCE SCANS ====================
 
 model ComplianceScan {
-  id                String   @id @default(uuid()) @db.Uuid
-  organization_id   String   @db.Uuid
-  aws_account_id    String
-  framework         String
-  status            String   @default("pending")
-  results           Json?
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
-  completed_at      DateTime? @db.Timestamptz(6)
+  id                  String        @id @default(uuid()) @db.Uuid
+  organization_id     String        @db.Uuid
+  aws_account_id      String?       // Optional - null for Azure scans
+  cloud_provider      CloudProvider @default(AWS)
+  azure_credential_id String?       @db.Uuid  // For Azure multi-cloud support
+  framework           String
+  status              String        @default("pending")
+  results             Json?
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  completed_at        DateTime?     @db.Timestamptz(6)
   
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([cloud_provider])
+  @@index([azure_credential_id])
   @@map("compliance_scans")
 }
 

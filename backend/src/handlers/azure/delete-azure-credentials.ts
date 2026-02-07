@@ -18,6 +18,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 // Validation schema
 const deleteAzureCredentialsSchema = z.object({
@@ -73,6 +74,20 @@ export async function handler(
         subscriptionId: credential.subscription_id,
       });
 
+      logAuditAsync({
+        organizationId,
+        userId: user.sub,
+        action: 'CREDENTIAL_DELETE',
+        resourceType: 'azure_credential',
+        resourceId: credentialId,
+        details: {
+          subscription_id: credential.subscription_id,
+          hard_delete: true,
+        },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
+      });
+
       return success({
         deleted: true,
         credentialId,
@@ -92,6 +107,21 @@ export async function handler(
         organizationId,
         credentialId,
         subscriptionId: credential.subscription_id,
+      });
+
+      logAuditAsync({
+        organizationId,
+        userId: user.sub,
+        action: 'CREDENTIAL_DELETE',
+        resourceType: 'azure_credential',
+        resourceId: credentialId,
+        details: {
+          subscription_id: credential.subscription_id,
+          hard_delete: false,
+          deactivated: true,
+        },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
       });
 
       return success({

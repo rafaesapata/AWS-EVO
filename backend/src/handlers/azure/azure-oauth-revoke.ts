@@ -22,6 +22,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 // Validation schema
 const revokeSchema = z.object({
@@ -81,8 +82,8 @@ export async function handler(
     const stoppedScans = await prisma.scanSchedule.updateMany({
       where: {
         organization_id: organizationId,
-        // Note: ScanSchedule uses aws_account_id, but for Azure we'd need to add azure_credential_id
-        // For now, we'll just log this as a TODO
+        azure_credential_id: credentialId,
+        is_active: true,
       },
       data: {
         is_active: false,
@@ -123,6 +124,23 @@ export async function handler(
       // Don't fail the revoke if audit logging fails
       logger.warn('Failed to log audit event', { error: (auditErr as Error).message });
     }
+
+    // Audit log
+    logAuditAsync({
+      organizationId,
+      userId,
+      action: 'CREDENTIAL_DELETE',
+      resourceType: 'azure_credential',
+      resourceId: credentialId,
+      details: {
+        subscription_id: credential.subscription_id,
+        auth_type: 'oauth',
+        revoked: true,
+        stopped_scans: stoppedScans.count,
+      },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
+    });
 
     logger.info('Azure OAuth credential revoked successfully', {
       organizationId,

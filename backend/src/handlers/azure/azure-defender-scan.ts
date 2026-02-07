@@ -19,6 +19,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 const defenderScanSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
@@ -194,6 +195,24 @@ export async function handler(
       organizationId,
       credentialId,
       alertsFound: alerts.length,
+    });
+
+    // Audit log
+    logAuditAsync({
+      organizationId,
+      userId: user.sub,
+      action: 'SECURITY_SCAN_COMPLETE',
+      resourceType: 'security_scan',
+      resourceId: credentialId,
+      details: {
+        cloud_provider: 'AZURE',
+        scan_type: 'defender',
+        subscription_id: credential.subscription_id,
+        alerts_found: alerts.length,
+        high_severity: summary.high,
+      },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
     });
 
     return success({

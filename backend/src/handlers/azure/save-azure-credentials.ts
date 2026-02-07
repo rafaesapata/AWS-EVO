@@ -21,6 +21,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 // Validation schema for Service Principal credentials
 const servicePrincipalSchema = z.object({
@@ -234,6 +235,22 @@ export async function handler(
         });
       }
     }
+
+    // Audit log
+    logAuditAsync({
+      organizationId,
+      userId: user.sub,
+      action: existingCredential ? 'CREDENTIAL_UPDATE' : 'CREDENTIAL_CREATE',
+      resourceType: 'azure_credential',
+      resourceId: credential.id,
+      details: {
+        subscription_id: credential.subscription_id,
+        auth_type: authType,
+        is_update: !!existingCredential,
+      },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
+    });
 
     // Return credential without exposing secrets
     return success({

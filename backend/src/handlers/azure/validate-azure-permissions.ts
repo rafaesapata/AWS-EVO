@@ -101,38 +101,40 @@ export async function handler(
     }
 
     // Initialize Azure provider
-    const azureCredentials = credential.auth_type === 'oauth'
-      ? {
-          subscriptionId: credential.subscription_id,
-          subscriptionName: credential.subscription_name || undefined,
-          tenantId: credential.oauth_tenant_id || '',
-          accessToken: credential.encrypted_refresh_token || '', // This would need to be decrypted/refreshed in production
-          expiresAt: credential.token_expires_at ? new Date(credential.token_expires_at) : undefined,
-        }
-      : {
-          subscriptionId: credential.subscription_id,
-          subscriptionName: credential.subscription_name || undefined,
-          tenantId: credential.tenant_id || '',
-          clientId: credential.client_id || '',
-          clientSecret: credential.client_secret || '',
-        };
-
-    const azureProvider = new AzureProvider(organizationId, azureCredentials);
-
-    // Validate basic connectivity
-    try {
-      await azureProvider.validateCredentials();
-    } catch (err: any) {
-      logger.error('Failed to validate Azure credentials', err);
-      return error('Failed to connect to Azure. Please check your credentials.', 401);
+    let azureProvider: AzureProvider;
+    
+    if (credential.auth_type === 'oauth') {
+      // Use getAzureCredentialWithToken for OAuth
+      const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+      const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
+      
+      if (!tokenResult.success) {
+        return error(tokenResult.error, 400);
+      }
+      
+      azureProvider = AzureProvider.withOAuthToken(
+        organizationId,
+        credential.subscription_id,
+        credential.subscription_name || undefined,
+        credential.oauth_tenant_id || credential.tenant_id || '',
+        tokenResult.accessToken,
+        new Date(Date.now() + 3600 * 1000)
+      );
+    } else {
+      if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
+        return error('Service Principal credentials incomplete. Missing tenant_id, client_id, or client_secret.', 400);
+      }
+      
+      azureProvider = new AzureProvider(organizationId, {
+        subscriptionId: credential.subscription_id,
+        subscriptionName: credential.subscription_name || undefined,
+        tenantId: credential.tenant_id,
+        clientId: credential.client_id,
+        clientSecret: credential.client_secret,
+      });
     }
 
-    // Test permissions in groups to be faster
-    const results: ValidationResult[] = [];
-    const missingPermissions: string[] = [];
-    const warnings: string[] = [];
-
-    // Group 1: Test basic connectivity (validates most read permissions)
+    // Validate basic connectivity
     let hasBasicAccess = false;
     try {
       await azureProvider.validateCredentials();
@@ -140,7 +142,13 @@ export async function handler(
       logger.info('Basic Azure access validated');
     } catch (err: any) {
       logger.error('Basic Azure access failed', err);
+      return error('Failed to connect to Azure. Please check your credentials.', 401);
     }
+
+    // Test permissions in groups
+    const results: ValidationResult[] = [];
+    const missingPermissions: string[] = [];
+    const warnings: string[] = [];
 
     // Group 2: Test resource listing (validates compute, storage, network permissions)
     let hasResourceAccess = false;

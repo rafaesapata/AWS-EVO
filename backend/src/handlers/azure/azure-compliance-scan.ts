@@ -19,6 +19,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 const complianceScanSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
@@ -165,7 +166,8 @@ export async function handler(
     const scan = await (prisma as any).complianceScan.create({
       data: {
         organization_id: organizationId,
-        aws_account_id: credentialId,
+        cloud_provider: 'AZURE',
+        azure_credential_id: credentialId,
         framework: frameworks.join(','),
         status: 'completed',
         results: {
@@ -199,6 +201,25 @@ export async function handler(
       organizationId,
       scanId: scan.id,
       duration: Date.now() - startTime,
+    });
+
+    // Audit log
+    logAuditAsync({
+      organizationId,
+      userId: user.sub,
+      action: 'COMPLIANCE_SCAN_COMPLETE',
+      resourceType: 'compliance_scan',
+      resourceId: scan.id,
+      details: {
+        cloud_provider: 'AZURE',
+        subscription_id: credential.subscription_id,
+        frameworks,
+        total_checks: summary.total,
+        compliant: summary.compliant,
+        non_compliant: summary.nonCompliant,
+      },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
     });
 
     return success({

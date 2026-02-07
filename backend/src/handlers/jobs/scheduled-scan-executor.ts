@@ -67,7 +67,8 @@ export async function handler(
       },
       include: {
         organization: { select: { id: true, name: true } },
-        aws_credential: { select: { id: true, account_name: true, is_active: true } }
+        aws_credential: { select: { id: true, account_name: true, is_active: true } },
+        azure_credential: { select: { id: true, subscription_name: true, is_active: true } }
       },
       take: 50,
     });
@@ -88,16 +89,32 @@ export async function handler(
     
     for (const schedule of schedules) {
       try {
-        // Verificar se a credencial AWS está ativa
-        if (!schedule.aws_credential?.is_active) {
-          results.push({
-            scheduleId: schedule.id,
-            organizationId: schedule.organization_id,
-            scanType: schedule.scan_type,
-            status: 'skipped',
-            message: 'AWS credential is inactive'
-          });
-          continue;
+        // Determine if this is an AWS or Azure schedule
+        const isAzure = schedule.cloud_provider === 'AZURE' || !!schedule.azure_credential_id;
+        
+        // Verify credential is active
+        if (isAzure) {
+          if (!schedule.azure_credential?.is_active) {
+            results.push({
+              scheduleId: schedule.id,
+              organizationId: schedule.organization_id,
+              scanType: schedule.scan_type,
+              status: 'skipped',
+              message: 'Azure credential is inactive'
+            });
+            continue;
+          }
+        } else {
+          if (!schedule.aws_credential?.is_active) {
+            results.push({
+              scheduleId: schedule.id,
+              organizationId: schedule.organization_id,
+              scanType: schedule.scan_type,
+              status: 'skipped',
+              message: 'AWS credential is inactive'
+            });
+            continue;
+          }
         }
         
         // Mapear tipo de scan para Lambda
@@ -116,9 +133,12 @@ export async function handler(
         // Preparar payload para a Lambda de scan
         const payload = {
           body: JSON.stringify({
-            accountId: schedule.aws_account_id,
+            ...(isAzure 
+              ? { credentialId: schedule.azure_credential_id }
+              : { accountId: schedule.aws_account_id }
+            ),
             scanType: schedule.scan_type,
-            scanLevel: schedule.scan_type, // quick, standard, deep
+            scanLevel: schedule.scan_type,
             scheduledExecution: true,
             scheduleId: schedule.id,
             ...(schedule.schedule_config as object || {})

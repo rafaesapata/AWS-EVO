@@ -24,6 +24,7 @@ import { parseAndValidateBody } from '../../lib/validation.js';
 import type { AzureScanContext } from '../../lib/security-engine/scanners/azure/types.js';
 import type { ScanConfig } from '../../types/cloud.js';
 import { z } from 'zod';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { computeFingerprint, computeFallbackFingerprint } from '../../lib/security-engine/fingerprint.js';
 import { classifyFindings, computeLifecycleTransition, type NewScanFinding } from '../../lib/security-engine/delta-sync.js';
 
@@ -492,6 +493,25 @@ export async function handler(
       findingsCount: combinedSummary.total,
       duration: result.duration,
       moduleScannerFindings: moduleScannerFindings.length,
+    });
+
+    // Audit log
+    logAuditAsync({
+      organizationId,
+      userId: isBackgroundJob ? 'background-job-processor' : getUserFromEvent(event).sub,
+      action: 'SECURITY_SCAN_COMPLETE',
+      resourceType: 'security_scan',
+      resourceId: scan.id,
+      details: {
+        cloud_provider: 'AZURE',
+        subscription_id: credential.subscription_id,
+        findings_count: combinedSummary.total,
+        critical_count: combinedSummary.critical,
+        high_count: combinedSummary.high,
+        duration: result.duration,
+      },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
     });
 
     return success({

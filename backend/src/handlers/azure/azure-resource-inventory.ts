@@ -108,13 +108,12 @@ export async function handler(
     for (const resource of resources) {
       try {
         // Upsert resource
-        const existing = await prisma.resourceInventory.findUnique({
+        const existing = await prisma.resourceInventory.findFirst({
           where: {
-            aws_account_id_resource_id_region: {
-              aws_account_id: credentialId, // Reusing field for Azure credential ID
-              resource_id: resource.id,
-              region: resource.region,
-            },
+            organization_id: organizationId,
+            azure_credential_id: credentialId,
+            resource_id: resource.id,
+            region: resource.region,
           },
         });
 
@@ -138,7 +137,6 @@ export async function handler(
           await prisma.resourceInventory.create({
             data: {
               organization_id: organizationId,
-              aws_account_id: credentialId,
               cloud_provider: 'AZURE',
               azure_credential_id: credentialId,
               resource_id: resource.id,

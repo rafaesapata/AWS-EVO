@@ -19,6 +19,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 const startScanSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
@@ -97,6 +98,24 @@ export async function handler(
         },
         status: 'pending',
       },
+    });
+
+    // Audit log
+    logAuditAsync({
+      organizationId,
+      userId: user.sub,
+      action: 'SECURITY_SCAN_START',
+      resourceType: 'security_scan',
+      resourceId: scan.id,
+      details: {
+        scan_level: scanLevel,
+        cloud_provider: 'AZURE',
+        subscription_id: credential.subscription_id,
+        credential_id: credentialId,
+        job_id: job.id,
+      },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
     });
 
     logger.info('Azure security scan initiated', {

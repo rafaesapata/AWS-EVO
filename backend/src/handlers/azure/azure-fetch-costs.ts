@@ -40,10 +40,13 @@ interface AzureCredentialRecord {
   organization_id: string;
   subscription_id: string;
   subscription_name: string | null;
-  auth_type: string | null;
+  auth_type: string;
   tenant_id: string | null;
   client_id: string | null;
   client_secret: string | null;
+  encrypted_refresh_token: string | null;
+  oauth_tenant_id: string | null;
+  regions: string[];
 }
 
 /**
@@ -300,32 +303,38 @@ export async function handler(
 
     for (const cost of costs) {
       try {
-        await prisma.dailyCost.upsert({
+        // Use findFirst + create/update since aws_account_id is nullable for Azure
+        const existing = await prisma.dailyCost.findFirst({
           where: {
-            organization_id_aws_account_id_date_service: {
-              organization_id: organizationId,
-              aws_account_id: credentialId,
-              date: new Date(cost.date),
-              service: cost.service,
-            },
-          },
-          update: {
-            cost: cost.cost,
-            currency: cost.currency,
-            cloud_provider: 'AZURE',
-            azure_credential_id: credentialId,
-          },
-          create: {
             organization_id: organizationId,
-            aws_account_id: credentialId,
-            cloud_provider: 'AZURE',
             azure_credential_id: credentialId,
+            cloud_provider: 'AZURE',
             date: new Date(cost.date),
             service: cost.service,
-            cost: cost.cost,
-            currency: cost.currency,
           },
         });
+
+        if (existing) {
+          await prisma.dailyCost.update({
+            where: { id: existing.id },
+            data: {
+              cost: cost.cost,
+              currency: cost.currency,
+            },
+          });
+        } else {
+          await prisma.dailyCost.create({
+            data: {
+              organization_id: organizationId,
+              cloud_provider: 'AZURE',
+              azure_credential_id: credentialId,
+              date: new Date(cost.date),
+              service: cost.service,
+              cost: cost.cost,
+              currency: cost.currency,
+            },
+          });
+        }
         savedCount++;
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
