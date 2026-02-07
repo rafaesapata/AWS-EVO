@@ -118,8 +118,8 @@ export default function IntelligentAlerts() {
     enabled: shouldEnableAccountQuery(),
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
-      // Call Lambda which supports demo mode - use GET method
-      const response = await apiClient.get<any[]>('/api/functions/alerts');
+      // API Gateway only has POST route - use _method override for GET
+      const response = await apiClient.post<any[]>('/api/functions/alerts', { _method: 'GET' });
       
       if ('error' in response && response.error) {
         throw new Error(getErrorMessage(response.error));

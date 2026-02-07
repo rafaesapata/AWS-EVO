@@ -55,7 +55,7 @@ interface MonthlyData {
 }
 
 export const MonthlyInvoicesPage = () => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: organizationId } = useOrganization();
@@ -112,8 +112,8 @@ export const MonthlyInvoicesPage = () => {
         // Only show toast and refresh if new data was found
         if (summary && summary.savedCount > 0) {
           toast({
-            title: '✅ Novos dados Azure sincronizados',
-            description: `${summary.savedCount} novos registros de custos carregados`,
+            title: t('monthlyInvoices.newAzureDataSynced', 'New Azure data synced'),
+            description: t('monthlyInvoices.newCostRecordsLoaded', '{{count}} new cost records loaded', { count: summary.savedCount }),
           });
           
           // Invalidate cache to reload data from database
@@ -149,8 +149,8 @@ export const MonthlyInvoicesPage = () => {
         // Only show toast and refresh if new data was found
         if (summary && summary.newRecords > 0) {
           toast({
-            title: '✅ Novos dados sincronizados',
-            description: `${summary.newRecords} novos registros de custos carregados`,
+            title: t('monthlyInvoices.newDataSynced', 'New data synced'),
+            description: t('monthlyInvoices.newCostRecordsLoaded', '{{count}} new cost records loaded', { count: summary.newRecords }),
           });
           
           // Invalidate cache to reload data from database
@@ -332,23 +332,23 @@ export const MonthlyInvoicesPage = () => {
     const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString(currentLocale, { month: 'long', year: 'numeric' });
 
     const csvContent = [
-      `Fatura AWS - ${monthName}`,
+      `${t('monthlyInvoices.invoicePrefix', 'Invoice')} ${providerDisplayName} - ${monthName}`,
       '',
-      'Resumo',
-      `Custo Total,${data.totalCost.toFixed(2)}`,
-      `Créditos,${data.totalCredits.toFixed(2)}`,
-      `Custo Líquido,${data.netCost.toFixed(2)}`,
-      `Dias,${data.days}`,
-      `Custo Médio/Dia,${(data.netCost / data.days).toFixed(2)}`,
+      t('monthlyInvoices.summary', 'Summary'),
+      `${t('monthlyInvoices.totalCost', 'Total Cost')},${data.totalCost.toFixed(2)}`,
+      `${t('monthlyInvoices.credits', 'Credits')},${data.totalCredits.toFixed(2)}`,
+      `${t('monthlyInvoices.netCost', 'Net Cost')},${data.netCost.toFixed(2)}`,
+      `${t('monthlyInvoices.days', 'Days')},${data.days}`,
+      `${t('monthlyInvoices.dailyAverage', 'Daily Average')},${(data.netCost / data.days).toFixed(2)}`,
       '',
-      'Breakdown por Serviço',
-      'Serviço,Custo',
+      t('monthlyInvoices.serviceBreakdown', 'Service Breakdown'),
+      `${t('monthlyInvoices.service', 'Service')},${t('monthlyInvoices.cost', 'Cost')}`,
       ...Object.entries(data.serviceBreakdown)
         .sort(([,a], [,b]) => b - a)
         .map(([service, value]) => `${service},${value.toFixed(2)}`),
       '',
-      'Custos Diários',
-      'Data,Custo Total,Créditos,Custo Líquido',
+      t('monthlyInvoices.dailyCosts', 'Daily Costs'),
+      `${t('monthlyInvoices.date', 'Date')},${t('monthlyInvoices.totalCost', 'Total Cost')},${t('monthlyInvoices.credits', 'Credits')},${t('monthlyInvoices.netCost', 'Net Cost')}`,
       ...data.dailyCosts
         .sort((a, b) => compareDates(a.cost_date, b.cost_date))
         .map(cost => `${cost.cost_date},${cost.total_cost},${cost.credits_used || 0},${cost.net_cost || cost.total_cost}`)
@@ -357,7 +357,7 @@ export const MonthlyInvoicesPage = () => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `fatura_aws_${monthKey}.csv`;
+    link.download = `invoice_${providerDisplayName.toLowerCase()}_${monthKey}.csv`;
     link.click();
   };
 
@@ -369,10 +369,10 @@ export const MonthlyInvoicesPage = () => {
       const providerName = isAzure ? 'Azure' : 'AWS';
 
       toast({
-        title: forceFullRefresh ? 'Recarregando todos os dados...' : 'Atualizando custos...',
+        title: forceFullRefresh ? t('monthlyInvoices.reloadingAllData', 'Reloading all data...') : t('monthlyInvoices.updatingCosts', 'Updating costs...'),
         description: forceFullRefresh 
-          ? `Buscando histórico completo de custos ${providerName}` 
-          : `Buscando apenas novos dados ${providerName} (incremental)`,
+          ? t('monthlyInvoices.fetchingFullHistory', 'Fetching full {{provider}} cost history', { provider: providerName })
+          : t('monthlyInvoices.fetchingNewData', 'Fetching only new {{provider}} data (incremental)', { provider: providerName }),
       });
 
       if (isAzure) {
@@ -411,10 +411,10 @@ export const MonthlyInvoicesPage = () => {
         });
 
         toast({
-          title: '✅ Custos Azure atualizados',
+          title: t('monthlyInvoices.azureCostsUpdated', 'Azure costs updated'),
           description: summary 
-            ? `${summary.savedCount} registros salvos. Total: $${summary.totalCost?.toFixed(2) || '0.00'}`
-            : 'Dados atualizados com sucesso',
+            ? t('monthlyInvoices.recordsSaved', '{{count}} records saved. Total: {{total}}', { count: summary.savedCount, total: summary.totalCost?.toFixed(2) || '0.00' })
+            : t('monthlyInvoices.dataUpdatedSuccess', 'Data updated successfully'),
         });
       } else {
         // AWS: Call fetch-daily-costs Lambda
@@ -447,23 +447,23 @@ export const MonthlyInvoicesPage = () => {
 
         if (summary?.newRecords === 0 && summary?.skippedDays > 0) {
           toast({
-            title: '✅ Dados já atualizados',
-            description: `Nenhum novo dado encontrado. ${summary.skippedDays} dias já estavam no banco.`,
+            title: t('monthlyInvoices.dataAlreadyUpToDate', 'Data already up to date'),
+            description: t('monthlyInvoices.noNewDataFound', 'No new data found. {{count}} days already in database.', { count: summary.skippedDays }),
           });
         } else {
           toast({
-            title: '✅ Custos atualizados',
+            title: t('monthlyInvoices.costsUpdated', 'Costs updated'),
             description: summary 
-              ? `${summary.newRecords} novos registros. ${summary.uniqueDates} dias de dados.`
-              : 'Dados atualizados com sucesso',
+              ? t('monthlyInvoices.newRecords', '{{new}} new records. {{days}} days of data.', { new: summary.newRecords, days: summary.uniqueDates })
+              : t('monthlyInvoices.dataUpdatedSuccess', 'Data updated successfully'),
           });
         }
       }
     } catch (error) {
       console.error('Error loading historical data:', error);
       toast({
-        title: 'Erro ao carregar dados',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        title: t('monthlyInvoices.errorLoadingData', 'Error loading data'),
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Unknown error'),
         variant: "destructive"
       });
     } finally {
@@ -476,8 +476,8 @@ export const MonthlyInvoicesPage = () => {
 
   return (
     <Layout 
-      title={`Faturas Mensais ${providerDisplayName}`}
-      description={`Visualização e análise detalhada das faturas mensais ${selectedProvider === 'AZURE' ? 'do Azure' : 'da AWS'}`}
+      title={t('monthlyInvoices.title', 'Monthly Invoices') + ` ${providerDisplayName}`}
+      description={t('monthlyInvoices.description', 'Detailed visualization and analysis of monthly invoices')}
       icon={<FileText className="h-5 w-5" />}
     >
       <div className="space-y-6">
@@ -488,10 +488,10 @@ export const MonthlyInvoicesPage = () => {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-primary" />
-                {selectedAccount ? selectedAccount.account_name || selectedAccount.account_id : 'Selecione uma conta'}
+                {selectedAccount ? selectedAccount.account_name || selectedAccount.account_id : t('monthlyInvoices.selectAccount', 'Select an account')}
               </CardTitle>
               <CardDescription>
-                {allCosts?.length || 0} registros de custos disponíveis
+                {allCosts?.length || 0} {t('monthlyInvoices.costRecordsAvailable', 'cost records available')}
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -505,12 +505,12 @@ export const MonthlyInvoicesPage = () => {
                 {isLoadingHistory ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Carregando...
+                    {t('monthlyInvoices.loadingData', 'Loading...')}
                   </>
                 ) : (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Atualizar Novos
+                    {t('monthlyInvoices.updateNew', 'Update New')}
                   </>
                 )}
               </Button>
@@ -523,7 +523,7 @@ export const MonthlyInvoicesPage = () => {
                 title="Recarregar todos os dados históricos"
               >
                 <Download className="h-4 w-4 mr-1" />
-                Histórico Completo
+                {t('monthlyInvoices.fullHistory', 'Full History')}
               </Button>
             </div>
           </div>
@@ -532,10 +532,10 @@ export const MonthlyInvoicesPage = () => {
           {/* Filters - Month Only */}
           <div className="flex gap-4 flex-wrap">
             <div className="flex-1 min-w-[200px]">
-              <label className="text-sm font-medium mb-2 block">Mês</label>
+              <label className="text-sm font-medium mb-2 block">{t('monthlyInvoices.month', 'Month')}</label>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                 <SelectTrigger className="glass-card-float">
-                  <SelectValue placeholder="Selecionar mês" />
+                  <SelectValue placeholder={t('monthlyInvoices.selectMonth', 'Select month')} />
                 </SelectTrigger>
                 <SelectContent>
                   {sortedMonths.map((month) => {
@@ -619,16 +619,16 @@ export const MonthlyInvoicesPage = () => {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Custo Total</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.totalCost', 'Total Cost')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold">${selectedMonthData.totalCost.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground mt-1">{selectedMonthData.days} dias</p>
+              <p className="text-xs text-muted-foreground mt-1">{selectedMonthData.days} {t('monthlyInvoices.days', 'days')}</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Créditos Aplicados</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.appliedCredits', 'Applied Credits')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold text-success">
@@ -641,16 +641,16 @@ export const MonthlyInvoicesPage = () => {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Custo Líquido</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.netCost', 'Net Cost')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold">${selectedMonthData.netCost.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Valor a pagar</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('monthlyInvoices.amountDue', 'Amount due')}</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Média Diária</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.dailyAverage', 'Daily Average')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold">
@@ -663,7 +663,7 @@ export const MonthlyInvoicesPage = () => {
                 onClick={() => exportInvoice(selectedMonth)}
               >
                 <Download className="h-4 w-4 mr-2" />
-                Exportar Fatura
+                {t('monthlyInvoices.exportInvoice', 'Export Invoice')}
               </Button>
             </CardContent>
           </Card>
@@ -674,17 +674,17 @@ export const MonthlyInvoicesPage = () => {
       {!isLoadingCosts && (
       <Tabs defaultValue="comparison" className="w-full">
         <TabsList className="glass-card-float">
-          <TabsTrigger value="comparison">Comparação Mensal</TabsTrigger>
-          <TabsTrigger value="services">Serviços</TabsTrigger>
-          <TabsTrigger value="daily">Evolução Diária</TabsTrigger>
+          <TabsTrigger value="comparison">{t('monthlyInvoices.monthlyComparison', 'Monthly Comparison')}</TabsTrigger>
+          <TabsTrigger value="services">{t('monthlyInvoices.services', 'Services')}</TabsTrigger>
+          <TabsTrigger value="daily">{t('monthlyInvoices.dailyEvolution', 'Daily Evolution')}</TabsTrigger>
         </TabsList>
 
         {/* Monthly Comparison Tab */}
         <TabsContent value="comparison" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Comparação dos Últimos 12 Meses</CardTitle>
-              <CardDescription>Evolução dos custos, créditos e valores líquidos</CardDescription>
+              <CardTitle>{t('monthlyInvoices.last12MonthsComparison', 'Last 12 Months Comparison')}</CardTitle>
+              <CardDescription>{t('monthlyInvoices.costCreditsEvolution', 'Cost and credits evolution month by month')}</CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
@@ -709,9 +709,9 @@ export const MonthlyInvoicesPage = () => {
                     formatter={(value: number) => `$${value.toFixed(2)}`}
                   />
                   <Legend />
-                  <Bar dataKey="total" fill="#3b82f6" name="Custo Total" />
-                  <Bar dataKey="credits" fill="#10b981" name="Créditos" />
-                  <Bar dataKey="net" fill="#f59e0b" name="Custo Líquido" />
+                  <Bar dataKey="total" fill="#3b82f6" name={t('monthlyInvoices.totalCostChart', 'Total Cost')} />
+                  <Bar dataKey="credits" fill="#10b981" name={t('monthlyInvoices.credits', 'Credits')} />
+                  <Bar dataKey="net" fill="#f59e0b" name={t('monthlyInvoices.netCostChart', 'Net Cost')} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -725,8 +725,8 @@ export const MonthlyInvoicesPage = () => {
               <div className="grid gap-4 lg:grid-cols-2">
                 <Card >
                   <CardHeader>
-                    <CardTitle>Distribuição por Serviços</CardTitle>
-                    <CardDescription>Top 10 serviços por custo</CardDescription>
+                    <CardTitle>{t('monthlyInvoices.serviceDistribution', 'Service Distribution')}</CardTitle>
+                    <CardDescription>{t('monthlyInvoices.top10Services', 'Top 10 services by cost')}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -753,8 +753,8 @@ export const MonthlyInvoicesPage = () => {
 
                 <Card >
                   <CardHeader>
-                    <CardTitle>Detalhes dos Serviços</CardTitle>
-                    <CardDescription>Custos por serviço AWS</CardDescription>
+                    <CardTitle>{t('monthlyInvoices.serviceDetails', 'Service Details')}</CardTitle>
+                    <CardDescription>{t('monthlyInvoices.costsByService', 'Costs by {{provider}} service', { provider: providerDisplayName })}</CardDescription>
                   </CardHeader>
                   <CardContent className="max-h-[400px] overflow-y-auto">
                     <div className="space-y-2">
@@ -798,8 +798,8 @@ export const MonthlyInvoicesPage = () => {
           {selectedMonthData && (
             <Card>
               <CardHeader>
-                <CardTitle>Custos Diários</CardTitle>
-                <CardDescription>Evolução dos custos durante o mês</CardDescription>
+                <CardTitle>{t('monthlyInvoices.dailyCosts', 'Daily Costs')}</CardTitle>
+                <CardDescription>{t('monthlyInvoices.costEvolutionDuringMonth', 'Cost evolution during the month')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={400}>
@@ -819,7 +819,7 @@ export const MonthlyInvoicesPage = () => {
                       dataKey="date" 
                       className="text-xs"
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      label={{ value: 'Dia do Mês', position: 'insideBottom', offset: -5 }}
+                      label={{ value: t('monthlyInvoices.dayOfMonth', 'Day of Month'), position: 'insideBottom', offset: -5 }}
                     />
                     <YAxis 
                       className="text-xs"
@@ -840,7 +840,7 @@ export const MonthlyInvoicesPage = () => {
                       dataKey="total" 
                       stroke="#3b82f6" 
                       strokeWidth={2}
-                      name="Custo Total"
+                      name={t('monthlyInvoices.totalCostChart', 'Total Cost')}
                       dot={{ r: 3 }}
                     />
                     <Line 
@@ -848,7 +848,7 @@ export const MonthlyInvoicesPage = () => {
                       dataKey="net" 
                       stroke="#f59e0b" 
                       strokeWidth={2}
-                      name="Custo Líquido"
+                      name={t('monthlyInvoices.netCostChart', 'Net Cost')}
                       dot={{ r: 3 }}
                     />
                     <Line 
@@ -856,7 +856,7 @@ export const MonthlyInvoicesPage = () => {
                       dataKey="credits" 
                       stroke="#10b981" 
                       strokeWidth={2}
-                      name="Créditos"
+                      name={t('monthlyInvoices.credits', 'Credits')}
                       dot={{ r: 3 }}
                     />
                   </LineChart>
@@ -872,8 +872,8 @@ export const MonthlyInvoicesPage = () => {
       {!isLoadingCosts && (
       <Card>
         <CardHeader>
-          <CardTitle>Histórico de Faturas</CardTitle>
-          <CardDescription>Todas as faturas disponíveis</CardDescription>
+          <CardTitle>{t('monthlyInvoices.invoiceHistory', 'Invoice History')}</CardTitle>
+          <CardDescription>{t('monthlyInvoices.allAvailableInvoices', 'All available invoices')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -905,7 +905,7 @@ export const MonthlyInvoicesPage = () => {
                     <Calendar className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <div className="font-semibold">{monthName}</div>
-                      <div className="text-sm text-muted-foreground">{data.days} dias de dados</div>
+                      <div className="text-sm text-muted-foreground">{data.days} {t('monthlyInvoices.daysOfData', 'days of data')}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">

@@ -69,6 +69,8 @@ model Profile {
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   
   @@unique([user_id, organization_id])
+  @@index([organization_id])
+  @@index([email])
   @@map("profiles")
 }
 
@@ -95,6 +97,7 @@ model AwsCredential {
   scan_schedules        ScanSchedule[]
   guardduty_findings    GuardDutyFinding[]
   
+  @@index([organization_id])
   @@map("aws_credentials")
 }
 

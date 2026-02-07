@@ -2,6 +2,7 @@ import { Component, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import i18n from '@/i18n/config';
 
 interface Props {
   children: ReactNode;
@@ -38,12 +39,12 @@ export default class ErrorBoundary extends Component<Props, State> {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              Erro ao Carregar
+              {i18n.t('knowledgeBase.errorLoading', 'Error Loading')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Ocorreu um erro ao carregar este componente. Por favor, tente novamente.
+              {i18n.t('knowledgeBase.errorLoadingDesc', 'An error occurred while loading this component. Please try again.')}
             </p>
             {this.state.error && (
               <p className="text-xs text-muted-foreground font-mono bg-muted p-2 rounded">
@@ -54,7 +55,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               variant="outline"
               onClick={() => this.setState({ hasError: false, error: undefined })}
             >
-              Tentar Novamente
+              {i18n.t('knowledgeBase.tryAgain', 'Try Again')}
             </Button>
           </CardContent>
         </Card>

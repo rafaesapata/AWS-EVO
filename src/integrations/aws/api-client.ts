@@ -293,16 +293,29 @@ class ApiClient {
 
       const responseData = await response.json();
       
-      // Handle Lambda response format: { success: true, data: [...] }
-      // Extract the inner data if present
-      if (responseData && typeof responseData === 'object' && 'data' in responseData) {
-        const data = responseData.data;
-        // Normalize: ensure arrays are always arrays for select operations, never undefined
-        return { 
-          data: data === null || data === undefined ? [] : data, 
-          error: null, 
-          requestId: responseRequestId 
-        };
+      // Handle Lambda response format: { success: true/false, data: [...] }
+      // Check for success: false even on 200 responses (Lambda can return 200 with error)
+      if (responseData && typeof responseData === 'object') {
+        if (responseData.success === false) {
+          return {
+            data: null,
+            error: {
+              message: responseData.error || responseData.message || 'Request failed',
+              code: responseData.code,
+              requestId: responseRequestId,
+            },
+          };
+        }
+        
+        if ('data' in responseData) {
+          const data = responseData.data;
+          // Normalize: ensure arrays are always arrays for select operations, never undefined
+          return { 
+            data: data === null || data === undefined ? [] : data, 
+            error: null, 
+            requestId: responseRequestId 
+          };
+        }
       }
       
       // Return as-is for other formats, but normalize null/undefined to empty array for select operations
@@ -470,12 +483,26 @@ class ApiClient {
 
       const responseData = await response.json();
       
-      if (responseData && typeof responseData === 'object' && 'data' in responseData) {
-        return { 
-          data: responseData.data ?? [], 
-          error: null, 
-          requestId: responseRequestId 
-        };
+      // Check for success: false even on 200 responses
+      if (responseData && typeof responseData === 'object') {
+        if (responseData.success === false) {
+          return {
+            data: null,
+            error: {
+              message: responseData.error || responseData.message || 'Request failed',
+              code: responseData.code,
+              requestId: responseRequestId,
+            },
+          };
+        }
+        
+        if ('data' in responseData) {
+          return { 
+            data: responseData.data ?? [], 
+            error: null, 
+            requestId: responseRequestId 
+          };
+        }
       }
       
       return { 

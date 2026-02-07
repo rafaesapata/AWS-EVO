@@ -16,8 +16,8 @@ const PredictiveIncidents = () => {
 
   const handleViewScan = (scanId: string) => {
     toast({
-      title: "Detalhes da Predição",
-      description: `Visualizando detalhes da predição ${scanId.slice(0, 8)}...`,
+      title: t('predictiveIncidents.predictionDetails', 'Prediction Details'),
+      description: t('predictiveIncidents.viewingPrediction', 'Viewing prediction details {{id}}...', { id: scanId.slice(0, 8) }),
     });
     // Switch to prediction tab to show details
     setActiveTab("prediction");
@@ -26,18 +26,18 @@ const PredictiveIncidents = () => {
   return (
     <Layout 
       title={t('sidebar.predictiveIncidents', 'Incidentes Preditivos')} 
-      description={t('predictiveIncidents.description', 'Preveja potenciais incidentes usando Machine Learning para análise preditiva de infraestrutura')}
+      description={t('predictiveIncidents.description', 'Predict potential incidents using Machine Learning for predictive infrastructure analysis')}
       icon={<Activity className="h-7 w-7" />}
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="glass-card-float">
           <TabsTrigger value="prediction" className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
-            Nova Predição
+            {t('predictiveIncidents.newPrediction', 'New Prediction')}
           </TabsTrigger>
           <TabsTrigger value="history" className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            Histórico
+            {t('predictiveIncidents.history', 'History')}
           </TabsTrigger>
         </TabsList>
 

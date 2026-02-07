@@ -509,8 +509,7 @@ async function handleWebAuthnCheck(email: string, origin: string): Promise<APIGa
 
     logger.info('🔐 User lookup result', { 
       email, 
-      userFound: !!profile, 
-      userId: profile?.user_id 
+      userFound: !!profile,
     });
 
     if (!profile) {
@@ -529,11 +528,6 @@ async function handleWebAuthnCheck(email: string, origin: string): Promise<APIGa
     logger.info('🔐 WebAuthn credentials found', {
       userId: profile.user_id,
       credentialsCount: webauthnCredentials.length,
-      credentials: webauthnCredentials.map(c => ({
-        id: c.id,
-        device_name: c.device_name,
-        created_at: c.created_at
-      }))
     });
 
     return success({

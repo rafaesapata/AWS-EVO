@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
@@ -15,6 +16,7 @@ interface ArticleReviewActionsProps {
 }
 
 export function ArticleReviewActions({ article, currentUserId }: ArticleReviewActionsProps) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -33,13 +35,13 @@ export function ArticleReviewActions({ article, currentUserId }: ArticleReviewAc
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
       toast({ 
-        title: "Artigo aprovado com sucesso!",
-        description: "O autor foi notificado da aprovação.",
+        title: t('knowledgeBase.articleApprovedSuccess', 'Article approved successfully!'),
+        description: t('knowledgeBase.articleApprovedNotified', 'The author has been notified of the approval.'),
       });
     },
     onError: (error: Error) => {
       toast({ 
-        title: "Erro ao aprovar artigo",
+        title: t('knowledgeBase.errorApproving', 'Error approving article'),
         description: error.message,
         variant: "destructive"
       });
@@ -59,15 +61,15 @@ export function ArticleReviewActions({ article, currentUserId }: ArticleReviewAc
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
       toast({ 
-        title: "Artigo rejeitado",
-        description: "O autor foi notificado com o motivo da rejeição.",
+        title: t('knowledgeBase.articleRejectedSuccess', 'Article rejected'),
+        description: t('knowledgeBase.articleRejectedNotified', 'The author has been notified with the rejection reason.'),
       });
       setShowRejectDialog(false);
       setRejectionReason("");
     },
     onError: (error: Error) => {
       toast({ 
-        title: "Erro ao rejeitar artigo",
+        title: t('knowledgeBase.errorRejecting', 'Error rejecting article'),
         description: error.message,
         variant: "destructive"
       });
@@ -77,8 +79,8 @@ export function ArticleReviewActions({ article, currentUserId }: ArticleReviewAc
   const handleReject = () => {
     if (!rejectionReason.trim()) {
       toast({
-        title: "Motivo obrigatório",
-        description: "Por favor, informe o motivo da rejeição",
+        title: t('knowledgeBase.reasonRequired', 'Reason required'),
+        description: t('knowledgeBase.reasonRequiredDesc', 'Please provide the rejection reason'),
         variant: "destructive"
       });
       return;
@@ -101,7 +103,7 @@ export function ArticleReviewActions({ article, currentUserId }: ArticleReviewAc
           disabled={approveMutation.isPending}
         >
           <CheckCircle className="h-4 w-4 mr-1" />
-          Aprovar
+          {t('knowledgeBase.approve', 'Approve')}
         </Button>
         <Button 
           size="sm" 
@@ -111,24 +113,24 @@ export function ArticleReviewActions({ article, currentUserId }: ArticleReviewAc
           disabled={rejectMutation.isPending}
         >
           <XCircle className="h-4 w-4 mr-1" />
-          Rejeitar
+          {t('knowledgeBase.reject', 'Reject')}
         </Button>
       </div>
 
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rejeitar Artigo</DialogTitle>
+            <DialogTitle>{t('knowledgeBase.rejectArticle', 'Reject Article')}</DialogTitle>
             <DialogDescription>
-              Por favor, informe o motivo da rejeição para que o autor possa fazer as correções necessárias.
+              {t('knowledgeBase.rejectArticleDesc', 'Provide a reason for rejecting this article. The author will be notified.')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="rejection-reason">Motivo da Rejeição *</Label>
+              <Label htmlFor="rejection-reason">{t('knowledgeBase.rejectionReason', 'Rejection Reason *')}</Label>
               <Input
                 id="rejection-reason"
-                placeholder="Ex: Conteúdo incompleto, precisa de mais detalhes técnicos..."
+                placeholder={t('knowledgeBase.rejectionPlaceholder', 'E.g.: Incomplete content, needs more technical details...')}
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 className="mt-2"
@@ -142,7 +144,7 @@ export function ArticleReviewActions({ article, currentUserId }: ArticleReviewAc
                   setRejectionReason("");
                 }}
               >
-                Cancelar
+                {t('knowledgeBase.cancel', 'Cancel')}
               </Button>
               <Button 
                 variant="destructive" 
@@ -150,7 +152,7 @@ export function ArticleReviewActions({ article, currentUserId }: ArticleReviewAc
                 disabled={!rejectionReason.trim() || rejectMutation.isPending}
               >
                 <XCircle className="h-4 w-4 mr-2" />
-                Confirmar Rejeição
+                {t('knowledgeBase.confirmReject', 'Confirm Rejection')}
               </Button>
             </div>
           </div>

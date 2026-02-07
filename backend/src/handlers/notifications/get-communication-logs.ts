@@ -30,6 +30,8 @@ export async function handler(
     return corsOptions();
   }
   
+  const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
+  
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
@@ -78,6 +80,6 @@ export async function handler(
     
   } catch (err) {
     logger.error('❌ Get Communication Logs error:', err);
-    return error('An unexpected error occurred. Please try again.', 500);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }

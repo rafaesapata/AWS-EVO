@@ -1242,7 +1242,7 @@ export default function CostOptimization() {
 
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Economia Implementada</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('costOptimization.implementedSavings', 'Implemented Savings')}</CardTitle>
           </CardHeader>
           <CardContent>
             {metricsLoading ? (
@@ -1672,7 +1672,7 @@ export default function CostOptimization() {
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    Nenhum dado disponível
+                    {t('costOptimization.noDataAvailable', 'No data available')}
                   </div>
                 )}
               </CardContent>
@@ -1681,8 +1681,8 @@ export default function CostOptimization() {
             {/* Confidence Distribution */}
             <Card className="glass border-primary/20">
               <CardHeader>
-                <CardTitle>Distribuição por Confiança</CardTitle>
-                <CardDescription>Recomendações por nível de confiança</CardDescription>
+                <CardTitle>{t('costOptimization.confidenceDistribution', 'Confidence Distribution')}</CardTitle>
+                <CardDescription>{t('costOptimization.recommendationsByConfidence', 'Recommendations by confidence level')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -1699,9 +1699,9 @@ export default function CostOptimization() {
                       return (
                         <div key={confidence} className="space-y-2">
                           <div className="flex justify-between items-center">
-                            <span className="font-medium capitalize">{confidence} Confiança</span>
+                            <span className="font-medium capitalize">{t(`costOptimization.confidence${confidence.charAt(0).toUpperCase() + confidence.slice(1)}`, confidence)} {t('costOptimization.confidence', 'Confidence')}</span>
                             <span className="text-sm text-muted-foreground">
-                              {count} recomendações • ${savings.toFixed(2)}
+                              {count} {t('costOptimization.recommendations', 'recommendations')} • ${savings.toFixed(2)}
                             </span>
                           </div>
                           <Progress value={percentage} className="h-2" />
@@ -1711,7 +1711,7 @@ export default function CostOptimization() {
                   </div>
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    Nenhum dado disponível
+                    {t('costOptimization.noDataAvailable', 'No data available')}
                   </div>
                 )}
               </CardContent>
@@ -1724,9 +1724,9 @@ export default function CostOptimization() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-green-500" />
-                Recomendações Implementadas
+                {t('costOptimization.implementedRecommendations', 'Implemented Recommendations')}
               </CardTitle>
-              <CardDescription>Otimizações já aplicadas e suas economias realizadas</CardDescription>
+              <CardDescription>{t('costOptimization.implementedDesc', 'Optimizations already applied and their realized savings')}</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -1738,9 +1738,9 @@ export default function CostOptimization() {
               ) : recommendations?.filter(rec => rec.status === 'implemented').length === 0 ? (
                 <div className="text-center py-12">
                   <CheckCircle className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-                  <h3 className="text-xl font-semibold mb-2">Nenhuma implementação ainda</h3>
+                  <h3 className="text-xl font-semibold mb-2">{t('costOptimization.noImplementationsYet', 'No implementations yet')}</h3>
                   <p className="text-muted-foreground">
-                    Quando você marcar recomendações como implementadas, elas aparecerão aqui.
+                    {t('costOptimization.noImplementationsDesc', 'When you mark recommendations as implemented, they will appear here.')}
                   </p>
                 </div>
               ) : (
@@ -1749,13 +1749,13 @@ export default function CostOptimization() {
                   <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-green-800 dark:text-green-200">Total de Economia Realizada</p>
+                        <p className="text-sm font-medium text-green-800 dark:text-green-200">{t('costOptimization.totalRealizedSavings', 'Total Realized Savings')}</p>
                         <p className="text-2xl font-semibold text-green-700 dark:text-green-300">
                           ${recommendations?.filter(rec => rec.status === 'implemented').reduce((sum, rec) => sum + rec.potential_savings, 0).toFixed(2)}/mês
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium text-green-800 dark:text-green-200">Implementações</p>
+                        <p className="text-sm font-medium text-green-800 dark:text-green-200">{t('costOptimization.implementations', 'Implementations')}</p>
                         <p className="text-2xl font-semibold text-green-700 dark:text-green-300">
                           {recommendations?.filter(rec => rec.status === 'implemented').length}
                         </p>
@@ -1783,12 +1783,12 @@ export default function CostOptimization() {
                             <div className="text-right">
                               <Badge variant="default" className="bg-green-600 hover:bg-green-700">
                                 <CheckCircle className="h-3 w-3 mr-1" />
-                                Implementado
+                                {t('costOptimization.implemented', 'Implemented')}
                               </Badge>
                               <p className="text-lg font-semibold text-green-600 dark:text-green-400 mt-2">
                                 ${rec.potential_savings.toFixed(2)}/mês
                               </p>
-                              <p className="text-xs text-muted-foreground">economia realizada</p>
+                              <p className="text-xs text-muted-foreground">{t('costOptimization.realizedSavings', 'realized savings')}</p>
                             </div>
                           </div>
                         </CardContent>
@@ -1808,10 +1808,10 @@ export default function CostOptimization() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-primary" />
-              Detalhes da Recomendação
+              {t('costOptimization.recommendationDetails', 'Recommendation Details')}
             </DialogTitle>
             <DialogDescription>
-              Informações completas sobre a oportunidade de otimização
+              {t('costOptimization.fullOptimizationInfo', 'Complete information about the optimization opportunity')}
             </DialogDescription>
           </DialogHeader>
           
@@ -1819,7 +1819,7 @@ export default function CostOptimization() {
             <div className="space-y-6">
               {/* Resource Info */}
               <div className="space-y-2">
-                <h4 className="font-semibold">Recurso</h4>
+                <h4 className="font-semibold">{t('costOptimization.resource', 'Resource')}</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">ID:</span>
@@ -1830,7 +1830,7 @@ export default function CostOptimization() {
                     <p>{selectedRecommendation.resource_type}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Tipo de Otimização:</span>
+                    <span className="text-muted-foreground">{t('costOptimization.optimizationType', 'Optimization Type')}:</span>
                     <p className="capitalize">{selectedRecommendation.type.replace('_', ' ')}</p>
                   </div>
                   <div>
@@ -1844,7 +1844,7 @@ export default function CostOptimization() {
 
               {/* Cost Analysis */}
               <div className="space-y-2">
-                <h4 className="font-semibold">Análise de Custos</h4>
+                <h4 className="font-semibold">{t('costOptimization.costAnalysis', 'Cost Analysis')}</h4>
                 <div className="grid grid-cols-3 gap-4">
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">Custo Atual</p>

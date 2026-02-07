@@ -62,6 +62,9 @@ export async function handler(
     return corsOptions();
   }
 
+  // Get origin for CORS - include in ALL responses
+  const origin = (event.headers?.['origin'] || event.headers?.['Origin'] || '*');
+
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
@@ -77,7 +80,7 @@ export async function handler(
         bodyWithDefault.authType = 'service_principal';
       }
     } catch {
-      return error('Invalid JSON in request body', 400);
+      return error('Invalid JSON in request body', 400, undefined, origin);
     }
 
     const validation = parseAndValidateBody(saveAzureCredentialsSchema, JSON.stringify(bodyWithDefault));
@@ -124,7 +127,7 @@ export async function handler(
           return error(validationResult.error || 'Invalid Azure credentials', 401, {
             valid: false,
             details: validationResult.details,
-          });
+          }, origin);
         }
       }
 
@@ -272,15 +275,15 @@ export async function handler(
       createdAt: credential.created_at,
       updatedAt: credential.updated_at,
       isNew: !existingCredential,
-    });
+    }, 200, origin);
   } catch (err: any) {
     logger.error('Error saving Azure credentials', { error: err.message });
     
     // Handle unique constraint violation
     if (err.code === 'P2002') {
-      return error('Azure credentials for this subscription already exist', 409);
+      return error('Azure credentials for this subscription already exist', 409, undefined, origin);
     }
     
-    return error(err.message || 'Failed to save Azure credentials', 500);
+    return error(err.message || 'Failed to save Azure credentials', 500, undefined, origin);
   }
 }

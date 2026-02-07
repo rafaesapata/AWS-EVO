@@ -206,7 +206,7 @@ export async function handler(
         });
 
         if (!template) {
-          return error(`Template '${data.notification_type}' not found`, 404);
+          return error(`Template '${data.notification_type}' not found`, 404, undefined, origin);
         }
 
         // Get organization info

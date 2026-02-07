@@ -64,43 +64,43 @@ interface RemediationTicket {
 // ==================== CONSTANTS ====================
 
 const SEVERITY_CONFIG = {
-  critical: { color: 'bg-red-500', textColor: 'text-red-700', bgLight: 'bg-red-50', label: 'Crítico' },
-  high: { color: 'bg-orange-500', textColor: 'text-orange-700', bgLight: 'bg-orange-50', label: 'Alto' },
-  medium: { color: 'bg-yellow-500', textColor: 'text-yellow-700', bgLight: 'bg-yellow-50', label: 'Médio' },
-  low: { color: 'bg-green-500', textColor: 'text-green-700', bgLight: 'bg-green-50', label: 'Baixo' },
+  critical: { color: 'bg-red-500', textColor: 'text-red-700', bgLight: 'bg-red-50', labelKey: 'tickets.severity.critical' },
+  high: { color: 'bg-orange-500', textColor: 'text-orange-700', bgLight: 'bg-orange-50', labelKey: 'tickets.severity.high' },
+  medium: { color: 'bg-yellow-500', textColor: 'text-yellow-700', bgLight: 'bg-yellow-50', labelKey: 'tickets.severity.medium' },
+  low: { color: 'bg-green-500', textColor: 'text-green-700', bgLight: 'bg-green-50', labelKey: 'tickets.severity.low' },
 };
 
 const STATUS_CONFIG = {
-  open: { color: 'bg-blue-500', label: 'Aberto', icon: AlertCircle },
-  in_progress: { color: 'bg-purple-500', label: 'Em Progresso', icon: Zap },
-  pending_review: { color: 'bg-yellow-500', label: 'Aguardando Revisão', icon: Clock },
-  blocked: { color: 'bg-red-500', label: 'Bloqueado', icon: XCircle },
-  resolved: { color: 'bg-green-500', label: 'Resolvido', icon: CheckCircle },
-  closed: { color: 'bg-gray-500', label: 'Fechado', icon: CheckCircle },
-  cancelled: { color: 'bg-gray-400', label: 'Cancelado', icon: XCircle },
-  reopened: { color: 'bg-orange-500', label: 'Reaberto', icon: AlertTriangle },
+  open: { color: 'bg-blue-500', labelKey: 'tickets.status.open', icon: AlertCircle },
+  in_progress: { color: 'bg-purple-500', labelKey: 'tickets.status.in_progress', icon: Zap },
+  pending_review: { color: 'bg-yellow-500', labelKey: 'tickets.status.pending_review', icon: Clock },
+  blocked: { color: 'bg-red-500', labelKey: 'tickets.status.blocked', icon: XCircle },
+  resolved: { color: 'bg-green-500', labelKey: 'tickets.status.resolved', icon: CheckCircle },
+  closed: { color: 'bg-gray-500', labelKey: 'tickets.status.closed', icon: CheckCircle },
+  cancelled: { color: 'bg-gray-400', labelKey: 'tickets.status.cancelled', icon: XCircle },
+  reopened: { color: 'bg-orange-500', labelKey: 'tickets.status.reopened', icon: AlertTriangle },
 };
 
 const CATEGORY_CONFIG = {
-  security: { icon: Shield, label: 'Segurança', color: 'text-red-600' },
-  compliance: { icon: CheckCircle, label: 'Compliance', color: 'text-blue-600' },
-  cost_optimization: { icon: DollarSign, label: 'Otimização de Custos', color: 'text-green-600' },
-  performance: { icon: Zap, label: 'Performance', color: 'text-purple-600' },
-  configuration: { icon: Settings, label: 'Configuração', color: 'text-gray-600' },
+  security: { icon: Shield, labelKey: 'tickets.category.security', color: 'text-red-600' },
+  compliance: { icon: CheckCircle, labelKey: 'tickets.category.compliance', color: 'text-blue-600' },
+  cost_optimization: { icon: DollarSign, labelKey: 'tickets.category.cost_optimization', color: 'text-green-600' },
+  performance: { icon: Zap, labelKey: 'tickets.category.performance', color: 'text-purple-600' },
+  configuration: { icon: Settings, labelKey: 'tickets.category.configuration', color: 'text-gray-600' },
 };
 
 const PRIORITY_CONFIG = {
-  urgent: { color: 'bg-red-600', label: 'Urgente' },
-  high: { color: 'bg-orange-500', label: 'Alta' },
-  medium: { color: 'bg-yellow-500', label: 'Média' },
-  low: { color: 'bg-green-500', label: 'Baixa' },
+  urgent: { color: 'bg-red-600', labelKey: 'tickets.priority.urgent' },
+  high: { color: 'bg-orange-500', labelKey: 'tickets.priority.high' },
+  medium: { color: 'bg-yellow-500', labelKey: 'tickets.priority.medium' },
+  low: { color: 'bg-green-500', labelKey: 'tickets.priority.low' },
 };
 
 // ==================== HELPER FUNCTIONS ====================
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return '-';
-  return new Date(dateString).toLocaleDateString('pt-BR', {
+  return new Date(dateString).toLocaleDateString(undefined, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -109,7 +109,7 @@ function formatDate(dateString: string | null): string {
 
 function formatDateTime(dateString: string | null): string {
   if (!dateString) return '-';
-  return new Date(dateString).toLocaleString('pt-BR', {
+  return new Date(dateString).toLocaleString(undefined, {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -117,20 +117,20 @@ function formatDateTime(dateString: string | null): string {
   });
 }
 
-function getSlaStatus(ticket: RemediationTicket): { status: string; color: string; label: string } {
-  if (!ticket.sla_due_at) return { status: 'no_sla', color: 'text-gray-400', label: 'Sem SLA' };
-  if (ticket.sla_breached) return { status: 'breached', color: 'text-red-600', label: 'SLA Violado' };
+function getSlaStatus(ticket: RemediationTicket): { status: string; color: string; labelKey: string } {
+  if (!ticket.sla_due_at) return { status: 'no_sla', color: 'text-gray-400', labelKey: 'tickets.sla.noSla' };
+  if (ticket.sla_breached) return { status: 'breached', color: 'text-red-600', labelKey: 'tickets.sla.breached' };
   
   const now = new Date();
   const dueAt = new Date(ticket.sla_due_at);
   const hoursRemaining = (dueAt.getTime() - now.getTime()) / (1000 * 60 * 60);
   
-  if (hoursRemaining < 0) return { status: 'breached', color: 'text-red-600', label: 'SLA Violado' };
-  if (hoursRemaining < 2) return { status: 'at_risk', color: 'text-orange-600', label: 'Em Risco' };
-  return { status: 'on_track', color: 'text-green-600', label: 'No Prazo' };
+  if (hoursRemaining < 0) return { status: 'breached', color: 'text-red-600', labelKey: 'tickets.sla.breached' };
+  if (hoursRemaining < 2) return { status: 'at_risk', color: 'text-orange-600', labelKey: 'tickets.sla.atRisk' };
+  return { status: 'on_track', color: 'text-green-600', labelKey: 'tickets.sla.onTrack' };
 }
 
-function getTimeRemaining(dateString: string | null): string {
+function getTimeRemaining(dateString: string | null, t: (key: string, defaultValue?: string, options?: any) => string): string {
   if (!dateString) return '-';
   const now = new Date();
   const target = new Date(dateString);
@@ -138,19 +138,20 @@ function getTimeRemaining(dateString: string | null): string {
   
   if (diff < 0) {
     const hours = Math.abs(Math.floor(diff / (1000 * 60 * 60)));
-    return `${hours}h atrasado`;
+    return t('tickets.time.hoursLate', '{{hours}}h late', { hours });
   }
   
   const hours = Math.floor(diff / (1000 * 60 * 60));
-  if (hours < 24) return `${hours}h restantes`;
+  if (hours < 24) return t('tickets.time.hoursRemaining', '{{hours}}h remaining', { hours });
   const days = Math.floor(hours / 24);
-  return `${days}d restantes`;
+  return t('tickets.time.daysRemaining', '{{days}}d remaining', { days });
 }
 
 
 // ==================== TICKET CARD COMPONENT ====================
 
 function TicketCard({ ticket, onClick }: { ticket: RemediationTicket; onClick: () => void }) {
+  const { t } = useTranslation();
   const slaStatus = getSlaStatus(ticket);
   const StatusIcon = STATUS_CONFIG[ticket.status]?.icon || AlertCircle;
   const CategoryIcon = CATEGORY_CONFIG[ticket.category]?.icon || Settings;
@@ -170,7 +171,7 @@ function TicketCard({ ticket, onClick }: { ticket: RemediationTicket; onClick: (
             </span>
             <Badge variant="outline" className={`text-xs ${CATEGORY_CONFIG[ticket.category]?.color}`}>
               <CategoryIcon className="h-3 w-3 mr-1" />
-              {CATEGORY_CONFIG[ticket.category]?.label}
+              {t(CATEGORY_CONFIG[ticket.category]?.labelKey)}
             </Badge>
           </div>
           
@@ -179,7 +180,7 @@ function TicketCard({ ticket, onClick }: { ticket: RemediationTicket; onClick: (
           </h3>
           
           <p className="text-sm text-gray-500 line-clamp-2 mb-3">
-            {ticket.description || 'Sem descrição'}
+            {ticket.description || t('tickets.noDescription', 'No description')}
           </p>
           
           {/* Meta Info */}
@@ -191,7 +192,7 @@ function TicketCard({ ticket, onClick }: { ticket: RemediationTicket; onClick: (
             {ticket.assigned_to && (
               <span className="flex items-center gap-1">
                 <User className="h-3 w-3" />
-                Atribuído
+                {t('tickets.assigned', 'Assigned')}
               </span>
             )}
             {ticket._count && (
@@ -223,17 +224,17 @@ function TicketCard({ ticket, onClick }: { ticket: RemediationTicket; onClick: (
         <div className="flex flex-col items-end gap-2">
           <Badge className={`${STATUS_CONFIG[ticket.status]?.color} text-white text-xs`}>
             <StatusIcon className="h-3 w-3 mr-1" />
-            {STATUS_CONFIG[ticket.status]?.label}
+            {t(STATUS_CONFIG[ticket.status]?.labelKey)}
           </Badge>
           
           <Badge variant="outline" className={`${PRIORITY_CONFIG[ticket.priority]?.color} text-white text-xs`}>
-            {PRIORITY_CONFIG[ticket.priority]?.label}
+            {t(PRIORITY_CONFIG[ticket.priority]?.labelKey)}
           </Badge>
           
           {ticket.sla_due_at && (
             <div className={`flex items-center gap-1 text-xs ${slaStatus.color}`}>
               <Timer className="h-3 w-3" />
-              <span>{getTimeRemaining(ticket.sla_due_at)}</span>
+              <span>{getTimeRemaining(ticket.sla_due_at, t)}</span>
             </div>
           )}
           
@@ -248,6 +249,7 @@ function TicketCard({ ticket, onClick }: { ticket: RemediationTicket; onClick: (
 // ==================== STATS CARDS ====================
 
 function StatsCards({ tickets }: { tickets: RemediationTicket[] }) {
+  const { t } = useTranslation();
   const stats = useMemo(() => {
     const open = tickets.filter(t => ['open', 'in_progress', 'pending_review', 'blocked', 'reopened'].includes(t.status)).length;
     const resolved = tickets.filter(t => ['resolved', 'closed'].includes(t.status)).length;
@@ -266,7 +268,7 @@ function StatsCards({ tickets }: { tickets: RemediationTicket[] }) {
           </div>
           <div>
             <p className="text-2xl font-semibold text-[#1F2937]">{stats.open}</p>
-            <p className="text-xs text-gray-500">Tickets Abertos</p>
+            <p className="text-xs text-gray-500">{t('tickets.openTickets', 'Open Tickets')}</p>
           </div>
         </div>
       </div>
@@ -278,7 +280,7 @@ function StatsCards({ tickets }: { tickets: RemediationTicket[] }) {
           </div>
           <div>
             <p className="text-2xl font-semibold text-[#1F2937]">{stats.resolved}</p>
-            <p className="text-xs text-gray-500">Resolvidos</p>
+            <p className="text-xs text-gray-500">{t('tickets.resolved', 'Resolved')}</p>
           </div>
         </div>
       </div>
@@ -290,7 +292,7 @@ function StatsCards({ tickets }: { tickets: RemediationTicket[] }) {
           </div>
           <div>
             <p className="text-2xl font-semibold text-[#1F2937]">{stats.critical}</p>
-            <p className="text-xs text-gray-500">Críticos</p>
+            <p className="text-xs text-gray-500">{t('tickets.critical', 'Critical')}</p>
           </div>
         </div>
       </div>
@@ -302,7 +304,7 @@ function StatsCards({ tickets }: { tickets: RemediationTicket[] }) {
           </div>
           <div>
             <p className="text-2xl font-semibold text-[#1F2937]">{stats.breached}</p>
-            <p className="text-xs text-gray-500">SLA Violado</p>
+            <p className="text-xs text-gray-500">{t('tickets.slaBreached', 'SLA Breached')}</p>
           </div>
         </div>
       </div>
@@ -349,7 +351,7 @@ function CreateTicketDialog({
       return response.data;
     },
     onSuccess: () => {
-      toast({ title: 'Ticket criado com sucesso', variant: 'default' });
+      toast({ title: t('tickets.ticketCreated', 'Ticket created successfully'), variant: 'default' });
       onOpenChange(false);
       onSuccess();
       setFormData({
@@ -364,7 +366,7 @@ function CreateTicketDialog({
       });
     },
     onError: (err) => {
-      toast({ title: 'Erro ao criar ticket', description: getErrorMessage(err), variant: 'destructive' });
+      toast({ title: t('tickets.ticketCreateError', 'Error creating ticket'), description: getErrorMessage(err), variant: 'destructive' });
     },
   });
   
@@ -374,29 +376,29 @@ function CreateTicketDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-[#003C7D]" />
-            Criar Novo Ticket
+            {t('tickets.createTitle', 'Create New Ticket')}
           </DialogTitle>
           <DialogDescription>
-            Crie um ticket de remediação para rastrear e resolver problemas
+            {t('tickets.createDescription', 'Create a remediation ticket to track and resolve issues')}
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Título *</Label>
+            <Label htmlFor="title">{t('tickets.labelTitle', 'Title *')}</Label>
             <Input
               id="title"
-              placeholder="Descreva brevemente o problema"
+              placeholder={t('tickets.placeholderTitle', 'Briefly describe the issue')}
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
+            <Label htmlFor="description">{t('tickets.labelDescription', 'Description')}</Label>
             <Textarea
               id="description"
-              placeholder="Detalhes do problema, impacto, recursos afetados..."
+              placeholder={t('tickets.placeholderDescription', 'Issue details, impact, affected resources...')}
               rows={4}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -405,31 +407,31 @@ function CreateTicketDialog({
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Severidade</Label>
+              <Label>{t('tickets.labelSeverity', 'Severity')}</Label>
               <Select value={formData.severity} onValueChange={(v: any) => setFormData({ ...formData, severity: v })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="critical">Crítico</SelectItem>
-                  <SelectItem value="high">Alto</SelectItem>
-                  <SelectItem value="medium">Médio</SelectItem>
-                  <SelectItem value="low">Baixo</SelectItem>
+                  <SelectItem value="critical">{t('tickets.severity.critical', 'Critical')}</SelectItem>
+                  <SelectItem value="high">{t('tickets.severity.high', 'High')}</SelectItem>
+                  <SelectItem value="medium">{t('tickets.severity.medium', 'Medium')}</SelectItem>
+                  <SelectItem value="low">{t('tickets.severity.low', 'Low')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
             <div className="space-y-2">
-              <Label>Prioridade</Label>
+              <Label>{t('tickets.labelPriority', 'Priority')}</Label>
               <Select value={formData.priority} onValueChange={(v: any) => setFormData({ ...formData, priority: v })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="urgent">Urgente</SelectItem>
-                  <SelectItem value="high">Alta</SelectItem>
-                  <SelectItem value="medium">Média</SelectItem>
-                  <SelectItem value="low">Baixa</SelectItem>
+                  <SelectItem value="urgent">{t('tickets.priority.urgent', 'Urgent')}</SelectItem>
+                  <SelectItem value="high">{t('tickets.priority.high', 'High')}</SelectItem>
+                  <SelectItem value="medium">{t('tickets.priority.medium', 'Medium')}</SelectItem>
+                  <SelectItem value="low">{t('tickets.priority.low', 'Low')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -437,23 +439,23 @@ function CreateTicketDialog({
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Categoria</Label>
+              <Label>{t('tickets.labelCategory', 'Category')}</Label>
               <Select value={formData.category} onValueChange={(v: any) => setFormData({ ...formData, category: v })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="security">Segurança</SelectItem>
-                  <SelectItem value="compliance">Compliance</SelectItem>
-                  <SelectItem value="cost_optimization">Otimização de Custos</SelectItem>
-                  <SelectItem value="performance">Performance</SelectItem>
-                  <SelectItem value="configuration">Configuração</SelectItem>
+                  <SelectItem value="security">{t('tickets.category.security', 'Security')}</SelectItem>
+                  <SelectItem value="compliance">{t('tickets.category.compliance', 'Compliance')}</SelectItem>
+                  <SelectItem value="cost_optimization">{t('tickets.category.cost_optimization', 'Cost Optimization')}</SelectItem>
+                  <SelectItem value="performance">{t('tickets.category.performance', 'Performance')}</SelectItem>
+                  <SelectItem value="configuration">{t('tickets.category.configuration', 'Configuration')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
             <div className="space-y-2">
-              <Label>Data Limite</Label>
+              <Label>{t('tickets.labelDueDate', 'Due Date')}</Label>
               <Input
                 type="date"
                 value={formData.due_date}
@@ -464,7 +466,7 @@ function CreateTicketDialog({
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Esforço Estimado (horas)</Label>
+              <Label>{t('tickets.labelEstimatedEffort', 'Estimated Effort (hours)')}</Label>
               <Input
                 type="number"
                 min={0}
@@ -474,9 +476,9 @@ function CreateTicketDialog({
             </div>
             
             <div className="space-y-2">
-              <Label>Impacto no Negócio</Label>
+              <Label>{t('tickets.labelBusinessImpact', 'Business Impact')}</Label>
               <Input
-                placeholder="Ex: Afeta produção, compliance..."
+                placeholder={t('tickets.placeholderBusinessImpact', 'E.g.: Affects production, compliance...')}
                 value={formData.business_impact}
                 onChange={(e) => setFormData({ ...formData, business_impact: e.target.value })}
               />
@@ -486,14 +488,14 @@ function CreateTicketDialog({
         
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {t('tickets.cancel', 'Cancel')}
           </Button>
           <Button 
             onClick={() => createMutation.mutate(formData)}
             disabled={!formData.title || createMutation.isPending}
             className="bg-[#003C7D] hover:bg-[#002d5c]"
           >
-            {createMutation.isPending ? 'Criando...' : 'Criar Ticket'}
+            {createMutation.isPending ? t('tickets.creating', 'Creating...') : t('tickets.createTicket', 'Create Ticket')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -539,7 +541,7 @@ export default function RemediationTickets() {
     },
   });
   
-  const tickets: RemediationTicket[] = ticketsData?.data || [];
+  const tickets: RemediationTicket[] = ticketsData || [];
   
   // Filter tickets
   const filteredTickets = useMemo(() => {
@@ -587,7 +589,7 @@ export default function RemediationTickets() {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Buscar tickets..."
+                placeholder={t('tickets.placeholderSearch', 'Search tickets...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -603,7 +605,7 @@ export default function RemediationTickets() {
               className="glass hover-glow"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
-              Atualizar
+              {t('tickets.refresh', 'Refresh')}
             </Button>
             
             <Button
@@ -612,7 +614,7 @@ export default function RemediationTickets() {
               className="bg-[#003C7D] hover:bg-[#002d5c]"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Novo Ticket
+              {t('tickets.newTicket', 'New Ticket')}
             </Button>
           </div>
         </div>
@@ -621,7 +623,7 @@ export default function RemediationTickets() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-gray-400" />
-            <span className="text-sm text-gray-500">Filtros:</span>
+            <span className="text-sm text-gray-500">{t('tickets.filters', 'Filters:')}</span>
           </div>
           
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -629,40 +631,40 @@ export default function RemediationTickets() {
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos Status</SelectItem>
-              <SelectItem value="open">Aberto</SelectItem>
-              <SelectItem value="in_progress">Em Progresso</SelectItem>
-              <SelectItem value="pending_review">Aguardando Revisão</SelectItem>
-              <SelectItem value="blocked">Bloqueado</SelectItem>
-              <SelectItem value="resolved">Resolvido</SelectItem>
-              <SelectItem value="closed">Fechado</SelectItem>
+              <SelectItem value="all">{t('tickets.allStatus', 'All Status')}</SelectItem>
+              <SelectItem value="open">{t('tickets.status.open', 'Open')}</SelectItem>
+              <SelectItem value="in_progress">{t('tickets.status.in_progress', 'In Progress')}</SelectItem>
+              <SelectItem value="pending_review">{t('tickets.status.pending_review', 'Pending Review')}</SelectItem>
+              <SelectItem value="blocked">{t('tickets.status.blocked', 'Blocked')}</SelectItem>
+              <SelectItem value="resolved">{t('tickets.status.resolved', 'Resolved')}</SelectItem>
+              <SelectItem value="closed">{t('tickets.status.closed', 'Closed')}</SelectItem>
             </SelectContent>
           </Select>
           
           <Select value={severityFilter} onValueChange={setSeverityFilter}>
             <SelectTrigger className="w-[140px] h-8 text-sm">
-              <SelectValue placeholder="Severidade" />
+              <SelectValue placeholder={t('tickets.labelSeverity', 'Severity')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="critical">Crítico</SelectItem>
-              <SelectItem value="high">Alto</SelectItem>
-              <SelectItem value="medium">Médio</SelectItem>
-              <SelectItem value="low">Baixo</SelectItem>
+              <SelectItem value="all">{t('tickets.allSeverities', 'All')}</SelectItem>
+              <SelectItem value="critical">{t('tickets.severity.critical', 'Critical')}</SelectItem>
+              <SelectItem value="high">{t('tickets.severity.high', 'High')}</SelectItem>
+              <SelectItem value="medium">{t('tickets.severity.medium', 'Medium')}</SelectItem>
+              <SelectItem value="low">{t('tickets.severity.low', 'Low')}</SelectItem>
             </SelectContent>
           </Select>
           
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-[160px] h-8 text-sm">
-              <SelectValue placeholder="Categoria" />
+              <SelectValue placeholder={t('tickets.labelCategory', 'Category')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="security">Segurança</SelectItem>
-              <SelectItem value="compliance">Compliance</SelectItem>
-              <SelectItem value="cost_optimization">Custos</SelectItem>
-              <SelectItem value="performance">Performance</SelectItem>
-              <SelectItem value="configuration">Configuração</SelectItem>
+              <SelectItem value="all">{t('tickets.allCategories', 'All')}</SelectItem>
+              <SelectItem value="security">{t('tickets.category.security', 'Security')}</SelectItem>
+              <SelectItem value="compliance">{t('tickets.category.compliance', 'Compliance')}</SelectItem>
+              <SelectItem value="cost_optimization">{t('tickets.category.cost_optimization', 'Cost Optimization')}</SelectItem>
+              <SelectItem value="performance">{t('tickets.category.performance', 'Performance')}</SelectItem>
+              <SelectItem value="configuration">{t('tickets.category.configuration', 'Configuration')}</SelectItem>
             </SelectContent>
           </Select>
           
@@ -678,7 +680,7 @@ export default function RemediationTickets() {
               }}
               className="text-xs text-gray-500 hover:text-gray-700"
             >
-              Limpar filtros
+              {t('tickets.clearFilters', 'Clear filters')}
             </Button>
           )}
         </div>
@@ -715,17 +717,17 @@ export default function RemediationTickets() {
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Ticket className="h-12 w-12 text-gray-300 mb-4" />
                 <h3 className="text-lg font-medium text-gray-600 mb-2">
-                  {tickets.length === 0 ? 'Nenhum ticket encontrado' : 'Nenhum ticket corresponde aos filtros'}
+                  {tickets.length === 0 ? t('tickets.noTicketsFound', 'No tickets found') : t('tickets.noTicketsMatch', 'No tickets match the filters')}
                 </h3>
                 <p className="text-sm text-gray-400 mb-4">
                   {tickets.length === 0 
-                    ? 'Crie seu primeiro ticket de remediação'
-                    : 'Tente ajustar os filtros de busca'}
+                    ? t('tickets.createFirstTicket', 'Create your first remediation ticket')
+                    : t('tickets.adjustFilters', 'Try adjusting the search filters')}
                 </p>
                 {tickets.length === 0 && (
                   <Button onClick={() => setCreateDialogOpen(true)} className="bg-[#003C7D] hover:bg-[#002d5c]">
                     <Plus className="h-4 w-4 mr-2" />
-                    Criar Ticket
+                    {t('tickets.createTicket', 'Create Ticket')}
                   </Button>
                 )}
               </CardContent>
@@ -744,7 +746,7 @@ export default function RemediationTickets() {
         {/* Results count */}
         {!isLoading && filteredTickets.length > 0 && (
           <p className="text-sm text-gray-400 text-center">
-            Mostrando {filteredTickets.length} de {tickets.length} tickets
+            {t('tickets.showing', 'Showing {{filtered}} of {{total}} tickets', { filtered: filteredTickets.length, total: tickets.length })}
           </p>
         )}
       </div>

@@ -254,13 +254,13 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  setGeneratedPrompt(data.prompt);
  
  toast({
- title: 'Prompt gerado!',
- description: 'Prompt de correção gerado com sucesso',
+ title: t('platformMonitoring.promptGenerated', 'Prompt generated!'),
+ description: t('platformMonitoring.promptGeneratedDesc', 'Fix prompt generated successfully'),
  });
  } catch (err) {
  toast({
- title: 'Erro ao gerar prompt',
- description: err instanceof Error ? err.message : 'Não foi possível gerar o prompt de correção',
+ title: t('platformMonitoring.errorGeneratingPrompt', 'Error generating prompt'),
+ description: err instanceof Error ? err.message : t('platformMonitoring.couldNotGeneratePrompt', 'Could not generate the fix prompt'),
  variant: 'destructive',
  });
  } finally {
@@ -355,8 +355,8 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  const copyToClipboard = (text: string) => {
  navigator.clipboard.writeText(text);
  toast({
- title: 'Copiado!',
- description: 'Prompt copiado para a área de transferência',
+ title: t('platformMonitoring.copied', 'Copied!'),
+ description: t('platformMonitoring.promptCopied', 'Prompt copied to clipboard'),
  });
  };
 
@@ -384,7 +384,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <div className="flex items-center gap-2 flex-wrap">
  <Badge variant="outline" >
  <Activity className="h-3 w-3 mr-1" />
- Tempo Real
+ {t('platformMonitoring.realTime', 'Real Time')}
  </Badge>
  <Badge variant="outline" className=" bg-green-500/10 border-green-500/30">
  <CheckCircle className="h-3 w-3 mr-1 text-green-500" />
@@ -415,7 +415,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  
  >
  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading || isRefetching ? 'animate-spin' : ''}`} />
- Atualizar
+ {t('platformMonitoring.refresh', 'Refresh')}
  </Button>
  </div>
  </div>
@@ -425,7 +425,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <CardHeader>
  <CardTitle className="flex items-center gap-2">
  <Shield className="h-5 w-5 text-green-500" />
- Cobertura do Sistema - 100%
+ {t('platformMonitoring.systemCoverage', 'System Coverage - 100%')}
  </CardTitle>
  </CardHeader>
  <CardContent>
@@ -464,15 +464,15 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  {/* Tabs */}
  <Tabs value={activeTab} onValueChange={setActiveTab}>
  <TabsList className="glass-card-float">
- <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+ <TabsTrigger value="overview">{t('platformMonitoring.overview', 'Overview')}</TabsTrigger>
  <TabsTrigger value="lambda-health">
  <Heart className="h-4 w-4 mr-1" />
- Lambda Health
+ {t('platformMonitoring.lambdaHealth', 'Lambda Health')}
  </TabsTrigger>
- <TabsTrigger value="errors">Erros</TabsTrigger>
- <TabsTrigger value="patterns">Padrões</TabsTrigger>
- <TabsTrigger value="performance">Performance</TabsTrigger>
- <TabsTrigger value="alarms">Alarmes</TabsTrigger>
+ <TabsTrigger value="errors">{t('platformMonitoring.errors', 'Errors')}</TabsTrigger>
+ <TabsTrigger value="patterns">{t('platformMonitoring.patterns', 'Patterns')}</TabsTrigger>
+ <TabsTrigger value="performance">{t('platformMonitoring.performance', 'Performance')}</TabsTrigger>
+ <TabsTrigger value="alarms">{t('platformMonitoring.alarms', 'Alarms')}</TabsTrigger>
  </TabsList>
 
  {/* Overview Tab */}
@@ -516,8 +516,8 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <CardContent className="flex flex-col items-center justify-center py-12">
  <Activity className="h-12 w-12 text-muted-foreground mb-4" />
  <p className="text-muted-foreground text-center">
- Nenhuma métrica disponível no momento.<br />
- Clique em "Atualizar" para carregar os dados.
+ {t('platformMonitoring.noMetricsAvailable', 'No metrics available at the moment.')}<br />
+ {t('platformMonitoring.clickRefreshToLoad', 'Click "Refresh" to load data.')}
  </p>
  </CardContent>
  </Card>
@@ -541,7 +541,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <div className="space-y-3">
  {/* Invocations - Main metric */}
  <div>
- <div className="text-xs text-muted-foreground mb-1">Invocações (última hora)</div>
+ <div className="text-xs text-muted-foreground mb-1">{t('platformMonitoring.invocationsLastHour', 'Invocations (last hour)')}</div>
  <div className="flex items-baseline gap-2">
  <span className="text-3xl font-semibold">{(metric as any).invocations?.toLocaleString() || 0}</span>
  </div>
@@ -550,13 +550,13 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  {/* Errors and Error Rate */}
  <div className="grid grid-cols-2 gap-4 pt-2 border-t">
  <div>
- <div className="text-xs text-muted-foreground">Erros</div>
+ <div className="text-xs text-muted-foreground">{t('platformMonitoring.errorsLabel', 'Errors')}</div>
  <div className={`text-lg font-medium ${metric.value > 0 ? 'text-red-500' : 'text-green-500'}`}>
  {metric.value}
  </div>
  </div>
  <div>
- <div className="text-xs text-muted-foreground">Taxa de Erro</div>
+ <div className="text-xs text-muted-foreground">{t('platformMonitoring.errorRate', 'Error Rate')}</div>
  <div className={`text-lg font-medium ${(metric as any).errorRate > 5 ? 'text-red-500' : (metric as any).errorRate > 0 ? 'text-yellow-500' : 'text-green-500'}`}>
  {((metric as any).errorRate || 0).toFixed(1)}%
  </div>
@@ -565,7 +565,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  
  {/* Lambda count */}
  <div className="text-xs text-muted-foreground">
- {(metric as any).lambdaCount || 0} Lambdas nesta categoria
+ {t('platformMonitoring.lambdasInCategory', '{{count}} Lambdas in this category', { count: (metric as any).lambdaCount || 0 })}
  </div>
  </div>
  </CardContent>
@@ -586,12 +586,12 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <Card >
  <CardHeader>
  <div className="flex items-center justify-between">
- <CardTitle>Erros Recentes</CardTitle>
+ <CardTitle>{t('platformMonitoring.recentErrors', 'Recent Errors')}</CardTitle>
  <div className="flex gap-2">
  <div className="relative">
  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
  <Input
- placeholder="Buscar erros..."
+ placeholder={t('platformMonitoring.searchErrors', 'Search errors...')}
  value={searchTerm}
  onChange={(e) => setSearchTerm(e.target.value)}
  className="pl-8 w-[200px]"
@@ -599,10 +599,10 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </div>
  <Select value={filterCategory} onValueChange={setFilterCategory}>
  <SelectTrigger className="w-[150px]">
- <SelectValue placeholder="Categoria" />
+ <SelectValue placeholder={t('platformMonitoring.category', 'Category')} />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="all">Todas</SelectItem>
+ <SelectItem value="all">{t('platformMonitoring.allCategories', 'All')}</SelectItem>
  <SelectItem value="backend">Backend</SelectItem>
  <SelectItem value="frontend">Frontend</SelectItem>
  <SelectItem value="api-gateway">API Gateway</SelectItem>
@@ -633,7 +633,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <div className="flex flex-col items-center justify-center py-12">
  <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
  <p className="text-muted-foreground text-center">
- Nenhum erro encontrado nas últimas 24 horas.
+ {t('platformMonitoring.noErrorsFound', 'No errors found in the last 24 hours.')}
  </p>
  </div>
  ) : (
@@ -677,10 +677,10 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <CardContent className="pt-6">
  <Select value={filterSeverity} onValueChange={setFilterSeverity}>
  <SelectTrigger className="w-[200px]">
- <SelectValue placeholder="Severidade" />
+ <SelectValue placeholder={t('platformMonitoring.severity', 'Severity')} />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="all">Todas</SelectItem>
+ <SelectItem value="all">{t('platformMonitoring.allSeverities', 'All')}</SelectItem>
  <SelectItem value="critical">Critical</SelectItem>
  <SelectItem value="high">High</SelectItem>
  <SelectItem value="medium">Medium</SelectItem>
@@ -736,7 +736,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <CardContent className="flex flex-col items-center justify-center py-12">
  <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
  <p className="text-muted-foreground text-center">
- Nenhum padrão de erro detectado.
+ {t('platformMonitoring.noPatternDetected', 'No error pattern detected.')}
  </p>
  </CardContent>
  </Card>
@@ -761,17 +761,17 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <CardContent className="space-y-4">
  <div className="grid grid-cols-2 gap-4 text-sm">
  <div>
- <div className="text-muted-foreground">Ocorrências</div>
+ <div className="text-muted-foreground">{t('platformMonitoring.occurrences', 'Occurrences')}</div>
  <div className="font-semibold text-lg">{pattern.count}</div>
  </div>
  <div>
- <div className="text-muted-foreground">Lambdas Afetadas</div>
+ <div className="text-muted-foreground">{t('platformMonitoring.affectedLambdas', 'Affected Lambdas')}</div>
  <div className="font-semibold text-lg">{pattern.affectedLambdas.length}</div>
  </div>
  </div>
 
  <div className="space-y-2">
- <div className="text-sm font-medium">Lambdas Afetadas:</div>
+ <div className="text-sm font-medium">{t('platformMonitoring.affectedLambdas', 'Affected Lambdas')}:</div>
  <div className="flex flex-wrap gap-2">
  {pattern.affectedLambdas.map((lambda, i) => (
  <Badge key={i} variant="outline" className="font-mono text-xs">
@@ -782,7 +782,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </div>
 
  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
- <div className="text-sm font-medium text-blue-400 mb-1">Correção Sugerida:</div>
+ <div className="text-sm font-medium text-blue-400 mb-1">{t('platformMonitoring.suggestedFix', 'Suggested Fix:')}</div>
  <div className="text-sm">{pattern.suggestedFix}</div>
  </div>
 
@@ -799,14 +799,14 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  }}
  >
  <Terminal className="h-4 w-4 mr-2" />
- Gerar Prompt de Correção
+ {t('platformMonitoring.generateFixPrompt', 'Generate Fix Prompt')}
  </Button>
  </DialogTrigger>
  <DialogContent className="max-w-4xl max-h-[80vh]">
  <DialogHeader>
- <DialogTitle>Prompt de Correção Automática</DialogTitle>
+ <DialogTitle>{t('platformMonitoring.autoFixPrompt', 'Automatic Fix Prompt')}</DialogTitle>
  <DialogDescription>
- Cole este prompt no chat para resolver o problema
+ {t('platformMonitoring.pastePromptInChat', 'Paste this prompt in the chat to resolve the issue')}
  </DialogDescription>
  </DialogHeader>
  <ScrollArea className="h-[500px] w-full">
@@ -814,7 +814,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <div className="flex items-center justify-center h-full">
  <div className="text-center space-y-2">
  <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
- <p className="text-sm text-muted-foreground">Gerando prompt...</p>
+ <p className="text-sm text-muted-foreground">{t('platformMonitoring.generatingPrompt', 'Generating prompt...')}</p>
  </div>
  </div>
  ) : generatedPrompt ? (
@@ -823,7 +823,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </pre>
  ) : (
  <div className="flex items-center justify-center h-full">
- <p className="text-sm text-muted-foreground">Clique em "Gerar Prompt" para começar</p>
+ <p className="text-sm text-muted-foreground">{t('platformMonitoring.clickGenerateToStart', 'Click "Generate Prompt" to start')}</p>
  </div>
  )}
  </ScrollArea>
@@ -834,7 +834,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  disabled={!generatedPrompt || generatingPrompt}
  >
  <Copy className="h-4 w-4 mr-2" />
- Copiar Prompt
+ {t('platformMonitoring.copyPrompt', 'Copy Prompt')}
  </Button>
  <Button 
  onClick={() => downloadPrompt(generatedPrompt, `fix-${pattern.errorType.replace(/\s+/g, '-').toLowerCase()}.md`)}
@@ -860,16 +860,16 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <CardHeader>
  <div className="flex items-center justify-between flex-wrap gap-4">
  <div>
- <CardTitle>Performance das Lambdas</CardTitle>
+ <CardTitle>{t('platformMonitoring.lambdaPerformance', 'Lambda Performance')}</CardTitle>
  <CardDescription>
- Tempo médio de execução e percentil 95 - {performanceMetrics.length} Lambdas
+ {t('platformMonitoring.avgExecutionTimeP95', 'Average execution time and 95th percentile - {{count}} Lambdas', { count: performanceMetrics.length })}
  </CardDescription>
  </div>
  <div className="flex gap-2 flex-wrap">
  <div className="relative">
  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
  <Input
- placeholder="Buscar Lambda..."
+ placeholder={t('platformMonitoring.searchLambda', 'Search Lambda...')}
  value={perfSearchTerm}
  onChange={(e) => setPerfSearchTerm(e.target.value)}
  className="pl-8 w-[200px]"
@@ -877,10 +877,10 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </div>
  <Select value={perfFilterCategory} onValueChange={setPerfFilterCategory}>
  <SelectTrigger className="w-[150px]">
- <SelectValue placeholder="Categoria" />
+ <SelectValue placeholder={t('platformMonitoring.category', 'Category')} />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="all">Todas</SelectItem>
+ <SelectItem value="all">{t('platformMonitoring.allCategories', 'All')}</SelectItem>
  <SelectItem value="auth">Auth</SelectItem>
  <SelectItem value="security">Security</SelectItem>
  <SelectItem value="cost">Cost</SelectItem>
@@ -906,7 +906,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <SelectValue placeholder="Status" />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="all">Todos</SelectItem>
+ <SelectItem value="all">{t('platformMonitoring.allStatuses', 'All')}</SelectItem>
  <SelectItem value="fast">Fast (&lt;1s)</SelectItem>
  <SelectItem value="normal">Normal (1-5s)</SelectItem>
  <SelectItem value="slow">Slow (&gt;5s)</SelectItem>
@@ -915,14 +915,14 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </Select>
  <Select value={perfSortBy} onValueChange={setPerfSortBy}>
  <SelectTrigger className="w-[150px]">
- <SelectValue placeholder="Ordenar por" />
+ <SelectValue placeholder={t('platformMonitoring.sortBy', 'Sort by')} />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="invocations">Invocações</SelectItem>
- <SelectItem value="avgDuration">Duração Média</SelectItem>
+ <SelectItem value="invocations">{t('platformMonitoring.invocations', 'Invocations')}</SelectItem>
+ <SelectItem value="avgDuration">{t('platformMonitoring.avgDuration', 'Avg Duration')}</SelectItem>
  <SelectItem value="p95">P95</SelectItem>
- <SelectItem value="errors">Erros</SelectItem>
- <SelectItem value="name">Nome</SelectItem>
+ <SelectItem value="errors">{t('platformMonitoring.errorsLabel', 'Errors')}</SelectItem>
+ <SelectItem value="name">{t('platformMonitoring.name', 'Name')}</SelectItem>
  </SelectContent>
  </Select>
  </div>
@@ -969,15 +969,15 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <Activity className="h-12 w-12 text-muted-foreground mb-4" />
  <p className="text-muted-foreground text-center">
  {performanceMetrics.length === 0 
- ? 'Nenhuma métrica de performance disponível.'
- : 'Nenhuma Lambda encontrada com os filtros selecionados.'}
+ ? t('platformMonitoring.noPerformanceMetrics', 'No performance metrics available.')
+ : t('platformMonitoring.noLambdaMatchFilters', 'No Lambda found matching the selected filters.')}
  </p>
  </div>
  ) : (
  <ScrollArea className="h-[600px]">
  <div className="space-y-4">
  <div className="text-sm text-muted-foreground mb-2">
- Mostrando {filteredPerformanceMetrics.length} de {performanceMetrics.length} Lambdas
+ {t('platformMonitoring.showing', 'Showing {{filtered}} of {{total}} Lambdas', { filtered: filteredPerformanceMetrics.length, total: performanceMetrics.length })}
  </div>
  {filteredPerformanceMetrics.map((metric) => (
  <div key={metric.name} className="p-4 rounded-lg border border-primary/20 bg-muted/30">
@@ -999,7 +999,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  
  <div className="grid grid-cols-4 gap-4 text-sm">
  <div>
- <div className="text-muted-foreground text-xs">Média</div>
+ <div className="text-muted-foreground text-xs">{t('platformMonitoring.avg', 'Avg')}</div>
  <div className="font-semibold">{(metric.avgDuration || 0)}ms</div>
  </div>
  <div>
@@ -1007,11 +1007,11 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <div className="font-medium">{(metric.p95 || 0)}ms</div>
  </div>
  <div>
- <div className="text-muted-foreground text-xs">Invocações</div>
+ <div className="text-muted-foreground text-xs">{t('platformMonitoring.invocations', 'Invocations')}</div>
  <div className="font-medium">{(metric.invocations || 0).toLocaleString()}</div>
  </div>
  <div>
- <div className="text-muted-foreground text-xs">Erros</div>
+ <div className="text-muted-foreground text-xs">{t('platformMonitoring.errorsLabel', 'Errors')}</div>
  <div className={`font-medium ${(metric.errors || 0) > 0 ? 'text-red-500' : ''}`}>
  {(metric.errors || 0).toLocaleString()}
  {metric.errorRate && metric.errorRate > 0 && (
@@ -1047,9 +1047,9 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <TabsContent value="alarms" className="space-y-6">
  <Card >
  <CardHeader>
- <CardTitle>Status dos Alarmes CloudWatch</CardTitle>
+ <CardTitle>{t('platformMonitoring.cloudWatchAlarms', 'CloudWatch Alarms Status')}</CardTitle>
  <CardDescription>
- Alarmes configurados para o sistema EVO
+ {t('platformMonitoring.alarmsConfigured', 'Alarms configured for the EVO system')}
  </CardDescription>
  </CardHeader>
  <CardContent>
@@ -1124,10 +1124,10 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <DialogHeader>
  <DialogTitle className="flex items-center gap-2">
  <Terminal className="h-5 w-5" />
- Prompt de Correção - {selectedError.errorType}
+ {t('platformMonitoring.autoFixPrompt', 'Fix Prompt')} - {selectedError.errorType}
  </DialogTitle>
  <DialogDescription>
- Copie o prompt abaixo e cole no chat da IA para resolver o problema
+ {t('platformMonitoring.pastePromptInChat', 'Copy the prompt below and paste it in the AI chat to resolve the issue')}
  </DialogDescription>
  </DialogHeader>
  <ScrollArea className="h-[600px]">
@@ -1136,7 +1136,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <div className="grid grid-cols-2 gap-4 text-sm p-4 rounded-lg bg-muted/30 border">
  <div>
  <div className="text-muted-foreground">Timestamp</div>
- <div className="font-medium">{new Date(selectedError.timestamp).toLocaleString('pt-BR')}</div>
+ <div className="font-medium">{new Date(selectedError.timestamp).toLocaleString()}</div>
  </div>
  <div>
  <div className="text-muted-foreground">Source</div>
@@ -1163,7 +1163,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  <div className="flex items-center justify-between">
  <div className="text-sm font-medium flex items-center gap-2">
  <Bot className="h-4 w-4" />
- Prompt para IA
+ {t('platformMonitoring.autoFixPrompt', 'AI Prompt')}
  </div>
  <div className="flex gap-2">
  <Button 
@@ -1174,21 +1174,21 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  className="bg-white"
  >
  <Copy className="h-4 w-4 mr-2" />
- Copiar
+ {t('platformMonitoring.copyPrompt', 'Copy')}
  </Button>
  <Button 
  size="sm"
  onClick={() => {
  copyToClipboard(errorPrompt);
  toast({
- title: '✅ Prompt copiado!',
- description: 'Cole no chat da IA para resolver o problema',
+ title: t('platformMonitoring.promptCopiedSuccess', 'Prompt copied!'),
+ description: t('platformMonitoring.pasteInAiChat', 'Paste in the AI chat to resolve the issue'),
  });
  }}
  disabled={loadingErrorPrompt || !errorPrompt}
  >
  <Copy className="h-4 w-4 mr-2" />
- Copiar e Usar
+ {t('platformMonitoring.copyPrompt', 'Copy and Use')}
  </Button>
  </div>
  </div>
@@ -1196,7 +1196,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  {loadingErrorPrompt ? (
  <div className="p-6 rounded-lg bg-muted border flex items-center justify-center">
  <RefreshCw className="h-6 w-6 animate-spin mr-2" />
- <span>Gerando prompt...</span>
+ <span>{t('platformMonitoring.generatingPrompt', 'Generating prompt...')}</span>
  </div>
  ) : errorPrompt ? (
  <pre className="p-4 rounded-lg bg-slate-900 text-slate-100 font-mono text-sm overflow-x-auto whitespace-pre-wrap border">
@@ -1204,7 +1204,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </pre>
  ) : (
  <div className="p-6 rounded-lg bg-muted border text-center text-muted-foreground">
- Erro ao gerar prompt. Tente novamente.
+ {t('platformMonitoring.errorGeneratingPromptRetry', 'Error generating prompt. Try again.')}
  </div>
  )}
  </div>
@@ -1212,7 +1212,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  </ScrollArea>
  <DialogFooter>
  <Button variant="outline" onClick={() => { setSelectedError(null); setErrorPrompt(''); }}>
- Fechar
+ {t('common.close', 'Close')}
  </Button>
  <Button 
  onClick={() => {
@@ -1220,14 +1220,14 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 ALTA - Erro 5xx afetando u
  setSelectedError(null);
  setErrorPrompt('');
  toast({
- title: '✅ Prompt copiado!',
- description: 'Cole no chat da IA para resolver o problema',
+ title: t('platformMonitoring.promptCopiedSuccess', 'Prompt copied!'),
+ description: t('platformMonitoring.pasteInAiChat', 'Paste in the AI chat to resolve the issue'),
  });
  }}
  disabled={loadingErrorPrompt || !errorPrompt}
  >
  <Copy className="h-4 w-4 mr-2" />
- Copiar e Fechar
+ {t('platformMonitoring.copyPrompt', 'Copy and Close')}
  </Button>
  </DialogFooter>
  </DialogContent>

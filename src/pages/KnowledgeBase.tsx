@@ -52,6 +52,7 @@ interface KBArticle {
 }
 
 function KnowledgeBaseContent() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: organizationId } = useOrganization();
@@ -242,13 +243,13 @@ function KnowledgeBaseContent() {
       setIsAddingArticle(false);
       setNewArticle({ title: "", content: "", category: "general", tags: "", is_public: false, is_restricted: false });
       toast({
-        title: "Article created",
-        description: "Knowledge base article added successfully",
+        title: t('knowledgeBase.articleCreated', 'Article created'),
+        description: t('knowledgeBase.articleCreatedDesc', 'Knowledge base article added successfully'),
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to create article",
+        title: t('knowledgeBase.failedCreate', 'Failed to create article'),
         description: error.message,
         variant: "destructive",
       });
@@ -274,13 +275,13 @@ function KnowledgeBaseContent() {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
       setEditingArticle(null);
       toast({
-        title: "Article updated",
-        description: "Changes saved successfully",
+        title: t('knowledgeBase.articleUpdated', 'Article updated'),
+        description: t('knowledgeBase.articleUpdatedDesc', 'Changes saved successfully'),
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to update article",
+        title: t('knowledgeBase.failedUpdate', 'Failed to update article'),
         description: error.message,
         variant: "destructive",
       });
@@ -300,13 +301,13 @@ function KnowledgeBaseContent() {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base-stats'] });
       setDeletingArticle(null);
       toast({
-        title: "Article deleted",
-        description: "Article removed successfully",
+        title: t('knowledgeBase.articleDeleted', 'Article deleted'),
+        description: t('knowledgeBase.articleDeletedDesc', 'Article removed successfully'),
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to delete article",
+        title: t('knowledgeBase.failedDelete', 'Failed to delete article'),
         description: error.message,
         variant: "destructive",
       });
@@ -352,8 +353,8 @@ function KnowledgeBaseContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
       toast({
-        title: "Marked as helpful",
-        description: "Thank you for your feedback!",
+        title: t('knowledgeBase.markedHelpful', 'Marked as helpful'),
+        description: t('knowledgeBase.markedHelpfulDesc', 'Thank you for your feedback!'),
       });
     },
   });
@@ -374,8 +375,8 @@ function KnowledgeBaseContent() {
       queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
       queryClient.invalidateQueries({ queryKey: ['knowledge-base-stats'] });
       toast({
-        title: "Status updated",
-        description: "Article approval status updated",
+        title: t('knowledgeBase.statusUpdated', 'Status updated'),
+        description: t('knowledgeBase.statusUpdatedDesc', 'Article approval status updated'),
       });
     },
   });
@@ -397,13 +398,13 @@ function KnowledgeBaseContent() {
   };
 
   const categories = [
-    { value: "all", label: "All Categories" },
-    { value: "general", label: "General" },
-    { value: "security", label: "Security" },
-    { value: "cost", label: "Cost Optimization" },
-    { value: "operations", label: "Operations" },
-    { value: "compliance", label: "Compliance" },
-    { value: "troubleshooting", label: "Troubleshooting" },
+    { value: "all", label: t('knowledgeBase.categories.all', 'All Categories') },
+    { value: "general", label: t('knowledgeBase.categories.general', 'General') },
+    { value: "security", label: t('knowledgeBase.categories.security', 'Security') },
+    { value: "cost", label: t('knowledgeBase.categories.cost', 'Cost Optimization') },
+    { value: "operations", label: t('knowledgeBase.categories.operations', 'Operations') },
+    { value: "compliance", label: t('knowledgeBase.categories.compliance', 'Compliance') },
+    { value: "troubleshooting", label: t('knowledgeBase.categories.troubleshooting', 'Troubleshooting') },
   ];
 
   const getStatusIcon = (status: string) => {
@@ -446,12 +447,12 @@ function KnowledgeBaseContent() {
       URL.revokeObjectURL(url);
 
       toast({
-        title: "Exportação concluída",
-        description: `Artigo exportado como ${format.toUpperCase()}`,
+        title: t('knowledgeBase.exportCompleted', 'Export completed'),
+        description: t('knowledgeBase.exportCompletedDesc', 'Article exported as {{format}}', { format: format.toUpperCase() }),
       });
     } catch (error: any) {
       toast({
-        title: "Erro ao exportar",
+        title: t('knowledgeBase.exportError', 'Export error'),
         description: error.message,
         variant: "destructive",
       });
@@ -463,8 +464,8 @@ function KnowledgeBaseContent() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-semibold">Knowledge Base</h1>
-            <p className="text-muted-foreground">Organizational wiki and documentation</p>
+            <h1 className="text-3xl font-semibold">{t('knowledgeBase.title', 'Knowledge Base')}</h1>
+            <p className="text-muted-foreground">{t('knowledgeBase.description', 'Organizational wiki and documentation')}</p>
           </div>
         </div>
 
@@ -520,36 +521,36 @@ function KnowledgeBaseContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold">Knowledge Base</h1>
-          <p className="text-muted-foreground">Organizational wiki and documentation</p>
+          <h1 className="text-3xl font-semibold">{t('knowledgeBase.title', 'Knowledge Base')}</h1>
+          <p className="text-muted-foreground">{t('knowledgeBase.description', 'Organizational wiki and documentation')}</p>
         </div>
         <Dialog open={isAddingArticle} onOpenChange={setIsAddingArticle}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              New Article
+              {t('knowledgeBase.newArticle', 'New Article')}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create Knowledge Base Article</DialogTitle>
+              <DialogTitle>{t('knowledgeBase.createTitle', 'Create Knowledge Base Article')}</DialogTitle>
               <DialogDescription>
-                Share knowledge and best practices with your team
+                {t('knowledgeBase.createDescription', 'Share knowledge and best practices with your team')}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="title">Title</Label>
+                <Label htmlFor="title">{t('knowledgeBase.labelTitle', 'Title')}</Label>
                 <Input
                   id="title"
                   value={newArticle.title}
                   onChange={(e) => setNewArticle({ ...newArticle, title: e.target.value })}
-                  placeholder="Article title"
+                  placeholder={t('knowledgeBase.placeholderTitle', 'Article title')}
                   maxLength={200}
                 />
               </div>
               <div>
-                <Label htmlFor="category">Category</Label>
+                <Label htmlFor="category">{t('knowledgeBase.labelCategory', 'Category')}</Label>
                 <Select value={newArticle.category} onValueChange={(v) => setNewArticle({ ...newArticle, category: v })}>
                   <SelectTrigger>
                     <SelectValue />
@@ -564,20 +565,20 @@ function KnowledgeBaseContent() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="content">Content</Label>
+                <Label htmlFor="content">{t('knowledgeBase.labelContent', 'Content')}</Label>
                 <RichEditor
                   value={newArticle.content}
                   onChange={(content) => setNewArticle({ ...newArticle, content })}
-                  placeholder="Escreva o conteúdo do seu artigo..."
+                  placeholder={t('knowledgeBase.placeholderContent', 'Write your article content...')}
                 />
               </div>
               <div>
-                <Label htmlFor="tags">Tags (comma-separated)</Label>
+                <Label htmlFor="tags">{t('knowledgeBase.labelTags', 'Tags (comma-separated)')}</Label>
                 <Input
                   id="tags"
                   value={newArticle.tags}
                   onChange={(e) => setNewArticle({ ...newArticle, tags: e.target.value })}
-                  placeholder="aws, ec2, optimization"
+                  placeholder={t('knowledgeBase.placeholderTags', 'aws, ec2, optimization')}
                 />
               </div>
               
@@ -586,11 +587,11 @@ function KnowledgeBaseContent() {
                   <div className="flex items-center gap-2">
                     <Lock className="h-4 w-4 text-muted-foreground" />
                     <Label htmlFor="is-restricted" className="font-medium cursor-pointer">
-                      Documento Restrito
+                      {t('knowledgeBase.restrictedDoc', 'Restricted Document')}
                     </Label>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Apenas usuários com permissão específica poderão visualizar
+                    {t('knowledgeBase.restrictedDocDesc', 'Only users with specific permission can view')}
                   </p>
                 </div>
                 <Switch
@@ -605,7 +606,7 @@ function KnowledgeBaseContent() {
                 disabled={!newArticle.title.trim() || !newArticle.content.trim() || addArticleMutation.isPending}
                 className="w-full"
               >
-                {addArticleMutation.isPending ? "Creating..." : "Create Article"}
+                {addArticleMutation.isPending ? t('knowledgeBase.creating', 'Creating...') : t('knowledgeBase.createArticle', 'Create Article')}
               </Button>
             </div>
           </DialogContent>
@@ -617,7 +618,7 @@ function KnowledgeBaseContent() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Total Articles</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('knowledgeBase.totalArticles', 'Total Articles')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold">{stats.total}</div>
@@ -625,7 +626,7 @@ function KnowledgeBaseContent() {
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Approved</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('knowledgeBase.approved', 'Approved')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold text-green-600">{stats.approved}</div>
@@ -633,7 +634,7 @@ function KnowledgeBaseContent() {
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('knowledgeBase.pendingReview', 'Pending Review')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold text-yellow-600">{stats.pending}</div>
@@ -641,7 +642,7 @@ function KnowledgeBaseContent() {
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Draft</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('knowledgeBase.draft', 'Draft')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold text-gray-600">{stats.draft}</div>
@@ -652,10 +653,10 @@ function KnowledgeBaseContent() {
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
         <TabsList>
-          <TabsTrigger value="all">All Articles</TabsTrigger>
-          <TabsTrigger value="favorites">Favorites</TabsTrigger>
-          <TabsTrigger value="my-articles">My Articles</TabsTrigger>
-          <TabsTrigger value="pending">Pending Review</TabsTrigger>
+          <TabsTrigger value="all">{t('knowledgeBase.tabAll', 'All Articles')}</TabsTrigger>
+          <TabsTrigger value="favorites">{t('knowledgeBase.tabFavorites', 'Favorites')}</TabsTrigger>
+          <TabsTrigger value="my-articles">{t('knowledgeBase.tabMyArticles', 'My Articles')}</TabsTrigger>
+          <TabsTrigger value="pending">{t('knowledgeBase.tabPending', 'Pending Review')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value={selectedTab} className="space-y-4">
@@ -663,7 +664,7 @@ function KnowledgeBaseContent() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search articles..."
+                placeholder={t('knowledgeBase.placeholderSearch', 'Search articles...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -686,7 +687,7 @@ function KnowledgeBaseContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoading && (
               <div className="col-span-full text-center py-8 text-muted-foreground">
-                Loading articles...
+                {t('knowledgeBase.loading', 'Loading articles...')}
               </div>
             )}
 
@@ -706,7 +707,7 @@ function KnowledgeBaseContent() {
                           {getStatusIcon(article.approval_status)}
                         </div>
                         <CardDescription className="mt-1">
-                          Por {currentUser?.id === article.author_id ? currentUser.name : 'Autor'} · {new Date(article.created_at).toLocaleDateString()}
+                          {t('knowledgeBase.by', 'By')} {currentUser?.id === article.author_id ? currentUser.name : t('knowledgeBase.author', 'Author')} · {new Date(article.created_at).toLocaleDateString()}
                         </CardDescription>
                       </div>
                       <div className="flex flex-col gap-2 items-end">
@@ -715,7 +716,7 @@ function KnowledgeBaseContent() {
                           {article.is_restricted && (
                             <Badge variant="outline" className="text-orange-600 border-orange-600">
                               <Lock className="h-3 w-3 mr-1" />
-                              Restrito
+                              {t('knowledgeBase.restricted', 'Restricted')}
                             </Badge>
                           )}
                         </div>
@@ -781,16 +782,16 @@ function KnowledgeBaseContent() {
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-16">
                     <Book className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-                    <h3 className="text-xl font-semibold mb-2">Nenhum artigo encontrado</h3>
+                    <h3 className="text-xl font-semibold mb-2">{t('knowledgeBase.noArticlesFound', 'No articles found')}</h3>
                     <p className="text-muted-foreground text-center mb-6 max-w-md">
                       {selectedTab === 'all' && selectedCategory === 'all' && !debouncedSearch
-                        ? 'Comece criando seu primeiro artigo da base de conhecimento'
-                        : 'Nenhum artigo corresponde aos filtros selecionados. Tente ajustar sua busca.'}
+                        ? t('knowledgeBase.createFirstArticle', 'Start by creating your first knowledge base article')
+                        : t('knowledgeBase.noArticlesMatch', 'No articles match the selected filters. Try adjusting your search.')}
                     </p>
                     {selectedTab === 'all' && selectedCategory === 'all' && !debouncedSearch && (
                       <Button onClick={() => setIsAddingArticle(true)}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Criar Primeiro Artigo
+                        {t('knowledgeBase.createFirst', 'Create First Article')}
                       </Button>
                     )}
                   </CardContent>
@@ -812,7 +813,7 @@ function KnowledgeBaseContent() {
                     <DialogTitle className="text-2xl">{viewingArticle.title}</DialogTitle>
                     <DialogDescription className="mt-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span>Por {currentUser?.id === viewingArticle.author_id ? currentUser.name : 'Autor'}</span>
+                        <span>{t('knowledgeBase.by', 'By')} {currentUser?.id === viewingArticle.author_id ? currentUser.name : t('knowledgeBase.author', 'Author')}</span>
                         <span>·</span>
                         <span>{new Date(viewingArticle.created_at).toLocaleDateString()}</span>
                         <span>·</span>
@@ -838,7 +839,7 @@ function KnowledgeBaseContent() {
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm">
                           <Download className="h-4 w-4 mr-1" />
-                          Exportar
+                          {t('knowledgeBase.export', 'Export')}
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
@@ -859,7 +860,7 @@ function KnowledgeBaseContent() {
                       onClick={() => setViewingVersions(viewingArticle)}
                     >
                       <History className="h-4 w-4 mr-1" />
-                      Histórico
+                      {t('knowledgeBase.history', 'History')}
                     </Button>
                     
                     {viewingArticle.is_restricted && (
@@ -871,7 +872,7 @@ function KnowledgeBaseContent() {
                         }}
                       >
                         <Shield className="h-4 w-4 mr-1" />
-                        Gerenciar Acesso
+                        {t('knowledgeBase.manageAccess', 'Manage Access')}
                       </Button>
                     )}
                     
@@ -881,7 +882,7 @@ function KnowledgeBaseContent() {
                       onClick={() => setViewingAudit(viewingArticle)}
                     >
                       <Eye className="h-4 w-4 mr-1" />
-                      Auditoria
+                      {t('knowledgeBase.audit', 'Audit')}
                     </Button>
                     
                     <Button
@@ -925,7 +926,7 @@ function KnowledgeBaseContent() {
               
               {/* Comments Section */}
               <div className="mt-6 pt-6 border-t">
-                <h3 className="text-lg font-semibold mb-4">Comentários</h3>
+                <h3 className="text-lg font-semibold mb-4">{t('knowledgeBase.comments', 'Comments')}</h3>
                 <CommentsThread articleId={viewingArticle.id} />
               </div>
               {viewingArticle.tags && Array.isArray(viewingArticle.tags) && viewingArticle.tags.length > 0 && (
@@ -944,7 +945,7 @@ function KnowledgeBaseContent() {
                     className="flex-1"
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    Approve
+                    {t('knowledgeBase.approve', 'Approve')}
                   </Button>
                   <Button
                     variant="destructive"
@@ -952,7 +953,7 @@ function KnowledgeBaseContent() {
                     className="flex-1"
                   >
                     <XCircle className="h-4 w-4 mr-2" />
-                    Reject
+                    {t('knowledgeBase.reject', 'Reject')}
                   </Button>
                 </div>
               )}
@@ -971,14 +972,14 @@ function KnowledgeBaseContent() {
           {editingArticle ? (
             <>
               <DialogHeader>
-                <DialogTitle>Edit Article</DialogTitle>
+                <DialogTitle>{t('knowledgeBase.editArticle', 'Edit Article')}</DialogTitle>
                 <DialogDescription>
-                  Make changes to your article
+                  {t('knowledgeBase.editDescription', 'Make changes to your article')}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="edit-title">Title</Label>
+                  <Label htmlFor="edit-title">{t('knowledgeBase.labelTitle', 'Title')}</Label>
                   <Input
                     id="edit-title"
                     value={editingArticle.title}
@@ -987,7 +988,7 @@ function KnowledgeBaseContent() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-category">Category</Label>
+                  <Label htmlFor="edit-category">{t('knowledgeBase.labelCategory', 'Category')}</Label>
                   <Select 
                     value={editingArticle.category} 
                     onValueChange={(v) => setEditingArticle({ ...editingArticle, category: v })}
@@ -1005,14 +1006,14 @@ function KnowledgeBaseContent() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="edit-content">Content</Label>
+                  <Label htmlFor="edit-content">{t('knowledgeBase.labelContent', 'Content')}</Label>
                   <RichEditor
                     value={editingArticle.content}
                     onChange={(content) => setEditingArticle({ ...editingArticle, content })}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-tags">Tags (comma-separated)</Label>
+                  <Label htmlFor="edit-tags">{t('knowledgeBase.labelTags', 'Tags (comma-separated)')}</Label>
                   <Input
                     id="edit-tags"
                     value={Array.isArray(editingArticle.tags) ? editingArticle.tags.join(', ') : editingArticle.tags}
@@ -1025,7 +1026,7 @@ function KnowledgeBaseContent() {
                     disabled={updateArticleMutation.isPending}
                     className="flex-1"
                   >
-                    {updateArticleMutation.isPending ? "Saving..." : "Save Changes"}
+                    {updateArticleMutation.isPending ? t('knowledgeBase.saving', 'Saving...') : t('knowledgeBase.saveChanges', 'Save Changes')}
                   </Button>
                   <Button
                     variant="outline"
@@ -1037,7 +1038,7 @@ function KnowledgeBaseContent() {
                     }}
                     disabled={editingArticle.approval_status !== 'draft'}
                   >
-                    Submit for Review
+                    {t('knowledgeBase.submitForReview', 'Submit for Review')}
                   </Button>
                 </div>
               </div>
@@ -1054,18 +1055,18 @@ function KnowledgeBaseContent() {
       <AlertDialog open={!!deletingArticle} onOpenChange={(open) => !open && setDeletingArticle(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t('knowledgeBase.deleteConfirmTitle', 'Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the article and all its versions.
+              {t('knowledgeBase.deleteConfirmDesc', 'This action cannot be undone. This will permanently delete the article and all its versions.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('knowledgeBase.cancel', 'Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deletingArticle && deleteArticleMutation.mutate(deletingArticle)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {t('knowledgeBase.delete', 'Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

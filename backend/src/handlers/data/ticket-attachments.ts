@@ -121,14 +121,14 @@ export async function handler(
     if (action === 'request-upload') {
       const validation = requestUploadSchema.safeParse(body);
       if (!validation.success) {
-        return error(`Validation error: ${validation.error.message}`, 400);
+        return error(`Validation error: ${validation.error.message}`, 400, undefined, origin);
       }
 
       const { ticketId, fileName, fileSize, mimeType, description, commentId } = validation.data;
 
       // Validate mime type
       if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-        return error(`File type not allowed: ${mimeType}. Allowed types: images, PDF, documents, text files, archives.`, 400);
+        return error(`File type not allowed: ${mimeType}. Allowed types: images, PDF, documents, text files, archives.`, 400, undefined, origin);
       }
 
       // Verify ticket belongs to organization
@@ -137,7 +137,7 @@ export async function handler(
       });
 
       if (!ticket) {
-        return error('Ticket not found', 404);
+        return error('Ticket not found', 404, undefined, origin);
       }
 
       // Generate S3 key
@@ -191,7 +191,7 @@ export async function handler(
     if (action === 'confirm-upload') {
       const validation = confirmUploadSchema.safeParse(body);
       if (!validation.success) {
-        return error(`Validation error: ${validation.error.message}`, 400);
+        return error(`Validation error: ${validation.error.message}`, 400, undefined, origin);
       }
 
       const { attachmentId } = validation.data;
@@ -202,7 +202,7 @@ export async function handler(
       });
 
       if (!attachment || attachment.ticket.organization_id !== organizationId) {
-        return error('Attachment not found', 404);
+        return error('Attachment not found', 404, undefined, origin);
       }
 
       // Verify file exists in S3
@@ -215,7 +215,7 @@ export async function handler(
       } catch (s3Error) {
         // File doesn't exist, delete the attachment record
         await prisma.ticketAttachment.delete({ where: { id: attachmentId } });
-        return error('File not found in storage. Please try uploading again.', 404);
+        return error('File not found in storage. Please try uploading again.', 404, undefined, origin);
       }
 
       // Record in history
@@ -240,7 +240,7 @@ export async function handler(
     if (action === 'get-download-url') {
       const validation = getDownloadUrlSchema.safeParse(body);
       if (!validation.success) {
-        return error(`Validation error: ${validation.error.message}`, 400);
+        return error(`Validation error: ${validation.error.message}`, 400, undefined, origin);
       }
 
       const { attachmentId } = validation.data;
@@ -251,7 +251,7 @@ export async function handler(
       });
 
       if (!attachment || attachment.ticket.organization_id !== organizationId) {
-        return error('Attachment not found', 404);
+        return error('Attachment not found', 404, undefined, origin);
       }
 
       // Generate presigned download URL
@@ -277,7 +277,7 @@ export async function handler(
     if (action === 'delete-attachment') {
       const validation = deleteAttachmentSchema.safeParse(body);
       if (!validation.success) {
-        return error(`Validation error: ${validation.error.message}`, 400);
+        return error(`Validation error: ${validation.error.message}`, 400, undefined, origin);
       }
 
       const { attachmentId } = validation.data;
@@ -288,7 +288,7 @@ export async function handler(
       });
 
       if (!attachment || attachment.ticket.organization_id !== organizationId) {
-        return error('Attachment not found', 404);
+        return error('Attachment not found', 404, undefined, origin);
       }
 
       // Soft delete the attachment
@@ -323,13 +323,13 @@ export async function handler(
     
     if (action === 'list-attachments') {
       const { ticketId } = body;
-      if (!ticketId) return error('ticketId is required', 400);
+      if (!ticketId) return error('ticketId is required', 400, undefined, origin);
 
       const ticket = await prisma.remediationTicket.findFirst({
         where: { id: ticketId, organization_id: organizationId },
       });
 
-      if (!ticket) return error('Ticket not found', 404);
+      if (!ticket) return error('Ticket not found', 404, undefined, origin);
 
       const attachments = await prisma.ticketAttachment.findMany({
         where: { ticket_id: ticketId, is_deleted: false },
@@ -346,11 +346,11 @@ export async function handler(
       });
     }
 
-    return error(`Unknown action: ${action}`, 400);
+    return error(`Unknown action: ${action}`, 400, undefined, origin);
 
   } catch (err) {
     logger.error('Ticket attachments error:', err);
-    return error('An unexpected error occurred. Please try again.', 500);
+    return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
 }
 

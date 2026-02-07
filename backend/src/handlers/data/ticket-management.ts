@@ -254,7 +254,7 @@ export async function handler(
     if (action === 'update-comment') {
       const validation = updateCommentSchema.safeParse(body);
       if (!validation.success) {
-        return error(`Validation error: ${validation.error.message}`, 400);
+        return error(`Validation error: ${validation.error.message}`, 400, undefined, origin);
       }
 
       const { commentId, content } = validation.data;
@@ -265,7 +265,7 @@ export async function handler(
       });
 
       if (!existingComment || existingComment.ticket.organization_id !== organizationId) {
-        return error('Comment not found or not authorized', 404);
+        return error('Comment not found or not authorized', 404, undefined, origin);
       }
 
       const updatedComment = await prisma.ticketComment.update({
@@ -278,7 +278,7 @@ export async function handler(
 
     if (action === 'delete-comment') {
       const { commentId } = body;
-      if (!commentId) return error('commentId is required', 400);
+      if (!commentId) return error('commentId is required', 400, undefined, origin);
 
       const existingComment = await prisma.ticketComment.findFirst({
         where: { id: commentId, user_id: user.sub },
@@ -286,7 +286,7 @@ export async function handler(
       });
 
       if (!existingComment || existingComment.ticket.organization_id !== organizationId) {
-        return error('Comment not found or not authorized', 404);
+        return error('Comment not found or not authorized', 404, undefined, origin);
       }
 
       await prisma.ticketComment.delete({ where: { id: commentId } });
