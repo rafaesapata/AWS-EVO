@@ -318,25 +318,36 @@ export async function handler(
     const underutilizedRIs = allReservedInstances.filter(ri => (ri.utilizationPercentage || 0) < 75);
     const underutilizedSPs = allSavingsPlans.filter(sp => (sp.utilizationPercentage || 0) < 75);
     
-    // Calculate total monthly savings from RIs and SPs
-    // RI savings: if RI gives ~31% discount vs on-demand, the on-demand equivalent = riCost / 0.69
-    // So savings = onDemand - riCost = riCost * (1/0.69 - 1) ≈ riCost * 0.449
-    const riMonthlySavings = allReservedInstances.reduce((sum, ri) => sum + (ri.monthlyCost || 0) * 0.449, 0);
-    // SP savings: if SP gives ~22% discount, on-demand equivalent = commitment*730 / 0.78
-    // So savings = commitment*730 * (1/0.78 - 1) ≈ commitment*730 * 0.282
-    const spMonthlySavings = allSavingsPlans.reduce((sum, sp) => sum + (sp.commitment || 0) * 730 * 0.282, 0);
+    // Use REAL savings from Cost Explorer instead of hardcoded percentages
+    // utilizationData.riNetSavings and spNetSavings come from GetReservationUtilization / GetSavingsPlansUtilization
+    const riMonthlySavings = utilizationData.riNetSavings;
+    const spMonthlySavings = utilizationData.spNetSavings;
     
+    // Distribute real savings proportionally across individual RIs/SPs for DB storage
+    const activeRICount = allReservedInstances.filter(ri => ri.state === 'active').length;
+    const perRiSavings = activeRICount > 0 ? riMonthlySavings / activeRICount : 0;
+    const activeSPCount = allSavingsPlans.filter(sp => sp.state === 'active').length;
+    const perSpSavings = activeSPCount > 0 ? spMonthlySavings / activeSPCount : 0;
+
     // ============================================================================
     // PERSIST DATA TO DATABASE
     // ============================================================================
     try {
       logger.info('💾 Saving RI/SP analysis to database...');
       
-      // Save Reserved Instances
+      // DELETE stale RI/SP records first to prevent accumulation across executions
+      await prisma.reservedInstance.deleteMany({
+        where: { organization_id: organizationId, aws_account_id: accountId },
+      });
+      await prisma.savingsPlan.deleteMany({
+        where: { organization_id: organizationId, aws_account_id: accountId },
+      });
+      logger.info('🗑️ Cleared stale RI/SP records before inserting fresh data');
+      
+      // Save Reserved Instances (fresh insert, no upsert needed after deleteMany)
       for (const ri of allReservedInstances) {
-        await prisma.reservedInstance.upsert({
-          where: { reserved_instance_id: ri.id },
-          create: {
+        await prisma.reservedInstance.create({
+          data: {
             organization_id: organizationId,
             aws_account_id: accountId,
             reserved_instance_id: ri.id,
@@ -354,23 +365,15 @@ export async function handler(
             region: ri.region || primaryRegion,
             utilization_percentage: ri.utilizationPercentage || 0,
             usage_price: ri.hourlyCost || 0,
-            net_savings: (ri.monthlyCost || 0) * 0.449,
-          },
-          update: {
-            instance_count: ri.instanceCount,
-            state: ri.state,
-            utilization_percentage: ri.utilizationPercentage || 0,
-            usage_price: ri.hourlyCost || 0,
-            net_savings: (ri.monthlyCost || 0) * 0.449,
+            net_savings: ri.state === 'active' ? perRiSavings : 0,
           },
         });
       }
       
-      // Save Savings Plans
+      // Save Savings Plans (fresh insert)
       for (const sp of allSavingsPlans) {
-        await prisma.savingsPlan.upsert({
-          where: { savings_plan_id: sp.id },
-          create: {
+        await prisma.savingsPlan.create({
+          data: {
             organization_id: organizationId,
             aws_account_id: accountId,
             savings_plan_id: sp.id,
@@ -384,15 +387,7 @@ export async function handler(
             utilization_percentage: sp.utilizationPercentage || 0,
             used_commitment: sp.commitment * (sp.utilizationPercentage || 0) / 100,
             unused_commitment: sp.commitment * (1 - (sp.utilizationPercentage || 0) / 100),
-            net_savings: sp.commitment * 730 * 0.282,
-            coverage_percentage: coverage.savingsPlans,
-          },
-          update: {
-            state: sp.state,
-            utilization_percentage: sp.utilizationPercentage || 0,
-            used_commitment: sp.commitment * (sp.utilizationPercentage || 0) / 100,
-            unused_commitment: sp.commitment * (1 - (sp.utilizationPercentage || 0) / 100),
-            net_savings: sp.commitment * 730 * 0.282,
+            net_savings: sp.state === 'active' ? perSpSavings : 0,
             coverage_percentage: coverage.savingsPlans,
           },
         });
@@ -817,6 +812,8 @@ async function getUtilizationData(costExplorerClient: CostExplorerClient) {
   
   let riUtilization = 0;
   let spUtilization = 0;
+  let riNetSavings = 0;
+  let spNetSavings = 0;
   
   try {
     const riResponse = await costExplorerClient.send(new GetReservationUtilizationCommand({
@@ -826,6 +823,9 @@ async function getUtilizationData(costExplorerClient: CostExplorerClient) {
       },
     }));
     riUtilization = parseFloat(riResponse.Total?.UtilizationPercentage || '0');
+    // Read REAL net savings from Cost Explorer (ReservationAggregates.NetRISavings)
+    riNetSavings = parseFloat((riResponse.Total as any)?.NetRISavings || '0');
+    logger.info(`RI utilization: ${riUtilization}%, NetRISavings: $${riNetSavings}`);
   } catch (err) {
     logger.warn('Could not fetch RI utilization:', { error: err instanceof Error ? err.message : String(err) });
   }
@@ -838,11 +838,14 @@ async function getUtilizationData(costExplorerClient: CostExplorerClient) {
       },
     }));
     spUtilization = parseFloat(spResponse.Total?.Utilization?.UtilizationPercentage || '0');
+    // Read REAL net savings from Cost Explorer (SavingsPlansSavings.NetSavings)
+    spNetSavings = parseFloat(spResponse.Total?.Savings?.NetSavings || '0');
+    logger.info(`SP utilization: ${spUtilization}%, NetSavings: $${spNetSavings}`);
   } catch (err) {
     logger.warn('Could not fetch SP utilization:', { error: err instanceof Error ? err.message : String(err) });
   }
   
-  return { riUtilization, spUtilization };
+  return { riUtilization, spUtilization, riNetSavings, spNetSavings };
 }
 
 /**

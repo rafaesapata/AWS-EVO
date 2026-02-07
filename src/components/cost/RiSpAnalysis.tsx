@@ -335,11 +335,13 @@ export const RiSpAnalysis = () => {
       console.log('✅ New analysis completed and saved to database');
       return result.data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       if (isInDemoMode) return; // Don't update cache in demo mode
       
-      // Update the query cache directly with the new data
-      queryClient.setQueryData(['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions, 'demo', isInDemoMode], data);
+      // Invalidate the query so it refetches fresh data from the database
+      // Using setQueryData with the Lambda response was wrong because the frontend
+      // reads from get-ri-sp-analysis (database), not from the analyzer response directly
+      queryClient.invalidateQueries({ queryKey: ['ri-sp-analysis', organizationId, selectedAccountId, selectedProvider, accountRegions, 'demo', isInDemoMode] });
       // Invalidate history to refresh it
       queryClient.invalidateQueries({ queryKey: ['ri-sp-history', organizationId, selectedAccountId] });
       toast({
