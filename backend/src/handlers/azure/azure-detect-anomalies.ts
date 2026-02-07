@@ -162,7 +162,7 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error detecting Azure anomalies', { error: err.message, stack: err.stack });
-    return error(err.message || 'Failed to detect anomalies', 500);
+    return error('Failed to detect anomalies', 500);
   }
 }
 

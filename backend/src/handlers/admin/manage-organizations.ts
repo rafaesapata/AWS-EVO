@@ -130,7 +130,7 @@ export async function handler(
     user = getUserFromEvent(event);
   } catch (authError: any) {
     logger.error('Authentication error', authError);
-    return error('Authentication failed: ' + (authError.message || 'Unknown error'), 401, undefined, origin);
+    return error('Authentication failed. Please login again.', 401, undefined, origin);
   }
 
   // CRITICAL: Only super admins can manage organizations
@@ -1019,6 +1019,6 @@ export async function handler(
       requestId: context.awsRequestId,
     });
     
-    return error(err instanceof Error ? err.message : 'Failed to manage organizations', 500, undefined, origin);
+    return error('Failed to manage organizations. Please try again.', 500, undefined, origin);
   }
 }

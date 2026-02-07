@@ -132,6 +132,6 @@ export async function handler(
     }
   } catch (err: any) {
     logger.error('Error deleting Azure credentials', { error: err.message });
-    return error(err.message || 'Failed to delete Azure credentials', 500);
+    return error('Failed to delete Azure credentials', 500);
   }
 }

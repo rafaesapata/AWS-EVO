@@ -202,6 +202,6 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error discovering Azure resources', { error: err.message });
-    return error(err.message || 'Failed to discover Azure resources', 500);
+    return error('Failed to discover Azure resources', 500);
   }
 }

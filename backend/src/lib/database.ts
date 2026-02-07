@@ -631,7 +631,9 @@ export class TenantIsolatedPrisma {
   get mfaFactor() {
     if (!this._mfaFactor) {
       // MFA factors use user_id, not organization_id directly
-      // But we still want to ensure tenant isolation through user relationship
+      // SECURITY NOTE: Callers MUST always filter by user_id (from authenticated token)
+      // to prevent cross-user access. Organization isolation is enforced through the
+      // user→profile→organization relationship chain.
       this._mfaFactor = this.client.mfaFactor;
     }
     return this._mfaFactor;
@@ -640,6 +642,7 @@ export class TenantIsolatedPrisma {
   get webauthnCredential() {
     if (!this._webauthnCredential) {
       // WebAuthn credentials use user_id
+      // SECURITY NOTE: Same as mfaFactor - callers MUST filter by user_id
       this._webauthnCredential = this.client.webAuthnCredential;
     }
     return this._webauthnCredential;

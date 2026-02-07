@@ -51,7 +51,7 @@ export async function handler(
     }
   } catch (authError: any) {
     logger.error('Authentication error', authError);
-    return error('Authentication failed: ' + (authError.message || 'Unknown error'), 401, undefined, origin);
+    return error('Authentication failed. Please login again.', 401, undefined, origin);
   }
   
   // Check admin permission
@@ -443,6 +443,6 @@ export async function handler(
       return badRequest('Record not found', undefined, origin);
     }
     
-    return error(err instanceof Error ? err.message : 'Failed to manage seats', 500, undefined, origin);
+    return error('Failed to manage seats. Please try again.', 500, undefined, origin);
   }
 }

@@ -33,6 +33,6 @@ export async function handler(): Promise<APIGatewayProxyResultV2> {
     });
   } catch (err) {
     logger.error('List tables failed', err as Error);
-    return error(err instanceof Error ? err.message : 'Unknown error');
+    return error('Failed to list tables');
   }
 }

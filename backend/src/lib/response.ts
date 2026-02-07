@@ -99,12 +99,29 @@ export function error(
   // Never expose internal details to clients - always sanitize
   const sanitizedDetails = (process.env.NODE_ENV === 'development' && process.env.IS_LOCAL === 'true') ? details : undefined;
   
+  // SECURITY: Sanitize error messages in production to prevent info leakage
+  // Internal errors (DB, Prisma, AWS SDK) should not be exposed to clients
+  const isProduction = process.env.NODE_ENV === 'production' || !process.env.IS_LOCAL;
+  let sanitizedMessage = message;
+  if (isProduction && statusCode >= 500) {
+    // Check for common internal error patterns that should not be exposed
+    const internalPatterns = [
+      /prisma/i, /database/i, /connection.*refused/i, /ECONNREFUSED/i,
+      /timeout.*exceeded/i, /socket.*hang/i, /ETIMEDOUT/i,
+      /aws.*sdk/i, /credential.*error/i, /access.*denied.*aws/i,
+      /stack.*at\s/i, /node_modules/i, /\.ts:\d+/i, /\.js:\d+/i,
+    ];
+    if (internalPatterns.some(pattern => pattern.test(message))) {
+      sanitizedMessage = 'An internal error occurred. Please try again later.';
+    }
+  }
+  
   return {
     statusCode,
     headers: getResponseHeaders(origin, additionalHeaders),
     body: JSON.stringify({
       success: false,
-      error: message,
+      error: sanitizedMessage,
       timestamp: new Date().toISOString(),
       ...(sanitizedDetails && { details: sanitizedDetails }),
     }),

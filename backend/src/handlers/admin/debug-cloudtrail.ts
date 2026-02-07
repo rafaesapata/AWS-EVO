@@ -164,6 +164,6 @@ export async function handler(
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error during debug';
     logger.error('Debug CloudTrail failed', { error: errorMessage, organizationId });
-    return error(`Debug failed: ${errorMessage}`, 500);
+    return error('Debug failed. Please check logs.', 500);
   }
 }

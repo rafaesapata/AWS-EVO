@@ -212,6 +212,14 @@ Resources:
       Handler: automated-cleanup-stuck-scans.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
+      Events:
+        ScheduleCleanup:
+          Type: Schedule
+          Properties:
+            Schedule: rate(30 minutes)
+            Description: Cleanup stuck scans every 30 minutes
+            Enabled: true
+            Input: '{"detail-type":"Scheduled Event","source":"aws.events","detail":{"thresholdMinutes":60,"maxScansToCleanup":50}}'
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -2370,6 +2378,13 @@ Resources:
       Handler: cleanup-expired-external-ids.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
+      Events:
+        ScheduleCleanup:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+            Description: Cleanup expired external IDs daily
+            Enabled: true
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -2389,6 +2404,13 @@ Resources:
       Handler: cleanup-expired-oauth-states.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
+      Events:
+        ScheduleCleanup:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+            Description: Cleanup expired OAuth states hourly
+            Enabled: true
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -2621,6 +2643,13 @@ Resources:
       Handler: scheduled-view-refresh.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
+      Events:
+        ScheduleRefresh:
+          Type: Schedule
+          Properties:
+            Schedule: rate(6 hours)
+            Description: Refresh security posture views every 6 hours
+            Enabled: true
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -2640,6 +2669,13 @@ Resources:
       Handler: send-scheduled-emails.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
+      Events:
+        ScheduleEmails:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+            Description: Process and send scheduled emails hourly
+            Enabled: true
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -2988,6 +3024,13 @@ Resources:
       Handler: scheduled-license-sync.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
+      Events:
+        ScheduleLicenseSync:
+          Type: Schedule
+          Properties:
+            Schedule: rate(12 hours)
+            Description: Sync license status every 12 hours
+            Enabled: true
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -3007,6 +3050,13 @@ Resources:
       Handler: retry-fallback-licenses.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
+      Events:
+        ScheduleRetry:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+            Description: Retry fallback licenses daily
+            Enabled: true
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

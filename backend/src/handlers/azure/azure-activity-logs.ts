@@ -172,6 +172,6 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error fetching Azure activity logs', { error: err.message });
-    return error(err.message || 'Failed to fetch Azure activity logs', 500);
+    return error('Failed to fetch Azure activity logs', 500);
   }
 }

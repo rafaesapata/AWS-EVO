@@ -160,13 +160,16 @@ const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
 
 // Tabelas que têm organization_id para multi-tenancy
 // NOTA: 'organizations' NÃO tem organization_id (usa 'id')
+// SECURITY: 'organizations' is handled specially below - only returns user's own org
 const TABLES_WITH_ORG_ID = new Set([
   'profiles', 'aws_credentials', 'azure_credentials', 'aws_accounts',
   'daily_costs', 'findings', 'security_scans',
   // NOTE: compliance_checks does NOT have organization_id - it uses scan_id -> SecurityScan
   'guardduty_findings', 'security_posture', 'knowledge_base_articles',
   'communication_logs', 'waste_detections', 'drift_detections',
+  'drift_detection_history',
   'resource_inventory', 'compliance_violations', 'alerts', 'alert_rules',
+  'monitored_endpoints',
   'iam_behavior_anomalies', 'cloudtrail_fetches', 'cloudtrail_analyses', 'audit_logs',
   'security_events', 'security_findings', 'system_events',
   'cost_optimizations', 'compliance_scans', 'jira_tickets',
@@ -191,6 +194,10 @@ const TABLES_WITH_ORG_ID = new Set([
   'ri_sp_recommendations', 'reserved_instances', 'savings_plans',
   // Scan Schedules
   'scan_schedules', 'scheduled_scans',
+  // Knowledge base user content
+  'knowledge_base_favorites', 'knowledge_base_comments',
+  // Resource comments and mentions
+  'resource_comments', 'mention_notifications',
 ]);
 
 interface QueryRequest {
@@ -235,6 +242,10 @@ export async function handler(
     if (!emailRegex.test(body.email)) {
       return badRequest('Invalid email format', undefined, origin);
     }
+    // SECURITY: Sanitize email - max length to prevent DoS
+    if (body.email.length > 254) {
+      return badRequest('Invalid email format', undefined, origin);
+    }
     return await handleWebAuthnCheck(body.email, origin);
   }
 
@@ -248,7 +259,7 @@ export async function handler(
     organizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (authError: any) {
     logger.error('Authentication error', authError);
-    return error('Authentication failed: ' + (authError.message || 'Unknown error'), 401, undefined, origin);
+    return error('Authentication failed. Please login again.', 401, undefined, origin);
   }
   
   try {
@@ -317,6 +328,12 @@ export async function handler(
     // Add organization_id for multi-tenancy
     if (TABLES_WITH_ORG_ID.has(body.table)) {
       where.organization_id = organizationId;
+    }
+    
+    // SECURITY: For 'organizations' table, only allow querying user's own organization
+    // This prevents data leakage across tenants
+    if (body.table === 'organizations') {
+      where.id = organizationId;
     }
     
     // Add eq filters with field mapping
@@ -506,7 +523,7 @@ export async function handler(
       return success([], 200, origin);
     }
     
-    return error(err instanceof Error ? err.message : 'Failed to query table', 500, undefined, origin);
+    return error('Failed to query table. Please try again.', 500, undefined, origin);
   }
 }
 /**

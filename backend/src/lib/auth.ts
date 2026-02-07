@@ -221,13 +221,23 @@ export function getOrganizationIdWithImpersonation(event: AuthorizedEvent, user:
     return getOrganizationId(user);
   }
 
-  // Validate impersonated organization ID format
+  // SECURITY: Validate impersonated organization ID format (strict UUID only)
   if (!UUID_REGEX.test(impersonatedOrgId)) {
     console.error(`[SECURITY] Invalid impersonated organization ID format: ${impersonatedOrgId.substring(0, 8)}...`);
     throw new Error('Invalid impersonation target organization ID');
   }
 
-  console.log(`[IMPERSONATION] Super admin ${user.email} impersonating organization ${impersonatedOrgId}`);
+  // SECURITY: Validate that the impersonated org ID is different from user's own org
+  // to prevent unnecessary impersonation overhead
+  const userOrgId = getOrganizationId(user);
+  if (impersonatedOrgId === userOrgId) {
+    return userOrgId;
+  }
+
+  // SECURITY: Log impersonation with full audit trail
+  // NOTE: Database validation of org existence happens at query time via Prisma FK constraints.
+  // If the org doesn't exist, queries will return empty results (safe fail).
+  console.warn(`[SECURITY][IMPERSONATION] Super admin ${user.sub} (${user.email}) impersonating organization ${impersonatedOrgId}. Source org: ${userOrgId}`);
   
   return impersonatedOrgId;
 }
@@ -315,6 +325,9 @@ interface RateLimitEntry {
 }
 
 const userRateLimits = new Map<string, RateLimitEntry>();
+const MAX_RATE_LIMIT_ENTRIES = 10000; // Prevent unbounded growth in Lambda warm-starts
+let lastCleanupTime = 0;
+const CLEANUP_INTERVAL_MS = 60000; // Cleanup at most once per minute
 
 const RATE_LIMIT_CONFIG: Record<string, { maxRequests: number; windowMs: number; blockDurationMs: number }> = {
   'default': { maxRequests: 100, windowMs: 60000, blockDurationMs: 300000 },
@@ -333,6 +346,21 @@ export function checkUserRateLimit(
   const now = Date.now();
   const config = RATE_LIMIT_CONFIG[operationType] || RATE_LIMIT_CONFIG['default'];
   const key = `${userId}:${operationType}`;
+
+  // Auto-cleanup expired entries to prevent unbounded growth
+  if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
+    cleanupRateLimitCache();
+    lastCleanupTime = now;
+  }
+
+  // Hard cap: if map is too large, force cleanup
+  if (userRateLimits.size > MAX_RATE_LIMIT_ENTRIES) {
+    cleanupRateLimitCache();
+    // If still too large after cleanup, clear everything (safety valve)
+    if (userRateLimits.size > MAX_RATE_LIMIT_ENTRIES) {
+      userRateLimits.clear();
+    }
+  }
 
   let entry = userRateLimits.get(key);
 

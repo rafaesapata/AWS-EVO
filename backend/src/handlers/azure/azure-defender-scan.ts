@@ -223,6 +223,6 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error running Azure Defender scan', { error: err.message });
-    return error(err.message || 'Failed to run Azure Defender scan', 500);
+    return error('Failed to run Azure Defender scan', 500);
   }
 }

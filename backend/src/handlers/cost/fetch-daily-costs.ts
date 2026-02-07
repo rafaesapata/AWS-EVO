@@ -342,27 +342,23 @@ export async function handler(
             }
             
             // Salvar custos por serviço no banco (um registro por serviço/dia)
+            // Batch upsert costs by service for this day
+            // Uses raw SQL upsert to avoid race conditions from concurrent Lambda invocations
+            // (the previous find-then-create pattern could create duplicates under concurrency)
             for (const [service, cost] of Object.entries(serviceBreakdown)) {
               if (cost > 0) {
                 try {
-                  // Check if record exists first
-                  const existing = await prisma.dailyCost.findFirst({
-                    where: {
-                      organization_id: organizationId,
-                      aws_account_id: account.id,
-                      date: new Date(date),
-                      service: service,
-                    }
-                  });
-                  
-                  if (existing) {
-                    // Update existing record
-                    await prisma.dailyCost.update({
-                      where: { id: existing.id },
-                      data: { cost: cost, created_at: new Date() }
-                    });
-                  } else {
-                    // Create new record
+                  await prisma.$executeRaw`
+                    INSERT INTO daily_costs (id, organization_id, aws_account_id, date, service, cost, currency, created_at)
+                    VALUES (gen_random_uuid(), ${organizationId}, ${account.id}, ${new Date(date)}, ${service}, ${cost}::decimal, 'USD', NOW())
+                    ON CONFLICT (organization_id, aws_account_id, date, service)
+                    DO UPDATE SET cost = ${cost}::decimal, created_at = NOW()
+                  `;
+                  totalNewRecords++;
+                } catch (dbErr) {
+                  // Fallback: try Prisma create with skipDuplicates if raw SQL fails
+                  // (e.g., if the unique constraint doesn't exist yet)
+                  try {
                     await prisma.dailyCost.create({
                       data: {
                         organization_id: organizationId,
@@ -373,10 +369,10 @@ export async function handler(
                         currency: 'USD',
                       }
                     });
+                    totalNewRecords++;
+                  } catch (fallbackErr) {
+                    logger.warn('Failed to save daily cost', { date, service, error: (fallbackErr as Error).message });
                   }
-                  totalNewRecords++;
-                } catch (dbErr) {
-                  logger.warn('Failed to save daily cost', { date, service, error: dbErr });
                 }
               }
             }

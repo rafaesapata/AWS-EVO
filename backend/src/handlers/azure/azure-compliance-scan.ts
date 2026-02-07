@@ -740,7 +740,7 @@ export async function handler(
         where: { id: jobId },
         data: { status: 'failed', error: `Authentication failed: ${authErr.message}`, completed_at: new Date() },
       });
-      return error(`Authentication failed: ${authErr.message}`, 500, undefined, origin);
+      return error('Azure authentication failed. Please check your credentials.', 500, undefined, origin);
     }
 
     const azureClients: AzureClients = { tokenCredential, subscriptionId: credential.subscription_id };
@@ -946,6 +946,6 @@ export async function handler(
       logger.error('Failed to update job status', { error: updateErr });
     }
 
-    return error(err.message || 'Failed to run Azure compliance scan', 500, undefined, getOrigin(event));
+    return error('Failed to run Azure compliance scan', 500, undefined, getOrigin(event));
   }
 }

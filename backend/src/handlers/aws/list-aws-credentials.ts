@@ -36,7 +36,7 @@ export async function handler(
     organizationId = getOrganizationIdWithImpersonation(event, user);
   } catch (authError: any) {
     logger.error('Authentication error', authError);
-    return error('Authentication failed: ' + (authError.message || 'Unknown error'), 401, undefined, origin);
+    return error('Authentication failed. Please login again.', 401, undefined, origin);
   }
   
   logger.info('List AWS credentials started', { 
@@ -92,6 +92,6 @@ export async function handler(
       requestId: context.awsRequestId,
     });
     
-    return error(err instanceof Error ? err.message : 'Failed to list AWS credentials', 500, undefined, origin);
+    return error('Failed to list AWS credentials. Please try again.', 500, undefined, origin);
   }
 }

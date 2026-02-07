@@ -235,7 +235,7 @@ export async function handler(
       error: err.message,
       stack: err.stack,
     });
-    return error(err.message || 'Failed to process Azure authorization', 500);
+    return error('Failed to process Azure authorization', 500);
   }
 }
 

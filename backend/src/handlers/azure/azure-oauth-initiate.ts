@@ -166,7 +166,7 @@ export async function handler(
       error: err.message,
       stack: err.stack,
     });
-    return error(err.message || 'Failed to initiate Azure OAuth', 500);
+    return error('Failed to initiate Azure OAuth', 500);
   }
 }
 

@@ -44,6 +44,6 @@ export async function handler(
     
   } catch (err) {
     console.error('❌ Lambda error:', err);
-    return error(err instanceof Error ? err.message : 'Internal server error');
+    return error('Internal server error');
   }
 }

@@ -238,7 +238,7 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error fetching Azure Monitor metrics', { error: err.message, stack: err.stack });
-    return error(err.message || 'Failed to fetch Azure Monitor metrics', 500);
+    return error('Failed to fetch Azure Monitor metrics', 500);
   }
 }
 

@@ -135,6 +135,6 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error starting Azure security scan', { error: err.message });
-    return error(err.message || 'Failed to start Azure security scan', 500);
+    return error('Failed to start Azure security scan', 500);
   }
 }

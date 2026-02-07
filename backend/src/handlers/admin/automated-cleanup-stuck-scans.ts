@@ -34,9 +34,9 @@ export async function handler(
       scheduledTime: event.time
     });
 
-    // Buscar scans travados
+    // Buscar scans travados (running, pending, starting)
     const whereClause: any = {
-      status: 'running',
+      status: { in: ['running', 'pending', 'starting'] },
       started_at: {
         lt: stuckThreshold
       }
@@ -177,6 +177,63 @@ export async function handler(
     } catch (cloudTrailError) {
       logger.error('Error processing CloudTrail analyses cleanup', {
         error: cloudTrailError instanceof Error ? cloudTrailError.message : 'Unknown error'
+      });
+    }
+
+    // Limpar background jobs travados (pending/running por muito tempo)
+    try {
+      const stuckJobs = await prisma.backgroundJob.findMany({
+        where: {
+          status: { in: ['running', 'pending'] },
+          started_at: { lt: stuckThreshold },
+          ...(targetOrganizationId && { organization_id: targetOrganizationId })
+        },
+        select: {
+          id: true,
+          organization_id: true,
+          job_type: true,
+          started_at: true
+        },
+        take: maxScansToCleanup
+      });
+
+      for (const job of stuckJobs) {
+        try {
+          const durationMinutes = job.started_at ? Math.floor((Date.now() - new Date(job.started_at).getTime()) / (1000 * 60)) : 0;
+          
+          await prisma.backgroundJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'failed',
+              completed_at: new Date(),
+              error: `Automated cleanup: Job was stuck for ${durationMinutes} minutes (threshold: ${thresholdMinutes} min)`
+            }
+          });
+
+          stats.scansUpdated++;
+          
+          logger.info('Automatically cleaned up stuck background job', {
+            jobId: job.id,
+            jobType: job.job_type,
+            organizationId: job.organization_id,
+            durationMinutes
+          });
+
+        } catch (jobError) {
+          const errorMsg = `Failed to update job ${job.id}: ${jobError instanceof Error ? jobError.message : 'Unknown error'}`;
+          stats.errors.push(errorMsg);
+          logger.error('Error cleaning up background job', {
+            jobId: job.id,
+            error: errorMsg
+          });
+        }
+      }
+
+      logger.info('Background jobs cleanup', { found: stuckJobs.length });
+
+    } catch (jobsError) {
+      logger.error('Error processing background jobs cleanup', {
+        error: jobsError instanceof Error ? jobsError.message : 'Unknown error'
       });
     }
 

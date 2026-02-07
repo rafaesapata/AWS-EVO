@@ -64,7 +64,7 @@ export async function handler(
     logger.error('Authentication error', authError, {
       authorizerContext: JSON.stringify(event.requestContext?.authorizer || {}),
     });
-    return error('Authentication failed: ' + (authError.message || 'Unknown error'), 401, undefined, origin);
+    return error('Authentication failed. Please login again.', 401, undefined, origin);
   }
   
   logger.info('Save AWS credentials started', { 

@@ -254,6 +254,6 @@ export async function handler(
 
   } catch (err: any) {
     logger.error('Error validating Azure permissions', err);
-    return error(err.message || 'Internal server error');
+    return error('Internal server error', 500);
   }
 }

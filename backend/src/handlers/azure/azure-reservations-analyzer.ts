@@ -98,7 +98,7 @@ export async function handler(
       }
     } catch (err: any) {
       logger.error('Failed to initialize Azure credentials', { error: err.message });
-      return error(`Failed to connect to Azure: ${err.message}`, 500);
+      return error('Failed to connect to Azure. Please check your credentials.', 500);
     }
 
     const reservations: any[] = [];
@@ -268,6 +268,6 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error analyzing Azure reservations', { error: err.message, stack: err.stack });
-    return error(err.message || 'Failed to analyze Azure reservations', 500);
+    return error('Failed to analyze Azure reservations', 500);
   }
 }

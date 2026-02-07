@@ -96,6 +96,6 @@ export async function handler(
       stack: err.stack,
     });
     
-    return error(err.message || 'Failed to cleanup OAuth states', 500);
+    return error('Failed to cleanup OAuth states', 500);
   }
 }

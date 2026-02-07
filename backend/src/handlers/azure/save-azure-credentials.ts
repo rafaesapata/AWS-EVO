@@ -284,6 +284,6 @@ export async function handler(
       return error('Azure credentials for this subscription already exist', 409, undefined, origin);
     }
     
-    return error(err.message || 'Failed to save Azure credentials', 500, undefined, origin);
+    return error('Failed to save Azure credentials', 500, undefined, origin);
   }
 }

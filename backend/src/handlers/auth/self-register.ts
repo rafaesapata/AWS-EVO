@@ -71,6 +71,7 @@ const cognitoClient = new CognitoIdentityProviderClient({ region: COGNITO_REGION
 
 // In-memory rate limiting for registration (per Lambda instance)
 const registrationAttempts = new Map<string, number[]>();
+const MAX_REGISTRATION_ENTRIES = 5000; // Prevent unbounded growth
 
 /**
  * Generate a local fallback trial license when external API fails
@@ -444,6 +445,20 @@ export async function handler(
   const recentAttempts = attempts.filter(t => now - t < windowMs);
   registrationAttempts.set(sourceIp, recentAttempts);
   
+  // Prevent unbounded growth of rate limit map in Lambda warm-starts
+  if (registrationAttempts.size > MAX_REGISTRATION_ENTRIES) {
+    // Evict entries with no recent attempts
+    for (const [ip, timestamps] of registrationAttempts.entries()) {
+      if (timestamps.length === 0 || timestamps.every(t => now - t >= windowMs)) {
+        registrationAttempts.delete(ip);
+      }
+    }
+    // If still too large, clear everything (safety valve)
+    if (registrationAttempts.size > MAX_REGISTRATION_ENTRIES) {
+      registrationAttempts.clear();
+    }
+  }
+  
   if (recentAttempts.length >= maxRequests) {
     logger.warn('Registration rate limit exceeded', { sourceIp, attempts: recentAttempts.length });
     return error('Too many registration attempts. Please try again later.', 429);
@@ -479,18 +494,18 @@ export async function handler(
       // UserNotFoundException means user doesn't exist - continue with registration
     }
 
-    // Check if company with same tax ID already exists
-    // Escape LIKE special characters to prevent pattern injection
-    const escapedTaxId = company.taxId.replace(/[%_\\]/g, '\\$&');
-    const existingOrg = await prisma.$queryRaw<any[]>`
+    // Check if company with same contact email already exists
+    // NOTE: taxId is NOT stored in the database, so we check by contact_email
+    // which is the most reliable way to prevent duplicate registrations
+    const existingOrgByEmail = await prisma.$queryRaw<any[]>`
       SELECT id FROM organizations 
-      WHERE slug LIKE ${'%' + escapedTaxId + '%'}
+      WHERE contact_email = ${email}
       LIMIT 1
     `;
 
-    if (existingOrg && existingOrg.length > 0) {
-      logger.warn('Company with tax ID already exists', { taxId: company.taxId });
-      return error('A company with this tax ID is already registered', 409);
+    if (existingOrgByEmail && existingOrgByEmail.length > 0) {
+      logger.warn('Organization with same contact email already exists', { email });
+      return error('A company with this email is already registered', 409);
     }
 
     // Create organization

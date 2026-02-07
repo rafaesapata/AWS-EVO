@@ -180,7 +180,7 @@ export async function handler(
       }
     } catch (err: any) {
       logger.error('Failed to initialize Azure SDK', { error: err.message });
-      return error(`Failed to connect to Azure: ${err.message}`, 500);
+      return error('Failed to connect to Azure. Please check your credentials.', 500);
     }
 
     const recommendations: any[] = [];
@@ -283,7 +283,7 @@ export async function handler(
 
     } catch (err: any) {
       logger.error('Error fetching Azure Advisor recommendations', { error: err.message, stack: err.stack });
-      return error(`Failed to fetch Azure Advisor recommendations: ${err.message}`, 500);
+      return error('Failed to fetch Azure Advisor recommendations', 500);
     }
 
     // If no recommendations found, return empty result (NO SIMULATED DATA)
@@ -376,6 +376,6 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error running Azure cost optimization', { error: err.message, stack: err.stack });
-    return error(err.message || 'Failed to run Azure cost optimization', 500);
+    return error('Failed to run Azure cost optimization', 500);
   }
 }

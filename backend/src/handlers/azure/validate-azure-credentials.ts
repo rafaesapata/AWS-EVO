@@ -101,6 +101,6 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error validating Azure credentials', { error: err.message });
-    return error(err.message || 'Failed to validate Azure credentials', 500);
+    return error('Failed to validate Azure credentials', 500);
   }
 }

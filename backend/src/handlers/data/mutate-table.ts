@@ -80,8 +80,10 @@ const TABLES_WITH_ORG_ID = new Set([
   'guardduty_findings', 'security_posture', 'knowledge_base_articles',
   'knowledge_base_comments', 'knowledge_base_favorites',
   'communication_logs', 'waste_detections', 'drift_detections',
+  'drift_detection_history',
   'resource_inventory', 'compliance_violations', 'alerts', 'alert_rules',
-  'iam_behavior_anomalies', 'cloudtrail_fetches', 'cloudtrail_analyses', 'audit_logs',
+  'iam_behavior_anomalies', 'cloudtrail_fetches', 'cloudtrail_analyses',
+  'cloudtrail_events', 'audit_logs',
   'security_events', 'security_findings', 'system_events',
   'cost_optimizations', 'compliance_scans', 'jira_tickets', 'remediation_tickets', 'tickets',
   'monitored_resources', 'resource_metrics', 'resource_utilization_ml',
@@ -144,7 +146,7 @@ export async function handler(
     }
   } catch (authError: any) {
     logger.error('Authentication error', authError);
-    return error('Authentication failed: ' + (authError.message || 'Unknown error'), 401, undefined, origin);
+    return error('Authentication failed. Please login again.', 401, undefined, origin);
   }
   
   try {
@@ -262,6 +264,11 @@ export async function handler(
           where.organization_id = organizationId;
         }
         
+        // SECURITY: For organizations table, only allow updating user's own org
+        if (body.table === 'organizations') {
+          where.id = organizationId;
+        }
+        
         result = await model.updateMany({
           where,
           data: body.data,
@@ -278,6 +285,11 @@ export async function handler(
         const where: Record<string, any> = { ...body.where };
         if (TABLES_WITH_ORG_ID.has(body.table)) {
           where.organization_id = organizationId;
+        }
+        
+        // SECURITY: For organizations table, only allow deleting user's own org
+        if (body.table === 'organizations') {
+          where.id = organizationId;
         }
         
         result = await model.deleteMany({
@@ -386,6 +398,6 @@ export async function handler(
       return badRequest('Record not found', undefined, origin);
     }
     
-    return error(err instanceof Error ? err.message : 'Failed to mutate table', 500, undefined, origin);
+    return error('Failed to perform operation. Please try again.', 500, undefined, origin);
   }
 }

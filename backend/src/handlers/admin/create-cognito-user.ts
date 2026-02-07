@@ -233,7 +233,7 @@ export async function handler(
     }
     
     if (err.name === 'InvalidParameterException') {
-      return error('Invalid parameters: ' + err.message, 400);
+      return error('Invalid parameters provided', 400);
     }
     
     return error('Failed to create user. Please try again.', 500);

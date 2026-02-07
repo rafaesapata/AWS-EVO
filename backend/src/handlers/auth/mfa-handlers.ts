@@ -162,7 +162,7 @@ export async function enrollHandler(
           action: 'MFA_ENABLED',
           resourceType: 'mfa',
           resourceId: factorId,
-          details: { factor_type: 'totp', status: 'pending_verification' },
+          details: { factor_type: 'totp', status: 'pending_verification', event: 'enrollment_started' },
           ipAddress: getIpFromEvent(event),
           userAgent: getUserAgentFromEvent(event),
         });
@@ -382,20 +382,10 @@ export async function unenrollHandler(
     const user = getUserFromEvent(event);
     
     // Parse and validate input
-    let body;
-    try {
-      body = event.body ? JSON.parse(event.body) : {};
-    } catch {
-      return badRequest('Invalid JSON in request body', undefined, origin);
-    }
-    
-    const parseResult = mfaUnenrollSchema.safeParse(body);
+    const parseResult = parseAndValidateBody(mfaUnenrollSchema, event.body);
     
     if (!parseResult.success) {
-      const errorMessages = parseResult.error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
-      return badRequest(`Validation error: ${errorMessages}`, undefined, origin);
+      return parseResult.error;
     }
     
     const { factorId } = parseResult.data;
@@ -422,6 +412,18 @@ export async function unenrollHandler(
           is_active: false,
           deactivated_at: new Date()
         }
+      });
+      
+      // Audit log — MFA factor removed
+      logAuditAsync({
+        organizationId: getOrganizationId(user),
+        userId: user.sub,
+        action: 'MFA_DISABLED',
+        resourceType: 'mfa',
+        resourceId: factorId,
+        details: { factor_type: factor.factor_type, event: 'unenrolled' },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
       });
     } catch (e) {
       logger.warn('Failed to deactivate factor', { factorId, error: (e as Error).message });
@@ -587,18 +589,13 @@ export async function verifyLoginHandler(
     }
     
     // Parse and validate input
-    let body;
-    try {
-      body = event.body ? JSON.parse(event.body) : {};
-    } catch {
-      return badRequest('Invalid JSON in request body', undefined, origin);
+    const parseResult = parseAndValidateBody(mfaVerifySchema, event.body);
+    
+    if (!parseResult.success) {
+      return parseResult.error;
     }
     
-    const { code, factorId } = body;
-    
-    if (!code || !factorId) {
-      return badRequest('Missing required fields: code, factorId', undefined, origin);
-    }
+    const { code, factorId } = parseResult.data;
     
     const prisma = getPrismaClient();
     

@@ -41,6 +41,6 @@ export async function handler(): Promise<APIGatewayProxyResultV2> {
     });
   } catch (err) {
     logger.error('Check migrations failed', err as Error);
-    return error(err instanceof Error ? err.message : 'Unknown error');
+    return error('Failed to check migrations');
   }
 }

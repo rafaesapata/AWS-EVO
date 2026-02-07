@@ -154,6 +154,6 @@ export async function handler(
     });
   } catch (err: any) {
     logger.error('Error listing cloud credentials', { error: err.message });
-    return error(err.message || 'Failed to list cloud credentials', 500);
+    return error('Failed to list cloud credentials', 500);
   }
 }

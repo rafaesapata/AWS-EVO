@@ -77,7 +77,7 @@ async function generateResponseHandler(
     
   } catch (err) {
     logger.error('AI generation error:', err as Error);
-    return error(err instanceof Error ? err.message : 'AI service unavailable');
+    return error('AI service unavailable. Please try again.');
   }
 }
 

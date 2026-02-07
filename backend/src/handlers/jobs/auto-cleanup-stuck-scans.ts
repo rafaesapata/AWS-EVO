@@ -77,7 +77,7 @@ export async function handler(
     // 1. Clean up stuck security scans
     const stuckScans = await prisma.securityScan.findMany({
       where: {
-        status: 'running',
+        status: { in: ['running', 'pending', 'starting'] },
         started_at: { lt: stuckThreshold }
       },
       select: {
@@ -137,7 +137,7 @@ export async function handler(
     // 2. Clean up stuck background jobs
     const stuckJobs = await prisma.backgroundJob.findMany({
       where: {
-        status: 'running',
+        status: { in: ['running', 'pending'] },
         started_at: { lt: stuckThreshold }
       },
       select: {

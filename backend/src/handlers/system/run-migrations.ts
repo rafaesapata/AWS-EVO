@@ -31,7 +31,7 @@ export async function handler(): Promise<APIGatewayProxyResultV2> {
   } catch (err) {
     console.error('Migration failed:', err);
     return error(
-      err instanceof Error ? err.message : 'Unknown migration error',
+      'Migration failed. Please check logs.',
       500
     );
   }

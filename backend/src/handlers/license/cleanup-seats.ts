@@ -48,7 +48,7 @@ export async function handler(
     }
   } catch (authError: any) {
     logger.error('Authentication error', authError);
-    return error('Authentication failed: ' + (authError.message || 'Unknown error'), 401, undefined, origin);
+    return error('Authentication failed. Please login again.', 401, undefined, origin);
   }
   
   // Check admin permission
@@ -160,6 +160,6 @@ export async function handler(
       requestId: context.awsRequestId,
     });
     
-    return error(err instanceof Error ? err.message : 'Failed to cleanup seats', 500, undefined, origin);
+    return error('Failed to cleanup seats. Please try again.', 500, undefined, origin);
   }
 }

@@ -33,6 +33,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   // Track mounted state
   useEffect(() => {
     isMountedRef.current = true;
+    // Reset auth check attempts on mount to prevent permanent lockout
+    // across component re-mounts (e.g., route changes)
+    attemptsRef.current = 0;
     return () => {
       isMountedRef.current = false;
       if (passwordCheckTimeoutRef.current) {

@@ -1857,7 +1857,7 @@ async function handleFixSubscription(
     
   } catch (err) {
     logger.error('Failed to fix subscription filter', err as Error, { organizationId, configId });
-    return error(err instanceof Error ? err.message : 'Failed to fix subscription filter');
+    return error('Failed to fix subscription filter');
   }
 }
 
@@ -2783,7 +2783,7 @@ async function handleInitAiAnalysisTable(
     });
   } catch (err) {
     logger.error('Failed to initialize WAF AI Analysis table', err as Error);
-    return error(err instanceof Error ? err.message : 'Failed to create table');
+    return error('Failed to create table');
   }
 }
 
