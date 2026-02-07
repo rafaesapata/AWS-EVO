@@ -466,12 +466,54 @@ export async function handler(
       return success(result);
     }
     
-  } catch (err) {
+  } catch (err: any) {
     logger.error('WAF Setup Monitoring error', err as Error, { 
       organizationId,
       userId: user.sub,
       requestId: context.awsRequestId 
     });
+    
+    const errName = err?.name || '';
+    const errMsg = err?.message || '';
+    
+    // Handle specific AWS errors with meaningful responses
+    if (errName === 'ResourceNotFoundException') {
+      return error(
+        `Resource not found in customer AWS account. The specified log group or WAF resource does not exist. Details: ${errMsg}`,
+        404
+      );
+    }
+    
+    if (errName === 'AccessDeniedException' || errMsg.includes('Access denied')) {
+      return error(
+        `Access denied. The IAM role does not have sufficient permissions to configure WAF logging. ` +
+        `Required permissions: wafv2:PutLoggingConfiguration, logs:CreateLogGroup, logs:PutResourcePolicy, logs:PutSubscriptionFilter. ` +
+        `Details: ${errMsg}`,
+        403
+      );
+    }
+    
+    if (errName === 'WAFNonexistentItemException') {
+      return error(
+        `The specified WAF Web ACL was not found. Please verify the Web ACL ARN is correct. Details: ${errMsg}`,
+        404
+      );
+    }
+    
+    if (errName === 'WAFInvalidParameterException') {
+      return error(
+        `Invalid WAF parameter. Details: ${errMsg}`,
+        400
+      );
+    }
+    
+    if (errName === 'InvalidParameterException' || errName === 'InvalidParameterValueException') {
+      return error(
+        `Invalid parameter in request. Details: ${errMsg}`,
+        400
+      );
+    }
+    
     return error('An unexpected error occurred. Please try again.', 500);
   }
 }
@@ -604,15 +646,7 @@ async function enableWafMonitoring(
         errorName: err.name,
         errorMessage: err.message 
       });
-      
-      if (err.name === 'AccessDeniedException') {
-        throw new Error(
-          `Failed to enable WAF logging: Access denied. ` +
-          `Please ensure the IAM role has 'wafv2:PutLoggingConfiguration' permission ` +
-          `and that the log group '${logGroupName}' has a resource policy allowing WAF to write logs. ` +
-          `Error: ${err.message}`
-        );
-      }
+      // Re-throw with original error name preserved for handler-level error mapping
       throw err;
     }
   }
