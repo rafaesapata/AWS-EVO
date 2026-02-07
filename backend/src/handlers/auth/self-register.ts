@@ -64,7 +64,7 @@ const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'us-east-1_HPU9
 const COGNITO_REGION = process.env.AWS_REGION || 'us-east-1';
 
 // External License API configuration
-const LICENSE_API_URL = process.env.LICENSE_API_URL || 'https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/api-create-trial';
+const LICENSE_CREATE_API_URL = process.env.LICENSE_CREATE_API_URL || 'https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/api-create-trial';
 const LICENSE_API_KEY = process.env.LICENSE_API_KEY || 'nck_59707b56bf8def71dfb657bb8f2f4b9c';
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: COGNITO_REGION });
@@ -124,7 +124,7 @@ async function createTrialLicense(
     };
 
     logger.info('Calling external license API', { 
-      url: LICENSE_API_URL,
+      url: LICENSE_CREATE_API_URL,
       email,
       companyName 
     });
@@ -134,7 +134,7 @@ async function createTrialLicense(
 
     let response: Response;
     try {
-      response = await fetch(LICENSE_API_URL, {
+      response = await fetch(LICENSE_CREATE_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

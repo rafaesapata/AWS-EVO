@@ -18,7 +18,7 @@ import { logger } from '../../lib/logging.js';
 import { getPrismaClient } from '../../lib/database.js';
 
 // External License API configuration
-const LICENSE_API_URL = process.env.LICENSE_API_URL || 'https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/api-create-trial';
+const LICENSE_CREATE_API_URL = process.env.LICENSE_CREATE_API_URL || 'https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/api-create-trial';
 const LICENSE_API_KEY = process.env.LICENSE_API_KEY || '';
 
 interface RetryReport {
@@ -244,7 +244,7 @@ async function retryExternalLicenseCreation(license: {
 
   let response: Response;
   try {
-    response = await fetch(LICENSE_API_URL, {
+    response = await fetch(LICENSE_CREATE_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

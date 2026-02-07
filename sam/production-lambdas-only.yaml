@@ -25,6 +25,7 @@ Globals:
         COGNITO_CLIENT_ID: !Ref CognitoClientId
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
         LICENSE_API_URL: https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/validate-license
+        LICENSE_CREATE_API_URL: https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/api-create-trial
         LICENSE_API_KEY: nck_59707b56bf8def71dfb657bb8f2f4b9c
     Layers:
       - !Ref DependenciesLayer
