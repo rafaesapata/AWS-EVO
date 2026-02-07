@@ -66,8 +66,13 @@ export function useAINotifications() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ai-notifications'] });
+    onSuccess: (_data, variables) => {
+      // For 'read' action, don't invalidate immediately — the notification
+      // should remain visible in the chat. Only refetch for dismiss/actioned
+      // so the unread count updates properly.
+      if (variables.action !== 'read') {
+        queryClient.invalidateQueries({ queryKey: ['ai-notifications'] });
+      }
     },
   });
 

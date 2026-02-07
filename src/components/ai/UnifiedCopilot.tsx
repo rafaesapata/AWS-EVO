@@ -103,21 +103,25 @@ export function UnifiedCopilot() {
   const [welcomeShown, setWelcomeShown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Pulse effect when new notification arrives
+  // Pulse effect and auto-open when new notification arrives
   useEffect(() => {
-    if (unreadCount > lastUnreadCount) {
+    if (unreadCount > lastUnreadCount && unreadCount > 0) {
       setHasNewNotification(true);
 
       // Auto-open for high priority notifications
-      const highPriorityNotification = notifications.find(
-        (n: AINotification) => n.priority === 'critical' || n.priority === 'high'
-      );
+      if (!isOpen) {
+        const highPriorityNotification = notifications.find(
+          (n: AINotification) => 
+            (n.priority === 'critical' || n.priority === 'high') &&
+            (n.status === 'pending' || n.status === 'delivered')
+        );
 
-      if (highPriorityNotification && !isOpen) {
-        const timer = setTimeout(() => {
-          setIsOpen(true);
-        }, 2000);
-        return () => clearTimeout(timer);
+        if (highPriorityNotification) {
+          const timer = setTimeout(() => {
+            setIsOpen(true);
+          }, 2000);
+          return () => clearTimeout(timer);
+        }
       }
     }
     setLastUnreadCount(unreadCount);
@@ -141,52 +145,61 @@ export function UnifiedCopilot() {
     }
   }, [isOpen, refetch]);
 
-  // Process notifications into messages - runs BEFORE welcome message
+  // Process notifications into messages - runs when chat opens or new notifications arrive
+  // Does NOT mark as read immediately — only when user explicitly interacts
   useEffect(() => {
-    if (isOpen && notifications.length > 0) {
-      const newNotifications = notifications.filter(
-        (n: AINotification) => !processedNotifications.has(n.id) && n.status !== 'dismissed'
-      );
+    if (!isOpen || notifications.length === 0) return;
 
-      if (newNotifications.length > 0) {
-        const notificationMessages: ChatMessage[] = newNotifications.map((notification: AINotification) => ({
-          id: `notification-${notification.id}`,
-          type: 'assistant' as const,
-          content: notification.message,
-          timestamp: new Date(notification.created_at),
-          notification,
-          actions: notification.action_type
-            ? [
-                {
-                  label: notification.suggested_action || t('ai.executeAction', 'Executar'),
-                  action: () => handleNotificationAction(notification),
-                },
-                {
-                  label: t('ai.dismiss', 'Dismiss'),
-                  variant: 'outline' as const,
-                  action: () => handleDismiss(notification),
-                },
-              ]
-            : [
-                {
-                  label: t('ai.gotIt', 'OK'),
-                  variant: 'outline' as const,
-                  action: () => handleDismiss(notification),
-                },
-              ],
-        }));
+    const newNotifications = notifications.filter(
+      (n: AINotification) => !processedNotifications.has(n.id) && n.status !== 'dismissed' && n.status !== 'actioned'
+    );
 
-        setMessages(prev => [...notificationMessages, ...prev]);
-        setProcessedNotifications(prev => {
-          const newSet = new Set(prev);
-          newNotifications.forEach((n: AINotification) => newSet.add(n.id));
-          return newSet;
-        });
+    if (newNotifications.length === 0) return;
 
-        // Mark as read
-        newNotifications.forEach((n: AINotification) => markAsRead(n.id));
-      }
-    }
+    const notificationMessages: ChatMessage[] = newNotifications.map((notification: AINotification) => ({
+      id: `notification-${notification.id}`,
+      type: 'assistant' as const,
+      content: notification.message,
+      timestamp: new Date(notification.created_at),
+      notification,
+      actions: notification.action_type
+        ? [
+            {
+              label: notification.suggested_action || t('ai.executeAction', 'Executar'),
+              action: () => handleNotificationAction(notification),
+            },
+            {
+              label: t('ai.dismiss', 'Dismiss'),
+              variant: 'outline' as const,
+              action: () => handleDismiss(notification),
+            },
+          ]
+        : [
+            {
+              label: t('ai.gotIt', 'OK'),
+              variant: 'outline' as const,
+              action: () => handleDismiss(notification),
+            },
+          ],
+    }));
+
+    setMessages(prev => [...notificationMessages, ...prev]);
+    setProcessedNotifications(prev => {
+      const newSet = new Set(prev);
+      newNotifications.forEach((n: AINotification) => newSet.add(n.id));
+      return newSet;
+    });
+
+    // Mark as read only after displaying — NOT immediately
+    // Small delay so the unread badge is visible briefly before clearing
+    const timer = setTimeout(() => {
+      newNotifications.forEach((n: AINotification) => {
+        if (n.status === 'pending' || n.status === 'delivered') {
+          markAsRead(n.id);
+        }
+      });
+    }, 2000);
+    return () => clearTimeout(timer);
   }, [isOpen, notifications, processedNotifications, markAsRead, t]);
 
   // Initialize with welcome message - only after notifications are processed

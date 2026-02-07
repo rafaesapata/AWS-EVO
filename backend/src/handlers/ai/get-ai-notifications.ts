@@ -25,7 +25,8 @@ export async function handler(
 
     logger.info('Fetching AI notifications', { organizationId, userId: user.sub });
 
-    // Buscar notificações pendentes para este usuário ou para toda a org
+    // Buscar notificações ativas para este usuário ou para toda a org
+    // Inclui 'read' para que notificações já lidas ainda apareçam no chat
     const notifications = await prisma.aiNotification.findMany({
       where: {
         organization_id: organizationId,
@@ -33,7 +34,7 @@ export async function handler(
           { user_id: user.sub },
           { user_id: null }, // Notificações para toda a org
         ],
-        status: { in: ['pending', 'delivered'] },
+        status: { in: ['pending', 'delivered', 'read'] },
         AND: [
           {
             OR: [
@@ -47,7 +48,7 @@ export async function handler(
         { priority: 'desc' }, // critical > high > medium > low
         { created_at: 'desc' },
       ],
-      take: 10,
+      take: 20,
     });
 
     // Marcar como delivered se ainda estavam pending
@@ -65,7 +66,7 @@ export async function handler(
       });
     }
 
-    // Contar notificações não lidas (pending ou delivered, mas não read/actioned/dismissed)
+    // Contar notificações não lidas (pending ou delivered, NÃO read/actioned/dismissed)
     const unreadCount = notifications.filter(n => 
       n.status === 'pending' || n.status === 'delivered'
     ).length;
