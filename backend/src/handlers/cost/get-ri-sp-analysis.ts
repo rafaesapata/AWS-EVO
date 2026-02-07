@@ -100,23 +100,25 @@ export async function handler(
     // Calculate summary metrics
     const riCount = reservedInstances.length;
     const spCount = savingsPlans.length;
-    const activeRiCount = reservedInstances.filter(ri => ri.state === 'active').length;
-    const activeSpCount = savingsPlans.filter(sp => sp.state === 'active').length;
+    const activeRIs = reservedInstances.filter(ri => ri.state === 'active');
+    const activeSPs = savingsPlans.filter(sp => sp.state === 'active');
+    const activeRiCount = activeRIs.length;
+    const activeSpCount = activeSPs.length;
 
-    const avgRiUtilization = riCount > 0
-      ? reservedInstances.reduce((sum, ri) => sum + (ri.utilization_percentage || 0), 0) / riCount
+    const avgRiUtilization = activeRiCount > 0
+      ? activeRIs.reduce((sum, ri) => sum + (ri.utilization_percentage || 0), 0) / activeRiCount
       : 0;
 
-    const avgSpUtilization = spCount > 0
-      ? savingsPlans.reduce((sum, sp) => sum + (sp.utilization_percentage || 0), 0) / spCount
+    const avgSpUtilization = activeSpCount > 0
+      ? activeSPs.reduce((sum, sp) => sum + (sp.utilization_percentage || 0), 0) / activeSpCount
       : 0;
 
-    const avgSpCoverage = spCount > 0
-      ? savingsPlans.reduce((sum, sp) => sum + (sp.coverage_percentage || 0), 0) / spCount
+    const avgSpCoverage = activeSpCount > 0
+      ? activeSPs.reduce((sum, sp) => sum + (sp.coverage_percentage || 0), 0) / activeSpCount
       : 0;
 
-    const totalRiSavings = reservedInstances.reduce((sum, ri) => sum + (ri.net_savings || 0), 0);
-    const totalSpSavings = savingsPlans.reduce((sum, sp) => sum + (sp.net_savings || 0), 0);
+    const totalRiSavings = activeRIs.reduce((sum, ri) => sum + (ri.net_savings || 0), 0);
+    const totalSpSavings = activeSPs.reduce((sum, sp) => sum + (sp.net_savings || 0), 0);
 
     const totalPotentialAnnualSavings = recommendations.reduce(
       (sum, rec) => sum + (rec.estimated_annual_savings || 0),
@@ -124,13 +126,13 @@ export async function handler(
     );
 
     // Find underutilized RIs (< 75%)
-    const underutilizedRis = reservedInstances.filter(
-      ri => ri.state === 'active' && (ri.utilization_percentage || 0) < 75
+    const underutilizedRis = activeRIs.filter(
+      ri => (ri.utilization_percentage || 0) < 75
     );
 
     // Find underutilized SPs (< 75%)
-    const underutilizedSps = savingsPlans.filter(
-      sp => sp.state === 'active' && (sp.utilization_percentage || 0) < 75
+    const underutilizedSps = activeSPs.filter(
+      sp => (sp.utilization_percentage || 0) < 75
     );
 
     const hasData = riCount > 0 || spCount > 0 || recommendations.length > 0;
@@ -259,7 +261,11 @@ export async function handler(
       coverage: {
         reservedInstances: avgRiUtilization,
         savingsPlans: avgSpCoverage,
-        overall: (avgRiUtilization + avgSpCoverage) / 2,
+        overall: activeRiCount > 0 && activeSpCount > 0
+          ? (avgRiUtilization + avgSpCoverage) / 2
+          : activeRiCount > 0 ? avgRiUtilization
+          : activeSpCount > 0 ? avgSpCoverage
+          : 0,
       },
 
       potentialSavings: {

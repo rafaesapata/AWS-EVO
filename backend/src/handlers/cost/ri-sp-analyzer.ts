@@ -319,8 +319,12 @@ export async function handler(
     const underutilizedSPs = allSavingsPlans.filter(sp => (sp.utilizationPercentage || 0) < 75);
     
     // Calculate total monthly savings from RIs and SPs
-    const riMonthlySavings = allReservedInstances.reduce((sum, ri) => sum + (ri.monthlyCost || 0) * 0.31, 0); // 31% savings estimate
-    const spMonthlySavings = allSavingsPlans.reduce((sum, sp) => sum + (sp.commitment || 0) * 730 * 0.22, 0); // 22% savings estimate
+    // RI savings: if RI gives ~31% discount vs on-demand, the on-demand equivalent = riCost / 0.69
+    // So savings = onDemand - riCost = riCost * (1/0.69 - 1) ≈ riCost * 0.449
+    const riMonthlySavings = allReservedInstances.reduce((sum, ri) => sum + (ri.monthlyCost || 0) * 0.449, 0);
+    // SP savings: if SP gives ~22% discount, on-demand equivalent = commitment*730 / 0.78
+    // So savings = commitment*730 * (1/0.78 - 1) ≈ commitment*730 * 0.282
+    const spMonthlySavings = allSavingsPlans.reduce((sum, sp) => sum + (sp.commitment || 0) * 730 * 0.282, 0);
     
     // ============================================================================
     // PERSIST DATA TO DATABASE
@@ -350,14 +354,14 @@ export async function handler(
             region: ri.region || primaryRegion,
             utilization_percentage: ri.utilizationPercentage || 0,
             usage_price: ri.hourlyCost || 0,
-            net_savings: (ri.monthlyCost || 0) * 0.31,
+            net_savings: (ri.monthlyCost || 0) * 0.449,
           },
           update: {
             instance_count: ri.instanceCount,
             state: ri.state,
             utilization_percentage: ri.utilizationPercentage || 0,
             usage_price: ri.hourlyCost || 0,
-            net_savings: (ri.monthlyCost || 0) * 0.31,
+            net_savings: (ri.monthlyCost || 0) * 0.449,
           },
         });
       }
@@ -380,14 +384,16 @@ export async function handler(
             utilization_percentage: sp.utilizationPercentage || 0,
             used_commitment: sp.commitment * (sp.utilizationPercentage || 0) / 100,
             unused_commitment: sp.commitment * (1 - (sp.utilizationPercentage || 0) / 100),
-            net_savings: sp.commitment * 730 * 0.22,
+            net_savings: sp.commitment * 730 * 0.282,
+            coverage_percentage: coverage.savingsPlans,
           },
           update: {
             state: sp.state,
             utilization_percentage: sp.utilizationPercentage || 0,
             used_commitment: sp.commitment * (sp.utilizationPercentage || 0) / 100,
             unused_commitment: sp.commitment * (1 - (sp.utilizationPercentage || 0) / 100),
-            net_savings: sp.commitment * 730 * 0.22,
+            net_savings: sp.commitment * 730 * 0.282,
+            coverage_percentage: coverage.savingsPlans,
           },
         });
       }
@@ -934,7 +940,11 @@ async function calculateCoverage(costExplorerClient: CostExplorerClient) {
   return {
     reservedInstances: riCoverage,
     savingsPlans: spCoverage,
-    overall: (riCoverage + spCoverage) / 2
+    overall: riCoverage > 0 && spCoverage > 0
+      ? (riCoverage + spCoverage) / 2
+      : riCoverage > 0 ? riCoverage
+      : spCoverage > 0 ? spCoverage
+      : 0
   };
 }
 

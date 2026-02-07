@@ -118,7 +118,11 @@ export async function handler(
     const totalPotentialSavings = recommendations.reduce((sum, rec) => sum + (rec.estimated_annual_savings || 0), 0);
     
     // Calculate coverage (simplified - based on active commitments)
-    const overallCoverage = (avgRIUtilization + avgSPUtilization) / 2;
+    const overallCoverage = activeRIs.length > 0 && activeSPs.length > 0
+      ? (avgRIUtilization + avgSPUtilization) / 2
+      : activeRIs.length > 0 ? avgRIUtilization
+      : activeSPs.length > 0 ? avgSPUtilization
+      : 0;
     
     // Group RIs by type
     const ec2RIs = reservedInstances.filter(ri => !ri.instance_type?.startsWith('db.'));
