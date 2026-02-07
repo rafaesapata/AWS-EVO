@@ -282,6 +282,6 @@ export async function handler(event: DbInitEvent): Promise<APIGatewayProxyResult
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     logger.error('Database initialization failed', { error: errorMessage, action });
 
-    return error(`Database initialization failed: ${errorMessage}`, HTTP_INTERNAL_ERROR);
+    return error('Database initialization failed. Check logs for details.', HTTP_INTERNAL_ERROR);
   }
 }

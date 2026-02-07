@@ -200,6 +200,6 @@ export async function handler(
       userOrganizationId
     });
 
-    return error(`Manual cleanup failed: ${errorMessage}`, 500);
+    return error('Manual cleanup failed. Check logs for details.', 500);
   }
 }

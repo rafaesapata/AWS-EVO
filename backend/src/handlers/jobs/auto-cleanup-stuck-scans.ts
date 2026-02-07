@@ -224,6 +224,6 @@ export async function handler(
       stack: err instanceof Error ? err.stack : undefined
     });
 
-    return error(`Cleanup failed: ${errorMessage}`, 500);
+    return error('Cleanup failed. Check logs for details.', 500);
   }
 }

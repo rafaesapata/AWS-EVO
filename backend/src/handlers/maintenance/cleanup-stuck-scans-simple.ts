@@ -89,6 +89,6 @@ export async function handler(): Promise<APIGatewayProxyResultV2> {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     logger.error('❌ Cleanup failed:', err);
     
-    return error(`Cleanup failed: ${errorMessage}`, 500);
+    return error('Cleanup failed. Check logs for details.', 500);
   }
 }

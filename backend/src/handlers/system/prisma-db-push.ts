@@ -73,6 +73,6 @@ export async function handler(): Promise<APIGatewayProxyResultV2> {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     logger.error('DB Push failed', { error: errorMessage });
     
-    return error(`DB Push failed: ${errorMessage}`, 500);
+    return error('DB Push failed. Check logs for details.', 500);
   }
 }

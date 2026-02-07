@@ -173,6 +173,6 @@ export async function handler(
       isAdminExecution
     });
 
-    return error(`Cleanup failed: ${errorMessage}`, 500);
+    return error('Cleanup failed. Check logs for details.', 500);
   }
 }

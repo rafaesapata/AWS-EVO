@@ -60,6 +60,6 @@ export async function handler(): Promise<APIGatewayProxyResultV2> {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     logger.error('Seed failed', { error: errorMessage });
     
-    return error(`Seed failed: ${errorMessage}`, 500);
+    return error('Seed failed. Check logs for details.', 500);
   }
 }
