@@ -335,7 +335,7 @@ export const securityScanSchema = z.object({
 export const findingsQuerySchema = z.object({
   accountId: z.string().optional(),
   severity: z.array(commonSchemas.severity).optional(),
-  status: z.array(z.enum(['pending', 'acknowledged', 'resolved', 'false_positive'])).optional(),
+  status: z.array(z.enum(['new', 'active', 'resolved', 'reopened', 'pending', 'acknowledged', 'false_positive'])).optional(),
   service: z.array(z.string()).optional(),
   category: z.array(z.string()).optional(),
   ...commonSchemas.pagination.shape,

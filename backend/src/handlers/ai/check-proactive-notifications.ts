@@ -93,7 +93,7 @@ const RULE_CHECKERS: Record<string, RuleChecker> = {
       where: {
         organization_id: orgId,
         severity: { in: ['critical', 'high'] },
-        status: 'pending',
+        status: { in: ['new', 'active', 'reopened', 'pending'] },
       },
     });
 
