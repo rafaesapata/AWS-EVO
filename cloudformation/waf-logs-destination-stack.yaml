@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  EVO Platform - CloudWatch Logs Destination for Cross-Account WAF Log Streaming.
+  Creates the Destination resource that allows customer accounts to send WAF logs
+  to the EVO Platform via subscription filters.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - sandbox
+    Description: Environment name
+
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+    Description: Project name prefix for resources
+
+  WafLogProcessorArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:523115032346:function:evo-uds-v3-production-waf-log-processor
+    Description: ARN of the existing WAF Log Processor Lambda function
+
+Resources:
+  # IAM Role for CloudWatch Logs Destination to invoke Lambda
+  WafLogsDestinationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-waf-logs-destination-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: logs.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Ref WafLogProcessorArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Logs Destination for Cross-Account WAF Logs
+  WafLogsDestination:
+    Type: AWS::Logs::Destination
+    DependsOn: WafLogsDestinationRole
+    Properties:
+      DestinationName: !Sub '${ProjectName}-${Environment}-waf-logs-destination'
+      RoleArn: !GetAtt WafLogsDestinationRole.Arn
+      TargetArn: !Ref WafLogProcessorArn
+
+Outputs:
+  WafLogsDestinationArn:
+    Description: ARN of the CloudWatch Logs Destination
+    Value: !GetAtt WafLogsDestination.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-logs-destination-arn'
+
+  WafLogsDestinationName:
+    Description: Name of the CloudWatch Logs Destination
+    Value: !Sub '${ProjectName}-${Environment}-waf-logs-destination'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-waf-logs-destination-name'
