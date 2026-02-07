@@ -53,8 +53,8 @@ interface SetupResult {
 // EVO CloudWatch Logs Destination base name for cross-account subscription filters
 // Using Destination instead of direct Lambda ARN is required for cross-account
 // MUST match CloudFormation stack: ${ProjectName}-${Environment}-waf-logs-destination
-const EVO_WAF_DESTINATION_NAME = 'evo-uds-v3-sandbox-waf-logs-destination';
-const EVO_ACCOUNT_ID = '971354623291';
+const EVO_WAF_DESTINATION_NAME = 'evo-uds-v3-production-waf-logs-destination';
+const EVO_ACCOUNT_ID = '523115032346';
 
 // Supported regions for WAF monitoring
 // Must include ALL regions where customers may have WAF resources

@@ -20,7 +20,7 @@ NC='\033[0m'
 # Configuration
 WAF_ACL_ARN="${1}"
 REGION="${2:-us-east-1}"
-EVO_ACCOUNT="971354623291"
+EVO_ACCOUNT="523115032346"
 
 if [ -z "$WAF_ACL_ARN" ]; then
     echo -e "${RED}Error: WAF ACL ARN is required${NC}"
@@ -37,7 +37,7 @@ fi
 WAF_ID=$(echo "$WAF_ACL_ARN" | awk -F'/' '{print $NF}')
 WAF_NAME=$(echo "$WAF_ACL_ARN" | awk -F'/' '{print $(NF-1)}')
 LOG_GROUP_NAME="aws-waf-logs-${WAF_ID}"
-EVO_DESTINATION_ARN="arn:aws:logs:${REGION}:${EVO_ACCOUNT}:destination:evo-waf-logs-destination"
+EVO_DESTINATION_ARN="arn:aws:logs:${REGION}:${EVO_ACCOUNT}:destination:evo-uds-v3-production-waf-logs-destination"
 
 echo ""
 echo -e "${BOLD}========================================${NC}"
