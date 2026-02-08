@@ -2962,6 +2962,13 @@ Resources:
       Handler: daily-license-validation.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 120
+      Events:
+        DailyValidation:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+            Description: Daily license validation and expiration check
+            Enabled: true
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

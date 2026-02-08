@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UserPlus, UserMinus, Users, CheckCircle2, XCircle, Mail, Calendar, Shield, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { UserPlus, UserMinus, Users, CheckCircle2, XCircle, Mail, Calendar, Shield } from "lucide-react";
 
 interface LicenseSeat {
   id: string;
@@ -46,173 +44,72 @@ export function SeatManagement({ organizationId, totalSeats, licenseKey }: SeatM
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [isAllocateOpen, setIsAllocateOpen] = useState(false);
 
-  // Fetch all users (for email lookup)
-  const { data: allUsers = [], isLoading: usersLoading } = useQuery({
-    queryKey: ['all-users'],
+  // Fetch license and seat data via manage-seats handler
+  const { data: seatsData, isLoading: seatsLoading } = useQuery({
+    queryKey: ['license-seat-data', organizationId, licenseKey],
     queryFn: async () => {
-      console.log('[SeatManagement] Fetching all users...');
-      const usersResponse = await apiClient.select('users', {});
-      console.log('[SeatManagement] Users response:', usersResponse);
-      if (usersResponse.error) {
-        console.error('Error fetching users:', usersResponse.error);
-        return [];
-      }
-      return usersResponse.data || [];
-    },
-    enabled: true
-  });
-
-  // Fetch all organization profiles
-  const { data: allProfiles = [], isLoading: profilesLoading, error: profilesError } = useQuery({
-    queryKey: ['organization-profiles', organizationId],
-    queryFn: async () => {
-      const profilesResponse = await apiClient.select('profiles', { 
-        eq: { organization_id: organizationId }
+      const response = await apiClient.invoke<any>('manage-seats', {
+        body: { action: 'list' }
       });
-      if (profilesResponse.error) {
-        console.error('Error fetching profiles:', profilesResponse.error);
-        throw profilesResponse.error;
-      }
-      
-      const profiles = profilesResponse.data || [];
-      
-      // Create a map of user_id to user data (email, full_name)
-      const userDataMap = new Map(allUsers.map((u: any) => [u.id, { email: u.email, full_name: u.full_name }]));
-      
-      // Merge user data into profiles
-      return profiles.map((p: any) => {
-        const userData = userDataMap.get(p.user_id);
-        return {
-          ...p,
-          email: userData?.email || p.full_name || 'Email não disponível',
-          full_name: p.full_name || userData?.full_name || userData?.email?.split('@')[0] || 'Usuário'
-        };
-      }) as Profile[];
-    },
-    enabled: !!organizationId && allUsers.length > 0
-  });
-
-  // Fetch license to get its ID
-  const { data: license, isLoading: licenseLoading } = useQuery({
-    queryKey: ['license-by-key', organizationId, licenseKey],
-    queryFn: async () => {
-      console.log('[SeatManagement] Fetching license:', { licenseKey, organizationId });
-      const response = await apiClient.select('licenses', { 
-        eq: { license_key: licenseKey }
-      });
-      console.log('[SeatManagement] License response:', response);
       if (response.error) {
-        console.error('Error fetching license:', response.error);
+        console.error('Error fetching seats data:', response.error);
         return null;
       }
-      return response.data?.[0] || null;
+      return response.data;
     },
     enabled: !!organizationId && !!licenseKey
   });
 
-  // Fetch seat assignments for this license
-  const { data: seatAssignments = [], isLoading: seatsLoading } = useQuery({
-    queryKey: ['license-seat-assignments', license?.id],
-    queryFn: async () => {
-      if (!license?.id) return [];
-      console.log('[SeatManagement] Fetching seat assignments for license:', license.id);
-      const response = await apiClient.select('license_seat_assignments', { 
-        eq: { license_id: license.id }
-      });
-      console.log('[SeatManagement] Seat assignments response:', response);
-      if (response.error) {
-        console.error('Error fetching seat assignments:', response.error);
-        return [];
-      }
-      return response.data || [];
-    },
-    enabled: !!license?.id
-  });
-
-  // Combine seat assignments with profile/user data
-  console.log('[SeatManagement] Combining data:', { 
-    seatAssignments: seatAssignments.length, 
-    allProfiles: allProfiles.length, 
-    allUsers: allUsers.length,
-    license: license?.id 
-  });
-  
-  // Filter seats to only include users from the current organization
-  const validSeats = seatAssignments.filter(seat => {
-    const hasProfile = allProfiles.some(p => p.user_id === seat.user_id);
-    if (!hasProfile) {
-      console.warn('[SeatManagement] Seat assignment for user not in organization:', seat.user_id);
+  // Extract license and seat assignments from the handler response
+  const license = seatsData?.licenses?.find((l: any) => l.license_key === licenseKey) || null;
+  const seatAssignments: LicenseSeat[] = (license?.seats || []).map((s: any) => ({
+    id: s.id,
+    user_id: s.user_id,
+    license_key: licenseKey,
+    allocated_at: s.assigned_at,
+    is_active: !s.is_orphan,
+    profile: {
+      full_name: s.user_name || 'Unknown',
+      email: s.user_name || '',
+      role: s.user_role,
     }
-    return hasProfile;
-  });
-  
-  console.log('[SeatManagement] Filtered seats (organization only):', validSeats.length, 'of', seatAssignments.length);
-  
-  const seats: LicenseSeat[] = validSeats.map(seat => {
-    const profile = allProfiles.find(p => p.user_id === seat.user_id);
-    const user = allUsers.find((u: any) => u.id === seat.user_id);
-    
-    // Use profile data if available, otherwise fall back to user data
-    const displayName = profile?.full_name || user?.full_name || user?.email?.split('@')[0] || 'Usuário';
-    const displayEmail = profile?.email || user?.email || '-';
-    
-    return {
-      id: seat.id,
-      user_id: seat.user_id,
-      license_key: licenseKey,
-      allocated_at: seat.assigned_at,
-      is_active: true,
-      profile: {
-        full_name: displayName,
-        email: displayEmail,
-        role: profile?.role
-      }
-    };
-  });
+  }));
 
-  // Calculate available users (without seats)
-  const seatedUserIds = new Set(validSeats.map(s => s.user_id));
-  const availableUsers = allProfiles.filter(p => !seatedUserIds.has(p.user_id));
+  // Seats are already enriched from the manage-seats handler response
+  const validSeats = seatAssignments.filter(seat => seat.is_active);
+  const seats: LicenseSeat[] = seatAssignments;
+
+  // Calculate available users (without seats) from handler data
+  const seatedUserIds = new Set(seatAssignments.map(s => s.user_id));
+  const availableUsers = (seatsData?.users_without_seats || []).map((u: any) => ({
+    ...u,
+    email: u.full_name || '',
+  })) as Profile[];
   
-  // Check if there are invalid seats (from other organizations)
-  const hasInvalidSeats = seatAssignments.length > validSeats.length;
+  // Check if there are invalid seats (orphans)
+  const hasInvalidSeats = seatAssignments.some(s => !s.is_active);
+  
+  const availableSeatsCount = license?.available_seats ?? 0;
   
   // Cleanup mutation for invalid seats
   const cleanupMutation = useMutation({
     mutationFn: async () => {
-      // Get all seat assignments
-      const allSeatsResponse = await apiClient.select('license_seat_assignments', { 
-        eq: { license_id: license!.id }
-      });
-      
-      if (allSeatsResponse.error) {
-        throw new Error('Failed to fetch seat assignments');
-      }
-      
-      const allSeats = allSeatsResponse.data || [];
-      const validUserIds = new Set(allProfiles.map(p => p.user_id));
-      const invalidSeats = allSeats.filter(seat => !validUserIds.has(seat.user_id));
-      
-      console.log('[SeatManagement] Cleanup - Invalid seats to remove:', invalidSeats.map(s => s.id));
-      
-      // Delete each invalid seat
-      for (const seat of invalidSeats) {
-        try {
-          await apiClient.delete('license_seat_assignments', { id: seat.id });
-          console.log('[SeatManagement] Deleted invalid seat:', seat.id);
-        } catch (error) {
-          console.error('[SeatManagement] Failed to delete seat:', seat.id, error);
+      const response = await apiClient.invoke('manage-seats', {
+        body: {
+          action: 'cleanup',
+          licenseKey
         }
-      }
-      
-      return { cleaned: invalidSeats.length };
+      });
+      if (response.error) throw response.error;
+      return response.data as { removedSeats?: number };
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['license-seat-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['license-seat-data'] });
       queryClient.invalidateQueries({ queryKey: ['license-data'] });
+      queryClient.invalidateQueries({ queryKey: ['real-seat-summary'] });
       toast({
         title: "Limpeza Concluída",
-        description: `${result.cleaned} assento(s) inválido(s) foram removidos.`,
+        description: `${result?.removedSeats || 0} assento(s) inválido(s) foram removidos.`,
       });
     },
     onError: (error: any) => {
@@ -227,19 +124,20 @@ export function SeatManagement({ organizationId, totalSeats, licenseKey }: SeatM
   // Allocate seat mutation
   const allocateMutation = useMutation({
     mutationFn: async (userId: string) => {
-      if (!license?.id) throw new Error('License not found');
-      
-      const response = await apiClient.insert('license_seat_assignments', {
-        license_id: license.id,
-        user_id: userId,
-        assigned_at: new Date().toISOString()
+      const response = await apiClient.invoke('manage-seats', {
+        body: {
+          action: 'allocate',
+          licenseKey,
+          userId
+        }
       });
       if (response.error) throw response.error;
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['license-seat-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['license-seat-data'] });
       queryClient.invalidateQueries({ queryKey: ['license-data'] });
+      queryClient.invalidateQueries({ queryKey: ['real-seat-summary'] });
       setIsAllocateOpen(false);
       setSelectedUserId("");
       toast({
@@ -259,13 +157,19 @@ export function SeatManagement({ organizationId, totalSeats, licenseKey }: SeatM
   // Deallocate seat mutation
   const deallocateMutation = useMutation({
     mutationFn: async (seatId: string) => {
-      const response = await apiClient.delete('license_seat_assignments', { id: seatId });
+      const response = await apiClient.invoke('manage-seats', {
+        body: {
+          action: 'deallocate',
+          seatId
+        }
+      });
       if (response.error) throw response.error;
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['license-seat-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['license-seat-data'] });
       queryClient.invalidateQueries({ queryKey: ['license-data'] });
+      queryClient.invalidateQueries({ queryKey: ['real-seat-summary'] });
       toast({
         title: "Assento Liberado",
         description: "O assento foi liberado e está disponível para alocação.",
@@ -281,8 +185,7 @@ export function SeatManagement({ organizationId, totalSeats, licenseKey }: SeatM
   });
 
   const allocatedSeats = seats.length;
-  const availableSeatsCount = totalSeats - allocatedSeats;
-  const isLoading = seatsLoading || profilesLoading || licenseLoading || usersLoading;
+  const isLoading = seatsLoading;
 
   return (
     <Card>
@@ -356,16 +259,6 @@ export function SeatManagement({ organizationId, totalSeats, licenseKey }: SeatM
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Error message if profiles failed to load */}
-        {profilesError && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Erro ao carregar usuários da organização. Tente recarregar a página.
-            </AlertDescription>
-          </Alert>
-        )}
-
         {/* Seat Statistics */}
         <div className="grid grid-cols-3 gap-4">
           <div className="p-4 rounded-lg bg-muted">

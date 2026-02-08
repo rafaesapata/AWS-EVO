@@ -325,16 +325,31 @@ export async function handler(
           where: { id: body.seatId }
         });
         
-        // 3. Update license seat counts
-        const remainingSeats = await prisma.licenseSeatAssignment.count({
-          where: { license_id: seatAssignment.license.id }
+        // 3. Update license seat counts (excluding super admins)
+        const remainingAssignments = await prisma.licenseSeatAssignment.findMany({
+          where: { license_id: seatAssignment.license.id },
+          select: { user_id: true }
         });
+        
+        // Get super admin user IDs for this organization
+        const orgSuperAdminsForDealloc = await prisma.profile.findMany({
+          where: {
+            organization_id: seatAssignment.license.organization_id,
+            role: { in: ['super_admin', 'SUPER_ADMIN'] }
+          },
+          select: { user_id: true }
+        });
+        const superAdminIdsForDealloc = new Set(orgSuperAdminsForDealloc.map((p: any) => p.user_id));
+        
+        const nonSuperAdminRemaining = remainingAssignments.filter(
+          (s: any) => !superAdminIdsForDealloc.has(s.user_id)
+        ).length;
         
         await prisma.license.update({
           where: { id: seatAssignment.license.id },
           data: {
-            used_seats: remainingSeats,
-            available_seats: (seatAssignment.license.max_users ?? 0) - remainingSeats
+            used_seats: nonSuperAdminRemaining,
+            available_seats: (seatAssignment.license.max_users ?? 0) - nonSuperAdminRemaining
           }
         });
         
@@ -387,16 +402,30 @@ export async function handler(
             }
           });
           
-          // 4. Update license seat counts
-          const remainingSeats = await prisma.licenseSeatAssignment.count({
-            where: { license_id: license.id }
+          // 4. Update license seat counts (excluding super admins)
+          const remainingSeats = await prisma.licenseSeatAssignment.findMany({
+            where: { license_id: license.id },
+            select: { user_id: true }
           });
+          
+          const orgSuperAdmins = await prisma.profile.findMany({
+            where: {
+              organization_id: organizationId,
+              role: { in: ['super_admin', 'SUPER_ADMIN'] }
+            },
+            select: { user_id: true }
+          });
+          const superAdminIds = new Set(orgSuperAdmins.map((p: any) => p.user_id));
+          
+          const nonSuperAdminCount = remainingSeats.filter(
+            (s: any) => !superAdminIds.has(s.user_id)
+          ).length;
           
           await prisma.license.update({
             where: { id: license.id },
             data: {
-              used_seats: remainingSeats,
-              available_seats: (license.max_users ?? 0) - remainingSeats
+              used_seats: nonSuperAdminCount,
+              available_seats: (license.max_users ?? 0) - nonSuperAdminCount
             }
           });
         }

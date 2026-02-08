@@ -2381,6 +2381,19 @@ Resources:
       CodeUri: ../backend/src/handlers/license/
       Handler: daily-license-validation.handler
       Timeout: 120
+      Events:
+        DailyValidation:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+            Description: Daily license validation and expiration check
+            Enabled: true
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/functions/daily-license-validation
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

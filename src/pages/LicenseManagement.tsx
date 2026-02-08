@@ -296,42 +296,21 @@ export default function LicenseManagement() {
   const isAdmin = userRoles?.includes('org_admin') || userRoles?.includes('super_admin');
   const hasCustomerId = licenseData?.customer_id || licenseData?.configured;
 
-  // Fetch real seat assignments
-  const { data: realSeatAssignments = [] } = useQuery({
-    queryKey: ['real-seat-assignments', organization?.id, licenseData?.licenses?.[0]?.license_key],
+  // Fetch real seat data via manage-seats handler (no direct DB access)
+  const { data: seatSummary } = useQuery({
+    queryKey: ['real-seat-summary', organization?.id, licenseData?.licenses?.[0]?.license_key],
     queryFn: async () => {
-      if (!licenseData?.licenses?.[0]?.license_key || !organization?.id) return [];
-      
-      const licenseResponse = await apiClient.select<{ id: string; license_key: string }>('licenses', { 
-        eq: { license_key: licenseData.licenses[0].license_key }
+      const result = await apiClient.invoke<any>('manage-seats', {
+        body: { action: 'list' }
       });
-      
-      if (licenseResponse.error || !licenseResponse.data?.[0]) return [];
-      
-      const licenseRecord = licenseResponse.data[0];
-      
-      const seatsResponse = await apiClient.select('license_seat_assignments', { 
-        eq: { license_id: licenseRecord.id }
-      });
-      
-      if (seatsResponse.error) return [];
-      
-      const profilesResponse = await apiClient.select('profiles', { 
-        eq: { organization_id: organization.id }
-      });
-      
-      if (profilesResponse.error) return [];
-      
-      const validUserIds = new Set(profilesResponse.data?.map((p: any) => p.user_id) || []);
-      const validSeats = (seatsResponse.data || []).filter((seat: any) => validUserIds.has(seat.user_id));
-      
-      return validSeats;
+      if (result.error || !result.data) return null;
+      return result.data;
     },
     enabled: !!licenseData?.licenses?.[0]?.license_key && !!organization?.id
   });
 
-  const realUsedSeats = realSeatAssignments.length;
-  const realAvailableSeats = (licenseData?.licenses?.[0]?.total_seats || 0) - realUsedSeats;
+  const realUsedSeats = seatSummary?.total_seats_used ?? (licenseData?.licenses?.[0]?.used_seats || 0);
+  const realAvailableSeats = seatSummary?.total_seats_available ?? (licenseData?.licenses?.[0]?.available_seats || 0);
   const license = licenseData?.licenses?.[0];
 
   // Loading state

@@ -410,12 +410,25 @@ export async function revokeSeat(
   });
 
   if (license) {
-    const currentAssignments = license.seat_assignments.length;
+    // Get super admin user IDs for this organization to exclude from seat count
+    const superAdminProfiles = await prisma.profile.findMany({
+      where: {
+        organization_id: license.organization_id,
+        role: { in: ['super_admin', 'SUPER_ADMIN'] }
+      },
+      select: { user_id: true }
+    });
+    const superAdminUserIds = new Set(superAdminProfiles.map((p: any) => p.user_id));
+    
+    const nonSuperAdminSeats = license.seat_assignments.filter(
+      (s: any) => !superAdminUserIds.has(s.user_id)
+    ).length;
+    
     await prisma.license.update({
       where: { id: licenseId },
       data: {
-        used_seats: currentAssignments,
-        available_seats: license.max_users - currentAssignments,
+        used_seats: nonSuperAdminSeats,
+        available_seats: license.max_users - nonSuperAdminSeats,
       },
     });
   }
@@ -440,16 +453,18 @@ export async function hasValidLicense(organizationId: string): Promise<boolean> 
   const prisma = getPrismaClient() as any;
   // Only consider EVO licenses as valid — also verify valid_until date
   // to avoid stale is_expired values from sync delays
+  // Uses same filter as getLicenseSummary for consistency
   const license = await prisma.license.findFirst({
     where: {
       organization_id: organizationId,
       is_active: true,
       is_expired: false,
       valid_until: { gte: new Date() },
-      product_type: {
-        contains: 'evo',
-        mode: 'insensitive'
-      }
+      OR: [
+        { product_type: { equals: 'EVO', mode: 'insensitive' } },
+        { product_type: { equals: 'evo', mode: 'insensitive' } },
+        { product_type: { startsWith: 'EVO', mode: 'insensitive' } },
+      ]
     },
   });
   return !!license;
