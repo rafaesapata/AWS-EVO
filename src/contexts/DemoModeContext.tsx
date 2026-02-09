@@ -253,9 +253,14 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      // CRITICAL: Add cache-busting timestamp to force fresh data
+      const cacheBuster = Date.now();
+      
       // Buscar status do demo mode do backend
       // O backend verifica organization.demo_mode no banco
-      const response = await apiClient.post('/api/functions/get-user-organization', {});
+      const response = await apiClient.post('/api/functions/get-user-organization', {
+        _cacheBuster: cacheBuster // Force fresh data, no cache
+      });
       
       if (response && typeof response === 'object' && 'data' in response && response.data) {
         // Extrair dados da organização da resposta
@@ -277,6 +282,14 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
         const hasExpired = isDemoExpired(org?.demo_expires_at || null);
         const isActiveDemo = isDemoFromBackend && !hasExpired;
         
+        console.log('[DemoMode] Status fetched:', {
+          isDemoFromBackend,
+          hasExpired,
+          isActiveDemo,
+          orgName: org?.name,
+          cacheBuster
+        });
+        
         setState({
           isDemoMode: isActiveDemo,
           isLoading: false,
@@ -287,6 +300,7 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
         });
       } else {
         // Resposta inválida = não é demo (fail-safe)
+        console.warn('[DemoMode] Invalid response from backend');
         setState({
           isDemoMode: false,
           isLoading: false,
@@ -297,7 +311,7 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch (error) {
-      console.error('Failed to fetch demo mode status:', error);
+      console.error('[DemoMode] Failed to fetch demo mode status:', error);
       // CRÍTICO: Em caso de erro, NUNCA ativa demo mode (fail-safe)
       setState({
         isDemoMode: false,
@@ -312,6 +326,19 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchDemoStatus();
+    
+    // CRITICAL: Also refetch when window regains focus to ensure banner appears
+    // This fixes the issue where banner doesn't show until cache is cleared
+    const handleFocus = () => {
+      console.log('[DemoMode] Window focused, refreshing demo status');
+      fetchDemoStatus();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [fetchDemoStatus]);
 
   const refreshDemoStatus = useCallback(async () => {
