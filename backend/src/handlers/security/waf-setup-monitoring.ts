@@ -23,6 +23,7 @@ import {
   PutLoggingConfigurationCommand,
   DeleteLoggingConfigurationCommand,
   ListWebACLsCommand,
+  GetWebACLCommand,
 } from '@aws-sdk/client-wafv2';
 import {
   CloudWatchLogsClient,
@@ -536,6 +537,63 @@ async function enableWafMonitoring(
   prisma: ReturnType<typeof getPrismaClient>,
   credentials: any
 ): Promise<SetupResult> {
+  
+  // Step 0: VALIDATE that the WAF Web ACL exists BEFORE doing anything
+  // This prevents creating resources for non-existent WAFs
+  try {
+    // Extract Web ACL ID and scope from ARN
+    // ARN format: arn:aws:wafv2:region:account:regional/webacl/name/id
+    // or: arn:aws:wafv2:region:account:global/webacl/name/id
+    const arnParts = webAclArn.split(':');
+    if (arnParts.length < 6) {
+      throw new Error(`Invalid WAF Web ACL ARN format: ${webAclArn}`);
+    }
+    
+    // The last part contains: scope/webacl/name/id
+    const resourcePart = arnParts[5]; // e.g., "regional/webacl/my-waf/abc123"
+    const resourceParts = resourcePart.split('/');
+    
+    if (resourceParts.length < 4) {
+      throw new Error(`Invalid WAF Web ACL ARN resource format: ${webAclArn}`);
+    }
+    
+    const scope = resourceParts[0] === 'global' ? 'CLOUDFRONT' : 'REGIONAL';
+    const webAclNameFromArn = resourceParts[2]; // Name
+    const webAclId = resourceParts[3]; // ID
+    
+    logger.info('Validating WAF Web ACL exists', { 
+      webAclArn, 
+      webAclId, 
+      webAclName: webAclNameFromArn,
+      scope 
+    });
+    
+    await wafClient.send(new GetWebACLCommand({
+      Name: webAclNameFromArn,
+      Scope: scope,
+      Id: webAclId,
+    }));
+    
+    logger.info('WAF Web ACL validated successfully', { webAclArn });
+    
+  } catch (err: any) {
+    logger.error('WAF Web ACL validation failed', { 
+      webAclArn,
+      errorName: err.name,
+      errorMessage: err.message 
+    });
+    
+    if (err.name === 'WAFNonexistentItemException') {
+      throw new Error(
+        `The specified WAF Web ACL does not exist in the customer's AWS account. ` +
+        `Please verify the Web ACL ARN is correct and the Web ACL exists in the account. ` +
+        `ARN provided: ${webAclArn}`
+      );
+    }
+    
+    // Re-throw other errors
+    throw err;
+  }
   
   // Step 1: Check if WAF logging is already configured
   let loggingConfigured = false;
