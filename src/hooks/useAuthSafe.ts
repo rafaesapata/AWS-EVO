@@ -160,6 +160,10 @@ export function useAuthSafe(): UseAuthSafeReturn {
         // Start auto-refresh timer
         scheduleTokenRefresh(result.accessToken);
         
+        // CRITICAL: Notify DemoModeContext and other listeners that auth state changed
+        // This ensures demo mode is checked immediately after login
+        window.dispatchEvent(new Event('auth-state-changed'));
+        
         return true;
       } else if ('challengeName' in result) {
         console.log('🔐 [useAuthSafe] Challenge detected:', result.challengeName);

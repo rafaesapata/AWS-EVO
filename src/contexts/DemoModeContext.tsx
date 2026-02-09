@@ -20,9 +20,9 @@
  * 4. Logs de auditoria registram acesso em modo demo
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
-import { useAuthSafe } from '@/hooks/useAuthSafe';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
 import { apiClient } from '@/integrations/aws/api-client';
+import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
 
 interface DemoModeState {
   /**
@@ -225,7 +225,13 @@ function isDemoExpired(expiresAt: string | null): boolean {
 }
 
 export function DemoModeProvider({ children }: { children: ReactNode }) {
-  const { session } = useAuthSafe();
+  // CRITICAL: Use cognitoAuth directly instead of useAuthSafe() to avoid
+  // creating a separate auth state instance that may be out of sync.
+  // useAuthSafe() creates independent useState hooks, so the session
+  // in DemoModeProvider could lag behind the session in ProtectedRoute,
+  // causing a race condition where demo mode isn't detected in time.
+  const fetchAttemptRef = useRef(0);
+  const hasSessionRef = useRef(false);
   
   // CRÍTICO: Estado inicial SEMPRE com isDemoMode = false
   // Isso garante que nunca exibimos demo para orgs normais durante carregamento
@@ -239,8 +245,25 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
   });
 
   const fetchDemoStatus = useCallback(async () => {
+    // Check session directly from cognitoAuth (single source of truth)
+    let session;
+    try {
+      session = await cognitoAuth.getCurrentSession();
+    } catch {
+      session = null;
+    }
+    
     // Sem sessão = não está logado = não é demo
     if (!session?.accessToken) {
+      // If we haven't found a session yet and this is an early attempt,
+      // retry shortly - the session may still be initializing after login
+      fetchAttemptRef.current++;
+      if (fetchAttemptRef.current <= 5 && !hasSessionRef.current) {
+        console.log(`[DemoMode] No session yet, retry ${fetchAttemptRef.current}/5 in 300ms`);
+        setTimeout(() => fetchDemoStatus(), 300);
+        return;
+      }
+      
       setState({
         isDemoMode: false,
         isLoading: false,
@@ -251,20 +274,19 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
       });
       return;
     }
+    
+    hasSessionRef.current = true;
+    fetchAttemptRef.current = 0;
 
     try {
-      // CRITICAL: Add cache-busting timestamp to force fresh data
-      const cacheBuster = Date.now();
-      
       // Buscar status do demo mode do backend
       // O backend verifica organization.demo_mode no banco
       const response = await apiClient.post('/api/functions/get-user-organization', {
-        _cacheBuster: cacheBuster // Force fresh data, no cache
+        _t: Date.now() // Cache-busting
       });
       
       if (response && typeof response === 'object' && 'data' in response && response.data) {
         // Extrair dados da organização da resposta
-        // apiClient.post retorna { data: { organization: {...} }, error: null }
         const responseData = response.data as {
           organization?: {
             demo_mode?: boolean;
@@ -286,8 +308,7 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
           isDemoFromBackend,
           hasExpired,
           isActiveDemo,
-          orgName: org?.name,
-          cacheBuster
+          orgName: org?.name
         });
         
         setState({
@@ -322,22 +343,42 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
         organizationName: null
       });
     }
-  }, [session?.accessToken]);
+  }, []);
 
   useEffect(() => {
     fetchDemoStatus();
     
-    // CRITICAL: Also refetch when window regains focus to ensure banner appears
-    // This fixes the issue where banner doesn't show until cache is cleared
+    // Listen for auth state changes - when user logs in, refetch demo status
+    const handleStorageChange = (e: StorageEvent) => {
+      // cognitoAuth stores tokens in storage - detect login/logout
+      if (e.key && (e.key.includes('idToken') || e.key.includes('accessToken'))) {
+        console.log('[DemoMode] Auth storage changed, refreshing demo status');
+        fetchAttemptRef.current = 0;
+        fetchDemoStatus();
+      }
+    };
+    
+    // CRITICAL: Also refetch when window regains focus
     const handleFocus = () => {
-      console.log('[DemoMode] Window focused, refreshing demo status');
       fetchDemoStatus();
     };
     
+    // Listen for custom event dispatched after login
+    const handleAuthChange = () => {
+      console.log('[DemoMode] Auth change event received, refreshing demo status');
+      fetchAttemptRef.current = 0;
+      hasSessionRef.current = false;
+      fetchDemoStatus();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('auth-state-changed', handleAuthChange);
     
     return () => {
+      window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('auth-state-changed', handleAuthChange);
     };
   }, [fetchDemoStatus]);
 
