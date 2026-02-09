@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
-import { useAuthSafe } from '@/hooks/useAuthSafe';
 import { useLicenseValidation } from '@/hooks/useLicenseValidation';
 import { useDemoMode } from '@/contexts/DemoModeContext';
 import { Loader2 } from 'lucide-react';
@@ -12,21 +11,23 @@ interface AwsAccountGuardProps {
 
 /**
  * Componente que verifica se o usuário tem contas cloud conectadas (AWS/Azure)
- * APÓS verificar se tem licença válida
+ * APÓS verificar se tem licença válida.
+ * 
+ * NOTA: Este componente é SEMPRE renderizado dentro de ProtectedRoute,
+ * que já verificou autenticação. Portanto, não precisamos de useAuthSafe() aqui.
+ * Usar useAuthSafe() criava uma instância SEPARADA de estado de auth que
+ * começava com user=null, causando shouldCheck=false e permitindo render
+ * prematuro dos children antes da verificação de demo mode.
  * 
  * Lógica:
- * 1. Se não tem licença válida -> AuthGuard já redireciona para /license-management
+ * 1. Se não tem licença válida -> ProtectedRoute já redireciona
  * 2. Se está em DEMO MODE -> Permite navegação livre (dados fictícios do backend)
  * 3. Se tem licença válida mas não tem conta cloud -> Redireciona para /cloud-credentials
  * 4. Se tem licença válida e tem conta cloud -> Sistema normal
- * 
- * IMPORTANTE: Em modo DEMO, o usuário pode explorar o sistema livremente.
- * Quando sair do modo DEMO, o bloqueio volta a funcionar normalmente.
  */
 export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuthSafe();
   const { accounts, isLoading: accountsLoading, error } = useCloudAccount();
   const { data: licenseStatus, isLoading: licenseLoading } = useLicenseValidation();
   const { isDemoMode, isLoading: demoLoading, isVerified: demoVerified } = useDemoMode();
@@ -34,10 +35,16 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
   // Safety timeout: if demo verification takes too long (10s), 
   // force demoVerified to true to unblock the UI (non-demo path)
   const [demoTimeout, setDemoTimeout] = useState(false);
+  const demoVerifiedRef = useRef(demoVerified);
+  demoVerifiedRef.current = demoVerified;
+  
   useEffect(() => {
-    if (demoVerified) return;
+    if (demoVerified) {
+      setDemoTimeout(false);
+      return;
+    }
     const timer = setTimeout(() => {
-      if (!demoVerified) {
+      if (!demoVerifiedRef.current) {
         console.warn('[AwsAccountGuard] Demo verification timeout after 10s, proceeding as non-demo');
         setDemoTimeout(true);
       }
@@ -55,30 +62,30 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     '/login',
     '/change-password',
     '/terms-of-service',
-    '/license-management' // Licenças sempre acessível
+    '/license-management'
   ];
 
-  const shouldCheck = user && 
-                     !exemptPaths.some(path => location.pathname.startsWith(path));
+  // We're always inside ProtectedRoute (user is authenticated),
+  // so we only skip checking for exempt paths
+  const isExemptPath = exemptPaths.some(path => location.pathname.startsWith(path));
 
   useEffect(() => {
-    // Aguardar verificação de licença, contas e demo mode
-    if (!shouldCheck || licenseLoading || accountsLoading || demoLoading || error) return;
+    // Skip check for exempt paths
+    if (isExemptPath) return;
+    
+    // Wait for all async checks to complete
+    if (licenseLoading || accountsLoading || demoLoading || error) return;
 
-    // Se não tem licença válida, o AuthGuard já cuida disso
+    // Se não tem licença válida, o ProtectedRoute já cuida disso
     if (!licenseStatus?.isValid) return;
 
     // IMPORTANTE: Se está em modo DEMO, permite navegação livre
-    // O backend retorna dados fictícios, então não precisa de conta cloud real
     if (isDemoMode && effectiveDemoVerified) {
-      console.log('🎭 Modo DEMO ativo - navegação livre permitida');
       return;
     }
 
-    // IMPORTANTE: Se demo mode ainda não foi verificado, aguardar
-    // Isso evita redirecionamento prematuro durante login demo
+    // Se demo mode ainda não foi verificado, aguardar
     if (!effectiveDemoVerified) {
-      console.log('⏳ Aguardando verificação do modo demo...');
       return;
     }
 
@@ -86,7 +93,6 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     const hasActiveAccounts = Array.isArray(accounts) && accounts.length > 0;
 
     if (!hasActiveAccounts) {
-      console.log('✅ Licença válida, mas sem contas cloud. Redirecionando para configuração...');
       navigate('/cloud-credentials', { 
         replace: true,
         state: { 
@@ -95,10 +101,9 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
           message: 'Licença válida! Agora você precisa conectar pelo menos uma conta cloud (AWS ou Azure) para usar o sistema.'
         }
       });
-      return; // Prevent further execution
     }
   }, [
-    shouldCheck, 
+    isExemptPath, 
     licenseLoading, 
     accountsLoading, 
     demoLoading,
@@ -111,8 +116,13 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     location.pathname
   ]);
 
-  // Mostrar loading enquanto verifica licença, contas e demo mode
-  if (shouldCheck && (licenseLoading || accountsLoading || demoLoading || !effectiveDemoVerified)) {
+  // Exempt paths: render children immediately
+  if (isExemptPath) {
+    return <>{children}</>;
+  }
+
+  // Show loading while verifying license, accounts and demo mode
+  if (licenseLoading || accountsLoading || demoLoading || !effectiveDemoVerified) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
         <div className="text-center space-y-4">
@@ -127,16 +137,22 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     );
   }
 
-  // Se não deve verificar, tem licença inválida (AuthGuard cuida), 
-  // está em modo DEMO, ou tem contas, renderizar children
-  if (!shouldCheck || 
-      !licenseStatus?.isValid || 
-      (isDemoMode && effectiveDemoVerified) ||
-      (Array.isArray(accounts) && accounts.length > 0)) {
+  // License invalid: ProtectedRoute handles this
+  if (!licenseStatus?.isValid) {
     return <>{children}</>;
   }
 
-  // Se chegou aqui, está redirecionando
+  // Demo mode active: allow free navigation
+  if (isDemoMode && effectiveDemoVerified) {
+    return <>{children}</>;
+  }
+
+  // Has cloud accounts: proceed normally
+  if (Array.isArray(accounts) && accounts.length > 0) {
+    return <>{children}</>;
+  }
+
+  // No accounts, redirecting...
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       <div className="text-center space-y-4">
