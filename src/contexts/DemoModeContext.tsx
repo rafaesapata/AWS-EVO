@@ -227,18 +227,15 @@ function isDemoExpired(expiresAt: string | null): boolean {
 export function DemoModeProvider({ children }: { children: ReactNode }) {
   // CRITICAL: Use cognitoAuth directly instead of useAuthSafe() to avoid
   // creating a separate auth state instance that may be out of sync.
-  // useAuthSafe() creates independent useState hooks, so the session
-  // in DemoModeProvider could lag behind the session in ProtectedRoute,
-  // causing a race condition where demo mode isn't detected in time.
-  const fetchAttemptRef = useRef(0);
-  const hasSessionRef = useRef(false);
+  const hasQueriedBackendRef = useRef(false);
   
   // CRÍTICO: Estado inicial SEMPRE com isDemoMode = false
-  // Isso garante que nunca exibimos demo para orgs normais durante carregamento
+  // isVerified starts FALSE and ONLY becomes TRUE after we successfully query the backend
+  // This prevents AwsAccountGuard from redirecting before we know the demo status
   const [state, setState] = useState<Omit<DemoModeState, 'daysRemaining' | 'isExpiringSoon'>>({
-    isDemoMode: false,  // SEMPRE false até confirmação do backend
+    isDemoMode: false,
     isLoading: true,
-    isVerified: false,  // Indica se verificação foi concluída com sucesso
+    isVerified: false,
     demoActivatedAt: null,
     demoExpiresAt: null,
     organizationName: null
@@ -253,40 +250,40 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
       session = null;
     }
     
-    // Sem sessão = não está logado = não é demo
+    // No session = not logged in
+    // CRITICAL FIX: Do NOT set isVerified=true here. If there's no session,
+    // it means auth hasn't completed yet. We keep isVerified=false so that
+    // AwsAccountGuard shows a loading state instead of redirecting.
+    // The auth-state-changed event will trigger a re-fetch once login completes.
     if (!session?.accessToken) {
-      // If we haven't found a session yet and this is an early attempt,
-      // retry shortly - the session may still be initializing after login
-      fetchAttemptRef.current++;
-      if (fetchAttemptRef.current <= 5 && !hasSessionRef.current) {
-        console.log(`[DemoMode] No session yet, retry ${fetchAttemptRef.current}/5 in 300ms`);
-        setTimeout(() => fetchDemoStatus(), 300);
-        return;
+      // Only mark as verified (not demo) if we previously had a session
+      // and it was lost (logout scenario), OR if we're on a public page
+      if (hasQueriedBackendRef.current) {
+        console.log('[DemoMode] Session lost after previous successful query, marking not-demo');
+        setState({
+          isDemoMode: false,
+          isLoading: false,
+          isVerified: true,
+          demoActivatedAt: null,
+          demoExpiresAt: null,
+          organizationName: null
+        });
+      } else {
+        console.log('[DemoMode] No session yet, staying in loading state');
+        // Keep isVerified=false - AwsAccountGuard will show loading
+        setState(prev => ({ ...prev, isLoading: false }));
       }
-      
-      setState({
-        isDemoMode: false,
-        isLoading: false,
-        isVerified: true,
-        demoActivatedAt: null,
-        demoExpiresAt: null,
-        organizationName: null
-      });
       return;
     }
-    
-    hasSessionRef.current = true;
-    fetchAttemptRef.current = 0;
 
     try {
-      // Buscar status do demo mode do backend
-      // O backend verifica organization.demo_mode no banco
       const response = await apiClient.post('/api/functions/get-user-organization', {
-        _t: Date.now() // Cache-busting
+        _t: Date.now()
       });
       
+      hasQueriedBackendRef.current = true;
+      
       if (response && typeof response === 'object' && 'data' in response && response.data) {
-        // Extrair dados da organização da resposta
         const responseData = response.data as {
           organization?: {
             demo_mode?: boolean;
@@ -297,9 +294,6 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
         };
         
         const org = responseData.organization;
-        
-        // CRÍTICO: Só ativa demo mode se backend EXPLICITAMENTE retornar true
-        // E se o demo não expirou (verificação local adicional)
         const isDemoFromBackend = org?.demo_mode === true;
         const hasExpired = isDemoExpired(org?.demo_expires_at || null);
         const isActiveDemo = isDemoFromBackend && !hasExpired;
@@ -320,7 +314,6 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
           organizationName: org?.name || null
         });
       } else {
-        // Resposta inválida = não é demo (fail-safe)
         console.warn('[DemoMode] Invalid response from backend');
         setState({
           isDemoMode: false,
@@ -333,11 +326,12 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('[DemoMode] Failed to fetch demo mode status:', error);
-      // CRÍTICO: Em caso de erro, NUNCA ativa demo mode (fail-safe)
+      // On error, mark as verified=false so guard keeps waiting
+      // The auth-state-changed or focus event will retry
       setState({
         isDemoMode: false,
         isLoading: false,
-        isVerified: false, // Marca como não verificado para possível retry
+        isVerified: false,
         demoActivatedAt: null,
         demoExpiresAt: null,
         organizationName: null
@@ -348,26 +342,23 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchDemoStatus();
     
-    // Listen for auth state changes - when user logs in, refetch demo status
     const handleStorageChange = (e: StorageEvent) => {
-      // cognitoAuth stores tokens in storage - detect login/logout
       if (e.key && (e.key.includes('idToken') || e.key.includes('accessToken'))) {
         console.log('[DemoMode] Auth storage changed, refreshing demo status');
-        fetchAttemptRef.current = 0;
         fetchDemoStatus();
       }
     };
     
-    // CRITICAL: Also refetch when window regains focus
     const handleFocus = () => {
-      fetchDemoStatus();
+      // Only refetch on focus if we've already queried successfully before
+      if (hasQueriedBackendRef.current) {
+        fetchDemoStatus();
+      }
     };
     
-    // Listen for custom event dispatched after login
+    // CRITICAL: This event fires after successful login in useAuthSafe
     const handleAuthChange = () => {
       console.log('[DemoMode] Auth change event received, refreshing demo status');
-      fetchAttemptRef.current = 0;
-      hasSessionRef.current = false;
       fetchDemoStatus();
     };
     

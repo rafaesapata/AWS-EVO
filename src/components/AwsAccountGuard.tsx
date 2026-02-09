@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { useAuthSafe } from '@/hooks/useAuthSafe';
@@ -30,6 +30,22 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
   const { accounts, isLoading: accountsLoading, error } = useCloudAccount();
   const { data: licenseStatus, isLoading: licenseLoading } = useLicenseValidation();
   const { isDemoMode, isLoading: demoLoading, isVerified: demoVerified } = useDemoMode();
+  
+  // Safety timeout: if demo verification takes too long (10s), 
+  // force demoVerified to true to unblock the UI (non-demo path)
+  const [demoTimeout, setDemoTimeout] = useState(false);
+  useEffect(() => {
+    if (demoVerified) return;
+    const timer = setTimeout(() => {
+      if (!demoVerified) {
+        console.warn('[AwsAccountGuard] Demo verification timeout after 10s, proceeding as non-demo');
+        setDemoTimeout(true);
+      }
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [demoVerified]);
+  
+  const effectiveDemoVerified = demoVerified || demoTimeout;
 
   // Páginas que não precisam de verificação de conta cloud
   const exemptPaths = [
@@ -54,14 +70,14 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
 
     // IMPORTANTE: Se está em modo DEMO, permite navegação livre
     // O backend retorna dados fictícios, então não precisa de conta cloud real
-    if (isDemoMode && demoVerified) {
+    if (isDemoMode && effectiveDemoVerified) {
       console.log('🎭 Modo DEMO ativo - navegação livre permitida');
       return;
     }
 
     // IMPORTANTE: Se demo mode ainda não foi verificado, aguardar
     // Isso evita redirecionamento prematuro durante login demo
-    if (!demoVerified) {
+    if (!effectiveDemoVerified) {
       console.log('⏳ Aguardando verificação do modo demo...');
       return;
     }
@@ -90,20 +106,20 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     licenseStatus?.isValid, 
     accounts, 
     isDemoMode,
-    demoVerified,
+    effectiveDemoVerified,
     navigate, 
     location.pathname
   ]);
 
   // Mostrar loading enquanto verifica licença, contas e demo mode
-  if (shouldCheck && (licenseLoading || accountsLoading || demoLoading || !demoVerified)) {
+  if (shouldCheck && (licenseLoading || accountsLoading || demoLoading || !effectiveDemoVerified)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
         <div className="text-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="text-slate-300">
             {licenseLoading ? 'Verificando licença...' : 
-             demoLoading || !demoVerified ? 'Verificando modo de demonstração...' :
+             demoLoading || !effectiveDemoVerified ? 'Verificando modo de demonstração...' :
              'Verificando contas cloud...'}
           </p>
         </div>
@@ -115,7 +131,7 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
   // está em modo DEMO, ou tem contas, renderizar children
   if (!shouldCheck || 
       !licenseStatus?.isValid || 
-      (isDemoMode && demoVerified) ||
+      (isDemoMode && effectiveDemoVerified) ||
       (Array.isArray(accounts) && accounts.length > 0)) {
     return <>{children}</>;
   }

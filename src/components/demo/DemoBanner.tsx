@@ -46,17 +46,13 @@ export function DemoBanner({ className }: DemoBannerProps) {
   // CRÍTICO: Não renderiza NADA durante carregamento ou se não verificado
   // Isso garante que orgs normais NUNCA vejam o banner
   if (isLoading || !isVerified) {
-    console.log('[DemoBanner] Not rendering - loading or not verified', { isLoading, isVerified });
     return null;
   }
 
   // Só renderiza se demo mode está EXPLICITAMENTE ativo
   if (!isDemoMode) {
-    console.log('[DemoBanner] Not rendering - not in demo mode');
     return null;
   }
-  
-  console.log('[DemoBanner] Rendering demo banner', { isDemoMode, demoExpiresAt, organizationName });
 
   // Calcular dias restantes se houver data de expiração
   const daysRemaining = demoExpiresAt 
