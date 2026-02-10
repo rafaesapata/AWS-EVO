@@ -109,6 +109,20 @@ Resources:
                 Action:
                   - ec2:*
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:DeleteRule
+                  - events:DescribeRule
+                  - events:EnableRule
+                  - events:DisableRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                  - events:ListTargetsByRule
+                  - events:ListRules
+                  - events:TagResource
+                  - events:UntagResource
+                Resource: '*'
 
   # IAM Role for CodePipeline
   CodePipelineRole:
