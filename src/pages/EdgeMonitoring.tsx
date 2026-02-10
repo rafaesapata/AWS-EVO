@@ -607,7 +607,7 @@ export default function EdgeMonitoring() {
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    Nenhum dado de métrica disponível
+                    {t('edgeMonitoring.noMetricData', 'Nenhum dado de métrica disponível')}
                   </div>
                 )}
               </CardContent>
@@ -644,7 +644,7 @@ export default function EdgeMonitoring() {
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    Nenhum serviço configurado
+                    {t('edgeMonitoring.noServiceConfigured', 'Nenhum serviço configurado')}
                   </div>
                 )}
               </CardContent>
@@ -904,20 +904,20 @@ export default function EdgeMonitoring() {
                   <Globe className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                   {searchTerm || serviceTypeFilter !== 'all' ? (
                     <>
-                      <h3 className="text-xl font-semibold mb-2">Nenhum serviço encontrado</h3>
+                      <h3 className="text-xl font-semibold mb-2">{t('edgeMonitoring.noServiceFound', 'Nenhum serviço encontrado')}</h3>
                       <p className="text-muted-foreground mb-4">
-                        Nenhum serviço corresponde aos filtros aplicados.
+                        {t('edgeMonitoring.noServiceMatchFilters', 'Nenhum serviço corresponde aos filtros aplicados.')}
                       </p>
                       <Button variant="outline" onClick={clearFilters}>
                         <X className="h-4 w-4 mr-2" />
-                        Limpar filtros
+                        {t('edgeMonitoring.clearFilters', 'Limpar filtros')}
                       </Button>
                     </>
                   ) : (
                     <>
-                      <h3 className="text-xl font-semibold mb-2">Nenhum serviço de borda configurado</h3>
+                      <h3 className="text-xl font-semibold mb-2">{t('edgeMonitoring.noEdgeServiceConfigured', 'Nenhum serviço de borda configurado')}</h3>
                       <p className="text-muted-foreground">
-                        Configure CloudFront, WAF ou Load Balancers para começar o monitoramento.
+                        {t('edgeMonitoring.configureEdgeServices', 'Configure CloudFront, WAF ou Load Balancers para começar o monitoramento.')}
                       </p>
                     </>
                   )}
@@ -991,8 +991,8 @@ export default function EdgeMonitoring() {
                 ) : (
                   <div className="text-center py-12">
                     <Cloud className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhuma distribuição CloudFront</h3>
-                    <p className="text-muted-foreground">Clique em "Descobrir Serviços" para buscar distribuições CloudFront.</p>
+                    <h3 className="text-lg font-semibold mb-2">{t('edgeMonitoring.noCloudFront', 'Nenhuma distribuição CloudFront')}</h3>
+                    <p className="text-muted-foreground">{t('edgeMonitoring.clickDiscoverCloudFront', 'Clique em "Descobrir Serviços" para buscar distribuições CloudFront.')}</p>
                   </div>
                 );
               })()}
@@ -1062,8 +1062,8 @@ export default function EdgeMonitoring() {
                 ) : (
                   <div className="text-center py-12">
                     <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum Web ACL configurado</h3>
-                    <p className="text-muted-foreground">Clique em "Descobrir Serviços" para buscar Web ACLs do WAF.</p>
+                    <h3 className="text-lg font-semibold mb-2">{t('edgeMonitoring.noWebACL', 'Nenhum Web ACL configurado')}</h3>
+                    <p className="text-muted-foreground">{t('edgeMonitoring.clickDiscoverWAF', 'Clique em "Descobrir Serviços" para buscar Web ACLs do WAF.')}</p>
                   </div>
                 );
               })()}
@@ -1139,8 +1139,8 @@ export default function EdgeMonitoring() {
                 ) : (
                   <div className="text-center py-12">
                     <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum Load Balancer encontrado</h3>
-                    <p className="text-muted-foreground">Clique em "Descobrir Serviços" para buscar ALBs e NLBs.</p>
+                    <h3 className="text-lg font-semibold mb-2">{t('edgeMonitoring.noLoadBalancer', 'Nenhum Load Balancer encontrado')}</h3>
+                    <p className="text-muted-foreground">{t('edgeMonitoring.clickDiscoverLB', 'Clique em "Descobrir Serviços" para buscar ALBs e NLBs.')}</p>
                   </div>
                 );
               })()}

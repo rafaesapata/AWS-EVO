@@ -983,7 +983,7 @@ export default function ErrorMonitoring() {
  {filteredErrors.length === 0 ? (
  <div className="text-center py-8">
  <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
- <p>Nenhum erro encontrado</p>
+ <p>{t('errorMonitoring.noErrorsFound', 'Nenhum erro encontrado')}</p>
  </div>
  ) : (
  <ScrollArea className="h-[500px]">

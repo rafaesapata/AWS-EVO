@@ -132,7 +132,6 @@ export default function IntelligentAlerts() {
       const isDemo = alerts.length > 0 && alerts[0]?._isDemo === true;
       
       if (isDemo) {
-        console.log('IntelligentAlerts: Using demo alert history');
         return alerts.map((alert: any) => ({
           id: alert.id,
           rule_id: alert.rule_id,
@@ -637,13 +636,13 @@ export default function IntelligentAlerts() {
               ) : (
                 <div className="text-center py-8">
                   <Bell className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold mb-2">Nenhuma regra configurada</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t('intelligentAlerts.noRulesConfigured', 'Nenhuma regra configurada')}</h3>
                   <p className="text-muted-foreground mb-4">
-                    Crie sua primeira regra de alerta para começar a monitorar sua infraestrutura.
+                    {t('intelligentAlerts.createFirstRuleDesc', 'Crie sua primeira regra de alerta para começar a monitorar sua infraestrutura.')}
                   </p>
                   <Button onClick={() => setIsCreateDialogOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Criar Primeira Regra
+                    {t('intelligentAlerts.createFirstRule', 'Criar Primeira Regra')}
                   </Button>
                 </div>
               )}
@@ -704,9 +703,9 @@ export default function IntelligentAlerts() {
               ) : (
                 <div className="text-center py-8">
                   <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold mb-2">Nenhum alerta no histórico</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t('intelligentAlerts.noAlertHistory', 'Nenhum alerta no histórico')}</h3>
                   <p className="text-muted-foreground">
-                    Os alertas disparados aparecerão aqui.
+                    {t('intelligentAlerts.alertsWillAppearHere', 'Os alertas disparados aparecerão aqui.')}
                   </p>
                 </div>
               )}

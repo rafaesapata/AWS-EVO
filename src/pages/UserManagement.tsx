@@ -690,11 +690,11 @@ export default function UserManagement() {
           ) : (
             <div className="text-center py-12">
               <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-xl font-semibold mb-2">Nenhum usuário encontrado</h3>
+              <h3 className="text-xl font-semibold mb-2">{t('userManagement.noUsersFound', 'Nenhum usuário encontrado')}</h3>
               <p className="text-muted-foreground mb-4">
                 {searchTerm || roleFilter !== 'all' || statusFilter !== 'all' 
-                  ? 'Nenhum usuário corresponde aos filtros aplicados.'
-                  : 'Comece adicionando o primeiro usuário à organização.'
+                  ? t('userManagement.noUsersMatchFilters', 'Nenhum usuário corresponde aos filtros aplicados.')
+                  : t('userManagement.addFirstUser', 'Comece adicionando o primeiro usuário à organização.')
                 }
               </p>
               {!searchTerm && roleFilter === 'all' && statusFilter === 'all' && (

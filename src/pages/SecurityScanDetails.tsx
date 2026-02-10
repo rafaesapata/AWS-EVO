@@ -517,11 +517,11 @@ export default function SecurityScanDetails() {
  <div className="p-4 rounded-full bg-green-100 w-fit mx-auto mb-4">
  <CheckCircle className="h-16 w-16 text-success" />
  </div>
- <h3 className="text-xl font-semibold mb-2">Nenhum achado encontrado</h3>
+ <h3 className="text-xl font-semibold mb-2">{t('securityScans.noFindingsFound', 'Nenhum achado encontrado')}</h3>
  <p className="text-muted-foreground">
  {searchTerm || severityFilter !== 'all' || serviceFilter !== 'all' || statusFilter !== 'all'
- ? 'Nenhum achado corresponde aos filtros aplicados.'
- : 'Nenhuma vulnerabilidade ou problema foi identificado neste scan.'
+ ? t('securityScans.noFindingsMatchFilters', 'Nenhum achado corresponde aos filtros aplicados.')
+ : t('securityScans.noFindingsFoundDesc', 'Nenhuma vulnerabilidade ou problema foi identificado neste scan.')
  }
  </p>
  </div>

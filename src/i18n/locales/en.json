@@ -1029,7 +1029,12 @@
     "newAlertsGenerated": "new alert(s) generated",
     "noProblemsDetected": "Analysis completed: No critical problems detected in the last 7 days",
     "infraOperatingNormally": "Your AWS infrastructure is operating within normal parameters",
-    "analysisError": "Error analyzing alerts"
+    "analysisError": "Error analyzing alerts",
+    "noRulesConfigured": "No rules configured",
+    "createFirstRuleDesc": "Create your first alert rule to start monitoring your infrastructure.",
+    "createFirstRule": "Create First Rule",
+    "noAlertHistory": "No alerts in history",
+    "alertsWillAppearHere": "Triggered alerts will appear here."
   },
   "taggingCompliance": {
     "title": "Tagging Compliance",
@@ -1308,6 +1313,7 @@
   },
   "common": {
     "loading": "Loading...",
+    "loadingSystem": "Loading system...",
     "error": "Error",
     "success": "Success",
     "cancel": "Cancel",
@@ -1812,7 +1818,20 @@
   },
   "edgeMonitoring": {
     "title": "Edge Monitoring",
-    "description": "CloudFront, WAF and Load Balancers - AWS edge services"
+    "description": "CloudFront, WAF and Load Balancers - AWS edge services",
+    "noMetricData": "No metric data available",
+    "noServiceConfigured": "No service configured",
+    "noServiceFound": "No service found",
+    "noServiceMatchFilters": "No service matches the applied filters.",
+    "clearFilters": "Clear filters",
+    "noEdgeServiceConfigured": "No edge service configured",
+    "configureEdgeServices": "Configure CloudFront, WAF or Load Balancers to start monitoring.",
+    "noCloudFront": "No CloudFront distribution",
+    "clickDiscoverCloudFront": "Click \"Discover Services\" to search for CloudFront distributions.",
+    "noWebACL": "No Web ACL configured",
+    "clickDiscoverWAF": "Click \"Discover Services\" to search for WAF Web ACLs.",
+    "noLoadBalancer": "No Load Balancer found",
+    "clickDiscoverLB": "Click \"Discover Services\" to search for ALBs and NLBs."
   },
   "licenseManagement": {
     "title": "License Management",
@@ -1876,7 +1895,10 @@
     "allAccountsConnected": "All accounts connected",
     "checkPermissions": "Check permissions",
     "credentials": "AWS Credentials",
-    "requiredPermissions": "Required Permissions"
+    "requiredPermissions": "Required Permissions",
+    "errorLoading": "Error loading settings",
+    "errorLoadingDesc": "An error occurred while loading AWS settings. Try reloading the page.",
+    "reloadPage": "Reload Page"
   },
   "impersonate": {
     "startError": "Error starting impersonate",
@@ -3986,5 +4008,36 @@
       "critical": "critical",
       "view": "View"
     }
+  },
+  "threatDetection": {
+    "noGuardDutyFindings": "No GuardDuty findings",
+    "runScanToDetect": "Run a scan to detect threats.",
+    "noIamBehavior": "No IAM behavior data",
+    "runAnalysisToDetect": "Run an analysis to detect anomalies.",
+    "noLateralMovement": "No lateral movement detected",
+    "systemMonitoring": "The system is monitoring..."
+  },
+  "userManagement": {
+    "noUsersFound": "No users found",
+    "noUsersMatchFilters": "No users match the applied filters.",
+    "addFirstUser": "Start by adding the first user to the organization."
+  },
+  "errorMonitoring": {
+    "noErrorsFound": "No errors found"
+  },
+  "devTools": {
+    "noLogsFound": "No logs found",
+    "noLogsMatchFilters": "No logs match the applied filters.",
+    "noMetricsAvailable": "No metrics available",
+    "metricsWillAppearHere": "Performance metrics will appear here."
+  },
+  "endpointMonitoring": {
+    "noMetricData": "No metric data available",
+    "noEndpointsConfigured": "No endpoints configured",
+    "configureToStart": "Configure endpoints to start monitoring.",
+    "configureToViewMetrics": "Configure endpoints to view metrics.",
+    "noHistoryAvailable": "No history available",
+    "noAlerts": "No alerts",
+    "allEndpointsNormal": "All endpoints are working normally."
   }
 }

@@ -80,12 +80,12 @@ export default function AWSSettings() {
  >
  <div className="text-center py-12">
  <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
- <h3 className="text-xl font-semibold mb-2">Erro ao carregar configurações</h3>
+ <h3 className="text-xl font-semibold mb-2">{t('awsSettings.errorLoading', 'Erro ao carregar configurações')}</h3>
  <p className="text-muted-foreground mb-4">
- Ocorreu um erro ao carregar as configurações AWS. Tente recarregar a página.
+ {t('awsSettings.errorLoadingDesc', 'Ocorreu um erro ao carregar as configurações AWS. Tente recarregar a página.')}
  </p>
  <Button onClick={() => window.location.reload()}>
- Recarregar Página
+ {t('awsSettings.reloadPage', 'Recarregar Página')}
  </Button>
  </div>
  </Layout>

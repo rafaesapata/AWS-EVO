@@ -430,9 +430,9 @@ export default function DevTools() {
               ) : (
                 <div className="text-center py-12">
                   <Terminal className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-xl font-semibold mb-2">Nenhum log encontrado</h3>
+                  <h3 className="text-xl font-semibold mb-2">{t('devTools.noLogsFound', 'Nenhum log encontrado')}</h3>
                   <p className="text-muted-foreground">
-                    Nenhum log corresponde aos filtros aplicados.
+                    {t('devTools.noLogsMatchFilters', 'Nenhum log corresponde aos filtros aplicados.')}
                   </p>
                 </div>
               )}
@@ -486,9 +486,9 @@ export default function DevTools() {
               ) : (
                 <div className="text-center py-12">
                   <BarChart3 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-xl font-semibold mb-2">Nenhuma métrica disponível</h3>
+                  <h3 className="text-xl font-semibold mb-2">{t('devTools.noMetricsAvailable', 'Nenhuma métrica disponível')}</h3>
                   <p className="text-muted-foreground">
-                    As métricas de performance aparecerão aqui.
+                    {t('devTools.metricsWillAppearHere', 'As métricas de performance aparecerão aqui.')}
                   </p>
                 </div>
               )}

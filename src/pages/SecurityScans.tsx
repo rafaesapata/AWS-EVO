@@ -117,11 +117,8 @@ export default function SecurityScans() {
  return hasActiveScans ? 5000 : false;
  },
  queryFn: async (): Promise<{ scans: SecurityScan[], total: number }> => {
- console.log('SecurityScans: Fetching scans', { organizationId, selectedAccountId, selectedScanType, currentPage, itemsPerPage, isInDemoMode });
- 
  // DEMO MODE: Return demo scans data
  if (isInDemoMode) {
- console.log('SecurityScans: Using demo data');
  const now = new Date();
  const demoScans: SecurityScan[] = [
    {
@@ -190,8 +187,6 @@ export default function SecurityScans() {
  offset: offset
  });
 
- console.log('SecurityScans: API response', { error: response.error, dataLength: response.data?.length, data: response.data });
-
  if (response.error) {
  throw new Error(response.error.message || 'Error fetching scans');
  }
@@ -252,8 +247,6 @@ export default function SecurityScans() {
  enabled: shouldEnableAccountQuery() && (isInDemoMode || (scans && scans.length > 0)),
  staleTime: 2 * 60 * 1000,
  queryFn: async (): Promise<ScanFinding[]> => {
- console.log('SecurityScans: Fetching findings', { organizationId, selectedAccountId, isInDemoMode });
- 
  // Use get-findings Lambda which supports demo mode
  const response = await apiClient.invoke<{
    _isDemo?: boolean;
@@ -269,7 +262,7 @@ export default function SecurityScans() {
  
  const data = response.data;
  if (data?._isDemo) {
-   console.log('SecurityScans findings: Using demo data from backend', { findingsCount: data.findings?.length });
+   // Demo data from backend
  }
  
  return data?.findings || [];
@@ -280,7 +273,6 @@ export default function SecurityScans() {
  const startScanMutation = useMutation({
  mutationFn: async ({ scanLevel }: { scanLevel: 'quick' | 'standard' | 'deep' }) => {
  const isAzure = selectedProvider === 'AZURE';
- console.log('🔍 Starting security scan...', { scanLevel, selectedAccountId, provider: selectedProvider });
  
  // Call the appropriate Lambda based on provider
  const lambdaName = isAzure ? 'start-azure-security-scan' : 'start-security-scan';
@@ -291,8 +283,6 @@ export default function SecurityScans() {
  const response = await apiClient.invoke(lambdaName, {
  body: bodyParam
  });
-
- console.log('📊 Security scan response:', response);
 
  if (response.error) {
  console.error('❌ Security scan error:', response.error);

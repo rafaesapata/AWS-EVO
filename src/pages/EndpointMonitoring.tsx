@@ -422,7 +422,7 @@ export default function EndpointMonitoring() {
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    Nenhum dado de métrica disponível
+                    {t('endpointMonitoring.noMetricData', 'Nenhum dado de métrica disponível')}
                   </div>
                 )}
               </CardContent>
@@ -554,9 +554,9 @@ export default function EndpointMonitoring() {
               ) : (
                 <div className="text-center py-12">
                   <Globe className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-xl font-semibold mb-2">Nenhum endpoint configurado</h3>
+                  <h3 className="text-xl font-semibold mb-2">{t('endpointMonitoring.noEndpointsConfigured', 'Nenhum endpoint configurado')}</h3>
                   <p className="text-muted-foreground mb-4">
-                    Configure endpoints para começar o monitoramento.
+                    {t('endpointMonitoring.configureToStart', 'Configure endpoints para começar o monitoramento.')}
                   </p>
                   <CreateEndpointDialog />
                 </div>
@@ -632,7 +632,7 @@ export default function EndpointMonitoring() {
                               </ResponsiveContainer>
                             ) : (
                               <div className="h-[120px] flex items-center justify-center text-muted-foreground text-sm">
-                                Nenhum histórico disponível
+                                {t('endpointMonitoring.noHistoryAvailable', 'Nenhum histórico disponível')}
                               </div>
                             )}
                           </div>
@@ -677,8 +677,8 @@ export default function EndpointMonitoring() {
                 <div className="h-[400px] flex items-center justify-center text-muted-foreground">
                   <div className="text-center">
                     <BarChart3 className="h-12 w-12 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum endpoint configurado</h3>
-                    <p>Configure endpoints para visualizar métricas.</p>
+                    <h3 className="text-lg font-semibold mb-2">{t('endpointMonitoring.noEndpointsConfigured', 'Nenhum endpoint configurado')}</h3>
+                    <p>{t('endpointMonitoring.configureToViewMetrics', 'Configure endpoints para visualizar métricas.')}</p>
                   </div>
                 </div>
               )}
@@ -788,8 +788,8 @@ export default function EndpointMonitoring() {
                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                   <div className="text-center">
                     <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum alerta</h3>
-                    <p>Todos os endpoints estão funcionando normalmente.</p>
+                    <h3 className="text-lg font-semibold mb-2">{t('endpointMonitoring.noAlerts', 'Nenhum alerta')}</h3>
+                    <p>{t('endpointMonitoring.allEndpointsNormal', 'Todos os endpoints estão funcionando normalmente.')}</p>
                   </div>
                 </div>
               )}

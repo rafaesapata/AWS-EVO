@@ -316,8 +316,8 @@ export default function ThreatDetection() {
  {(!guarddutyFindings || guarddutyFindings.length === 0) && (
  <div className="text-center py-12">
  <Shield className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
- <h3 className="text-lg font-semibold mb-2">Nenhum achado do GuardDuty</h3>
- <p className="text-muted-foreground">Execute um scan para detectar ameaças.</p>
+ <h3 className="text-lg font-semibold mb-2">{t('threatDetection.noGuardDutyFindings', 'Nenhum achado do GuardDuty')}</h3>
+ <p className="text-muted-foreground">{t('threatDetection.runScanToDetect', 'Execute um scan para detectar ameaças.')}</p>
  </div>
  )}
  </div>
@@ -376,8 +376,8 @@ export default function ThreatDetection() {
  {(!iamBehavior || iamBehavior.length === 0) && (
  <div className="text-center py-12">
  <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
- <h3 className="text-lg font-semibold mb-2">Nenhum dado de comportamento IAM</h3>
- <p className="text-muted-foreground">Execute uma análise para detectar anomalias.</p>
+ <h3 className="text-lg font-semibold mb-2">{t('threatDetection.noIamBehavior', 'Nenhum dado de comportamento IAM')}</h3>
+ <p className="text-muted-foreground">{t('threatDetection.runAnalysisToDetect', 'Execute uma análise para detectar anomalias.')}</p>
  </div>
  )}
  </div>
@@ -435,8 +435,8 @@ export default function ThreatDetection() {
  {(!lateralMovement || lateralMovement.length === 0) && (
  <div className="text-center py-12">
  <Network className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
- <h3 className="text-lg font-semibold mb-2">Nenhuma movimentação lateral detectada</h3>
- <p className="text-muted-foreground">O sistema está monitorando...</p>
+ <h3 className="text-lg font-semibold mb-2">{t('threatDetection.noLateralMovement', 'Nenhuma movimentação lateral detectada')}</h3>
+ <p className="text-muted-foreground">{t('threatDetection.systemMonitoring', 'O sistema está monitorando...')}</p>
  </div>
  )}
  </div>

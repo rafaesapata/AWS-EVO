@@ -135,7 +135,6 @@ export default function SecurityPosture() {
       // If demo mode, use demo data FROM THE BACKEND (never generate locally)
       // SEGURANÇA: Dados demo vêm do backend, frontend apenas renderiza
       if (isDemo && posture) {
-        console.log('SecurityPosture: Using demo data from backend');
         
         // Usar findings demo que vieram do backend
         const demoFindings = responseData?.demoFindings || [];

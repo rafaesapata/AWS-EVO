@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { cognitoAuth, AuthSession, AuthUser } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import LoadingSkeleton from "./LoadingSkeleton";
-import LicenseBlockedScreen from "./LicenseBlockedScreen";
 import { useLicenseValidation } from "@/hooks/useLicenseValidation";
 import { AwsAccountProvider } from "@/contexts/AwsAccountContext";
 import { ErrorHandler, ErrorFactory } from "@/lib/error-handler";
@@ -121,16 +120,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       return;
     }
 
-    // If license is invalid and user is admin, redirect to license management
-    if (!licenseStatus.isValid && licenseStatus.canAccessLicensePage) {
-      navigate('/license-management', { replace: true });
-      return;
-    }
-
-    // Block access if license is invalid (regardless of whether customer_id exists)
-    // Users without customer_id must go to /license-management page to link their license
+    // If license is invalid, always redirect to license management page
     if (!licenseStatus.isValid) {
-      // This will be handled by showing LicenseBlockedScreen below
+      navigate('/license-management', { replace: true });
       return;
     }
   }, [licenseStatus, location.pathname, navigate, isLoading, licenseLoading]);
@@ -205,15 +197,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  // Block access if license is invalid (regardless of whether organization has customer_id)
-  // This ensures ALL users without valid licenses are blocked
+  // Block access if license is invalid — redirect to license management
   if (shouldBlock) {
-    return (
-      <LicenseBlockedScreen 
-        reason={licenseStatus.reason as "expired" | "no_seats" | "no_license" | "seats_exceeded"}
-        message={licenseStatus.message!}
-      />
-    );
+    navigate('/license-management', { replace: true });
+    return null;
   }
 
   return <AwsAccountProvider>{children}</AwsAccountProvider>;

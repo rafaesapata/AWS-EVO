@@ -58,7 +58,6 @@ export default function TVDashboard() {
       });
 
       const result = await response.json();
-      console.log('TV Token verification result:', result);
 
       // Handle nested response structure: { success, data: { success, dashboard } }
       const data = result.data || result;

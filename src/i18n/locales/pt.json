@@ -1289,7 +1289,12 @@
     "newAlertsGenerated": "novo(s) alerta(s) gerado(s)",
     "noProblemsDetected": "Análise concluída: Nenhum problema crítico detectado nos últimos 7 dias",
     "infraOperatingNormally": "Sua infraestrutura AWS está operando dentro dos parâmetros normais",
-    "analysisError": "Erro ao analisar alertas"
+    "analysisError": "Erro ao analisar alertas",
+    "noRulesConfigured": "Nenhuma regra configurada",
+    "createFirstRuleDesc": "Crie sua primeira regra de alerta para começar a monitorar sua infraestrutura.",
+    "createFirstRule": "Criar Primeira Regra",
+    "noAlertHistory": "Nenhum alerta no histórico",
+    "alertsWillAppearHere": "Os alertas disparados aparecerão aqui."
   },
   "taggingCompliance": {
     "title": "Tagging Compliance",
@@ -1568,6 +1573,7 @@
   },
   "common": {
     "loading": "Carregando...",
+    "loadingSystem": "Carregando sistema...",
     "error": "Erro",
     "success": "Sucesso",
     "cancel": "Cancelar",
@@ -2072,7 +2078,20 @@
   },
   "edgeMonitoring": {
     "title": "Monitoramento de Borda",
-    "description": "CloudFront, WAF e Load Balancers - Serviços de borda AWS"
+    "description": "CloudFront, WAF e Load Balancers - Serviços de borda AWS",
+    "noMetricData": "Nenhum dado de métrica disponível",
+    "noServiceConfigured": "Nenhum serviço configurado",
+    "noServiceFound": "Nenhum serviço encontrado",
+    "noServiceMatchFilters": "Nenhum serviço corresponde aos filtros aplicados.",
+    "clearFilters": "Limpar filtros",
+    "noEdgeServiceConfigured": "Nenhum serviço de borda configurado",
+    "configureEdgeServices": "Configure CloudFront, WAF ou Load Balancers para começar o monitoramento.",
+    "noCloudFront": "Nenhuma distribuição CloudFront",
+    "clickDiscoverCloudFront": "Clique em \"Descobrir Serviços\" para buscar distribuições CloudFront.",
+    "noWebACL": "Nenhum Web ACL configurado",
+    "clickDiscoverWAF": "Clique em \"Descobrir Serviços\" para buscar Web ACLs do WAF.",
+    "noLoadBalancer": "Nenhum Load Balancer encontrado",
+    "clickDiscoverLB": "Clique em \"Descobrir Serviços\" para buscar ALBs e NLBs."
   },
   "licenseManagement": {
     "title": "Gerenciamento de Licença",
@@ -2136,7 +2155,10 @@
     "allAccountsConnected": "Todas as contas conectadas",
     "checkPermissions": "Verifique as permissões",
     "credentials": "Credenciais AWS",
-    "requiredPermissions": "Permissões Necessárias"
+    "requiredPermissions": "Permissões Necessárias",
+    "errorLoading": "Erro ao carregar configurações",
+    "errorLoadingDesc": "Ocorreu um erro ao carregar as configurações AWS. Tente recarregar a página.",
+    "reloadPage": "Recarregar Página"
   },
   "impersonate": {
     "startError": "Erro ao iniciar impersonate",
@@ -4131,5 +4153,36 @@
       "critical": "críticos",
       "view": "Ver"
     }
+  },
+  "threatDetection": {
+    "noGuardDutyFindings": "Nenhum achado do GuardDuty",
+    "runScanToDetect": "Execute um scan para detectar ameaças.",
+    "noIamBehavior": "Nenhum dado de comportamento IAM",
+    "runAnalysisToDetect": "Execute uma análise para detectar anomalias.",
+    "noLateralMovement": "Nenhuma movimentação lateral detectada",
+    "systemMonitoring": "O sistema está monitorando..."
+  },
+  "userManagement": {
+    "noUsersFound": "Nenhum usuário encontrado",
+    "noUsersMatchFilters": "Nenhum usuário corresponde aos filtros aplicados.",
+    "addFirstUser": "Comece adicionando o primeiro usuário à organização."
+  },
+  "errorMonitoring": {
+    "noErrorsFound": "Nenhum erro encontrado"
+  },
+  "devTools": {
+    "noLogsFound": "Nenhum log encontrado",
+    "noLogsMatchFilters": "Nenhum log corresponde aos filtros aplicados.",
+    "noMetricsAvailable": "Nenhuma métrica disponível",
+    "metricsWillAppearHere": "As métricas de performance aparecerão aqui."
+  },
+  "endpointMonitoring": {
+    "noMetricData": "Nenhum dado de métrica disponível",
+    "noEndpointsConfigured": "Nenhum endpoint configurado",
+    "configureToStart": "Configure endpoints para começar o monitoramento.",
+    "configureToViewMetrics": "Configure endpoints para visualizar métricas.",
+    "noHistoryAvailable": "Nenhum histórico disponível",
+    "noAlerts": "Nenhum alerta",
+    "allEndpointsNormal": "Todos os endpoints estão funcionando normalmente."
   }
 }

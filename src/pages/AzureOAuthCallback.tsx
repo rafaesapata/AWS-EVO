@@ -165,7 +165,6 @@ export default function AzureOAuthCallback() {
   useEffect(() => {
     // Prevent duplicate calls (React StrictMode, re-renders, etc.)
     if (callbackProcessedRef.current) {
-      console.log('🔐 Azure OAuth Callback: Already processed, skipping');
       return;
     }
 
@@ -199,16 +198,6 @@ export default function AzureOAuthCallback() {
     const storedState = sessionStorage.getItem('azure_oauth_state');
     const codeVerifier = sessionStorage.getItem('azure_oauth_code_verifier');
     const timestamp = sessionStorage.getItem('azure_oauth_timestamp');
-
-    // Debug logging
-    console.log('🔐 Azure OAuth Callback Debug:', {
-      urlState: urlState?.substring(0, 10) + '...',
-      storedState: storedState?.substring(0, 10) + '...' || 'null',
-      hasCodeVerifier: !!codeVerifier,
-      hasTimestamp: !!timestamp,
-      sessionStorageKeys: Object.keys(sessionStorage),
-      alreadyProcessed: callbackProcessedRef.current,
-    });
 
     // Validate state parameter (CSRF protection)
     if (!storedState || storedState !== urlState) {
