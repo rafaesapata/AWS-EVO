@@ -618,6 +618,88 @@ async function validateWafPermissions(
 }
 
 /**
+ * Auto-remediate missing WAF permissions on the customer's IAM role.
+ * Adds an inline policy with wafv2:PutLoggingConfiguration and wafv2:DeleteLoggingConfiguration.
+ * 
+ * This works for customers whose CloudFormation stack includes the SelfUpdate policy (v2.5.0+),
+ * which grants iam:PutRolePolicy on the role itself.
+ * For older stacks, this will fail gracefully and the user will see the CloudFormation update message.
+ * 
+ * @returns true if remediation succeeded, false if it failed
+ */
+async function tryAutoRemediateWafPermissions(
+  credentials: any,
+  customerAwsAccountId: string,
+  roleArn: string,
+  region: string
+): Promise<boolean> {
+  try {
+    const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+    
+    // Extract role name from ARN: arn:aws:iam::ACCOUNT:role/ROLE_NAME
+    const roleName = roleArn.split('/').pop();
+    if (!roleName) {
+      logger.warn('Could not extract role name from ARN', { roleArn });
+      return false;
+    }
+    
+    const policyDocument = JSON.stringify({
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Sid: 'WAFLoggingConfiguration',
+          Effect: 'Allow',
+          Action: [
+            'wafv2:PutLoggingConfiguration',
+            'wafv2:DeleteLoggingConfiguration',
+            'wafv2:GetLoggingConfiguration',
+            'wafv2:ListLoggingConfigurations',
+          ],
+          Resource: '*',
+        },
+        {
+          Sid: 'CloudWatchLogsWAF',
+          Effect: 'Allow',
+          Action: [
+            'logs:CreateLogGroup',
+            'logs:PutSubscriptionFilter',
+            'logs:DeleteSubscriptionFilter',
+            'logs:DescribeSubscriptionFilters',
+            'logs:PutRetentionPolicy',
+            'logs:PutResourcePolicy',
+            'logs:DescribeResourcePolicies',
+            'logs:DeleteResourcePolicy',
+          ],
+          Resource: '*',
+        },
+      ],
+    });
+    
+    await iamClient.send(new PutRolePolicyCommand({
+      RoleName: roleName,
+      PolicyName: 'EVO-WAF-Monitoring-AutoFix',
+      PolicyDocument: policyDocument,
+    }));
+    
+    logger.info('Auto-remediation: added WAF monitoring permissions to customer role', {
+      roleName, customerAwsAccountId,
+    });
+    
+    // Wait for IAM propagation
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    return true;
+  } catch (err: any) {
+    logger.warn('Auto-remediation failed (customer stack may be older than v2.5.0)', {
+      error: err.message,
+      errorName: err.name,
+      roleArn,
+    });
+    return false;
+  }
+}
+
+/**
  * Enable WAF monitoring for a Web ACL
  */
 async function enableWafMonitoring(
@@ -797,7 +879,6 @@ async function enableWafMonitoring(
         LoggingConfiguration: {
           ResourceArn: webAclArn,
           LogDestinationConfigs: [logDestination],
-          // Optional: Add log filter for specific fields
           LoggingFilter: filterMode === 'block_only' ? {
             DefaultBehavior: 'DROP',
             Filters: [
@@ -815,14 +896,56 @@ async function enableWafMonitoring(
       }));
       logger.info('Enabled WAF logging', { webAclArn, logDestination });
     } catch (err: any) {
-      logger.error('Failed to enable WAF logging', err, { 
-        webAclArn, 
-        logDestination,
-        errorName: err.name,
-        errorMessage: err.message 
-      });
-      // Re-throw with original error name preserved for handler-level error mapping
-      throw err;
+      // AUTO-REMEDIATION: If PutLoggingConfiguration fails with AccessDenied,
+      // try to add the missing wafv2 permissions to the customer's IAM role
+      // This works for customers with template v2.5.0+ (which includes iam:PutRolePolicy on self)
+      if (err.name === 'AccessDeniedException' && account.role_arn) {
+        logger.warn('PutLoggingConfiguration AccessDenied — attempting auto-remediation', {
+          webAclArn, roleArn: account.role_arn
+        });
+        
+        const remediated = await tryAutoRemediateWafPermissions(
+          credentials, customerAwsAccountId, account.role_arn, region
+        );
+        
+        if (remediated) {
+          // Retry PutLoggingConfiguration after adding the permission
+          logger.info('Auto-remediation succeeded, retrying PutLoggingConfiguration');
+          try {
+            await wafClient.send(new PutLoggingConfigurationCommand({
+              LoggingConfiguration: {
+                ResourceArn: webAclArn,
+                LogDestinationConfigs: [logDestination],
+                LoggingFilter: filterMode === 'block_only' ? {
+                  DefaultBehavior: 'DROP',
+                  Filters: [{
+                    Behavior: 'KEEP',
+                    Requirement: 'MEETS_ANY',
+                    Conditions: [
+                      { ActionCondition: { Action: 'BLOCK' } },
+                      { ActionCondition: { Action: 'COUNT' } },
+                    ],
+                  }],
+                } : undefined,
+              },
+            }));
+            logger.info('Enabled WAF logging after auto-remediation', { webAclArn, logDestination });
+          } catch (retryErr: any) {
+            logger.error('PutLoggingConfiguration failed even after auto-remediation', retryErr, {
+              webAclArn, logDestination
+            });
+            throw retryErr;
+          }
+        } else {
+          // Auto-remediation failed — throw original error
+          throw err;
+        }
+      } else {
+        logger.error('Failed to enable WAF logging', err, { 
+          webAclArn, logDestination, errorName: err.name, errorMessage: err.message 
+        });
+        throw err;
+      }
     }
   }
   

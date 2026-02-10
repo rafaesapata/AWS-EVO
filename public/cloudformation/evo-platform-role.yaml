@@ -95,7 +95,7 @@ Resources:
         - Key: EVOPlatformAccountId
           Value: !Ref EVOPlatformAccountId
         - Key: TemplateVersion
-          Value: '2.4.0-waf-resource-policy-fix'
+          Value: '2.5.0-waf-auto-fix'
 
   # ----------------------------------------------------------------------------
   # Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
@@ -538,6 +538,28 @@ Resources:
               - 'pricing:DescribeServices'
               - 'pricing:GetAttributeValues'
             Resource: '*'
+
+  # ----------------------------------------------------------------------------
+  # Policy 4: Self-Update Policy (allows EVO to add missing permissions automatically)
+  # This enables automatic remediation when customers have outdated CloudFormation stacks
+  # Scoped to ONLY the EVO Platform Role itself - cannot modify any other IAM resources
+  # ----------------------------------------------------------------------------
+  EVOPlatformSelfUpdatePolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: 'EVO-Platform-SelfUpdate'
+      Roles:
+        - !Ref EVOPlatformRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowSelfPolicyUpdate
+            Effect: Allow
+            Action:
+              - 'iam:PutRolePolicy'
+              - 'iam:GetRolePolicy'
+              - 'iam:ListRolePolicies'
+            Resource: !GetAtt EVOPlatformRole.Arn
 
   # ----------------------------------------------------------------------------
   # IAM Role for CloudWatch Logs Cross-Account Subscription (WAF Monitoring)
