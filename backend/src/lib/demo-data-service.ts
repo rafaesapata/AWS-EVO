@@ -3922,6 +3922,9 @@ export function generateDemoKnowledgeBaseArticles() {
       content: '# Configurando MFA para IAM Users\n\nA autenticação multifator (MFA) adiciona uma camada extra de segurança. Este guia mostra como habilitar MFA para todos os usuários IAM.\n\n## Pré-requisitos\n- Acesso ao console AWS com permissões IAM\n- Aplicativo autenticador (Google Authenticator, Authy)\n\n## Passos\n1. Acesse o console IAM\n2. Selecione o usuário\n3. Aba "Security credentials"\n4. Clique em "Assign MFA device"\n5. Escolha "Virtual MFA device"\n6. Escaneie o QR code com o app\n7. Insira dois códigos consecutivos\n\n## Política de Enforcement\nRecomendamos criar uma política que force MFA para todas as ações sensíveis.',
       category: 'security',
       tags: ['iam', 'mfa', 'security', 'best-practices'],
+      status: 'published',
+      is_public: false,
+      is_restricted: false,
       author_id: 'demo-user-002',
       approval_status: 'approved',
       approved_by: 'demo-user-001',
@@ -3938,6 +3941,9 @@ export function generateDemoKnowledgeBaseArticles() {
       content: '# Otimização de Custos EC2\n\nEste guia apresenta estratégias para reduzir custos com instâncias EC2.\n\n## Rightsizing\nAnalise métricas de CPU e memória para identificar instâncias superdimensionadas.\n\n## Reserved Instances\nPara workloads estáveis, RIs podem economizar até 72%.\n\n## Savings Plans\nMais flexíveis que RIs, aplicam-se automaticamente.\n\n## Spot Instances\nPara workloads tolerantes a interrupção, economia de até 90%.\n\n## Auto Scaling\nConfigure políticas de scaling para ajustar capacidade automaticamente.',
       category: 'cost',
       tags: ['ec2', 'cost-optimization', 'rightsizing', 'reserved-instances'],
+      status: 'published',
+      is_public: false,
+      is_restricted: false,
       author_id: 'demo-user-001',
       approval_status: 'approved',
       approved_by: 'demo-user-002',
@@ -3954,6 +3960,9 @@ export function generateDemoKnowledgeBaseArticles() {
       content: '# Proteção WAF contra SQLi\n\nO AWS WAF pode bloquear tentativas de SQL Injection automaticamente.\n\n## Regras Recomendadas\n1. AWS Managed Rules - SQL Database\n2. Rate limiting por IP\n3. Geo-blocking para países suspeitos\n\n## Configuração\n```json\n{\n  "Name": "SQLi-Protection",\n  "Priority": 1,\n  "Statement": {\n    "SqliMatchStatement": {\n      "FieldToMatch": { "Body": {} }\n    }\n  }\n}\n```\n\n## Monitoramento\nConfigure alertas para quando regras forem acionadas.',
       category: 'security',
       tags: ['waf', 'sql-injection', 'security', 'firewall'],
+      status: 'published',
+      is_public: false,
+      is_restricted: false,
       author_id: 'demo-user-003',
       approval_status: 'approved',
       approved_by: 'demo-user-001',
@@ -3970,6 +3979,9 @@ export function generateDemoKnowledgeBaseArticles() {
       content: '# Resposta a Incidentes\n\n## Classificação\n- **P1 (Crítico)**: Dados expostos, acesso não autorizado\n- **P2 (Alto)**: Vulnerabilidade explorada, credenciais comprometidas\n- **P3 (Médio)**: Configuração incorreta, política violada\n\n## Fluxo de Resposta\n1. **Detecção**: Alertas automáticos ou reporte manual\n2. **Contenção**: Isolar recurso afetado\n3. **Investigação**: Analisar CloudTrail e logs\n4. **Remediação**: Corrigir causa raiz\n5. **Documentação**: Registrar lições aprendidas\n\n## Contatos\n- Security Team: security@demo.com\n- On-call: via PagerDuty',
       category: 'operations',
       tags: ['incident-response', 'security', 'runbook', 'procedures'],
+      status: 'published',
+      is_public: false,
+      is_restricted: false,
       author_id: 'demo-user-001',
       approval_status: 'approved',
       approved_by: 'demo-user-003',
@@ -3986,6 +3998,9 @@ export function generateDemoKnowledgeBaseArticles() {
       content: '# Checklist LGPD na AWS\n\n## Criptografia\n- [ ] EBS volumes criptografados\n- [ ] S3 buckets com SSE habilitado\n- [ ] RDS com encryption at rest\n- [ ] Dados em trânsito via TLS 1.2+\n\n## Controle de Acesso\n- [ ] Princípio do menor privilégio\n- [ ] MFA habilitado para todos\n- [ ] Revisão trimestral de permissões\n\n## Auditoria\n- [ ] CloudTrail habilitado em todas as regiões\n- [ ] VPC Flow Logs ativos\n- [ ] Retenção de logs por 1 ano mínimo\n\n## Dados Pessoais\n- [ ] Inventário de dados pessoais\n- [ ] Política de retenção definida\n- [ ] Processo de exclusão implementado',
       category: 'compliance',
       tags: ['lgpd', 'compliance', 'checklist', 'data-protection'],
+      status: 'published',
+      is_public: false,
+      is_restricted: false,
       author_id: 'demo-user-002',
       approval_status: 'approved',
       approved_by: 'demo-user-001',
@@ -4130,6 +4145,46 @@ function crypto_random_hex(length: number): string {
   return result;
 }
 
+/**
+ * Gera dados de audit logs para demonstração
+ */
+export function generateDemoAuditLogs() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+
+  const entries = [
+    { action: 'LOGIN', resource_type: 'session', resource_id: 'session-001', user_id: 'demo-user-001', details: { method: 'password', mfa: true }, ip: '203.0.113.50', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+    { action: 'SECURITY_SCAN_START', resource_type: 'security_scan', resource_id: 'scan-demo-001', user_id: 'demo-user-001', details: { scan_type: 'full', aws_account_id: '123456789012' }, ip: '203.0.113.50', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+    { action: 'SECURITY_SCAN_COMPLETE', resource_type: 'security_scan', resource_id: 'scan-demo-001', user_id: 'demo-user-001', details: { findings_count: 12, duration_ms: 45000, critical: 2, high: 4 }, ip: '203.0.113.50', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+    { action: 'CREDENTIAL_CREATE', resource_type: 'aws_credential', resource_id: 'cred-demo-001', user_id: 'demo-user-002', details: { provider: 'aws', account_id: '123456789012' }, ip: '198.51.100.25', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+    { action: 'TICKET_CREATE', resource_type: 'remediation_ticket', resource_id: 'ticket-demo-001', user_id: 'demo-user-001', details: { title: 'S3 Bucket com acesso público', severity: 'critical' }, ip: '203.0.113.50', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+    { action: 'SETTINGS_UPDATE', resource_type: 'organization', resource_id: DEMO_ORG_ID, user_id: 'demo-user-002', details: { field: 'notification_preferences', old_value: 'email', new_value: 'email+slack' }, ip: '198.51.100.25', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+    { action: 'COMPLIANCE_SCAN_COMPLETE', resource_type: 'compliance_scan', resource_id: 'comp-demo-001', user_id: 'demo-user-001', details: { framework: 'CIS', score: 78, checks_passed: 42, checks_failed: 12 }, ip: '203.0.113.50', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+    { action: 'REPORT_EXPORT', resource_type: 'report', resource_id: 'report-demo-001', user_id: 'demo-user-003', details: { format: 'pdf', report_type: 'executive_summary' }, ip: '192.0.2.100', ua: 'Mozilla/5.0 (X11; Linux x86_64)' },
+    { action: 'USER_CREATE', resource_type: 'user', resource_id: 'demo-user-004', user_id: 'demo-user-002', details: { email: 'new-user@demo.com', role: 'viewer' }, ip: '198.51.100.25', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+    { action: 'WAF_SETUP', resource_type: 'waf', resource_id: 'waf-demo-001', user_id: 'demo-user-001', details: { web_acl: 'demo-web-acl', rules_count: 5 }, ip: '203.0.113.50', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+    { action: 'AI_CHAT', resource_type: 'ai_session', resource_id: 'chat-demo-001', user_id: 'demo-user-003', details: { topic: 'cost_optimization', tokens_used: 1250 }, ip: '192.0.2.100', ua: 'Mozilla/5.0 (X11; Linux x86_64)' },
+    { action: 'COST_ANALYSIS', resource_type: 'cost_report', resource_id: 'cost-demo-001', user_id: 'demo-user-001', details: { period: '2026-01', total_cost: 12450.00, savings_identified: 3200.00 }, ip: '203.0.113.50', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+    { action: 'TICKET_UPDATE', resource_type: 'remediation_ticket', resource_id: 'ticket-demo-001', user_id: 'demo-user-001', details: { field: 'status', old_value: 'open', new_value: 'in_progress' }, ip: '203.0.113.50', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+    { action: 'MFA_ENABLED', resource_type: 'mfa_factor', resource_id: 'mfa-demo-001', user_id: 'demo-user-003', details: { factor_type: 'totp' }, ip: '192.0.2.100', ua: 'Mozilla/5.0 (X11; Linux x86_64)' },
+    { action: 'LOGIN', resource_type: 'session', resource_id: 'session-002', user_id: 'demo-user-003', details: { method: 'password', mfa: true }, ip: '192.0.2.100', ua: 'Mozilla/5.0 (X11; Linux x86_64)' },
+  ];
+
+  return entries.map((e, i) => ({
+    id: `demo-audit-${String(i + 1).padStart(3, '0')}`,
+    organization_id: DEMO_ORG_ID,
+    user_id: e.user_id,
+    action: e.action,
+    resource_type: e.resource_type,
+    resource_id: e.resource_id,
+    details: e.details,
+    ip_address: e.ip,
+    user_agent: e.ua,
+    created_at: new Date(now.getTime() - i * 35 * 60 * 1000).toISOString(),
+    _isDemo: true,
+  }));
+}
+
 export default {
   isOrganizationInDemoMode,
   generateDemoSecurityFindings,
@@ -4164,4 +4219,5 @@ export default {
   generateDemoTvTokens,
   generateDemoKbAnalytics,
   generateDemoCloudTrailEventsTable,
+  generateDemoAuditLogs,
 };

@@ -11,7 +11,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
-import { isOrganizationInDemoMode, generateDemoMonitoredResources, generateDemoResourceMetrics, generateDemoEdgeServicesTable, generateDemoEdgeMetricsTable, generateDemoAlertRules, generateDemoRemediationTickets, generateDemoKnowledgeBaseArticles, generateDemoCloudTrailEventsTable } from '../../lib/demo-data-service.js';
+import { isOrganizationInDemoMode, generateDemoMonitoredResources, generateDemoResourceMetrics, generateDemoEdgeServicesTable, generateDemoEdgeMetricsTable, generateDemoAlertRules, generateDemoRemediationTickets, generateDemoKnowledgeBaseArticles, generateDemoCloudTrailEventsTable, generateDemoAuditLogs } from '../../lib/demo-data-service.js';
 
 // Mapeamento de nomes de tabela do frontend para modelos Prisma
 // Baseado nas tabelas reais do schema.prisma
@@ -289,7 +289,7 @@ export async function handler(
     // ============================================
     // DEMO MODE CHECK - Return demo data for monitoring tables
     // ============================================
-    const DEMO_SUPPORTED_TABLES = new Set(['monitored_resources', 'resource_metrics', 'edge_services', 'edge_metrics', 'alert_rules', 'remediation_tickets', 'knowledge_base_articles', 'cloudtrail_events']);
+    const DEMO_SUPPORTED_TABLES = new Set(['monitored_resources', 'resource_metrics', 'edge_services', 'edge_metrics', 'alert_rules', 'remediation_tickets', 'knowledge_base_articles', 'cloudtrail_events', 'audit_logs']);
     if (DEMO_SUPPORTED_TABLES.has(body.table)) {
       const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
       if (isDemo === true) {
@@ -332,6 +332,11 @@ export async function handler(
         
         if (body.table === 'cloudtrail_events') {
           const demoData = generateDemoCloudTrailEventsTable();
+          return success(demoData, 200, origin);
+        }
+        
+        if (body.table === 'audit_logs') {
+          const demoData = generateDemoAuditLogs();
           return success(demoData, 200, origin);
         }
       }
