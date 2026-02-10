@@ -35,7 +35,7 @@ import { DynamoDBClient, ListTablesCommand, DescribeTableCommand } from '@aws-sd
 
 // Zod schema for cost optimization request
 const costOptimizationSchema = z.object({
-  accountId: z.string().uuid().optional(),
+  accountId: z.string().uuid().nullish(),
 });
 
 interface Optimization {

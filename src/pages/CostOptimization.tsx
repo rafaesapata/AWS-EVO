@@ -719,7 +719,7 @@ export default function CostOptimization() {
     mutationFn: async () => {
       const response = await apiClient.invoke('cost-optimization', {
         body: {
-          accountId: selectedAccountId
+          ...(selectedAccountId ? { accountId: selectedAccountId } : {})
         }
       });
 
