@@ -102,7 +102,7 @@ export default function CloudTrailAudit() {
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
-  const { shouldEnableAccountQuery } = useDemoAwareQuery();
+  const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
   const [selectedRiskLevel, setSelectedRiskLevel] = useState('all');
@@ -133,6 +133,53 @@ export default function CloudTrailAudit() {
     enabled: shouldEnableAccountQuery(),
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
+      // DEMO MODE: Return local demo data
+      if (isInDemoMode) {
+        const now = new Date();
+        const eventNames = ['DeleteBucket', 'StopInstances', 'CreateUser', 'PutBucketPolicy', 'AuthorizeSecurityGroupIngress', 'ConsoleLogin', 'AssumeRole', 'RunInstances', 'CreateAccessKey', 'DetachRolePolicy', 'PutRolePolicy', 'DeleteTrail'];
+        const sources = ['s3.amazonaws.com', 'ec2.amazonaws.com', 'iam.amazonaws.com', 'sts.amazonaws.com', 'cloudtrail.amazonaws.com', 'signin.amazonaws.com'];
+        const users = ['admin@demo.com', 'dev-user', 'ci-pipeline', 'root', 'security-auditor', 'terraform-svc'];
+        const userTypes = ['IAMUser', 'AssumedRole', 'Root', 'FederatedUser'];
+        const ips = ['203.0.113.42', '198.51.100.15', '192.0.2.88', '10.0.1.50', '172.16.0.100'];
+        const regions = ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1'];
+        const riskLevels: Array<'critical' | 'medium' | 'high' | 'low'> = ['critical', 'high', 'medium', 'low'];
+        const riskReasons: Record<string, string[]> = {
+          critical: ['Root account used', 'Security group opened to 0.0.0.0/0', 'CloudTrail disabled'],
+          high: ['Access key created for root', 'IAM policy detached', 'Bucket policy changed to public'],
+          medium: ['Console login without MFA', 'New IAM user created', 'Cross-account AssumeRole'],
+          low: ['Normal API call', 'Read-only operation', 'Routine instance management'],
+        };
+        const demoEvents: CloudTrailEvent[] = [];
+        for (let i = 0; i < 80; i++) {
+          const risk = riskLevels[i < 3 ? 0 : i < 10 ? 1 : i < 30 ? 2 : 3];
+          const eventName = eventNames[Math.floor(Math.random() * eventNames.length)];
+          const isSecurity = risk === 'critical' || risk === 'high' || Math.random() > 0.6;
+          demoEvents.push({
+            id: `demo-ct-${i}`,
+            event_time: new Date(now.getTime() - i * 18 * 60000).toISOString(),
+            event_name: eventName,
+            event_source: sources[Math.floor(Math.random() * sources.length)],
+            user_name: users[Math.floor(Math.random() * users.length)],
+            user_type: userTypes[Math.floor(Math.random() * userTypes.length)],
+            user_arn: `arn:aws:iam::123456789012:user/${users[Math.floor(Math.random() * users.length)]}`,
+            user_identity: {},
+            source_ip_address: ips[Math.floor(Math.random() * ips.length)],
+            user_agent: 'aws-cli/2.x Python/3.x',
+            aws_region: regions[Math.floor(Math.random() * regions.length)],
+            error_code: risk === 'critical' && Math.random() > 0.5 ? 'AccessDenied' : null,
+            error_message: null,
+            resources: [],
+            risk_level: risk,
+            risk_reasons: riskReasons[risk],
+            security_explanation: isSecurity ? `This ${eventName} event represents a ${risk} risk action.` : null,
+            remediation_suggestion: isSecurity ? `Review and validate this ${eventName} action. Ensure it was authorized.` : null,
+            event_category: isSecurity ? 'Management' : 'Data',
+            is_security_event: isSecurity,
+          });
+        }
+        return demoEvents;
+      }
+
       const getHoursBack = (range: string) => {
         switch (range) {
           case '24h': return 24;

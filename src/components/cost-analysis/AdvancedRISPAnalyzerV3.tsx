@@ -129,6 +129,63 @@ export function AdvancedRISPAnalyzerV3({ accountId, region, regions }: AdvancedR
     const loadSavedData = async () => {
       if (!accountId) return;
       
+      // DEMO MODE: Generate local demo data
+      if (accountId === 'demo') {
+        const demoAnalysis: AnalysisData = {
+          success: true,
+          executiveSummary: {
+            status: 'optimization_needed',
+            totalCommitments: 47500,
+            coverageScore: 62,
+            potentialAnnualSavings: 28400,
+            recommendationsSummary: { total: 8, critical: 2, high: 3, quickWins: 4 },
+            keyInsights: [
+              'Cobertura de RI/SP está em 62% - recomendado aumentar para 80%+',
+              '3 instâncias EC2 com uso estável são candidatas ideais para Reserved Instances',
+              'Savings Plans Compute podem economizar até 35% em workloads variáveis',
+              'RIs expiram nos próximos 60 dias - planejar renovação',
+              '2 RIs subutilizadas podem ser convertidas para tipos mais adequados',
+            ],
+          },
+          reservedInstances: {
+            ec2: [
+              { id: 'ri-demo-001', type: 'm5.xlarge', count: 3, state: 'active', utilization: 87, monthlyRate: 450, expiresIn: '45 days' },
+              { id: 'ri-demo-002', type: 'r5.2xlarge', count: 2, state: 'active', utilization: 92, monthlyRate: 820, expiresIn: '180 days' },
+              { id: 'ri-demo-003', type: 't3.large', count: 5, state: 'active', utilization: 45, monthlyRate: 180, expiresIn: '320 days' },
+            ],
+            rds: [
+              { id: 'ri-rds-demo-001', type: 'db.r5.xlarge', count: 1, state: 'active', utilization: 95, monthlyRate: 650, expiresIn: '90 days' },
+            ],
+            total: 4,
+          },
+          savingsPlans: {
+            plans: [
+              { id: 'sp-demo-001', type: 'Compute', commitment: 1200, utilization: 78, state: 'active', endDate: '2027-03-15' },
+              { id: 'sp-demo-002', type: 'EC2 Instance', commitment: 800, utilization: 91, state: 'active', endDate: '2026-12-01' },
+            ],
+            total: 2,
+          },
+          coverage: { reservedInstances: 38, savingsPlans: 24, overall: 62 },
+          recommendations: [
+            { id: 'rec-1', priority: 'critical', type: 'purchase_ri', title: 'Comprar RI para m5.xlarge', description: 'Instâncias m5.xlarge com uso estável >85% nos últimos 30 dias. RI 1 ano All Upfront economiza 40%.', estimatedMonthlySavings: 540, estimatedAnnualSavings: 6480, confidence: 95 },
+            { id: 'rec-2', priority: 'critical', type: 'renew_ri', title: 'Renovar RI r5.2xlarge expirando', description: 'RI expira em 45 dias com utilização de 92%. Renovar para manter economia.', estimatedMonthlySavings: 380, estimatedAnnualSavings: 4560, confidence: 98 },
+            { id: 'rec-3', priority: 'high', type: 'convert_ri', title: 'Converter RI t3.large subutilizada', description: 'RI t3.large com apenas 45% de utilização. Converter para t3.medium ou Savings Plan.', estimatedMonthlySavings: 90, estimatedAnnualSavings: 1080, confidence: 85 },
+            { id: 'rec-4', priority: 'high', type: 'purchase_sp', title: 'Savings Plan Compute para workloads variáveis', description: 'Workloads Lambda e Fargate com gasto estável de $2.1k/mês. Savings Plan Compute economiza 30%.', estimatedMonthlySavings: 630, estimatedAnnualSavings: 7560, confidence: 88 },
+            { id: 'rec-5', priority: 'high', type: 'purchase_ri', title: 'RI para RDS db.r5.xlarge', description: 'Instância RDS com uso 24/7 e utilização de 95%. RI 1 ano economiza 35%.', estimatedMonthlySavings: 228, estimatedAnnualSavings: 2736, confidence: 96 },
+            { id: 'rec-6', priority: 'medium', type: 'right_size', title: 'Right-size antes de comprar RI', description: '2 instâncias c5.2xlarge com CPU média de 15%. Reduzir para c5.xlarge antes de reservar.', estimatedMonthlySavings: 165, estimatedAnnualSavings: 1980, confidence: 82 },
+            { id: 'rec-7', priority: 'medium', type: 'increase_coverage', title: 'Aumentar cobertura SP para 80%', description: 'Cobertura atual de 62%. Aumentar commitment de SP em $400/mês para atingir 80%.', estimatedMonthlySavings: 200, estimatedAnnualSavings: 2400, confidence: 80 },
+            { id: 'rec-8', priority: 'low', type: 'monitor', title: 'Monitorar utilização de RI t3.large', description: 'Utilização caiu de 70% para 45% nos últimos 30 dias. Monitorar antes de tomar ação.', estimatedMonthlySavings: 50, estimatedAnnualSavings: 600, confidence: 70 },
+          ],
+          potentialSavings: { monthly: 2283, annual: 27396, maxPercentage: 35 },
+          currentResources: { ec2Instances: 24, rdsInstances: 5 },
+          analysisMetadata: { regions: ['us-east-1', 'us-west-2'], regionsCount: 2, accountId: 'demo', timestamp: new Date().toISOString(), dataSource: 'demo' },
+        };
+        setAnalysis(demoAnalysis);
+        simulatePhasedReveal();
+        setCurrentPhase(LoadingPhase.IDLE);
+        return;
+      }
+      
       setCurrentPhase(LoadingPhase.LOADING_SAVED);
       try {
         const response = await awsService.getRISPData(accountId);
