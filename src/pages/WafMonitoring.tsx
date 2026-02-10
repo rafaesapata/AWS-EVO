@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Layout } from "@/components/Layout";
@@ -38,21 +37,21 @@ function generateDemoWafData() {
     totalRequests: 284750,
     blockedRequests: 12847,
     allowedRequests: 271903,
-    challengeRequests: 3210,
-    blockRate: 4.51,
+    countedRequests: 3210,
+    uniqueIps: 156,
+    uniqueCountries: 28,
     criticalThreats: 23,
     highThreats: 87,
     mediumThreats: 342,
     lowThreats: 1205,
     activeCampaigns: 3,
-    uniqueAttackerIPs: 156,
     previousPeriod: {
       totalRequests: 261200,
       blockedRequests: 10230,
-      allowedRequests: 250970,
-      blockRate: 3.92,
+      uniqueIps: 134,
       criticalThreats: 18,
       highThreats: 72,
+      activeCampaigns: 2,
     },
     _isDemo: true,
   };
@@ -68,22 +67,22 @@ function generateDemoWafData() {
   ];
 
   const topAttackers = [
-    { ip: '185.220.101.34', country: 'RU', countryName: 'Russia', requests: 2847, blocked: 2847, lastSeen: new Date(now.getTime() - 5 * 60000).toISOString(), threatLevel: 'critical', attackTypes: ['SQL Injection', 'XSS'] },
-    { ip: '45.148.10.92', country: 'CN', countryName: 'China', requests: 1923, blocked: 1923, lastSeen: new Date(now.getTime() - 12 * 60000).toISOString(), threatLevel: 'critical', attackTypes: ['Path Traversal', 'Scanner'] },
-    { ip: '194.26.192.77', country: 'NL', countryName: 'Netherlands', requests: 1456, blocked: 1340, lastSeen: new Date(now.getTime() - 25 * 60000).toISOString(), threatLevel: 'high', attackTypes: ['Bot Traffic'] },
-    { ip: '103.152.220.15', country: 'ID', countryName: 'Indonesia', requests: 987, blocked: 987, lastSeen: new Date(now.getTime() - 45 * 60000).toISOString(), threatLevel: 'high', attackTypes: ['Rate Limit'] },
-    { ip: '91.242.217.124', country: 'UA', countryName: 'Ukraine', requests: 756, blocked: 698, lastSeen: new Date(now.getTime() - 90 * 60000).toISOString(), threatLevel: 'medium', attackTypes: ['XSS'] },
+    { sourceIp: '185.220.101.34', country: 'RU', blockedRequests: 2847 },
+    { sourceIp: '45.148.10.92', country: 'CN', blockedRequests: 1923 },
+    { sourceIp: '194.26.192.77', country: 'NL', blockedRequests: 1340 },
+    { sourceIp: '103.152.220.15', country: 'ID', blockedRequests: 987 },
+    { sourceIp: '91.242.217.124', country: 'UA', blockedRequests: 698 },
   ];
 
   const geoDistribution = [
-    { country: 'US', countryName: 'United States', requests: 142300, blocked: 1250, lat: 37.09, lng: -95.71 },
-    { country: 'BR', countryName: 'Brazil', requests: 52400, blocked: 890, lat: -14.24, lng: -51.93 },
-    { country: 'RU', countryName: 'Russia', requests: 18700, blocked: 4520, lat: 61.52, lng: 105.32 },
-    { country: 'CN', countryName: 'China', requests: 15200, blocked: 3210, lat: 35.86, lng: 104.20 },
-    { country: 'DE', countryName: 'Germany', requests: 12800, blocked: 340, lat: 51.17, lng: 10.45 },
-    { country: 'IN', countryName: 'India', requests: 9800, blocked: 780, lat: 20.59, lng: 78.96 },
-    { country: 'NL', countryName: 'Netherlands', requests: 8400, blocked: 1560, lat: 52.13, lng: 5.29 },
-    { country: 'JP', countryName: 'Japan', requests: 7200, blocked: 120, lat: 36.20, lng: 138.25 },
+    { country: 'US', blockedRequests: 1250 },
+    { country: 'BR', blockedRequests: 890 },
+    { country: 'RU', blockedRequests: 4520 },
+    { country: 'CN', blockedRequests: 3210 },
+    { country: 'DE', blockedRequests: 340 },
+    { country: 'IN', blockedRequests: 780 },
+    { country: 'NL', blockedRequests: 1560 },
+    { country: 'JP', blockedRequests: 120 },
   ];
 
   const severities = ['critical', 'high', 'medium', 'low'];
@@ -93,6 +92,9 @@ function generateDemoWafData() {
   const methods = ['POST', 'GET', 'PUT', 'DELETE'];
   const rules = ['SQLi-Detection', 'XSS-Prevention', 'Rate-Limit-Rule', 'Bot-Control', 'Geo-Block', 'Path-Traversal-Block', 'Scanner-Detection'];
 
+  const attackTypeNames = ['SQL Injection', 'XSS', 'Path Traversal', 'Bot Traffic', 'Rate Limit', 'Scanner Detection', 'Other'];
+  const demoIps = ['185.220.101.34', '45.148.10.92', '194.26.192.77', '103.152.220.15', '91.242.217.124'];
+
   const events: any[] = [];
   for (let i = 0; i < 50; i++) {
     const isBlocked = Math.random() > 0.4;
@@ -100,30 +102,28 @@ function generateDemoWafData() {
       id: `demo-waf-event-${i}`,
       timestamp: new Date(now.getTime() - i * 15 * 60000).toISOString(),
       action: isBlocked ? 'BLOCK' : actions[Math.floor(Math.random() * actions.length)],
-      sourceIp: topAttackers[Math.floor(Math.random() * topAttackers.length)].ip,
+      source_ip: demoIps[Math.floor(Math.random() * demoIps.length)],
       country: countries[Math.floor(Math.random() * countries.length)],
       uri: uris[Math.floor(Math.random() * uris.length)],
-      method: methods[Math.floor(Math.random() * methods.length)],
+      http_method: methods[Math.floor(Math.random() * methods.length)],
       severity: severities[Math.floor(Math.random() * severities.length)],
-      rule: rules[Math.floor(Math.random() * rules.length)],
-      userAgent: 'Mozilla/5.0 (compatible; DemoBot/1.0)',
-      threatType: attackTypes[Math.floor(Math.random() * attackTypes.length)].type,
+      rule_matched: rules[Math.floor(Math.random() * rules.length)],
+      user_agent: 'Mozilla/5.0 (compatible; DemoBot/1.0)',
+      threat_type: attackTypeNames[Math.floor(Math.random() * attackTypeNames.length)],
+      is_campaign: Math.random() > 0.85,
       _isDemo: true,
     });
   }
 
   const timeline: any[] = [];
   for (let h = 23; h >= 0; h--) {
-    const time = new Date(now.getTime() - h * 3600000);
     const total = 8000 + Math.floor(Math.random() * 6000);
     const blocked = Math.floor(total * (0.03 + Math.random() * 0.05));
     timeline.push({
-      timestamp: time.toISOString(),
-      time: time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      totalRequests: total,
-      blockedRequests: blocked,
-      allowedRequests: total - blocked,
-      challengeRequests: Math.floor(blocked * 0.15),
+      hour: 23 - h,
+      total,
+      blocked,
+      allowed: total - blocked,
     });
   }
 
@@ -149,7 +149,7 @@ export default function WafMonitoring() {
     startDate: null as Date | null,
     endDate: null as Date | null,
   });
-  
+
   // External filters for WafEventsFeed (set by card clicks)
   const [externalEventFilters, setExternalEventFilters] = useState<{
     severity?: string;
@@ -333,23 +333,6 @@ export default function WafMonitoring() {
     },
   });
 
-  // Unblock IP mutation
-  const unblockIpMutation = useMutation({
-    mutationFn: async (ipAddress: string) => {
-      const response = await apiClient.invoke('waf-dashboard-api', {
-        body: { action: 'unblock-ip', ipAddress, accountId: selectedAccountId }
-      });
-      if (response.error) throw new Error(getErrorMessage(response.error));
-      return response.data;
-    },
-    onSuccess: () => {
-      toast({ title: t('waf.ipUnblocked'), description: t('waf.ipUnblockedDesc') });
-    },
-    onError: (error) => {
-      toast({ title: t('common.error'), description: error.message, variant: "destructive" });
-    },
-  });
-
   const handleRefresh = async () => {
     await Promise.all([
       refetchMetrics(),
@@ -371,23 +354,6 @@ export default function WafMonitoring() {
     ? (demoData?.events?.filter((e: any) => e.action === 'BLOCK') || [])
     : (blockedEventsData?.events || []);
 
-  // Filter events based on filter state
-  const filteredEvents = events.filter(event => {
-    // Apply filters
-    if (filters.severity !== 'all' && event.severity?.toLowerCase() !== filters.severity) {
-      return false;
-    }
-    if (filters.threatType !== 'all' && event.threatType !== filters.threatType) {
-      return false;
-    }
-    if (filters.ipAddress && !event.sourceIp?.includes(filters.ipAddress)) {
-      return false;
-    }
-    if (filters.country !== 'all' && event.country !== filters.country) {
-      return false;
-    }
-    return true;
-  });
 
 
   return (
@@ -478,7 +444,7 @@ export default function WafMonitoring() {
                     topAttackers={topAttackers} 
                     isLoading={isDemoMode ? false : attackersLoading}
                     accountId={isDemoMode ? 'demo-account' : (selectedAccountId || undefined)}
-                    onBlockIp={isDemoMode ? undefined : ((ip) => blockIpMutation.mutate({ ipAddress: ip, reason: 'Manual block from dashboard' }))}
+                    onBlockIp={isDemoMode ? undefined : ((ip: string) => blockIpMutation.mutate({ ipAddress: ip, reason: 'Manual block from dashboard' }))}
                   />
                   <WafEventsFeed 
                     events={events.slice(0, 10)} 
