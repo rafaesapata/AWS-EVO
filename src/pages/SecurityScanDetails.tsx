@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { FindingCard } from "@/components/security/FindingCard";
 import { CreateTicketDialog } from "@/components/security/CreateTicketDialog";
 import { FindingsFilters } from "@/components/security/FindingsFilters";
@@ -68,6 +69,7 @@ export default function SecurityScanDetails() {
  const navigate = useNavigate();
  const { toast } = useToast();
  const { data: organizationId } = useOrganization();
+ const { isInDemoMode } = useDemoAwareQuery();
  
  const [searchTerm, setSearchTerm] = useState<string>("");
  const [severityFilter, setSeverityFilter] = useState<string>("all");
@@ -82,10 +84,67 @@ export default function SecurityScanDetails() {
  const [sortBy, setSortBy] = useState<'severity' | 'created_at' | 'service'>('severity');
  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+ // Demo data for scan details
+ const isDemoScan = isInDemoMode && scanId?.startsWith('demo-');
+ const demoScanData = useMemo<SecurityScan | null>(() => {
+   if (!isDemoScan) return null;
+   const now = new Date();
+   const demoScans: Record<string, SecurityScan> = {
+     'demo-scan-001': {
+       id: 'demo-scan-001', scan_type: 'deep', status: 'completed',
+       started_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+       completed_at: new Date(now.getTime() - 1.5 * 60 * 60 * 1000).toISOString(),
+       findings_count: 10, critical_count: 2, high_count: 3, medium_count: 3, low_count: 2,
+       scan_config: { level: 'deep', frameworks: ['CIS', 'LGPD', 'PCI-DSS'] },
+       results: { duration_ms: 1800000, services_scanned: 23, regions_scanned: 4 },
+       created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+       cloud_provider: 'AWS',
+     },
+     'demo-scan-002': {
+       id: 'demo-scan-002', scan_type: 'standard', status: 'completed',
+       started_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+       completed_at: new Date(now.getTime() - 23.5 * 60 * 60 * 1000).toISOString(),
+       findings_count: 8, critical_count: 1, high_count: 2, medium_count: 3, low_count: 2,
+       scan_config: { level: 'standard', frameworks: ['CIS'] },
+       results: { duration_ms: 900000, services_scanned: 15, regions_scanned: 2 },
+       created_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+       cloud_provider: 'AWS',
+     },
+     'demo-scan-003': {
+       id: 'demo-scan-003', scan_type: 'quick', status: 'completed',
+       started_at: new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString(),
+       completed_at: new Date(now.getTime() - 47.9 * 60 * 60 * 1000).toISOString(),
+       findings_count: 6, critical_count: 1, high_count: 1, medium_count: 2, low_count: 2,
+       scan_config: { level: 'quick' },
+       results: { duration_ms: 360000, services_scanned: 8, regions_scanned: 1 },
+       created_at: new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString(),
+       cloud_provider: 'AWS',
+     },
+   };
+   return demoScans[scanId!] || demoScans['demo-scan-001'];
+ }, [isDemoScan, scanId]);
+
+ const demoFindings = useMemo<Finding[]>(() => {
+   if (!isDemoScan) return [];
+   const now = new Date();
+   return [
+     { id: 'demo-f-001', severity: 'critical', title: 'S3 Bucket com acesso público', description: 'O bucket demo-company-data está configurado com acesso público, expondo dados sensíveis.', details: {}, resource_id: 'demo-company-data', resource_arn: 'arn:aws:s3:::demo-company-data', service: 'S3', category: 'Data Protection', scan_type: 'deep', compliance: ['CIS 2.1.1', 'LGPD Art. 46'], remediation: 'Remover a política de acesso público e habilitar Block Public Access.', evidence: {}, risk_vector: 'network/public-exposure', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+     { id: 'demo-f-002', severity: 'critical', title: 'Root account sem MFA', description: 'A conta root não possui MFA habilitada, representando risco crítico.', details: {}, resource_id: 'root-account', resource_arn: 'arn:aws:iam::123456789012:root', service: 'IAM', category: 'Identity & Access', scan_type: 'deep', compliance: ['CIS 1.5', 'NIST AC-2'], remediation: 'Habilitar MFA virtual ou hardware na conta root.', evidence: {}, risk_vector: 'identity/root-access', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+     { id: 'demo-f-003', severity: 'high', title: 'Security Group com porta 22 aberta', description: 'Security Group permite SSH (porta 22) de qualquer IP (0.0.0.0/0).', details: {}, resource_id: 'sg-demo-001', resource_arn: 'arn:aws:ec2:us-east-1:123456789012:security-group/sg-demo-001', service: 'EC2', category: 'Network Security', scan_type: 'deep', compliance: ['CIS 5.2', 'PCI-DSS 1.3'], remediation: 'Restringir acesso SSH apenas a IPs conhecidos.', evidence: {}, risk_vector: 'network/open-ports', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+     { id: 'demo-f-004', severity: 'high', title: 'RDS sem criptografia', description: 'Instância RDS demo-db não possui criptografia at-rest habilitada.', details: {}, resource_id: 'demo-db', resource_arn: 'arn:aws:rds:us-east-1:123456789012:db:demo-db', service: 'RDS', category: 'Data Protection', scan_type: 'deep', compliance: ['CIS 2.3.1', 'LGPD Art. 46'], remediation: 'Habilitar criptografia at-rest na instância RDS.', evidence: {}, risk_vector: 'data/unencrypted-storage', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+     { id: 'demo-f-005', severity: 'high', title: 'IAM User com chaves antigas', description: 'Usuário demo-admin possui access keys com mais de 90 dias sem rotação.', details: {}, resource_id: 'demo-admin', resource_arn: 'arn:aws:iam::123456789012:user/demo-admin', service: 'IAM', category: 'Identity & Access', scan_type: 'deep', compliance: ['CIS 1.4', 'NIST IA-5'], remediation: 'Rotacionar as access keys do usuário.', evidence: {}, risk_vector: 'identity/stale-credentials', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+     { id: 'demo-f-006', severity: 'medium', title: 'CloudTrail sem multi-região', description: 'CloudTrail configurado apenas para us-east-1.', details: {}, resource_id: 'demo-trail', resource_arn: 'arn:aws:cloudtrail:us-east-1:123456789012:trail/demo-trail', service: 'CloudTrail', category: 'Logging & Monitoring', scan_type: 'deep', compliance: ['CIS 3.1', 'NIST AU-2'], remediation: 'Habilitar CloudTrail multi-região.', evidence: {}, risk_vector: 'logging/incomplete-coverage', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+     { id: 'demo-f-007', severity: 'medium', title: 'EBS Volume sem criptografia', description: 'Volume EBS vol-demo-001 não possui criptografia habilitada.', details: {}, resource_id: 'vol-demo-001', resource_arn: 'arn:aws:ec2:us-east-1:123456789012:volume/vol-demo-001', service: 'EC2', category: 'Data Protection', scan_type: 'deep', compliance: ['CIS 2.2.1'], remediation: 'Criar snapshot criptografado e substituir o volume.', evidence: {}, risk_vector: 'data/unencrypted-storage', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+     { id: 'demo-f-008', severity: 'medium', title: 'Lambda sem VPC', description: 'Função Lambda demo-processor não está em VPC, sem acesso a recursos privados.', details: {}, resource_id: 'demo-processor', resource_arn: 'arn:aws:lambda:us-east-1:123456789012:function:demo-processor', service: 'Lambda', category: 'Network Security', scan_type: 'deep', compliance: ['NIST SC-7'], remediation: 'Configurar a função Lambda para executar dentro da VPC.', evidence: {}, risk_vector: 'network/no-vpc', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+     { id: 'demo-f-009', severity: 'low', title: 'S3 Bucket sem versionamento', description: 'Bucket demo-logs não possui versionamento habilitado.', details: {}, resource_id: 'demo-logs', resource_arn: 'arn:aws:s3:::demo-logs', service: 'S3', category: 'Data Protection', scan_type: 'deep', compliance: ['CIS 2.1.3'], remediation: 'Habilitar versionamento no bucket S3.', evidence: {}, risk_vector: 'data/no-versioning', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+     { id: 'demo-f-010', severity: 'low', title: 'Tag padrão ausente', description: 'Recurso EC2 i-demo-001 não possui tags obrigatórias (Environment, Owner).', details: {}, resource_id: 'i-demo-001', resource_arn: 'arn:aws:ec2:us-east-1:123456789012:instance/i-demo-001', service: 'EC2', category: 'Governance', scan_type: 'deep', compliance: ['Internal Policy'], remediation: 'Adicionar tags Environment e Owner ao recurso.', evidence: {}, risk_vector: 'governance/missing-tags', source: 'security-engine', status: 'open', created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString() },
+   ];
+ }, [isDemoScan]);
+
  // Get scan details
  const { data: scan, isLoading: scanLoading } = useQuery({
  queryKey: ['security-scan', scanId, organizationId],
- enabled: !!scanId && !!organizationId,
+ enabled: !!scanId && !!organizationId && !isDemoScan,
  queryFn: async () => {
  const response = await apiClient.select('security_scans', {
  select: '*',
@@ -104,11 +163,12 @@ export default function SecurityScanDetails() {
  });
 
  // Get scan findings - filter by scan's credential (AWS or Azure)
- const { data: findings, isLoading: findingsLoading } = useQuery({
- queryKey: ['scan-findings', scanId, organizationId, scan?.aws_account_id, scan?.azure_credential_id, scan?.cloud_provider],
- enabled: !!scanId && !!organizationId && !!scan,
+ const { data: findingsData, isLoading: findingsLoading } = useQuery({
+ queryKey: ['scan-findings', scanId, organizationId, (isDemoScan ? demoScanData : scan)?.aws_account_id, (isDemoScan ? demoScanData : scan)?.azure_credential_id, (isDemoScan ? demoScanData : scan)?.cloud_provider],
+ enabled: !!scanId && !!organizationId && !!(isDemoScan ? demoScanData : scan) && !isDemoScan,
  queryFn: async () => {
- if (!scan) return [];
+ const activeScan = scan;
+ if (!activeScan) return [];
  
  // Determine if this is an Azure or AWS scan
  const isAzureScan = scan.cloud_provider === 'AZURE' || scan.azure_credential_id || scan.scan_type?.startsWith('azure-');
@@ -160,6 +220,11 @@ export default function SecurityScanDetails() {
  });
 
  // Create remediation ticket
+ // Resolve scan and findings: use demo data when in demo mode
+ const activeScan = isDemoScan ? demoScanData : scan;
+ const findings = isDemoScan ? demoFindings : (findingsData || []);
+ const isActiveScanLoading = isDemoScan ? false : scanLoading;
+
  const createTicketMutation = useMutation({
  mutationFn: async ({ findingIds, title, description }: { findingIds: string[], title: string, description: string }) => {
  const response = await apiClient.invoke('create-remediation-ticket', {
@@ -306,7 +371,7 @@ export default function SecurityScanDetails() {
  // Get unique services for filter
  const uniqueServices = [...new Set((findings || []).map(f => f.service).filter(Boolean))];
 
- if (scanLoading) {
+ if (isActiveScanLoading) {
  return (
  <Layout title={t('common.loading', 'Carregando...')} description={t('securityScanDetails.loadingDescription', 'Carregando detalhes do scan...')}>
  <div className="flex items-center justify-center h-64">
@@ -316,7 +381,7 @@ export default function SecurityScanDetails() {
  );
  }
 
- if (!scan) {
+ if (!activeScan) {
  return (
  <Layout title={t('securityScanDetails.notFound', 'Scan não encontrado')} description={t('securityScanDetails.notFoundDescription', 'O scan solicitado não foi encontrado.')}>
  <div className="text-center py-12">
@@ -336,7 +401,7 @@ export default function SecurityScanDetails() {
 
  return (
  <Layout 
- title={`${t('sidebar.securityScans', 'Security Scan')} - ${scan.scan_type}`}
+ title={`${t('sidebar.securityScans', 'Security Scan')} - ${activeScan.scan_type}`}
  description={t('securityScanDetails.description', 'Detalhes completos do scan de segurança')}
  icon={<Shield className="h-7 w-7" />}
  >
@@ -373,19 +438,19 @@ export default function SecurityScanDetails() {
  <div className="p-2 rounded-lg bg-primary/10">
  <Shield className="h-6 w-6 text-primary" />
  </div>
- {scan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
+ {activeScan.scan_type.replace('_', ' ').replace('-', ' ').toUpperCase()}
  </CardTitle>
  <CardDescription>
- Executado em {new Date(scan.started_at).toLocaleString('pt-BR')}
- {scan.completed_at && ` • Concluído em ${new Date(scan.completed_at).toLocaleString('pt-BR')}`}
+ Executado em {new Date(activeScan.started_at).toLocaleString('pt-BR')}
+ {activeScan.completed_at && ` • Concluído em ${new Date(activeScan.completed_at).toLocaleString('pt-BR')}`}
  </CardDescription>
  </div>
  <div className="text-right">
- {scan.status === 'completed' ? (
+ {activeScan.status === 'completed' ? (
  <div className="p-3 rounded-full bg-green-100 hover:bg-green-200 transition-colors">
  <CheckCircle className="h-8 w-8 text-green-500" />
  </div>
- ) : scan.status === 'running' ? (
+ ) : activeScan.status === 'running' ? (
  <div className="p-3 rounded-full bg-blue-100 hover:bg-blue-200 transition-colors">
  <Clock className="h-8 w-8 text-blue-500 animate-spin" />
  </div>
@@ -398,43 +463,43 @@ export default function SecurityScanDetails() {
  </div>
  </CardHeader>
  <CardContent>
- {scan.status === 'completed' && (
+ {activeScan.status === 'completed' && (
  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 animate-fade-in">
  <div className="text-center p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
- <div className="text-2xl font-semibold">{scan.findings_count || 0}</div>
+ <div className="text-2xl font-semibold">{activeScan.findings_count || 0}</div>
  <div className="text-sm text-muted-foreground">Total</div>
  </div>
  <div className="text-center p-4 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">
- <div className="text-2xl font-semibold text-red-600">{scan.critical_count || 0}</div>
+ <div className="text-2xl font-semibold text-red-600">{activeScan.critical_count || 0}</div>
  <div className="text-sm text-muted-foreground">Críticos</div>
  </div>
  <div className="text-center p-4 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors">
- <div className="text-2xl font-semibold text-red-500">{scan.high_count || 0}</div>
+ <div className="text-2xl font-semibold text-red-500">{activeScan.high_count || 0}</div>
  <div className="text-sm text-muted-foreground">Altos</div>
  </div>
  <div className="text-center p-4 rounded-lg bg-yellow-50 hover:bg-yellow-100 transition-colors">
- <div className="text-2xl font-semibold text-yellow-500">{scan.medium_count || 0}</div>
+ <div className="text-2xl font-semibold text-yellow-500">{activeScan.medium_count || 0}</div>
  <div className="text-sm text-muted-foreground">Médios</div>
  </div>
  <div className="text-center p-4 rounded-lg bg-green-50 hover:bg-green-100 transition-colors">
- <div className="text-2xl font-semibold text-green-500">{scan.low_count || 0}</div>
+ <div className="text-2xl font-semibold text-green-500">{activeScan.low_count || 0}</div>
  <div className="text-sm text-muted-foreground">Baixos</div>
  </div>
  </div>
  )}
  
- {scan.results && (
+ {activeScan.results && (
  <div className="mt-4 p-4 bg-muted/30 rounded-lg hover:bg-gray-50">
  <h4 className="font-semibold mb-2 text-sm">Métricas do Scan</h4>
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
  <div>
- <strong>Duração:</strong> {Math.round((scan.results.duration_ms || 0) / 1000)}s
+ <strong>Duração:</strong> {Math.round((activeScan.results.duration_ms || 0) / 1000)}s
  </div>
  <div>
- <strong>Serviços:</strong> {scan.results.services_scanned || 0}
+ <strong>Serviços:</strong> {activeScan.results.services_scanned || 0}
  </div>
  <div>
- <strong>Regiões:</strong> {scan.results.regions_scanned || 0}
+ <strong>Regiões:</strong> {activeScan.results.regions_scanned || 0}
  </div>
  </div>
  </div>

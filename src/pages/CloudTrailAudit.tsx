@@ -506,7 +506,7 @@ export default function CloudTrailAudit() {
         <div className="flex items-center justify-end gap-2 flex-wrap">
           <Button 
             onClick={() => startAnalysisMutation.mutate(false)}
-            disabled={startAnalysisMutation.isPending || isAnalyzing || !selectedAccountId}
+            disabled={startAnalysisMutation.isPending || isAnalyzing || (!selectedAccountId && !shouldEnableAccountQuery())}
             className="gap-2"
           >
             {startAnalysisMutation.isPending || isAnalyzing ? (
@@ -838,7 +838,7 @@ export default function CloudTrailAudit() {
                     <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                     <h3 className="text-xl font-semibold mb-2">{t('cloudtrail.noEventsFound', 'No events found')}</h3>
                     <p className="text-muted-foreground mb-4">{t('cloudtrail.clickToAnalyze', 'Click "Fetch Events" to analyze CloudTrail.')}</p>
-                    <Button onClick={() => startAnalysisMutation.mutate(false)} disabled={startAnalysisMutation.isPending || isAnalyzing || !selectedAccountId}>
+                    <Button onClick={() => startAnalysisMutation.mutate(false)} disabled={startAnalysisMutation.isPending || isAnalyzing || (!selectedAccountId && !shouldEnableAccountQuery())}>
                       <Play className="h-4 w-4 mr-2" />
                       {t('cloudtrail.fetchEvents', 'Fetch Events')}
                     </Button>
