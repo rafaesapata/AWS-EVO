@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoMode } from "@/contexts/DemoModeContext";
 import { Layout } from "@/components/Layout";
 import { 
   Shield, 
@@ -36,6 +37,39 @@ import {
   Info
 } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart, Pie, Cell, ComposedChart, Legend } from "recharts";
+
+function generateDemoEdgeData() {
+  const now = new Date();
+  const services: EdgeService[] = [
+    { id: 'demo-cf-1', service_type: 'cloudfront', service_name: 'Production CDN', service_id: 'E1ABC2DEF3GH4I', status: 'active', region: 'Global', requests_per_minute: 4520, cache_hit_rate: 94.2, error_rate: 0.12, blocked_requests: 342, last_updated: new Date(now.getTime() - 5 * 60000).toISOString() },
+    { id: 'demo-cf-2', service_type: 'cloudfront', service_name: 'Static Assets CDN', service_id: 'E5JKL6MNO7PQ8R', status: 'active', region: 'Global', requests_per_minute: 2180, cache_hit_rate: 98.7, error_rate: 0.02, blocked_requests: 18, last_updated: new Date(now.getTime() - 8 * 60000).toISOString() },
+    { id: 'demo-waf-1', service_type: 'waf', service_name: 'Production WAF', service_id: 'waf-prod-acl-01', status: 'active', region: 'us-east-1', requests_per_minute: 3200, cache_hit_rate: 0, error_rate: 0, blocked_requests: 1847, last_updated: new Date(now.getTime() - 3 * 60000).toISOString() },
+    { id: 'demo-alb-1', service_type: 'load_balancer', service_name: 'API Load Balancer', service_id: 'arn:aws:elasticloadbalancing:us-east-1:demo:loadbalancer/app/api-lb/abc123', status: 'active', region: 'us-east-1', requests_per_minute: 1850, cache_hit_rate: 0, error_rate: 0.34, blocked_requests: 0, last_updated: new Date(now.getTime() - 10 * 60000).toISOString() },
+    { id: 'demo-alb-2', service_type: 'load_balancer', service_name: 'Web Load Balancer', service_id: 'arn:aws:elasticloadbalancing:us-east-1:demo:loadbalancer/app/web-lb/def456', status: 'active', region: 'us-east-1', requests_per_minute: 920, cache_hit_rate: 0, error_rate: 0.08, blocked_requests: 0, last_updated: new Date(now.getTime() - 15 * 60000).toISOString() },
+  ];
+
+  const metrics: EdgeMetrics[] = [];
+  for (let h = 23; h >= 0; h--) {
+    const time = new Date(now.getTime() - h * 3600000);
+    services.forEach(s => {
+      const base = s.requests_per_minute * 60;
+      const requests = base + Math.floor(Math.random() * base * 0.3);
+      const cacheHits = Math.floor(requests * (s.cache_hit_rate / 100));
+      metrics.push({
+        service_id: s.service_id,
+        timestamp: time.toISOString(),
+        requests,
+        cache_hits: cacheHits,
+        cache_misses: requests - cacheHits,
+        blocked_requests: Math.floor(s.blocked_requests * (0.8 + Math.random() * 0.4)),
+        response_time: 15 + Math.floor(Math.random() * 45),
+        bandwidth_gb: requests * 0.00002,
+      });
+    });
+  }
+
+  return { services, metrics, total: services.length };
+}
 
 interface EdgeService {
   id: string;
@@ -69,12 +103,16 @@ export default function EdgeMonitoring() {
   const { selectedAccountId, selectedProvider, selectedAccount } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
+  const { isDemoMode } = useDemoMode();
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [serviceTypeFilter, setServiceTypeFilter] = useState<string>('all');
   const queryClient = useQueryClient();
+
+  // Demo mode data
+  const demoData = useMemo(() => isDemoMode ? generateDemoEdgeData() : null, [isDemoMode]);
 
   // Check if selected account is Azure
   const isAzureAccount = selectedProvider === 'AZURE';
@@ -114,9 +152,9 @@ export default function EdgeMonitoring() {
   });
 
   // Get edge services data (AWS or Azure)
-  const { data: edgeServicesData, isLoading, refetch } = useQuery({
+  const { data: edgeServicesData, isLoading: _isLoadingQuery, refetch } = useQuery({
     queryKey: ['edge-services', organizationId, selectedAccountId, selectedProvider, currentPage, itemsPerPage, searchTerm, serviceTypeFilter],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: !isDemoMode && !!organizationId && !!selectedAccountId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       // Calculate offset for pagination
@@ -199,9 +237,12 @@ export default function EdgeMonitoring() {
     },
   });
 
-  const edgeServices = edgeServicesData?.services || [];
-  const totalServices = edgeServicesData?.total || 0;
+  const edgeServices = isDemoMode ? (demoData?.services || []) : (edgeServicesData?.services || []);
+  const totalServices = isDemoMode ? (demoData?.total || 0) : (edgeServicesData?.total || 0);
   const totalPages = Math.ceil(totalServices / itemsPerPage);
+  const isLoading = isDemoMode ? false : _isLoadingQuery;
+  const metrics = isDemoMode ? (demoData?.metrics || []) : (metricsRaw || []);
+  const metricsLoading = isDemoMode ? false : _metricsLoadingQuery;
 
   // Reset to first page when filters change
   const handleItemsPerPageChange = (value: string) => {
@@ -230,9 +271,9 @@ export default function EdgeMonitoring() {
   };
 
   // Get edge metrics for charts (AWS or Azure)
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
+  const { data: metricsRaw, isLoading: _metricsLoadingQuery } = useQuery({
     queryKey: ['edge-metrics', organizationId, selectedAccountId, selectedProvider, selectedTimeRange],
-    enabled: !!organizationId && !!selectedAccountId,
+    enabled: !isDemoMode && !!organizationId && !!selectedAccountId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       const hoursBack = selectedTimeRange === '24h' ? 24 : selectedTimeRange === '7d' ? 168 : 720;
@@ -389,6 +430,7 @@ export default function EdgeMonitoring() {
     >
       <div className="space-y-6">
         {/* Action Buttons */}
+        {!isDemoMode && (
         <div className="flex justify-end gap-2">
           <Button 
             variant="outline" 
@@ -406,9 +448,10 @@ export default function EdgeMonitoring() {
             {discoverMutation.isPending ? t('edgeMonitoring.discovering', 'Descobrindo...') : t('edgeMonitoring.discoverServices', 'Descobrir Serviços')}
           </Button>
         </div>
+        )}
 
         {/* Provider Info */}
-        {selectedAccount && (
+        {!isDemoMode && selectedAccount && (
           <Alert className={isAzureAccount ? "border-blue-500/50 bg-blue-500/10" : "border-orange-500/50 bg-orange-500/10"}>
             <Info className={`h-4 w-4 ${isAzureAccount ? 'text-blue-500' : 'text-orange-500'}`} />
             <AlertTitle className={isAzureAccount ? 'text-blue-500' : 'text-orange-500'}>
