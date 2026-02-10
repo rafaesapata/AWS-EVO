@@ -22,6 +22,7 @@ import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 
 // Validation schema for Service Principal credentials
 const servicePrincipalSchema = z.object({
@@ -71,6 +72,10 @@ export async function handler(
     const prisma = getPrismaClient();
 
     logger.info('Saving Azure credentials', { organizationId });
+
+    // SECURITY: Block write operations in demo mode
+    const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+    if (demoCheck.blocked) return demoCheck.response;
 
     // Parse and validate request body - default to service_principal if authType not specified
     let bodyWithDefault: any;

@@ -16,6 +16,7 @@ import { logger } from '../../lib/logging.js';
 import { getOrigin, getHttpMethod } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { z } from 'zod';
 
 // Zod schema for request validation
@@ -217,6 +218,10 @@ export async function handler(
     if (!validation.success) {
       return validation.error;
     }
+    
+    // SECURITY: Block scan operations in demo mode
+    const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+    if (demoCheck.blocked) return demoCheck.response;
     
     const { accountId, maxResults, forceReprocess } = validation.data;
     // hoursBack has a default value of 24 from Zod schema, ensure it's always defined

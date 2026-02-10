@@ -23,6 +23,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 
 // Validation schema
 const revokeSchema = z.object({
@@ -60,6 +61,10 @@ export async function handler(
       userId,
       credentialId,
     });
+
+    // SECURITY: Block write operations in demo mode
+    const demoCheck = await ensureNotDemoMode(prisma, organizationId);
+    if (demoCheck.blocked) return demoCheck.response;
 
     // Fetch credential to verify ownership and type
     const credential = await prisma.azureCredential.findFirst({

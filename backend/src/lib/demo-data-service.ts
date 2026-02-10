@@ -109,6 +109,50 @@ export async function isOrganizationInDemoMode(
 }
 
 /**
+ * Verifica se a organização está em modo demo e BLOQUEIA operações de escrita.
+ * 
+ * REGRA DE SEGURANÇA:
+ * - Organizações em demo mode NÃO podem criar, atualizar ou deletar dados reais
+ * - Retorna { blocked: true, response } se a operação deve ser bloqueada
+ * - Retorna { blocked: false } se a operação pode prosseguir
+ * - Em caso de erro na verificação, permite a operação (fail-open para writes)
+ * 
+ * Uso:
+ * ```typescript
+ * const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+ * if (demoCheck.blocked) return demoCheck.response;
+ * ```
+ */
+export async function ensureNotDemoMode(
+  prisma: any,
+  organizationId: string,
+  origin?: string
+): Promise<{ blocked: true; response: any } | { blocked: false }> {
+  try {
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.warn('Write operation blocked in demo mode', { organizationId });
+      // Import inline to avoid circular dependency
+      const { error: errorResponse } = await import('./response.js');
+      return {
+        blocked: true,
+        response: errorResponse(
+          'This operation is not available in demo mode. Demo organizations cannot modify data.',
+          403,
+          { code: 'DEMO_MODE_WRITE_BLOCKED' },
+          origin
+        ),
+      };
+    }
+    return { blocked: false };
+  } catch (err) {
+    // Fail-open: em caso de erro, permite a operação (não bloqueia usuários reais)
+    logger.error('Error checking demo mode for write prevention - allowing operation', err as Error);
+    return { blocked: false };
+  }
+}
+
+/**
  * Gera dados de segurança para demonstração
  */
 export function generateDemoSecurityFindings(): DemoSecurityFinding[] {

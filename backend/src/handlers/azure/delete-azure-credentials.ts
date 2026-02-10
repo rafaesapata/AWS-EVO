@@ -19,6 +19,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 
 // Validation schema
 const deleteAzureCredentialsSchema = z.object({
@@ -41,6 +42,10 @@ export async function handler(
     const prisma = getPrismaClient();
 
     logger.info('Deleting Azure credentials', { organizationId });
+
+    // SECURITY: Block write operations in demo mode
+    const demoCheck = await ensureNotDemoMode(prisma, organizationId);
+    if (demoCheck.blocked) return demoCheck.response;
 
     // Parse and validate request body
     const validation = parseAndValidateBody(deleteAzureCredentialsSchema, event.body);

@@ -9,7 +9,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
-import { isOrganizationInDemoMode, generateDemoAlerts } from '../../lib/demo-data-service.js';
+import { isOrganizationInDemoMode, generateDemoAlerts, ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { alertsQuerySchema, alertUpdateSchema, alertDeleteSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody, validateQueryParams } from '../../lib/validation.js';
 
@@ -88,6 +88,10 @@ export async function handler(
     
     // PUT - Atualizar alerta (acknowledge/resolve)
     if (method === 'PUT') {
+      // SECURITY: Block write operations in demo mode
+      const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+      if (demoCheck.blocked) return demoCheck.response;
+
       const validation = parseAndValidateBody(alertUpdateSchema, event.body);
       if (!validation.success) {
         return validation.error;
@@ -125,6 +129,10 @@ export async function handler(
     
     // DELETE - Deletar alerta
     if (method === 'DELETE') {
+      // SECURITY: Block write operations in demo mode
+      const demoCheckDel = await ensureNotDemoMode(prisma, organizationId, origin);
+      if (demoCheckDel.blocked) return demoCheckDel.response;
+
       // Try to get ID from body or query params
       let alertId: string | undefined;
       

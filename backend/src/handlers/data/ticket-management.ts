@@ -9,6 +9,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
+import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { z } from 'zod';
 
 // ==================== SCHEMAS ====================
@@ -195,6 +196,10 @@ export async function handler(
     const action = body.action || path.split('/').pop();
 
     logger.info(`Ticket management action: ${action}`, { userId: user.sub, organizationId });
+
+    // SECURITY: Block ALL write operations in demo mode (ticket management is write-only)
+    const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+    if (demoCheck.blocked) return demoCheck.response;
 
     // ==================== COMMENTS ====================
     

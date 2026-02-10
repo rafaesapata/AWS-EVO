@@ -17,6 +17,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logging.js';
+import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { 
   WAFV2Client, 
   GetLoggingConfigurationCommand,
@@ -360,6 +361,10 @@ export async function handler(
     if (action === 'get-configs') {
       return await handleGetConfigs(prisma, organizationId, accountId);
     }
+    
+    // SECURITY: Block write operations in demo mode (disable, setup)
+    const demoCheck = await ensureNotDemoMode(prisma, organizationId);
+    if (demoCheck.blocked) return demoCheck.response;
     
     if (action === 'disable') {
       return await handleDisableConfig(prisma, organizationId, body.configId);

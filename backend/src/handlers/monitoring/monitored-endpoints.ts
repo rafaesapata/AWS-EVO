@@ -9,7 +9,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
-import { isOrganizationInDemoMode, generateDemoMonitoredEndpoints } from '../../lib/demo-data-service.js';
+import { isOrganizationInDemoMode, generateDemoMonitoredEndpoints, ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { createMonitoredEndpointSchema, updateMonitoredEndpointSchema, deleteMonitoredEndpointSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 
@@ -85,6 +85,10 @@ export async function handler(
     
     // POST - Criar endpoint
     if (method === 'POST') {
+      // SECURITY: Block write operations in demo mode
+      const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+      if (demoCheck.blocked) return demoCheck.response;
+
       const validation = parseAndValidateBody(createMonitoredEndpointSchema, event.body);
       if (!validation.success) {
         return validation.error;
@@ -111,6 +115,10 @@ export async function handler(
     
     // PUT - Atualizar endpoint
     if (method === 'PUT') {
+      // SECURITY: Block write operations in demo mode
+      const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+      if (demoCheck.blocked) return demoCheck.response;
+
       const validation = parseAndValidateBody(updateMonitoredEndpointSchema, event.body);
       if (!validation.success) {
         return validation.error;
@@ -146,6 +154,10 @@ export async function handler(
     
     // DELETE - Deletar endpoint
     if (method === 'DELETE') {
+      // SECURITY: Block write operations in demo mode
+      const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+      if (demoCheck.blocked) return demoCheck.response;
+
       let endpointId: string | undefined;
       
       if (event.body) {

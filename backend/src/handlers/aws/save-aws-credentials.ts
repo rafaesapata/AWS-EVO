@@ -10,6 +10,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 import { parseEventBody } from '../../lib/request-parser.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 
 interface SaveCredentialsRequest {
   account_name: string;
@@ -101,6 +102,10 @@ export async function handler(
     }
     
     const prisma = getPrismaClient();
+    
+    // SECURITY: Block write operations in demo mode
+    const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+    if (demoCheck.blocked) return demoCheck.response;
     
     // CRITICAL: Ensure organization exists in database
     // This handles the case where user was created in Cognito but organization doesn't exist in PostgreSQL

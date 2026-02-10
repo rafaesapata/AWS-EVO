@@ -12,6 +12,7 @@ import { logger } from '../../lib/logging.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 
 const startComplianceScanSchema = z.object({
   frameworkId: z.string().min(1),
@@ -43,6 +44,10 @@ export async function handler(
     const { frameworkId, accountId } = validation.data;
     
     const prisma = getPrismaClient();
+    
+    // SECURITY: Block scan operations in demo mode
+    const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+    if (demoCheck.blocked) return demoCheck.response;
     
     // Verify credentials exist
     const credential = await prisma.awsCredential.findFirst({

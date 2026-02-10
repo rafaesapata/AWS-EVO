@@ -10,6 +10,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { parseAndValidateBody, createRemediationTicketSchema } from '../../lib/validation.js';
 import { logger } from '../../lib/logging.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -37,6 +38,10 @@ export async function handler(
   }
   
   const prisma = getPrismaClient();
+  
+  // SECURITY: Block write operations in demo mode
+  const demoCheck = await ensureNotDemoMode(prisma, organizationId, origin);
+  if (demoCheck.blocked) return demoCheck.response;
   
   logger.info('Create remediation ticket started', { organizationId, userId: user.sub });
 
