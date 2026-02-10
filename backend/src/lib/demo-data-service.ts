@@ -3755,6 +3755,381 @@ export function generateDemoAlertRules() {
   ];
 }
 
+/**
+ * Gera dados de tickets de remediação para demonstração
+ */
+export function generateDemoRemediationTickets() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+  const statuses = ['open', 'in_progress', 'resolved', 'closed'];
+  const severities = ['critical', 'high', 'medium', 'low'];
+  const categories = ['security', 'compliance', 'cost', 'performance', 'reliability'];
+
+  return [
+    {
+      id: 'demo-ticket-001',
+      organization_id: DEMO_ORG_ID,
+      title: 'S3 Bucket com acesso público detectado',
+      description: 'O bucket s3://demo-app-uploads está configurado com ACL pública. Isso expõe dados sensíveis à internet. Necessário remover acesso público e configurar políticas de bucket adequadas.',
+      status: 'in_progress',
+      severity: 'critical',
+      category: 'security',
+      source: 'security_scan',
+      source_id: 'demo-finding-001',
+      assigned_to: 'demo-user-001',
+      created_by: 'demo-user-002',
+      aws_account_id: '123456789012',
+      resource_id: 'arn:aws:s3:::demo-app-uploads',
+      resource_type: 'S3 Bucket',
+      remediation_steps: '1. Remover ACL pública\n2. Configurar Block Public Access\n3. Revisar políticas de bucket\n4. Habilitar logging de acesso',
+      due_date: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      sla_breached: false,
+      tags: ['s3', 'public-access', 'data-exposure'],
+      created_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-ticket-002',
+      organization_id: DEMO_ORG_ID,
+      title: 'IAM User com credenciais antigas (>90 dias)',
+      description: 'O usuário IAM "deploy-service" possui access keys com mais de 90 dias sem rotação, violando a política de segurança CIS 1.4.',
+      status: 'open',
+      severity: 'high',
+      category: 'compliance',
+      source: 'compliance_scan',
+      source_id: 'demo-compliance-001',
+      assigned_to: null,
+      created_by: 'demo-user-002',
+      aws_account_id: '123456789012',
+      resource_id: 'arn:aws:iam::123456789012:user/deploy-service',
+      resource_type: 'IAM User',
+      remediation_steps: '1. Gerar novas access keys\n2. Atualizar aplicações que usam as keys antigas\n3. Desativar keys antigas\n4. Deletar keys antigas após validação',
+      due_date: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+      sla_breached: false,
+      tags: ['iam', 'credential-rotation', 'cis-benchmark'],
+      created_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-ticket-003',
+      organization_id: DEMO_ORG_ID,
+      title: 'EC2 instances sem encryption em EBS volumes',
+      description: '3 instâncias EC2 em produção possuem volumes EBS sem criptografia habilitada, violando requisitos de compliance LGPD e PCI-DSS.',
+      status: 'open',
+      severity: 'high',
+      category: 'security',
+      source: 'security_scan',
+      source_id: 'demo-finding-003',
+      assigned_to: 'demo-user-001',
+      created_by: 'demo-user-002',
+      aws_account_id: '123456789012',
+      resource_id: 'i-0abc123def456789',
+      resource_type: 'EC2 Instance',
+      remediation_steps: '1. Criar snapshots dos volumes\n2. Criar novos volumes criptografados a partir dos snapshots\n3. Parar instâncias e trocar volumes\n4. Validar funcionamento',
+      due_date: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      sla_breached: false,
+      tags: ['ec2', 'ebs', 'encryption', 'lgpd'],
+      created_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-ticket-004',
+      organization_id: DEMO_ORG_ID,
+      title: 'RDS instance sem Multi-AZ habilitado',
+      description: 'A instância RDS de produção "demo-prod-db" não possui Multi-AZ habilitado, representando risco de indisponibilidade em caso de falha na AZ.',
+      status: 'resolved',
+      severity: 'medium',
+      category: 'reliability',
+      source: 'well_architected',
+      source_id: 'demo-wa-001',
+      assigned_to: 'demo-user-003',
+      created_by: 'demo-user-002',
+      aws_account_id: '123456789012',
+      resource_id: 'arn:aws:rds:us-east-1:123456789012:db:demo-prod-db',
+      resource_type: 'RDS Instance',
+      remediation_steps: '1. Habilitar Multi-AZ na instância RDS\n2. Aguardar sincronização\n3. Testar failover',
+      due_date: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      sla_breached: false,
+      tags: ['rds', 'multi-az', 'high-availability'],
+      created_at: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-ticket-005',
+      organization_id: DEMO_ORG_ID,
+      title: 'Recursos EC2 ociosos gerando custos desnecessários',
+      description: '5 instâncias EC2 t3.large com utilização média de CPU abaixo de 5% nos últimos 14 dias. Economia estimada de $450/mês com rightsizing.',
+      status: 'open',
+      severity: 'medium',
+      category: 'cost',
+      source: 'cost_optimization',
+      source_id: 'demo-cost-001',
+      assigned_to: null,
+      created_by: 'demo-user-002',
+      aws_account_id: '123456789012',
+      resource_id: 'multiple',
+      resource_type: 'EC2 Instance',
+      remediation_steps: '1. Analisar métricas de utilização\n2. Identificar instâncias candidatas a rightsizing\n3. Migrar para t3.small ou t3.medium\n4. Monitorar performance após mudança',
+      due_date: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      sla_breached: false,
+      tags: ['ec2', 'rightsizing', 'cost-optimization'],
+      created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-ticket-006',
+      organization_id: DEMO_ORG_ID,
+      title: 'Security Group com regra 0.0.0.0/0 na porta 22',
+      description: 'O Security Group sg-0abc123 permite acesso SSH (porta 22) de qualquer IP (0.0.0.0/0). Isso expõe as instâncias a ataques de brute force.',
+      status: 'closed',
+      severity: 'critical',
+      category: 'security',
+      source: 'security_scan',
+      source_id: 'demo-finding-006',
+      assigned_to: 'demo-user-001',
+      created_by: 'demo-user-002',
+      aws_account_id: '123456789012',
+      resource_id: 'sg-0abc123def456',
+      resource_type: 'Security Group',
+      remediation_steps: '1. Restringir acesso SSH ao IP do bastion host\n2. Implementar Session Manager como alternativa\n3. Remover regra 0.0.0.0/0',
+      due_date: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      sla_breached: false,
+      tags: ['security-group', 'ssh', 'open-access'],
+      created_at: new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+  ];
+}
+
+/**
+ * Gera artigos da base de conhecimento para demonstração
+ */
+export function generateDemoKnowledgeBaseArticles() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+
+  return [
+    {
+      id: 'demo-kb-001',
+      organization_id: DEMO_ORG_ID,
+      title: 'Como configurar MFA para usuários IAM',
+      content: '# Configurando MFA para IAM Users\n\nA autenticação multifator (MFA) adiciona uma camada extra de segurança. Este guia mostra como habilitar MFA para todos os usuários IAM.\n\n## Pré-requisitos\n- Acesso ao console AWS com permissões IAM\n- Aplicativo autenticador (Google Authenticator, Authy)\n\n## Passos\n1. Acesse o console IAM\n2. Selecione o usuário\n3. Aba "Security credentials"\n4. Clique em "Assign MFA device"\n5. Escolha "Virtual MFA device"\n6. Escaneie o QR code com o app\n7. Insira dois códigos consecutivos\n\n## Política de Enforcement\nRecomendamos criar uma política que force MFA para todas as ações sensíveis.',
+      category: 'security',
+      tags: ['iam', 'mfa', 'security', 'best-practices'],
+      author_id: 'demo-user-002',
+      approval_status: 'approved',
+      approved_by: 'demo-user-001',
+      views: 234,
+      helpful_count: 45,
+      created_at: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-kb-002',
+      organization_id: DEMO_ORG_ID,
+      title: 'Guia de Otimização de Custos EC2',
+      content: '# Otimização de Custos EC2\n\nEste guia apresenta estratégias para reduzir custos com instâncias EC2.\n\n## Rightsizing\nAnalise métricas de CPU e memória para identificar instâncias superdimensionadas.\n\n## Reserved Instances\nPara workloads estáveis, RIs podem economizar até 72%.\n\n## Savings Plans\nMais flexíveis que RIs, aplicam-se automaticamente.\n\n## Spot Instances\nPara workloads tolerantes a interrupção, economia de até 90%.\n\n## Auto Scaling\nConfigure políticas de scaling para ajustar capacidade automaticamente.',
+      category: 'cost',
+      tags: ['ec2', 'cost-optimization', 'rightsizing', 'reserved-instances'],
+      author_id: 'demo-user-001',
+      approval_status: 'approved',
+      approved_by: 'demo-user-002',
+      views: 189,
+      helpful_count: 38,
+      created_at: new Date(now.getTime() - 25 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-kb-003',
+      organization_id: DEMO_ORG_ID,
+      title: 'Configurando WAF para proteção contra SQL Injection',
+      content: '# Proteção WAF contra SQLi\n\nO AWS WAF pode bloquear tentativas de SQL Injection automaticamente.\n\n## Regras Recomendadas\n1. AWS Managed Rules - SQL Database\n2. Rate limiting por IP\n3. Geo-blocking para países suspeitos\n\n## Configuração\n```json\n{\n  "Name": "SQLi-Protection",\n  "Priority": 1,\n  "Statement": {\n    "SqliMatchStatement": {\n      "FieldToMatch": { "Body": {} }\n    }\n  }\n}\n```\n\n## Monitoramento\nConfigure alertas para quando regras forem acionadas.',
+      category: 'security',
+      tags: ['waf', 'sql-injection', 'security', 'firewall'],
+      author_id: 'demo-user-003',
+      approval_status: 'approved',
+      approved_by: 'demo-user-001',
+      views: 156,
+      helpful_count: 29,
+      created_at: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-kb-004',
+      organization_id: DEMO_ORG_ID,
+      title: 'Procedimento de Resposta a Incidentes de Segurança',
+      content: '# Resposta a Incidentes\n\n## Classificação\n- **P1 (Crítico)**: Dados expostos, acesso não autorizado\n- **P2 (Alto)**: Vulnerabilidade explorada, credenciais comprometidas\n- **P3 (Médio)**: Configuração incorreta, política violada\n\n## Fluxo de Resposta\n1. **Detecção**: Alertas automáticos ou reporte manual\n2. **Contenção**: Isolar recurso afetado\n3. **Investigação**: Analisar CloudTrail e logs\n4. **Remediação**: Corrigir causa raiz\n5. **Documentação**: Registrar lições aprendidas\n\n## Contatos\n- Security Team: security@demo.com\n- On-call: via PagerDuty',
+      category: 'operations',
+      tags: ['incident-response', 'security', 'runbook', 'procedures'],
+      author_id: 'demo-user-001',
+      approval_status: 'approved',
+      approved_by: 'demo-user-003',
+      views: 312,
+      helpful_count: 67,
+      created_at: new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-kb-005',
+      organization_id: DEMO_ORG_ID,
+      title: 'Compliance LGPD - Checklist para AWS',
+      content: '# Checklist LGPD na AWS\n\n## Criptografia\n- [ ] EBS volumes criptografados\n- [ ] S3 buckets com SSE habilitado\n- [ ] RDS com encryption at rest\n- [ ] Dados em trânsito via TLS 1.2+\n\n## Controle de Acesso\n- [ ] Princípio do menor privilégio\n- [ ] MFA habilitado para todos\n- [ ] Revisão trimestral de permissões\n\n## Auditoria\n- [ ] CloudTrail habilitado em todas as regiões\n- [ ] VPC Flow Logs ativos\n- [ ] Retenção de logs por 1 ano mínimo\n\n## Dados Pessoais\n- [ ] Inventário de dados pessoais\n- [ ] Política de retenção definida\n- [ ] Processo de exclusão implementado',
+      category: 'compliance',
+      tags: ['lgpd', 'compliance', 'checklist', 'data-protection'],
+      author_id: 'demo-user-002',
+      approval_status: 'approved',
+      approved_by: 'demo-user-001',
+      views: 278,
+      helpful_count: 52,
+      created_at: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+  ];
+}
+
+/**
+ * Gera dados de TV Dashboard tokens para demonstração
+ */
+export function generateDemoTvTokens() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+
+  return [
+    {
+      id: 'demo-tv-token-001',
+      token: 'demo-tv-' + 'a'.repeat(56),
+      organization_id: DEMO_ORG_ID,
+      is_active: true,
+      expires_at: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+      last_used_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-tv-token-002',
+      token: 'demo-tv-' + 'b'.repeat(56),
+      organization_id: DEMO_ORG_ID,
+      is_active: true,
+      expires_at: new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      last_used_at: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+    {
+      id: 'demo-tv-token-003',
+      token: 'demo-tv-' + 'c'.repeat(56),
+      organization_id: DEMO_ORG_ID,
+      is_active: false,
+      expires_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+      last_used_at: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+      _isDemo: true,
+    },
+  ];
+}
+
+/**
+ * Gera dados de analytics da Knowledge Base para demonstração
+ */
+export function generateDemoKbAnalytics() {
+  return {
+    _isDemo: true,
+    totalArticles: 5,
+    publishedArticles: 5,
+    draftArticles: 0,
+    totalViews: 1169,
+    totalHelpful: 231,
+    recentArticles: 3,
+    topArticles: [
+      { id: 'demo-kb-004', title: 'Procedimento de Resposta a Incidentes de Segurança', views: 312, helpful_count: 67, category: 'operations' },
+      { id: 'demo-kb-005', title: 'Compliance LGPD - Checklist para AWS', views: 278, helpful_count: 52, category: 'compliance' },
+      { id: 'demo-kb-001', title: 'Como configurar MFA para usuários IAM', views: 234, helpful_count: 45, category: 'security' },
+      { id: 'demo-kb-002', title: 'Guia de Otimização de Custos EC2', views: 189, helpful_count: 38, category: 'cost' },
+      { id: 'demo-kb-003', title: 'Configurando WAF para proteção contra SQL Injection', views: 156, helpful_count: 29, category: 'security' },
+    ],
+    articlesByCategory: [
+      { category: 'security', _count: { id: 3 } },
+      { category: 'compliance', _count: { id: 1 } },
+      { category: 'cost', _count: { id: 1 } },
+      { category: 'operations', _count: { id: 1 } },
+    ],
+    topTags: [
+      { tag: 'security', count: 4 },
+      { tag: 'compliance', count: 2 },
+      { tag: 'iam', count: 2 },
+      { tag: 'cost-optimization', count: 1 },
+      { tag: 'waf', count: 1 },
+    ],
+  };
+}
+
+/**
+ * Gera dados de CloudTrail events para query-table
+ */
+export function generateDemoCloudTrailEventsTable() {
+  const now = new Date();
+  const DEMO_ORG_ID = 'demo-organization-id';
+
+  const events = [
+    { event_name: 'ConsoleLogin', user_name: 'admin@demo.com', user_type: 'IAMUser', risk_level: 'low', source_ip: '203.0.113.50', aws_region: 'us-east-1', event_source: 'signin.amazonaws.com', error_code: null },
+    { event_name: 'CreateAccessKey', user_name: 'deploy-bot', user_type: 'IAMUser', risk_level: 'high', source_ip: '198.51.100.25', aws_region: 'us-east-1', event_source: 'iam.amazonaws.com', error_code: null },
+    { event_name: 'AuthorizeSecurityGroupIngress', user_name: 'dev-user', user_type: 'IAMUser', risk_level: 'high', source_ip: '192.0.2.100', aws_region: 'us-east-1', event_source: 'ec2.amazonaws.com', error_code: null },
+    { event_name: 'PutBucketPolicy', user_name: 'admin@demo.com', user_type: 'IAMUser', risk_level: 'medium', source_ip: '203.0.113.50', aws_region: 'us-east-1', event_source: 's3.amazonaws.com', error_code: null },
+    { event_name: 'StopInstances', user_name: 'ops-user', user_type: 'IAMUser', risk_level: 'low', source_ip: '198.51.100.75', aws_region: 'us-east-1', event_source: 'ec2.amazonaws.com', error_code: null },
+    { event_name: 'DeleteBucket', user_name: 'unknown-user', user_type: 'Root', risk_level: 'critical', source_ip: '10.0.0.1', aws_region: 'us-east-1', event_source: 's3.amazonaws.com', error_code: 'AccessDenied' },
+    { event_name: 'RunInstances', user_name: 'auto-scaling', user_type: 'AssumedRole', risk_level: 'low', source_ip: null, aws_region: 'us-east-1', event_source: 'ec2.amazonaws.com', error_code: null },
+    { event_name: 'AttachUserPolicy', user_name: 'admin@demo.com', user_type: 'IAMUser', risk_level: 'high', source_ip: '203.0.113.50', aws_region: 'us-east-1', event_source: 'iam.amazonaws.com', error_code: null },
+    { event_name: 'ModifyDBInstance', user_name: 'dba-user', user_type: 'IAMUser', risk_level: 'medium', source_ip: '192.0.2.200', aws_region: 'us-east-1', event_source: 'rds.amazonaws.com', error_code: null },
+    { event_name: 'AssumeRole', user_name: 'external-auditor', user_type: 'FederatedUser', risk_level: 'medium', source_ip: '198.51.100.150', aws_region: 'us-east-1', event_source: 'sts.amazonaws.com', error_code: null },
+  ];
+
+  return events.map((e, i) => ({
+    id: `demo-ct-event-${String(i + 1).padStart(3, '0')}`,
+    organization_id: DEMO_ORG_ID,
+    aws_account_id: '123456789012',
+    event_id: `demo-ct-${crypto_random_hex(16)}${i}`,
+    ...e,
+    event_time: new Date(now.getTime() - i * 45 * 60 * 1000).toISOString(),
+    user_agent: 'console.amazonaws.com',
+    user_identity: { type: e.user_type, userName: e.user_name },
+    user_arn: `arn:aws:iam::123456789012:user/${e.user_name}`,
+    error_message: e.error_code ? 'Access Denied' : null,
+    request_parameters: {},
+    response_elements: {},
+    resources: [],
+    risk_reasons: e.risk_level === 'critical' ? ['Root account usage', 'Destructive action'] :
+                  e.risk_level === 'high' ? ['Sensitive IAM action'] :
+                  e.risk_level === 'medium' ? ['Policy modification'] : [],
+    security_explanation: null,
+    remediation_suggestion: null,
+    event_category: 'Management',
+    is_security_event: e.risk_level !== 'low',
+    created_at: new Date(now.getTime() - i * 45 * 60 * 1000).toISOString(),
+    _isDemo: true,
+  }));
+}
+
+// Simple hex string generator for demo IDs (no crypto dependency needed)
+function crypto_random_hex(length: number): string {
+  const chars = '0123456789abcdef';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+}
+
 export default {
   isOrganizationInDemoMode,
   generateDemoSecurityFindings,
@@ -3783,5 +4158,10 @@ export default {
   generateDemoMonitoredEndpoints,
   generateDemoMonitoredResources,
   generateDemoResourceMetrics,
-  getDemoOrRealData
+  getDemoOrRealData,
+  generateDemoRemediationTickets,
+  generateDemoKnowledgeBaseArticles,
+  generateDemoTvTokens,
+  generateDemoKbAnalytics,
+  generateDemoCloudTrailEventsTable,
 };

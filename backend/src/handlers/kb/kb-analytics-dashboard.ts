@@ -11,6 +11,7 @@ import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { isOrganizationInDemoMode, generateDemoKbAnalytics } from '../../lib/demo-data-service.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -27,6 +28,27 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const prisma = getPrismaClient();
+    
+    // Demo mode check
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Returning demo KB analytics', { organizationId });
+      const demoAnalytics = generateDemoKbAnalytics();
+      return success({
+        success: true,
+        summary: {
+          totalArticles: demoAnalytics.totalArticles,
+          publishedArticles: demoAnalytics.publishedArticles,
+          draftArticles: demoAnalytics.draftArticles,
+          totalViews: demoAnalytics.totalViews,
+          recentArticles: demoAnalytics.recentArticles,
+        },
+        topArticles: demoAnalytics.topArticles,
+        articlesByCategory: demoAnalytics.articlesByCategory,
+        topTags: demoAnalytics.topTags,
+        _isDemo: true,
+      });
+    }
     
     // Total de artigos
     const totalArticles = await prisma.knowledgeBaseArticle.count({

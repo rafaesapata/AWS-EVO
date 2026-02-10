@@ -6,6 +6,7 @@ import { getOrigin } from '../../lib/middleware.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { manageTvTokensSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { isOrganizationInDemoMode, generateDemoTvTokens } from '../../lib/demo-data-service.js';
 import * as crypto from 'crypto';
 
 export async function handler(
@@ -35,6 +36,17 @@ export async function handler(
       return validation.error;
     }
     const { action, tokenId, name, expirationDays, isActive } = validation.data;
+
+    // Demo mode check
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Demo mode: handling TV tokens action', { action, organizationId });
+      if (action === 'list') {
+        return success({ tokens: generateDemoTvTokens(), _isDemo: true }, 200, origin);
+      }
+      // For create/toggle/delete in demo mode, return success without modifying DB
+      return success({ success: true, _isDemo: true }, 200, origin);
+    }
 
     switch (action) {
       case 'list': {
