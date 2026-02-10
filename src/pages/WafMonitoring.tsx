@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,7 @@ import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useDemoMode } from "@/contexts/DemoModeContext";
 import { 
   ShieldAlert,
   RefreshCw,
@@ -30,12 +31,112 @@ import { WafGeoDistribution } from "@/components/waf/WafGeoDistribution";
 import { WafAlertConfig } from "@/components/waf/WafAlertConfig";
 import { WafRulesEvaluator } from "@/components/waf/WafRulesEvaluator";
 
+// Demo data generators for WAF monitoring
+function generateDemoWafData() {
+  const now = new Date();
+  const metrics = {
+    totalRequests: 284750,
+    blockedRequests: 12847,
+    allowedRequests: 271903,
+    challengeRequests: 3210,
+    blockRate: 4.51,
+    criticalThreats: 23,
+    highThreats: 87,
+    mediumThreats: 342,
+    lowThreats: 1205,
+    activeCampaigns: 3,
+    uniqueAttackerIPs: 156,
+    previousPeriod: {
+      totalRequests: 261200,
+      blockedRequests: 10230,
+      allowedRequests: 250970,
+      blockRate: 3.92,
+      criticalThreats: 18,
+      highThreats: 72,
+    },
+    _isDemo: true,
+  };
+
+  const attackTypes = [
+    { type: 'SQL Injection', count: 3842, percentage: 29.9, severity: 'critical', trend: 'up' },
+    { type: 'XSS', count: 2915, percentage: 22.7, severity: 'high', trend: 'stable' },
+    { type: 'Path Traversal', count: 1847, percentage: 14.4, severity: 'high', trend: 'down' },
+    { type: 'Bot Traffic', count: 1523, percentage: 11.9, severity: 'medium', trend: 'up' },
+    { type: 'Rate Limit', count: 1290, percentage: 10.0, severity: 'medium', trend: 'stable' },
+    { type: 'Scanner Detection', count: 842, percentage: 6.6, severity: 'low', trend: 'down' },
+    { type: 'Other', count: 588, percentage: 4.5, severity: 'low', trend: 'stable' },
+  ];
+
+  const topAttackers = [
+    { ip: '185.220.101.34', country: 'RU', countryName: 'Russia', requests: 2847, blocked: 2847, lastSeen: new Date(now.getTime() - 5 * 60000).toISOString(), threatLevel: 'critical', attackTypes: ['SQL Injection', 'XSS'] },
+    { ip: '45.148.10.92', country: 'CN', countryName: 'China', requests: 1923, blocked: 1923, lastSeen: new Date(now.getTime() - 12 * 60000).toISOString(), threatLevel: 'critical', attackTypes: ['Path Traversal', 'Scanner'] },
+    { ip: '194.26.192.77', country: 'NL', countryName: 'Netherlands', requests: 1456, blocked: 1340, lastSeen: new Date(now.getTime() - 25 * 60000).toISOString(), threatLevel: 'high', attackTypes: ['Bot Traffic'] },
+    { ip: '103.152.220.15', country: 'ID', countryName: 'Indonesia', requests: 987, blocked: 987, lastSeen: new Date(now.getTime() - 45 * 60000).toISOString(), threatLevel: 'high', attackTypes: ['Rate Limit'] },
+    { ip: '91.242.217.124', country: 'UA', countryName: 'Ukraine', requests: 756, blocked: 698, lastSeen: new Date(now.getTime() - 90 * 60000).toISOString(), threatLevel: 'medium', attackTypes: ['XSS'] },
+  ];
+
+  const geoDistribution = [
+    { country: 'US', countryName: 'United States', requests: 142300, blocked: 1250, lat: 37.09, lng: -95.71 },
+    { country: 'BR', countryName: 'Brazil', requests: 52400, blocked: 890, lat: -14.24, lng: -51.93 },
+    { country: 'RU', countryName: 'Russia', requests: 18700, blocked: 4520, lat: 61.52, lng: 105.32 },
+    { country: 'CN', countryName: 'China', requests: 15200, blocked: 3210, lat: 35.86, lng: 104.20 },
+    { country: 'DE', countryName: 'Germany', requests: 12800, blocked: 340, lat: 51.17, lng: 10.45 },
+    { country: 'IN', countryName: 'India', requests: 9800, blocked: 780, lat: 20.59, lng: 78.96 },
+    { country: 'NL', countryName: 'Netherlands', requests: 8400, blocked: 1560, lat: 52.13, lng: 5.29 },
+    { country: 'JP', countryName: 'Japan', requests: 7200, blocked: 120, lat: 36.20, lng: 138.25 },
+  ];
+
+  const severities = ['critical', 'high', 'medium', 'low'];
+  const actions = ['BLOCK', 'ALLOW', 'COUNT', 'CHALLENGE'];
+  const uris = ['/api/login', '/api/users', '/api/admin', '/api/data/export', '/wp-admin', '/api/search', '/.env', '/api/credentials'];
+  const countries = ['US', 'RU', 'CN', 'BR', 'NL', 'DE', 'ID', 'UA', 'IN', 'JP'];
+  const methods = ['POST', 'GET', 'PUT', 'DELETE'];
+  const rules = ['SQLi-Detection', 'XSS-Prevention', 'Rate-Limit-Rule', 'Bot-Control', 'Geo-Block', 'Path-Traversal-Block', 'Scanner-Detection'];
+
+  const events: any[] = [];
+  for (let i = 0; i < 50; i++) {
+    const isBlocked = Math.random() > 0.4;
+    events.push({
+      id: `demo-waf-event-${i}`,
+      timestamp: new Date(now.getTime() - i * 15 * 60000).toISOString(),
+      action: isBlocked ? 'BLOCK' : actions[Math.floor(Math.random() * actions.length)],
+      sourceIp: topAttackers[Math.floor(Math.random() * topAttackers.length)].ip,
+      country: countries[Math.floor(Math.random() * countries.length)],
+      uri: uris[Math.floor(Math.random() * uris.length)],
+      method: methods[Math.floor(Math.random() * methods.length)],
+      severity: severities[Math.floor(Math.random() * severities.length)],
+      rule: rules[Math.floor(Math.random() * rules.length)],
+      userAgent: 'Mozilla/5.0 (compatible; DemoBot/1.0)',
+      threatType: attackTypes[Math.floor(Math.random() * attackTypes.length)].type,
+      _isDemo: true,
+    });
+  }
+
+  const timeline: any[] = [];
+  for (let h = 23; h >= 0; h--) {
+    const time = new Date(now.getTime() - h * 3600000);
+    const total = 8000 + Math.floor(Math.random() * 6000);
+    const blocked = Math.floor(total * (0.03 + Math.random() * 0.05));
+    timeline.push({
+      timestamp: time.toISOString(),
+      time: time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      totalRequests: total,
+      blockedRequests: blocked,
+      allowedRequests: total - blocked,
+      challengeRequests: Math.floor(blocked * 0.15),
+    });
+  }
+
+  return { metrics, attackTypes, topAttackers, geoDistribution, events, timeline };
+}
+
 export default function WafMonitoring() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedAccountId } = useCloudAccount();
   const { data: organizationId } = useOrganization();
+  const { isDemoMode } = useDemoMode();
   const [activeTab, setActiveTab] = useState("overview");
   
   // Filter state for events tab
@@ -55,6 +156,9 @@ export default function WafMonitoring() {
     action?: string;
     campaign?: boolean;
   }>({});
+
+  // Demo mode data - memoized so it doesn't regenerate on every render
+  const demoData = useMemo(() => isDemoMode ? generateDemoWafData() : null, [isDemoMode]);
 
   // Handle metric card click to filter events
   const handleMetricCardClick = (filter: { severity?: string; type?: string }) => {
@@ -254,16 +358,18 @@ export default function WafMonitoring() {
     toast({ title: t('common.refreshed'), description: t('waf.dataRefreshed') });
   };
 
-  const hasActiveConfig = monitoringConfigsData?.hasActiveConfig;
-  const metrics = metricsData?.metrics;
-  const events = eventsData?.events || [];
-  const topAttackers = attackersData?.topAttackers || [];
-  const attackTypes = attackTypesData?.attackTypes || [];
-  const geoDistribution = geoData?.geoDistribution || [];
-  const timeline = timelineData?.timeline || [];
+  const hasActiveConfig = isDemoMode ? true : monitoringConfigsData?.hasActiveConfig;
+  const metrics = isDemoMode ? demoData?.metrics : metricsData?.metrics;
+  const events = isDemoMode ? (demoData?.events || []) : (eventsData?.events || []);
+  const topAttackers = isDemoMode ? (demoData?.topAttackers || []) : (attackersData?.topAttackers || []);
+  const attackTypes = isDemoMode ? (demoData?.attackTypes || []) : (attackTypesData?.attackTypes || []);
+  const geoDistribution = isDemoMode ? (demoData?.geoDistribution || []) : (geoData?.geoDistribution || []);
+  const timeline = isDemoMode ? (demoData?.timeline || []) : (timelineData?.timeline || []);
   
   // Use dedicated blocked events query for the blocked requests list
-  const blockedRequests = blockedEventsData?.events || [];
+  const blockedRequests = isDemoMode 
+    ? (demoData?.events?.filter((e: any) => e.action === 'BLOCK') || [])
+    : (blockedEventsData?.events || []);
 
   // Filter events based on filter state
   const filteredEvents = events.filter(event => {
@@ -292,7 +398,7 @@ export default function WafMonitoring() {
     >
       <div className="space-y-6">
         {/* Action Buttons */}
-        {hasActiveConfig && (
+        {hasActiveConfig && !isDemoMode && (
           <div className="flex items-center justify-end gap-2">
             <Button
               variant="outline"
@@ -306,8 +412,8 @@ export default function WafMonitoring() {
           </div>
         )}
 
-        {/* Show Setup Panel if no active config */}
-        {!configsLoading && !hasActiveConfig ? (
+        {/* Show Setup Panel if no active config (skip in demo mode) */}
+        {!isDemoMode && !configsLoading && !hasActiveConfig ? (
           <WafSetupPanel 
             onSetupComplete={() => {
               queryClient.invalidateQueries({ queryKey: ['waf-monitoring-configs'] });
@@ -318,7 +424,7 @@ export default function WafMonitoring() {
             {/* Metrics Cards */}
             <WafMetricsCards 
               metrics={metrics} 
-              isLoading={metricsLoading}
+              isLoading={isDemoMode ? false : metricsLoading}
               onCardClick={handleMetricCardClick}
             />
 
@@ -327,10 +433,12 @@ export default function WafMonitoring() {
               <TabsList className="glass-card-float">
                 <TabsTrigger value="overview">{t('waf.overview', 'Visão Geral')}</TabsTrigger>
                 <TabsTrigger value="events">{t('waf.events', 'Eventos')}</TabsTrigger>
-                <TabsTrigger value="config">
-                  <Settings className="h-4 w-4 mr-1" />
-                  {t('waf.configuration', 'Configuração')}
-                </TabsTrigger>
+                {!isDemoMode && (
+                  <TabsTrigger value="config">
+                    <Settings className="h-4 w-4 mr-1" />
+                    {t('waf.configuration', 'Configuração')}
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="overview" className="space-y-6">
@@ -340,48 +448,48 @@ export default function WafMonitoring() {
                 {/* Timeline Chart */}
                 <WafTimelineChart 
                   data={timeline} 
-                  isLoading={timelineLoading} 
+                  isLoading={isDemoMode ? false : timelineLoading} 
                 />
 
                 {/* AI Analysis Section */}
-                <WafAiAnalysis accountId={selectedAccountId || undefined} />
+                {!isDemoMode && <WafAiAnalysis accountId={selectedAccountId || undefined} />}
 
                 {/* Geographic Distribution */}
                 <div className="grid gap-6 md:grid-cols-2">
                   <WafGeoDistribution 
                     geoDistribution={geoDistribution} 
-                    isLoading={geoLoading} 
+                    isLoading={isDemoMode ? false : geoLoading} 
                   />
                   <WafWorldMap 
                     geoDistribution={geoDistribution} 
-                    isLoading={geoLoading} 
+                    isLoading={isDemoMode ? false : geoLoading} 
                   />
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
                   <WafAttackTypesChart 
                     attackTypes={attackTypes} 
-                    isLoading={attackTypesLoading} 
+                    isLoading={isDemoMode ? false : attackTypesLoading} 
                   />
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
                   <WafTopAttackers 
                     topAttackers={topAttackers} 
-                    isLoading={attackersLoading}
-                    accountId={selectedAccountId || undefined}
-                    onBlockIp={(ip) => blockIpMutation.mutate({ ipAddress: ip, reason: 'Manual block from dashboard' })}
+                    isLoading={isDemoMode ? false : attackersLoading}
+                    accountId={isDemoMode ? 'demo-account' : (selectedAccountId || undefined)}
+                    onBlockIp={isDemoMode ? undefined : ((ip) => blockIpMutation.mutate({ ipAddress: ip, reason: 'Manual block from dashboard' }))}
                   />
                   <WafEventsFeed 
                     events={events.slice(0, 10)} 
-                    isLoading={eventsLoading} 
+                    isLoading={isDemoMode ? false : eventsLoading} 
                   />
                 </div>
 
                 {/* Blocked Requests List */}
                 <WafBlockedRequestsList 
                   blockedRequests={blockedRequests.slice(0, 20)} 
-                  isLoading={blockedEventsLoading} 
+                  isLoading={isDemoMode ? false : blockedEventsLoading} 
                 />
               </TabsContent>
 
@@ -394,7 +502,7 @@ export default function WafMonitoring() {
                 
                 <WafEventsFeed 
                   events={events} 
-                  isLoading={eventsLoading}
+                  isLoading={isDemoMode ? false : eventsLoading}
                   showPagination
                   externalSeverityFilter={externalEventFilters.severity}
                   externalActionFilter={externalEventFilters.action}
@@ -402,12 +510,14 @@ export default function WafMonitoring() {
                 />
               </TabsContent>
 
-              <TabsContent value="config" className="space-y-4">
-                <WafSetupPanel />
-                <WafRulesEvaluator accountId={selectedAccountId || undefined} />
-                <WafConfigPanel accountId={selectedAccountId || undefined} />
-                <WafAlertConfig accountId={selectedAccountId || undefined} />
-              </TabsContent>
+              {!isDemoMode && (
+                <TabsContent value="config" className="space-y-4">
+                  <WafSetupPanel />
+                  <WafRulesEvaluator accountId={selectedAccountId || undefined} />
+                  <WafConfigPanel accountId={selectedAccountId || undefined} />
+                  <WafAlertConfig accountId={selectedAccountId || undefined} />
+                </TabsContent>
+              )}
             </Tabs>
           </>
         )}
