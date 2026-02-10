@@ -8,6 +8,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 
 interface RequestBody {
@@ -37,6 +38,20 @@ export async function handler(
     const { scanType = 'full', accountId, scanLevel = 'standard' } = body;
     
     const prisma = getPrismaClient();
+    
+    // Demo mode check - prevent demo users from triggering real scans
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      console.log('🎭 Demo mode: returning simulated scan start');
+      return success({
+        status: 'started',
+        message: 'Scan de segurança iniciado (modo demonstração).',
+        scanType,
+        scanLevel,
+        scanId: 'demo-scan-001',
+        _isDemo: true,
+      });
+    }
     
     // PROTECTION: Auto-cleanup stuck scans before checking for running scans
     // Scans running for more than 60 minutes are considered stuck

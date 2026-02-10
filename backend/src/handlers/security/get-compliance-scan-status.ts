@@ -9,6 +9,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
@@ -41,6 +42,36 @@ export async function handler(
     const { jobId } = validation.data;
     
     const prisma = getPrismaClient();
+    
+    // Demo mode check
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Returning demo compliance scan status', { organizationId, jobId });
+      return success({
+        job_id: jobId,
+        job_name: 'compliance-scan',
+        status: 'completed',
+        progress: 100,
+        message: 'Compliance scan completed (demo)',
+        completed: 42,
+        total: 42,
+        started_at: new Date(Date.now() - 60000).toISOString(),
+        completed_at: new Date().toISOString(),
+        error: null,
+        parameters: {},
+        scan_results: {
+          scan_id: 'demo-scan-001',
+          framework: 'CIS',
+          compliance_score: 82,
+          passed: 34,
+          failed: 8,
+          errors: 0,
+          duration_ms: 45000,
+          checks: [],
+        },
+        _isDemo: true,
+      }, 200, origin);
+    }
     
     // Get job status
     const job = await prisma.backgroundJob.findFirst({

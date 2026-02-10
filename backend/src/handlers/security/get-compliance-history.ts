@@ -9,6 +9,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
@@ -45,6 +46,46 @@ export async function handler(
     const effectiveDays = days ?? 30;
     
     const prisma = getPrismaClient();
+    
+    // Demo mode check
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo === true) {
+      logger.info('Returning demo compliance history', { organizationId });
+      const now = new Date();
+      const scores = [];
+      for (let i = effectiveDays - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const base = 72 + Math.sin(i / 5) * 8;
+        scores.push({
+          date: d.toISOString(),
+          compliance_score: Math.round(base + (Math.random() - 0.5) * 4),
+          overall_score: Math.round(base + 5 + (Math.random() - 0.5) * 4),
+          critical_findings: Math.max(0, Math.round(3 - i * 0.05)),
+          high_findings: Math.round(5 + Math.sin(i / 3) * 2),
+          medium_findings: Math.round(8 + Math.cos(i / 4) * 3),
+          low_findings: Math.round(15 + Math.sin(i / 6) * 4),
+          risk_level: base > 75 ? 'medium' : 'high',
+        });
+      }
+      return success({
+        period_days: effectiveDays,
+        overall_trend: 'improving',
+        posture_history: scores,
+        framework_stats: {
+          'CIS': { total_scans: 8, avg_score: 76, latest_score: 82, trend: 'improving', scores: scores.filter((_, i) => i % 4 === 0).map(s => ({ date: s.date, score: s.compliance_score })) },
+          'LGPD': { total_scans: 4, avg_score: 68, latest_score: 74, trend: 'improving', scores: scores.filter((_, i) => i % 7 === 0).map(s => ({ date: s.date, score: Math.round(s.compliance_score * 0.9) })) },
+          'PCI-DSS': { total_scans: 3, avg_score: 71, latest_score: 78, trend: 'stable', scores: scores.filter((_, i) => i % 10 === 0).map(s => ({ date: s.date, score: Math.round(s.compliance_score * 0.95) })) },
+        },
+        recent_critical_findings: [
+          { control_id: 'CIS-1.5', control_name: 'Ensure MFA is enabled for root account', framework: 'CIS', severity: 'critical', remediation_steps: 'Enable MFA on root account', created_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+          { control_id: 'CIS-2.1.1', control_name: 'Ensure S3 Bucket Policy is set to deny HTTP requests', framework: 'CIS', severity: 'critical', remediation_steps: 'Add bucket policy to deny non-HTTPS', created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+        ],
+        total_scans: 15,
+        summary: { current_score: 82, previous_score: 78, score_change: 4 },
+        _isDemo: true,
+      }, 200, origin);
+    }
     
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - effectiveDays);
