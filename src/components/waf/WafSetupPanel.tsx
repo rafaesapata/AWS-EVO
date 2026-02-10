@@ -72,6 +72,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   // Fetch existing WAF configurations
   const { data: configsData, isLoading: configsLoading, refetch: refetchConfigs } = useQuery({
@@ -124,11 +125,16 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
       onSetupComplete?.();
     },
     onError: (error) => {
-      toast({ 
-        title: t('common.error'), 
-        description: error.message, 
-        variant: "destructive" 
-      });
+      // Check if it's a permission/CloudFormation update error
+      if (error.message?.includes('CloudFormation') || error.message?.includes('permissions')) {
+        setPermissionError(error.message);
+      } else {
+        toast({ 
+          title: t('common.error'), 
+          description: error.message, 
+          variant: "destructive" 
+        });
+      }
     },
   });
 
@@ -327,6 +333,37 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
       )}
 
       {/* Setup New WAF */}
+      {permissionError && (
+        <Alert variant="destructive" className="border-destructive/50">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t('waf.permissionError', 'IAM Permission Error')}</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p className="text-sm">{t('waf.stackUpdateRequired', 'The IAM role in the customer AWS account is missing permissions required for WAF monitoring. The CloudFormation stack needs to be updated.')}</p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => window.open('https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml', '_blank')}
+              >
+                <ExternalLink className="h-3 w-3" />
+                {t('waf.viewTemplate', 'View Updated Template')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPermissionError(null)}
+              >
+                {t('common.dismiss', 'Dismiss')}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t('waf.stackUpdateInstructions', 'Go to AWS Console → CloudFormation → Select the EVO Platform stack → Update → Replace current template → Use the URL above → Next → Submit.')}
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card className="">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

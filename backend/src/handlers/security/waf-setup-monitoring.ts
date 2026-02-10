@@ -33,6 +33,7 @@ import {
   DeleteSubscriptionFilterCommand,
   DescribeSubscriptionFiltersCommand,
 } from '@aws-sdk/client-cloudwatch-logs';
+import { IAMClient, SimulatePrincipalPolicyCommand, GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand } from '@aws-sdk/client-iam';
 
 // Filter modes for WAF log collection
 type LogFilterMode = 'block_only' | 'all_requests' | 'hybrid';
@@ -243,8 +244,6 @@ async function getOrCreateCloudWatchLogsRole(
   credentials: any,
   account: { role_arn?: string | null }
 ): Promise<string> {
-  const { IAMClient, GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand } = await import('@aws-sdk/client-iam');
-  
   const iamClient = new IAMClient({ region: 'us-east-1', credentials }); // IAM is global
   
   // FIXED role name - must match CloudFormation template exactly
@@ -482,6 +481,11 @@ export async function handler(
     const errName = err?.name || '';
     const errMsg = err?.message || '';
     
+    // Handle pre-flight permission check failure — provides actionable CloudFormation update instructions
+    if (errName === 'WAFPermissionPreFlightError') {
+      return error(errMsg, 403);
+    }
+    
     // Handle specific AWS errors with meaningful responses
     if (errName === 'ResourceNotFoundException') {
       return error(
@@ -493,7 +497,10 @@ export async function handler(
     if (errName === 'AccessDeniedException' || errMsg.includes('Access denied')) {
       return error(
         `Access denied. The IAM role does not have sufficient permissions to configure WAF logging. ` +
-        `Required permissions: wafv2:PutLoggingConfiguration, logs:CreateLogGroup, logs:PutResourcePolicy, logs:PutSubscriptionFilter. ` +
+        `This usually means the CloudFormation stack needs to be updated. ` +
+        `Please go to AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
+        `Replace current template → Use this URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit. ` +
+        `Missing permissions: wafv2:PutLoggingConfiguration, logs:CreateLogGroup, logs:PutResourcePolicy, logs:PutSubscriptionFilter. ` +
         `Details: ${errMsg}`,
         403
       );
@@ -524,6 +531,92 @@ export async function handler(
   }
 }
 
+// Required IAM permissions for WAF monitoring setup
+const WAF_MONITORING_REQUIRED_PERMISSIONS = [
+  'wafv2:GetWebACL',
+  'wafv2:GetLoggingConfiguration',
+  'wafv2:PutLoggingConfiguration',
+  'logs:CreateLogGroup',
+  'logs:PutResourcePolicy',
+  'logs:DescribeResourcePolicies',
+  'logs:PutSubscriptionFilter',
+  'logs:DescribeSubscriptionFilters',
+  'logs:DeleteSubscriptionFilter',
+  'logs:PutRetentionPolicy',
+];
+
+/**
+ * Pre-flight validation of IAM permissions for WAF monitoring.
+ * Uses IAM SimulatePrincipalPolicy to check if the customer's IAM role
+ * has all required permissions BEFORE attempting any operations.
+ * 
+ * This catches outdated CloudFormation stacks that lack WAF monitoring permissions
+ * and provides a clear, actionable error message to the user.
+ */
+async function validateWafPermissions(
+  credentials: any,
+  region: string,
+  customerAwsAccountId: string,
+  account: { role_arn?: string | null }
+): Promise<void> {
+  const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+  
+  // Determine the principal ARN from the role
+  const roleArn = account.role_arn;
+  if (!roleArn) {
+    logger.warn('No role_arn available for permission pre-flight check, skipping validation');
+    return;
+  }
+  
+  try {
+    const simulateResponse = await iamClient.send(new SimulatePrincipalPolicyCommand({
+      PolicySourceArn: roleArn,
+      ActionNames: WAF_MONITORING_REQUIRED_PERMISSIONS,
+      ResourceArns: ['*'],
+    }));
+    
+    const denied = (simulateResponse.EvaluationResults || [])
+      .filter(r => r.EvalDecision !== 'allowed')
+      .map(r => r.EvalActionName!);
+    
+    if (denied.length > 0) {
+      logger.error('WAF monitoring permission pre-flight check failed', { 
+        roleArn, 
+        deniedPermissions: denied,
+        customerAwsAccountId 
+      });
+      
+      const err = new Error(
+        `The IAM role is missing permissions required for WAF monitoring: ${denied.join(', ')}. ` +
+        `This usually means the CloudFormation stack needs to be updated to the latest version. ` +
+        `Please go to AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
+        `Replace current template → Use this URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit. ` +
+        `The updated template (v2.4.0+) includes all required WAF monitoring permissions.`
+      );
+      (err as any).name = 'WAFPermissionPreFlightError';
+      throw err;
+    }
+    
+    logger.info('WAF monitoring permission pre-flight check passed', { 
+      roleArn, 
+      checkedPermissions: WAF_MONITORING_REQUIRED_PERMISSIONS.length 
+    });
+  } catch (err: any) {
+    // If it's our own pre-flight error, re-throw it
+    if (err.name === 'WAFPermissionPreFlightError') {
+      throw err;
+    }
+    
+    // If SimulatePrincipalPolicy itself fails (e.g., no iam:SimulateCustomPolicy permission),
+    // log a warning but continue — the actual operations will fail with specific errors
+    logger.warn('WAF permission pre-flight check could not be performed (non-blocking)', { 
+      error: err.message,
+      errorName: err.name,
+      roleArn 
+    });
+  }
+}
+
 /**
  * Enable WAF monitoring for a Web ACL
  */
@@ -542,6 +635,10 @@ async function enableWafMonitoring(
   prisma: ReturnType<typeof getPrismaClient>,
   credentials: any
 ): Promise<SetupResult> {
+  
+  // PRE-FLIGHT: Validate IAM permissions before attempting any operations
+  // This catches outdated CloudFormation stacks that lack WAF monitoring permissions
+  await validateWafPermissions(credentials, region, customerAwsAccountId, account);
   
   // Step 0: VALIDATE that the WAF Web ACL exists BEFORE doing anything
   // This prevents creating resources for non-existent WAFs
@@ -669,11 +766,26 @@ async function enableWafMonitoring(
       policyName 
     });
   } catch (err: any) {
-    logger.warn('Failed to add CloudWatch Logs resource policy', { 
+    // If AccessDeniedException, this is a real permission issue — propagate it
+    if (err.name === 'AccessDeniedException' || err.message?.includes('is not authorized')) {
+      logger.error('AccessDenied on PutResourcePolicy — IAM role missing logs:PutResourcePolicy permission', { 
+        error: err.message,
+        logGroupName 
+      });
+      const permErr = new Error(
+        `The IAM role is missing the logs:PutResourcePolicy permission required for WAF monitoring. ` +
+        `Please update your CloudFormation stack to the latest version. ` +
+        `Go to AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
+        `Replace current template → Use this URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit.`
+      );
+      (permErr as any).name = 'AccessDeniedException';
+      throw permErr;
+    }
+    logger.warn('Failed to add CloudWatch Logs resource policy (non-critical)', { 
       error: err.message,
       logGroupName 
     });
-    // Continue anyway - the policy might already exist
+    // Continue for non-permission errors - the policy might already exist
   }
   
   // Step 3: Enable WAF logging to CloudWatch Logs
