@@ -123,6 +123,11 @@ Resources:
                   - events:TagResource
                   - events:UntagResource
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - codestar-connections:UseConnection
+                  - codeconnections:UseConnection
+                Resource: !Ref GitHubConnectionArn
 
   # IAM Role for CodePipeline
   CodePipelineRole:
