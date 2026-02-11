@@ -22,6 +22,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { getAzureCredentialWithToken } from '../../lib/azure-helpers.js';
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { fetchWithRetry } from '../../lib/azure-retry.js';
 
 const azureFetchMetricsSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
@@ -353,11 +354,15 @@ async function listAzureResources(
 
   // List ALL resources without $filter (avoids case-sensitivity and child resource issues)
   let url: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/resources?api-version=${AZURE_RESOURCES_API_VERSION}`;
+  const allResourceTypes = new Set<string>();
+  let totalRawResources = 0;
 
   while (url) {
     const data: { value?: AzureResource[]; nextLink?: string } = await fetchAzureApi(accessToken, url);
 
     for (const r of data.value || []) {
+      totalRawResources++;
+      allResourceTypes.add(r.type || 'unknown');
       if (supportedTypes.has((r.type || '').toLowerCase())) {
         resources.push({ id: r.id, name: r.name, type: r.type, location: r.location });
       }
@@ -365,6 +370,15 @@ async function listAzureResources(
 
     url = data.nextLink || null;
   }
+
+  // Debug: log all resource types found in the subscription
+  logger.info('Azure resource types in subscription', {
+    subscriptionId,
+    totalRawResources,
+    matchedResources: resources.length,
+    supportedTypes: [...supportedTypes],
+    allTypesFound: [...allResourceTypes].sort(),
+  });
 
   // SQL Databases are child resources not returned by /resources endpoint
   if (supportedTypes.has('microsoft.sql/servers/databases')) {
@@ -381,7 +395,7 @@ async function listAzureResources(
 
 /** Typed wrapper for Azure Management API GET requests */
 async function fetchAzureApi<T>(accessToken: string, url: string): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -396,6 +410,7 @@ async function fetchAzureApi<T>(accessToken: string, url: string): Promise<T> {
 
   return response.json() as Promise<T>;
 }
+
 
 /**
  * Discover SQL databases via SQL servers endpoint.
@@ -470,7 +485,7 @@ async function fetchResourceMetrics(
 
   const url = `https://management.azure.com${resourceId}/providers/Microsoft.Insights/metrics?api-version=${AZURE_MONITOR_API_VERSION}&metricnames=${encodeURIComponent(metricNamesParam)}&timespan=${encodeURIComponent(timespan)}&interval=${effectiveInterval}&aggregation=${aggregation}`;
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',

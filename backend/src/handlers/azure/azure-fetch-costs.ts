@@ -19,6 +19,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
+import { fetchWithRetry } from '../../lib/azure-retry.js';
 
 // Constants
 const AZURE_MANAGEMENT_SCOPE = 'https://management.azure.com/.default';
@@ -127,9 +128,9 @@ async function queryCostManagementApi(
 ): Promise<{ success: true; rows: unknown[][]; columns: ColumnDefinition[] } | { success: false; error: string; status?: number }> {
   const scope = `/subscriptions/${subscriptionId}`;
   const apiUrl = `https://management.azure.com${scope}/providers/Microsoft.CostManagement/query?api-version=${COST_MANAGEMENT_API_VERSION}`;
-  
+
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetchWithRetry(apiUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -137,22 +138,22 @@ async function queryCostManagementApi(
       },
       body: JSON.stringify(requestBody),
     });
-    
+
     const responseText = await response.text();
-    
+
     logger.info('Cost Management API response', {
       status: response.status,
       statusText: response.statusText,
       responseLength: responseText.length,
     });
-    
+
     let responseData: { properties?: { rows?: unknown[][]; columns?: ColumnDefinition[] }; error?: { code?: string; message?: string }; rawText?: string };
     try {
       responseData = JSON.parse(responseText);
     } catch {
       responseData = { rawText: responseText.substring(0, 1000) };
     }
-    
+
     if (!response.ok) {
       const azureErrorMsg = responseData.error?.message || responseData.error?.code || '';
       logger.error('Cost Management API error', {
@@ -162,13 +163,13 @@ async function queryCostManagementApi(
       });
       return {
         success: false,
-        error: azureErrorMsg 
+        error: azureErrorMsg
           ? `Azure Cost Management error: ${azureErrorMsg}`
           : `Azure Cost Management API error: ${response.status} ${response.statusText}`,
         status: response.status,
       };
     }
-    
+
     return {
       success: true,
       rows: responseData.properties?.rows || [],
@@ -180,6 +181,8 @@ async function queryCostManagementApi(
     return { success: false, error: `API request failed: ${errorMessage}` };
   }
 }
+
+
 
 /**
  * Parse Azure date format (YYYYMMDD number) to ISO date string
