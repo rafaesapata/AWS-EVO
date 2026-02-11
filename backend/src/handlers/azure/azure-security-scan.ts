@@ -49,27 +49,12 @@ export async function handler(
   }
 
   try {
-    // Check if this is a background job execution
-    const isBackgroundJob = event.requestContext?.authorizer?.claims?.sub === 'background-job-processor';
-    
-    let organizationId: string;
-    
-    if (isBackgroundJob) {
-      // For background jobs, get org ID from claims
-      organizationId = event.requestContext?.authorizer?.claims?.['custom:organization_id'] || '';
-      if (!organizationId) {
-        logger.error('Background job missing organization_id');
-        return error('Missing organization_id for background job', 400);
-      }
-      logger.info('Processing Azure security scan as background job', { organizationId });
-    } else {
-      const user = getUserFromEvent(event);
-      organizationId = getOrganizationIdWithImpersonation(event, user);
-    }
+    const user = getUserFromEvent(event);
+    const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const prisma = getPrismaClient();
 
-    logger.info('Starting Azure security scan', { organizationId, isBackgroundJob });
+    logger.info('Starting Azure security scan', { organizationId });
 
     // Parse and validate request body
     const validation = parseAndValidateBody(azureSecurityScanSchema, event.body);
@@ -106,6 +91,12 @@ export async function handler(
     });
 
     if (!credential) {
+      if (backgroundJobId) {
+        await prisma.backgroundJob.update({
+          where: { id: backgroundJobId },
+          data: { status: 'failed', completed_at: new Date(), error: 'Azure credential not found or inactive' },
+        }).catch(() => {});
+      }
       return error('Azure credential not found or inactive', 404);
     }
 
@@ -116,6 +107,12 @@ export async function handler(
       const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
       
       if (!tokenResult.success) {
+        if (backgroundJobId) {
+          await prisma.backgroundJob.update({
+            where: { id: backgroundJobId },
+            data: { status: 'failed', completed_at: new Date(), error: tokenResult.error },
+          }).catch(() => {});
+        }
         return error(tokenResult.error, 400);
       }
       
@@ -130,6 +127,12 @@ export async function handler(
     } else {
       const spValidation = validateServicePrincipalCredentials(credential);
       if (!spValidation.valid) {
+        if (backgroundJobId) {
+          await prisma.backgroundJob.update({
+            where: { id: backgroundJobId },
+            data: { status: 'failed', completed_at: new Date(), error: spValidation.error },
+          }).catch(() => {});
+        }
         return error(spValidation.error, 400);
       }
       spCredentials = spValidation.credentials;
@@ -539,7 +542,7 @@ export async function handler(
     // Audit log
     logAuditAsync({
       organizationId,
-      userId: isBackgroundJob ? 'background-job-processor' : getUserFromEvent(event).sub,
+      userId: user.sub,
       action: 'SECURITY_SCAN_COMPLETE',
       resourceType: 'security_scan',
       resourceId: scan.id,
