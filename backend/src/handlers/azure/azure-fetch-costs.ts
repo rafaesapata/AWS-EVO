@@ -146,7 +146,7 @@ async function queryCostManagementApi(
       responseLength: responseText.length,
     });
     
-    let responseData: { properties?: { rows?: unknown[][]; columns?: ColumnDefinition[] }; rawText?: string };
+    let responseData: { properties?: { rows?: unknown[][]; columns?: ColumnDefinition[] }; error?: { code?: string; message?: string }; rawText?: string };
     try {
       responseData = JSON.parse(responseText);
     } catch {
@@ -154,6 +154,7 @@ async function queryCostManagementApi(
     }
     
     if (!response.ok) {
+      const azureErrorMsg = responseData.error?.message || responseData.error?.code || '';
       logger.error('Cost Management API error', {
         status: response.status,
         statusText: response.statusText,
@@ -161,7 +162,9 @@ async function queryCostManagementApi(
       });
       return {
         success: false,
-        error: `Cost Management API error: ${response.status} ${response.statusText}`,
+        error: azureErrorMsg 
+          ? `Azure Cost Management error: ${azureErrorMsg}`
+          : `Azure Cost Management API error: ${response.status} ${response.statusText}`,
         status: response.status,
       };
     }

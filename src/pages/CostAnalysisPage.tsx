@@ -389,11 +389,13 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  errorMsg.includes('not authorized') ||
  errorMsg.includes('UnauthorizedOperation');
  
+ const isAzureAccount = selectedProvider === 'AZURE';
+ 
  toast({
  title: t('costAnalysis.updateError'),
  description: isPermissionError 
- ? t('costAnalysis.insufficientPermission')
- : `${errorMsg}. ${t('costAnalysis.checkCredentials')}`,
+ ? t(isAzureAccount ? 'costAnalysis.insufficientPermissionAzure' : 'costAnalysis.insufficientPermission')
+ : `${errorMsg}. ${t(isAzureAccount ? 'costAnalysis.checkCredentialsAzure' : 'costAnalysis.checkCredentials')}`,
  variant: "destructive",
  });
  }
@@ -500,11 +502,13 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  errorMsg.includes('not authorized') ||
  errorMsg.includes('UnauthorizedOperation');
  
+ const isAzureAccount = selectedProvider === 'AZURE';
+ 
  toast({
  title: 'Erro na Busca Completa',
  description: isPermissionError 
- ? t('costAnalysis.insufficientPermission')
- : `${errorMsg}. ${t('costAnalysis.checkCredentials')}`,
+ ? t(isAzureAccount ? 'costAnalysis.insufficientPermissionAzure' : 'costAnalysis.insufficientPermission')
+ : `${errorMsg}. ${t(isAzureAccount ? 'costAnalysis.checkCredentialsAzure' : 'costAnalysis.checkCredentials')}`,
  variant: "destructive",
  });
  },

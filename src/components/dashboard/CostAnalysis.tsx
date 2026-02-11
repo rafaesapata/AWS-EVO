@@ -31,7 +31,7 @@ export const CostAnalysis = () => {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
 
   // Use global account context for multi-account isolation
-  const { selectedAccountId, accounts: allAccounts } = useCloudAccount();
+  const { selectedAccountId, accounts: allAccounts, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
 
@@ -197,11 +197,13 @@ export const CostAnalysis = () => {
                                   errorMsg.includes('not authorized') ||
                                   errorMsg.includes('UnauthorizedOperation');
         
+        const isAzureAccount = selectedProvider === 'AZURE';
+        
         toast({
           title: t('costAnalysis.updateError'),
           description: isPermissionError 
-            ? t('costAnalysis.insufficientPermission')
-            : `${errorMsg}. ${t('costAnalysis.checkCredentials')}`,
+            ? t(isAzureAccount ? 'costAnalysis.insufficientPermissionAzure' : 'costAnalysis.insufficientPermission')
+            : `${errorMsg}. ${t(isAzureAccount ? 'costAnalysis.checkCredentialsAzure' : 'costAnalysis.checkCredentials')}`,
           variant: "destructive",
         });
       }
