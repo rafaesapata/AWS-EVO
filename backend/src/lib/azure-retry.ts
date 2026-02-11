@@ -22,8 +22,16 @@ export const DEFAULT_AZURE_RETRY_CONFIG: AzureRetryConfig = {
   jitterFactor: 0.2,
 };
 
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503]);
+
 function isRetryableStatus(status: number): boolean {
-  return status === 429 || status === 503 || status === 502 || status === 500;
+  return RETRYABLE_STATUS_CODES.has(status);
+}
+
+function calculateDelay(attempt: number, config: AzureRetryConfig): number {
+  const exponentialDelay = config.baseDelayMs * Math.pow(2, attempt);
+  const jitter = exponentialDelay * config.jitterFactor * (Math.random() * 2 - 1);
+  return Math.min(exponentialDelay + jitter, config.maxDelayMs);
 }
 
 function getRetryDelay(response: Response, attempt: number, config: AzureRetryConfig): number {
@@ -36,18 +44,16 @@ function getRetryDelay(response: Response, attempt: number, config: AzureRetryCo
     }
   }
 
-  let delayMs: number;
-
   if (retryAfter) {
     const seconds = parseInt(retryAfter, 10);
-    delayMs = isNaN(seconds) ? config.baseDelayMs * Math.pow(2, attempt) : seconds * 1000;
-  } else {
-    delayMs = config.baseDelayMs * Math.pow(2, attempt);
+    if (!isNaN(seconds) && seconds > 0) {
+      // Respect server-requested delay, add small jitter, cap at max
+      const jitter = seconds * 1000 * config.jitterFactor * Math.random();
+      return Math.min(seconds * 1000 + jitter, config.maxDelayMs);
+    }
   }
 
-  // Add jitter and cap
-  const jitter = delayMs * config.jitterFactor * (Math.random() * 2 - 1);
-  return Math.min(delayMs + jitter, config.maxDelayMs);
+  return calculateDelay(attempt, config);
 }
 
 /**
@@ -67,12 +73,18 @@ export async function fetchWithRetry(
 
       if (isRetryableStatus(response.status) && attempt < config.maxRetries) {
         const delayMs = getRetryDelay(response, attempt, config);
-        logger.warn('Azure API rate limited, retrying', {
+
+        // Drain response body to prevent memory leaks
+        await response.text().catch(() => {});
+
+        logger.warn('Azure API error, retrying', {
           status: response.status,
-          attempt,
+          attempt: attempt + 1,
+          maxRetries: config.maxRetries,
           delayMs: Math.round(delayMs),
           url: shortUrl,
         });
+
         await new Promise(resolve => setTimeout(resolve, delayMs));
         continue;
       }
@@ -80,14 +92,17 @@ export async function fetchWithRetry(
       return response;
     } catch (err: unknown) {
       if (attempt < config.maxRetries) {
-        const delayMs = config.baseDelayMs * Math.pow(2, attempt);
+        const delayMs = calculateDelay(attempt, config);
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        logger.warn('Azure API request failed, retrying', {
+
+        logger.warn('Azure API network error, retrying', {
           error: errorMessage,
-          attempt,
-          delayMs,
+          attempt: attempt + 1,
+          maxRetries: config.maxRetries,
+          delayMs: Math.round(delayMs),
           url: shortUrl,
         });
+
         await new Promise(resolve => setTimeout(resolve, delayMs));
         continue;
       }
@@ -95,6 +110,6 @@ export async function fetchWithRetry(
     }
   }
 
-  // Should not reach here
+  // Unreachable — loop always returns or throws on last attempt
   throw new Error(`Azure API request failed after ${config.maxRetries} retries: ${shortUrl}`);
 }
