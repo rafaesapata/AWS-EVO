@@ -482,8 +482,9 @@ export async function handler(
     const errMsg = err?.message || '';
     
     // Handle pre-flight permission check failure — provides actionable CloudFormation update instructions
+    // Use 422 instead of 403 to avoid frontend interpreting as auth error and triggering token refresh
     if (errName === 'WAFPermissionPreFlightError') {
-      return error(errMsg, 403);
+      return error(errMsg, 422);
     }
     
     // Handle specific AWS errors with meaningful responses
@@ -495,6 +496,7 @@ export async function handler(
     }
     
     if (errName === 'AccessDeniedException' || errMsg.includes('Access denied')) {
+      // Use 422 instead of 403 to avoid frontend interpreting as auth error and triggering token refresh
       return error(
         `Access denied. The IAM role does not have sufficient permissions to configure WAF logging. ` +
         `This usually means the CloudFormation stack needs to be updated. ` +
@@ -502,7 +504,7 @@ export async function handler(
         `Replace current template → Use this URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit. ` +
         `Missing permissions: wafv2:PutLoggingConfiguration, logs:CreateLogGroup, logs:PutResourcePolicy, logs:PutSubscriptionFilter. ` +
         `Details: ${errMsg}`,
-        403
+        422
       );
     }
     
