@@ -79,6 +79,23 @@ export async function handler(
 
     const { credentialId, scanLevel = 'standard', regions, scanId: existingScanId, backgroundJobId } = validation.data;
 
+    // Update background job to running
+    if (backgroundJobId) {
+      try {
+        await prisma.backgroundJob.update({
+          where: { id: backgroundJobId },
+          data: {
+            status: 'running',
+            started_at: new Date(),
+            result: { progress: 0, message: 'Initializing Azure security scan...' },
+          },
+        });
+        logger.info('Background job updated to running', { backgroundJobId });
+      } catch (jobErr: any) {
+        logger.warn('Failed to update background job to running', { backgroundJobId, error: jobErr.message });
+      }
+    }
+
     // Fetch Azure credential
     const credential = await prisma.azureCredential.findFirst({
       where: {
@@ -487,6 +504,30 @@ export async function handler(
       },
     });
 
+    // Update background job to completed
+    if (backgroundJobId) {
+      try {
+        await prisma.backgroundJob.update({
+          where: { id: backgroundJobId },
+          data: {
+            status: 'completed',
+            completed_at: new Date(),
+            result: {
+              progress: 100,
+              message: 'Azure security scan completed',
+              scanId: scan.id,
+              findings_count: combinedSummary.total,
+              critical_count: combinedSummary.critical,
+              high_count: combinedSummary.high,
+              duration: result.duration,
+            },
+          },
+        });
+      } catch (jobErr: any) {
+        logger.warn('Failed to update background job to completed', { backgroundJobId, error: jobErr.message });
+      }
+    }
+
     logger.info('Azure security scan completed', {
       organizationId,
       scanId: scan.id,
@@ -524,7 +565,37 @@ export async function handler(
       scannersUsed: azureScannerMetadata,
     });
   } catch (err: any) {
-    logger.error('Error running Azure security scan', { error: err.message });
+    logger.error('Error running Azure security scan', { error: err.message, stack: err.stack });
+
+    // Try to mark background job as failed
+    try {
+      const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+      const bjId = body?.backgroundJobId;
+      const sId = body?.scanId;
+      if (bjId || sId) {
+        const prisma = getPrismaClient();
+        if (bjId) {
+          await prisma.backgroundJob.update({
+            where: { id: bjId },
+            data: {
+              status: 'failed',
+              completed_at: new Date(),
+              error: err.message || 'Unknown error',
+              result: { progress: 0, error: err.message },
+            },
+          });
+        }
+        if (sId) {
+          await prisma.securityScan.update({
+            where: { id: sId },
+            data: { status: 'failed', completed_at: new Date() },
+          }).catch(() => {});
+        }
+      }
+    } catch (cleanupErr) {
+      logger.error('Failed to update job/scan status on error', { error: (cleanupErr as Error).message });
+    }
+
     return error('Failed to run Azure security scan', 500);
   }
 }
