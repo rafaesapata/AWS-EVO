@@ -4623,6 +4623,7 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+          - '@aws-sdk/*'
   WafLogForwarderFunction:
     Type: AWS::Serverless::Function
     Properties:
