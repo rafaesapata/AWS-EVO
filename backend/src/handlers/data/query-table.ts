@@ -448,10 +448,9 @@ export async function handler(
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
-        // Convert date strings to Date objects for Prisma
-        const filterValue = (fieldName === 'date' || fieldName.endsWith('_at') || fieldName.endsWith('_date')) 
-          ? new Date(value as string) 
-          : value;
+        // Convert date/timestamp strings to Date objects for Prisma DateTime fields
+        const isDateField = fieldName === 'date' || fieldName === 'timestamp' || fieldName.endsWith('_at') || fieldName.endsWith('_date');
+        const filterValue = isDateField ? new Date(value as string) : value;
         where[fieldName] = { ...where[fieldName], gte: filterValue };
       }
     }
@@ -463,10 +462,8 @@ export async function handler(
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
-        // Convert date strings to Date objects for Prisma
-        const filterValue = (fieldName === 'date' || fieldName.endsWith('_at') || fieldName.endsWith('_date')) 
-          ? new Date(value as string) 
-          : value;
+        const isDateField = fieldName === 'date' || fieldName === 'timestamp' || fieldName.endsWith('_at') || fieldName.endsWith('_date');
+        const filterValue = isDateField ? new Date(value as string) : value;
         where[fieldName] = { ...where[fieldName], lte: filterValue };
       }
     }
@@ -478,10 +475,8 @@ export async function handler(
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
-        // Convert date strings to Date objects for Prisma
-        const filterValue = (fieldName === 'date' || fieldName.endsWith('_at') || fieldName.endsWith('_date')) 
-          ? new Date(value as string) 
-          : value;
+        const isDateField = fieldName === 'date' || fieldName === 'timestamp' || fieldName.endsWith('_at') || fieldName.endsWith('_date');
+        const filterValue = isDateField ? new Date(value as string) : value;
         where[fieldName] = { ...where[fieldName], gt: filterValue };
       }
     }
@@ -493,10 +488,8 @@ export async function handler(
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
-        // Convert date strings to Date objects for Prisma
-        const filterValue = (fieldName === 'date' || fieldName.endsWith('_at') || fieldName.endsWith('_date')) 
-          ? new Date(value as string) 
-          : value;
+        const isDateField = fieldName === 'date' || fieldName === 'timestamp' || fieldName.endsWith('_at') || fieldName.endsWith('_date');
+        const filterValue = isDateField ? new Date(value as string) : value;
         where[fieldName] = { ...where[fieldName], lt: filterValue };
       }
     }

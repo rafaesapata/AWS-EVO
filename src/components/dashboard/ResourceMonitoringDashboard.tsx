@@ -102,7 +102,7 @@ const ResourceCard = memo(({ resource, metrics, onSelect }: ResourceCardProps) =
                 <span className="text-sm">{primaryMetric.metric_name}</span>
                 <span className="text-sm font-medium">{formatPrimaryValue()}</span>
               </div>
-              {primaryMetric.metric_name === 'CPUUtilization' && (
+              {(primaryMetric.metric_name === 'CPUUtilization' || primaryMetric.metric_name === 'Percentage CPU' || primaryMetric.metric_name === 'cpu_percent') && (
                 <Progress value={Number(primaryMetric.metric_value)} className="h-2" />
               )}
             </div>
@@ -206,7 +206,9 @@ const COUNT_METRICS = new Set([
   'Requests', 'BytesDownloaded', 'BytesUploaded',
   'AllowedRequests', 'BlockedRequests', 'CountedRequests', 'PassedRequests',
   'NewFlowCount', 'ProcessedBytes', 'ProcessedPackets',
-  'DatabaseConnections', 'ActiveFlowCount'
+  'DatabaseConnections', 'ActiveFlowCount',
+  // Azure metrics
+  'Transactions', 'Http5xx', 'CpuTime',
 ]);
 
 // Função para obter variante do badge baseada no status
@@ -241,6 +243,17 @@ const getPrimaryMetric = (resourceSpecificMetrics: any[], resourceType: string) 
              resourceSpecificMetrics.find((m: any) => m.metric_name === 'Latency');
   } else if (resourceType === 'alb' || resourceType === 'nlb') {
     metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'RequestCount');
+  // Azure resource types
+  } else if (resourceType === 'vm') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Percentage CPU');
+  } else if (resourceType === 'webapp') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Requests') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'AverageResponseTime');
+  } else if (resourceType === 'sqldb') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'cpu_percent');
+  } else if (resourceType === 'storage') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Transactions') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'UsedCapacity');
   }
   
   // Fallback: qualquer métrica disponível se não encontrar a primária esperada
@@ -252,11 +265,17 @@ const formatMetricValue = (metricName: string, value: number): string => {
   if (COUNT_METRICS.has(metricName)) {
     return Math.round(value).toLocaleString();
   }
-  if (metricName === 'Duration' || metricName === 'Latency' || metricName === 'IntegrationLatency') {
+  if (metricName === 'Duration' || metricName === 'Latency' || metricName === 'IntegrationLatency' || metricName === 'AverageResponseTime' || metricName === 'SuccessE2ELatency') {
     return `${value.toFixed(2)} ms`;
   }
-  if (metricName === 'CPUUtilization' || metricName === 'MemoryUtilization') {
+  if (metricName === 'CPUUtilization' || metricName === 'MemoryUtilization' || metricName === 'Percentage CPU' || metricName === 'cpu_percent' || metricName === 'physical_data_read_percent' || metricName === 'log_write_percent' || metricName === 'dtu_consumption_percent' || metricName === 'storage_percent') {
     return `${value.toFixed(1)}%`;
+  }
+  if (metricName === 'Available Memory Bytes' || metricName === 'MemoryWorkingSet' || metricName === 'UsedCapacity' || metricName === 'Ingress' || metricName === 'Egress' || metricName === 'Disk Read Bytes' || metricName === 'Disk Write Bytes' || metricName === 'Network In Total' || metricName === 'Network Out Total') {
+    if (value >= 1073741824) return `${(value / 1073741824).toFixed(2)} GB`;
+    if (value >= 1048576) return `${(value / 1048576).toFixed(2)} MB`;
+    if (value >= 1024) return `${(value / 1024).toFixed(2)} KB`;
+    return `${value.toFixed(0)} B`;
   }
   return value.toFixed(2);
 };
@@ -535,9 +554,9 @@ export const ResourceMonitoringDashboard = () => {
           throw new Error(t('resourceMonitoring.azureCredentialNotFound', 'Azure credential not found'));
         }
         
-        bodyParam = { credentialId: azureAccount.id };
+        bodyParam = { credentialId: azureAccount.id, timeRange: metricsPeriod };
       } else {
-        bodyParam = { accountId: selectedAccountId };
+        bodyParam = { accountId: selectedAccountId, period: metricsPeriod };
       }
       
       const response = await apiClient.invoke<any>(lambdaName, {
@@ -855,7 +874,12 @@ export const ResourceMonitoringDashboard = () => {
     'cloudfront': ['Requests', 'BytesDownloaded', '4xxErrorRate', '5xxErrorRate'],
     'ecs': ['CPUUtilization', 'MemoryUtilization'],
     'elasticache': ['CPUUtilization', 'NetworkBytesIn', 'NetworkBytesOut', 'CurrConnections'],
-    'waf': ['AllowedRequests', 'BlockedRequests', 'CountedRequests']
+    'waf': ['AllowedRequests', 'BlockedRequests', 'CountedRequests'],
+    // Azure resource types
+    'vm': ['Percentage CPU', 'Available Memory Bytes', 'Disk Read Bytes', 'Disk Write Bytes', 'Network In Total', 'Network Out Total'],
+    'webapp': ['CpuTime', 'MemoryWorkingSet', 'Requests', 'Http5xx', 'AverageResponseTime'],
+    'sqldb': ['cpu_percent', 'physical_data_read_percent', 'log_write_percent', 'dtu_consumption_percent', 'storage_percent'],
+    'storage': ['UsedCapacity', 'Transactions', 'Ingress', 'Egress', 'SuccessE2ELatency'],
   };
 
   // Se um recurso está selecionado, mostrar detalhamento
@@ -1183,7 +1207,7 @@ export const ResourceMonitoringDashboard = () => {
                                   <span className="text-sm">{primaryMetric.metric_name}</span>
                                   <span className="text-sm font-medium">{formatPrimaryValue()}</span>
                                 </div>
-                                {primaryMetric.metric_name === 'CPUUtilization' && (
+                                {(primaryMetric.metric_name === 'CPUUtilization' || primaryMetric.metric_name === 'Percentage CPU' || primaryMetric.metric_name === 'cpu_percent') && (
                                   <Progress value={Number(primaryMetric.metric_value)} className="h-2" />
                                 )}
                               </div>

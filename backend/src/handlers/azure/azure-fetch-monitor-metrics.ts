@@ -341,18 +341,18 @@ async function fetchResourceMetrics(
     const timeseries = metric.timeseries?.[0];
     if (!timeseries?.data) continue;
 
-    // Get the latest data point
-    const latestData = timeseries.data[timeseries.data.length - 1];
-    if (!latestData) continue;
+    // Store ALL data points for chart rendering (not just the latest)
+    for (const dataPoint of timeseries.data) {
+      const value = dataPoint.average ?? dataPoint.total ?? dataPoint.maximum ?? dataPoint.minimum;
+      if (value === undefined || value === null) continue;
 
-    const value = latestData.average ?? latestData.total ?? latestData.maximum ?? latestData.minimum ?? 0;
-
-    metrics.push({
-      name: metric.name.value,
-      value,
-      unit: metric.unit || 'Count',
-      timestamp: new Date(latestData.timeStamp),
-    });
+      metrics.push({
+        name: metric.name.value,
+        value,
+        unit: metric.unit || 'Count',
+        timestamp: new Date(dataPoint.timeStamp),
+      });
+    }
   }
 
   return metrics;
