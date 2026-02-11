@@ -33,13 +33,27 @@ export default defineConfig(({ mode }) => {
     
     rollupOptions: {
       output: {
-        // Chunk splitting with AWS SDK
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-ui': ['@radix-ui/react-tabs', '@radix-ui/react-slot', '@radix-ui/react-toast'],
-          'vendor-utils': ['lucide-react', 'date-fns', 'clsx', 'zod'],
-          'vendor-aws': ['@aws-sdk/client-cognito-identity-provider', '@aws-sdk/client-bedrock-runtime'],
-          'vendor-security': ['crypto-js', 'dompurify', 'validator'],
+        // Function-based chunk splitting avoids circular initialization issues
+        // when react-router-dom re-exports from react in the same chunk
+        manualChunks(id) {
+          if (id.includes('node_modules/react-router-dom') || id.includes('node_modules/react-router/')) {
+            return 'vendor-router';
+          }
+          if (id.includes('node_modules/react-dom/') || id.includes('node_modules/react/')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/@radix-ui/')) {
+            return 'vendor-ui';
+          }
+          if (id.includes('node_modules/lucide-react') || id.includes('node_modules/date-fns') || id.includes('node_modules/clsx') || id.includes('node_modules/zod')) {
+            return 'vendor-utils';
+          }
+          if (id.includes('node_modules/@aws-sdk/')) {
+            return 'vendor-aws';
+          }
+          if (id.includes('node_modules/crypto-js') || id.includes('node_modules/dompurify') || id.includes('node_modules/validator')) {
+            return 'vendor-security';
+          }
         },
       },
     },
