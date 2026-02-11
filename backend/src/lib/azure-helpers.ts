@@ -75,13 +75,24 @@ export function validateServicePrincipalCredentials(
   if (!credential.client_secret) {
     return { valid: false, error: 'Missing client_secret in Service Principal credentials.' };
   }
+
+  // Decrypt client_secret if it's encrypted (JSON format)
+  let clientSecret = credential.client_secret;
+  try {
+    const parsed = JSON.parse(clientSecret);
+    if (parsed.ciphertext && parsed.iv && parsed.tag && parsed.keyId) {
+      clientSecret = decryptToken(parsed);
+    }
+  } catch {
+    // Not JSON — use as-is (legacy plaintext)
+  }
   
   return {
     valid: true,
     credentials: {
       tenantId: credential.tenant_id,
       clientId: credential.client_id,
-      clientSecret: credential.client_secret,
+      clientSecret,
       subscriptionId: credential.subscription_id,
       subscriptionName: credential.subscription_name || undefined,
     },
@@ -135,7 +146,7 @@ async function refreshOAuthToken(
     client_secret: clientSecret,
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
-    scope: 'https://management.azure.com/.default offline_access',
+    scope: 'https://management.azure.com/user_impersonation offline_access',
   });
   
   const response = await fetch(tokenUrl, {
@@ -207,14 +218,23 @@ export async function getAzureCredentialWithToken(
       // Refresh access token
       const tokenResult = await refreshOAuthToken(tenantId, refreshToken);
       
-      // Update last_refresh_at in database
+      // Build update data
+      const updateData: any = {
+        last_refresh_at: new Date(),
+        token_expires_at: new Date(Date.now() + tokenResult.expiresIn * 1000),
+        refresh_error: null,
+      };
+
+      // If Azure returned a rotated refresh token, re-encrypt and store it
+      if (tokenResult.newRefreshToken) {
+        const { encryptToken, serializeEncryptedToken } = await import('./token-encryption.js');
+        const encrypted = encryptToken(tokenResult.newRefreshToken);
+        updateData.encrypted_refresh_token = serializeEncryptedToken(encrypted);
+      }
+
       await prisma.azureCredential.update({
         where: { id: credentialId },
-        data: {
-          last_refresh_at: new Date(),
-          token_expires_at: new Date(Date.now() + tokenResult.expiresIn * 1000),
-          refresh_error: null,
-        },
+        data: updateData,
       });
       
       return {

@@ -23,6 +23,7 @@ import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
+import { encryptToken, serializeEncryptedToken } from '../../lib/token-encryption.js';
 
 // Validation schema for Service Principal credentials
 const servicePrincipalSchema = z.object({
@@ -136,6 +137,16 @@ export async function handler(
         }
       }
 
+      // Encrypt client_secret before storage
+      let encryptedClientSecret: string;
+      try {
+        const encrypted = encryptToken(spData.clientSecret);
+        encryptedClientSecret = serializeEncryptedToken(encrypted);
+      } catch (encErr: any) {
+        logger.error('Failed to encrypt client secret', { error: encErr.message });
+        return error('Failed to securely store credentials', 500, undefined, origin);
+      }
+
       if (existingCredential) {
         // Update existing credential
         credential = await prisma.azureCredential.update({
@@ -144,7 +155,7 @@ export async function handler(
             auth_type: 'service_principal',
             tenant_id: spData.tenantId,
             client_id: spData.clientId,
-            client_secret: spData.clientSecret, // TODO: Encrypt with KMS
+            client_secret: encryptedClientSecret,
             subscription_name: spData.subscriptionName,
             regions: spData.regions,
             // Clear OAuth fields
@@ -172,7 +183,7 @@ export async function handler(
             auth_type: 'service_principal',
             tenant_id: spData.tenantId,
             client_id: spData.clientId,
-            client_secret: spData.clientSecret, // TODO: Encrypt with KMS
+            client_secret: encryptedClientSecret,
             subscription_id: spData.subscriptionId,
             subscription_name: spData.subscriptionName,
             regions: spData.regions,

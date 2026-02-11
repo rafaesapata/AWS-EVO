@@ -234,12 +234,7 @@ export async function getValidAccessToken(
     return null;
   }
 
-  // Check if token is still valid (with 5 minute buffer)
-  const bufferMs = 5 * 60 * 1000;
-  if (credential.token_expires_at && credential.token_expires_at.getTime() > Date.now() + bufferMs) {
-    // Token is still valid - but we don't store access tokens, so we need to refresh anyway
-    // This is by design for security - access tokens are never persisted
-  }
+  // Access tokens are never persisted for security — always refresh to get a new one
 
   // Decrypt refresh token
   let refreshToken: string;

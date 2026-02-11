@@ -39,20 +39,7 @@ export async function handler(
   }
 
   try {
-    // Get user with lenient validation (exp claim optional for this endpoint)
-    const claims = event.requestContext.authorizer?.claims || 
-                   event.requestContext.authorizer?.jwt?.claims;
-
-    if (!claims) {
-      return error('No authentication claims found', 401);
-    }
-
-    // Validate only essential claims (sub, email, organization_id)
-    if (!claims.sub || !claims.email) {
-      return error('Missing required authentication claims', 401);
-    }
-
-    const user = claims;
+    const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
 
     logger.info('Validating Azure credentials', { organizationId });
