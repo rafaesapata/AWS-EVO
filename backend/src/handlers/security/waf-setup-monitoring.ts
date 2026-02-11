@@ -22,13 +22,13 @@ import {
   WAFV2Client, 
   GetLoggingConfigurationCommand,
   PutLoggingConfigurationCommand,
-  DeleteLoggingConfigurationCommand,
   ListWebACLsCommand,
   GetWebACLCommand,
 } from '@aws-sdk/client-wafv2';
 import {
   CloudWatchLogsClient,
   CreateLogGroupCommand,
+  PutResourcePolicyCommand,
   PutSubscriptionFilterCommand,
   DeleteSubscriptionFilterCommand,
   DescribeSubscriptionFiltersCommand,
@@ -37,13 +37,7 @@ import { IAMClient, SimulatePrincipalPolicyCommand, GetRoleCommand, CreateRoleCo
 
 // Filter modes for WAF log collection
 type LogFilterMode = 'block_only' | 'all_requests' | 'hybrid';
-
-interface SetupWafMonitoringRequest {
-  accountId: string;      // ID da credencial AWS no banco
-  webAclArn: string;      // ARN do WAF Web ACL a monitorar
-  enabled: boolean;       // Habilitar ou desabilitar
-  filterMode?: LogFilterMode; // Modo de filtragem de logs (default: block_only)
-}
+const VALID_FILTER_MODES: readonly LogFilterMode[] = ['block_only', 'all_requests', 'hybrid'] as const;
 
 interface SetupResult {
   success: boolean;
@@ -213,20 +207,9 @@ async function updateDestinationPolicyForCustomer(
  * Get the CloudWatch Logs filter pattern based on filter mode
  */
 function getFilterPattern(filterMode: LogFilterMode): string {
-  switch (filterMode) {
-    case 'block_only':
-      // Only BLOCK and COUNT actions
-      return '{ $.action = "BLOCK" || $.action = "COUNT" }';
-    case 'all_requests':
-      // All requests (empty pattern = everything)
-      return '';
-    case 'hybrid':
-      // Same as block_only for subscription filter
-      // ALLOW metrics will be collected via CloudWatch Metrics separately
-      return '{ $.action = "BLOCK" || $.action = "COUNT" }';
-    default:
-      return '{ $.action = "BLOCK" || $.action = "COUNT" }';
-  }
+  if (filterMode === 'all_requests') return '';
+  // block_only, hybrid, and default all use the same BLOCK/COUNT filter
+  return '{ $.action = "BLOCK" || $.action = "COUNT" }';
 }
 
 /**
@@ -410,8 +393,8 @@ export async function handler(
     const isEnabled = typeof enabled === 'boolean' ? enabled : true;
     
     // Validate filter mode
-    if (!['block_only', 'all_requests', 'hybrid'].includes(filterMode)) {
-      return error('Invalid filterMode. Must be: block_only, all_requests, or hybrid');
+    if (!VALID_FILTER_MODES.includes(filterMode)) {
+      return error(`Invalid filterMode. Must be: ${VALID_FILTER_MODES.join(', ')}`);
     }
     
     // Get AWS credentials for the customer account
@@ -454,21 +437,21 @@ export async function handler(
     
     if (isEnabled) {
       // ENABLE MONITORING
-      const result = await enableWafMonitoring(
+      const result = await enableWafMonitoring({
         wafClient,
         logsClient,
         webAclArn,
         webAclName,
         logGroupName,
         filterMode,
-        wafRegion,
+        region: wafRegion,
         customerAwsAccountId,
         account,
         organizationId,
         accountId,
         prisma,
-        credentials
-      );
+        credentials,
+      });
       
       logger.info('WAF monitoring enabled', { 
         organizationId, 
@@ -523,7 +506,7 @@ export async function handler(
       );
     }
     
-    if (errName === 'AccessDeniedException' || errMsg.includes('Access denied')) {
+    if (isAccessDenied({ name: errName, message: errMsg })) {
       // Use 422 instead of 403 to avoid frontend interpreting as auth error and triggering token refresh
       return error(
         `Access denied. The IAM role does not have sufficient permissions to configure WAF logging. ` +
@@ -758,24 +741,32 @@ async function tryAutoRemediateWafPermissions(
   }
 }
 
+/** Context object for enableWafMonitoring to avoid long parameter lists */
+interface WafMonitoringContext {
+  wafClient: WAFV2Client;
+  logsClient: CloudWatchLogsClient;
+  webAclArn: string;
+  webAclName: string;
+  logGroupName: string;
+  filterMode: LogFilterMode;
+  region: string;
+  customerAwsAccountId: string;
+  account: { role_arn?: string | null };
+  organizationId: string;
+  accountId: string;
+  prisma: ReturnType<typeof getPrismaClient>;
+  credentials: any;
+}
+
 /**
  * Enable WAF monitoring for a Web ACL
  */
-async function enableWafMonitoring(
-  wafClient: WAFV2Client,
-  logsClient: CloudWatchLogsClient,
-  webAclArn: string,
-  webAclName: string,
-  logGroupName: string,
-  filterMode: LogFilterMode,
-  region: string,
-  customerAwsAccountId: string,
-  account: { role_arn?: string | null },
-  organizationId: string,
-  accountId: string,
-  prisma: ReturnType<typeof getPrismaClient>,
-  credentials: any
-): Promise<SetupResult> {
+async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResult> {
+  const {
+    wafClient, logsClient, webAclArn, webAclName, logGroupName,
+    filterMode, region, customerAwsAccountId, account,
+    organizationId, accountId, prisma, credentials,
+  } = ctx;
   
   // PRE-FLIGHT: Validate IAM permissions before attempting any operations
   // This catches outdated CloudFormation stacks that lack WAF monitoring permissions
@@ -878,8 +869,6 @@ async function enableWafMonitoring(
   // Step 2.5: Add resource policy to allow WAF to write to the log group
   // This is REQUIRED for WAF logging to work
   try {
-    const { PutResourcePolicyCommand } = await import('@aws-sdk/client-cloudwatch-logs');
-    
     const policyName = `AWSWAFLogsPolicy-${logGroupName}`;
     const policyDocument = JSON.stringify({
       Version: '2012-10-17',
