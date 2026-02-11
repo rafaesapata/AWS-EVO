@@ -24,7 +24,7 @@
     "features": {
       "securityAnalysis": {
         "title": "Análise de Segurança Completa",
-        "description": "Scan automatizado de CloudTrail, IAM, Security Groups e muito mais"
+        "description": "Scan automatizado de logs de auditoria, IAM, Security Groups e muito mais"
       },
       "costOptimization": {
         "title": "Otimização de Custos AWS",
@@ -96,7 +96,7 @@
     "useCases": {
       "proactiveSecurity": {
         "title": "Segurança Proativa",
-        "description": "Detecte ameaças antes que se tornem incidentes. Análise contínua de eventos CloudTrail com IA para identificar padrões suspeitos."
+        "description": "Detecte ameaças antes que se tornem incidentes. Análise contínua de logs de auditoria com IA para identificar padrões suspeitos."
       },
       "finopsEconomy": {
         "title": "FinOps & Economia",
@@ -413,7 +413,7 @@
     "wafMonitoring": "Monitoramento WAF",
     "analysisScans": "Análises & Scans",
     "securityScan": "Scan de Segurança",
-    "cloudtrailAudit": "Auditoria CloudTrail",
+    "cloudtrailAudit": "Log de Auditoria Cloud",
     "compliance": "Compliance",
     "wellArchitected": "Well-Architected",
     "optimization": "Otimização",
@@ -1834,7 +1834,7 @@
     "rdsDescription": "Listar e descrever bancos de dados RDS",
     "s3Description": "Listar buckets e verificar configurações de segurança",
     "iamDescription": "Listar usuários e chaves de acesso",
-    "cloudtrailDescription": "Verificar configuração de trilhas",
+    "cloudtrailDescription": "Verificar configuração de trilhas de auditoria",
     "kmsDescription": "Listar e descrever chaves de criptografia",
     "elbDescription": "Listar load balancers",
     "lambdaDescription": "Listar funções Lambda",
@@ -3693,8 +3693,8 @@
     "contactSupport": "Se você acredita que isso é um erro, entre em contato com o suporte."
   },
   "cloudtrail": {
-    "title": "Auditoria CloudTrail",
-    "description": "Analise eventos do CloudTrail e detecte ameaças de segurança",
+    "title": "Logs de Auditoria",
+    "description": "Analise eventos dos logs de auditoria e detecte ameaças de segurança",
     "azureDescription": "Analise eventos de atividade e identifique problemas de segurança",
     "analysisInProgress": "Análise em andamento",
     "detectedRunningAnalysis": "Detectada análise em execução. Acompanhando progresso...",
@@ -3715,7 +3715,7 @@
     "medium": "Médio",
     "low": "Baixo",
     "noEventsFound": "Nenhum evento encontrado",
-    "clickToAnalyze": "Clique em \"Buscar Eventos\" para analisar o CloudTrail.",
+    "clickToAnalyze": "Clique em \"Buscar Eventos\" para analisar os logs de auditoria.",
     "fetchEvents": "Buscar Eventos",
     "noSecurityEvents": "Nenhum evento de segurança",
     "noRiskEventsFound": "Não foram encontrados eventos de risco no período selecionado.",
@@ -3752,7 +3752,7 @@
     "events": "Eventos",
     "byUser": "Por Usuário",
     "allEventsList": "Todos os Eventos",
-    "completeEventsList": "Lista completa de eventos do CloudTrail",
+    "completeEventsList": "Lista completa de eventos dos logs de auditoria",
     "security": "Segurança",
     "onlySecurityRisks": "Apenas eventos que representam riscos de segurança",
     "whyProblem": "Por que isso é um problema?",
@@ -3760,7 +3760,7 @@
     "riskReasons": "Motivos do Risco",
     "error": "Erro",
     "noUserData": "Sem dados de usuários",
-    "fetchEventsToSeeActivity": "Busque eventos do CloudTrail para ver a atividade por usuário.",
+    "fetchEventsToSeeActivity": "Busque eventos dos logs de auditoria para ver a atividade por usuário.",
     "userActivity": "Atividade por Usuário",
     "usersPerformedSecurityActions": "Usuários que executaram ações de segurança",
     "criticals": "Críticos",
@@ -3768,7 +3768,7 @@
     "mediums": "Médios",
     "lows": "Baixos",
     "analysisRunning": "Análise em Andamento",
-    "eventsBeingAnalyzed": "Os eventos do CloudTrail estão sendo buscados e analisados em background",
+    "eventsBeingAnalyzed": "Os eventos dos logs de auditoria estão sendo buscados e analisados em background",
     "processing": "Processando...",
     "status": "Status",
     "eventsCount": "Eventos",

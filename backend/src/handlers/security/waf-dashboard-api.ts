@@ -11,6 +11,8 @@
  * - DELETE /waf-unblock-ip - Unblock an IP
  * 
  * DEMO MODE: Suporta modo demonstração para organizações com demo_mode=true
+ * 
+ * @version 2.0.1 - Fix: ensure esbuild bundles AWS SDK dependencies
  */
 
 import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
