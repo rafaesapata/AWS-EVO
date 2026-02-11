@@ -76,3 +76,6 @@ packaged.yaml
 
 # CloudFormation
 # Keep all CloudFormation files - they're essential
+
+# Separate repositories (managed independently)
+evo-frontend/
