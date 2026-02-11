@@ -22,15 +22,11 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logging.js';
 import { WAFV2Client } from '@aws-sdk/client-wafv2';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { blockIp, unblockIp, DEFAULT_AUTO_BLOCK_CONFIG } from '../../lib/waf/auto-blocker.js';
 import { isOrganizationInDemoMode, generateDemoWafEvents } from '../../lib/demo-data-service.js';
 
 // Bedrock client for AI analysis
 const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-east-1' });
-
-// Lambda client for invoking waf-setup-monitoring
-const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 // Query parameters for events endpoint
 interface EventsQueryParams {
@@ -460,6 +456,10 @@ async function proxyToWafSetupMonitoring(
   logger.info('Proxying to waf-setup-monitoring', { functionName });
   
   try {
+    // Dynamic import to avoid breaking the Lambda if @aws-sdk/client-lambda is not bundled
+    const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
+    const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
+    
     const response = await lambdaClient.send(new InvokeCommand({
       FunctionName: functionName,
       InvocationType: 'RequestResponse',
