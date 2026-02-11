@@ -66,7 +66,8 @@ const AZURE_RESOURCES_API_VERSION = '2021-04-01';
 /** Azure Monitor Metrics API version */
 const AZURE_MONITOR_API_VERSION = '2021-05-01';
 
-/** Max concurrent Azure API calls per batch */
+/** Default fallback duration in ms (1 hour) when ISO duration parsing fails */
+const DEFAULT_DURATION_MS = 3_600_000;
 const RESOURCE_BATCH_SIZE = 3;
 /** Max metrics per Prisma createMany call */
 const METRICS_INSERT_BATCH_SIZE = 100;
@@ -348,7 +349,7 @@ async function listAzureResources(
   resourceTypes?: string[]
 ): Promise<AzureResource[]> {
   const resources: AzureResource[] = [];
-  const supportedTypes = (resourceTypes || Object.keys(METRIC_DEFINITIONS)).map(t => t.toLowerCase());
+  const supportedTypes = new Set((resourceTypes || Object.keys(METRIC_DEFINITIONS)).map(t => t.toLowerCase()));
 
   // List ALL resources without $filter (avoids case-sensitivity and child resource issues)
   let url: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/resources?api-version=${AZURE_RESOURCES_API_VERSION}`;
@@ -357,7 +358,7 @@ async function listAzureResources(
     const data: { value?: AzureResource[]; nextLink?: string } = await fetchAzureApi(accessToken, url);
 
     for (const r of data.value || []) {
-      if (supportedTypes.includes((r.type || '').toLowerCase())) {
+      if (supportedTypes.has((r.type || '').toLowerCase())) {
         resources.push({ id: r.id, name: r.name, type: r.type, location: r.location });
       }
     }
@@ -366,7 +367,7 @@ async function listAzureResources(
   }
 
   // SQL Databases are child resources not returned by /resources endpoint
-  if (supportedTypes.includes('microsoft.sql/servers/databases')) {
+  if (supportedTypes.has('microsoft.sql/servers/databases')) {
     await discoverSqlDatabases(accessToken, subscriptionId, resources);
   }
 
@@ -521,7 +522,7 @@ async function fetchResourceMetrics(
 
 function parseIsoDuration(duration: string): number {
   const match = duration.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
-  if (!match) return 3600000;
+  if (!match) return DEFAULT_DURATION_MS;
   const days = parseInt(match[1] || '0', 10);
   const hours = parseInt(match[2] || '0', 10);
   const minutes = parseInt(match[3] || '0', 10);

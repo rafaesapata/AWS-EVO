@@ -28,6 +28,8 @@ import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/
 import { computeFingerprint, computeFallbackFingerprint } from '../../lib/security-engine/fingerprint.js';
 import { classifyFindings, computeLifecycleTransition, type NewScanFinding } from '../../lib/security-engine/delta-sync.js';
 
+const AZURE_SCAN_SOURCES = ['azure-security-scan', 'azure-module-scanner'] as const;
+
 // Validation schema
 const azureSecurityScanSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
@@ -329,7 +331,7 @@ export async function handler(
         where: {
           organization_id: organizationId,
           azure_credential_id: credentialId,
-          source: { in: ['azure-security-scan', 'azure-module-scanner'] },
+          source: { in: [...AZURE_SCAN_SOURCES] },
         },
         select: {
           id: true,
@@ -445,7 +447,7 @@ export async function handler(
           where: {
             organization_id: organizationId,
             azure_credential_id: credentialId,
-            source: { in: ['azure-security-scan', 'azure-module-scanner'] },
+            source: { in: [...AZURE_SCAN_SOURCES] },
             status: { in: ['pending', 'new'] },
           },
         });
@@ -482,13 +484,18 @@ export async function handler(
       }
     }
 
-    // Calculate combined summary
+    // Calculate combined summary (single pass over module findings)
+    const moduleSeverityCounts = { critical: 0, high: 0, medium: 0, low: 0 };
+    for (const f of moduleScannerFindings) {
+      const key = f.severity?.toLowerCase() as keyof typeof moduleSeverityCounts;
+      if (key in moduleSeverityCounts) moduleSeverityCounts[key]++;
+    }
     const combinedSummary = {
       total: result.summary.total + moduleScannerFindings.length,
-      critical: result.summary.critical + moduleScannerFindings.filter(f => f.severity === 'CRITICAL').length,
-      high: result.summary.high + moduleScannerFindings.filter(f => f.severity === 'HIGH').length,
-      medium: result.summary.medium + moduleScannerFindings.filter(f => f.severity === 'MEDIUM').length,
-      low: result.summary.low + moduleScannerFindings.filter(f => f.severity === 'LOW').length,
+      critical: result.summary.critical + moduleSeverityCounts.critical,
+      high: result.summary.high + moduleSeverityCounts.high,
+      medium: result.summary.medium + moduleSeverityCounts.medium,
+      low: result.summary.low + moduleSeverityCounts.low,
       resourcesScanned: ((result.summary as any).resourcesScanned || 0) + moduleScannerResourcesScanned,
     };
 
