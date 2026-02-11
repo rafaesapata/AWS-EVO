@@ -61,6 +61,10 @@ const HOURLY_INTERVAL_RESOURCE_TYPES = ['Microsoft.Storage/storageAccounts'];
 
 /** Azure SQL API version for server/database listing */
 const AZURE_SQL_API_VERSION = '2023-05-01-preview';
+/** Azure Resource Management API version */
+const AZURE_RESOURCES_API_VERSION = '2021-04-01';
+/** Azure Monitor Metrics API version */
+const AZURE_MONITOR_API_VERSION = '2021-05-01';
 
 /** Max concurrent Azure API calls per batch */
 const RESOURCE_BATCH_SIZE = 3;
@@ -347,7 +351,7 @@ async function listAzureResources(
   const supportedTypes = (resourceTypes || Object.keys(METRIC_DEFINITIONS)).map(t => t.toLowerCase());
 
   // List ALL resources without $filter (avoids case-sensitivity and child resource issues)
-  let url: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/resources?api-version=2021-04-01`;
+  let url: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/resources?api-version=${AZURE_RESOURCES_API_VERSION}`;
 
   while (url) {
     const data: { value?: AzureResource[]; nextLink?: string } = await fetchAzureApi(accessToken, url);
@@ -401,40 +405,36 @@ async function discoverSqlDatabases(
   subscriptionId: string,
   resources: AzureResource[]
 ): Promise<void> {
+  const existingIds = new Set(resources.map(r => r.id));
+
   try {
+    // List all SQL servers in the subscription
     let serversUrl: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Sql/servers?api-version=${AZURE_SQL_API_VERSION}`;
     const sqlServers: Array<{ id: string; name: string }> = [];
 
     while (serversUrl) {
-      const srvResp = await fetch(serversUrl, {
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      });
-      if (!srvResp.ok) {
-        logger.warn('Failed to list SQL servers', { status: srvResp.status });
+      try {
+        const srvData: { value?: Array<{ id: string; name: string }>; nextLink?: string } = await fetchAzureApi(accessToken, serversUrl);
+        for (const s of srvData.value || []) {
+          sqlServers.push({ id: s.id, name: s.name });
+        }
+        serversUrl = srvData.nextLink || null;
+      } catch (srvErr: any) {
+        logger.warn('Failed to list SQL servers', { error: srvErr.message });
         return;
       }
-      const srvData = await srvResp.json() as { value?: Array<{ id: string; name: string }>; nextLink?: string };
-      for (const s of srvData.value || []) {
-        sqlServers.push({ id: s.id, name: s.name });
-      }
-      serversUrl = srvData.nextLink || null;
     }
 
+    // For each SQL server, list its databases
     for (const server of sqlServers) {
       try {
         let dbsUrl: string | null = `https://management.azure.com${server.id}/databases?api-version=${AZURE_SQL_API_VERSION}`;
         while (dbsUrl) {
-          const dbResp = await fetch(dbsUrl, {
-            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          });
-          if (!dbResp.ok) {
-            logger.warn('Failed to list databases for SQL server', { server: server.name, status: dbResp.status });
-            break;
-          }
-          const dbData = await dbResp.json() as { value?: AzureResource[]; nextLink?: string };
+          const dbData: { value?: AzureResource[]; nextLink?: string } = await fetchAzureApi(accessToken, dbsUrl);
           for (const db of dbData.value || []) {
             if (db.name === 'master') continue;
-            if (!resources.some(r => r.id === db.id)) {
+            if (!existingIds.has(db.id)) {
+              existingIds.add(db.id);
               resources.push({ id: db.id, name: db.name, type: db.type || 'Microsoft.Sql/servers/databases', location: db.location });
             }
           }
@@ -467,7 +467,7 @@ async function fetchResourceMetrics(
   const metricNamesParam = metricNames.join(',');
   const timespan = `${startTime.toISOString()}/${endTime.toISOString()}`;
 
-  const url = `https://management.azure.com${resourceId}/providers/Microsoft.Insights/metrics?api-version=2021-05-01&metricnames=${encodeURIComponent(metricNamesParam)}&timespan=${encodeURIComponent(timespan)}&interval=${effectiveInterval}&aggregation=${aggregation}`;
+  const url = `https://management.azure.com${resourceId}/providers/Microsoft.Insights/metrics?api-version=${AZURE_MONITOR_API_VERSION}&metricnames=${encodeURIComponent(metricNamesParam)}&timespan=${encodeURIComponent(timespan)}&interval=${effectiveInterval}&aggregation=${aggregation}`;
 
   const response = await fetch(url, {
     headers: {
