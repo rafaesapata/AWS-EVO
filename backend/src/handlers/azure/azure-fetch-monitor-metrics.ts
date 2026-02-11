@@ -59,6 +59,9 @@ const TIME_RANGE_MAP: Record<string, { duration: string; interval: string }> = {
 
 const HOURLY_INTERVAL_RESOURCE_TYPES = ['Microsoft.Storage/storageAccounts'];
 
+/** Azure SQL API version for server/database listing */
+const AZURE_SQL_API_VERSION = '2023-05-01-preview';
+
 /** Max concurrent Azure API calls per batch */
 const RESOURCE_BATCH_SIZE = 3;
 /** Max metrics per Prisma createMany call */
@@ -72,26 +75,26 @@ const AZURE_TYPE_MAP: Record<string, string> = {
   'Microsoft.Storage/storageAccounts': 'storage',
 };
 
-/** Case-insensitive lookup for METRIC_DEFINITIONS */
-function getMetricDefinition(resourceType: string): { metrics: string[]; aggregation: string } | undefined {
-  // Try exact match first
-  if (METRIC_DEFINITIONS[resourceType]) return METRIC_DEFINITIONS[resourceType];
-  // Case-insensitive fallback
-  const lowerType = resourceType.toLowerCase();
-  for (const [key, value] of Object.entries(METRIC_DEFINITIONS)) {
-    if (key.toLowerCase() === lowerType) return value;
+/** Case-insensitive lookup helper for Record<string, T> */
+function caseInsensitiveLookup<T>(map: Record<string, T>, key: string): T | undefined {
+  if (map[key]) return map[key];
+  const lowerKey = key.toLowerCase();
+  for (const [k, v] of Object.entries(map)) {
+    if (k.toLowerCase() === lowerKey) return v;
   }
   return undefined;
 }
 
-/** Case-insensitive lookup for AZURE_TYPE_MAP */
+/** Case-insensitive lookup for METRIC_DEFINITIONS */
+function getMetricDefinition(resourceType: string): { metrics: string[]; aggregation: string } | undefined {
+  return caseInsensitiveLookup(METRIC_DEFINITIONS, resourceType);
+}
+
+/** Case-insensitive lookup for AZURE_TYPE_MAP with fallback */
 function getAzureTypeMapping(resourceType: string): string {
-  if (AZURE_TYPE_MAP[resourceType]) return AZURE_TYPE_MAP[resourceType];
-  const lowerType = resourceType.toLowerCase();
-  for (const [key, value] of Object.entries(AZURE_TYPE_MAP)) {
-    if (key.toLowerCase() === lowerType) return value;
-  }
-  return resourceType.split('/').pop()?.toLowerCase() || 'unknown';
+  return caseInsensitiveLookup(AZURE_TYPE_MAP, resourceType)
+    || resourceType.split('/').pop()?.toLowerCase()
+    || 'unknown';
 }
 
 export async function handler(
@@ -331,7 +334,9 @@ async function processResource(
 }
 
 /**
- * List Azure resources that support metrics
+ * List Azure resources that support metrics.
+ * Fetches all resources without server-side filter (avoids case-sensitivity issues),
+ * then filters client-side. SQL databases are discovered separately as child resources.
  */
 async function listAzureResources(
   accessToken: string,
@@ -341,30 +346,13 @@ async function listAzureResources(
   const resources: AzureResource[] = [];
   const supportedTypes = (resourceTypes || Object.keys(METRIC_DEFINITIONS)).map(t => t.toLowerCase());
 
-  // 1. List ALL resources without $filter (avoids case-sensitivity and child resource issues)
+  // List ALL resources without $filter (avoids case-sensitivity and child resource issues)
   let url: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/resources?api-version=2021-04-01`;
 
   while (url) {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error('Azure resource list error', { status: response.status, error: errorText.substring(0, 500) });
-      throw new Error(`Azure API ${response.status}: ${errorText.substring(0, 200)}`);
-    }
-
-    const data = await response.json() as {
-      value?: AzureResource[];
-      nextLink?: string;
-    };
+    const data: { value?: AzureResource[]; nextLink?: string } = await fetchAzureApi(accessToken, url);
 
     for (const r of data.value || []) {
-      // Case-insensitive match against supported types
       if (supportedTypes.includes((r.type || '').toLowerCase())) {
         resources.push({ id: r.id, name: r.name, type: r.type, location: r.location });
       }
@@ -373,62 +361,9 @@ async function listAzureResources(
     url = data.nextLink || null;
   }
 
-  // 2. SQL Databases are child resources not returned by /resources endpoint.
-  //    Discover them via SQL servers if SQL DB metrics are requested.
-  const needsSqlDbs = supportedTypes.includes('microsoft.sql/servers/databases');
-  if (needsSqlDbs) {
-    try {
-      // First find SQL servers (may already be in the list or need separate discovery)
-      let serversUrl: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Sql/servers?api-version=2023-05-01-preview`;
-      const sqlServers: Array<{ id: string; name: string }> = [];
-
-      while (serversUrl) {
-        const srvResp = await fetch(serversUrl, {
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        });
-        if (srvResp.ok) {
-          const srvData = await srvResp.json() as { value?: Array<{ id: string; name: string }>; nextLink?: string };
-          for (const s of srvData.value || []) {
-            sqlServers.push({ id: s.id, name: s.name });
-          }
-          serversUrl = srvData.nextLink || null;
-        } else {
-          logger.warn('Failed to list SQL servers', { status: srvResp.status });
-          break;
-        }
-      }
-
-      // For each SQL server, list databases
-      for (const server of sqlServers) {
-        try {
-          let dbsUrl: string | null = `https://management.azure.com${server.id}/databases?api-version=2023-05-01-preview`;
-          while (dbsUrl) {
-            const dbResp = await fetch(dbsUrl, {
-              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-            });
-            if (dbResp.ok) {
-              const dbData = await dbResp.json() as { value?: AzureResource[]; nextLink?: string };
-              for (const db of dbData.value || []) {
-                // Skip system databases (master)
-                if (db.name === 'master') continue;
-                // Avoid duplicates
-                if (!resources.some(r => r.id === db.id)) {
-                  resources.push({ id: db.id, name: db.name, type: db.type || 'Microsoft.Sql/servers/databases', location: db.location });
-                }
-              }
-              dbsUrl = dbData.nextLink || null;
-            } else {
-              logger.warn('Failed to list databases for SQL server', { server: server.name, status: dbResp.status });
-              break;
-            }
-          }
-        } catch (dbErr: any) {
-          logger.warn('Error listing databases for SQL server', { server: server.name, error: dbErr.message });
-        }
-      }
-    } catch (sqlErr: any) {
-      logger.warn('Error discovering SQL databases', { error: sqlErr.message });
-    }
+  // SQL Databases are child resources not returned by /resources endpoint
+  if (supportedTypes.includes('microsoft.sql/servers/databases')) {
+    await discoverSqlDatabases(accessToken, subscriptionId, resources);
   }
 
   logger.info('Azure resources discovered', {
@@ -437,6 +372,81 @@ async function listAzureResources(
   });
 
   return resources;
+}
+
+/** Typed wrapper for Azure Management API GET requests */
+async function fetchAzureApi<T>(accessToken: string, url: string): Promise<T> {
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error('Azure API error', { status: response.status, url: url.substring(0, 120), error: errorText.substring(0, 500) });
+    throw new Error(`Azure API ${response.status}: ${errorText.substring(0, 200)}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+/**
+ * Discover SQL databases via SQL servers endpoint.
+ * The /resources endpoint doesn't return child resources like databases.
+ */
+async function discoverSqlDatabases(
+  accessToken: string,
+  subscriptionId: string,
+  resources: AzureResource[]
+): Promise<void> {
+  try {
+    let serversUrl: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Sql/servers?api-version=${AZURE_SQL_API_VERSION}`;
+    const sqlServers: Array<{ id: string; name: string }> = [];
+
+    while (serversUrl) {
+      const srvResp = await fetch(serversUrl, {
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      });
+      if (!srvResp.ok) {
+        logger.warn('Failed to list SQL servers', { status: srvResp.status });
+        return;
+      }
+      const srvData = await srvResp.json() as { value?: Array<{ id: string; name: string }>; nextLink?: string };
+      for (const s of srvData.value || []) {
+        sqlServers.push({ id: s.id, name: s.name });
+      }
+      serversUrl = srvData.nextLink || null;
+    }
+
+    for (const server of sqlServers) {
+      try {
+        let dbsUrl: string | null = `https://management.azure.com${server.id}/databases?api-version=${AZURE_SQL_API_VERSION}`;
+        while (dbsUrl) {
+          const dbResp = await fetch(dbsUrl, {
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          });
+          if (!dbResp.ok) {
+            logger.warn('Failed to list databases for SQL server', { server: server.name, status: dbResp.status });
+            break;
+          }
+          const dbData = await dbResp.json() as { value?: AzureResource[]; nextLink?: string };
+          for (const db of dbData.value || []) {
+            if (db.name === 'master') continue;
+            if (!resources.some(r => r.id === db.id)) {
+              resources.push({ id: db.id, name: db.name, type: db.type || 'Microsoft.Sql/servers/databases', location: db.location });
+            }
+          }
+          dbsUrl = dbData.nextLink || null;
+        }
+      } catch (dbErr: any) {
+        logger.warn('Error listing databases for SQL server', { server: server.name, error: dbErr.message });
+      }
+    }
+  } catch (sqlErr: any) {
+    logger.warn('Error discovering SQL databases', { error: sqlErr.message });
+  }
 }
 
 /**
