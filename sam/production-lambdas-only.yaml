@@ -4,7 +4,7 @@ Description: |
   EVO Platform - Lambda Functions Only (194 total)
   Uses existing VPC, RDS, Cognito infrastructure
   All functions use ARM64 + esbuild for fast builds
-  Updated: 2026-02-11 - Added ENVIRONMENT/PROJECT_NAME env vars, lambda:InvokeFunction IAM
+  Updated: 2026-02-11 - Added ENVIRONMENT/PROJECT_NAME env vars, lambda:InvokeFunction IAM, require() for client-lambda
 Globals:
   Function:
     Runtime: nodejs20.x

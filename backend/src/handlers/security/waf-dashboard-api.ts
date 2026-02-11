@@ -456,8 +456,9 @@ async function proxyToWafSetupMonitoring(
   logger.info('Proxying to waf-setup-monitoring', { functionName });
   
   try {
-    // Dynamic import to avoid breaking the Lambda if @aws-sdk/client-lambda is not bundled
-    const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
+    // Use require() instead of import() - Node.js 20 runtime has @aws-sdk in require path
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
     const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
     
     const response = await lambdaClient.send(new InvokeCommand({
