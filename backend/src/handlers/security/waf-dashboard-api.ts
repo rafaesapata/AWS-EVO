@@ -22,6 +22,7 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logging.js';
 import { WAFV2Client } from '@aws-sdk/client-wafv2';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { handler as wafSetupMonitoringHandler } from './waf-setup-monitoring.js';
 import { blockIp, unblockIp, DEFAULT_AUTO_BLOCK_CONFIG } from '../../lib/waf/auto-blocker.js';
 import { isOrganizationInDemoMode, generateDemoWafEvents } from '../../lib/demo-data-service.js';
 
@@ -442,45 +443,20 @@ function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
 }
 
 /**
- * Proxy actions (list-wafs, setup, disable) to the waf-setup-monitoring Lambda.
- * This allows the frontend to route all WAF operations through waf-dashboard-api,
- * avoiding route mismatch issues between sandbox and production API Gateway configs.
+ * Directly call the waf-setup-monitoring handler inline.
+ * esbuild bundles waf-setup-monitoring code into this Lambda's bundle,
+ * eliminating the need for Lambda-to-Lambda invocation.
  */
 async function proxyToWafSetupMonitoring(
   event: AuthorizedEvent
 ): Promise<APIGatewayProxyResultV2> {
-  const env = process.env.ENVIRONMENT || process.env.STAGE || 'sandbox';
-  const projectName = process.env.PROJECT_NAME || 'evo-uds-v3';
-  const functionName = `${projectName}-${env}-waf-setup-monitoring`;
-  
-  logger.info('Proxying to waf-setup-monitoring', { functionName });
+  logger.info('Calling waf-setup-monitoring handler inline');
   
   try {
-    // Use require() instead of import() - Node.js 20 runtime has @aws-sdk in require path
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
-    const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
-    
-    const response = await lambdaClient.send(new InvokeCommand({
-      FunctionName: functionName,
-      InvocationType: 'RequestResponse',
-      Payload: Buffer.from(JSON.stringify(event)),
-    }));
-    
-    if (response.FunctionError) {
-      const errorPayload = response.Payload ? JSON.parse(new TextDecoder().decode(response.Payload)) : {};
-      logger.error('waf-setup-monitoring invocation error', { functionError: response.FunctionError, errorPayload });
-      return error('WAF setup operation failed. Please try again.', 500);
-    }
-    
-    if (response.Payload) {
-      const result = JSON.parse(new TextDecoder().decode(response.Payload));
-      return result;
-    }
-    
-    return error('No response from WAF setup', 500);
+    const result = await wafSetupMonitoringHandler(event, {} as any);
+    return result;
   } catch (err: any) {
-    logger.error('Failed to invoke waf-setup-monitoring', err as Error);
+    logger.error('Failed to call waf-setup-monitoring handler', err as Error);
     return error('WAF setup service unavailable. Please try again.', 503);
   }
 }
