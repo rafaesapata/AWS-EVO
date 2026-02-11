@@ -20,6 +20,8 @@ interface ValidateLicenseBody {
 // PERF-001: In-memory cache for usage stats (TTL 5 min)
 const usageStatsCache = new Map<string, { data: { accountsCount: number; usersCount: number }; expiresAt: number }>();
 const USAGE_CACHE_TTL_MS = 5 * 60 * 1000;
+const USAGE_CACHE_MAX_ENTRIES = 100;
+const DEFAULT_ACCOUNT_LIMIT = 100;
 
 async function getUsageStatsCached(prisma: any, organizationId: string) {
   const cached = usageStatsCache.get(organizationId);
@@ -34,7 +36,7 @@ async function getUsageStatsCached(prisma: any, organizationId: string) {
   usageStatsCache.set(organizationId, { data, expiresAt: Date.now() + USAGE_CACHE_TTL_MS });
   
   // Evict old entries
-  if (usageStatsCache.size > 100) {
+  if (usageStatsCache.size > USAGE_CACHE_MAX_ENTRIES) {
     const now = Date.now();
     for (const [key, val] of usageStatsCache) {
       if (val.expiresAt < now) usageStatsCache.delete(key);
@@ -147,7 +149,7 @@ export async function handler(
           license: null,
           seats: null,
           usage: {
-            accounts: { current: 0, limit: 100 },
+            accounts: { current: 0, limit: DEFAULT_ACCOUNT_LIMIT },
             users: { current: 0, limit: 0 },
           },
           total_licenses: 0,
@@ -381,7 +383,7 @@ export async function handler(
       usage: {
         accounts: {
           current: accountsCount,
-          limit: 100, // Default limit
+          limit: DEFAULT_ACCOUNT_LIMIT,
         },
         users: {
           current: usersCount,

@@ -8,6 +8,7 @@ import { getUserFromEvent, getOrganizationId, hasRole, requireRole } from './aut
 import { checkRateLimit, validateOrganizationContext } from './validation.js';
 import { error, badRequest, forbidden, corsOptions, clearRequestContext, setRequestContext } from './response.js';
 import { TenantIsolatedPrisma } from './database.js';
+import { logger } from './logging.js';
 
 /**
  * Helper to get HTTP method from event (supports both REST API v1 and HTTP API v2)
@@ -242,13 +243,13 @@ export function withAuditLog(
     const { user, organizationId, requestId } = middleware;
     
     // Log the action attempt
-    console.log(`📋 Audit Log: ${action} attempted by ${user.sub} in org ${organizationId} [${requestId}]`);
+    logger.info(`Audit: ${action} attempted by ${user.sub} in org ${organizationId} [${requestId}]`);
     
     try {
       const result = await handler(event, context, middleware);
       
       // Log successful action
-      console.log(`📋 Audit Log: ${action} completed successfully by ${user.sub} [${requestId}]`);
+      logger.info(`Audit: ${action} completed by ${user.sub} [${requestId}]`);
       
       // Store audit log in database (fire-and-forget to avoid performance impact)
       middleware.prisma.prisma.auditLog.create({
@@ -265,12 +266,12 @@ export function withAuditLog(
             statusCode: result.statusCode,
           },
         },
-      }).catch((err: any) => console.warn('Audit log write failed:', err.message));
+      }).catch((err: any) => logger.warn('Audit log write failed', { error: err.message }));
       
       return result;
     } catch (err) {
       // Log failed action
-      console.error(`📋 Audit Log: ${action} failed for ${user.sub} [${requestId}]:`, err);
+      logger.error(`Audit: ${action} failed for ${user.sub} [${requestId}]`, err);
       
       // Store failed audit log (fire-and-forget)
       middleware.prisma.prisma.auditLog.create({
@@ -287,7 +288,7 @@ export function withAuditLog(
             path: event.requestContext.http?.path,
           },
         },
-      }).catch((auditErr: any) => console.warn('Audit log write failed:', auditErr.message));
+      }).catch((auditErr: any) => logger.warn('Audit log write failed', { error: auditErr.message }));
       
       throw err;
     }

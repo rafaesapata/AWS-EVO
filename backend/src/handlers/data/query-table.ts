@@ -106,13 +106,11 @@ const TABLE_TO_MODEL: Record<string, string> = {
 // Também lista campos a IGNORAR (mapear para null) quando não existem no modelo
 
 // SEC-005: Field name sanitization - only allow safe alphanumeric field names
+// Must start with a letter, contain only letters/digits/underscores, max 64 chars
 const SAFE_FIELD_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
-const BLOCKED_FIELD_PREFIXES = ['_', '$', '__'];
 
 function isFieldNameSafe(fieldName: string): boolean {
-  if (!SAFE_FIELD_PATTERN.test(fieldName)) return false;
-  if (BLOCKED_FIELD_PREFIXES.some(p => fieldName.startsWith(p))) return false;
-  return true;
+  return SAFE_FIELD_PATTERN.test(fieldName);
 }
 const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   // Tabelas que tiveram account_id migrado para aws_account_id

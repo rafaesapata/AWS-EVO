@@ -47,18 +47,19 @@ interface SyncResult {
 // ============================================================================
 
 // RES-003: Simple circuit breaker for external license API
+const CIRCUIT_BREAKER_THRESHOLD = 3;
+const CIRCUIT_BREAKER_RESET_MS = 60_000;
+const LICENSE_API_TIMEOUT_MS = 10_000;
+
 const circuitBreaker = {
   failures: 0,
   lastFailure: 0,
   isOpen: false,
-  threshold: 3,        // Open after 3 consecutive failures
-  resetTimeout: 60000, // Try again after 60s
 };
 
 function checkCircuitBreaker(): void {
   if (!circuitBreaker.isOpen) return;
-  if (Date.now() - circuitBreaker.lastFailure > circuitBreaker.resetTimeout) {
-    // Half-open: allow one attempt
+  if (Date.now() - circuitBreaker.lastFailure > CIRCUIT_BREAKER_RESET_MS) {
     circuitBreaker.isOpen = false;
     circuitBreaker.failures = 0;
     logger.info('Circuit breaker half-open, allowing retry');
@@ -75,7 +76,7 @@ function recordSuccess(): void {
 function recordFailure(): void {
   circuitBreaker.failures++;
   circuitBreaker.lastFailure = Date.now();
-  if (circuitBreaker.failures >= circuitBreaker.threshold) {
+  if (circuitBreaker.failures >= CIRCUIT_BREAKER_THRESHOLD) {
     circuitBreaker.isOpen = true;
     logger.warn(`Circuit breaker opened after ${circuitBreaker.failures} failures`);
   }
@@ -101,7 +102,7 @@ export async function fetchExternalLicenses(customerId: string): Promise<Externa
         'X-API-Key': apiKey,
       },
       body: JSON.stringify({ customer_id: customerId }),
-      signal: AbortSignal.timeout(10000), // 10s timeout
+      signal: AbortSignal.timeout(LICENSE_API_TIMEOUT_MS),
     });
 
     if (!response.ok) {
