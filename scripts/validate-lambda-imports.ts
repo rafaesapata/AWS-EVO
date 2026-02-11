@@ -14,8 +14,7 @@
  */
 
 import { readdirSync, statSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { basename } from 'path';
-import { join, resolve, relative, dirname } from 'path';
+import { join, resolve, relative, dirname, basename } from 'path';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -141,7 +140,7 @@ function walkDirectory(dir: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Import Extraction (TODO: Task 2.1)
+// Import Extraction
 // ---------------------------------------------------------------------------
 
 export function extractImports(filePath: string): ImportInfo[] {
@@ -215,7 +214,7 @@ export function extractImports(filePath: string): ImportInfo[] {
 }
 
 // ---------------------------------------------------------------------------
-// Import Resolution (TODO: Task 2.2)
+// Import Resolution
 // ---------------------------------------------------------------------------
 
 export function resolveImport(sourceDir: string, importPath: string): string | null {
@@ -245,7 +244,7 @@ export function resolveImport(sourceDir: string, importPath: string): string | n
 }
 
 // ---------------------------------------------------------------------------
-// Dependency Graph Builder (TODO: Task 3.1)
+// Dependency Graph Builder
 // ---------------------------------------------------------------------------
 
 export function buildDependencyGraph(
@@ -320,7 +319,7 @@ export function buildDependencyGraph(
 }
 
 // ---------------------------------------------------------------------------
-// Cycle Detection (TODO: Task 4.1)
+// Cycle Detection
 // ---------------------------------------------------------------------------
 
 export function detectCycles(adjacencyMap: Map<string, string[]>): Cycle[] {
@@ -389,7 +388,7 @@ export function detectCycles(adjacencyMap: Map<string, string[]>): Cycle[] {
 
 
 // ---------------------------------------------------------------------------
-// Reporting (TODO: Task 6.1)
+// Reporting
 // ---------------------------------------------------------------------------
 
 export function reportResults(result: ValidationResult): void {
@@ -476,7 +475,7 @@ export function writeGraphJson(
 }
 
 // ---------------------------------------------------------------------------
-// Domain Map Updater (TODO: Task 7.1)
+// Domain Map Updater
 // ---------------------------------------------------------------------------
 
 export function updateDomainMap(graph: DependencyGraph, domainMapPath: string): void {
