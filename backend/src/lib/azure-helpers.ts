@@ -4,6 +4,21 @@
  * Shared utilities for Azure handlers
  */
 
+import {
+  deserializeEncryptedToken,
+  decryptToken,
+  encryptToken,
+  serializeEncryptedToken,
+} from './token-encryption.js';
+
+/** Default token expiry in seconds when Azure doesn't return expires_in */
+const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
+
+/** Azure AD OAuth v2.0 token endpoint template */
+function getAzureTokenUrl(tenantId: string): string {
+  return `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+}
+
 /**
  * Credential type from Prisma
  */
@@ -115,12 +130,9 @@ export function isServicePrincipalCredential(credential: Pick<AzureCredentialRec
 
 
 /**
- * Decrypts an encrypted refresh token using token-encryption library
+ * Decrypts an encrypted refresh token stored in the database
  */
-import { deserializeEncryptedToken, decryptToken } from './token-encryption.js';
-
-async function decryptRefreshToken(encryptedToken: string): Promise<string> {
-  // Use the same decryption as token-encryption.ts
+function decryptRefreshToken(encryptedToken: string): string {
   const tokenData = deserializeEncryptedToken(encryptedToken);
   return decryptToken(tokenData);
 }
@@ -139,7 +151,7 @@ async function refreshOAuthToken(
     throw new Error('Azure OAuth client credentials not configured');
   }
   
-  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+  const tokenUrl = getAzureTokenUrl(tenantId);
   
   const params = new URLSearchParams({
     client_id: clientId,
@@ -166,7 +178,7 @@ async function refreshOAuthToken(
   
   return {
     accessToken: data.access_token,
-    expiresIn: data.expires_in || 3600,
+    expiresIn: data.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS,
     newRefreshToken: data.refresh_token,
   };
 }
@@ -213,7 +225,7 @@ export async function getAzureCredentialWithToken(
     
     try {
       // Decrypt refresh token
-      const refreshToken = await decryptRefreshToken(credential.encrypted_refresh_token);
+      const refreshToken = decryptRefreshToken(credential.encrypted_refresh_token);
       
       // Refresh access token
       const tokenResult = await refreshOAuthToken(tenantId, refreshToken);
@@ -227,7 +239,6 @@ export async function getAzureCredentialWithToken(
 
       // If Azure returned a rotated refresh token, re-encrypt and store it
       if (tokenResult.newRefreshToken) {
-        const { encryptToken, serializeEncryptedToken } = await import('./token-encryption.js');
         const encrypted = encryptToken(tokenResult.newRefreshToken);
         updateData.encrypted_refresh_token = serializeEncryptedToken(encrypted);
       }
@@ -263,7 +274,7 @@ export async function getAzureCredentialWithToken(
   
   try {
     // Get access token using client credentials flow
-    const tokenUrl = `https://login.microsoftonline.com/${spValidation.credentials.tenantId}/oauth2/v2.0/token`;
+    const tokenUrl = getAzureTokenUrl(spValidation.credentials.tenantId);
     
     const params = new URLSearchParams({
       client_id: spValidation.credentials.clientId,

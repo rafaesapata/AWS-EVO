@@ -4,11 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
-import { Key, Trash2, Building2, TestTube, Pencil, CloudCog, Copy, AlertTriangle } from "lucide-react";
+import { Key, Trash2, Building2, ShieldCheck, Pencil, CloudCog, Copy, AlertTriangle, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { RegionSelector } from "./RegionSelector";
 import CloudFormationDeploy from "./CloudFormationDeploy";
 import { useTranslation } from "react-i18next";
@@ -41,11 +40,34 @@ interface AwsAccountExtended extends CloudAccount {
   external_id?: string;
 }
 
+interface PermissionResult {
+  action: string;
+  decision: string;
+  allowed: boolean;
+  matchedStatements: number;
+}
+
+interface PermissionTestResults {
+  success: boolean;
+  valid: boolean;
+  principalArn: string;
+  summary: {
+    total: number;
+    allowed: number;
+    denied: number;
+    percentage: number;
+  };
+  results: PermissionResult[];
+  missingPermissions: string[];
+}
+
+const ROLE_PREFIX = 'ROLE:';
+
 // Helper to convert CloudAccount to AwsAccountExtended
 function toAwsAccountExtended(account: CloudAccount): AwsAccountExtended {
   return {
     ...account,
-    access_key_id: account.roleArn ? `ROLE:${account.roleArn}` : undefined,
+    access_key_id: account.roleArn ? `${ROLE_PREFIX}${account.roleArn}` : undefined,
     account_name: account.accountName,
     is_active: account.isActive,
     external_id: undefined, // Will be fetched from API if needed
@@ -62,6 +84,8 @@ const AwsCredentialsManager = () => {
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
   const [editRegions, setEditRegions] = useState<string[]>([]);
   const [editAccountName, setEditAccountName] = useState("");
+  const [testingAccountId, setTestingAccountId] = useState<string | null>(null);
+  const [permissionResults, setPermissionResults] = useState<PermissionTestResults | null>(null);
 
   // Use centralized cloud account context instead of direct API call
   const { awsAccounts, isLoading, refreshAccounts: refetch, error: queryError } = useCloudAccount();
@@ -87,7 +111,7 @@ const AwsCredentialsManager = () => {
   const credentials = allAccounts?.[0];
 
   // Check for legacy accounts using access keys
-  const legacyAccounts = allAccounts?.filter(acc => !acc.access_key_id?.startsWith('ROLE:')) || [];
+  const legacyAccounts = allAccounts?.filter(acc => !acc.access_key_id?.startsWith(ROLE_PREFIX)) || [];
   const hasLegacyAccounts = legacyAccounts.length > 0;
 
   // Sync organization accounts
@@ -124,51 +148,44 @@ const AwsCredentialsManager = () => {
     },
   });
 
-  const handleTestCredentials = async (accountId: string) => {
+  const handleTestPermissions = async (accountId: string) => {
+    setTestingAccountId(accountId);
     try {
       toast({
-        title: t('aws.testingCredentials', 'Testing credentials...'),
-        description: t('aws.validatingConnection', 'Validating connection and AWS permissions'),
+        title: t('aws.testingPermissions', 'Testing permissions...'),
+        description: t('aws.validatingIamPermissions', 'Validating IAM permissions for this account'),
       });
 
-      const result = await apiClient.invoke('validate-aws-credentials', {
+      const result = await apiClient.invoke('validate-permissions', {
         body: { accountId }
       });
 
-      if (result.error) throw new Error(result.error.message || t('aws.validationFailed', 'Error validating credentials'));
+      if (result.error) throw new Error(result.error.message || t('aws.permissionTestFailed', 'Error testing permissions'));
       const data = result.data;
 
-      await queryClient.invalidateQueries({ queryKey: ['aws-validation-status'] });
-      await queryClient.refetchQueries({ queryKey: ['aws-validation-status'] });
-      
-      if (data.isValid) {
-        if (data.has_all_permissions === false) {
-          toast({
-            title: t('aws.credentialsValidWithWarnings', '⚠️ Valid credentials with warnings'),
-            description: t('aws.connectionOkMissingPermissions', 'Connection OK, but some permissions are missing'),
-            variant: "default",
-          });
-          window.dispatchEvent(new Event('switchToPermissionsTab'));
-        } else {
-          toast({
-            title: t('aws.credentialsValid', '✅ Valid credentials'),
-            description: t('aws.connectionAndPermissionsVerified', 'Connection and permissions verified successfully'),
-          });
-        }
-      } else {
-        throw new Error(data.error || t('aws.validationFailed', 'Validation failed'));
-      }
+      setPermissionResults(data);
 
-      refetch();
+      if (data.valid) {
+        toast({
+          title: t('aws.allPermissionsOk', '✅ All permissions OK'),
+          description: t('aws.allPermissionsDescription', '{{allowed}}/{{total}} permissions verified', { allowed: data.summary.allowed, total: data.summary.total }),
+        });
+      } else {
+        toast({
+          title: t('aws.missingPermissions', '⚠️ Missing permissions'),
+          description: t('aws.missingPermissionsDescription', '{{denied}} of {{total}} permissions are missing', { denied: data.summary.denied, total: data.summary.total }),
+          variant: "destructive",
+        });
+      }
     } catch (error) {
-      console.error('Error testing credentials:', error);
+      console.error('Error testing permissions:', error);
       toast({
-        title: t('aws.testCredentialsError', '❌ Error testing credentials'),
+        title: t('aws.testPermissionsError', '❌ Error testing permissions'),
         description: error instanceof Error ? error.message : t('common.error', 'Unknown error'),
         variant: "destructive",
       });
-      await queryClient.invalidateQueries({ queryKey: ['aws-validation-status'] });
-      await queryClient.refetchQueries({ queryKey: ['aws-validation-status'] });
+    } finally {
+      setTestingAccountId(null);
     }
   };
 
@@ -306,7 +323,7 @@ const AwsCredentialsManager = () => {
           <CardContent className="space-y-2">
             {allAccounts.map((account) => (
               <div key={account.id} className={`p-4 border rounded-lg ${
-                account.access_key_id?.startsWith('ROLE:') 
+                account.access_key_id?.startsWith(ROLE_PREFIX) 
                   ? 'bg-card border-border shadow-sm' 
                   : 'bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-800'
               }`}>
@@ -314,7 +331,7 @@ const AwsCredentialsManager = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold text-foreground">{account.account_name}</p>
-                      {account.access_key_id?.startsWith('ROLE:') ? (
+                      {account.access_key_id?.startsWith(ROLE_PREFIX) ? (
                         <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 rounded-md flex items-center gap-1 font-medium border border-blue-200 dark:border-blue-700">
                           <CloudCog className="w-3 h-3" />
                           {t('aws.iamRole', 'IAM Role')}
@@ -337,11 +354,11 @@ const AwsCredentialsManager = () => {
                       </p>
                     )}
                     <div className="mt-3 space-y-2">
-                      {account.access_key_id?.startsWith('ROLE:') ? (
+                      {account.access_key_id?.startsWith(ROLE_PREFIX) ? (
                         <>
                           <p className="text-xs text-foreground">
                             <span className="font-medium text-muted-foreground">{t('aws.roleArn', 'Role ARN')}:</span>{' '}
-                            <span className="font-mono bg-muted/80 px-1.5 py-0.5 rounded">{account.access_key_id.replace('ROLE:', '')}</span>
+                            <span className="font-mono bg-muted/80 px-1.5 py-0.5 rounded">{account.access_key_id.replace(ROLE_PREFIX, '')}</span>
                           </p>
                           {account.external_id && (
                             <div className="flex items-center gap-2">
@@ -386,12 +403,17 @@ const AwsCredentialsManager = () => {
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
-                      size="icon"
-                      onClick={() => handleTestCredentials(account.id)}
-                      title={t('aws.testCredentials', 'Test credentials')}
-                      disabled={!account.is_active}
+                      size="sm"
+                      onClick={() => handleTestPermissions(account.id)}
+                      disabled={!account.is_active || testingAccountId === account.id}
+                      className="gap-1.5"
                     >
-                      <TestTube className="w-4 h-4" />
+                      {testingAccountId === account.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="w-4 h-4" />
+                      )}
+                      {t('aws.testPermissions', 'Test Permissions')}
                     </Button>
                     <Button
                       variant="outline"
@@ -492,10 +514,10 @@ const AwsCredentialsManager = () => {
 
             {editingAccount && (
               <div className="bg-muted/80 p-4 rounded-lg space-y-2 border border-border">
-                {editingAccount.access_key_id?.startsWith('ROLE:') ? (
+                {editingAccount.access_key_id?.startsWith(ROLE_PREFIX) ? (
                   <p className="text-sm text-foreground">
                     <span className="font-medium text-muted-foreground">{t('aws.roleArn', 'Role ARN')}:</span>{' '}
-                    <span className="font-mono text-xs bg-background px-2 py-1 rounded border border-border">{editingAccount.access_key_id.replace('ROLE:', '')}</span>
+                    <span className="font-mono text-xs bg-background px-2 py-1 rounded border border-border">{editingAccount.access_key_id.replace(ROLE_PREFIX, '')}</span>
                   </p>
                 ) : (
                   <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">
@@ -511,6 +533,75 @@ const AwsCredentialsManager = () => {
             </Button>
             <Button onClick={handleSaveEdit}>
               {t('aws.saveChanges', 'Save Changes')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Permission Test Results Dialog */}
+      <Dialog open={!!permissionResults} onOpenChange={() => setPermissionResults(null)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5" />
+              {t('aws.permissionTestResults', 'Permission Test Results')}
+            </DialogTitle>
+            <DialogDescription>
+              {permissionResults?.principalArn && (
+                <span className="font-mono text-xs">{permissionResults.principalArn}</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {permissionResults && (
+            <div className="space-y-4 py-2">
+              {/* Summary */}
+              <div className={`p-4 rounded-lg border ${
+                permissionResults.valid 
+                  ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' 
+                  : 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800'
+              }`}>
+                <div className="flex items-center gap-3">
+                  {permissionResults.valid ? (
+                    <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-6 h-6 text-orange-600 dark:text-orange-400 shrink-0" />
+                  )}
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      {permissionResults.valid 
+                        ? t('aws.allPermissionsGranted', 'All permissions granted')
+                        : t('aws.somePermissionsMissing', 'Some permissions are missing')
+                      }
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {t('aws.permissionsSummary', '{{allowed}} of {{total}} permissions ({{percentage}}%)', {
+                        allowed: permissionResults.summary.allowed,
+                        total: permissionResults.summary.total,
+                        percentage: permissionResults.summary.percentage,
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Permission list */}
+              <div className="max-h-[40vh] overflow-y-auto space-y-1 pr-1">
+                {permissionResults.results?.map((perm: PermissionResult) => (
+                  <div key={perm.action} className="flex items-center justify-between py-1.5 px-3 rounded-md hover:bg-muted/50 text-sm">
+                    <span className="font-mono text-xs text-foreground">{perm.action}</span>
+                    {perm.allowed ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPermissionResults(null)}>
+              {t('common.close', 'Close')}
             </Button>
           </DialogFooter>
         </DialogContent>
