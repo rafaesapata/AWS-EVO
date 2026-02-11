@@ -95,7 +95,7 @@ Resources:
         - Key: EVOPlatformAccountId
           Value: !Ref EVOPlatformAccountId
         - Key: TemplateVersion
-          Value: '2.6.0-waf-wellarchitected'
+          Value: '2.7.0-fix-waf-preflight'
 
   # ----------------------------------------------------------------------------
   # Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
@@ -369,6 +369,17 @@ Resources:
               - 'inspector2:ListCoverage'
               - 'inspector2:GetFindingsReportStatus'
             Resource: '*'
+          
+          # Well-Architected Tool Read Access
+          - Sid: WellArchitectedReadAccess
+            Effect: Allow
+            Action:
+              - 'wellarchitected:ListWorkloads'
+              - 'wellarchitected:GetWorkload'
+              - 'wellarchitected:ListLensReviews'
+              - 'wellarchitected:GetLensReview'
+              - 'wellarchitected:ListAnswers'
+            Resource: '*'
 
   # ----------------------------------------------------------------------------
   # Policy 3: Networking, Containers & Cost Management
@@ -576,17 +587,6 @@ Resources:
               - 'iam:CreateRole'
               - 'iam:PutRolePolicy'
             Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/EVO-CloudWatch-Logs-Role'
-          
-          # Well-Architected Tool read access
-          - Sid: WellArchitectedReadAccess
-            Effect: Allow
-            Action:
-              - 'wellarchitected:ListWorkloads'
-              - 'wellarchitected:GetWorkload'
-              - 'wellarchitected:ListLensReviews'
-              - 'wellarchitected:GetLensReview'
-              - 'wellarchitected:ListAnswers'
-            Resource: '*'
 
   # ----------------------------------------------------------------------------
   # IAM Role for CloudWatch Logs Cross-Account Subscription (WAF Monitoring)

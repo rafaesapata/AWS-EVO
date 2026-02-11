@@ -556,6 +556,22 @@ const WAF_MONITORING_REQUIRED_PERMISSIONS = [
   'logs:PutRetentionPolicy',
 ];
 
+// Permissions scoped to aws-waf-logs-* log groups in the CloudFormation template.
+// SimulatePrincipalPolicy returns implicitDeny for these when tested with Resource: *,
+// so they must be simulated with matching resource ARNs.
+const LOGS_SCOPED_PERMISSIONS = [
+  'logs:CreateLogGroup',
+  'logs:PutSubscriptionFilter',
+  'logs:DeleteSubscriptionFilter',
+  'logs:DescribeSubscriptionFilters',
+  'logs:PutRetentionPolicy',
+];
+
+// Permissions that use Resource: * in the CloudFormation template
+const GLOBAL_PERMISSIONS = WAF_MONITORING_REQUIRED_PERMISSIONS.filter(
+  p => !LOGS_SCOPED_PERMISSIONS.includes(p)
+);
+
 /**
  * Pre-flight validation of IAM permissions for WAF monitoring.
  * Uses IAM SimulatePrincipalPolicy to check if the customer's IAM role
@@ -581,15 +597,29 @@ async function validateWafPermissions(
   const iamClient = new IAMClient({ region: 'us-east-1', credentials });
   
   const checkPermissions = async (): Promise<string[]> => {
-    const simulateResponse = await iamClient.send(new SimulatePrincipalPolicyCommand({
-      PolicySourceArn: roleArn,
-      ActionNames: WAF_MONITORING_REQUIRED_PERMISSIONS,
-      ResourceArns: ['*'],
-    }));
+    const logGroupArn = `arn:aws:logs:${region}:${customerAwsAccountId}:log-group:aws-waf-logs-*`;
     
-    return (simulateResponse.EvaluationResults || [])
+    const [globalResult, scopedResult] = await Promise.all([
+      iamClient.send(new SimulatePrincipalPolicyCommand({
+        PolicySourceArn: roleArn,
+        ActionNames: GLOBAL_PERMISSIONS,
+        ResourceArns: ['*'],
+      })),
+      iamClient.send(new SimulatePrincipalPolicyCommand({
+        PolicySourceArn: roleArn,
+        ActionNames: LOGS_SCOPED_PERMISSIONS,
+        ResourceArns: [logGroupArn],
+      })),
+    ]);
+    
+    const denied = [
+      ...(globalResult.EvaluationResults || []),
+      ...(scopedResult.EvaluationResults || []),
+    ]
       .filter(r => r.EvalDecision !== 'allowed')
       .map(r => r.EvalActionName!);
+    
+    return denied;
   };
   
   try {
