@@ -357,9 +357,13 @@ main() {
     for handler in "${!HANDLER_MAP[@]}"; do
       for lambda in ${HANDLER_MAP[$handler]}; do
         if [ -f "backend/dist/handlers/${handler}.js" ]; then
-          deploy_lambda "$handler" "$lambda" && ((deployed++)) || ((failed++))
+          if deploy_lambda "$handler" "$lambda"; then
+            deployed=$((deployed + 1))
+          else
+            failed=$((failed + 1))
+          fi
         else
-          ((skipped++))
+          skipped=$((skipped + 1))
         fi
       done
     done
@@ -374,14 +378,18 @@ main() {
       if [ -n "$lambdas" ]; then
         for lambda in $lambdas; do
           if [ -f "backend/dist/handlers/${handler}.js" ]; then
-            deploy_lambda "$handler" "$lambda" && ((deployed++)) || ((failed++))
+            if deploy_lambda "$handler" "$lambda"; then
+              deployed=$((deployed + 1))
+            else
+              failed=$((failed + 1))
+            fi
           else
-            ((skipped++))
+            skipped=$((skipped + 1))
           fi
         done
       else
         log_warning "No mapping for: $handler"
-        ((skipped++))
+        skipped=$((skipped + 1))
       fi
     done
   fi

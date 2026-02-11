@@ -1,6 +1,4 @@
-import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 /**
- * Lambda handler for Validate Permissions
  * AWS Lambda Handler for validate-permissions
  * 
  * Valida permissões IAM necessárias para operações do sistema
@@ -11,9 +9,12 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
+import { getHttpMethod } from '../../lib/middleware.js';
 import { logger } from '../../lib/logging.js';
 import { IAMClient, SimulatePrincipalPolicyCommand } from '@aws-sdk/client-iam';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
+
+const AWS_REGION = 'us-east-1';
 
 interface ValidatePermissionsRequest {
   accountId: string;
@@ -38,6 +39,12 @@ const REQUIRED_PERMISSIONS = [
   'ce:GetCostAndUsage',
   'wellarchitected:ListWorkloads',
 ];
+
+/** Convert STS assumed-role session ARN to IAM role ARN for SimulatePrincipalPolicy */
+function toIamRoleArn(arn: string): string {
+  const match = arn.match(/^arn:aws:sts::(\d+):assumed-role\/([^/]+)\/.+$/);
+  return match ? `arn:aws:iam::${match[1]}:role/${match[2]}` : arn;
+}
 
 export async function handler(
   event: AuthorizedEvent,
@@ -74,29 +81,25 @@ export async function handler(
       return error('AWS account not found');
     }
     
-    const resolvedCreds = await resolveAwsCredentials(account, 'us-east-1');
+    const resolvedCreds = await resolveAwsCredentials(account, AWS_REGION);
+    const credentials = toAwsCredentials(resolvedCreds);
     
     // Obter identidade atual
-    const stsClient = new STSClient({
-      region: 'us-east-1',
-      credentials: toAwsCredentials(resolvedCreds),
-    });
+    const stsClient = new STSClient({ region: AWS_REGION, credentials });
     
     const identityResponse = await stsClient.send(new GetCallerIdentityCommand({}));
-    const principalArn = identityResponse.Arn!;
+    const rawArn = identityResponse.Arn!;
+    const principalArn = toIamRoleArn(rawArn);
     
     logger.info('Validating permissions for principal', { 
       organizationId, 
       accountId, 
+      rawArn,
       principalArn,
       actionsCount: actions.length 
     });
     
-    // Simular políticas para validar permissões
-    const iamClient = new IAMClient({
-      region: 'us-east-1',
-      credentials: toAwsCredentials(resolvedCreds),
-    });
+    const iamClient = new IAMClient({ region: AWS_REGION, credentials });
     
     const simulateCommand = new SimulatePrincipalPolicyCommand({
       PolicySourceArn: principalArn,
@@ -137,18 +140,29 @@ export async function handler(
         total: results.length,
         allowed: allowedCount,
         denied: deniedCount,
-        percentage: Math.round((allowedCount / results.length) * 100),
+        percentage: results.length > 0 ? Math.round((allowedCount / results.length) * 100) : 0,
       },
       results,
       missingPermissions,
     });
     
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
     logger.error('Validate Permissions error', err as Error, { 
       organizationId,
       userId: user.sub,
-      requestId: context.awsRequestId 
+      requestId: context.awsRequestId,
+      errorMessage: errMsg,
     });
+    
+    // Return actionable error messages for known cases
+    if (errMsg.includes('SimulatePrincipalPolicy')) {
+      return error('The IAM role does not have permission to simulate policies (iam:SimulatePrincipalPolicy). Please add this permission to the role.', 403);
+    }
+    if (errMsg.includes('AccessDenied') || errMsg.includes('is not authorized')) {
+      return error('Access denied. Please verify the IAM role has sufficient permissions.', 403);
+    }
+    
     return error('An unexpected error occurred. Please try again.', 500);
   }
 }
