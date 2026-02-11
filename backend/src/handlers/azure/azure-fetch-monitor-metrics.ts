@@ -159,12 +159,30 @@ export async function handler(
     });
 
     if (resources.length === 0) {
+      // Check if it's a permissions issue by trying to list resource groups
+      let permissionHint = '';
+      try {
+        const rgUrl = `https://management.azure.com/subscriptions/${subscriptionId}/resourcegroups?api-version=2021-04-01`;
+        const rgData: { value?: Array<{ name: string }>} = await fetchAzureApi(accessToken, rgUrl);
+        const rgCount = rgData.value?.length ?? 0;
+        logger.info('Azure resource groups check', { subscriptionId, resourceGroupCount: rgCount, names: (rgData.value || []).slice(0, 5).map(rg => rg.name) });
+        
+        if (rgCount === 0) {
+          permissionHint = ' The Service Principal/OAuth token may not have Reader role on this subscription, or the subscription has no resource groups.';
+        } else {
+          permissionHint = ` Found ${rgCount} resource group(s) but no supported resource types. The subscription may not contain VMs, App Services, SQL DBs, or Storage Accounts.`;
+        }
+      } catch (rgErr: any) {
+        logger.warn('Resource groups check failed', { error: rgErr.message });
+        permissionHint = ` Permission check failed: ${rgErr.message}. The Service Principal may lack Reader role.`;
+      }
+
       return success({
         success: true,
         resourcesFound: 0,
         resourcesProcessed: 0,
         metricsCollected: 0,
-        message: 'No supported Azure resources found. Supported: VMs, App Services, SQL DBs, Storage Accounts.',
+        message: `No supported Azure resources found. Supported: VMs, App Services, SQL DBs, Storage Accounts.${permissionHint}`,
       });
     }
 
@@ -356,9 +374,22 @@ async function listAzureResources(
   let url: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/resources?api-version=${AZURE_RESOURCES_API_VERSION}`;
   const allResourceTypes = new Set<string>();
   let totalRawResources = 0;
+  let pageCount = 0;
 
   while (url) {
     const data: { value?: AzureResource[]; nextLink?: string } = await fetchAzureApi(accessToken, url);
+    pageCount++;
+
+    // Debug: log first page raw response details
+    if (pageCount === 1) {
+      logger.info('Azure resources API first page', {
+        subscriptionId,
+        valueLength: data.value?.length ?? 0,
+        hasNextLink: !!data.nextLink,
+        sampleTypes: (data.value || []).slice(0, 10).map(r => r.type),
+        sampleNames: (data.value || []).slice(0, 10).map(r => r.name),
+      });
+    }
 
     for (const r of data.value || []) {
       totalRawResources++;
@@ -378,6 +409,7 @@ async function listAzureResources(
     matchedResources: resources.length,
     supportedTypes: [...supportedTypes],
     allTypesFound: [...allResourceTypes].sort(),
+    pages: pageCount,
   });
 
   // SQL Databases are child resources not returned by /resources endpoint
