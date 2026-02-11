@@ -80,6 +80,7 @@ phases:
           export CF_DIST_ID="E2NW0IZ2OX493I"
           export S3_BUCKET="evo-sam-artifacts-523115032346"
           export LAMBDA_PREFIX="evo-uds-v3-production"
+          export PUBLIC_TEMPLATES_BUCKET="evo-public-templates-523115032346"
         else
           export STACK_NAME="evo-uds-v3-sandbox-lambdas"
           export COGNITO_USER_POOL_ID="us-east-1_HPU98xnmT"
@@ -259,6 +260,15 @@ phases:
           aws s3 sync dist/ s3://$FRONTEND_BUCKET/ --delete
           echo "=== Invalidating CloudFront ==="
           aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
+
+          # Sync CloudFormation template to public S3 bucket (used by Quick Create links)
+          # Only production pipeline has access to the public templates bucket
+          if [ "$ENVIRONMENT" = "production" ]; then
+            echo "=== Syncing CloudFormation template to public bucket ==="
+            aws s3 cp dist/cloudformation/evo-platform-role.yaml \
+              s3://$PUBLIC_TEMPLATES_BUCKET/cloudformation/evo-platform-role.yaml \
+              --content-type "application/x-yaml" || echo "Warning: Could not sync CF template to public bucket"
+          fi
         else
           echo "=== Skipping Frontend Deploy (no changes) ==="
         fi
