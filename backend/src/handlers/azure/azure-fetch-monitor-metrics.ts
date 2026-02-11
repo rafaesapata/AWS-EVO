@@ -72,6 +72,28 @@ const AZURE_TYPE_MAP: Record<string, string> = {
   'Microsoft.Storage/storageAccounts': 'storage',
 };
 
+/** Case-insensitive lookup for METRIC_DEFINITIONS */
+function getMetricDefinition(resourceType: string): { metrics: string[]; aggregation: string } | undefined {
+  // Try exact match first
+  if (METRIC_DEFINITIONS[resourceType]) return METRIC_DEFINITIONS[resourceType];
+  // Case-insensitive fallback
+  const lowerType = resourceType.toLowerCase();
+  for (const [key, value] of Object.entries(METRIC_DEFINITIONS)) {
+    if (key.toLowerCase() === lowerType) return value;
+  }
+  return undefined;
+}
+
+/** Case-insensitive lookup for AZURE_TYPE_MAP */
+function getAzureTypeMapping(resourceType: string): string {
+  if (AZURE_TYPE_MAP[resourceType]) return AZURE_TYPE_MAP[resourceType];
+  const lowerType = resourceType.toLowerCase();
+  for (const [key, value] of Object.entries(AZURE_TYPE_MAP)) {
+    if (key.toLowerCase() === lowerType) return value;
+  }
+  return resourceType.split('/').pop()?.toLowerCase() || 'unknown';
+}
+
 export async function handler(
   event: AuthorizedEvent,
   _context: LambdaContext
@@ -163,7 +185,7 @@ export async function handler(
             name: res.name, type: res.type, error: result.reason?.message,
           });
           permissionErrors.push({
-            resourceType: mapResourceType(res.type),
+            resourceType: getAzureTypeMapping(res.type),
             region: res.location,
             error: result.reason?.message || 'Unknown error',
             missingPermissions: ['Microsoft.Insights/metrics/read'],
@@ -220,10 +242,10 @@ async function processResource(
   endTime: Date,
   interval: string
 ): Promise<number> {
-  const metricDef = METRIC_DEFINITIONS[resource.type];
+  const metricDef = getMetricDefinition(resource.type);
   if (!metricDef) return 0;
 
-  const mappedType = mapResourceType(resource.type);
+  const mappedType = getAzureTypeMapping(resource.type);
   const resourceId = resource.id; // Full Azure resource path
 
   // Upsert monitored resource using findFirst + create/update
@@ -317,10 +339,10 @@ async function listAzureResources(
   resourceTypes?: string[]
 ): Promise<AzureResource[]> {
   const resources: AzureResource[] = [];
-  const supportedTypes = resourceTypes || Object.keys(METRIC_DEFINITIONS);
-  const typeFilter = supportedTypes.map(t => `resourceType eq '${t}'`).join(' or ');
+  const supportedTypes = (resourceTypes || Object.keys(METRIC_DEFINITIONS)).map(t => t.toLowerCase());
 
-  let url: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/resources?api-version=2021-04-01&$filter=${encodeURIComponent(typeFilter)}`;
+  // 1. List ALL resources without $filter (avoids case-sensitivity and child resource issues)
+  let url: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/resources?api-version=2021-04-01`;
 
   while (url) {
     const response = await fetch(url, {
@@ -342,11 +364,77 @@ async function listAzureResources(
     };
 
     for (const r of data.value || []) {
-      resources.push({ id: r.id, name: r.name, type: r.type, location: r.location });
+      // Case-insensitive match against supported types
+      if (supportedTypes.includes((r.type || '').toLowerCase())) {
+        resources.push({ id: r.id, name: r.name, type: r.type, location: r.location });
+      }
     }
 
     url = data.nextLink || null;
   }
+
+  // 2. SQL Databases are child resources not returned by /resources endpoint.
+  //    Discover them via SQL servers if SQL DB metrics are requested.
+  const needsSqlDbs = supportedTypes.includes('microsoft.sql/servers/databases');
+  if (needsSqlDbs) {
+    try {
+      // First find SQL servers (may already be in the list or need separate discovery)
+      let serversUrl: string | null = `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Sql/servers?api-version=2023-05-01-preview`;
+      const sqlServers: Array<{ id: string; name: string }> = [];
+
+      while (serversUrl) {
+        const srvResp = await fetch(serversUrl, {
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        });
+        if (srvResp.ok) {
+          const srvData = await srvResp.json() as { value?: Array<{ id: string; name: string }>; nextLink?: string };
+          for (const s of srvData.value || []) {
+            sqlServers.push({ id: s.id, name: s.name });
+          }
+          serversUrl = srvData.nextLink || null;
+        } else {
+          logger.warn('Failed to list SQL servers', { status: srvResp.status });
+          break;
+        }
+      }
+
+      // For each SQL server, list databases
+      for (const server of sqlServers) {
+        try {
+          let dbsUrl: string | null = `https://management.azure.com${server.id}/databases?api-version=2023-05-01-preview`;
+          while (dbsUrl) {
+            const dbResp = await fetch(dbsUrl, {
+              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            });
+            if (dbResp.ok) {
+              const dbData = await dbResp.json() as { value?: AzureResource[]; nextLink?: string };
+              for (const db of dbData.value || []) {
+                // Skip system databases (master)
+                if (db.name === 'master') continue;
+                // Avoid duplicates
+                if (!resources.some(r => r.id === db.id)) {
+                  resources.push({ id: db.id, name: db.name, type: db.type || 'Microsoft.Sql/servers/databases', location: db.location });
+                }
+              }
+              dbsUrl = dbData.nextLink || null;
+            } else {
+              logger.warn('Failed to list databases for SQL server', { server: server.name, status: dbResp.status });
+              break;
+            }
+          }
+        } catch (dbErr: any) {
+          logger.warn('Error listing databases for SQL server', { server: server.name, error: dbErr.message });
+        }
+      }
+    } catch (sqlErr: any) {
+      logger.warn('Error discovering SQL databases', { error: sqlErr.message });
+    }
+  }
+
+  logger.info('Azure resources discovered', {
+    total: resources.length,
+    types: [...new Set(resources.map(r => r.type))],
+  });
 
   return resources;
 }
@@ -365,7 +453,7 @@ async function fetchResourceMetrics(
   interval: string
 ): Promise<MetricPoint[]> {
   const metrics: MetricPoint[] = [];
-  const effectiveInterval = HOURLY_INTERVAL_RESOURCE_TYPES.includes(resourceType) ? 'PT1H' : interval;
+  const effectiveInterval = HOURLY_INTERVAL_RESOURCE_TYPES.some(t => t.toLowerCase() === resourceType.toLowerCase()) ? 'PT1H' : interval;
   const metricNamesParam = metricNames.join(',');
   const timespan = `${startTime.toISOString()}/${endTime.toISOString()}`;
 
@@ -419,10 +507,6 @@ async function fetchResourceMetrics(
   }
 
   return metrics;
-}
-
-function mapResourceType(azureType: string): string {
-  return AZURE_TYPE_MAP[azureType] || azureType.split('/').pop()?.toLowerCase() || 'unknown';
 }
 
 function parseIsoDuration(duration: string): number {
