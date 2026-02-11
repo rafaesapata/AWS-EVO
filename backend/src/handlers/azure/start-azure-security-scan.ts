@@ -56,7 +56,7 @@ export async function handler(
     const { credentialId, scanLevel, regions } = validation.data;
 
     // Verify credential exists and belongs to organization
-    const credential = await (prisma as any).azureCredential.findFirst({
+    const credential = await prisma.azureCredential.findFirst({
       where: {
         id: credentialId,
         organization_id: organizationId,
@@ -68,12 +68,13 @@ export async function handler(
       return error('Azure credential not found or inactive', 404);
     }
 
-    // Check for existing running/pending scan and handle stuck jobs
+    // Check for existing running/pending scan for this credential and handle stuck jobs
     const existingJob = await prisma.backgroundJob.findFirst({
       where: {
         organization_id: organizationId,
         job_type: 'azure-security-scan',
         status: { in: ['pending', 'running'] },
+        payload: { path: ['credentialId'], equals: credentialId },
       },
     });
 
@@ -149,7 +150,7 @@ export async function handler(
 
     // Invoke azure-security-scan Lambda asynchronously (fire and forget)
     const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
-    const prefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'production'}`;
+    const prefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
 
     const lambdaPayload = {
       body: JSON.stringify({

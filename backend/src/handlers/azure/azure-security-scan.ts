@@ -568,6 +568,7 @@ export async function handler(
     logger.error('Error running Azure security scan', { error: err.message, stack: err.stack });
 
     // Try to mark background job and scan as failed
+    // Variables from the try block may not be defined if error occurred early
     try {
       const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
       const bjId = body?.backgroundJobId;
@@ -583,7 +584,7 @@ export async function handler(
               error: err.message || 'Unknown error',
               result: { progress: 0, error: err.message },
             },
-          });
+          }).catch(() => {});
         }
         if (sId) {
           await db.securityScan.update({
