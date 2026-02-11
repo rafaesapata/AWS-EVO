@@ -126,7 +126,9 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
     },
     onError: (error) => {
       // Check if it's a permission/CloudFormation update error
-      if (error.message?.includes('CloudFormation') || error.message?.includes('permissions')) {
+      if (error.message?.includes('CloudFormation') || error.message?.includes('permissions') || 
+          error.message?.includes('IAM role') || error.message?.includes('Access denied') ||
+          error.message?.includes('not authorized')) {
         setPermissionError(error.message);
       } else {
         toast({ 
@@ -339,6 +341,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
           <AlertTitle>{t('waf.permissionError', 'IAM Permission Error')}</AlertTitle>
           <AlertDescription className="space-y-3">
             <p className="text-sm">{t('waf.stackUpdateRequired', 'The IAM role in the customer AWS account is missing permissions required for WAF monitoring. The CloudFormation stack needs to be updated.')}</p>
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded font-mono break-words">{permissionError}</p>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"

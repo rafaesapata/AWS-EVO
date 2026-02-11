@@ -242,6 +242,7 @@ Resources:
               - 'iam:ListRolePolicies'
               - 'iam:GetLoginProfile'
               - 'iam:ListVirtualMFADevices'
+              - 'iam:SimulatePrincipalPolicy'
             Resource: '*'
           
           # CloudWatch Read Access (Metrics & Alarms)
