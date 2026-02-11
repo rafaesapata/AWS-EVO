@@ -1,6 +1,14 @@
 import type { TFunction } from 'i18next';
 
-const PERMISSION_ERROR_PATTERNS = ['AccessDenied', 'not authorized', 'UnauthorizedOperation'] as const;
+const PERMISSION_ERROR_PATTERNS = [
+  'AccessDenied',
+  'not authorized',
+  'UnauthorizedOperation',
+  'AuthorizationFailed',
+  'AuthenticationFailed',
+  'InvalidAuthenticationToken',
+  'Forbidden',
+] as const;
 
 /**
  * Returns the appropriate error description for cost-related errors,

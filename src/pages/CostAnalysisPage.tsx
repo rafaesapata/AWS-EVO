@@ -298,7 +298,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const accountId = selectedAccountId === 'all' ? allAccounts?.[0]?.id : selectedAccountId;
  
  if (!accountId) {
- throw new Error(t('costAnalysis.noAwsAccount'));
+ throw new Error(t('costAnalysis.noCloudAccount'));
  }
 
  // Use provider from context for consistency
@@ -402,7 +402,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const accountId = selectedAccountId === 'all' ? allAccounts?.[0]?.id : selectedAccountId;
  
  if (!accountId) {
- throw new Error(t('costAnalysis.noAwsAccount'));
+ throw new Error(t('costAnalysis.noCloudAccount'));
  }
 
  // Use provider from context for consistency
@@ -472,10 +472,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const newRecords = summary.newRecords || 0;
  
  toast({
- title: 'Busca Completa Realizada',
+ title: t('costAnalysis.fullFetchSuccess'),
  description: newRecords > 0 
- ? `Buscados ${daysUpdated} dias de custo desde 2024. Recarregando dados...`
- : 'Busca completa realizada. Recarregando dados...',
+ ? t('costAnalysis.fullFetchDaysLoaded', { count: daysUpdated })
+ : t('costAnalysis.fullFetchNoNewData'),
  });
  
  // Invalidate and refetch after a short delay to allow DB writes to complete
@@ -767,7 +767,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  className="bg-blue-50 hover:bg-blue-100 border-blue-200"
  >
  <RefreshCw className={`h-4 w-4 mr-2 ${fullFetchCostsMutation.isPending ? 'animate-spin' : ''}`} />
- {fullFetchCostsMutation.isPending ? 'Buscando...' : 'Busca Completa'}
+ {fullFetchCostsMutation.isPending ? t('costAnalysis.fullFetchLoading') : t('costAnalysis.fullFetchButton')}
  </Button>
  <ExportManager 
  costs={costs || []} 
@@ -887,7 +887,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  className="gap-2 bg-blue-50 hover:bg-blue-100 border-blue-200"
  >
  <RefreshCw className={`h-4 w-4 ${fullFetchCostsMutation.isPending ? 'animate-spin' : ''}`} />
- {fullFetchCostsMutation.isPending ? 'Buscando...' : 'Busca Completa'}
+ {fullFetchCostsMutation.isPending ? t('costAnalysis.fullFetchLoading') : t('costAnalysis.fullFetchButton')}
  </Button>
  </div>
  </CardContent>
