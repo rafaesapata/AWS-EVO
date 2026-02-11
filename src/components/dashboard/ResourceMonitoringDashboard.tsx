@@ -170,7 +170,9 @@ interface MonitoredResource {
   resource_type: string;
   region: string;
   status: string;
-  aws_account_id: string;
+  aws_account_id?: string;
+  azure_credential_id?: string;
+  cloud_provider?: 'AWS' | 'AZURE';
   organization_id: string;
   metadata?: Record<string, any>;
 }
@@ -184,7 +186,9 @@ interface ResourceMetric {
   metric_value: number;
   metric_unit: string;
   timestamp: string;
-  aws_account_id: string;
+  aws_account_id?: string;
+  azure_credential_id?: string;
+  cloud_provider?: 'AWS' | 'AZURE';
   organization_id: string;
 }
 
@@ -335,12 +339,13 @@ export const ResourceMonitoringDashboard = () => {
       });
     }, 100);
 
-    const resourceType = RESOURCE_TYPES.find(r => r.value === type);
+    const allTypes = isAzure ? AZURE_RESOURCE_TYPES : AWS_RESOURCE_TYPES;
+    const resourceType = allTypes.find(r => r.value === type);
     toast({
       title: t('resourceMonitoring.filterApplied', 'Filter applied'),
       description: t('resourceMonitoring.showingResourceType', 'Showing only {{type}} resources', { type: resourceType ? t(resourceType.labelKey) : type }),
     });
-  }, [toast, t]);
+  }, [toast, t, isAzure]);
 
   // Auto-refresh effect - USE GLOBAL selectedAccountId
   useEffect(() => {
