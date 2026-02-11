@@ -72,7 +72,7 @@ export async function handler(
     try {
       // Handle both OAuth and Service Principal credentials
       if (credential.auth_type === 'oauth') {
-        const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+        const { getAzureCredentialWithToken, ONE_HOUR_MS } = await import('../../lib/azure-helpers.js');
         const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
         
         if (!tokenResult.success) {
@@ -82,7 +82,7 @@ export async function handler(
         tokenCredential = {
           getToken: async () => ({
             token: tokenResult.accessToken,
-            expiresOnTimestamp: Date.now() + 3600 * 1000,
+            expiresOnTimestamp: Date.now() + ONE_HOUR_MS,
           }),
         };
       } else {

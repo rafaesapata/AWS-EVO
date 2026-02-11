@@ -712,7 +712,7 @@ export async function handler(
     let tokenCredential: any;
     try {
       if (credential.auth_type === 'oauth') {
-        const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+        const { getAzureCredentialWithToken, ONE_HOUR_MS } = await import('../../lib/azure-helpers.js');
         const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
         if (!tokenResult.success) {
           await prisma.backgroundJob.update({
@@ -722,7 +722,7 @@ export async function handler(
           return error(tokenResult.error, 400, undefined, origin);
         }
         tokenCredential = {
-          getToken: async () => ({ token: tokenResult.accessToken, expiresOnTimestamp: Date.now() + 3600 * 1000 }),
+          getToken: async () => ({ token: tokenResult.accessToken, expiresOnTimestamp: Date.now() + ONE_HOUR_MS }),
         };
       } else {
         if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
@@ -810,7 +810,8 @@ export async function handler(
     const scanRecord = await prisma.securityScan.create({
       data: {
         organization_id: organizationId,
-        aws_account_id: credentialId,
+        azure_credential_id: credentialId,
+        cloud_provider: 'AZURE',
         scan_type: `compliance-${frameworkId}`,
         status: 'completed',
         scan_config: { framework: frameworkId, cloud_provider: 'AZURE', subscription_id: credential.subscription_id },
@@ -822,7 +823,7 @@ export async function handler(
     const oldScans = await prisma.securityScan.findMany({
       where: {
         organization_id: organizationId,
-        aws_account_id: credentialId,
+        azure_credential_id: credentialId,
         scan_type: `compliance-${frameworkId}`,
         id: { not: scanRecord.id },
       },

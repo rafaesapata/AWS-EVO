@@ -35,9 +35,10 @@ import {
   Clock,
   Edit,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import type { Organization, OrganizationDetails } from "../types";
-import { useOrganizationDetails } from "../hooks/useOrganizations";
+import { useOrganizationDetails, useSyncLicense } from "../hooks/useOrganizations";
 
 interface ViewDetailsDialogProps {
   organization: Organization | null;
@@ -102,7 +103,7 @@ export function ViewDetailsDialog({ organization, onClose, onEdit }: ViewDetails
 
               {/* License Tab */}
               <TabsContent value="license" className="space-y-4">
-                <LicenseTab orgDetails={orgDetails} />
+                <LicenseTab orgDetails={orgDetails} organizationId={organization?.id} />
               </TabsContent>
             </Tabs>
           ) : (
@@ -383,8 +384,15 @@ function CloudTab({ orgDetails }: { orgDetails: OrganizationDetails }) {
 }
 
 // License Tab Component
-function LicenseTab({ orgDetails }: { orgDetails: OrganizationDetails }) {
+function LicenseTab({ orgDetails, organizationId }: { orgDetails: OrganizationDetails; organizationId?: string }) {
   const { t } = useTranslation();
+  const syncLicenseMutation = useSyncLicense(organizationId);
+
+  const handleForceSync = () => {
+    if (organizationId) {
+      syncLicenseMutation.mutate(organizationId);
+    }
+  };
 
   return (
     <>
@@ -395,6 +403,20 @@ function LicenseTab({ orgDetails }: { orgDetails: OrganizationDetails }) {
             <CardTitle className="text-sm flex items-center gap-2">
               <Settings className="h-4 w-4" />
               {t('organizations.licenseConfig', 'Configuração de Licença')}
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto glass hover-glow"
+                onClick={handleForceSync}
+                disabled={syncLicenseMutation.isPending || !organizationId}
+              >
+                {syncLicenseMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                {t('organizations.forceSync', 'Forçar Sync')}
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -70,7 +70,7 @@ export async function handler(
     const body: FetchAzureEdgeServicesRequest = event.body ? JSON.parse(event.body) : {};
     const { accountId, forceRefresh = false } = body;
     
-    if (!accountId) {
+    if (!accountId || typeof accountId !== 'string') {
       return error('Missing required parameter: accountId');
     }
     
@@ -228,21 +228,24 @@ export async function handler(
 // Get Azure token credential from stored credentials
 async function getAzureTokenCredential(credential: any): Promise<any> {
   try {
-    if (credential.auth_type === 'oauth' && credential.encrypted_refresh_token) {
-      // For OAuth, we need to refresh the token first
-      // This is a simplified version - in production, use the refresh flow
-      const { ClientSecretCredential } = await import('@azure/identity');
+    if (credential.auth_type === 'oauth') {
+      // OAuth flow: use getAzureCredentialWithToken to properly refresh the token
+      const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+      const prisma = getPrismaClient();
+      const tokenResult = await getAzureCredentialWithToken(prisma, credential.id, credential.organization_id);
       
-      // If we have OAuth but no valid token, fall back to service principal if available
-      if (credential.client_id && credential.client_secret && credential.tenant_id) {
-        return new ClientSecretCredential(
-          credential.tenant_id,
-          credential.client_id,
-          credential.client_secret
-        );
+      if (!tokenResult.success) {
+        throw new Error(tokenResult.error || 'OAuth token expired. Please reconnect your Azure account.');
       }
       
-      throw new Error('OAuth token expired. Please reconnect your Azure account.');
+      // Return a credential-like object that Azure SDK clients can use
+      const { ONE_HOUR_MS } = await import('../../lib/azure-helpers.js');
+      return {
+        getToken: async () => ({
+          token: tokenResult.accessToken,
+          expiresOnTimestamp: Date.now() + ONE_HOUR_MS,
+        }),
+      };
     }
     
     // Service Principal authentication

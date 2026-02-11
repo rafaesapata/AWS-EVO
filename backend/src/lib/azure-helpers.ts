@@ -14,6 +14,9 @@ import {
 /** Default token expiry in seconds when Azure doesn't return expires_in */
 const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
 
+/** One hour in milliseconds — used for OAuth token credential expiry estimates */
+export const ONE_HOUR_MS = DEFAULT_TOKEN_EXPIRY_SECONDS * 1000;
+
 /** Azure AD OAuth v2.0 token endpoint template */
 function getAzureTokenUrl(tenantId: string): string {
   return `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
@@ -306,4 +309,18 @@ export async function getAzureCredentialWithToken(
   } catch (err: any) {
     return { success: false, error: `Failed to get Service Principal token: ${err.message}` };
   }
+}
+
+
+/**
+ * Creates a lightweight TokenCredential-compatible object from an access token.
+ * Use this instead of manually constructing { getToken: ... } in every handler.
+ */
+export function createStaticTokenCredential(accessToken: string): { getToken: () => Promise<{ token: string; expiresOnTimestamp: number }> } {
+  return {
+    getToken: async () => ({
+      token: accessToken,
+      expiresOnTimestamp: Date.now() + ONE_HOUR_MS,
+    }),
+  };
 }

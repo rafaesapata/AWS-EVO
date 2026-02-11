@@ -78,7 +78,7 @@ export async function handler(
     const body = JSON.parse(event.body || '{}');
     const { credentialId } = body;
 
-    if (!credentialId) {
+    if (!credentialId || typeof credentialId !== 'string') {
       return badRequest('credentialId is required');
     }
 
@@ -105,7 +105,7 @@ export async function handler(
     
     if (credential.auth_type === 'oauth') {
       // Use getAzureCredentialWithToken for OAuth
-      const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+      const { getAzureCredentialWithToken, ONE_HOUR_MS } = await import('../../lib/azure-helpers.js');
       const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
       
       if (!tokenResult.success) {
@@ -118,7 +118,7 @@ export async function handler(
         credential.subscription_name || undefined,
         credential.oauth_tenant_id || credential.tenant_id || '',
         tokenResult.accessToken,
-        new Date(Date.now() + 3600 * 1000)
+        new Date(Date.now() + ONE_HOUR_MS)
       );
     } else {
       if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {

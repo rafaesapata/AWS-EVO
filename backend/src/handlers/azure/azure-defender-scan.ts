@@ -83,12 +83,8 @@ export async function handler(
         }
         
         // Create a token credential that returns the OAuth token
-        tokenCredential = {
-          getToken: async () => ({
-            token: tokenResult.accessToken,
-            expiresOnTimestamp: Date.now() + 3600 * 1000,
-          }),
-        };
+        const { createStaticTokenCredential } = await import('../../lib/azure-helpers.js');
+        tokenCredential = createStaticTokenCredential(tokenResult.accessToken);
       } else {
         // Service Principal credentials - validate required fields
         if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
