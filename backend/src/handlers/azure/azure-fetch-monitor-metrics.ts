@@ -59,6 +59,19 @@ const TIME_RANGE_MAP: Record<string, { duration: string; interval: string }> = {
 
 const HOURLY_INTERVAL_RESOURCE_TYPES = ['Microsoft.Storage/storageAccounts'];
 
+/** Max concurrent Azure API calls per batch */
+const RESOURCE_BATCH_SIZE = 3;
+/** Max metrics per Prisma createMany call */
+const METRICS_INSERT_BATCH_SIZE = 100;
+
+/** Maps Azure resource types to short internal identifiers */
+const AZURE_TYPE_MAP: Record<string, string> = {
+  'Microsoft.Compute/virtualMachines': 'vm',
+  'Microsoft.Web/sites': 'webapp',
+  'Microsoft.Sql/servers/databases': 'sqldb',
+  'Microsoft.Storage/storageAccounts': 'storage',
+};
+
 export async function handler(
   event: AuthorizedEvent,
   _context: LambdaContext
@@ -129,9 +142,8 @@ export async function handler(
     let resourcesProcessed = 0;
     const permissionErrors: Array<{ resourceType: string; region: string; error: string; missingPermissions: string[] }> = [];
 
-    const BATCH_SIZE = 3;
-    for (let i = 0; i < resources.length; i += BATCH_SIZE) {
-      const batch = resources.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < resources.length; i += RESOURCE_BATCH_SIZE) {
+      const batch = resources.slice(i, i + RESOURCE_BATCH_SIZE);
 
       const results = await Promise.allSettled(
         batch.map(resource => processResource(
@@ -286,10 +298,9 @@ async function processResource(
   }));
 
   // createMany in batches of 100 to avoid payload limits
-  const CREATE_BATCH = 100;
-  for (let i = 0; i < metricsData.length; i += CREATE_BATCH) {
+  for (let i = 0; i < metricsData.length; i += METRICS_INSERT_BATCH_SIZE) {
     await prisma.resourceMetric.createMany({
-      data: metricsData.slice(i, i + CREATE_BATCH),
+      data: metricsData.slice(i, i + METRICS_INSERT_BATCH_SIZE),
       skipDuplicates: true,
     });
   }
@@ -411,13 +422,7 @@ async function fetchResourceMetrics(
 }
 
 function mapResourceType(azureType: string): string {
-  const typeMap: Record<string, string> = {
-    'Microsoft.Compute/virtualMachines': 'vm',
-    'Microsoft.Web/sites': 'webapp',
-    'Microsoft.Sql/servers/databases': 'sqldb',
-    'Microsoft.Storage/storageAccounts': 'storage',
-  };
-  return typeMap[azureType] || azureType.split('/').pop()?.toLowerCase() || 'unknown';
+  return AZURE_TYPE_MAP[azureType] || azureType.split('/').pop()?.toLowerCase() || 'unknown';
 }
 
 function parseIsoDuration(duration: string): number {
