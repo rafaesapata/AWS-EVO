@@ -22,11 +22,15 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logging.js';
 import { WAFV2Client } from '@aws-sdk/client-wafv2';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { blockIp, unblockIp, DEFAULT_AUTO_BLOCK_CONFIG } from '../../lib/waf/auto-blocker.js';
 import { isOrganizationInDemoMode, generateDemoWafEvents } from '../../lib/demo-data-service.js';
 
 // Bedrock client for AI analysis
 const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-east-1' });
+
+// Lambda client for invoking waf-setup-monitoring
+const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 // Query parameters for events endpoint
 interface EventsQueryParams {
@@ -165,6 +169,10 @@ export async function handler(
           return await handleEvaluateRules(event, prisma, organizationId);
         case 'init-ai-analysis-table':
           return await handleInitAiAnalysisTable(prisma);
+        case 'list-wafs':
+        case 'setup':
+        case 'disable':
+          return await proxyToWafSetupMonitoring(event);
         default:
           return error(`Unknown action: ${body.action}`, 400);
       }
@@ -411,10 +419,21 @@ function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
       
     case 'block-ip':
     case 'unblock-ip':
+    case 'setup':
+    case 'disable':
       return success({
         _isDemo: true,
         message: 'Operação não disponível em modo demonstração',
         success: false
+      });
+      
+    case 'list-wafs':
+      return success({
+        _isDemo: true,
+        webAcls: [
+          { Name: 'Demo-WAF', ARN: 'arn:aws:wafv2:us-east-1:123456789012:regional/webacl/demo-waf/demo-id', Scope: 'REGIONAL', Region: 'us-east-1', isMonitored: true },
+        ],
+        regionsScanned: ['us-east-1'],
       });
       
     default:
@@ -423,6 +442,45 @@ function handleDemoWafRequest(action: string): APIGatewayProxyResultV2 {
         message: 'Dados de demonstração',
         events: demoEvents.slice(0, 10)
       });
+  }
+}
+
+/**
+ * Proxy actions (list-wafs, setup, disable) to the waf-setup-monitoring Lambda.
+ * This allows the frontend to route all WAF operations through waf-dashboard-api,
+ * avoiding route mismatch issues between sandbox and production API Gateway configs.
+ */
+async function proxyToWafSetupMonitoring(
+  event: AuthorizedEvent
+): Promise<APIGatewayProxyResultV2> {
+  const env = process.env.ENVIRONMENT || process.env.STAGE || 'sandbox';
+  const projectName = process.env.PROJECT_NAME || 'evo-uds-v3';
+  const functionName = `${projectName}-${env}-waf-setup-monitoring`;
+  
+  logger.info('Proxying to waf-setup-monitoring', { functionName });
+  
+  try {
+    const response = await lambdaClient.send(new InvokeCommand({
+      FunctionName: functionName,
+      InvocationType: 'RequestResponse',
+      Payload: Buffer.from(JSON.stringify(event)),
+    }));
+    
+    if (response.FunctionError) {
+      const errorPayload = response.Payload ? JSON.parse(new TextDecoder().decode(response.Payload)) : {};
+      logger.error('waf-setup-monitoring invocation error', { functionError: response.FunctionError, errorPayload });
+      return error('WAF setup operation failed. Please try again.', 500);
+    }
+    
+    if (response.Payload) {
+      const result = JSON.parse(new TextDecoder().decode(response.Payload));
+      return result;
+    }
+    
+    return error('No response from WAF setup', 500);
+  } catch (err: any) {
+    logger.error('Failed to invoke waf-setup-monitoring', err as Error);
+    return error('WAF setup service unavailable. Please try again.', 503);
   }
 }
 

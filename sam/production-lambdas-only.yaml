@@ -24,6 +24,8 @@ Globals:
         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
         COGNITO_CLIENT_ID: !Ref CognitoClientId
         AWS_ACCOUNT_ID: !Ref AWS::AccountId
+        ENVIRONMENT: !Ref Environment
+        PROJECT_NAME: !Ref ProjectName
         LICENSE_API_URL: https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/validate-license
         LICENSE_CREATE_API_URL: https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/api-create-trial
         LICENSE_API_KEY: nck_59707b56bf8def71dfb657bb8f2f4b9c
@@ -137,6 +139,7 @@ Resources:
                   - s3:GetBucket*
                   - lambda:List*
                   - lambda:Get*
+                  - lambda:InvokeFunction
                   - wafv2:*
                 Resource: '*'
   # ==========================================================================
@@ -4600,6 +4603,7 @@ Resources:
       CodeUri: ../backend/src/handlers/security/
       Handler: waf-dashboard-api.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
       Events:
         Api:
           Type: HttpApi
@@ -4618,6 +4622,7 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+          - '@aws-sdk/client-lambda'
   WafLogForwarderFunction:
     Type: AWS::Serverless::Function
     Properties:

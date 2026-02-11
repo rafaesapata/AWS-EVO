@@ -92,7 +92,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
     queryKey: ['available-wafs', selectedAccountId],
     enabled: !!selectedAccountId && isScanning,
     queryFn: async () => {
-      const response = await apiClient.invoke<{ webAcls: any[] }>('waf-setup-monitoring', {
+      const response = await apiClient.invoke<{ webAcls: any[] }>('waf-dashboard-api', {
         body: { action: 'list-wafs', accountId: selectedAccountId }
       });
       if (response.error) throw new Error(getErrorMessage(response.error));
@@ -103,7 +103,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
   // Setup WAF monitoring mutation
   const setupMutation = useMutation({
     mutationFn: async (data: { webAclArn: string; filterMode: string }) => {
-      const response = await apiClient.invoke('waf-setup-monitoring', {
+      const response = await apiClient.invoke('waf-dashboard-api', {
         body: { 
           action: 'setup',
           accountId: selectedAccountId,
@@ -141,7 +141,7 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
   // Disable WAF monitoring mutation
   const disableMutation = useMutation({
     mutationFn: async (configId: string) => {
-      const response = await apiClient.invoke('waf-setup-monitoring', {
+      const response = await apiClient.invoke('waf-dashboard-api', {
         body: { 
           action: 'disable',
           accountId: selectedAccountId,
