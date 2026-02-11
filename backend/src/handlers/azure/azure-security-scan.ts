@@ -65,13 +65,20 @@ export async function handler(
     const { credentialId, scanLevel = 'standard', regions, scanId: existingScanId, backgroundJobId } = validation.data;
     const scanType = `azure-security-${scanLevel}`;
 
-    // Helper to mark background job as failed on early exit
+    // Helper to mark background job and scan as failed on early exit
     const failBackgroundJob = async (errorMsg: string) => {
-      if (!backgroundJobId) return;
-      await prisma.backgroundJob.update({
-        where: { id: backgroundJobId },
-        data: { status: 'failed', completed_at: new Date(), error: errorMsg },
-      }).catch(() => {});
+      if (backgroundJobId) {
+        await prisma.backgroundJob.update({
+          where: { id: backgroundJobId },
+          data: { status: 'failed', completed_at: new Date(), error: errorMsg },
+        }).catch(() => {});
+      }
+      if (existingScanId) {
+        await prisma.securityScan.update({
+          where: { id: existingScanId },
+          data: { status: 'failed', completed_at: new Date() },
+        }).catch(() => {});
+      }
     };
 
     // Update background job to running

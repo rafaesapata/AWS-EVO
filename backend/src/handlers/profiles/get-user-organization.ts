@@ -95,8 +95,13 @@ export async function handler(
     if (!profile && targetUserId) {
       console.log('📝 Creating profile for user:', targetUserId);
       const userName = user.name || user.email?.split('@')[0] || 'User';
-      const userRole = user['custom:roles'] ? 
+      let userRole = user['custom:roles'] ? 
         (JSON.parse(user['custom:roles'])[0] || 'user') : 'user';
+      
+      // Normalize legacy 'admin' role to 'org_admin'
+      if (userRole === 'admin') {
+        userRole = 'org_admin';
+      }
       
       profile = await prisma.profile.create({
         data: {

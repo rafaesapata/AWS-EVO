@@ -191,6 +191,9 @@ export async function handler(
       logger.error('Failed to get Cognito user ID');
       return error('Failed to create user in Cognito', 500);
     }
+
+    // Get the Cognito sub (unique user ID) from attributes
+    const cognitoSub = cognitoResponse.User?.Attributes?.find(a => a.Name === 'sub')?.Value || cognitoUserId;
     
     // Se não enviar invite, definir senha permanente
     if (!sendInvite && temporaryPassword) {
@@ -200,6 +203,73 @@ export async function handler(
         Password: temporaryPassword,
         Permanent: true
       }));
+    }
+
+    // Normalize role: 'admin' → 'org_admin'
+    const normalizedRole = role === 'admin' ? 'org_admin' : (role || 'user');
+    
+    // Create profile in database
+    try {
+      await prisma.profile.create({
+        data: {
+          user_id: cognitoSub,
+          email,
+          organization_id: organizationId,
+          full_name: name,
+          role: normalizedRole,
+        }
+      });
+      logger.info('Profile created for new user', { cognitoSub, email, organizationId, role: normalizedRole });
+    } catch (profileErr: any) {
+      // Profile may already exist if user logged in before (auto-created by get-user-organization)
+      if (profileErr.code === 'P2002') {
+        logger.info('Profile already exists, skipping creation', { cognitoSub, email });
+      } else {
+        logger.warn('Failed to create profile', { error: profileErr.message, cognitoSub });
+      }
+    }
+
+    // Auto-allocate seat on the primary license
+    try {
+      const primaryLicense = await prisma.license.findFirst({
+        where: {
+          organization_id: organizationId,
+          is_active: true,
+        },
+        orderBy: { created_at: 'desc' },
+      });
+
+      if (primaryLicense) {
+        const existingSeat = await prisma.licenseSeatAssignment.findFirst({
+          where: { license_id: primaryLicense.id, user_id: cognitoSub }
+        });
+
+        if (!existingSeat) {
+          await prisma.licenseSeatAssignment.create({
+            data: {
+              license_id: primaryLicense.id,
+              user_id: cognitoSub,
+              assigned_by: user.sub || undefined,
+            }
+          });
+
+          // Update seat counters
+          const seatCount = await prisma.licenseSeatAssignment.count({
+            where: { license_id: primaryLicense.id }
+          });
+          await prisma.license.update({
+            where: { id: primaryLicense.id },
+            data: {
+              used_seats: seatCount,
+              available_seats: (primaryLicense.max_users ?? 0) - seatCount,
+            }
+          });
+
+          logger.info('Seat allocated for new user', { cognitoSub, licenseId: primaryLicense.id });
+        }
+      }
+    } catch (seatErr: any) {
+      logger.warn('Failed to allocate seat', { error: seatErr.message, cognitoSub });
     }
     
     logger.info('Cognito user created successfully', { 

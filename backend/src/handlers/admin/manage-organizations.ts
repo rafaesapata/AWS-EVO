@@ -206,7 +206,7 @@ export async function handler(
         const adminProfiles = await prisma.profile.findMany({
           where: { 
             organization_id: body.id,
-            role: { in: ['org_admin', 'super_admin'] }
+            role: { in: ['admin', 'org_admin', 'super_admin'] }
           },
           select: {
             user_id: true,
