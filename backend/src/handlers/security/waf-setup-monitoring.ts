@@ -100,6 +100,24 @@ function getDestinationArn(region: string): string {
 // Subscription filter name
 const SUBSCRIPTION_FILTER_NAME = 'evo-waf-monitoring';
 
+// CloudFormation update instruction (single source of truth for all error messages)
+const CF_TEMPLATE_URL = 'https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml';
+const CF_UPDATE_INSTRUCTION = 
+  `AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
+  `Replace current template → Use URL: ${CF_TEMPLATE_URL} → Next → Submit.`;
+
+/** Create a named Error for consistent error handling in the outer catch block */
+function createPermissionError(message: string, name: 'AccessDeniedException' | 'WAFPermissionPreFlightError' = 'AccessDeniedException'): Error {
+  const err = new Error(message);
+  (err as any).name = name;
+  return err;
+}
+
+/** Check if an error is an AWS access denied error */
+function isAccessDenied(err: { name?: string; message?: string }): boolean {
+  return err.name === 'AccessDeniedException' || !!err.message?.includes('is not authorized');
+}
+
 /**
  * Update the CloudWatch Logs Destination policy in EVO account to allow the customer account
  * This is required for cross-account subscription filters to work
@@ -320,24 +338,19 @@ async function getOrCreateCloudWatchLogsRole(
       customerAwsAccountId 
     });
     
-    if (createErr.name === 'AccessDeniedException' || createErr.message?.includes('is not authorized')) {
-      const permErr = new Error(
+    if (isAccessDenied(createErr)) {
+      throw createPermissionError(
         `Cannot create CloudWatch Logs role "${roleName}" — the IAM role does not have iam:CreateRole permission. ` +
         `This role is normally created by the CloudFormation stack. ` +
-        `Please update your CloudFormation stack using "Replace current template" (not "Use current template"): ` +
-        `AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
-        `Replace current template → Use URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit. ` +
-        `This will create the required "${roleName}" automatically.`
+        `Please update your CloudFormation stack using "Replace current template" (not "Use current template"): ${CF_UPDATE_INSTRUCTION} ` +
+        `This will create the required "${roleName}" automatically.`,
+        'WAFPermissionPreFlightError'
       );
-      (permErr as any).name = 'WAFPermissionPreFlightError';
-      throw permErr;
     }
     
     throw new Error(
       `CloudWatch Logs role "${roleName}" not found and could not be created automatically. ` +
-      `Please update your CloudFormation stack to the latest version. ` +
-      `Go to AWS Console → CloudFormation → Select your EVO stack → Update → ` +
-      `Replace current template → Use URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit. ` +
+      `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION} ` +
       `The updated template will create this role automatically. ` +
       `Error: ${createErr.message}`
     );
@@ -514,9 +527,7 @@ export async function handler(
       // Use 422 instead of 403 to avoid frontend interpreting as auth error and triggering token refresh
       return error(
         `Access denied. The IAM role does not have sufficient permissions to configure WAF logging. ` +
-        `This usually means the CloudFormation stack needs to be updated. ` +
-        `Please go to AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
-        `Replace current template → Use this URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit. ` +
+        `This usually means the CloudFormation stack needs to be updated. ${CF_UPDATE_INSTRUCTION} ` +
         `Missing permissions: wafv2:PutLoggingConfiguration, logs:CreateLogGroup, logs:PutResourcePolicy, logs:PutSubscriptionFilter. ` +
         `Details: ${errMsg}`,
         422
@@ -635,15 +646,13 @@ async function validateWafPermissions(
         roleArn, deniedPermissions: denied, customerAwsAccountId 
       });
       
-      const err = new Error(
+      const err = createPermissionError(
         `The IAM role is missing permissions required for WAF monitoring: ${denied.join(', ')}. ` +
         `Automatic permission fix was attempted but could not resolve all issues. ` +
-        `Please update the CloudFormation stack to the latest version: ` +
-        `AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
-        `Replace current template → Use this URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit. ` +
-        `The updated template (v2.5.0+) includes all required WAF monitoring permissions and enables automatic fixes.`
+        `Please update the CloudFormation stack: ${CF_UPDATE_INSTRUCTION} ` +
+        `The updated template (v2.5.0+) includes all required WAF monitoring permissions and enables automatic fixes.`,
+        'WAFPermissionPreFlightError'
       );
-      (err as any).name = 'WAFPermissionPreFlightError';
       throw err;
     }
     
@@ -855,15 +864,12 @@ async function enableWafMonitoring(
     const error = err as { name?: string; message?: string };
     if (error.name === 'ResourceAlreadyExistsException') {
       // Log group already exists - that's fine
-    } else if (error.name === 'AccessDeniedException' || error.message?.includes('is not authorized')) {
+    } else if (isAccessDenied(error)) {
       logger.error('AccessDenied on CreateLogGroup', { error: error.message, logGroupName });
-      const permErr = new Error(
+      throw createPermissionError(
         `The IAM role is missing the logs:CreateLogGroup permission required for WAF monitoring. ` +
-        `Please update your CloudFormation stack: AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
-        `Replace current template → Use URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit.`
+        `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`
       );
-      (permErr as any).name = 'AccessDeniedException';
-      throw permErr;
     } else {
       throw err;
     }
@@ -909,19 +915,15 @@ async function enableWafMonitoring(
     });
   } catch (err: any) {
     // If AccessDeniedException, this is a real permission issue — propagate it
-    if (err.name === 'AccessDeniedException' || err.message?.includes('is not authorized')) {
+    if (isAccessDenied(err)) {
       logger.error('AccessDenied on PutResourcePolicy — IAM role missing logs:PutResourcePolicy permission', { 
         error: err.message,
         logGroupName 
       });
-      const permErr = new Error(
+      throw createPermissionError(
         `The IAM role is missing the logs:PutResourcePolicy permission required for WAF monitoring. ` +
-        `Please update your CloudFormation stack to the latest version. ` +
-        `Go to AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
-        `Replace current template → Use this URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit.`
+        `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`
       );
-      (permErr as any).name = 'AccessDeniedException';
-      throw permErr;
     }
     logger.warn('Failed to add CloudWatch Logs resource policy (non-critical)', { 
       error: err.message,
@@ -960,14 +962,11 @@ async function enableWafMonitoring(
         webAclArn, logDestination, errorName: err.name, errorMessage: err.message 
       });
       
-      if (err.name === 'AccessDeniedException' || err.name === 'WAFInvalidOperationException' || err.message?.includes('is not authorized')) {
-        const permErr = new Error(
+      if (err.name === 'WAFInvalidOperationException' || isAccessDenied(err)) {
+        throw createPermissionError(
           `The IAM role is missing the wafv2:PutLoggingConfiguration permission required to enable WAF logging. ` +
-          `Please update your CloudFormation stack: AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
-          `Replace current template → Use URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit.`
+          `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`
         );
-        (permErr as any).name = 'AccessDeniedException';
-        throw permErr;
       }
       
       throw err;
@@ -1029,26 +1028,21 @@ async function enableWafMonitoring(
       errorName: err.name, errorMessage: err.message,
     });
     
-    if (err.name === 'AccessDeniedException' || err.message?.includes('is not authorized')) {
-      const permErr = new Error(
+    if (isAccessDenied(err)) {
+      throw createPermissionError(
         `The IAM role is missing the logs:PutSubscriptionFilter permission required for WAF monitoring. ` +
-        `Please update your CloudFormation stack: AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
-        `Replace current template → Use URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit.`
+        `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`
       );
-      (permErr as any).name = 'AccessDeniedException';
-      throw permErr;
     }
     
     if (err.name === 'InvalidParameterException' && err.message?.includes('Could not deliver test message')) {
-      const destErr = new Error(
+      throw createPermissionError(
         `Cross-account log delivery failed. The subscription filter could not deliver a test message to the EVO destination. ` +
         `This usually means the CloudWatch Logs role 'EVO-CloudWatch-Logs-Role' does not have the correct trust policy, ` +
         `or the EVO destination policy has not been updated for this account. ` +
-        `Please update your CloudFormation stack to the latest version: AWS Console → CloudFormation → Select the EVO Platform stack → Update → ` +
-        `Replace current template → Use URL: https://evo.nuevacore.com/cloudformation/evo-platform-role.yaml → Next → Submit.`
+        `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`,
+        'WAFPermissionPreFlightError'
       );
-      (destErr as any).name = 'WAFPermissionPreFlightError';
-      throw destErr;
     }
     
     throw err;
