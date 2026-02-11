@@ -482,7 +482,7 @@ export async function handler(
       high: result.summary.high + moduleScannerFindings.filter(f => f.severity === 'HIGH').length,
       medium: result.summary.medium + moduleScannerFindings.filter(f => f.severity === 'MEDIUM').length,
       low: result.summary.low + moduleScannerFindings.filter(f => f.severity === 'LOW').length,
-      resourcesScanned: (result.summary as any).resourcesScanned || 0 + moduleScannerResourcesScanned,
+      resourcesScanned: ((result.summary as any).resourcesScanned || 0) + moduleScannerResourcesScanned,
     };
 
     // Update scan record - convert to plain JSON for Prisma
@@ -567,15 +567,15 @@ export async function handler(
   } catch (err: any) {
     logger.error('Error running Azure security scan', { error: err.message, stack: err.stack });
 
-    // Try to mark background job as failed
+    // Try to mark background job and scan as failed
     try {
       const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
       const bjId = body?.backgroundJobId;
       const sId = body?.scanId;
       if (bjId || sId) {
-        const prisma = getPrismaClient();
+        const db = getPrismaClient();
         if (bjId) {
-          await prisma.backgroundJob.update({
+          await db.backgroundJob.update({
             where: { id: bjId },
             data: {
               status: 'failed',
@@ -586,7 +586,7 @@ export async function handler(
           });
         }
         if (sId) {
-          await prisma.securityScan.update({
+          await db.securityScan.update({
             where: { id: sId },
             data: { status: 'failed', completed_at: new Date() },
           }).catch(() => {});
