@@ -95,7 +95,7 @@ Resources:
         - Key: EVOPlatformAccountId
           Value: !Ref EVOPlatformAccountId
         - Key: TemplateVersion
-          Value: '2.5.0-waf-auto-fix'
+          Value: '2.6.0-waf-wellarchitected'
 
   # ----------------------------------------------------------------------------
   # Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
@@ -561,6 +561,32 @@ Resources:
               - 'iam:GetRolePolicy'
               - 'iam:ListRolePolicies'
             Resource: !GetAtt EVOPlatformRole.Arn
+          
+          # WAF Monitoring: Validate permissions pre-flight and manage CloudWatch Logs role
+          - Sid: WAFMonitoringIAMAccess
+            Effect: Allow
+            Action:
+              - 'iam:SimulatePrincipalPolicy'
+            Resource: !GetAtt EVOPlatformRole.Arn
+          
+          - Sid: WAFCloudWatchLogsRoleManagement
+            Effect: Allow
+            Action:
+              - 'iam:GetRole'
+              - 'iam:CreateRole'
+              - 'iam:PutRolePolicy'
+            Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/EVO-CloudWatch-Logs-Role'
+          
+          # Well-Architected Tool read access
+          - Sid: WellArchitectedReadAccess
+            Effect: Allow
+            Action:
+              - 'wellarchitected:ListWorkloads'
+              - 'wellarchitected:GetWorkload'
+              - 'wellarchitected:ListLensReviews'
+              - 'wellarchitected:GetLensReview'
+              - 'wellarchitected:ListAnswers'
+            Resource: '*'
 
   # ----------------------------------------------------------------------------
   # IAM Role for CloudWatch Logs Cross-Account Subscription (WAF Monitoring)
