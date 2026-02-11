@@ -712,7 +712,7 @@ export async function handler(
     let tokenCredential: any;
     try {
       if (credential.auth_type === 'oauth') {
-        const { getAzureCredentialWithToken, ONE_HOUR_MS } = await import('../../lib/azure-helpers.js');
+        const { getAzureCredentialWithToken, createStaticTokenCredential } = await import('../../lib/azure-helpers.js');
         const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
         if (!tokenResult.success) {
           await prisma.backgroundJob.update({
@@ -721,9 +721,7 @@ export async function handler(
           });
           return error(tokenResult.error, 400, undefined, origin);
         }
-        tokenCredential = {
-          getToken: async () => ({ token: tokenResult.accessToken, expiresOnTimestamp: Date.now() + ONE_HOUR_MS }),
-        };
+        tokenCredential = createStaticTokenCredential(tokenResult.accessToken);
       } else {
         if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
           await prisma.backgroundJob.update({

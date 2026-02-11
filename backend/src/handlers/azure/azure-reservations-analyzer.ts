@@ -72,19 +72,14 @@ export async function handler(
     try {
       // Handle both OAuth and Service Principal credentials
       if (credential.auth_type === 'oauth') {
-        const { getAzureCredentialWithToken, ONE_HOUR_MS } = await import('../../lib/azure-helpers.js');
+        const { getAzureCredentialWithToken, createStaticTokenCredential } = await import('../../lib/azure-helpers.js');
         const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
         
         if (!tokenResult.success) {
           return error(tokenResult.error || 'Failed to get Azure token', 400);
         }
         
-        tokenCredential = {
-          getToken: async () => ({
-            token: tokenResult.accessToken,
-            expiresOnTimestamp: Date.now() + ONE_HOUR_MS,
-          }),
-        };
+        tokenCredential = createStaticTokenCredential(tokenResult.accessToken);
       } else {
         if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
           return error('Service Principal credentials incomplete. Missing tenant_id, client_id, or client_secret.', 400);

@@ -239,13 +239,8 @@ async function getAzureTokenCredential(credential: any): Promise<any> {
       }
       
       // Return a credential-like object that Azure SDK clients can use
-      const { ONE_HOUR_MS } = await import('../../lib/azure-helpers.js');
-      return {
-        getToken: async () => ({
-          token: tokenResult.accessToken,
-          expiresOnTimestamp: Date.now() + ONE_HOUR_MS,
-        }),
-      };
+      const { createStaticTokenCredential } = await import('../../lib/azure-helpers.js');
+      return createStaticTokenCredential(tokenResult.accessToken);
     }
     
     // Service Principal authentication
