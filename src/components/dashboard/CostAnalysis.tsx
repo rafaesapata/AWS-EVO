@@ -19,6 +19,7 @@ import { useQueryCache, CACHE_CONFIGS } from "@/hooks/useQueryCache";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { formatDateBR, calculatePercentageChange } from "@/lib/utils";
+import { getCostErrorDescription } from "@/lib/cost-error-utils";
 
 export const CostAnalysis = () => {
   const { toast } = useToast();
@@ -193,17 +194,10 @@ export const CostAnalysis = () => {
       // Only show error toast if not background refresh
       if (!document.hidden) {
         const errorMsg = error?.message || t('common.unknownError');
-        const isPermissionError = errorMsg.includes('AccessDenied') || 
-                                  errorMsg.includes('not authorized') ||
-                                  errorMsg.includes('UnauthorizedOperation');
-        
-        const isAzureAccount = selectedProvider === 'AZURE';
         
         toast({
           title: t('costAnalysis.updateError'),
-          description: isPermissionError 
-            ? t(isAzureAccount ? 'costAnalysis.insufficientPermissionAzure' : 'costAnalysis.insufficientPermission')
-            : `${errorMsg}. ${t(isAzureAccount ? 'costAnalysis.checkCredentialsAzure' : 'costAnalysis.checkCredentials')}`,
+          description: getCostErrorDescription(errorMsg, selectedProvider, t),
           variant: "destructive",
         });
       }

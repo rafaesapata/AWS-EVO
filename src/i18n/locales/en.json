@@ -2409,6 +2409,7 @@
     "daysUpdated": "{{count}} days of real AWS costs updated",
     "noNewData": "No new data available",
     "updateError": "Error updating costs",
+    "fullFetchError": "Error in full cost fetch",
     "insufficientPermission": "Insufficient AWS permission. Check AWS Settings in the menu.",
     "insufficientPermissionAzure": "Insufficient Azure permission. Ensure the Service Principal has the Cost Management Reader role.",
     "checkCredentials": "Check AWS credentials and permissions.",

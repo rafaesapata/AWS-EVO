@@ -23,6 +23,7 @@ import { Layout } from "@/components/Layout";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
+import { getCostErrorDescription } from "@/lib/cost-error-utils";
 
 interface CostAnalysisPageProps {
  embedded?: boolean; // When true, doesn't render Layout wrapper (for use inside Index.tsx)
@@ -385,17 +386,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  // Only show error toast if not background refresh
  if (!document.hidden) {
  const errorMsg = error?.message || t('common.unknownError');
- const isPermissionError = errorMsg.includes('AccessDenied') || 
- errorMsg.includes('not authorized') ||
- errorMsg.includes('UnauthorizedOperation');
- 
- const isAzureAccount = selectedProvider === 'AZURE';
  
  toast({
  title: t('costAnalysis.updateError'),
- description: isPermissionError 
- ? t(isAzureAccount ? 'costAnalysis.insufficientPermissionAzure' : 'costAnalysis.insufficientPermission')
- : `${errorMsg}. ${t(isAzureAccount ? 'costAnalysis.checkCredentialsAzure' : 'costAnalysis.checkCredentials')}`,
+ description: getCostErrorDescription(errorMsg, selectedProvider, t),
  variant: "destructive",
  });
  }
@@ -498,17 +492,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  console.error('Error in full fetch costs:', error);
  
  const errorMsg = error?.message || t('common.unknownError');
- const isPermissionError = errorMsg.includes('AccessDenied') || 
- errorMsg.includes('not authorized') ||
- errorMsg.includes('UnauthorizedOperation');
- 
- const isAzureAccount = selectedProvider === 'AZURE';
  
  toast({
- title: 'Erro na Busca Completa',
- description: isPermissionError 
- ? t(isAzureAccount ? 'costAnalysis.insufficientPermissionAzure' : 'costAnalysis.insufficientPermission')
- : `${errorMsg}. ${t(isAzureAccount ? 'costAnalysis.checkCredentialsAzure' : 'costAnalysis.checkCredentials')}`,
+ title: t('costAnalysis.fullFetchError'),
+ description: getCostErrorDescription(errorMsg, selectedProvider, t),
  variant: "destructive",
  });
  },
