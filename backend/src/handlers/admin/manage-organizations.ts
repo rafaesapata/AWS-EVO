@@ -22,8 +22,12 @@ import {
   AdminUpdateUserAttributesCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 import { syncOrganizationLicenses } from '../../lib/license-service.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
+
+/** UUID regex - reusable across all validations in this handler */
+const UUID_REGEX = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 interface ManageOrganizationRequest {
   action: 'list' | 'get' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'suspend' | 'unsuspend' | 'list_licenses' | 'list_seat_assignments' | 'release_seat' | 'update_license_config';
@@ -1039,9 +1043,7 @@ export async function handler(
           return badRequest('customer_id is required', undefined, origin);
         }
 
-        // Validate customer_id format (UUID)
-        const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-        if (!uuidRegex.test(body.customer_id)) {
+        if (!UUID_REGEX.test(body.customer_id)) {
           return badRequest('Invalid customer_id format. Must be a valid UUID.', undefined, origin);
         }
 
@@ -1062,24 +1064,20 @@ export async function handler(
           },
         });
 
-        // Registrar no audit log
-        await prisma.auditLog.create({
-          data: {
-            id: randomUUID(),
-            organization_id: body.id,
-            user_id: user.sub || user.id || 'system',
-            action: 'SETTINGS_UPDATE',
-            resource_type: 'organization_license_config',
-            resource_id: licenseConfig.id,
-            details: {
-              customer_id: body.customer_id,
-              auto_sync: body.auto_sync ?? true,
-              updated_by: user.email || user.sub,
-              trigger_sync: body.trigger_sync ?? false
-            },
-            ip_address: event.requestContext?.identity?.sourceIp || 'unknown',
-            user_agent: event.headers?.['user-agent'] || 'unknown'
-          }
+        logAuditAsync({
+          organizationId: body.id,
+          userId: user.sub || user.id || 'system',
+          action: 'SETTINGS_UPDATE',
+          resourceType: 'settings',
+          resourceId: licenseConfig.id,
+          details: {
+            customer_id: body.customer_id,
+            auto_sync: body.auto_sync ?? true,
+            updated_by: user.email || user.sub,
+            trigger_sync: body.trigger_sync ?? false,
+          },
+          ipAddress: getIpFromEvent(event),
+          userAgent: getUserAgentFromEvent(event),
         });
 
         logger.info('License config updated by super admin', {

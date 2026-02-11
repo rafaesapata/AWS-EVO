@@ -52,6 +52,9 @@ export type AuditAction =
   | 'AI_NOTIFICATION_READ'
   | 'AI_NOTIFICATION_ACTIONED'
   | 'AI_NOTIFICATION_DISMISSED'
+  | 'ORGANIZATION_SUSPENDED'
+  | 'ORGANIZATION_UNSUSPENDED'
+  | 'SEAT_RELEASED'
   | 'DATA_CREATE'
   | 'DATA_UPDATE'
   | 'DATA_UPSERT';
@@ -76,6 +79,8 @@ export type AuditResourceType =
   | 'mfa'
   | 'session'
   | 'ai_notification'
+  | 'organization_license_config'
+  | 'license_seat_assignment'
   | 'data';
 
 export interface AuditLogParams {
