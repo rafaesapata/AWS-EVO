@@ -15,7 +15,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
-import { fetchWithRetry } from '../../lib/azure-retry.js';
+import { fetchWithRetry, DEFAULT_AZURE_RETRY_CONFIG } from '../../lib/azure-retry.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { getAzureCredentialWithToken } from '../../lib/azure-helpers.js';
 import { z } from 'zod';
@@ -209,6 +209,9 @@ async function fetchAzureCostData(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
+  }, {
+    ...DEFAULT_AZURE_RETRY_CONFIG,
+    retryAfterHeaders: ['x-ms-ratelimit-microsoft.costmanagement-retry-after'],
   });
 
   if (!response.ok) {

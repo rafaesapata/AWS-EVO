@@ -19,7 +19,7 @@ import { logger } from '../../lib/logging.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
-import { fetchWithRetry } from '../../lib/azure-retry.js';
+import { fetchWithRetry, DEFAULT_AZURE_RETRY_CONFIG } from '../../lib/azure-retry.js';
 
 // Constants
 const AZURE_MANAGEMENT_SCOPE = 'https://management.azure.com/.default';
@@ -137,6 +137,9 @@ async function queryCostManagementApi(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
+    }, {
+      ...DEFAULT_AZURE_RETRY_CONFIG,
+      retryAfterHeaders: ['x-ms-ratelimit-microsoft.costmanagement-retry-after'],
     });
 
     const responseText = await response.text();

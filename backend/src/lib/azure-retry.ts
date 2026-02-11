@@ -11,6 +11,8 @@ export interface AzureRetryConfig {
   baseDelayMs: number;
   maxDelayMs: number;
   jitterFactor: number;
+  /** Additional Azure-specific headers to check for retry delay (beyond standard Retry-After) */
+  retryAfterHeaders?: string[];
 }
 
 export const DEFAULT_AZURE_RETRY_CONFIG: AzureRetryConfig = {
@@ -25,9 +27,14 @@ function isRetryableStatus(status: number): boolean {
 }
 
 function getRetryDelay(response: Response, attempt: number, config: AzureRetryConfig): number {
-  // Check Azure-specific retry headers
-  const retryAfter = response.headers.get('Retry-After')
-    || response.headers.get('x-ms-ratelimit-microsoft.costmanagement-retry-after');
+  // Check standard Retry-After header first, then any custom headers
+  let retryAfter = response.headers.get('Retry-After');
+  if (!retryAfter && config.retryAfterHeaders) {
+    for (const header of config.retryAfterHeaders) {
+      retryAfter = response.headers.get(header);
+      if (retryAfter) break;
+    }
+  }
 
   let delayMs: number;
 
