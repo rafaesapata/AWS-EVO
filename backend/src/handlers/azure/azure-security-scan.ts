@@ -63,6 +63,16 @@ export async function handler(
     }
 
     const { credentialId, scanLevel = 'standard', regions, scanId: existingScanId, backgroundJobId } = validation.data;
+    const scanType = `azure-security-${scanLevel}`;
+
+    // Helper to mark background job as failed on early exit
+    const failBackgroundJob = async (errorMsg: string) => {
+      if (!backgroundJobId) return;
+      await prisma.backgroundJob.update({
+        where: { id: backgroundJobId },
+        data: { status: 'failed', completed_at: new Date(), error: errorMsg },
+      }).catch(() => {});
+    };
 
     // Update background job to running
     if (backgroundJobId) {
@@ -91,12 +101,7 @@ export async function handler(
     });
 
     if (!credential) {
-      if (backgroundJobId) {
-        await prisma.backgroundJob.update({
-          where: { id: backgroundJobId },
-          data: { status: 'failed', completed_at: new Date(), error: 'Azure credential not found or inactive' },
-        }).catch(() => {});
-      }
+      await failBackgroundJob('Azure credential not found or inactive');
       return error('Azure credential not found or inactive', 404);
     }
 
@@ -107,12 +112,7 @@ export async function handler(
       const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
       
       if (!tokenResult.success) {
-        if (backgroundJobId) {
-          await prisma.backgroundJob.update({
-            where: { id: backgroundJobId },
-            data: { status: 'failed', completed_at: new Date(), error: tokenResult.error },
-          }).catch(() => {});
-        }
+        await failBackgroundJob(tokenResult.error);
         return error(tokenResult.error, 400);
       }
       
@@ -127,12 +127,7 @@ export async function handler(
     } else {
       const spValidation = validateServicePrincipalCredentials(credential);
       if (!spValidation.valid) {
-        if (backgroundJobId) {
-          await prisma.backgroundJob.update({
-            where: { id: backgroundJobId },
-            data: { status: 'failed', completed_at: new Date(), error: spValidation.error },
-          }).catch(() => {});
-        }
+        await failBackgroundJob(spValidation.error);
         return error(spValidation.error, 400);
       }
       spCredentials = spValidation.credentials;
@@ -163,7 +158,7 @@ export async function handler(
           organization_id: organizationId,
           cloud_provider: 'AZURE',
           azure_credential_id: credentialId,
-          scan_type: `azure-security-${scanLevel}`,
+          scan_type: scanType,
           status: 'running',
           scan_config: {
             scanLevel,
@@ -183,6 +178,8 @@ export async function handler(
     // Create Azure provider and run scan
     let azureProvider: AzureProvider;
     
+    const ONE_HOUR_MS = 3600 * 1000;
+    
     if (spCredentials.isOAuth) {
       azureProvider = AzureProvider.withOAuthToken(
         organizationId,
@@ -190,7 +187,7 @@ export async function handler(
         spCredentials.subscriptionName,
         spCredentials.tenantId,
         spCredentials.accessToken,
-        new Date(Date.now() + 3600 * 1000)
+        new Date(Date.now() + ONE_HOUR_MS)
       );
     } else {
       azureProvider = new AzureProvider(organizationId, spCredentials);
@@ -248,8 +245,8 @@ export async function handler(
       const resourceArn = finding.resourceUri || finding.resourceId || '';
       const title = finding.title || finding.description?.substring(0, 200) || 'Azure Security Finding';
       const fp = resourceArn
-        ? computeFingerprint(resourceArn, `azure-security-${scanLevel}`, title)
-        : computeFallbackFingerprint(`azure-security-${scanLevel}`, title, finding.resourceId || '');
+        ? computeFingerprint(resourceArn, scanType, title)
+        : computeFallbackFingerprint(scanType, title, finding.resourceId || '');
       
       return {
         fingerprint: fp,
@@ -260,7 +257,7 @@ export async function handler(
         resource_arn: finding.resourceUri || '',
         service: finding.service,
         category: finding.category,
-        scan_type: `azure-security-${scanLevel}`,
+        scan_type: scanType,
         region: '',
         compliance: finding.compliance.map(c => `${c.framework}:${c.controlId}`),
         remediation: finding.remediation.description,
@@ -285,8 +282,8 @@ export async function handler(
       const resourceId = finding.resourceId || '';
       const title = finding.title || finding.description?.substring(0, 200) || 'Azure Module Finding';
       const fp = resourceId
-        ? computeFingerprint(resourceId, `azure-security-${scanLevel}`, title)
-        : computeFallbackFingerprint(`azure-security-${scanLevel}`, title, resourceId);
+        ? computeFingerprint(resourceId, scanType, title)
+        : computeFallbackFingerprint(scanType, title, resourceId);
       
       return {
         fingerprint: fp,
@@ -297,7 +294,7 @@ export async function handler(
         resource_arn: resourceId,
         service: finding.resourceType?.split('/')[0] || 'Azure',
         category: finding.resourceType?.split('/')[1] || 'General',
-        scan_type: `azure-security-${scanLevel}`,
+        scan_type: scanType,
         region: finding.region || '',
         compliance: finding.complianceFrameworks || [],
         remediation: finding.remediation || '',
