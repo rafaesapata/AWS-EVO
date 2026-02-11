@@ -90,8 +90,11 @@ export async function handler(
       });
 
       if (!profile) {
-        // Por segurança, não revelamos se o usuário existe ou não
-        // Sempre retornamos sucesso para evitar enumeração de usuários
+        // SECURITY: Add random delay to prevent timing-based user enumeration
+        // Existing users trigger DB + Cognito calls (~200-500ms), so we simulate similar latency
+        const randomDelay = 200 + Math.floor(Math.random() * 300);
+        await new Promise(resolve => setTimeout(resolve, randomDelay));
+        
         logger.info('🔐 Password reset requested for non-existent user', { email });
         return success({
           message: 'Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.'

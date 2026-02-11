@@ -20,6 +20,8 @@ import { AWSProvider } from './aws-provider';
 import { AzureProvider } from './azure-provider';
 import { logger } from '../logging.js';
 
+import { createHash } from 'crypto';
+
 /**
  * Cloud Provider Factory
  * 
@@ -27,25 +29,55 @@ import { logger } from '../logging.js';
  * Implements the Factory pattern to abstract provider instantiation.
  */
 export class CloudProviderFactory {
-  private static instances: Map<string, ICloudProvider> = new Map();
+  private static instances: Map<string, { provider: ICloudProvider; createdAt: number }> = new Map();
+  private static readonly MAX_CACHE_SIZE = 50;
+  private static readonly CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+  /**
+   * Hash credentials for safe cache key generation (never store secrets in keys)
+   */
+  private static hashCredentials(credentials: Record<string, any>): string {
+    return createHash('sha256').update(JSON.stringify(credentials)).digest('hex').substring(0, 16);
+  }
+
+  /**
+   * Evict expired entries and enforce max cache size
+   */
+  private static evictStaleEntries(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.instances.entries()) {
+      if (now - entry.createdAt > this.CACHE_TTL_MS) {
+        this.instances.delete(key);
+      }
+    }
+    // If still over limit, remove oldest entries
+    if (this.instances.size > this.MAX_CACHE_SIZE) {
+      const entries = [...this.instances.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt);
+      const toRemove = entries.slice(0, entries.length - this.MAX_CACHE_SIZE);
+      for (const [key] of toRemove) {
+        this.instances.delete(key);
+      }
+    }
+  }
 
   /**
    * Get a cloud provider instance based on configuration
-   * 
-   * @param config Provider configuration including credentials and type
-   * @returns ICloudProvider instance for the specified provider
-   * @throws CloudProviderError if provider type is not supported
    */
   static getProvider(config: ProviderFactoryConfig): ICloudProvider {
     const { provider, organizationId, credentials } = config;
     
-    // Create a unique key for caching
-    const cacheKey = `${provider}-${organizationId}-${JSON.stringify(credentials)}`;
+    // Create a safe cache key using hashed credentials
+    const credHash = this.hashCredentials(credentials as Record<string, any>);
+    const cacheKey = `${provider}-${organizationId}-${credHash}`;
     
-    // Check if we have a cached instance
-    if (this.instances.has(cacheKey)) {
+    // Evict stale entries periodically
+    this.evictStaleEntries();
+    
+    // Check if we have a valid cached instance
+    const cached = this.instances.get(cacheKey);
+    if (cached && (Date.now() - cached.createdAt < this.CACHE_TTL_MS)) {
       logger.debug('Returning cached provider instance', { provider, organizationId });
-      return this.instances.get(cacheKey)!;
+      return cached.provider;
     }
 
     logger.info('Creating new provider instance', { provider, organizationId });
@@ -100,8 +132,8 @@ export class CloudProviderFactory {
         );
     }
 
-    // Cache the instance
-    this.instances.set(cacheKey, providerInstance);
+    // Cache the instance with TTL
+    this.instances.set(cacheKey, { provider: providerInstance, createdAt: Date.now() });
 
     return providerInstance;
   }

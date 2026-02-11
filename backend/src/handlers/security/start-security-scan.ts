@@ -34,7 +34,12 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: RequestBody = event.body ? JSON.parse(event.body) : {};
+    let body: RequestBody = { scanType: 'full' };
+    try {
+      body = event.body ? JSON.parse(event.body) : { scanType: 'full' };
+    } catch {
+      return badRequest('Invalid JSON in request body');
+    }
     const { scanType = 'full', accountId, scanLevel = 'standard' } = body;
     
     const prisma = getPrismaClient();
@@ -113,13 +118,13 @@ export async function handler(
       return badRequest('No AWS credentials found for this account');
     }
     
-    // Create scan record immediately to provide instant feedback
+    // Create scan record with 'pending' status - the invoked Lambda will set it to 'running'
     const scan = await prisma.securityScan.create({
       data: {
         organization_id: organizationId,
         aws_account_id: credentialRecord.id,
         scan_type: `${scanLevel}-security-scan`,
-        status: 'running',
+        status: 'pending',
         scan_config: { 
           regions: credentialRecord.regions?.length ? credentialRecord.regions : ['us-east-1'], 
           level: scanLevel, 

@@ -52,7 +52,8 @@ export async function handler(
   const startTime = Date.now();
   
   // Get configuration from event or use defaults
-  const thresholdMinutes = event.detail?.thresholdMinutes || 30;
+  // IMPORTANT: Must align with start-security-scan.ts STUCK_THRESHOLD_MS (60 minutes)
+  const thresholdMinutes = event.detail?.thresholdMinutes || 60;
   const maxScansToCleanup = event.detail?.maxScansToCleanup || 100;
   
   logger.info('Auto Cleanup Stuck Scans started', { 

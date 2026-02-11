@@ -15,6 +15,7 @@ import ForgotPassword from "@/components/auth/ForgotPassword";
 import NewPasswordRequired from "@/components/auth/NewPasswordRequired";
 import MFAVerify from "@/components/auth/MFAVerify";
 import { getVersionString } from "@/lib/version";
+import { secureStorage } from "@/lib/secure-storage";
 
 // Types for MFA check response
 interface MFACheckResponse {
@@ -231,10 +232,10 @@ export default function AuthSimple() {
         throw new Error(finishResult.error.message || 'WebAuthn verification failed');
       }
 
-      // Success! Store session and redirect
+      // Success! Store session securely and redirect
       const sessionData = finishResult.data;
       if (sessionData) {
-        localStorage.setItem('evo-auth', JSON.stringify({
+        secureStorage.setItem('evo-auth', JSON.stringify({
           user: sessionData.user,
           accessToken: sessionData.sessionToken,
           idToken: sessionData.sessionToken,

@@ -508,72 +508,23 @@ export async function handler(
       return error('A company with this email is already registered', 409);
     }
 
-    // Create organization
+    // LOGIC-001 FIX: Create Cognito user FIRST, before any DB records
+    // This prevents orphaned organizations if Cognito creation fails
     const organizationId = randomUUID();
-    const slug = generateSlug(company.name);
-
-    await prisma.$executeRaw`
-      INSERT INTO organizations (id, name, slug, contact_email, created_at, updated_at)
-      VALUES (
-        ${organizationId}::uuid,
-        ${company.name},
-        ${slug},
-        ${email},
-        NOW(),
-        NOW()
-      )
-    `;
-
-    logger.info('Organization created', { organizationId, name: company.name });
-
-    // Create Cognito user
     let userId: string;
     try {
       userId = await createCognitoUser(email, password, fullName, organizationId, company.name);
       logger.info('Cognito user created', { email });
     } catch (cognitoError: any) {
-      // Rollback organization creation
-      await prisma.$executeRaw`DELETE FROM organizations WHERE id = ${organizationId}::uuid`;
-      
       if (cognitoError.name === 'UsernameExistsException') {
         return error('This email is already registered', 409);
       }
       throw cognitoError;
     }
 
-    // Create profile
-    try {
-      await prisma.$executeRaw`
-        INSERT INTO profiles (id, user_id, email, organization_id, full_name, role, created_at, updated_at)
-        VALUES (
-          ${randomUUID()}::uuid,
-          ${userId},
-          ${email},
-          ${organizationId}::uuid,
-          ${fullName},
-          'org_admin',
-          NOW(),
-          NOW()
-        )
-      `;
-    } catch (profileError: any) {
-      // Rollback: delete Cognito user and organization
-      logger.error('Failed to create profile, rolling back Cognito user and organization', { error: profileError.message });
-      try {
-        await cognitoClient.send(new (await import('@aws-sdk/client-cognito-identity-provider')).AdminDeleteUserCommand({
-          UserPoolId: COGNITO_USER_POOL_ID,
-          Username: email
-        }));
-      } catch (rollbackErr) {
-        logger.error('Failed to rollback Cognito user', { error: (rollbackErr as Error).message });
-      }
-      await prisma.$executeRaw`DELETE FROM organizations WHERE id = ${organizationId}::uuid`;
-      throw profileError;
-    }
-
-    logger.info('Profile created', { userId });
-
-    // Create trial license
+    // LOGIC-006 FIX: Wrap ALL DB operations in a transaction for atomic rollback
+    // If any DB operation fails, everything is rolled back cleanly
+    const slug = generateSlug(company.name);
     const licenseData = await createTrialLicense(
       organizationId, 
       company.name, 
@@ -582,114 +533,146 @@ export async function handler(
       phone,
       country
     );
-
     const licenseId = randomUUID();
 
-    // Create license record
-    await prisma.$executeRaw`
-      INSERT INTO licenses (
-        id, organization_id, license_key, customer_id, plan_type, product_type,
-        max_accounts, max_users, used_seats, available_seats, features,
-        valid_from, valid_until, is_active, is_trial, is_expired,
-        days_remaining, created_at, updated_at
-      )
-      VALUES (
-        ${licenseId}::uuid,
-        ${organizationId}::uuid,
-        ${licenseData.licenseKey},
-        ${licenseData.customerId},
-        'trial',
-        'evo',
-        ${TRIAL_MAX_ACCOUNTS},
-        ${TRIAL_MAX_USERS},
-        1,
-        ${TRIAL_MAX_USERS - 1},
-        ${TRIAL_FEATURES},
-        NOW(),
-        ${licenseData.validUntil},
-        true,
-        true,
-        false,
-        ${TRIAL_DURATION_DAYS},
-        NOW(),
-        NOW()
-      )
-    `;
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Create organization
+        await tx.$executeRaw`
+          INSERT INTO organizations (id, name, slug, contact_email, created_at, updated_at)
+          VALUES (
+            ${organizationId}::uuid,
+            ${company.name},
+            ${slug},
+            ${email},
+            NOW(),
+            NOW()
+          )
+        `;
 
-    logger.info('Trial license created', { licenseId, licenseKey: licenseData.licenseKey, customerId: licenseData.customerId });
+        // Create profile
+        await tx.$executeRaw`
+          INSERT INTO profiles (id, user_id, email, organization_id, full_name, role, created_at, updated_at)
+          VALUES (
+            ${randomUUID()}::uuid,
+            ${userId},
+            ${email},
+            ${organizationId}::uuid,
+            ${fullName},
+            'org_admin',
+            NOW(),
+            NOW()
+          )
+        `;
 
-    // Create organization_license_config (required for validate-license to work)
-    await prisma.$executeRaw`
-      INSERT INTO organization_license_configs (
-        id, organization_id, customer_id, sync_status, last_sync_at, created_at, updated_at
-      )
-      VALUES (
-        ${randomUUID()}::uuid,
-        ${organizationId}::uuid,
-        ${licenseData.customerId},
-        'synced',
-        NOW(),
-        NOW(),
-        NOW()
-      )
-      ON CONFLICT (organization_id) DO UPDATE SET
-        customer_id = EXCLUDED.customer_id,
-        sync_status = 'synced',
-        last_sync_at = NOW(),
-        updated_at = NOW()
-    `;
+        // Create license record
+        await tx.$executeRaw`
+          INSERT INTO licenses (
+            id, organization_id, license_key, customer_id, plan_type, product_type,
+            max_accounts, max_users, used_seats, available_seats, features,
+            valid_from, valid_until, is_active, is_trial, is_expired,
+            days_remaining, created_at, updated_at
+          )
+          VALUES (
+            ${licenseId}::uuid,
+            ${organizationId}::uuid,
+            ${licenseData.licenseKey},
+            ${licenseData.customerId},
+            'trial',
+            'evo',
+            ${TRIAL_MAX_ACCOUNTS},
+            ${TRIAL_MAX_USERS},
+            1,
+            ${TRIAL_MAX_USERS - 1},
+            ${TRIAL_FEATURES},
+            NOW(),
+            ${licenseData.validUntil},
+            true,
+            true,
+            false,
+            ${TRIAL_DURATION_DAYS},
+            NOW(),
+            NOW()
+          )
+        `;
 
-    logger.info('Organization license config created', { organizationId, customerId: licenseData.customerId });
-
-    // Assign seat to the new user
-    await prisma.$executeRaw`
-      INSERT INTO license_seat_assignments (
-        id, license_id, user_id, assigned_at, assigned_by
-      )
-      VALUES (
-        ${randomUUID()}::uuid,
-        ${licenseId}::uuid,
-        ${userId}::uuid,
-        NOW(),
-        ${userId}::uuid
-      )
-    `;
-
-    logger.info('License seat assigned to user', { userId, licenseId });
-
-    // Store company details (could be in a separate table, for now in organization metadata)
-    // This could be extended to store in a dedicated company_details table
-
-    // Create default email notification settings for the new organization
-    const emailNotificationTypes = [
-      'welcome', 'daily_summary', 'weekly_report', 'critical_alert',
-      'security_notification', 'proactive_notification', 'cost_alert'
-    ];
-    
-    for (const notificationType of emailNotificationTypes) {
-      try {
-        await prisma.$executeRaw`
-          INSERT INTO organization_email_settings (
-            id, organization_id, notification_type, is_enabled, frequency, recipients, created_at, updated_at
+        // Create organization_license_config
+        await tx.$executeRaw`
+          INSERT INTO organization_license_configs (
+            id, organization_id, customer_id, sync_status, last_sync_at, created_at, updated_at
           )
           VALUES (
             ${randomUUID()}::uuid,
             ${organizationId}::uuid,
-            ${notificationType},
-            true,
-            ${notificationType === 'weekly_report' ? 'weekly' : notificationType === 'daily_summary' ? 'daily' : 'immediate'},
-            ARRAY[${email}]::text[],
+            ${licenseData.customerId},
+            'synced',
+            NOW(),
             NOW(),
             NOW()
           )
-          ON CONFLICT (organization_id, notification_type) DO NOTHING
+          ON CONFLICT (organization_id) DO UPDATE SET
+            customer_id = EXCLUDED.customer_id,
+            sync_status = 'synced',
+            last_sync_at = NOW(),
+            updated_at = NOW()
         `;
-      } catch (settingsErr) {
-        logger.warn('Failed to create email setting', { notificationType, error: (settingsErr as Error).message });
-      }
-    }
 
-    logger.info('Email notification settings created for organization', { organizationId });
+        // Assign seat to the new user
+        await tx.$executeRaw`
+          INSERT INTO license_seat_assignments (
+            id, license_id, user_id, assigned_at, assigned_by
+          )
+          VALUES (
+            ${randomUUID()}::uuid,
+            ${licenseId}::uuid,
+            ${userId}::uuid,
+            NOW(),
+            ${userId}::uuid
+          )
+        `;
+
+        // Create default email notification settings
+        const emailNotificationTypes = [
+          'welcome', 'daily_summary', 'weekly_report', 'critical_alert',
+          'security_notification', 'proactive_notification', 'cost_alert'
+        ];
+        
+        for (const notificationType of emailNotificationTypes) {
+          await tx.$executeRaw`
+            INSERT INTO organization_email_settings (
+              id, organization_id, notification_type, is_enabled, frequency, recipients, created_at, updated_at
+            )
+            VALUES (
+              ${randomUUID()}::uuid,
+              ${organizationId}::uuid,
+              ${notificationType},
+              true,
+              ${notificationType === 'weekly_report' ? 'weekly' : notificationType === 'daily_summary' ? 'daily' : 'immediate'},
+              ARRAY[${email}]::text[],
+              NOW(),
+              NOW()
+            )
+            ON CONFLICT (organization_id, notification_type) DO NOTHING
+          `;
+        }
+      });
+
+      logger.info('All DB records created in transaction', { organizationId, licenseId });
+
+    } catch (dbError: any) {
+      // Transaction failed - rollback Cognito user since DB is already rolled back
+      logger.error('DB transaction failed, rolling back Cognito user', { error: dbError.message });
+      try {
+        await cognitoClient.send(new (await import('@aws-sdk/client-cognito-identity-provider')).AdminDeleteUserCommand({
+          UserPoolId: COGNITO_USER_POOL_ID,
+          Username: email
+        }));
+        logger.info('Cognito user rolled back successfully');
+      } catch (rollbackErr) {
+        logger.error('Failed to rollback Cognito user', { error: (rollbackErr as Error).message });
+      }
+      throw dbError;
+    }
 
     // Send welcome email (fire-and-forget, don't block registration)
     sendWelcomeEmailToUser(prisma, organizationId, email, fullName, company.name)

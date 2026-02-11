@@ -8,13 +8,40 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { logger } from '../../lib/logging.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationIdWithImpersonation, isAdmin } from '../../lib/auth.js';
+import { getUserFromEvent, getOrganizationIdWithImpersonation, isAdmin, isSuperAdmin } from '../../lib/auth.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { getLicenseSummary, hasValidLicense, assignSeat, syncOrganizationLicenses } from '../../lib/license-service.js';
 import { getPrismaClient } from '../../lib/database.js';
 
 interface ValidateLicenseBody {
   customer_id?: string;
+}
+
+// PERF-001: In-memory cache for usage stats (TTL 5 min)
+const usageStatsCache = new Map<string, { data: { accountsCount: number; usersCount: number }; expiresAt: number }>();
+const USAGE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getUsageStatsCached(prisma: any, organizationId: string) {
+  const cached = usageStatsCache.get(organizationId);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+  
+  const [accountsCount, usersCount] = await Promise.all([
+    prisma.awsAccount.count({ where: { organization_id: organizationId } }),
+    prisma.profile.count({ where: { organization_id: organizationId } }),
+  ]);
+  
+  const data = { accountsCount, usersCount };
+  usageStatsCache.set(organizationId, { data, expiresAt: Date.now() + USAGE_CACHE_TTL_MS });
+  
+  // Evict old entries
+  if (usageStatsCache.size > 100) {
+    const now = Date.now();
+    for (const [key, val] of usageStatsCache) {
+      if (val.expiresAt < now) usageStatsCache.delete(key);
+    }
+  }
+  
+  return data;
 }
 
 export async function handler(
@@ -37,7 +64,12 @@ export async function handler(
     const prisma = getPrismaClient();
 
     // Check if customer_id is being configured
-    const body: ValidateLicenseBody = event.body ? JSON.parse(event.body) : {};
+    let body: ValidateLicenseBody = {};
+    try {
+      body = event.body ? JSON.parse(event.body) : {};
+    } catch {
+      return error('Invalid JSON in request body', 400, undefined, origin);
+    }
     
     logger.info(`Request body: ${JSON.stringify(body)}, has customer_id: ${!!body.customer_id}`);
     
@@ -88,25 +120,16 @@ export async function handler(
     
     logger.info(`License summary for org ${organizationId}: hasLicense=${summary.hasLicense}, customerId=${summary.customerId}, licenses=${summary.licenses?.length || 0}`);
 
-    // Check if user is a super admin FIRST (they have unlimited access across all organizations)
-    const userProfile = await prisma.profile.findFirst({
-      where: {
-        user_id: userId,
-      },
-      orderBy: {
-        created_at: 'desc'
-      }
-    });
+    // Check if user is a super admin using JWT claims (single source of truth)
+    const isSuperAdminUser = isSuperAdmin(user);
     
-    const isSuperAdmin = userProfile?.role === 'super_admin' || userProfile?.role === 'SUPER_ADMIN';
-    
-    if (isSuperAdmin) {
+    if (isSuperAdminUser) {
       logger.info(`User ${userId} is a super admin - unlimited access granted`);
     }
 
     if (!summary.hasLicense) {
       // Super admins can access organizations without licenses (for impersonation/management)
-      if (isSuperAdmin) {
+      if (isSuperAdminUser) {
         logger.info(`Super admin ${userId} accessing org ${organizationId} without license - granting access`);
         return success({
           valid: true,
@@ -171,7 +194,7 @@ export async function handler(
 
     // Check if current user has a seat assigned (only for EVO licenses)
     // Super admins don't need seats - they have unlimited access
-    let userSeat = isSuperAdmin ? null : await prisma.licenseSeatAssignment.findFirst({
+    let userSeat = isSuperAdminUser ? null : await prisma.licenseSeatAssignment.findFirst({
       where: {
         user_id: userId,
         license: {
@@ -195,12 +218,12 @@ export async function handler(
       },
     });
 
-    logger.info(`User ${userId} seat check: has_seat=${!!userSeat}, is_super_admin=${isSuperAdmin}`);
+    logger.info(`User ${userId} seat check: has_seat=${!!userSeat}, is_super_admin=${isSuperAdminUser}`);
 
     // AUTO-ASSIGNMENT: If user doesn't have a seat, try to assign one automatically
     // CRITICAL: Only auto-assign if user has a profile in this organization
     // Super admins don't need seats - skip auto-assignment for them
-    if (!userSeat && !isSuperAdmin) {
+    if (!userSeat && !isSuperAdminUser) {
       logger.info(`Attempting auto-assign for user ${userId}`);
       
       // First, verify user has a profile in this organization
@@ -275,14 +298,8 @@ export async function handler(
       }
     }
 
-    // Get usage stats
-    const accountsCount = await prisma.awsAccount.count({
-      where: { organization_id: organizationId },
-    });
-
-    const usersCount = await prisma.profile.count({
-      where: { organization_id: organizationId },
-    });
+    // Get usage stats (cached for 5 min)
+    const { accountsCount, usersCount } = await getUsageStatsCached(prisma, organizationId);
 
     // Find the primary active license
     const primaryLicense = summary.licenses.find((l: any) => !l.isExpired) || summary.licenses[0];
@@ -316,10 +333,10 @@ export async function handler(
     // Determine overall validity
     // Super admins always have valid access regardless of seat assignment or license status
     const hasValid = await hasValidLicense(organizationId);
-    const userHasSeat = isSuperAdmin || !!userSeat;
+    const userHasSeat = isSuperAdminUser || !!userSeat;
     
     // Super admins bypass ALL license restrictions
-    const isValidForUser = isSuperAdmin ? true : (hasValid && userHasSeat);
+    const isValidForUser = isSuperAdminUser ? true : (hasValid && userHasSeat);
 
     return success({
       valid: isValidForUser,
@@ -330,12 +347,12 @@ export async function handler(
       
       user_access: {
         has_seat: userHasSeat,
-        is_super_admin: isSuperAdmin,
+        is_super_admin: isSuperAdminUser,
         seat_license: userSeat ? {
           license_key: userSeat.license.license_key,
           product_type: userSeat.license.product_type,
           features: userSeat.license.features,
-        } : isSuperAdmin ? { 
+        } : isSuperAdminUser ? { 
           // Super admins get full access without a specific license
           license_key: 'SUPER_ADMIN_ACCESS',
           product_type: 'evo_unlimited',
@@ -358,7 +375,7 @@ export async function handler(
         total: primaryLicense.totalSeats,
         used: primaryLicense.usedSeats,
         available: primaryLicense.availableSeats,
-        percentage: Math.round((primaryLicense.usedSeats / primaryLicense.totalSeats) * 100),
+        percentage: primaryLicense.totalSeats ? Math.round((primaryLicense.usedSeats / primaryLicense.totalSeats) * 100) : 0,
       } : null,
 
       usage: {

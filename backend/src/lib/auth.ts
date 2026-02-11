@@ -19,6 +19,7 @@ interface ClaimValidationResult {
 const ALLOWED_ROLES = [
   'user',
   'admin',
+  'org_admin',
   'super_admin',
   'auditor',
   'viewer',

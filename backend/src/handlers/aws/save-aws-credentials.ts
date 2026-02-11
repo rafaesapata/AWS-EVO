@@ -114,36 +114,13 @@ export async function handler(
     });
 
     if (!organization) {
-      logger.info('Organization not found, creating automatically', { organizationId });
-      
-      // Create organization with a slug derived from the ID
-      const slug = `org-${organizationId.substring(0, 8).toLowerCase()}`;
-      
-      try {
-        organization = await prisma.organization.create({
-          data: {
-            id: organizationId,
-            name: `Organization ${organizationId.substring(0, 8)}`,
-            slug: slug,
-          }
-        });
-        logger.info('Organization created successfully', { organizationId, slug });
-      } catch (createError: any) {
-        // Handle unique constraint violation on slug
-        if (createError.code === 'P2002') {
-          const uniqueSlug = `org-${organizationId.substring(0, 8).toLowerCase()}-${Date.now()}`;
-          organization = await prisma.organization.create({
-            data: {
-              id: organizationId,
-              name: `Organization ${organizationId.substring(0, 8)}`,
-              slug: uniqueSlug,
-            }
-          });
-          logger.info('Organization created with unique slug', { organizationId, slug: uniqueSlug });
-        } else {
-          throw createError;
-        }
-      }
+      logger.warn('Organization not found in database', { organizationId });
+      return error(
+        'Organization not found. Please complete the registration process first.',
+        404,
+        undefined,
+        origin
+      );
     }
     
     // Check if credentials already exist for this account

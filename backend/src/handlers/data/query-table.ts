@@ -104,6 +104,16 @@ const TABLE_TO_MODEL: Record<string, string> = {
 
 // Mapeamento de campos do frontend para campos do Prisma
 // Também lista campos a IGNORAR (mapear para null) quando não existem no modelo
+
+// SEC-005: Field name sanitization - only allow safe alphanumeric field names
+const SAFE_FIELD_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
+const BLOCKED_FIELD_PREFIXES = ['_', '$', '__'];
+
+function isFieldNameSafe(fieldName: string): boolean {
+  if (!SAFE_FIELD_PATTERN.test(fieldName)) return false;
+  if (BLOCKED_FIELD_PREFIXES.some(p => fieldName.startsWith(p))) return false;
+  return true;
+}
 const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   // Tabelas que tiveram account_id migrado para aws_account_id
   // NOTA: azure_credential_id é mapeado para aws_account_id porque os custos Azure
@@ -389,6 +399,10 @@ export async function handler(
       });
       for (const [key, value] of Object.entries(body.eq)) {
         if (key === 'organization_id') continue; // Skip - enforced server-side
+        if (!isFieldNameSafe(key)) {
+          logger.warn('Rejected unsafe field name in eq filter', { key, table: body.table });
+          continue;
+        }
         const mappedKey = fieldMap[key];
         // If mapped to null, skip this field (doesn't exist in model)
         if (mappedKey === null) {
@@ -420,6 +434,7 @@ export async function handler(
     if (body.in) {
       const fieldMap = FIELD_MAPPING[body.table] || {};
       for (const [key, values] of Object.entries(body.in)) {
+        if (!isFieldNameSafe(key)) { logger.warn('Rejected unsafe field in IN filter', { key }); continue; }
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         if (!Array.isArray(values) || values.length === 0) continue;
@@ -435,6 +450,7 @@ export async function handler(
     if (body.ilike) {
       const fieldMap = FIELD_MAPPING[body.table] || {};
       for (const [key, value] of Object.entries(body.ilike)) {
+        if (!isFieldNameSafe(key)) { logger.warn('Rejected unsafe field in ilike filter', { key }); continue; }
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         where[mappedKey || key] = { contains: value.replace(/%/g, ''), mode: 'insensitive' };
@@ -445,10 +461,10 @@ export async function handler(
     if (body.gte) {
       const fieldMap = FIELD_MAPPING[body.table] || {};
       for (const [key, value] of Object.entries(body.gte)) {
+        if (!isFieldNameSafe(key)) { logger.warn('Rejected unsafe field in gte filter', { key }); continue; }
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
-        // Convert date/timestamp strings to Date objects for Prisma DateTime fields
         const isDateField = fieldName === 'date' || fieldName === 'timestamp' || fieldName.endsWith('_at') || fieldName.endsWith('_date');
         const filterValue = isDateField ? new Date(value as string) : value;
         where[fieldName] = { ...where[fieldName], gte: filterValue };
@@ -459,6 +475,7 @@ export async function handler(
     if (body.lte) {
       const fieldMap = FIELD_MAPPING[body.table] || {};
       for (const [key, value] of Object.entries(body.lte)) {
+        if (!isFieldNameSafe(key)) { logger.warn('Rejected unsafe field in lte filter', { key }); continue; }
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
@@ -472,6 +489,7 @@ export async function handler(
     if (body.gt) {
       const fieldMap = FIELD_MAPPING[body.table] || {};
       for (const [key, value] of Object.entries(body.gt)) {
+        if (!isFieldNameSafe(key)) { logger.warn('Rejected unsafe field in gt filter', { key }); continue; }
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
@@ -485,6 +503,7 @@ export async function handler(
     if (body.lt) {
       const fieldMap = FIELD_MAPPING[body.table] || {};
       for (const [key, value] of Object.entries(body.lt)) {
+        if (!isFieldNameSafe(key)) { logger.warn('Rejected unsafe field in lt filter', { key }); continue; }
         const mappedKey = fieldMap[key];
         if (mappedKey === null) continue;
         const fieldName = mappedKey || key;
@@ -514,7 +533,7 @@ export async function handler(
     const results = await model.findMany({
       where,
       orderBy,
-      take: Math.min(body.limit || 1000, 10000), // Cap at 10000 to prevent DoS
+      take: Math.min(body.limit || 100, 1000), // Default 100, max 1000 to prevent memory issues
       skip: body.offset || 0,  // Add offset support for pagination
     });
     
@@ -547,17 +566,28 @@ export async function handler(
       requestId: context.awsRequestId,
     });
     
-    // For Prisma errors, return empty array (graceful degradation)
+    // For Prisma validation errors (bad field names, etc.), return empty array
     if (err.name === 'PrismaClientValidationError' || 
-        err.name === 'PrismaClientKnownRequestError' ||
         err.message?.includes('does not exist')) {
-      logger.warn('Prisma error - returning empty array', { 
+      logger.warn('Prisma validation error - returning empty array', { 
         errorName: err.name,
         message: err.message?.substring(0, 200) 
       });
       return success([], 200, origin);
     }
     
+    // For known Prisma request errors (model not found, column not found), return empty
+    if (err.name === 'PrismaClientKnownRequestError' && 
+        (err.code === 'P2021' || err.code === 'P2022')) {
+      logger.warn('Prisma model/column not found - returning empty array', { 
+        errorName: err.name,
+        code: err.code,
+        message: err.message?.substring(0, 200) 
+      });
+      return success([], 200, origin);
+    }
+    
+    // For connection errors and other internal errors, return 500
     return error('Failed to query table. Please try again.', 500, undefined, origin);
   }
 }
@@ -577,13 +607,8 @@ async function handleWebAuthnCheck(email: string, origin: string): Promise<APIGa
       where: { email }
     });
 
-    logger.info('🔐 User lookup result', { 
-      email, 
-      userFound: !!profile,
-    });
-
     if (!profile) {
-      // User not found - no WebAuthn
+      // SECURITY: Return same response shape for non-existing users to prevent enumeration
       return success({
         hasWebAuthn: false,
         credentialsCount: 0
@@ -595,8 +620,8 @@ async function handleWebAuthnCheck(email: string, origin: string): Promise<APIGa
       where: { user_id: profile.user_id }
     });
 
-    logger.info('🔐 WebAuthn credentials found', {
-      userId: profile.user_id,
+    // SECURITY: Only log credential count, not user details
+    logger.info('🔐 WebAuthn check completed', {
       credentialsCount: webauthnCredentials.length,
     });
 
@@ -611,7 +636,6 @@ async function handleWebAuthnCheck(email: string, origin: string): Promise<APIGa
     return success({
       hasWebAuthn: false,
       credentialsCount: 0,
-      error: 'Failed to check WebAuthn credentials'
-    }, 200, origin); // Return 200 with error info instead of 500 to not break login flow
+    }, 200, origin);
   }
 }

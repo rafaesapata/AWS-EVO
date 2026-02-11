@@ -46,7 +46,44 @@ interface SyncResult {
 // EXTERNAL API CLIENT
 // ============================================================================
 
+// RES-003: Simple circuit breaker for external license API
+const circuitBreaker = {
+  failures: 0,
+  lastFailure: 0,
+  isOpen: false,
+  threshold: 3,        // Open after 3 consecutive failures
+  resetTimeout: 60000, // Try again after 60s
+};
+
+function checkCircuitBreaker(): void {
+  if (!circuitBreaker.isOpen) return;
+  if (Date.now() - circuitBreaker.lastFailure > circuitBreaker.resetTimeout) {
+    // Half-open: allow one attempt
+    circuitBreaker.isOpen = false;
+    circuitBreaker.failures = 0;
+    logger.info('Circuit breaker half-open, allowing retry');
+    return;
+  }
+  throw new Error('License API circuit breaker is open - too many recent failures');
+}
+
+function recordSuccess(): void {
+  circuitBreaker.failures = 0;
+  circuitBreaker.isOpen = false;
+}
+
+function recordFailure(): void {
+  circuitBreaker.failures++;
+  circuitBreaker.lastFailure = Date.now();
+  if (circuitBreaker.failures >= circuitBreaker.threshold) {
+    circuitBreaker.isOpen = true;
+    logger.warn(`Circuit breaker opened after ${circuitBreaker.failures} failures`);
+  }
+}
+
 export async function fetchExternalLicenses(customerId: string): Promise<ExternalLicenseResponse> {
+  checkCircuitBreaker();
+  
   const apiUrl = process.env.LICENSE_API_URL;
   const apiKey = process.env.LICENSE_API_KEY;
 
@@ -56,23 +93,32 @@ export async function fetchExternalLicenses(customerId: string): Promise<Externa
 
   logger.info(`Fetching licenses for customer: ${customerId}`);
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey,
-    },
-    body: JSON.stringify({ customer_id: customerId }),
-  });
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+      },
+      body: JSON.stringify({ customer_id: customerId }),
+      signal: AbortSignal.timeout(10000), // 10s timeout
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`License API error: ${response.status} - ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      recordFailure();
+      throw new Error(`License API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json() as ExternalLicenseResponse;
+    logger.info(`License API response: valid=${data.valid}, licenses=${data.total_licenses}`);
+    recordSuccess();
+    return data;
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('License API error:')) throw err;
+    recordFailure();
+    throw err;
   }
-
-  const data = await response.json() as ExternalLicenseResponse;
-  logger.info(`License API response: valid=${data.valid}, licenses=${data.total_licenses}`);
-  return data;
 }
 
 // ============================================================================
@@ -537,8 +583,12 @@ export async function getLicenseSummary(organizationId: string) {
         availableSeats: l.max_users - usedSeats,
         validFrom: l.valid_from,
         validUntil: l.valid_until,
-        daysRemaining: l.days_remaining,
-        isExpired: l.is_expired,
+        // DATA-001 FIX: Calculate days_remaining dynamically instead of using stale DB value
+        daysRemaining: l.valid_until 
+          ? Math.max(0, Math.ceil((new Date(l.valid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+          : 0,
+        // DATA-001 FIX: Calculate is_expired dynamically
+        isExpired: l.valid_until ? new Date(l.valid_until) < new Date() : true,
         isTrial: l.is_trial,
         features: l.features,
       };

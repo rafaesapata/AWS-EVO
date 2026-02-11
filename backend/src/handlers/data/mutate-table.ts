@@ -19,6 +19,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'profiles': 'profile',
   'users': 'profile',  // Users are managed via profiles table
   'aws_credentials': 'awsCredential',
+  'azure_credentials': 'azureCredential',
   'aws_accounts': 'awsAccount',
   'daily_costs': 'dailyCost',
   'findings': 'finding',
@@ -60,6 +61,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'ml_analysis_history': 'mLAnalysisHistory',
   'edge_services': 'edgeService',
   'edge_metrics': 'edgeMetric',
+  'background_jobs': 'backgroundJob',
   'scheduled_scans': 'scheduledScan',
   'scan_schedules': 'scanSchedule',
   'saved_filters': 'savedFilter',
@@ -67,6 +69,13 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'dashboard_metrics_targets': 'dashboardMetricTarget',
   'resource_comments': 'resourceComment',
   'mention_notifications': 'mentionNotification',
+  // Predictive Incidents (ML)
+  'predictive_incidents': 'predictiveIncident',
+  'predictive_incidents_history': 'predictiveIncidentsHistory',
+  // RI/SP Analysis
+  'ri_sp_recommendations': 'riSpRecommendation',
+  'reserved_instances': 'reservedInstance',
+  'savings_plans': 'savingsPlan',
   // License management
   'licenses': 'license',
   'license_seat_assignments': 'licenseSeatAssignment',
@@ -75,7 +84,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
 
 // Tabelas que têm organization_id para multi-tenancy
 const TABLES_WITH_ORG_ID = new Set([
-  'profiles', 'aws_credentials', 'aws_accounts',
+  'profiles', 'aws_credentials', 'azure_credentials', 'aws_accounts',
   'daily_costs', 'findings', 'security_scans', 'compliance_checks',
   'guardduty_findings', 'security_posture', 'knowledge_base_articles',
   'knowledge_base_comments', 'knowledge_base_favorites',
@@ -90,6 +99,12 @@ const TABLES_WITH_ORG_ID = new Set([
   'ml_analysis_history', 'edge_services', 'edge_metrics',
   'scheduled_scans', 'scan_schedules', 'saved_filters', 'tv_dashboards', 'dashboard_metrics_targets',
   'resource_comments', 'mention_notifications', 'monitored_endpoints', 'endpoint_monitors',
+  // Background jobs
+  'background_jobs',
+  // Predictive Incidents (ML)
+  'predictive_incidents', 'predictive_incidents_history',
+  // RI/SP Analysis
+  'ri_sp_recommendations', 'reserved_instances', 'savings_plans',
   // License management
   'licenses',
 ]);
@@ -281,15 +296,17 @@ export async function handler(
           return badRequest('Missing required field: where for delete operation', undefined, origin);
         }
         
+        // SECURITY: Block organization deletion from generic handler
+        // Organization deletion requires a dedicated endpoint with confirmation flow
+        if (body.table === 'organizations') {
+          logger.warn('Organization deletion blocked via generic handler', { organizationId, userId });
+          return badRequest('Organization deletion is not allowed through this endpoint. Please contact support.', undefined, origin);
+        }
+        
         // Enforce organization_id in where clause
         const where: Record<string, any> = { ...body.where };
         if (TABLES_WITH_ORG_ID.has(body.table)) {
           where.organization_id = organizationId;
-        }
-        
-        // SECURITY: For organizations table, only allow deleting user's own org
-        if (body.table === 'organizations') {
-          where.id = organizationId;
         }
         
         result = await model.deleteMany({
@@ -339,8 +356,8 @@ export async function handler(
               // Use authenticated user's email as fallback
               createData.email = userEmail;
             } else {
-              // Generate a placeholder email based on user_id
-              createData.email = `user-${createData.user_id.substring(0, 8)}@placeholder.local`;
+              // SECURITY: Reject upsert without valid email instead of generating placeholder
+              return badRequest('Email is required for profile creation. Please provide a valid email.', undefined, origin);
             }
           } else if (userEmail) {
             createData.email = userEmail;

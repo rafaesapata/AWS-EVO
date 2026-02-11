@@ -250,42 +250,44 @@ export function withAuditLog(
       // Log successful action
       console.log(`📋 Audit Log: ${action} completed successfully by ${user.sub} [${requestId}]`);
       
-      // In production, store audit logs in database
-      // await middleware.prisma.raw.auditLog.create({
-      //   data: {
-      //     user_id: user.sub,
-      //     organization_id: organizationId,
-      //     action,
-      //     status: 'success',
-      //     request_id: requestId,
-      //     metadata: {
-      //       method: event.requestContext.http.method,
-      //       path: event.requestContext.http.path,
-      //       statusCode: result.statusCode,
-      //     },
-      //   },
-      // });
+      // Store audit log in database (fire-and-forget to avoid performance impact)
+      middleware.prisma.prisma.auditLog.create({
+        data: {
+          user_id: user.sub,
+          organization_id: organizationId,
+          action,
+          resource_type: 'api_request',
+          details: {
+            status: 'success',
+            request_id: requestId,
+            method: event.requestContext.http?.method,
+            path: event.requestContext.http?.path,
+            statusCode: result.statusCode,
+          },
+        },
+      }).catch((err: any) => console.warn('Audit log write failed:', err.message));
       
       return result;
     } catch (err) {
       // Log failed action
       console.error(`📋 Audit Log: ${action} failed for ${user.sub} [${requestId}]:`, err);
       
-      // In production, store failed audit logs
-      // await middleware.prisma.raw.auditLog.create({
-      //   data: {
-      //     user_id: user.sub,
-      //     organization_id: organizationId,
-      //     action,
-      //     status: 'failed',
-      //     request_id: requestId,
-      //     error_message: err instanceof Error ? err.message : 'Unknown error',
-      //     metadata: {
-      //       method: event.requestContext.http.method,
-      //       path: event.requestContext.http.path,
-      //     },
-      //   },
-      // });
+      // Store failed audit log (fire-and-forget)
+      middleware.prisma.prisma.auditLog.create({
+        data: {
+          user_id: user.sub,
+          organization_id: organizationId,
+          action,
+          resource_type: 'api_request',
+          details: {
+            status: 'failed',
+            request_id: requestId,
+            error_message: err instanceof Error ? err.message : 'Unknown error',
+            method: event.requestContext.http?.method,
+            path: event.requestContext.http?.path,
+          },
+        },
+      }).catch((auditErr: any) => console.warn('Audit log write failed:', auditErr.message));
       
       throw err;
     }

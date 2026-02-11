@@ -76,7 +76,7 @@ export async function handler(
       }
     });
 
-    if (!adminProfile || !adminProfile.role || !['ADMIN', 'SUPER_ADMIN'].includes(adminProfile.role)) {
+    if (!adminProfile || !adminProfile.role || !['admin', 'org_admin', 'super_admin', 'ADMIN', 'ORG_ADMIN', 'SUPER_ADMIN'].includes(adminProfile.role)) {
       return forbidden('Admin access required', origin);
     }
 
