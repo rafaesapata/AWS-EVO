@@ -4601,6 +4601,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-dashboard-api'
+      Description: 'WAF Dashboard API - bundled with AWS SDK v2'
       CodeUri: ../backend/src/handlers/security/
       Handler: waf-dashboard-api.handler
       Role: !GetAtt LambdaExecutionRole.Arn
