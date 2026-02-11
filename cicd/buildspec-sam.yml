@@ -285,6 +285,10 @@ phases:
         echo "=== DEPLOYMENT COMPLETE ==="
         echo "Strategy used: FRONTEND=$DEPLOY_FRONTEND FULL_SAM=$DEPLOY_FULL_SAM HANDLERS=$(cat /tmp/deploy_handlers.txt)"
 
+        # Ensure dist/ exists for artifacts (even when no frontend build)
+        mkdir -p dist
+        echo '{"deploy":"ok"}' > dist/deploy-status.json
+
 artifacts:
   files:
     - dist/**/*
