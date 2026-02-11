@@ -161,6 +161,12 @@ function GeneralTab({ orgDetails }: { orgDetails: OrganizationDetails }) {
               <p className="text-sm mt-1">{new Date(orgDetails.updated_at).toLocaleString('pt-BR')}</p>
             </div>
           </div>
+          {orgDetails.contact_email && (
+            <div>
+              <Label className="text-xs text-muted-foreground">{t('organizations.billingEmail', 'Email de Contato')}</Label>
+              <p className="text-sm mt-1">{orgDetails.contact_email}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

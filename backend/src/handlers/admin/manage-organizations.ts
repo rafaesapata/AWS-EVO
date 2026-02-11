@@ -273,6 +273,7 @@ export async function handler(
           id: org.id,
           name: org.name,
           slug: org.slug,
+          contact_email: (org as any).contact_email || '',
           created_at: org.created_at,
           updated_at: org.updated_at,
           
@@ -363,11 +364,11 @@ export async function handler(
           demo_activated_by: org.demo_activated_by,
           // Status field from database
           status: (org as any).status || 'active',
-          // Default values for fields not in schema
+          // Map DB fields to frontend expected names
           description: '',
           domain: org.slug,
           monthly_cost: 0,
-          billing_email: '',
+          billing_email: (org as any).contact_email || '',
           admin_users: [],
         }));
 
@@ -395,7 +396,8 @@ export async function handler(
             id: randomUUID(),
             name: body.name,
             slug: slug,
-          }
+            contact_email: body.billing_email || null,
+          } as any
         });
 
         logger.info('Organization created', {
@@ -440,18 +442,22 @@ export async function handler(
         
         if (body.name) updateData.name = body.name;
         if (body.contact_email !== undefined) updateData.contact_email = body.contact_email;
-        if (body.slug) {
+        if (body.billing_email !== undefined) updateData.contact_email = body.billing_email;
+        
+        // domain from frontend maps to slug in DB
+        const slugValue = body.slug || body.domain;
+        if (slugValue) {
           // Check if new slug is unique
           const slugExists = await prisma.organization.findFirst({
             where: { 
-              slug: body.slug,
+              slug: slugValue,
               NOT: { id: body.id }
             }
           });
           if (slugExists) {
-            return badRequest(`Slug "${body.slug}" is already in use`, undefined, origin);
+            return badRequest(`Slug "${slugValue}" is already in use`, undefined, origin);
           }
-          updateData.slug = body.slug;
+          updateData.slug = slugValue;
         }
 
         const organization = await prisma.organization.update({
@@ -481,6 +487,7 @@ export async function handler(
           id: organization.id,
           name: organization.name,
           slug: organization.slug,
+          billing_email: (organization as any).contact_email || '',
           created_at: organization.created_at,
           updated_at: organization.updated_at,
           cognitoSync: nameChanged ? cognitoSync : undefined

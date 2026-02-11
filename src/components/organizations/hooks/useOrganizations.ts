@@ -331,6 +331,7 @@ export function useSyncLicense(organizationId: string | undefined) {
         description: t('organizations.licenseSyncedDesc', 'A licença foi sincronizada com sucesso.'),
       });
       queryClient.invalidateQueries({ queryKey: ['organization-licenses', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['organization-details', organizationId] });
     },
     onError: (error) => {
       toast({

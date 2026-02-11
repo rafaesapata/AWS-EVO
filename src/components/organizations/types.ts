@@ -97,6 +97,7 @@ export interface OrganizationDetails {
   id: string;
   name: string;
   slug: string;
+  contact_email?: string;
   created_at: string;
   updated_at: string;
   demo_mode: boolean;
