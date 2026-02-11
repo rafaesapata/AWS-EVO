@@ -165,7 +165,8 @@ export const DOMAIN_MAP = {
   // ============================================================
   shared: {
     description: 'Core libraries used by all domains',
-    libs: [
+    handlers: [],
+    sharedLibs: [
       'lib/response.ts',
       'lib/logging.ts',
       'lib/structured-logging.ts',
@@ -185,8 +186,6 @@ export const DOMAIN_MAP = {
       'lib/distributed-rate-limiter.ts',
       'lib/performance-optimizer.ts',
       'lib/metrics.ts',
-    ],
-    types: [
       'types/lambda.ts',
       'types/cloud.ts',
     ],
