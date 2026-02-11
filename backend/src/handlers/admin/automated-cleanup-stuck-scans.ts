@@ -37,9 +37,11 @@ export async function handler(
     // Buscar scans travados (running, pending, starting)
     const whereClause: any = {
       status: { in: ['running', 'pending', 'starting'] },
-      started_at: {
-        lt: stuckThreshold
-      }
+      OR: [
+        { started_at: { lt: stuckThreshold } },
+        // Pending scans that were never started - use created_at
+        { status: 'pending', started_at: null, created_at: { lt: stuckThreshold } },
+      ],
     };
 
     if (targetOrganizationId) {
@@ -87,7 +89,7 @@ export async function handler(
     // Executar a limpeza
     for (const scan of stuckScans) {
       try {
-        const durationMinutes = Math.floor((Date.now() - new Date(scan.started_at).getTime()) / (1000 * 60));
+        const durationMinutes = Math.floor((Date.now() - new Date(scan.started_at || scan.created_at).getTime()) / (1000 * 60));
         
         await prisma.securityScan.update({
           where: { id: scan.id },
@@ -185,30 +187,56 @@ export async function handler(
       const stuckJobs = await prisma.backgroundJob.findMany({
         where: {
           status: { in: ['running', 'pending'] },
-          started_at: { lt: stuckThreshold },
+          OR: [
+            // Running jobs with started_at older than threshold
+            { status: 'running', started_at: { lt: stuckThreshold } },
+            // Pending jobs that were never started - use created_at
+            { status: 'pending', created_at: { lt: stuckThreshold } },
+          ],
           ...(targetOrganizationId && { organization_id: targetOrganizationId })
         },
         select: {
           id: true,
           organization_id: true,
           job_type: true,
-          started_at: true
+          status: true,
+          started_at: true,
+          created_at: true,
+          payload: true,
         },
         take: maxScansToCleanup
       });
 
       for (const job of stuckJobs) {
         try {
-          const durationMinutes = job.started_at ? Math.floor((Date.now() - new Date(job.started_at).getTime()) / (1000 * 60)) : 0;
+          const referenceTime = job.started_at || job.created_at;
+          const durationMinutes = referenceTime ? Math.floor((Date.now() - new Date(referenceTime).getTime()) / (1000 * 60)) : 0;
           
           await prisma.backgroundJob.update({
             where: { id: job.id },
             data: {
               status: 'failed',
               completed_at: new Date(),
-              error: `Automated cleanup: Job was stuck for ${durationMinutes} minutes (threshold: ${thresholdMinutes} min)`
+              error: `Automated cleanup: Job was stuck in '${job.status}' for ${durationMinutes} minutes (threshold: ${thresholdMinutes} min)`
             }
           });
+
+          // Also mark associated scan as failed if payload contains scanId
+          const payload = job.payload as any;
+          if (payload?.scanId) {
+            await prisma.securityScan.update({
+              where: { id: payload.scanId },
+              data: {
+                status: 'failed',
+                completed_at: new Date(),
+                results: {
+                  error: `Automated cleanup: Background job was stuck in '${job.status}'`,
+                  cleanup_type: 'automated_scheduled_cleanup',
+                  duration_minutes: durationMinutes,
+                },
+              },
+            }).catch(() => {}); // Ignore if scan doesn't exist
+          }
 
           stats.scansUpdated++;
           
