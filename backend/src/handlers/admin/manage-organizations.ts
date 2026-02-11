@@ -21,11 +21,12 @@ import {
   ListUsersCommand,
   AdminUpdateUserAttributesCommand
 } from '@aws-sdk/client-cognito-identity-provider';
+import { syncOrganizationLicenses } from '../../lib/license-service.js';
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
 
 interface ManageOrganizationRequest {
-  action: 'list' | 'get' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'suspend' | 'unsuspend' | 'list_licenses' | 'list_seat_assignments' | 'release_seat';
+  action: 'list' | 'get' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'suspend' | 'unsuspend' | 'list_licenses' | 'list_seat_assignments' | 'release_seat' | 'update_license_config';
   id?: string;
   name?: string;
   slug?: string;
@@ -36,6 +37,10 @@ interface ManageOrganizationRequest {
   reason?: string; // Motivo da suspensão
   seat_assignment_id?: string; // ID da atribuição de assento para liberar
   license_id?: string; // ID da licença para filtrar atribuições
+  customer_id?: string; // Customer ID para configuração de licença
+  auto_sync?: boolean; // Auto sync de licença
+  trigger_sync?: boolean; // Disparar sincronização após atualizar config
+  contact_email?: string; // Email de contato da organização
 }
 
 function getOriginFromEvent(event: AuthorizedEvent): string {
@@ -434,6 +439,7 @@ export async function handler(
         const nameChanged = body.name && body.name !== existing.name;
         
         if (body.name) updateData.name = body.name;
+        if (body.contact_email !== undefined) updateData.contact_email = body.contact_email;
         if (body.slug) {
           // Check if new slug is unique
           const slugExists = await prisma.organization.findFirst({
@@ -1006,6 +1012,102 @@ export async function handler(
           released_user_id: seatAssignment.user_id,
           released_user_name: userProfile?.full_name || 'Unknown',
           license_id: seatAssignment.license_id
+        }, 200, origin);
+      }
+
+      case 'update_license_config': {
+        if (!body.id) {
+          return badRequest('Organization ID is required', undefined, origin);
+        }
+
+        const orgForLicenseConfig = await prisma.organization.findUnique({
+          where: { id: body.id }
+        });
+
+        if (!orgForLicenseConfig) {
+          return badRequest('Organization not found', undefined, origin);
+        }
+
+        if (!body.customer_id) {
+          return badRequest('customer_id is required', undefined, origin);
+        }
+
+        // Validate customer_id format (UUID)
+        const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+        if (!uuidRegex.test(body.customer_id)) {
+          return badRequest('Invalid customer_id format. Must be a valid UUID.', undefined, origin);
+        }
+
+        // Upsert license config
+        const licenseConfig = await prisma.organizationLicenseConfig.upsert({
+          where: { organization_id: body.id },
+          create: {
+            organization_id: body.id,
+            customer_id: body.customer_id,
+            auto_sync: body.auto_sync ?? true,
+            sync_status: 'pending',
+          },
+          update: {
+            customer_id: body.customer_id,
+            auto_sync: body.auto_sync ?? true,
+            sync_status: 'pending',
+            sync_error: null,
+          },
+        });
+
+        // Registrar no audit log
+        await prisma.auditLog.create({
+          data: {
+            id: randomUUID(),
+            organization_id: body.id,
+            user_id: user.sub || user.id || 'system',
+            action: 'SETTINGS_UPDATE',
+            resource_type: 'organization_license_config',
+            resource_id: licenseConfig.id,
+            details: {
+              customer_id: body.customer_id,
+              auto_sync: body.auto_sync ?? true,
+              updated_by: user.email || user.sub,
+              trigger_sync: body.trigger_sync ?? false
+            },
+            ip_address: event.requestContext?.identity?.sourceIp || 'unknown',
+            user_agent: event.headers?.['user-agent'] || 'unknown'
+          }
+        });
+
+        logger.info('License config updated by super admin', {
+          organizationId: body.id,
+          customerId: body.customer_id,
+          autoSync: body.auto_sync,
+          triggerSync: body.trigger_sync,
+          updatedBy: user.sub || user.id,
+        });
+
+        // Trigger sync if requested
+        let syncResult = null;
+        if (body.trigger_sync) {
+          try {
+            syncResult = await syncOrganizationLicenses(body.id);
+            logger.info('License sync triggered by super admin', {
+              organizationId: body.id,
+              syncResult,
+            });
+          } catch (syncErr) {
+            logger.error('License sync failed', syncErr, { organizationId: body.id });
+            syncResult = { success: false, error: 'Sync failed' };
+          }
+        }
+
+        return success({
+          message: 'License configuration updated successfully',
+          config: {
+            customer_id: licenseConfig.customer_id,
+            auto_sync: licenseConfig.auto_sync,
+            last_sync_at: licenseConfig.last_sync_at,
+            sync_status: licenseConfig.sync_status,
+            sync_error: licenseConfig.sync_error,
+          },
+          sync_result: syncResult,
         }, 200, origin);
       }
 

@@ -164,7 +164,7 @@ export const DEMO_PAGE_DESCRIPTIONS: Record<string, { title: string; description
     ]
   },
   '/cloudtrail-audit': {
-    title: 'CloudTrail Analysis',
+    title: 'Audit Logs Analysis',
     description: 'Análise de eventos de auditoria com detecção de anomalias.',
     features: [
       'Timeline de eventos por usuário',

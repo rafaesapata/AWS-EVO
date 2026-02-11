@@ -3359,7 +3359,18 @@
     "suspendReasonPlaceholder": "Reason for suspension...",
     "unsuspendReasonPlaceholder": "Reason for reactivation...",
     "suspend": "Suspend",
-    "unsuspend": "Reactivate"
+    "unsuspend": "Reactivate",
+    "saveAndSync": "Save and Sync",
+    "customerIdHelp": "Customer UUID in the external licensing system",
+    "autoSync": "Auto Sync",
+    "autoSyncHelp": "Automatically sync licenses with the external server",
+    "syncError": "Sync Error",
+    "licenseConfigUpdated": "License configuration updated",
+    "licenseConfigSynced": "Configuration saved and sync triggered.",
+    "licenseConfigSaved": "Configuration saved successfully.",
+    "licenseConfigError": "Error updating license configuration",
+    "noLicenseHint": "Set the Customer ID above and sync to link a license",
+    "licenseExpired": "This license has expired"
   },
   "resourceMonitoring": {
     "title": "Resource Monitoring",

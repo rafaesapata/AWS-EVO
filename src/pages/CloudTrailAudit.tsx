@@ -144,7 +144,7 @@ export default function CloudTrailAudit() {
         const regions = ['us-east-1', 'us-west-2', 'eu-west-1', 'sa-east-1'];
         const riskLevels: Array<'critical' | 'medium' | 'high' | 'low'> = ['critical', 'high', 'medium', 'low'];
         const riskReasons: Record<string, string[]> = {
-          critical: ['Root account used', 'Security group opened to 0.0.0.0/0', 'CloudTrail disabled'],
+          critical: ['Root account used', 'Security group opened to 0.0.0.0/0', 'Audit logging disabled'],
           high: ['Access key created for root', 'IAM policy detached', 'Bucket policy changed to public'],
           medium: ['Console login without MFA', 'New IAM user created', 'Cross-account AssumeRole'],
           low: ['Normal API call', 'Read-only operation', 'Routine instance management'],
@@ -503,8 +503,8 @@ export default function CloudTrailAudit() {
 
   return (
     <Layout 
-      title={t('sidebar.cloudTrailAudit', 'Auditoria CloudTrail')} 
-      description={t('cloudTrailAudit.description', 'Análise de eventos AWS com identificação de usuários responsáveis por problemas de segurança')}
+      title={t('sidebar.cloudTrailAudit', 'Auditoria de Logs')} 
+      description={t('cloudTrailAudit.description', 'Análise de eventos de auditoria com identificação de usuários responsáveis por problemas de segurança')}
       icon={<FileText className="h-4 w-4" />}
     >
       {/* Reprocess Confirmation Dialog */}

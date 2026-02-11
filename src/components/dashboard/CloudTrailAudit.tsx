@@ -232,7 +232,7 @@ const CloudTrailAudit = () => {
       const requestedEvents = parseInt(maxEvents);
       
       toast.info("Conectando à AWS", {
-        description: `Buscando até ${requestedEvents} eventos do CloudTrail...`,
+        description: `Buscando até ${requestedEvents} eventos dos logs de auditoria...`,
       });
 
       const result = await apiClient.invoke('fetch-cloudtrail', {
@@ -342,10 +342,10 @@ const CloudTrailAudit = () => {
             <div>
               <div className="flex items-center gap-2">
                 <Shield className="h-6 w-6 text-primary" />
-                <CardTitle className="text-2xl">Auditoria CloudTrail</CardTitle>
+                <CardTitle className="text-2xl">Logs de Auditoria</CardTitle>
               </div>
               <CardDescription className="mt-2">
-                Análise de segurança de eventos AWS CloudTrail com inteligência artificial
+                Análise de segurança de eventos de auditoria com inteligência artificial
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
@@ -468,7 +468,7 @@ const CloudTrailAudit = () => {
                 <div className="text-center text-muted-foreground">
                   <AlertTriangle className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>Nenhum achado encontrado</p>
-                  <p className="text-sm">Clique em "Iniciar Auditoria" para analisar eventos do CloudTrail</p>
+                  <p className="text-sm">Clique em "Iniciar Auditoria" para analisar eventos dos logs de auditoria</p>
                 </div>
               </CardContent>
             </Card>
@@ -573,7 +573,7 @@ const CloudTrailAudit = () => {
                   Top 10 Usuários Mais Ativos
                 </CardTitle>
                 <CardDescription>
-                  Ranking de usuários com mais interações nos eventos CloudTrail analisados
+                  Ranking de usuários com mais interações nos eventos de auditoria analisados
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -802,7 +802,7 @@ const CloudTrailAudit = () => {
               Detalhes do Achado
             </DialogTitle>
             <DialogDescription>
-              Informações completas do evento CloudTrail
+              Informações completas do evento de auditoria
             </DialogDescription>
           </DialogHeader>
           {selectedFinding && (

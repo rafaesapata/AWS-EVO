@@ -342,6 +342,57 @@ export function useSyncLicense(organizationId: string | undefined) {
   });
 }
 
+// Update license config mutation (super admin)
+export function useUpdateLicenseConfig(onSuccess: () => void) {
+  const { toast } = useToast();
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ organizationId, customer_id, auto_sync, trigger_sync }: {
+      organizationId: string;
+      customer_id: string;
+      auto_sync: boolean;
+      trigger_sync: boolean;
+    }) => {
+      const response = await apiClient.invoke('manage-organizations', {
+        body: {
+          action: 'update_license_config',
+          id: organizationId,
+          customer_id,
+          auto_sync,
+          trigger_sync,
+        }
+      });
+
+      if ('error' in response && response.error) {
+        throw new Error(getErrorMessage(response.error));
+      }
+
+      return response.data;
+    },
+    onSuccess: (data, variables) => {
+      toast({
+        title: t('organizations.licenseConfigUpdated', 'Configuração de licença atualizada'),
+        description: variables.trigger_sync
+          ? t('organizations.licenseConfigSynced', 'Configuração salva e sincronização disparada.')
+          : t('organizations.licenseConfigSaved', 'Configuração salva com sucesso.'),
+      });
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['organization-details', variables.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['organization-licenses', variables.organizationId] });
+      onSuccess();
+    },
+    onError: (error) => {
+      toast({
+        title: t('organizations.licenseConfigError', 'Erro ao atualizar configuração de licença'),
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Erro desconhecido'),
+        variant: "destructive"
+      });
+    }
+  });
+}
+
 // Release seat mutation
 export function useReleaseSeat(organizationId: string | undefined, onSuccess: () => void) {
   const { toast } = useToast();

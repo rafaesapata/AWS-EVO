@@ -77,7 +77,7 @@ export const MENU_ITEMS: MenuItem[] = [
     requiresSuperAdmin: false,
     subItems: [
       { name: 'Security Scans', value: 'scans', route: '/security-scans', hasSubItems: false, requiresSuperAdmin: false },
-      { name: 'CloudTrail Audit', value: 'cloudtrail-audit', route: '/cloudtrail-audit', hasSubItems: false, requiresSuperAdmin: false },
+      { name: 'Audit Logs', value: 'cloudtrail-audit', route: '/cloudtrail-audit', hasSubItems: false, requiresSuperAdmin: false },
       { name: 'Compliance', value: 'compliance', route: '/compliance', hasSubItems: false, requiresSuperAdmin: false },
       { name: 'Well-Architected', value: 'well-architected', route: '/well-architected', hasSubItems: false, requiresSuperAdmin: false },
       { name: 'AWS Security Analysis', value: 'security-analysis', route: '/app?tab=security-analysis', hasSubItems: false, requiresSuperAdmin: false },

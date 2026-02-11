@@ -134,7 +134,7 @@ export const LazyFindingsTable = withLazyLoading(
 
 export const LazyCloudTrailAudit = withLazyLoading(
   () => import('@/components/dashboard/CloudTrailAudit'),
-  'CloudTrail Audit'
+  'Audit Logs'
 );
 
 // Lazy loaded admin components

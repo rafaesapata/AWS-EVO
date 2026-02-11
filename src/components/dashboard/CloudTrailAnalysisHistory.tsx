@@ -138,7 +138,7 @@ export const CloudTrailAnalysisHistory = ({ organizationId, accountId, onViewAna
           <div>
             <CardTitle className="flex items-center gap-2">
               <History className="h-5 w-5" />
-              Histórico de Análises CloudTrail
+              Histórico de Análises de Logs de Auditoria
             </CardTitle>
             <CardDescription>Evolução dos eventos de segurança ao longo do tempo</CardDescription>
           </div>
