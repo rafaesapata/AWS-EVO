@@ -64,12 +64,27 @@ MyFunction:
       External:
         - '@prisma/client'
         - '.prisma/client'
+        - '@aws-sdk/*'
 ```
 
 ### External Dependencies
-Pacotes no `External` são excluídos do bundle e carregados da Layer:
+Pacotes no `External` são excluídos do bundle e carregados da Layer ou do runtime:
 - `@prisma/client` - Prisma Client (na layer)
 - `.prisma/client` - Prisma Engine binaries (na layer)
+- `@aws-sdk/*` - AWS SDK v3 (excluído do bundle, resolvido pelo SAM build)
+
+### ⚠️ IMPORTANTE: Deploy FULL_SAM vs INCREMENTAL
+
+O `@aws-sdk/*` no External funciona corretamente APENAS quando o deploy é feito via **FULL_SAM** (esbuild bundling pelo SAM). O SAM resolve as dependências externas corretamente.
+
+Quando o deploy é **INCREMENTAL** (copia .js compilados sem esbuild), os pacotes `@aws-sdk/*` NÃO são incluídos no ZIP e o Node.js 20.x runtime NÃO os fornece nativamente. Isso causa `Runtime.ImportModuleError: Cannot find module '@aws-sdk/client-*'`.
+
+**Como identificar o problema:**
+- Lambda com CodeSize pequeno (~40KB) = deploy incremental (quebrado se usa AWS SDK)
+- Lambda com CodeSize grande (~1-2MB) = deploy via SAM/esbuild (correto)
+
+**Como corrigir:**
+Forçar FULL_SAM deploy alterando o `sam/production-lambdas-only.yaml` (ex: bump da Description) junto com a mudança no handler. Isso garante que o CI/CD use SAM build com esbuild.
 
 ---
 
@@ -108,4 +123,4 @@ generator client {
 
 ---
 
-**Última atualização:** 2026-02-03
+**Última atualização:** 2026-02-11

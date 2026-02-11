@@ -109,6 +109,11 @@ aws lambda invoke \
 **Causa:** Handler path incorreto
 **Solução:** Verificar e corrigir handler path
 
+### Erro "Cannot find module '@aws-sdk/client-*'"
+**Causa:** Lambda deployada via INCREMENTAL (copia .js sem esbuild bundling). O `@aws-sdk/*` está no External do SAM, então o esbuild o exclui do bundle. No deploy incremental, os .js compilados fazem `require('@aws-sdk/...')` mas o SDK não está no ZIP nem no runtime Node.js 20.x.
+**Diagnóstico:** Verificar CodeSize da lambda — se ~40KB, foi deploy incremental. Se ~1-2MB, foi SAM/esbuild.
+**Solução:** Forçar FULL_SAM deploy: alterar `sam/production-lambdas-only.yaml` (ex: bump Description) + handler. O CI/CD detecta mudança no SAM template e faz rebuild completo com esbuild.
+
 ### Erro "Azure SDK not installed"
 **Causa:** Layer sem pacotes Azure
 **Solução:** Usar layer 91 (com Azure SDK + jsonwebtoken + lodash)
@@ -176,4 +181,4 @@ aws lambda publish-layer-version --layer-name evo-prisma-deps-layer --content S3
 
 ---
 
-**Última atualização:** 2026-02-03
+**Última atualização:** 2026-02-11
