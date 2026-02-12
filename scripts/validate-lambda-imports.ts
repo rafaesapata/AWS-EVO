@@ -32,14 +32,6 @@ export interface ImportInfo {
   line: number;
 }
 
-export interface ResolvedImport {
-  sourcePath: string;
-  importPath: string;
-  resolvedPath: string | null;
-  line: number;
-  exists: boolean;
-}
-
 export interface DependencyGraph {
   [handlerPath: string]: string[];
 }
@@ -143,16 +135,42 @@ function walkDirectory(dir: string): string[] {
 // Import Extraction
 // ---------------------------------------------------------------------------
 
+// Regex patterns (compiled once, reused across calls)
+const IMPORT_FROM_REGEX = /import\s+.*?\s+from\s+['"](.+?)['"]/;
+const REQUIRE_REGEX = /require\(\s*['"](.+?)['"]\s*\)/;
+const SHELL_CHARS_REGEX = /[|>\s${}]/;
+
+/** Minimum number of domains that must use a lib for it to be classified as "shared" */
+const MIN_SHARED_DOMAIN_COUNT = 3;
+
+/** Convert .js extension to .ts (project convention: CommonJS with .js imports mapping to .ts sources) */
+function jsToTs(importPath: string): string {
+  return importPath.endsWith('.js') ? importPath.slice(0, -3) + '.ts' : importPath;
+}
+
+/** Extract the import/require path from a line, or null if none found. */
+function matchImportPath(line: string): string | null {
+  const importMatch = line.match(IMPORT_FROM_REGEX);
+  if (importMatch) return importMatch[1];
+  const requireMatch = line.match(REQUIRE_REGEX);
+  if (requireMatch) return requireMatch[1];
+  return null;
+}
+
+function isRelativeImport(importPath: string): boolean {
+  return importPath.startsWith('./') || importPath.startsWith('../');
+}
+
+function isCommentLine(line: string): boolean {
+  const trimmed = line.trimStart();
+  return trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*');
+}
+
 export function extractImports(filePath: string): ImportInfo[] {
   const absolutePath = resolve(filePath);
   const content = readFileSync(absolutePath, 'utf-8');
   const lines = content.split('\n');
   const results: ImportInfo[] = [];
-
-  // Match: import ... from '...' or import ... from "..."
-  const importFromRegex = /import\s+.*?\s+from\s+['"](.+?)['"]/;
-  // Match: require('...') or require("...")
-  const requireRegex = /require\(\s*['"](.+?)['"]\s*\)/;
 
   let inTemplateLiteral = false;
 
@@ -167,46 +185,23 @@ export function extractImports(filePath: string): ImportInfo[] {
     }
     if (backtickCount % 2 === 1) {
       inTemplateLiteral = true;
-      // Still check this line for imports before the backtick
-      // but only if the import appears before the opening backtick
+      // Check for imports before the opening backtick on this line
       const backtickIdx = line.indexOf('`');
-      const importMatch = line.match(importFromRegex);
-      const requireMatch = line.match(requireRegex);
-      const matchIdx = importMatch ? line.indexOf(importMatch[0]) : (requireMatch ? line.indexOf(requireMatch[0]) : -1);
-      if (matchIdx >= 0 && matchIdx < backtickIdx) {
-        const importPath = importMatch ? importMatch[1] : requireMatch![1];
-        if (importPath.startsWith('./') || importPath.startsWith('../')) {
+      const importPath = matchImportPath(line);
+      if (importPath && isRelativeImport(importPath)) {
+        const matchIdx = line.indexOf(importPath);
+        if (matchIdx >= 0 && matchIdx < backtickIdx) {
           results.push({ sourcePath: absolutePath, importPath, line: i + 1 });
         }
       }
       continue;
     }
 
-    // Skip comment lines
-    const trimmed = line.trimStart();
-    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+    if (isCommentLine(line)) continue;
 
-    let importPath: string | null = null;
-
-    const importMatch = line.match(importFromRegex);
-    if (importMatch) {
-      importPath = importMatch[1];
-    } else {
-      const requireMatch = line.match(requireRegex);
-      if (requireMatch) {
-        importPath = requireMatch[1];
-      }
-    }
-
-    if (importPath && (importPath.startsWith('./') || importPath.startsWith('../'))) {
-      // Validate: import path should not contain pipe, space, or other shell characters
-      if (/[|>\s${}]/.test(importPath)) continue;
-
-      results.push({
-        sourcePath: absolutePath,
-        importPath,
-        line: i + 1,
-      });
+    const importPath = matchImportPath(line);
+    if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
+      results.push({ sourcePath: absolutePath, importPath, line: i + 1 });
     }
   }
 
@@ -221,9 +216,7 @@ export function resolveImport(sourceDir: string, importPath: string): string | n
   let candidate = importPath;
 
   // Step 1: Replace .js extension with .ts
-  if (candidate.endsWith('.js')) {
-    candidate = candidate.slice(0, -3) + '.ts';
-  }
+  candidate = jsToTs(candidate);
 
   // Step 2: Resolve to absolute path
   const absolutePath = resolve(sourceDir, candidate);
@@ -290,10 +283,7 @@ export function buildDependencyGraph(
           }
         } else {
           // Broken import — compute resolvedAttempt
-          let attempt = imp.importPath;
-          if (attempt.endsWith('.js')) {
-            attempt = attempt.slice(0, -3) + '.ts';
-          }
+          const attempt = jsToTs(imp.importPath);
           const resolvedAttempt = resolve(sourceDir, attempt);
 
           brokenImports.push({
@@ -522,10 +512,10 @@ export function updateDomainMap(graph: DependencyGraph, domainMapPath: string): 
     }
   }
 
-  // Step 4: Compute shared libs (used by 3+ domains)
+  // Step 4: Compute shared libs (used by MIN_SHARED_DOMAIN_COUNT+ domains)
   const sharedLibs: string[] = [];
   for (const [lib, domains] of libDomainUsage.entries()) {
-    if (domains.size >= 3) {
+    if (domains.size >= MIN_SHARED_DOMAIN_COUNT) {
       sharedLibs.push(lib);
     }
   }
