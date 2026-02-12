@@ -280,7 +280,7 @@ CREATE TABLE user_sessions (
 1. **MFA Control**: Always use local database, never rely on Cognito MFA settings
 2. **Organization Isolation**: Validate UUID format and filter all queries
 3. **Token Security**: Implement proper JWT validation with revocation checks
-4. **WebAuthn rpId**: Always use "evo.ai.udstec.io" as the relying party identifier
+4. **WebAuthn rpId**: Always use "evo.nuevacore.com" as the relying party identifier
 5. **Session Management**: Secure storage with automatic cleanup of expired sessions
 
 ### Performance Optimizations

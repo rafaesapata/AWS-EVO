@@ -311,7 +311,7 @@ aws cloudfront create-invalidation --distribution-id E1PY7U3VNT6P1R --paths "/*"
 **Commands:**
 ```bash
 # Test via API
-curl -X POST https://api-evo.ai.udstec.io/api/functions/ml-waste-detection \
+curl -X POST https://api-evo.nuevacore.com/api/functions/ml-waste-detection \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"accountId": "uuid-here"}'

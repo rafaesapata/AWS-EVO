@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://api-evo.ai.udstec.io",
+      "url": "https://api-evo.nuevacore.com",
       "description": "Production"
     },
     {

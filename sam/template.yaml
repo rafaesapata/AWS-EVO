@@ -34,6 +34,8 @@ Globals:
         AZURE_OAUTH_CLIENT_ID: !Ref AzureOAuthClientId
         AZURE_OAUTH_CLIENT_SECRET: !Ref AzureOAuthClientSecret
         AZURE_OAUTH_REDIRECT_URI: !Ref AzureOAuthRedirectUri
+        APP_DOMAIN: !Ref AppDomain
+        API_DOMAIN: !Sub 'api-${AppDomain}'
     Layers:
       - !Ref DependenciesLayer
 
@@ -90,7 +92,11 @@ Parameters:
   AzureOAuthRedirectUri:
     Type: String
     Description: Azure OAuth redirect URI
-    Default: 'https://evo.ai.udstec.io/azure/callback'
+    Default: 'https://evo.nuevacore.com/azure/callback'
+  AppDomain:
+    Type: String
+    Description: Base application domain (e.g., evo.nuevacore.com)
+    Default: 'evo.nuevacore.com'
 
 Resources:
   # Lambda Layer - Prisma + Zod

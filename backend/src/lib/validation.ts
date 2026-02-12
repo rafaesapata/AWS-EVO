@@ -7,6 +7,7 @@ import * as crypto from 'crypto';
 import { z } from 'zod';
 import { badRequest } from './response.js';
 import type { APIGatewayProxyResultV2 } from '../types/lambda.js';
+import { getAppUrl } from './app-domain.js';
 
 // ============================================================================
 // REGEX PATTERNS DE SEGURANÇA
@@ -434,7 +435,7 @@ export function parseAndValidateBody<T>(
     const maliciousCheck = detectMaliciousPatterns(bodyStr);
     if (maliciousCheck.isMalicious) {
       // Use allowed origins from environment or default to production domain
-      const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://evo.ai.udstec.io').split(',');
+      const allowedOrigins = (process.env.ALLOWED_ORIGINS || getAppUrl()).split(',');
       const defaultOrigin = allowedOrigins[0];
       
       return {

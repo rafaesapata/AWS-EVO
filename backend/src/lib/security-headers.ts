@@ -291,8 +291,6 @@ export const SECURE_CORS_CONFIG: CORSConfig = {
       'https://evo.sandbox.nuevacore.com',
       'https://api.evo.sandbox.nuevacore.com',
       'https://dikd2ie8x3ihv.cloudfront.net',
-      'https://evo.ai.udstec.io',
-      'https://api-evo.ai.udstec.io',
     ] : []),
   ],
   allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

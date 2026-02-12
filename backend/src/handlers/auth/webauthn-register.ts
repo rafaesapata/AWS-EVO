@@ -4,6 +4,7 @@ import { success, error as errorResponse, corsOptions, badRequest } from '../../
 import { getPrismaClient } from '../../lib/database.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { getWebAuthnRpId } from '../../lib/app-domain.js';
 import * as crypto from 'crypto';
 
 interface RegistrationRequest {
@@ -98,7 +99,7 @@ async function generateChallenge(
     });
 
     // Gerar opções de registro
-    const rpId = process.env.WEBAUTHN_RP_ID || 'evo.ai.udstec.io';
+    const rpId = getWebAuthnRpId();
     const rpName = process.env.WEBAUTHN_RP_NAME || 'EVO UDS Platform';
 
     const registrationOptions = {

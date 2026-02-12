@@ -237,28 +237,28 @@ describe('State Expiration', () => {
 
 describe('Redirect URI Validation', () => {
   const allowedUris = [
-    'https://evo.ai.udstec.io/azure/callback',
+    'https://evo.nuevacore.com/azure/callback',
     'http://localhost:5173/azure/callback',
   ];
 
   it('should allow whitelisted URIs', () => {
-    expect(isRedirectUriAllowed('https://evo.ai.udstec.io/azure/callback', allowedUris)).toBe(true);
+    expect(isRedirectUriAllowed('https://evo.nuevacore.com/azure/callback', allowedUris)).toBe(true);
     expect(isRedirectUriAllowed('http://localhost:5173/azure/callback', allowedUris)).toBe(true);
   });
 
   it('should reject non-whitelisted URIs', () => {
     expect(isRedirectUriAllowed('https://evil.com/callback', allowedUris)).toBe(false);
-    expect(isRedirectUriAllowed('https://evo.ai.udstec.io/other/callback', allowedUris)).toBe(false);
+    expect(isRedirectUriAllowed('https://evo.nuevacore.com/other/callback', allowedUris)).toBe(false);
   });
 
   it('should reject similar but different URIs', () => {
     // Trailing slash difference
-    expect(isRedirectUriAllowed('https://evo.ai.udstec.io/azure/callback/', allowedUris)).toBe(false);
+    expect(isRedirectUriAllowed('https://evo.nuevacore.com/azure/callback/', allowedUris)).toBe(false);
     
     // Protocol difference
-    expect(isRedirectUriAllowed('http://evo.ai.udstec.io/azure/callback', allowedUris)).toBe(false);
+    expect(isRedirectUriAllowed('http://evo.nuevacore.com/azure/callback', allowedUris)).toBe(false);
     
     // Case difference
-    expect(isRedirectUriAllowed('https://EVO.AI.UDSTEC.IO/azure/callback', allowedUris)).toBe(false);
+    expect(isRedirectUriAllowed('https://EVO.NUEVACORE.COM/azure/callback', allowedUris)).toBe(false);
   });
 });

@@ -17,6 +17,8 @@ export default defineConfig({
       COGNITO_CLIENT_ID: process.env.CYPRESS_COGNITO_CLIENT_ID || '6gls4r44u96v6o0mkm1l6sbmgd',
       TEST_USER_EMAIL: process.env.CYPRESS_TEST_USER_EMAIL || '',
       TEST_USER_PASSWORD: process.env.CYPRESS_TEST_USER_PASSWORD || '',
+      FRONTEND_URL: process.env.CYPRESS_FRONTEND_URL || 'https://evo.nuevacore.com',
+      API_BASE_URL: process.env.CYPRESS_API_URL || 'https://api.evo.nuevacore.com',
     },
   },
 });

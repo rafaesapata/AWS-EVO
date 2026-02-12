@@ -13,13 +13,14 @@
 import { ZodSchema, ZodObject, ZodString, ZodNumber, ZodBoolean, ZodArray, ZodEnum, ZodOptional, ZodDefault, ZodUnion, ZodNullable, ZodLiteral } from 'zod';
 import * as schemas from './schemas.js';
 import { VERSION } from './version.js';
+import { getApiUrl } from './app-domain.js';
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const API_BASE_PATH = '/api/functions';
-const PRODUCTION_URL = 'https://api-evo.ai.udstec.io';
+const PRODUCTION_URL = getApiUrl();
 const LOCAL_URL = 'http://localhost:3000';
 const OPENAPI_VERSION = '3.0.3';
 const API_TITLE = 'EVO Platform API';

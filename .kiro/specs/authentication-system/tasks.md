@@ -50,7 +50,7 @@ Implementação do sistema de autenticação híbrido que combina AWS Cognito co
     - _Requirements: 2.3, 2.5_
 
 - [ ] 4. Corrigir fluxo WebAuthn existente
-  - [ ] 4.1 Verificar configuração rpId para evo.ai.udstec.io
+  - [ ] 4.1 Verificar configuração rpId para evo.nuevacore.com
     - Garantir que todas as chamadas WebAuthn usem rpId correto
     - Limpar credenciais antigas com rpId incorreto
     - _Requirements: 3.5_
@@ -160,5 +160,5 @@ Implementação do sistema de autenticação híbrido que combina AWS Cognito co
 - Checkpoints garantem validação incremental
 - Foco em segurança e isolamento de dados por organização
 - **CRÍTICO**: MFA é controlado localmente, não via Cognito
-- **CRÍTICO**: WebAuthn deve usar rpId "evo.ai.udstec.io"
+- **CRÍTICO**: WebAuthn deve usar rpId "evo.nuevacore.com"
 - **CRÍTICO**: Todas as queries devem filtrar por organization_id

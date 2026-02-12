@@ -3377,6 +3377,8 @@
     "activityMonitoring": "Monitoramento de Atividades",
     "activityMonitoringDesc": "Logs de auditoria, alertas",
     "disconnect": "Desconectar",
+    "reconnect": "Reconectar",
+    "refreshErrorMessage": "Conexão expirada. Reconecte sua conta Azure.",
     "connectedAs": "Conectado como",
     "subscriptionsFound": "{{count}} assinaturas encontradas",
     "deselectAll": "Desmarcar Todas",

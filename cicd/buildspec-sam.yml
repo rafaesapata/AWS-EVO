@@ -84,7 +84,8 @@ phases:
           export LAMBDA_PREFIX="evo-uds-v3-production"
           export PUBLIC_TEMPLATES_BUCKET="evo-public-templates-523115032346"
           export AZURE_OAUTH_CLIENT_ID="cb8027cd-877e-458a-8f46-b090312f79aa"
-          export AZURE_OAUTH_REDIRECT_URI="https://evo.ai.udstec.io/azure/callback"
+          export AZURE_OAUTH_REDIRECT_URI="https://evo.nuevacore.com/azure/callback"
+          export APP_DOMAIN="evo.nuevacore.com"
         else
           export STACK_NAME="evo-uds-v3-sandbox-lambdas"
           export COGNITO_USER_POOL_ID="us-east-1_HPU98xnmT"
@@ -99,7 +100,8 @@ phases:
           export S3_BUCKET="evo-sam-artifacts-971354623291"
           export LAMBDA_PREFIX="evo-uds-v3-sandbox"
           export AZURE_OAUTH_CLIENT_ID="cb8027cd-877e-458a-8f46-b090312f79aa"
-          export AZURE_OAUTH_REDIRECT_URI="https://evo.ai.udstec.io/azure/callback"
+          export AZURE_OAUTH_REDIRECT_URI="https://evo.nuevacore.com/azure/callback"
+          export APP_DOMAIN="evo.nuevacore.com"
         fi
       - echo "Environment $ENV | Stack $STACK_NAME"
       # Fetch Azure OAuth Client Secret from SSM Parameter Store (secret not stored in code)
@@ -290,7 +292,8 @@ phases:
               PrivateSubnet2Id=$PRIVATE_SUBNET_2 \
               AzureOAuthClientId=$AZURE_OAUTH_CLIENT_ID \
               AzureOAuthClientSecret=$AZURE_OAUTH_CLIENT_SECRET \
-              AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI
+              AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI \
+              TokenEncryptionKey=$TOKEN_ENCRYPTION_KEY
 
         elif [ "$DEPLOY_HANDLERS" = "true" ]; then
           echo "=== INCREMENTAL LAMBDA DEPLOY ==="

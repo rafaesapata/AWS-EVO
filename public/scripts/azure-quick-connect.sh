@@ -260,4 +260,4 @@ echo -e "${GREEN}✓ Credenciais salvas em ${OUTPUT_FILE}${NC}"
 
 echo -e "\n${GREEN}✅ Configuração concluída com sucesso!${NC}"
 echo -e "\nAgora você pode usar estas credenciais na plataforma EVO."
-echo -e "Acesse: ${CYAN}https://evo.ai.udstec.io/cloud-accounts${NC}\n"
+echo -e "Acesse: ${CYAN}https://evo.nuevacore.com/cloud-accounts${NC}\n"

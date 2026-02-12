@@ -64,8 +64,8 @@ export const environments: Record<EnvironmentName, EnvironmentConfig> = {
     profile: 'EVO_SANDBOX',
     
     // Domínios de desenvolvimento
-    domain: 'dev-evo.ai.udstec.io',
-    apiDomain: 'api-dev-evo.ai.udstec.io',
+    domain: 'dev-evo.nuevacore.com',
+    apiDomain: 'api-dev-evo.nuevacore.com',
     
     // Cognito existente (desenvolvimento)
     cognito: {

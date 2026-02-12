@@ -12,14 +12,10 @@ import { getOrigin } from '../../lib/middleware.js';
 import { sanitizeStringAdvanced, parseAndValidateBody } from '../../lib/validation.js';
 import { sendEmailSchema } from '../../lib/schemas.js';
 import { z } from 'zod';
+import { getAllowedResetDomains } from '../../lib/app-domain.js';
 
 // Allowed domains for password reset URLs
-const ALLOWED_RESET_DOMAINS = [
-  'evo.ai.udstec.io',
-  'api-evo.ai.udstec.io',
-  'localhost',
-  process.env.ALLOWED_RESET_DOMAIN
-].filter(Boolean) as string[];
+const ALLOWED_RESET_DOMAINS = getAllowedResetDomains();
 
 // Rate limits by email type
 const EMAIL_RATE_LIMITS: Record<string, { type: 'default' | 'auth' | 'sensitive' | 'export' }> = {

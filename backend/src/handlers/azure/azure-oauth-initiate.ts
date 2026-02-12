@@ -28,10 +28,11 @@ import {
   calculateStateExpiration,
   getAllowedRedirectUris,
 } from '../../lib/oauth-utils.js';
+import { getAzureOAuthRedirectUri } from '../../lib/app-domain.js';
 
 // OAuth configuration from environment
 const AZURE_OAUTH_CLIENT_ID = process.env.AZURE_OAUTH_CLIENT_ID;
-const AZURE_OAUTH_REDIRECT_URI = process.env.AZURE_OAUTH_REDIRECT_URI || 'https://evo.nuevacore.com/azure/callback';
+const AZURE_OAUTH_REDIRECT_URI = getAzureOAuthRedirectUri();
 
 // Rate limiting configuration
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour

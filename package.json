@@ -20,7 +20,18 @@
     "e2e:ai": "cypress run --spec 'cypress/e2e/domains/ai.cy.ts'",
     "e2e:operations": "cypress run --spec 'cypress/e2e/domains/operations.cy.ts'",
     "e2e:integrations": "cypress run --spec 'cypress/e2e/domains/integrations.cy.ts'",
-    "e2e:critical": "cypress run --spec 'cypress/e2e/05-critical-lambdas.cy.ts'"
+    "e2e:critical": "cypress run --spec 'cypress/e2e/05-critical-lambdas.cy.ts'",
+    "e2e:frontend": "cypress run --spec 'cypress/e2e/frontend/**/*.cy.ts'",
+    "e2e:frontend:auth": "cypress run --spec 'cypress/e2e/frontend/01-auth-flow.cy.ts'",
+    "e2e:frontend:pages": "cypress run --spec 'cypress/e2e/frontend/02-page-health-all.cy.ts'",
+    "e2e:frontend:dashboard": "cypress run --spec 'cypress/e2e/frontend/03-dashboard.cy.ts'",
+    "e2e:frontend:security": "cypress run --spec 'cypress/e2e/frontend/04-security-domain.cy.ts'",
+    "e2e:frontend:cost": "cypress run --spec 'cypress/e2e/frontend/05-cost-domain.cy.ts'",
+    "e2e:frontend:monitoring": "cypress run --spec 'cypress/e2e/frontend/06-monitoring-domain.cy.ts'",
+    "e2e:frontend:cloud": "cypress run --spec 'cypress/e2e/frontend/07-cloud-domain.cy.ts'",
+    "e2e:frontend:ai": "cypress run --spec 'cypress/e2e/frontend/08-ai-domain.cy.ts'",
+    "e2e:frontend:operations": "cypress run --spec 'cypress/e2e/frontend/09-operations-domain.cy.ts'",
+    "e2e:frontend:integrations": "cypress run --spec 'cypress/e2e/frontend/10-integrations-domain.cy.ts'"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.958.0",

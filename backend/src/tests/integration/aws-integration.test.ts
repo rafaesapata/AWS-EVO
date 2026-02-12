@@ -182,7 +182,7 @@ describeIntegration('Database Integration Tests', () => {
 });
 
 describeIntegration('API Gateway Integration Tests', () => {
-  const API_BASE_URL = process.env.API_BASE_URL || 'https://api-evo.ai.udstec.io';
+  const API_BASE_URL = process.env.API_BASE_URL || 'https://api-evo.nuevacore.com';
 
   describe('Health Check Endpoints', () => {
     it('should respond to health check', async () => {
@@ -201,7 +201,7 @@ describeIntegration('API Gateway Integration Tests', () => {
       const response = await fetch(`${API_BASE_URL}/api/functions/health-check`, {
         method: 'OPTIONS',
         headers: {
-          'Origin': 'https://evo.ai.udstec.io',
+          'Origin': 'https://evo.nuevacore.com',
           'Access-Control-Request-Method': 'POST',
         },
       });
@@ -237,7 +237,7 @@ describeIntegration('API Gateway Integration Tests', () => {
 });
 
 describeIntegration('Rate Limiting Integration Tests', () => {
-  const API_BASE_URL = process.env.API_BASE_URL || 'https://api-evo.ai.udstec.io';
+  const API_BASE_URL = process.env.API_BASE_URL || 'https://api-evo.nuevacore.com';
 
   it('should enforce rate limits on rapid requests', async () => {
     const requests = [];

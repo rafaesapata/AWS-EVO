@@ -278,7 +278,7 @@ All core phases completed successfully. Military-grade audit performed and all i
 9. `evo-uds-v3-production-list-cloud-credentials`
 
 ### API Gateway Endpoints (2026-01-12)
-All endpoints under `https://api-evo.ai.udstec.io/api/functions/`:
+All endpoints under `https://api-evo.nuevacore.com/api/functions/`:
 - `/validate-azure-credentials` (POST)
 - `/save-azure-credentials` (POST)
 - `/list-azure-credentials` (POST)

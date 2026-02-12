@@ -196,7 +196,7 @@ export default function AuthSimple() {
         })) || [],
         timeout: options.timeout || 60000,
         userVerification: (options.userVerification as UserVerificationRequirement) || 'preferred',
-        rpId: 'evo.ai.udstec.io'
+        rpId: 'evo.nuevacore.com'
       };
 
       const credential = await navigator.credentials.get({

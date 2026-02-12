@@ -50,7 +50,7 @@ Sistema de autenticação multi-camadas da plataforma EVO que combina AWS Cognit
 2. WHEN um usuário possui WebAuthn registrado, THE Sistema SHALL exigir seu uso obrigatoriamente
 3. THE Sistema SHALL suportar múltiplas chaves WebAuthn por usuário
 4. WHEN WebAuthn falha, THE Sistema SHALL permitir fallback para MFA tradicional
-5. THE Sistema SHALL usar domínio correto (evo.ai.udstec.io) como rpId
+5. THE Sistema SHALL usar domínio correto (evo.nuevacore.com) como rpId
 
 ### Requirement 4: Fluxos de Desafio do Cognito
 
@@ -148,7 +148,7 @@ Sistema de autenticação multi-camadas da plataforma EVO que combina AWS Cognit
 ### WebAuthn Integration
 - **Storage**: Credenciais WebAuthn armazenadas no banco local
 - **Enforcement**: Usuários com WebAuthn DEVEM usá-lo (não opcional)
-- **rpId**: Sempre usar "evo.ai.udstec.io" como Relying Party ID
+- **rpId**: Sempre usar "evo.nuevacore.com" como Relying Party ID
 - **Fallback**: Em caso de falha, permitir MFA tradicional
 
 ### Session Management

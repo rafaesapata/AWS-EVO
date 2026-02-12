@@ -3108,6 +3108,8 @@
     "activityMonitoring": "Activity Monitoring",
     "activityMonitoringDesc": "Audit logs, alerts",
     "disconnect": "Disconnect",
+    "reconnect": "Reconnect",
+    "refreshErrorMessage": "Connection expired. Please reconnect your Azure account.",
     "connectedAs": "Connected as",
     "subscriptionsFound": "{{count}} subscriptions found",
     "deselectAll": "Deselect All",

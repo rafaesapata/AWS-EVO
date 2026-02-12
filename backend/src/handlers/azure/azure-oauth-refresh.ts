@@ -29,11 +29,12 @@ import {
 } from '../../lib/token-encryption.js';
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { getAzureOAuthRedirectUri } from '../../lib/app-domain.js';
 
 // OAuth configuration from environment
 const AZURE_OAUTH_CLIENT_ID = process.env.AZURE_OAUTH_CLIENT_ID;
 const AZURE_OAUTH_CLIENT_SECRET = process.env.AZURE_OAUTH_CLIENT_SECRET;
-const AZURE_OAUTH_REDIRECT_URI = process.env.AZURE_OAUTH_REDIRECT_URI || 'https://evo.nuevacore.com/azure/callback';
+const AZURE_OAUTH_REDIRECT_URI = getAzureOAuthRedirectUri();
 
 // Validation schema
 const refreshSchema = z.object({

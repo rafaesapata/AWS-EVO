@@ -38,7 +38,7 @@ This guide explains how to configure Azure OAuth integration for the EVO platfor
 
 1. Go to **Authentication**
 2. Under **Single-page application**, add redirect URIs:
-   - Production: `https://evo.ai.udstec.io/azure/callback`
+   - Production: `https://evo.nuevacore.com/azure/callback`
    - Development: `http://localhost:5173/azure/callback`
 3. Enable **Access tokens** and **ID tokens** under Implicit grant
 4. Set **Supported account types** to **Multitenant**

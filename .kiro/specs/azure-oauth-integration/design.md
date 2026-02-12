@@ -78,7 +78,7 @@ Configuração necessária no Azure Portal:
   "signInAudience": "AzureADMultipleOrgs",
   "web": {
     "redirectUris": [
-      "https://evo.ai.udstec.io/azure/callback",
+      "https://evo.nuevacore.com/azure/callback",
       "http://localhost:5173/azure/callback"
     ]
   },
@@ -469,7 +469,7 @@ Log all OAuth events:
 # Azure App Registration
 AZURE_OAUTH_CLIENT_ID=<app-client-id>
 AZURE_OAUTH_CLIENT_SECRET=<app-client-secret>
-AZURE_OAUTH_REDIRECT_URI=https://evo.ai.udstec.io/azure/callback
+AZURE_OAUTH_REDIRECT_URI=https://evo.nuevacore.com/azure/callback
 
 # Token Encryption
 TOKEN_ENCRYPTION_KEY=<32-byte-base64-key>

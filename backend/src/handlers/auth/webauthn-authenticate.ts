@@ -4,6 +4,7 @@ import { withErrorMonitoring } from '../../lib/error-middleware.js';
 import { success, error as errorResponse, corsOptions, badRequest, unauthorized } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { getWebAuthnRpId } from '../../lib/app-domain.js';
 import * as crypto from 'crypto';
 
 // Session token expiry: 15 minutes for security
@@ -219,7 +220,7 @@ async function startAuthentication(email?: string, origin?: string): Promise<API
     }
   });
 
-  const rpId = process.env.WEBAUTHN_RP_ID || 'evo.ai.udstec.io';
+  const rpId = getWebAuthnRpId();
 
   const publicKeyCredentialRequestOptions = {
     challenge,

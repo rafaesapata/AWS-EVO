@@ -129,11 +129,11 @@ npm test -- tests/properties/multi-tenancy-isolation.test.ts
 3. **Verify AWS Functionality:**
 ```bash
 # Test existing AWS endpoints still work
-curl -X POST https://api-evo.ai.udstec.io/api/functions/list-aws-credentials \
+curl -X POST https://api-evo.nuevacore.com/api/functions/list-aws-credentials \
   -H "Authorization: Bearer $TOKEN"
 
 # Test AWS security scan still works
-curl -X POST https://api-evo.ai.udstec.io/api/functions/security-scan \
+curl -X POST https://api-evo.nuevacore.com/api/functions/security-scan \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"accountId":"xxx","scanType":"quick"}'
 ```

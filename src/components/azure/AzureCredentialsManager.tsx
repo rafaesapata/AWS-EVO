@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Cloud, CheckCircle, XCircle, RefreshCw, MoreVertical, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, Cloud, CheckCircle, XCircle, RefreshCw, MoreVertical, ShieldCheck, AlertTriangle, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -40,6 +40,7 @@ import { toast } from 'sonner';
 import { AzureCredentialsForm } from './AzureCredentialsForm';
 import { AzureQuickConnect } from './AzureQuickConnect';
 import { AzureOAuthButton } from './AzureOAuthButton';
+import { useAzureOAuthInitiate } from './useAzureOAuthInitiate';
 
 interface AzureCredential {
   id: string;
@@ -165,6 +166,8 @@ export function AzureCredentialsManager() {
     setValidatingCredentialId(credentialId);
     validatePermissionsMutation.mutate(credentialId);
   };
+
+  const { initiate: handleReconnect } = useAzureOAuthInitiate();
 
   const handleAddSuccess = () => {
     setShowAddDialog(false);
@@ -327,6 +330,12 @@ export function AzureCredentialsManager() {
                           )}
                           {t('azure.validatePermissions', 'Validate Permissions')}
                         </DropdownMenuItem>
+                        {credential.authType === 'oauth' && (
+                          <DropdownMenuItem onClick={handleReconnect}>
+                            <Link2 className="mr-2 h-4 w-4" />
+                            {t('azure.reconnect', 'Reconnect')}
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => setDeleteCredentialId(credential.id)}
@@ -343,6 +352,17 @@ export function AzureCredentialsManager() {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Refresh error banner */}
+                {credential.authType === 'oauth' && credential.refreshError && (
+                  <div className="mb-3 flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">{t('azure.refreshErrorMessage', 'Connection expired. Please reconnect your Azure account.')}</span>
+                    <Button variant="outline" size="sm" className="shrink-0 h-7 text-xs" onClick={handleReconnect}>
+                      <Link2 className="mr-1 h-3 w-3" />
+                      {t('azure.reconnect', 'Reconnect')}
+                    </Button>
+                  </div>
+                )}
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('azure.subscriptionId', 'Subscription ID')}:</span>
