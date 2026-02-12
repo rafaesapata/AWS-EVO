@@ -53,11 +53,11 @@ interface TestResult {
   appDisplayName?: string | null;
 }
 
+const MS_PER_DAY = 86_400_000;
+
 function getExpiryBadge(expiresAt: string | null, t: (key: string, fallback: string) => string) {
   if (!expiresAt) return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />{t('adminSettings.unknown', 'Unknown')}</Badge>;
-  const now = new Date();
-  const expiry = new Date(expiresAt);
-  const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / MS_PER_DAY);
 
   if (daysLeft < 0) return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />{t('adminSettings.expired', 'Expired')}</Badge>;
   if (daysLeft <= 30) return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30"><AlertTriangle className="h-3 w-3 mr-1" />{daysLeft}d</Badge>;
@@ -88,12 +88,14 @@ export default function AdminSettings() {
   // Test credential mutation
   const testMutation = useMutation({
     mutationFn: async (credentialId: string) => {
-      setTestingId(credentialId);
       const res = await apiClient.invoke<TestResult>('admin-azure-credentials', {
         body: { action: 'test', credentialId },
       });
       if ('error' in res) throw new Error(res.error);
       return res.data;
+    },
+    onMutate: (credentialId) => {
+      setTestingId(credentialId);
     },
     onSuccess: (data) => {
       setTestResults(prev => ({ ...prev, [data.credentialId]: data }));
