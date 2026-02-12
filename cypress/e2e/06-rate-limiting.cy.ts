@@ -4,7 +4,7 @@
  * Sends rapid sequential requests and checks for 429 Too Many Requests.
  */
 import { PUBLIC_LAMBDAS } from '../support/lambda-registry';
-import { expectNoCrash } from '../support/e2e';
+import { CRASH_CODES } from '../support/e2e';
 
 const RAPID_REQUEST_COUNT = 20;
 
@@ -24,7 +24,7 @@ describe('Rate Limiting - Public Endpoints', () => {
         // At least one should be 429 if rate limiting is active
         // If none are 429, log a warning — this is a security gap, not a crash
         const has429 = statuses.includes(429);
-        const hasCrash = statuses.some(s => [502, 503, 504].includes(s));
+        const hasCrash = statuses.some(s => CRASH_CODES.includes(s));
 
         expect(hasCrash, `${lambda.name} crashed under load: ${JSON.stringify(statuses)}`).to.be.false;
 

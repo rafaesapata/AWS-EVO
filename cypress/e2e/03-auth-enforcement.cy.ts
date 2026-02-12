@@ -5,8 +5,19 @@
  * 3. Public endpoints accept unauthenticated requests
  * 4. HTTP endpoints reject invalid HTTP methods (only POST allowed)
  */
-import { HTTP_LAMBDAS, PUBLIC_LAMBDAS } from '../support/lambda-registry';
+import { HTTP_LAMBDAS, PUBLIC_LAMBDAS, type LambdaDefinition } from '../support/lambda-registry';
 import { expectNoCrash, INVALID_METHODS } from '../support/e2e';
+
+/** Pick one safe+cognito lambda per domain for sampling */
+function sampleOnePerDomain(lambdas: LambdaDefinition[]): LambdaDefinition[] {
+  const byDomain = lambdas
+    .filter(l => l.auth === 'cognito' && l.safe)
+    .reduce<Record<string, LambdaDefinition>>((acc, l) => {
+      if (!acc[l.domain]) acc[l.domain] = l;
+      return acc;
+    }, {});
+  return Object.values(byDomain);
+}
 
 describe('Auth Enforcement', () => {
   // ── Missing Token ────────────────────────────────────────────────────────
@@ -24,15 +35,7 @@ describe('Auth Enforcement', () => {
 
   // ── Invalid/Malformed Tokens ──────────────────────────────────────────────
   describe('Protected endpoints should reject invalid tokens', () => {
-    // Sample 5 protected endpoints across domains for token validation
-    const sampleProtected = HTTP_LAMBDAS
-      .filter(l => l.auth === 'cognito' && l.safe)
-      .reduce<Record<string, typeof HTTP_LAMBDAS[0]>>((acc, l) => {
-        if (!acc[l.domain]) acc[l.domain] = l;
-        return acc;
-      }, {});
-
-    const samples = Object.values(sampleProtected).slice(0, 5);
+    const samples = sampleOnePerDomain(HTTP_LAMBDAS).slice(0, 5);
 
     samples.forEach((lambda) => {
       it(`${lambda.name}: should return 401 with malformed token`, () => {
@@ -66,15 +69,7 @@ describe('Auth Enforcement', () => {
 
   // ── Invalid HTTP Methods ─────────────────────────────────────────────────
   describe('HTTP endpoints should reject invalid methods', () => {
-    // Sample 1 per domain to avoid 148 * 4 = 592 tests
-    const methodSamples = HTTP_LAMBDAS
-      .filter(l => l.auth === 'cognito' && l.safe)
-      .reduce<Record<string, typeof HTTP_LAMBDAS[0]>>((acc, l) => {
-        if (!acc[l.domain]) acc[l.domain] = l;
-        return acc;
-      }, {});
-
-    Object.values(methodSamples).forEach((lambda) => {
+    sampleOnePerDomain(HTTP_LAMBDAS).forEach((lambda) => {
       INVALID_METHODS.forEach((method) => {
         it(`${lambda.name}: ${method} should not return 200`, () => {
           cy.apiRequest(lambda.name, method, {}).then((res) => {
