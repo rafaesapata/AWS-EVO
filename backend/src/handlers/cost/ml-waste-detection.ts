@@ -77,6 +77,22 @@ interface MLResultV3 {
 const DEFAULT_REGIONS = ['us-east-1'];
 const MAX_EXECUTION_TIME = 25000;
 
+// Confidence thresholds for stopped instance analysis
+const STOPPED_CONFIDENCE = {
+  LONG_STOPPED_DAYS: 30,    // Days stopped to consider high confidence
+  SHORT_STOPPED_DAYS: 7,    // Days stopped to consider medium confidence
+  HIGH: 0.95,
+  MEDIUM: 0.85,
+  LOW: 0.70,
+} as const;
+
+// Fallback savings multiplier when downsize calculation returns 0
+const DOWNSIZE_FALLBACK_SAVINGS_RATIO = 0.7;
+
+// Time buffer (ms) reserved before timeout for cleanup
+const TIME_BUFFER_MS = 2000;
+const STOPPED_ANALYSIS_BUFFER_MS = 5000;
+
 function calculatePriority(savings: number, confidence: number): number {
   if (savings > 500 && confidence > 0.8) return 5;
   if (savings > 200 || (savings > 500 && confidence > 0.6)) return 4;
@@ -484,7 +500,7 @@ async function analyzeEC2Instances(
             const downsizeSavings = calculateDownsizeSavings('EC2', instanceType, recommendedSize);
             recommendation.type = 'downsize';
             recommendation.recommendedSize = recommendedSize;
-            recommendation.savings = downsizeSavings > 0 ? downsizeSavings : recommendation.savings * 0.7;
+            recommendation.savings = downsizeSavings > 0 ? downsizeSavings : recommendation.savings * DOWNSIZE_FALLBACK_SAVINGS_RATIO;
           }
           
           if (recommendation.type === 'optimize' && recommendation.savings === 0) continue;
@@ -547,7 +563,7 @@ async function analyzeEC2Instances(
     }
     
     // Analyze STOPPED instances — these are candidates for terminate (with snapshot)
-    if (Date.now() - startTime < remainingTime - 5000) {
+    if (Date.now() - startTime < remainingTime - STOPPED_ANALYSIS_BUFFER_MS) {
       try {
         const stoppedResponse = await ec2Client.send(new DescribeInstancesCommand({
           Filters: [{ Name: 'instance-state-name', Values: ['stopped'] }],
@@ -556,7 +572,7 @@ async function analyzeEC2Instances(
         
         for (const reservation of stoppedResponse.Reservations || []) {
           for (const instance of reservation.Instances || []) {
-            if (Date.now() - startTime > remainingTime - 2000) break;
+            if (Date.now() - startTime > remainingTime - TIME_BUFFER_MS) break;
             
             const instanceId = instance.InstanceId!;
             const instanceType = instance.InstanceType!;
@@ -584,8 +600,8 @@ async function analyzeEC2Instances(
               { order: 3, action: 'Terminate stopped instance', command: `aws ec2 terminate-instances --instance-ids ${instanceId} --region ${region}`, riskLevel: 'destructive', notes: 'Instance is already stopped. AMI backup allows re-launch if needed.' },
             ];
             
-            const confidence = daysStopped !== null && daysStopped > 30 ? 0.95 : 
-                               daysStopped !== null && daysStopped > 7 ? 0.85 : 0.70;
+            const confidence = daysStopped !== null && daysStopped > STOPPED_CONFIDENCE.LONG_STOPPED_DAYS ? STOPPED_CONFIDENCE.HIGH : 
+                               daysStopped !== null && daysStopped > STOPPED_CONFIDENCE.SHORT_STOPPED_DAYS ? STOPPED_CONFIDENCE.MEDIUM : STOPPED_CONFIDENCE.LOW;
             const priority = calculatePriority(currentMonthlyCost, confidence);
             
             results.push({
@@ -701,7 +717,7 @@ async function analyzeRDSInstances(
           const downsizeSavings = calculateDownsizeSavings('RDS', instanceClass, recommendedSize);
           recommendation = { 
             type: 'downsize' as const, 
-            savings: downsizeSavings > 0 ? downsizeSavings : currentMonthlyCost * 0.7, 
+            savings: downsizeSavings > 0 ? downsizeSavings : currentMonthlyCost * DOWNSIZE_FALLBACK_SAVINGS_RATIO, 
             confidence: 0.92, 
             complexity: 'medium' as const,
             recommendedSize,
