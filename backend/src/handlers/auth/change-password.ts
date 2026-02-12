@@ -139,109 +139,97 @@ export async function handler(
   }
 }
 
+const NOTIFICATION_SUBJECT = 'Sua senha foi alterada - EVO Platform';
+const TEMPLATE_TYPE = 'password_changed';
+
+interface NotificationData {
+  email: string;
+  name: string;
+  organizationId: string;
+  changeTime: string;
+  ipAddress: string;
+  userAgent: string;
+}
+
+async function logCommunication(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string,
+  recipient: string,
+  subject: string,
+  status: 'sent' | 'failed',
+  metadata: Record<string, any>
+): Promise<void> {
+  await prisma.communicationLog.create({
+    data: {
+      organization_id: organizationId,
+      channel: 'email',
+      recipient,
+      subject,
+      message: status === 'sent'
+        ? 'Notificação de alteração de senha enviada'
+        : 'Falha ao enviar notificação de alteração de senha',
+      status,
+      metadata: { ...metadata, template_type: TEMPLATE_TYPE },
+    },
+  }).catch(err => logger.error('Failed to log communication', err));
+}
+
 async function sendPasswordChangedNotification(
-  prisma: any,
-  data: {
-    email: string;
-    name: string;
-    organizationId: string;
-    changeTime: string;
-    ipAddress: string;
-    userAgent: string;
-  }
+  prisma: ReturnType<typeof getPrismaClient>,
+  data: NotificationData
 ): Promise<void> {
   const { email, name, organizationId, changeTime, ipAddress, userAgent } = data;
 
   try {
-    // Try DB template first, fallback to built-in
-    let subject: string;
-    let htmlBody: string;
-    let textBody: string;
-
     const dbTemplate = await prisma.emailTemplate.findUnique({
-      where: { template_type: 'password_changed' },
+      where: { template_type: TEMPLATE_TYPE },
     }).catch(() => null);
 
-    if (dbTemplate && dbTemplate.is_active) {
+    let result: { messageId: string };
+    let subject = NOTIFICATION_SUBJECT;
+
+    if (dbTemplate?.is_active) {
+      // Process DB template variables
+      const variables: Record<string, string> = {
+        user_name: name,
+        change_time: changeTime,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        support_url: process.env.PLATFORM_BASE_URL || 'https://evo.nuevacore.com',
+      };
+
       subject = dbTemplate.subject;
-      htmlBody = dbTemplate.html_body;
-      textBody = dbTemplate.text_body || '';
+      let htmlBody = dbTemplate.html_body;
+      let textBody = dbTemplate.text_body || '';
+
+      for (const [key, value] of Object.entries(variables)) {
+        const regex = new RegExp(`{${key}}`, 'g');
+        htmlBody = htmlBody.replace(regex, value);
+        textBody = textBody.replace(regex, value);
+        subject = subject.replace(regex, value);
+      }
+
+      result = await emailService.sendEmail({
+        to: { email, name },
+        subject,
+        htmlBody,
+        textBody: textBody || undefined,
+        tags: { type: TEMPLATE_TYPE },
+      });
     } else {
-      // Use built-in email service template
-      const result = await emailService.sendPasswordChangedEmail(
+      result = await emailService.sendPasswordChangedEmail(
         { email, name },
         { userName: name, changeTime, ipAddress, userAgent }
       );
-
-      // Log to communication center
-      await prisma.communicationLog.create({
-        data: {
-          organization_id: organizationId,
-          channel: 'email',
-          recipient: email,
-          subject: 'Sua senha foi alterada - EVO Platform',
-          message: 'Notificação de alteração de senha enviada',
-          status: 'sent',
-          metadata: { messageId: result.messageId, template_type: 'password_changed' },
-        },
-      });
-      return;
     }
 
-    // Process DB template variables
-    const variables: Record<string, string> = {
-      user_name: name,
-      change_time: changeTime,
-      ip_address: ipAddress,
-      user_agent: userAgent,
-      support_url: process.env.PLATFORM_BASE_URL || 'https://evo.nuevacore.com',
-    };
-
-    for (const [key, value] of Object.entries(variables)) {
-      const regex = new RegExp(`{${key}}`, 'g');
-      htmlBody = htmlBody.replace(regex, value);
-      textBody = textBody.replace(regex, value);
-      subject = subject.replace(regex, value);
-    }
-
-    const result = await emailService.sendEmail({
-      to: { email, name },
-      subject,
-      htmlBody,
-      textBody: textBody || undefined,
-      tags: { type: 'password_changed' },
-    });
-
-    // Log to communication center
-    await prisma.communicationLog.create({
-      data: {
-        organization_id: organizationId,
-        channel: 'email',
-        recipient: email,
-        subject,
-        message: 'Notificação de alteração de senha enviada',
-        status: 'sent',
-        metadata: { messageId: result.messageId, template_type: 'password_changed' },
-      },
-    });
-
+    await logCommunication(prisma, organizationId, email, subject, 'sent', { messageId: result.messageId });
     logger.info('Password changed notification sent', { email, messageId: result.messageId });
   } catch (err) {
     logger.error('Failed to send password changed notification', err);
-
-    // Log failure to communication center
-    await prisma.communicationLog.create({
-      data: {
-        organization_id: organizationId,
-        channel: 'email',
-        recipient: email,
-        subject: 'Sua senha foi alterada - EVO Platform',
-        message: 'Falha ao enviar notificação de alteração de senha',
-        status: 'failed',
-        metadata: { error: err instanceof Error ? err.message : 'Unknown error', template_type: 'password_changed' },
-      },
-    }).catch(() => {});
-
+    await logCommunication(prisma, organizationId, email, NOTIFICATION_SUBJECT, 'failed', {
+      error: err instanceof Error ? err.message : 'Unknown error',
+    });
     throw err;
   }
 }
