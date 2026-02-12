@@ -8,26 +8,66 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 
+const MIN_PASSWORD_LENGTH = 8;
+const SPECIAL_CHARS_REGEX = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/;
+
+interface PasswordInputProps {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete: string;
+  hint?: string;
+}
+
+function PasswordInput({ id, label, placeholder, value, onChange, autoComplete, hint }: PasswordInputProps) {
+  const { t } = useTranslation();
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="relative">
+        <Input
+          id={id}
+          type={visible ? "text" : "password"}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required
+          className="pr-10"
+          autoComplete={autoComplete}
+        />
+        <button
+          type="button"
+          onClick={() => setVisible(!visible)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+          aria-label={visible ? t("changePassword.hidePassword") : t("changePassword.showPassword")}
+        >
+          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+const INITIAL_FORM = { currentPassword: "", newPassword: "", confirmPassword: "" };
+
 export default function ChangePasswordSection() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
+  const [formData, setFormData] = useState(INITIAL_FORM);
 
   const validatePassword = (password: string): string[] => {
     const errors: string[] = [];
-    if (password.length < 8) errors.push(t("changePassword.rules.minLength"));
+    if (password.length < MIN_PASSWORD_LENGTH) errors.push(t("changePassword.rules.minLength"));
     if (!/[A-Z]/.test(password)) errors.push(t("changePassword.rules.uppercase"));
     if (!/[a-z]/.test(password)) errors.push(t("changePassword.rules.lowercase"));
     if (!/[0-9]/.test(password)) errors.push(t("changePassword.rules.number"));
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push(t("changePassword.rules.special"));
+    if (!SPECIAL_CHARS_REGEX.test(password)) errors.push(t("changePassword.rules.special"));
     return errors;
   };
 
@@ -60,7 +100,7 @@ export default function ChangePasswordSection() {
         description: t("changePassword.success"),
       });
 
-      setFormData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setFormData(INITIAL_FORM);
     } catch (error: any) {
       toast({
         title: t("common.error"),
@@ -70,6 +110,10 @@ export default function ChangePasswordSection() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateField = (field: keyof typeof formData) => (value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   return (
@@ -82,79 +126,31 @@ export default function ChangePasswordSection() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="cp-current">{t("changePassword.currentPassword")}</Label>
-            <div className="relative">
-              <Input
-                id="cp-current"
-                type={showCurrentPassword ? "text" : "password"}
-                placeholder={t("changePassword.currentPlaceholder")}
-                value={formData.currentPassword}
-                onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-                required
-                className="pr-10"
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                aria-label={showCurrentPassword ? t("changePassword.hidePassword") : t("changePassword.showPassword")}
-              >
-                {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cp-new">{t("changePassword.newPassword")}</Label>
-            <div className="relative">
-              <Input
-                id="cp-new"
-                type={showNewPassword ? "text" : "password"}
-                placeholder={t("changePassword.newPlaceholder")}
-                value={formData.newPassword}
-                onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-                required
-                className="pr-10"
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                aria-label={showNewPassword ? t("changePassword.hidePassword") : t("changePassword.showPassword")}
-              >
-                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">{t("changePassword.rules.hint")}</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cp-confirm">{t("changePassword.confirmPassword")}</Label>
-            <div className="relative">
-              <Input
-                id="cp-confirm"
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder={t("changePassword.confirmPlaceholder")}
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                required
-                className="pr-10"
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                aria-label={showConfirmPassword ? t("changePassword.hidePassword") : t("changePassword.showPassword")}
-              >
-                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
+          <PasswordInput
+            id="cp-current"
+            label={t("changePassword.currentPassword")}
+            placeholder={t("changePassword.currentPlaceholder")}
+            value={formData.currentPassword}
+            onChange={updateField("currentPassword")}
+            autoComplete="current-password"
+          />
+          <PasswordInput
+            id="cp-new"
+            label={t("changePassword.newPassword")}
+            placeholder={t("changePassword.newPlaceholder")}
+            value={formData.newPassword}
+            onChange={updateField("newPassword")}
+            autoComplete="new-password"
+            hint={t("changePassword.rules.hint")}
+          />
+          <PasswordInput
+            id="cp-confirm"
+            label={t("changePassword.confirmPassword")}
+            placeholder={t("changePassword.confirmPlaceholder")}
+            value={formData.confirmPassword}
+            onChange={updateField("confirmPassword")}
+            autoComplete="new-password"
+          />
           <Button type="submit" disabled={loading} className="glass hover-glow w-full">
             {loading ? (
               <>
