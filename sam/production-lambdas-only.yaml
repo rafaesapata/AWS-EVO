@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: |
-  EVO Platform - Lambda Functions Only (194 total) - v17 FULL_SAM rebuild - fix SAM CLI empty param rejection
+  EVO Platform - Lambda Functions Only (194 total) - v18 add evo_app_credentials table + SSM permissions
   Uses existing VPC, RDS, Cognito infrastructure
   All functions use ARM64 + esbuild for fast builds
-  Updated: 2026-02-12 - Fix TOKEN_ENCRYPTION_KEY SSM + conditional param overrides for SAM CLI
+  Updated: 2026-02-12 - Add missing evo_app_credentials table migration + SSM PutParameter permission for Lambda role
 Globals:
   Function:
     Runtime: nodejs20.x
@@ -180,8 +180,16 @@ Resources:
                   - lambda:List*
                   - lambda:Get*
                   - lambda:InvokeFunction
+                  - lambda:UpdateFunctionConfiguration
                   - wafv2:*
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/evo-uds-v3/*'
   # ==========================================================================
   # API GATEWAY - HTTP API with JWT Authorizer
   # ==========================================================================
