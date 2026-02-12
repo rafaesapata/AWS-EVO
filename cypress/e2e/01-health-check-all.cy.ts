@@ -4,6 +4,7 @@
  * This is the most critical test - catches dependency issues, import errors, crashes
  */
 import { HTTP_LAMBDAS, type LambdaDefinition } from '../support/lambda-registry';
+import { expectNoCrash } from '../support/e2e';
 
 describe('Lambda Health Check - All HTTP Endpoints', () => {
   // Group by domain for organized output
@@ -15,13 +16,10 @@ describe('Lambda Health Check - All HTTP Endpoints', () => {
   Object.entries(byDomain).forEach(([domain, lambdas]) => {
     describe(`Domain: ${domain} (${lambdas.length} lambdas)`, () => {
       lambdas.forEach((lambda) => {
-        it(`[${lambda.auth === 'none' ? 'PUBLIC' : 'AUTH'}] ${lambda.name} - should not crash (no 502/503)`, () => {
+        it(`[${lambda.auth === 'none' ? 'PUBLIC' : 'AUTH'}] ${lambda.name} - should not crash (no 502/503/504)`, () => {
           if (lambda.auth === 'none') {
             cy.apiPostPublic(lambda.name, {}).then((response) => {
-              expect(
-                [502, 503].includes(response.status),
-                `${lambda.name} crashed with ${response.status}: ${JSON.stringify(response.body).substring(0, 300)}`
-              ).to.be.false;
+              expectNoCrash(response, lambda.name);
             });
           } else {
             cy.validateLambdaHealth(lambda.name);

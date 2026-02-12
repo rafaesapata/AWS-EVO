@@ -1,3 +1,4 @@
+import { expectNoCrash, parseBody } from '../../support/e2e';
 /**
  * INTEGRATIONS DOMAIN - Deep E2E Tests (25 lambdas)
  * Notifications, Jira, data, storage, websocket, organizations, license
@@ -8,31 +9,31 @@ describe('Integrations Domain', () => {
   describe('License', () => {
     it('validate-license: should validate license', () => {
       cy.apiPost('validate-license', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('configure-license: should handle config', () => {
       cy.apiPost('configure-license', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('sync-license: should handle sync', () => {
       cy.apiPost('sync-license', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('admin-sync-license: should handle admin sync', () => {
       cy.apiPost('admin-sync-license', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('manage-seats: should handle seats', () => {
       cy.apiPost('manage-seats', { action: 'list' }).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
   });
@@ -41,25 +42,25 @@ describe('Integrations Domain', () => {
   describe('Data', () => {
     it('query-table: should handle table query', () => {
       cy.apiPost('query-table', { table: 'profiles', action: 'list' }).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('mutate-table: should require mutation data', () => {
       cy.apiPost('mutate-table', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('ticket-management: should handle tickets', () => {
       cy.apiPost('ticket-management', { action: 'list' }).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('ticket-attachments: should handle attachments', () => {
       cy.apiPost('ticket-attachments', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
   });
@@ -68,21 +69,21 @@ describe('Integrations Domain', () => {
   describe('Notifications', () => {
     it('send-email: should require email data', () => {
       cy.apiPost('send-email', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('send-notification: should require notification data', () => {
       cy.apiPost('send-notification', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('get-communication-logs: should return logs', () => {
       cy.apiPost('get-communication-logs', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
         if (res.status === 200) {
-          const body = typeof res.body === 'string' ? JSON.parse(res.body) : res.body;
+          const body = parseBody(res);
           expect(body).to.have.property('success');
         }
       });
@@ -90,7 +91,7 @@ describe('Integrations Domain', () => {
 
     it('manage-email-preferences: should handle preferences', () => {
       cy.apiPost('manage-email-preferences', { action: 'get' }).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
   });
@@ -99,13 +100,13 @@ describe('Integrations Domain', () => {
   describe('Organizations', () => {
     it('create-organization-account: should require org data', () => {
       cy.apiPost('create-organization-account', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('sync-organization-accounts: should handle sync', () => {
       cy.apiPost('sync-organization-accounts', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
   });
@@ -114,13 +115,13 @@ describe('Integrations Domain', () => {
   describe('External Integrations', () => {
     it('create-jira-ticket: should require ticket data', () => {
       cy.apiPost('create-jira-ticket', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('cloudformation-webhook: should accept webhook without auth', () => {
       cy.apiPostPublic('cloudformation-webhook', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
   });
@@ -129,19 +130,19 @@ describe('Integrations Domain', () => {
   describe('Storage', () => {
     it('storage-download: should require file reference', () => {
       cy.apiPost('storage-download', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('storage-delete: should require file reference', () => {
       cy.apiPost('storage-delete', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('upload-attachment: should require file data', () => {
       cy.apiPost('upload-attachment', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
   });
@@ -150,13 +151,13 @@ describe('Integrations Domain', () => {
   describe('WebSocket', () => {
     it('websocket-connect: should handle connect without auth', () => {
       cy.apiPostPublic('websocket-connect', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
 
     it('websocket-disconnect: should handle disconnect without auth', () => {
       cy.apiPostPublic('websocket-disconnect', {}).then((res) => {
-        expect(res.status).to.not.be.oneOf([502, 503]);
+        expectNoCrash(res);
       });
     });
   });

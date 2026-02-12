@@ -1,8 +1,9 @@
 /**
  * CORS Validation - Ensures all HTTP endpoints return proper CORS headers
- * Tests OPTIONS pre-flight and response headers
+ * Tests response headers on both authenticated and public endpoints
  */
 import { HTTP_LAMBDAS } from '../support/lambda-registry';
+import { expectNoCrash } from '../support/e2e';
 
 describe('CORS Validation - All HTTP Endpoints', () => {
   // Sample 20 lambdas across domains for CORS check (testing all 148 would be slow)
@@ -18,29 +19,24 @@ describe('CORS Validation - All HTTP Endpoints', () => {
   sampleLambdas.forEach((name) => {
     it(`${name}: should return CORS headers`, () => {
       cy.apiPost(name, {}).then((res) => {
-        if (res.status !== 502 && res.status !== 503) {
-          const headers = res.headers;
-          expect(
-            headers['access-control-allow-origin'],
-            `${name} missing Access-Control-Allow-Origin`
-          ).to.exist;
-        }
+        expectNoCrash(res, name);
+        expect(
+          res.headers['access-control-allow-origin'],
+          `${name} missing Access-Control-Allow-Origin`
+        ).to.exist;
       });
     });
   });
 
-  // Test public endpoints CORS
   const publicLambdas = ['self-register', 'forgot-password', 'log-frontend-error', 'get-executive-dashboard-public'];
   publicLambdas.forEach((name) => {
     it(`[PUBLIC] ${name}: should return CORS headers without auth`, () => {
       cy.apiPostPublic(name, {}).then((res) => {
-        if (res.status !== 502 && res.status !== 503) {
-          const headers = res.headers;
-          expect(
-            headers['access-control-allow-origin'],
-            `${name} missing Access-Control-Allow-Origin`
-          ).to.exist;
-        }
+        expectNoCrash(res, name);
+        expect(
+          res.headers['access-control-allow-origin'],
+          `${name} missing Access-Control-Allow-Origin`
+        ).to.exist;
       });
     });
   });

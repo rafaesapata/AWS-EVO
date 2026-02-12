@@ -5,8 +5,8 @@
 import { ALL_LAMBDAS, HTTP_LAMBDAS, INTERNAL_LAMBDAS, PUBLIC_LAMBDAS } from '../support/lambda-registry';
 
 describe('Lambda Registry Validation', () => {
-  it('should have at least 195 lambdas registered', () => {
-    expect(ALL_LAMBDAS.length).to.be.gte(195);
+  it('should have at least 200 lambdas registered', () => {
+    expect(ALL_LAMBDAS.length).to.be.gte(200);
   });
 
   it('should have no duplicate lambda names', () => {

@@ -15,22 +15,59 @@ declare global {
       apiPostPublic(lambdaName: string, body?: Record<string, any>): Chainable<Cypress.Response<any>>;
       /** Validate standard response structure */
       validateResponse(): Chainable<any>;
-      /** Validate that lambda is reachable (not 502/503) */
+      /** Validate that lambda is reachable (not 502/503/504) */
       validateLambdaHealth(lambdaName: string): Chainable<Cypress.Response<any>>;
     }
   }
 }
 
+/** Status codes that indicate a lambda crash or infrastructure failure */
+export const CRASH_CODES = [502, 503, 504];
+
+/**
+ * Assert response is not a crash (502/503/504).
+ * Provides clear error message with status and body snippet on failure.
+ */
+export function expectNoCrash(res: Cypress.Response<any>, label?: string): void {
+  const prefix = label ? `${label}: ` : '';
+  expect(
+    CRASH_CODES.includes(res.status),
+    `${prefix}crashed with ${res.status}: ${JSON.stringify(res.body).substring(0, 200)}`
+  ).to.be.false;
+}
+
+/**
+ * Parse response body safely (handles string, object, null, empty)
+ */
+export function parseBody(res: Cypress.Response<any>): any {
+  if (!res.body) return {};
+  if (typeof res.body === 'string') {
+    try {
+      return JSON.parse(res.body);
+    } catch {
+      return { _raw: res.body };
+    }
+  }
+  return res.body;
+}
+
 // Cache token across tests in same run
 let cachedToken: string | null = null;
+let tokenTimestamp: number = 0;
+const TOKEN_TTL_MS = 50 * 60 * 1000; // 50 min (Cognito tokens last 60 min)
 
 /**
  * Authenticate via Cognito USER_PASSWORD_AUTH flow
+ * Automatically refreshes token before expiry
  */
 Cypress.Commands.add('authenticate', () => {
-  if (cachedToken) {
+  const now = Date.now();
+  if (cachedToken && (now - tokenTimestamp) < TOKEN_TTL_MS) {
     return cy.wrap(cachedToken);
   }
+
+  // Force refresh if expired
+  cachedToken = null;
 
   const email = Cypress.env('TEST_USER_EMAIL');
   const password = Cypress.env('TEST_USER_PASSWORD');
@@ -65,6 +102,7 @@ Cypress.Commands.add('authenticate', () => {
     expect(response.status).to.eq(200);
     const token = response.body.AuthenticationResult.IdToken;
     cachedToken = token;
+    tokenTimestamp = Date.now();
     return token;
   });
 });
@@ -104,12 +142,10 @@ Cypress.Commands.add('apiPostPublic', (lambdaName: string, body: Record<string, 
  * Validate standard EVO response structure
  */
 Cypress.Commands.add('validateResponse', { prevSubject: true }, (response: Cypress.Response<any>) => {
-  // Must not be 502 (Lambda crash) or 503 (service unavailable)
-  expect(response.status, 'Lambda should not crash (502/503)').to.not.be.oneOf([502, 503]);
+  expectNoCrash(response);
 
-  // If 200, validate response structure
   if (response.status === 200) {
-    const body = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+    const body = parseBody(response);
     expect(body).to.have.property('success');
     if (body.success) {
       expect(body).to.have.property('data');
@@ -123,15 +159,11 @@ Cypress.Commands.add('validateResponse', { prevSubject: true }, (response: Cypre
 /**
  * Health check: validates lambda is reachable and not crashing
  * Accepts: 200, 400, 401, 403, 404, 422 (business errors are OK)
- * Rejects: 502 (crash), 503 (unavailable), 504 (timeout on simple request)
+ * Rejects: 502 (crash), 503 (unavailable), 504 (timeout)
  */
 Cypress.Commands.add('validateLambdaHealth', (lambdaName: string) => {
   return cy.apiPost(lambdaName, {}).then((response) => {
-    const crashCodes = [502, 503];
-    expect(
-      crashCodes.includes(response.status),
-      `Lambda "${lambdaName}" should not crash. Got ${response.status}: ${JSON.stringify(response.body).substring(0, 200)}`
-    ).to.be.false;
+    expectNoCrash(response, lambdaName);
     return cy.wrap(response);
   });
 });

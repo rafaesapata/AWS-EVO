@@ -13,11 +13,22 @@
     "cdk:dev": "cd infra && npm run deploy:dev",
     "cdk:prod": "cd infra && npm run deploy:prod",
     "cdk:diff:dev": "cd infra && npm run diff:dev",
-    "cdk:diff:prod": "cd infra && npm run diff:prod"
+    "cdk:diff:prod": "cd infra && npm run diff:prod",
+    "e2e": "cypress run",
+    "e2e:open": "cypress open",
+    "e2e:health": "cypress run --spec 'cypress/e2e/01-health-check-all.cy.ts'",
+    "e2e:auth": "cypress run --spec 'cypress/e2e/domains/auth.cy.ts'",
+    "e2e:security": "cypress run --spec 'cypress/e2e/domains/security.cy.ts'",
+    "e2e:cloud": "cypress run --spec 'cypress/e2e/domains/cloud.cy.ts'",
+    "e2e:cost": "cypress run --spec 'cypress/e2e/domains/cost.cy.ts'",
+    "e2e:monitoring": "cypress run --spec 'cypress/e2e/domains/monitoring.cy.ts'",
+    "e2e:ai": "cypress run --spec 'cypress/e2e/domains/ai.cy.ts'",
+    "e2e:operations": "cypress run --spec 'cypress/e2e/domains/operations.cy.ts'",
+    "e2e:integrations": "cypress run --spec 'cypress/e2e/domains/integrations.cy.ts'",
+    "e2e:critical": "cypress run --spec 'cypress/e2e/05-critical-lambdas.cy.ts'"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.958.0",
-    "@aws-sdk/client-cognito-identity-provider": "^3.958.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.11",
@@ -71,8 +82,10 @@
     "zod": "^4.3.4"
   },
   "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.988.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
+    "cypress": "^15.10.0",
     "typescript": "^5.0.0"
   }
 }
