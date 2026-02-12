@@ -45,7 +45,7 @@ export default function UserSettings() {
       try {
         const profile = await apiClient.select('profiles', {
           select: 'language, timezone',
-          eq: { id: user.username },
+          eq: { user_id: user.username },
           single: true
         });
 
@@ -82,7 +82,7 @@ export default function UserSettings() {
       const result = await apiClient.update('profiles', {
         language, 
         timezone
-      }, { eq: { id: user.username } });
+      }, { eq: { user_id: user.username } });
 
       if (result.error) {
         throw new Error(result.error.message || 'Erro ao salvar configurações');

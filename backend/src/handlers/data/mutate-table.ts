@@ -183,7 +183,16 @@ export async function handler(
     
     // Check admin permission for restricted tables
     const isAdmin = userRoles.includes('admin') || userRoles.includes('org_admin') || userRoles.includes('super_admin');
-    if (ADMIN_ONLY_TABLES.has(body.table) && !isAdmin) {
+    
+    // Allow users to update their own profile preferences (language, timezone)
+    const isSelfProfileUpdate = body.table === 'profiles' 
+      && body.operation === 'update' 
+      && body.data 
+      && body.where
+      && Object.keys(body.data).every(k => ['language', 'timezone'].includes(k))
+      && (body.where.id === userId || body.where.user_id === userId);
+    
+    if (ADMIN_ONLY_TABLES.has(body.table) && !isAdmin && !isSelfProfileUpdate) {
       logger.warn('Unauthorized mutation attempt', { table: body.table, userId, userRoles });
       return unauthorized('Admin permission required for this operation', origin);
     }

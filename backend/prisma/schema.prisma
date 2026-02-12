@@ -66,6 +66,8 @@ model Profile {
   updated_at        DateTime @updatedAt @db.Timestamptz(6)
   full_name         String?
   avatar_url        String?
+  language          String?  @default("pt")
+  timezone          String?  @default("America/Sao_Paulo")
   
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   
