@@ -283,7 +283,7 @@ phases:
             --parameter-overrides \
               Environment=$ENV \
               ProjectName=evo-uds-v3 \
-              DatabaseUrl=$DATABASE_URL \
+              DatabaseUrl="$DATABASE_URL" \
               CognitoUserPoolId=$COGNITO_USER_POOL_ID \
               CognitoUserPoolArn=$COGNITO_USER_POOL_ARN \
               CognitoClientId=$COGNITO_CLIENT_ID \
@@ -291,9 +291,9 @@ phases:
               PrivateSubnet1Id=$PRIVATE_SUBNET_1 \
               PrivateSubnet2Id=$PRIVATE_SUBNET_2 \
               AzureOAuthClientId=$AZURE_OAUTH_CLIENT_ID \
-              AzureOAuthClientSecret=$AZURE_OAUTH_CLIENT_SECRET \
+              AzureOAuthClientSecret="$AZURE_OAUTH_CLIENT_SECRET" \
               AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI \
-              TokenEncryptionKey=$TOKEN_ENCRYPTION_KEY
+              TokenEncryptionKey="${TOKEN_ENCRYPTION_KEY:-none}"
 
         elif [ "$DEPLOY_HANDLERS" = "true" ]; then
           echo "=== INCREMENTAL LAMBDA DEPLOY ==="
