@@ -26,6 +26,9 @@ interface ValidationResult {
   message?: string;
 }
 
+/** Number of days to look back when testing cost access */
+const COST_VALIDATION_LOOKBACK_DAYS = 7;
+
 // Required permissions for EVO Platform
 const REQUIRED_PERMISSIONS = [
   // Resource Management
@@ -180,7 +183,7 @@ export async function handler(
     let hasCostAccess = false;
     try {
       const endDate = new Date();
-      const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const startDate = new Date(Date.now() - COST_VALIDATION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
       await azureProvider.getCosts({
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],

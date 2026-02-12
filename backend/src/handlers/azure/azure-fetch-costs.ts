@@ -68,11 +68,10 @@ async function getAccessToken(
   try {
     if (credential.auth_type === 'oauth') {
       // OAuth flow - use existing helper
-      const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+      const { getAzureCredentialWithToken, isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } = await import('../../lib/azure-helpers.js');
       const tokenResult = await getAzureCredentialWithToken(prisma, credential.id, credential.organization_id);
       
       if (!tokenResult.success) {
-        const { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } = await import('../../lib/azure-helpers.js');
         if (isInvalidClientSecretError(tokenResult.error)) {
           return { success: false, error: INVALID_CLIENT_SECRET_MESSAGE };
         }
