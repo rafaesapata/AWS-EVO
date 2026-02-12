@@ -89,7 +89,23 @@ for REGION in "${REGIONS[@]}"; do
     --capabilities CAPABILITY_NAMED_IAM \
     --no-fail-on-empty-changeset \
     2>/dev/null; then
-    echo "OK"
+
+    # Add destination policy (CloudFormation doesn't support Principal:"*" inline)
+    # The handler's updateDestinationPolicyForCustomer will add customer accounts dynamically
+    DEST_NAME="${PROJECT_NAME}-${ENVIRONMENT}-waf-logs-destination"
+    EVO_ACCOUNT_ID="523115032346"
+    DEST_ARN="arn:aws:logs:${REGION}:${EVO_ACCOUNT_ID}:destination:${DEST_NAME}"
+    POLICY="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"AllowCrossAccountSubscription\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"${EVO_ACCOUNT_ID}\"},\"Action\":\"logs:PutSubscriptionFilter\",\"Resource\":\"${DEST_ARN}\"}]}"
+
+    if aws logs put-destination-policy \
+      --destination-name "$DEST_NAME" \
+      --access-policy "$POLICY" \
+      --region "$REGION" \
+      2>/dev/null; then
+      echo "OK (with policy)"
+    else
+      echo "OK (policy failed — will be set by handler)"
+    fi
     ((SUCCESS++))
   else
     echo "FAILED"
