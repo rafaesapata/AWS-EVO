@@ -254,16 +254,18 @@ export function streamingResponse(
  * Usage:
  *   export const handler = safeHandler(async (event, context) => { ... });
  */
-export function safeHandler(
-  fn: (event: any, context: any) => Promise<APIGatewayProxyResultV2>
-): (event: any, context: any) => Promise<APIGatewayProxyResultV2> {
-  return async (event: any, context: any): Promise<APIGatewayProxyResultV2> => {
+export function safeHandler<TEvent = any, TContext = any>(
+  fn: (event: TEvent, context: TContext) => Promise<APIGatewayProxyResultV2>
+): (event: TEvent, context: TContext) => Promise<APIGatewayProxyResultV2> {
+  return async (event: TEvent, context: TContext): Promise<APIGatewayProxyResultV2> => {
     try {
       return await fn(event, context);
-    } catch (err: any) {
-      console.error('Unhandled handler error:', err?.message || err, {
-        requestId: context?.awsRequestId,
-        functionName: context?.functionName,
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const ctx = context as any;
+      console.error('[safeHandler] Unhandled error:', message, {
+        requestId: ctx?.awsRequestId,
+        functionName: ctx?.functionName,
       });
       return error('An internal error occurred. Please try again later.', 500);
     }

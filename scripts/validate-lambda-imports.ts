@@ -147,6 +147,9 @@ const SHELL_CHARS_REGEX = /[|>\s${}]/;
 /** Minimum number of domains that must use a lib for it to be classified as "shared" */
 const MIN_SHARED_DOMAIN_COUNT = 3;
 
+/** Max lines to scan between handler declaration and first try block */
+const MAX_LINES_TO_TRY_BLOCK = 40;
+
 /** Convert .js extension to .ts (project convention: CommonJS with .js imports mapping to .ts sources) */
 function jsToTs(importPath: string): string {
   return importPath.endsWith('.js') ? importPath.slice(0, -3) + '.ts' : importPath;
@@ -463,14 +466,18 @@ function detectUnsafeHandlers(handlers: string[]): UnsafeHandler[] {
 
     const lines = content.split('\n');
 
-    // Find exported handler functions (both function declarations and safeHandler wrappers)
-    const handlerRegex = /export\s+(?:async\s+)?function\s+handler\s*\(/;
-    const safeHandlerRegex = /export\s+const\s+handler\s*=\s*safeHandler\s*\(/;
+    // Find exported handler functions
+    const functionHandlerRegex = /export\s+(?:async\s+)?function\s+handler\s*\(/;
+    const constHandlerRegex = /export\s+const\s+handler\s*=/;
+    const safeHandlerRegex = /safeHandler\s*\(/;
     
     for (let i = 0; i < lines.length; i++) {
-      if (!handlerRegex.test(lines[i])) continue;
+      const isFunctionHandler = functionHandlerRegex.test(lines[i]);
+      const isConstHandler = constHandlerRegex.test(lines[i]);
       
-      // Skip if handler is already wrapped with safeHandler
+      if (!isFunctionHandler && !isConstHandler) continue;
+      
+      // Skip if handler is wrapped with safeHandler (already protected)
       if (safeHandlerRegex.test(lines[i])) continue;
 
       // Scan forward from handler declaration to find first try {
@@ -489,7 +496,7 @@ function detectUnsafeHandlers(handlers: string[]): UnsafeHandler[] {
           break;
         }
         // If we've gone too deep without finding try, stop
-        if (j - i > 40) break;
+        if (j - i > MAX_LINES_TO_TRY_BLOCK) break;
       }
 
       if (tryLineIndex === -1) continue;
