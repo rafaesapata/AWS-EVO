@@ -33,6 +33,7 @@ import {
   getImplementationComplexity,
   buildResourceArn,
   type CloudWatchDatapoint,
+  type MLRecommendation,
 } from '../../lib/ml-analysis/index.js';
 import { getMonthlyCost, getHourlyCost, getLambdaMonthlyCost, getEBSMonthlyCost, getS3MonthlyCost, getDynamoDBProvisionedMonthlyCost, getDownsizeRecommendation, calculateDownsizeSavings, EIP_PRICING, NAT_GATEWAY_PRICING, S3_PRICING, DYNAMODB_PRICING } from '../../lib/cost/pricing.js';
 import type { ImplementationStep } from '../../lib/analyzers/types.js';
@@ -472,7 +473,7 @@ async function analyzeEC2Instances(
     
     for (const reservation of response.Reservations || []) {
       for (const instance of reservation.Instances || []) {
-        if (Date.now() - startTime > remainingTime - 2000) {
+        if (Date.now() - startTime > remainingTime - TIME_BUFFER_MS) {
           logger.warn('Time limit reached in EC2 analysis');
           return results;
         }
@@ -677,7 +678,7 @@ async function analyzeRDSInstances(
     const response = await rdsClient.send(new DescribeDBInstancesCommand({}));
     
     for (const instance of response.DBInstances || []) {
-      if (Date.now() - startTime > remainingTime - 2000) {
+      if (Date.now() - startTime > remainingTime - TIME_BUFFER_MS) {
         logger.warn('Time limit reached in RDS analysis');
         return results;
       }
@@ -707,7 +708,7 @@ async function analyzeRDSInstances(
         const currentHourlyCost = getHourlyCost('RDS', instanceClass);
         const arn = buildResourceArn('rds', region, accountId, 'db', dbIdentifier);
         
-        let recommendation;
+        let recommendation: MLRecommendation;
         let riskAssessment: 'low' | 'medium' | 'high' = 'medium';
         
         if (avgConnections >= 0 && avgConnections < 1 && utilization.avgCpu < 2) {
@@ -747,7 +748,7 @@ async function analyzeRDSInstances(
           currentHourlyCost: parseFloat(currentHourlyCost.toFixed(4)),
           recommendationType: recommendation.type,
           recommendationPriority: priority,
-          recommendedSize: (recommendation as any).recommendedSize || null,
+          recommendedSize: recommendation.recommendedSize || null,
           potentialMonthlySavings: parseFloat(recommendation.savings.toFixed(2)),
           potentialAnnualSavings: parseFloat((recommendation.savings * 12).toFixed(2)),
           mlConfidence: parseFloat(recommendation.confidence.toFixed(4)),
@@ -812,7 +813,7 @@ async function analyzeEBSVolumes(
     }));
     
     for (const volume of response.Volumes || []) {
-      if (Date.now() - startTime > remainingTime - 2000) break;
+      if (Date.now() - startTime > remainingTime - TIME_BUFFER_MS) break;
       
       const volumeId = volume.VolumeId!;
       const volumeType = volume.VolumeType || 'gp2';
@@ -956,7 +957,7 @@ async function analyzeNATGateways(
     }));
     
     for (const natGw of response.NatGateways || []) {
-      if (Date.now() - startTime > remainingTime - 2000) break;
+      if (Date.now() - startTime > remainingTime - TIME_BUFFER_MS) break;
       
       const natGatewayId = natGw.NatGatewayId!;
       const natName = natGw.Tags?.find(t => t.Key === 'Name')?.Value || null;
@@ -1053,7 +1054,7 @@ async function analyzeLambdaFunctions(
     const response = await lambdaClient.send(new ListFunctionsCommand({ MaxItems: maxFunctions }));
     
     for (const fn of response.Functions || []) {
-      if (Date.now() - startTime > remainingTime - 2000) break;
+      if (Date.now() - startTime > remainingTime - TIME_BUFFER_MS) break;
       
       const functionName = fn.FunctionName!;
       const memorySize = fn.MemorySize || 128;
@@ -1273,43 +1274,40 @@ async function saveMLResultsV3(
       },
     });
     
-    // Insert new results
-    for (const result of results) {
-      await prisma.resourceUtilizationML.create({
-        data: {
-          id: randomUUID(),
-          organization_id: organizationId,
-          aws_account_id: accountId,
-          // Note: aws_account_number removed until Prisma layer is updated
-          resource_id: result.resourceId,
-          resource_arn: result.resourceArn,
-          resource_name: result.resourceName,
-          resource_type: result.resourceType,
-          resource_subtype: result.resourceSubtype || null,
-          region: result.region,
-          current_size: result.currentSize,
-          current_monthly_cost: result.currentMonthlyCost,
-          current_hourly_cost: result.currentHourlyCost,
-          recommendation_type: result.recommendationType,
-          recommendation_priority: result.recommendationPriority,
-          recommended_size: result.recommendedSize,
-          potential_monthly_savings: result.potentialMonthlySavings,
-          potential_annual_savings: result.potentialAnnualSavings,
-          ml_confidence: result.mlConfidence,
-          utilization_patterns: result.utilizationPatterns,
-          resource_metadata: result.resourceMetadata,
-          dependencies: result.dependencies,
-          auto_scaling_eligible: result.autoScalingEligible,
-          auto_scaling_config: result.autoScalingConfig,
-          implementation_complexity: result.implementationComplexity,
-          implementation_steps: result.implementationSteps,
-          risk_assessment: result.riskAssessment,
-          last_activity_at: result.lastActivityAt,
-          days_since_activity: result.daysSinceActivity,
-          analyzed_at: result.analyzedAt,
-        },
-      });
-    }
+    // Batch insert all results at once for better performance
+    await prisma.resourceUtilizationML.createMany({
+      data: results.map(result => ({
+        id: randomUUID(),
+        organization_id: organizationId,
+        aws_account_id: accountId,
+        resource_id: result.resourceId,
+        resource_arn: result.resourceArn,
+        resource_name: result.resourceName,
+        resource_type: result.resourceType,
+        resource_subtype: result.resourceSubtype || null,
+        region: result.region,
+        current_size: result.currentSize,
+        current_monthly_cost: result.currentMonthlyCost,
+        current_hourly_cost: result.currentHourlyCost,
+        recommendation_type: result.recommendationType,
+        recommendation_priority: result.recommendationPriority,
+        recommended_size: result.recommendedSize,
+        potential_monthly_savings: result.potentialMonthlySavings,
+        potential_annual_savings: result.potentialAnnualSavings,
+        ml_confidence: result.mlConfidence,
+        utilization_patterns: result.utilizationPatterns,
+        resource_metadata: result.resourceMetadata,
+        dependencies: result.dependencies,
+        auto_scaling_eligible: result.autoScalingEligible,
+        auto_scaling_config: result.autoScalingConfig,
+        implementation_complexity: result.implementationComplexity,
+        implementation_steps: result.implementationSteps,
+        risk_assessment: result.riskAssessment,
+        last_activity_at: result.lastActivityAt,
+        days_since_activity: result.daysSinceActivity,
+        analyzed_at: result.analyzedAt,
+      })),
+    });
     
     logger.info('ML results v3.0 saved to database', { 
       organizationId, 
@@ -1343,7 +1341,7 @@ async function analyzeS3Buckets(
     const buckets = (response.Buckets || []).slice(0, maxBuckets);
     
     for (const bucket of buckets) {
-      if (Date.now() - startTime > remainingTime - 2000) break;
+      if (Date.now() - startTime > remainingTime - TIME_BUFFER_MS) break;
       
       const bucketName = bucket.Name!;
       
