@@ -1876,6 +1876,33 @@
     "fullName": "Nome Completo",
     "email": "E-mail"
   },
+  "changePassword": {
+    "title": "Alterar Senha",
+    "currentPassword": "Senha Atual *",
+    "newPassword": "Nova Senha *",
+    "confirmPassword": "Confirmar Nova Senha *",
+    "currentPlaceholder": "Digite sua senha atual",
+    "newPlaceholder": "Digite a nova senha",
+    "confirmPlaceholder": "Confirme a nova senha",
+    "showPassword": "Mostrar senha",
+    "hidePassword": "Ocultar senha",
+    "submit": "Alterar Senha",
+    "changing": "Alterando...",
+    "success": "Senha alterada com sucesso!",
+    "errors": {
+      "currentRequired": "Informe a senha atual",
+      "mismatch": "As senhas não coincidem",
+      "samePassword": "A nova senha deve ser diferente da atual"
+    },
+    "rules": {
+      "hint": "Mín. 8 caracteres, maiúscula, minúscula, número e caractere especial",
+      "minLength": "Mínimo 8 caracteres",
+      "uppercase": "Uma letra maiúscula",
+      "lowercase": "Uma letra minúscula",
+      "number": "Um número",
+      "special": "Um caractere especial"
+    }
+  },
   "impersonation": {
     "activated": "Impersonate ativado",
     "deactivated": "Impersonate desativado",

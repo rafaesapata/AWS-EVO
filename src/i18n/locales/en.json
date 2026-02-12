@@ -1616,6 +1616,33 @@
     "fullName": "Full Name",
     "email": "Email"
   },
+  "changePassword": {
+    "title": "Change Password",
+    "currentPassword": "Current Password *",
+    "newPassword": "New Password *",
+    "confirmPassword": "Confirm New Password *",
+    "currentPlaceholder": "Enter your current password",
+    "newPlaceholder": "Enter new password",
+    "confirmPlaceholder": "Confirm new password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "submit": "Change Password",
+    "changing": "Changing...",
+    "success": "Password changed successfully!",
+    "errors": {
+      "currentRequired": "Current password is required",
+      "mismatch": "Passwords do not match",
+      "samePassword": "New password must be different from current password"
+    },
+    "rules": {
+      "hint": "Min. 8 characters, uppercase, lowercase, number and special character",
+      "minLength": "At least 8 characters",
+      "uppercase": "One uppercase letter",
+      "lowercase": "One lowercase letter",
+      "number": "One number",
+      "special": "One special character"
+    }
+  },
   "impersonation": {
     "activated": "Impersonation activated",
     "deactivated": "Impersonation deactivated",

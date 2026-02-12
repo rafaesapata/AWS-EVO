@@ -1108,6 +1108,33 @@
     "fullName": "Nombre Completo",
     "email": "Correo Electrónico"
   },
+  "changePassword": {
+    "title": "Cambiar Contraseña",
+    "currentPassword": "Contraseña Actual *",
+    "newPassword": "Nueva Contraseña *",
+    "confirmPassword": "Confirmar Nueva Contraseña *",
+    "currentPlaceholder": "Ingrese su contraseña actual",
+    "newPlaceholder": "Ingrese la nueva contraseña",
+    "confirmPlaceholder": "Confirme la nueva contraseña",
+    "showPassword": "Mostrar contraseña",
+    "hidePassword": "Ocultar contraseña",
+    "submit": "Cambiar Contraseña",
+    "changing": "Cambiando...",
+    "success": "¡Contraseña cambiada exitosamente!",
+    "errors": {
+      "currentRequired": "Ingrese la contraseña actual",
+      "mismatch": "Las contraseñas no coinciden",
+      "samePassword": "La nueva contraseña debe ser diferente de la actual"
+    },
+    "rules": {
+      "hint": "Mín. 8 caracteres, mayúscula, minúscula, número y carácter especial",
+      "minLength": "Mínimo 8 caracteres",
+      "uppercase": "Una letra mayúscula",
+      "lowercase": "Una letra minúscula",
+      "number": "Un número",
+      "special": "Un carácter especial"
+    }
+  },
   "impersonation": {
     "activated": "Suplantación activada",
     "deactivated": "Suplantación desactivada",

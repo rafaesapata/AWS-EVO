@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { LogOut, User, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import UserSettings from "./UserSettings";
+import ChangePasswordSection from "./ChangePasswordSection";
 import VersionInfo from "./VersionInfo";
 
 interface Profile {
@@ -123,11 +124,11 @@ export default function UserMenu() {
 
       {/* Profile Dialog */}
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('userMenu.myProfile')}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">{t('userMenu.fullName')}</label>
@@ -138,6 +139,7 @@ export default function UserMenu() {
                 <p className="text-lg">{profile.email}</p>
               </div>
             </div>
+            <ChangePasswordSection />
           </div>
         </DialogContent>
       </Dialog>

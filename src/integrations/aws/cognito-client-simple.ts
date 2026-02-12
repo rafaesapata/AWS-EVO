@@ -13,7 +13,8 @@ import {
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
   AssociateSoftwareTokenCommand,
-  VerifySoftwareTokenCommand
+  VerifySoftwareTokenCommand,
+  ChangePasswordCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 import { secureStorage } from '@/lib/secure-storage';
 
@@ -559,6 +560,43 @@ class CognitoAuthService {
 
     // In production, this would make API calls to Cognito
     console.log('Confirm password request for:', email);
+  }
+
+  /**
+   * Change password for authenticated user
+   * Requires current password and new password
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const session = await this.getCurrentSession();
+    if (!session) {
+      throw new Error('Sessão não encontrada. Faça login novamente.');
+    }
+
+    const cognitoClient = new CognitoIdentityProviderClient({ 
+      region: this.region 
+    });
+
+    const command = new ChangePasswordCommand({
+      PreviousPassword: currentPassword,
+      ProposedPassword: newPassword,
+      AccessToken: session.accessToken,
+    });
+
+    try {
+      await cognitoClient.send(command);
+    } catch (error: any) {
+      console.error('Change password error:', error);
+      
+      if (error.name === 'NotAuthorizedException') {
+        throw new Error('Senha atual incorreta.');
+      } else if (error.name === 'InvalidPasswordException') {
+        throw new Error('Nova senha não atende aos requisitos de segurança.');
+      } else if (error.name === 'LimitExceededException') {
+        throw new Error('Muitas tentativas. Tente novamente mais tarde.');
+      }
+      
+      throw new Error('Erro ao alterar senha. Tente novamente.');
+    }
   }
 
   async confirmSignIn(session: string, mfaCode: string): Promise<AuthSession> {
