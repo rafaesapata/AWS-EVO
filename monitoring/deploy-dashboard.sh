@@ -132,12 +132,12 @@ DASHBOARD_BODY=$(cat <<'DASHBOARD_EOF'
 DASHBOARD_EOF
 )
 
-# Build JSON array of log group names for Logs Insights widget (first 20 to avoid size limits)
+# Build JSON array of log group names for Logs Insights widget (max 50 per query)
 LOG_GROUPS_JSON=$(aws logs describe-log-groups \
   --region "${REGION}" \
   --log-group-name-prefix "/aws/lambda/evo-" \
   --query 'logGroups[].logGroupName' \
-  --output json 2>/dev/null | python3 -c "import sys,json; groups=json.load(sys.stdin)[:20]; print(json.dumps(groups))" 2>/dev/null || echo '[]')
+  --output json 2>/dev/null | python3 -c "import sys,json; groups=json.load(sys.stdin)[:50]; print(json.dumps(groups))" 2>/dev/null || echo '[]')
 
 if [ "${LOG_GROUPS_JSON}" = "[]" ] || [ -z "${LOG_GROUPS_JSON}" ]; then
   LOG_GROUPS_JSON='["/aws/lambda/evo-placeholder"]'
