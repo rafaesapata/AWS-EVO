@@ -31,6 +31,9 @@ Globals:
         LICENSE_CREATE_API_URL: https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/api-create-trial
         LICENSE_API_KEY: nck_59707b56bf8def71dfb657bb8f2f4b9c
         TOKEN_ENCRYPTION_KEY: !Ref TokenEncryptionKey
+        AZURE_OAUTH_CLIENT_ID: !Ref AzureOAuthClientId
+        AZURE_OAUTH_CLIENT_SECRET: !Ref AzureOAuthClientSecret
+        AZURE_OAUTH_REDIRECT_URI: !Ref AzureOAuthRedirectUri
     Layers:
       - !Ref DependenciesLayer
 
@@ -75,6 +78,19 @@ Parameters:
     NoEcho: true
     Description: Base64-encoded 32-byte key for encrypting sensitive credentials (Azure client secrets, OAuth tokens)
     Default: ''
+  AzureOAuthClientId:
+    Type: String
+    Description: Azure App Registration Client ID for OAuth flow
+    Default: ''
+  AzureOAuthClientSecret:
+    Type: String
+    NoEcho: true
+    Description: Azure App Registration Client Secret for OAuth flow
+    Default: ''
+  AzureOAuthRedirectUri:
+    Type: String
+    Description: Azure OAuth redirect URI
+    Default: 'https://evo.ai.udstec.io/azure/callback'
 
 Resources:
   # Lambda Layer - Prisma + Zod

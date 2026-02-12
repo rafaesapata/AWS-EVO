@@ -33,7 +33,7 @@ import {
   DeleteSubscriptionFilterCommand,
   DescribeSubscriptionFiltersCommand,
 } from '@aws-sdk/client-cloudwatch-logs';
-import { IAMClient, SimulatePrincipalPolicyCommand, GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand } from '@aws-sdk/client-iam';
+import { IAMClient, SimulatePrincipalPolicyCommand, GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand, UpdateAssumeRolePolicyCommand } from '@aws-sdk/client-iam';
 
 // Filter modes for WAF log collection
 type LogFilterMode = 'block_only' | 'all_requests' | 'hybrid';
@@ -52,6 +52,17 @@ interface SetupResult {
 // MUST match CloudFormation stack: ${ProjectName}-${Environment}-waf-logs-destination
 const EVO_WAF_DESTINATION_NAME = 'evo-uds-v3-production-waf-logs-destination';
 const EVO_ACCOUNT_ID = '523115032346';
+
+// CloudWatch Logs role name — must match CloudFormation template exactly
+const CLOUDWATCH_LOGS_ROLE_NAME = 'EVO-CloudWatch-Logs-Role';
+
+// Retry configuration for PutSubscriptionFilter (destination policy propagation)
+const SUBSCRIPTION_FILTER_MAX_RETRIES = 3;
+const SUBSCRIPTION_FILTER_RETRY_DELAY_MS = 5000;
+const POLICY_PROPAGATION_DELAY_MS = 3000;
+const IAM_PROPAGATION_DELAY_MS = 10000;
+const TRUST_POLICY_PROPAGATION_DELAY_MS = 5000;
+const AUTO_REMEDIATION_DELAY_MS = 5000;
 
 // Supported regions for WAF monitoring
 // Must include ALL regions where customers may have WAF resources
@@ -201,7 +212,7 @@ async function updateDestinationPolicyForCustomer(
       });
       
       // Wait for policy propagation before PutSubscriptionFilter
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, POLICY_PROPAGATION_DELAY_MS));
     } else {
       logger.info('Customer account already in destination policy', { customerAwsAccountId, region });
     }
@@ -262,8 +273,7 @@ async function getOrCreateCloudWatchLogsRole(
   const iamClient = new IAMClient({ region: 'us-east-1', credentials }); // IAM is global
   
   // FIXED role name - must match CloudFormation template exactly
-  // CloudFormation creates: 'EVO-CloudWatch-Logs-Role' (fixed name, no suffix)
-  const roleName = 'EVO-CloudWatch-Logs-Role';
+  const roleName = CLOUDWATCH_LOGS_ROLE_NAME;
   
   try {
     // Check if role exists
@@ -319,9 +329,9 @@ async function getOrCreateCloudWatchLogsRole(
       PolicyDocument: policyDocument
     }));
     
-    // CRITICAL: Wait for IAM propagation (10 seconds minimum)
+    // CRITICAL: Wait for IAM propagation
     logger.info('Waiting for IAM role propagation...', { roleName });
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await new Promise(resolve => setTimeout(resolve, IAM_PROPAGATION_DELAY_MS));
     
     logger.info('CloudWatch Logs role created successfully', { roleName, customerAwsAccountId });
     return `arn:aws:iam::${customerAwsAccountId}:role/${roleName}`;
@@ -779,7 +789,7 @@ async function tryAutoRemediateWafPermissions(
     });
     
     // Wait for IAM propagation
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, AUTO_REMEDIATION_DELAY_MS));
     
     return true;
   } catch (err: any) {
@@ -807,6 +817,66 @@ interface WafMonitoringContext {
   accountId: string;
   prisma: ReturnType<typeof getPrismaClient>;
   credentials: any;
+}
+
+/**
+ * Verify and auto-fix the EVO-CloudWatch-Logs-Role trust policy to include the regional logs service.
+ * Non-blocking — logs warnings but does not throw on failure.
+ */
+async function ensureRegionalTrustPolicy(
+  credentials: any,
+  region: string,
+  roleArn: string
+): Promise<void> {
+  try {
+    const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+    const roleInfo = await iamClient.send(new GetRoleCommand({ 
+      RoleName: CLOUDWATCH_LOGS_ROLE_NAME 
+    }));
+    const trustPolicy = roleInfo.Role?.AssumeRolePolicyDocument 
+      ? decodeURIComponent(roleInfo.Role.AssumeRolePolicyDocument) 
+      : '';
+    const regionalService = `logs.${region}.amazonaws.com`;
+    const hasRegionalTrust = trustPolicy.includes(regionalService) || trustPolicy.includes('logs.amazonaws.com');
+    
+    logger.info('CloudWatch Logs role trust policy check', { 
+      region, regionalService, hasRegionalTrust, roleArn,
+    });
+    
+    if (hasRegionalTrust) return;
+    
+    logger.warn('CloudWatch Logs role missing regional trust, attempting auto-fix', { 
+      region, regionalService,
+    });
+    
+    try {
+      const currentPolicy = JSON.parse(trustPolicy);
+      const stmt = currentPolicy.Statement?.[0];
+      if (stmt?.Principal?.Service) {
+        const services = Array.isArray(stmt.Principal.Service) 
+          ? stmt.Principal.Service 
+          : [stmt.Principal.Service];
+        if (!services.includes(regionalService)) {
+          services.push(regionalService);
+          stmt.Principal.Service = services;
+          await iamClient.send(new UpdateAssumeRolePolicyCommand({
+            RoleName: CLOUDWATCH_LOGS_ROLE_NAME,
+            PolicyDocument: JSON.stringify(currentPolicy),
+          }));
+          logger.info('Updated trust policy to include regional service', { region, regionalService });
+          await new Promise(resolve => setTimeout(resolve, TRUST_POLICY_PROPAGATION_DELAY_MS));
+        }
+      }
+    } catch (updateErr: any) {
+      logger.warn('Could not update trust policy (non-blocking)', { 
+        error: updateErr.message, region,
+      });
+    }
+  } catch (verifyErr: any) {
+    logger.warn('Could not verify CloudWatch Logs role trust policy (non-blocking)', { 
+      error: verifyErr.message,
+    });
+  }
 }
 
 /**
@@ -1078,70 +1148,15 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   );
   
   // Verify the role's trust policy includes the regional logs service
-  try {
-    const iamVerifyClient = new IAMClient({ region: 'us-east-1', credentials });
-    const roleInfo = await iamVerifyClient.send(new GetRoleCommand({ 
-      RoleName: 'EVO-CloudWatch-Logs-Role' 
-    }));
-    const trustPolicy = roleInfo.Role?.AssumeRolePolicyDocument 
-      ? decodeURIComponent(roleInfo.Role.AssumeRolePolicyDocument) 
-      : '';
-    const regionalService = `logs.${region}.amazonaws.com`;
-    const hasRegionalTrust = trustPolicy.includes(regionalService) || trustPolicy.includes('logs.amazonaws.com');
-    
-    logger.info('EVO-CloudWatch-Logs-Role trust policy check', { 
-      region, regionalService, hasRegionalTrust,
-      trustPolicyLength: trustPolicy.length,
-      roleArn: cloudWatchLogsRoleArn,
-    });
-    
-    if (!hasRegionalTrust) {
-      logger.warn('EVO-CloudWatch-Logs-Role missing regional trust', { 
-        region, regionalService, trustPolicy: trustPolicy.substring(0, 500) 
-      });
-      // Try to update the trust policy to add the regional service
-      // This requires iam:UpdateAssumeRolePolicy permission (from SelfUpdate policy)
-      try {
-        const { UpdateAssumeRolePolicyCommand } = await import('@aws-sdk/client-iam');
-        const currentPolicy = JSON.parse(trustPolicy);
-        const stmt = currentPolicy.Statement?.[0];
-        if (stmt?.Principal?.Service) {
-          const services = Array.isArray(stmt.Principal.Service) 
-            ? stmt.Principal.Service 
-            : [stmt.Principal.Service];
-          if (!services.includes(regionalService)) {
-            services.push(regionalService);
-            stmt.Principal.Service = services;
-            await iamVerifyClient.send(new UpdateAssumeRolePolicyCommand({
-              RoleName: 'EVO-CloudWatch-Logs-Role',
-              PolicyDocument: JSON.stringify(currentPolicy),
-            }));
-            logger.info('Updated trust policy to include regional service', { region, regionalService });
-            // Wait for propagation
-            await new Promise(resolve => setTimeout(resolve, 5000));
-          }
-        }
-      } catch (updateErr: any) {
-        logger.warn('Could not update trust policy (non-blocking)', { 
-          error: updateErr.message, region 
-        });
-      }
-    }
-  } catch (verifyErr: any) {
-    logger.warn('Could not verify CloudWatch Logs role trust policy (non-blocking)', { 
-      error: verifyErr.message 
-    });
-  }
+  await ensureRegionalTrustPolicy(credentials, region, cloudWatchLogsRoleArn);
   
   // PutSubscriptionFilter with retry — destination policy propagation can take a few seconds
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY_MS = 5000;
   let lastErr: any = null;
   
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 1; attempt <= SUBSCRIPTION_FILTER_MAX_RETRIES; attempt++) {
     try {
       logger.info('PutSubscriptionFilter attempt', { 
-        attempt, maxRetries: MAX_RETRIES, logGroupName, destinationArn, 
+        attempt, maxRetries: SUBSCRIPTION_FILTER_MAX_RETRIES, logGroupName, destinationArn, 
         roleArn: cloudWatchLogsRoleArn, region, customerAwsAccountId 
       });
       
@@ -1158,7 +1173,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     } catch (err: any) {
       lastErr = err;
       logger.warn('PutSubscriptionFilter failed', {
-        attempt, maxRetries: MAX_RETRIES,
+        attempt, maxRetries: SUBSCRIPTION_FILTER_MAX_RETRIES,
         logGroupName, destinationArn, roleArn: cloudWatchLogsRoleArn,
         errorName: err.name, errorMessage: err.message,
       });
@@ -1167,12 +1182,12 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
       const isDeliveryError = err.name === 'InvalidParameterException' && 
         err.message?.includes('Could not deliver test message');
       
-      if (!isDeliveryError || attempt === MAX_RETRIES) {
+      if (!isDeliveryError || attempt === SUBSCRIPTION_FILTER_MAX_RETRIES) {
         break;
       }
       
-      logger.info(`Waiting ${RETRY_DELAY_MS}ms before retry (policy propagation)`, { attempt });
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+      logger.info(`Waiting ${SUBSCRIPTION_FILTER_RETRY_DELAY_MS}ms before retry (policy propagation)`, { attempt });
+      await new Promise(resolve => setTimeout(resolve, SUBSCRIPTION_FILTER_RETRY_DELAY_MS));
     }
   }
   
@@ -1191,7 +1206,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     
     if (lastErr.name === 'InvalidParameterException' && lastErr.message?.includes('Could not deliver test message')) {
       throw createPermissionError(
-        `Cross-account log delivery failed after ${MAX_RETRIES} attempts (region: ${region}). ` +
+        `Cross-account log delivery failed after ${SUBSCRIPTION_FILTER_MAX_RETRIES} attempts (region: ${region}). ` +
         `The subscription filter could not deliver a test message to the EVO destination. ` +
         `Destination ARN: ${destinationArn}. Role ARN: ${cloudWatchLogsRoleArn}. ` +
         `Customer Account: ${customerAwsAccountId}. ` +

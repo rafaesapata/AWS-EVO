@@ -83,6 +83,8 @@ phases:
           export S3_BUCKET="evo-sam-artifacts-523115032346"
           export LAMBDA_PREFIX="evo-uds-v3-production"
           export PUBLIC_TEMPLATES_BUCKET="evo-public-templates-523115032346"
+          export AZURE_OAUTH_CLIENT_ID="cb8027cd-877e-458a-8f46-b090312f79aa"
+          export AZURE_OAUTH_REDIRECT_URI="https://evo.ai.udstec.io/azure/callback"
         else
           export STACK_NAME="evo-uds-v3-sandbox-lambdas"
           export COGNITO_USER_POOL_ID="us-east-1_HPU98xnmT"
@@ -96,8 +98,19 @@ phases:
           export CF_DIST_ID="E93EL7AJZ6QAQ"
           export S3_BUCKET="evo-sam-artifacts-971354623291"
           export LAMBDA_PREFIX="evo-uds-v3-sandbox"
+          export AZURE_OAUTH_CLIENT_ID="cb8027cd-877e-458a-8f46-b090312f79aa"
+          export AZURE_OAUTH_REDIRECT_URI="https://evo.ai.udstec.io/azure/callback"
         fi
       - echo "Environment $ENV | Stack $STACK_NAME"
+      # Fetch Azure OAuth Client Secret from SSM Parameter Store (secret not stored in code)
+      - |
+        AZURE_SECRET_PARAM="/evo/${ENV}/azure-oauth-client-secret"
+        export AZURE_OAUTH_CLIENT_SECRET=$(aws ssm get-parameter --name "$AZURE_SECRET_PARAM" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+        if [ -z "$AZURE_OAUTH_CLIENT_SECRET" ]; then
+          echo "WARNING: Azure OAuth Client Secret not found in SSM ($AZURE_SECRET_PARAM). Azure OAuth will not work."
+        else
+          echo "Azure OAuth Client Secret loaded from SSM"
+        fi
 
       - echo "=== Analyzing deploy strategy ==="
       - |
@@ -274,7 +287,10 @@ phases:
               CognitoClientId=$COGNITO_CLIENT_ID \
               LambdaSecurityGroupId=$LAMBDA_SG \
               PrivateSubnet1Id=$PRIVATE_SUBNET_1 \
-              PrivateSubnet2Id=$PRIVATE_SUBNET_2
+              PrivateSubnet2Id=$PRIVATE_SUBNET_2 \
+              AzureOAuthClientId=$AZURE_OAUTH_CLIENT_ID \
+              AzureOAuthClientSecret=$AZURE_OAUTH_CLIENT_SECRET \
+              AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI
 
         elif [ "$DEPLOY_HANDLERS" = "true" ]; then
           echo "=== INCREMENTAL LAMBDA DEPLOY ==="
