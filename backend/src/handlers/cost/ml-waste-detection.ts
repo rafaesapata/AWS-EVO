@@ -34,7 +34,7 @@ import {
   buildResourceArn,
   type CloudWatchDatapoint,
 } from '../../lib/ml-analysis/index.js';
-import { getMonthlyCost, getHourlyCost, getLambdaMonthlyCost, getEBSMonthlyCost, getS3MonthlyCost, getDynamoDBProvisionedMonthlyCost, EIP_PRICING, NAT_GATEWAY_PRICING, S3_PRICING, DYNAMODB_PRICING } from '../../lib/cost/pricing.js';
+import { getMonthlyCost, getHourlyCost, getLambdaMonthlyCost, getEBSMonthlyCost, getS3MonthlyCost, getDynamoDBProvisionedMonthlyCost, getDownsizeRecommendation, calculateDownsizeSavings, EIP_PRICING, NAT_GATEWAY_PRICING, S3_PRICING, DYNAMODB_PRICING } from '../../lib/cost/pricing.js';
 import type { ImplementationStep } from '../../lib/analyzers/types.js';
 
 interface MLWasteDetectionRequest {
@@ -76,6 +76,22 @@ interface MLResultV3 {
 
 const DEFAULT_REGIONS = ['us-east-1'];
 const MAX_EXECUTION_TIME = 25000;
+
+// Confidence thresholds for stopped instance analysis
+const STOPPED_CONFIDENCE = {
+  LONG_STOPPED_DAYS: 30,    // Days stopped to consider high confidence
+  SHORT_STOPPED_DAYS: 7,    // Days stopped to consider medium confidence
+  HIGH: 0.95,
+  MEDIUM: 0.85,
+  LOW: 0.70,
+} as const;
+
+// Fallback savings multiplier when downsize calculation returns 0
+const DOWNSIZE_FALLBACK_SAVINGS_RATIO = 0.7;
+
+// Time buffer (ms) reserved before timeout for cleanup
+const TIME_BUFFER_MS = 2000;
+const STOPPED_ANALYSIS_BUFFER_MS = 5000;
 
 function calculatePriority(savings: number, confidence: number): number {
   if (savings > 500 && confidence > 0.8) return 5;
@@ -477,6 +493,16 @@ async function analyzeEC2Instances(
           const utilization = analyzeUtilization(cpuMetrics);
           const recommendation = classifyWaste(utilization, 'EC2', instanceType);
           
+          // Safety net: NEVER recommend terminate for running EC2 instances
+          // Running instances are in-use by definition; suggest downsize instead
+          if (recommendation.type === 'terminate') {
+            const recommendedSize = getDownsizeRecommendation('EC2', instanceType, utilization.maxCpu);
+            const downsizeSavings = calculateDownsizeSavings('EC2', instanceType, recommendedSize);
+            recommendation.type = 'downsize';
+            recommendation.recommendedSize = recommendedSize;
+            recommendation.savings = downsizeSavings > 0 ? downsizeSavings : recommendation.savings * DOWNSIZE_FALLBACK_SAVINGS_RATIO;
+          }
+          
           if (recommendation.type === 'optimize' && recommendation.savings === 0) continue;
           
           const currentMonthlyCost = getMonthlyCost('EC2', instanceType);
@@ -522,7 +548,7 @@ async function analyzeEC2Instances(
             autoScalingConfig: recommendation.autoScalingConfig || null,
             implementationComplexity: recommendation.complexity,
             implementationSteps,
-            riskAssessment: recommendation.type === 'terminate' ? 'high' : 'medium',
+            riskAssessment: 'medium',
             lastActivityAt: null,
             daysSinceActivity: null,
             analyzedAt: new Date(),
@@ -533,6 +559,96 @@ async function analyzeEC2Instances(
             instanceId, error: (metricErr as Error).message 
           });
         }
+      }
+    }
+    
+    // Analyze STOPPED instances — these are candidates for terminate (with snapshot)
+    if (Date.now() - startTime < remainingTime - STOPPED_ANALYSIS_BUFFER_MS) {
+      try {
+        const stoppedResponse = await ec2Client.send(new DescribeInstancesCommand({
+          Filters: [{ Name: 'instance-state-name', Values: ['stopped'] }],
+          MaxResults: maxInstances,
+        }));
+        
+        for (const reservation of stoppedResponse.Reservations || []) {
+          for (const instance of reservation.Instances || []) {
+            if (Date.now() - startTime > remainingTime - TIME_BUFFER_MS) break;
+            
+            const instanceId = instance.InstanceId!;
+            const instanceType = instance.InstanceType!;
+            const instanceName = instance.Tags?.find(t => t.Key === 'Name')?.Value || null;
+            const launchTime = instance.LaunchTime;
+            const stateTransitionReason = instance.StateTransitionReason || '';
+            
+            // Calculate days since stopped (from StateTransitionReason or estimate)
+            let daysStopped: number | null = null;
+            const dateMatch = stateTransitionReason.match(/\((\d{4}-\d{2}-\d{2})/);
+            if (dateMatch) {
+              const stoppedDate = new Date(dateMatch[1]);
+              daysStopped = Math.floor((Date.now() - stoppedDate.getTime()) / (1000 * 60 * 60 * 24));
+            }
+            
+            // Stopped instances still incur EBS costs; full instance cost is savings
+            const currentMonthlyCost = getMonthlyCost('EC2', instanceType);
+            const currentHourlyCost = getHourlyCost('EC2', instanceType);
+            const arn = buildResourceArn('ec2', region, accountId, 'instance', instanceId);
+            
+            // Stopped instances: always recommend terminate with AMI backup first
+            const implementationSteps: ImplementationStep[] = [
+              { order: 1, action: 'Create AMI backup (snapshot)', command: `aws ec2 create-image --instance-id ${instanceId} --name "backup-${instanceId}-$(date +%Y%m%d)" --region ${region}`, riskLevel: 'safe', notes: 'Creates a full AMI with all EBS snapshots. Wait for AMI to be available before proceeding.' },
+              { order: 2, action: 'Verify AMI is available', command: `aws ec2 describe-images --owners self --filters "Name=name,Values=backup-${instanceId}-*" --query "Images[0].State" --region ${region}`, riskLevel: 'safe' },
+              { order: 3, action: 'Terminate stopped instance', command: `aws ec2 terminate-instances --instance-ids ${instanceId} --region ${region}`, riskLevel: 'destructive', notes: 'Instance is already stopped. AMI backup allows re-launch if needed.' },
+            ];
+            
+            const confidence = daysStopped !== null && daysStopped > STOPPED_CONFIDENCE.LONG_STOPPED_DAYS ? STOPPED_CONFIDENCE.HIGH : 
+                               daysStopped !== null && daysStopped > STOPPED_CONFIDENCE.SHORT_STOPPED_DAYS ? STOPPED_CONFIDENCE.MEDIUM : STOPPED_CONFIDENCE.LOW;
+            const priority = calculatePriority(currentMonthlyCost, confidence);
+            
+            results.push({
+              resourceId: instanceId,
+              resourceArn: arn,
+              resourceName: instanceName,
+              resourceType: 'EC2::Instance',
+              resourceSubtype: instanceType,
+              region,
+              accountId,
+              currentSize: `${instanceType} (stopped)`,
+              currentMonthlyCost: parseFloat(currentMonthlyCost.toFixed(2)),
+              currentHourlyCost: parseFloat(currentHourlyCost.toFixed(4)),
+              recommendationType: 'terminate',
+              recommendationPriority: priority,
+              recommendedSize: null,
+              potentialMonthlySavings: parseFloat(currentMonthlyCost.toFixed(2)),
+              potentialAnnualSavings: parseFloat((currentMonthlyCost * 12).toFixed(2)),
+              mlConfidence: parseFloat(confidence.toFixed(4)),
+              utilizationPatterns: {
+                avgCpuUsage: 0, avgMemoryUsage: 0, peakHours: [],
+                hasRealMetrics: false, trend: 'stopped', seasonality: 'none',
+              },
+              resourceMetadata: {
+                launchTime: launchTime?.toISOString(),
+                platform: instance.Platform || 'linux',
+                vpcId: instance.VpcId,
+                subnetId: instance.SubnetId,
+                instanceState: 'stopped',
+                daysStopped,
+                stateTransitionReason,
+                tags: instance.Tags?.reduce((acc, t) => ({ ...acc, [t.Key!]: t.Value }), {}),
+              },
+              dependencies: [],
+              autoScalingEligible: false,
+              autoScalingConfig: null,
+              implementationComplexity: 'low',
+              implementationSteps,
+              riskAssessment: 'medium',
+              lastActivityAt: dateMatch ? new Date(dateMatch[1]) : null,
+              daysSinceActivity: daysStopped,
+              analyzedAt: new Date(),
+            });
+          }
+        }
+      } catch (stoppedErr) {
+        logger.warn('Error analyzing stopped EC2 instances', { error: (stoppedErr as Error).message });
       }
     }
   } catch (err) {
@@ -594,9 +710,19 @@ async function analyzeRDSInstances(
         let recommendation;
         let riskAssessment: 'low' | 'medium' | 'high' = 'medium';
         
-        if (avgConnections >= 0 && avgConnections < 1) {
-          recommendation = { type: 'terminate' as const, savings: currentMonthlyCost, confidence: 0.95, complexity: 'medium' as const };
-          riskAssessment = 'high';
+        if (avgConnections >= 0 && avgConnections < 1 && utilization.avgCpu < 2) {
+          // Zero connections AND near-zero CPU — recommend downsize to smallest, NOT terminate
+          // RDS is stateful and destructive termination should never be auto-suggested
+          const recommendedSize = getDownsizeRecommendation('RDS', instanceClass, utilization.maxCpu);
+          const downsizeSavings = calculateDownsizeSavings('RDS', instanceClass, recommendedSize);
+          recommendation = { 
+            type: 'downsize' as const, 
+            savings: downsizeSavings > 0 ? downsizeSavings : currentMonthlyCost * DOWNSIZE_FALLBACK_SAVINGS_RATIO, 
+            confidence: 0.92, 
+            complexity: 'medium' as const,
+            recommendedSize,
+          };
+          riskAssessment = 'medium';
         } else {
           recommendation = classifyWaste(utilization, 'RDS', instanceClass);
         }

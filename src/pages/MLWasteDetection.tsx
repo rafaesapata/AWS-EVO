@@ -901,6 +901,8 @@ export default function MLWasteDetection() {
  } className={rec.recommendation_type === 'purchase' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}>
  {rec.recommendation_type === 'purchase' 
  ? t('mlWaste.reserveOrSavingsPlan', 'RESERVE/SAVINGS PLAN')
+ : rec.recommendation_type === 'terminate' && rec.current_size?.includes('stopped')
+ ? t('mlWaste.terminateStopped', 'TERMINATE (STOPPED)')
  : rec.recommendation_type?.replace('-', ' ').toUpperCase()}
  </Badge>
  </div>
