@@ -107,6 +107,19 @@ Resources:
       DestinationName: !Sub '${ProjectName}-${Environment}-waf-logs-destination'
       RoleArn: !GetAtt WafLogsDestinationRole.Arn
       TargetArn: !GetAtt WafLogForwarderFunction.Arn
+      DestinationPolicy: !Sub |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowCrossAccountSubscription",
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "logs:PutSubscriptionFilter",
+              "Resource": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:destination:${ProjectName}-${Environment}-waf-logs-destination"
+            }
+          ]
+        }
 
 Outputs:
   WafLogsDestinationArn:
