@@ -1317,6 +1317,23 @@ async function disableWafMonitoring(
 
 
 /**
+ * Read-only check: does the EVO WAF logs destination exist in the given region?
+ * Unlike updateDestinationPolicyForCustomer, this does NOT modify the destination policy.
+ */
+async function checkDestinationExists(region: string): Promise<boolean> {
+  const { CloudWatchLogsClient: EvoLogsClient, DescribeDestinationsCommand } = await import('@aws-sdk/client-cloudwatch-logs');
+  const evoLogsClient = new EvoLogsClient({ region });
+  try {
+    const resp = await evoLogsClient.send(new DescribeDestinationsCommand({
+      DestinationNamePrefix: EVO_WAF_DESTINATION_NAME,
+    }));
+    return !!resp.destinations?.some(d => d.destinationName === EVO_WAF_DESTINATION_NAME);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Dry-run diagnostic: tests each step of WAF setup without making changes.
  * Returns step-by-step results so we can identify exactly where setup fails.
  */
@@ -1443,20 +1460,19 @@ async function handleTestSetup(
     }
   }
 
-  // Test destination exists
+  // Test destination exists (read-only check — does NOT modify destination policy)
   const destinationArn = getDestinationArn(wafRegion);
-  const destinationExists = await updateDestinationPolicyForCustomer(customerAwsAccountId, wafRegion);
+  const destinationExists = await checkDestinationExists(wafRegion);
   steps.push({ step: 'destination-exists', status: destinationExists ? 'ok' : 'fail', detail: `${destinationArn} (region=${wafRegion})` });
 
   // Test CloudWatch Logs role
   let cloudWatchLogsRoleArn = '';
   try {
     const iamClient = new IAMClient({ region: 'us-east-1', credentials });
-    await iamClient.send(new GetRoleCommand({ RoleName: CLOUDWATCH_LOGS_ROLE_NAME }));
+    const roleInfo = await iamClient.send(new GetRoleCommand({ RoleName: CLOUDWATCH_LOGS_ROLE_NAME }));
     cloudWatchLogsRoleArn = `arn:aws:iam::${customerAwsAccountId}:role/${CLOUDWATCH_LOGS_ROLE_NAME}`;
     
     // Check trust policy
-    const roleInfo = await iamClient.send(new GetRoleCommand({ RoleName: CLOUDWATCH_LOGS_ROLE_NAME }));
     const trustDoc = roleInfo.Role?.AssumeRolePolicyDocument ? decodeURIComponent(roleInfo.Role.AssumeRolePolicyDocument) : '';
     const regionalSvc = `logs.${wafRegion}.amazonaws.com`;
     const hasTrust = trustDoc.includes(regionalSvc) || trustDoc.includes('logs.amazonaws.com');
