@@ -193,12 +193,10 @@ export function extractImports(filePath: string): ImportInfo[] {
       if (line.includes('*/')) {
         inBlockComment = false;
         // Check for import AFTER the closing */ on this same line
-        const afterComment = line.substring(line.indexOf('*/') + 2);
+        const afterIdx = line.indexOf('*/') + 2;
+        const afterComment = line.substring(afterIdx);
         if (afterComment.trim().length > 0) {
-          const importPath = matchImportPath(afterComment);
-          if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
-            results.push({ sourcePath: absolutePath, importPath, line: lineNum });
-          }
+          tryPush(afterComment, lineNum);
         }
       }
       continue;
@@ -213,11 +211,11 @@ export function extractImports(filePath: string): ImportInfo[] {
       }
       // Single-line block comment (/* ... */ on same line) — skip if import is inside it
       const commentStart = line.indexOf('/*');
-      const commentEnd = line.indexOf('*/');
+      const commentEnd = line.indexOf('*/') + 2; // +2 for length of '*/'
       const importPath = matchImportPath(line);
       if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
         const matchIdx = line.indexOf(importPath);
-        if (matchIdx >= 0 && (matchIdx < commentStart || matchIdx > commentEnd + 2)) {
+        if (matchIdx >= 0 && (matchIdx < commentStart || matchIdx > commentEnd)) {
           results.push({ sourcePath: absolutePath, importPath, line: lineNum });
         }
       }
@@ -400,9 +398,10 @@ export function detectCycles(adjacencyMap: Map<string, string[]>): Cycle[] {
 
           // Normalize: rotate so smallest node is first, then create signature
           const nodesInCycle = cyclePath.slice(0, -1);
-          const minIdx = nodesInCycle.indexOf(
-            nodesInCycle.reduce((a, b) => (a < b ? a : b))
-          );
+          let minIdx = 0;
+          for (let j = 1; j < nodesInCycle.length; j++) {
+            if (nodesInCycle[j] < nodesInCycle[minIdx]) minIdx = j;
+          }
           const rotated = [
             ...nodesInCycle.slice(minIdx),
             ...nodesInCycle.slice(0, minIdx),
