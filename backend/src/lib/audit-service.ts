@@ -60,7 +60,9 @@ export type AuditAction =
   | 'DATA_UPSERT'
   | 'ADMIN_UPDATE_AZURE_CREDENTIAL'
   | 'EVO_APP_CREDENTIALS_UPDATE'
-  | 'EVO_APP_CREDENTIALS_SYNC';
+  | 'EVO_APP_CREDENTIALS_SYNC'
+  | 'WEBAUTHN_CREDENTIAL_DELETED'
+  | 'WEBAUTHN_ALL_CREDENTIALS_DELETED';
 
 export type AuditResourceType =
   | 'user'
@@ -85,7 +87,8 @@ export type AuditResourceType =
   | 'ai_notification'
   | 'organization_license_config'
   | 'license_seat_assignment'
-  | 'data';
+  | 'data'
+  | 'webauthn_credential';
 
 export interface AuditLogParams {
   organizationId: string;

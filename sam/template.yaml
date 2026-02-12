@@ -36,6 +36,9 @@ Globals:
         AZURE_OAUTH_REDIRECT_URI: !Ref AzureOAuthRedirectUri
         APP_DOMAIN: !Ref AppDomain
         API_DOMAIN: !Sub 'api-${AppDomain}'
+        WEBAUTHN_RP_ID: !Ref WebAuthnRpId
+        WEBAUTHN_ORIGIN: !Sub 'https://${AppDomain}'
+        WEBAUTHN_RP_NAME: !Ref WebAuthnRpName
     Layers:
       - !Ref DependenciesLayer
 
@@ -97,6 +100,14 @@ Parameters:
     Type: String
     Description: Base application domain (e.g., evo.nuevacore.com)
     Default: 'evo.nuevacore.com'
+  WebAuthnRpId:
+    Type: String
+    Description: WebAuthn Relying Party ID (registrable domain)
+    Default: ''
+  WebAuthnRpName:
+    Type: String
+    Description: WebAuthn Relying Party display name
+    Default: 'EVO Platform'
 
 Resources:
   # Lambda Layer - Prisma + Zod
@@ -1078,6 +1089,8 @@ Resources:
             RestApiId: !Ref Api
             Path: /api/functions/webauthn-authenticate
             Method: POST
+            Auth:
+              Authorizer: NONE
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1104,6 +1117,8 @@ Resources:
             RestApiId: !Ref Api
             Path: /api/functions/webauthn-check
             Method: POST
+            Auth:
+              Authorizer: NONE
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

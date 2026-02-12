@@ -39,6 +39,16 @@ export function getWebAuthnRpId(): string {
   return process.env.WEBAUTHN_RP_ID || getAppDomain();
 }
 
+/** WebAuthn expected origin (e.g., https://evo.nuevacore.com) */
+export function getWebAuthnOrigin(): string {
+  return process.env.WEBAUTHN_ORIGIN || getAppUrl();
+}
+
+/** WebAuthn Relying Party display name */
+export function getWebAuthnRpName(): string {
+  return process.env.WEBAUTHN_RP_NAME || 'EVO Platform';
+}
+
 /** Allowed origins for CORS and security headers */
 export function getAllowedOrigins(): string[] {
   if (process.env.ALLOWED_ORIGINS) {

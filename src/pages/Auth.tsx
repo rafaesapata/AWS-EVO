@@ -188,15 +188,25 @@ export default function AuthSimple() {
       }
       
       // Step 2: Get credential from user's device
+      // Decode base64url challenge to Uint8Array
+      const decodeBase64url = (str: string): Uint8Array => {
+        const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = base64.length % 4 === 0 ? '' : '='.repeat(4 - (base64.length % 4));
+        const binary = atob(base64 + pad);
+        return Uint8Array.from(binary, c => c.charCodeAt(0));
+      };
+
+      const rpId = import.meta.env.VITE_WEBAUTHN_RP_ID || window.location.hostname;
+
       const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
-        challenge: Uint8Array.from(options.challenge, (c: string) => c.charCodeAt(0)),
+        challenge: decodeBase64url(options.challenge),
         allowCredentials: options.allowCredentials?.map((cred) => ({
-          id: Uint8Array.from(cred.id, (c: string) => c.charCodeAt(0)),
+          id: decodeBase64url(cred.id),
           type: cred.type as PublicKeyCredentialType,
         })) || [],
         timeout: options.timeout || 60000,
         userVerification: (options.userVerification as UserVerificationRequirement) || 'preferred',
-        rpId: 'evo.nuevacore.com'
+        rpId
       };
 
       const credential = await navigator.credentials.get({

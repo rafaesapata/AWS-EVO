@@ -186,15 +186,24 @@ export default function MFASettings() {
       const challengeStr = String(challengeData.challenge);
       const userIdStr = String(challengeData.userId);
       
-      // Use exact domain evo.nuevacore.com for rpId (must match origin)
+      // Decode base64url to Uint8Array
+      const decodeBase64url = (str: string): Uint8Array => {
+        const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = base64.length % 4 === 0 ? '' : '='.repeat(4 - (base64.length % 4));
+        const binary = atob(base64 + pad);
+        return Uint8Array.from(binary, c => c.charCodeAt(0));
+      };
+
+      const rpId = import.meta.env.VITE_WEBAUTHN_RP_ID || window.location.hostname;
+
       const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
-        challenge: Uint8Array.from(challengeStr, c => c.charCodeAt(0)),
+        challenge: decodeBase64url(challengeStr),
         rp: {
-          name: challengeData.rpName || 'EVO Platform',
-          id: 'evo.nuevacore.com',
+          name: challengeData.rpName || import.meta.env.VITE_WEBAUTHN_RP_NAME || 'EVO Platform',
+          id: rpId,
         },
         user: {
-          id: Uint8Array.from(userIdStr, c => c.charCodeAt(0)),
+          id: new TextEncoder().encode(userIdStr),
           name: challengeData.userEmail || "user",
           displayName: challengeData.userDisplayName || "User"
         },
@@ -220,13 +229,16 @@ export default function MFASettings() {
       }
 
       // Step 3: Send credential to backend for verification
+      const attestationResponse = credential.response as AuthenticatorAttestationResponse;
       const verifyResult = await apiClient.invoke('webauthn-register', {
         body: {
           action: 'verify-registration',
           credential: {
             id: credential.id,
-            publicKey: btoa(String.fromCharCode(...new Uint8Array((credential.response as any).attestationObject))),
-            transports: (credential.response as any).getTransports?.() || [],
+            rawId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
+            publicKey: btoa(String.fromCharCode(...new Uint8Array(attestationResponse.attestationObject))),
+            clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(attestationResponse.clientDataJSON))),
+            transports: attestationResponse.getTransports?.() || [],
           },
           challengeId: challengeData.challenge,
           deviceName: 'Security Key'
@@ -342,7 +354,7 @@ export default function MFASettings() {
           </Button>
         </div>
 
-        <div className="glass rounded-xl p-4 border border-primary/10 opacity-50">
+        <div className="glass rounded-xl p-4 border border-primary/10">
           <div className="flex items-center gap-2 mb-2">
             <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
               <Key className="h-3.5 w-3.5 text-[#003C7D]" />
@@ -350,11 +362,11 @@ export default function MFASettings() {
             <h3 className="text-sm font-medium">{t('mfa.webauthnTitle', 'Chave de Segurança (WebAuthn)')}</h3>
           </div>
           <p className="text-xs text-muted-foreground mb-3">
-            {t('mfa.webauthnEnterprise', 'Esta funcionalidade requer uma licença Enterprise')}
+            {t('mfa.webauthnDesc', 'Use chaves de segurança físicas (YubiKey, Titan) ou biometria do dispositivo')}
           </p>
-          <Button disabled variant="outline" className="cursor-not-allowed glass border-primary/10">
+          <Button onClick={enrollWebAuthn} disabled={loading} variant="outline" className="glass border-primary/10">
             <Key className="h-4 w-4 mr-2" />
-            {t('mfa.unavailable', 'Indisponível nesta licença')}
+            {t('mfa.configureWebAuthn', 'Registrar Chave de Segurança')}
           </Button>
         </div>
       </div>

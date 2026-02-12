@@ -124,6 +124,20 @@ phases:
           echo "Azure OAuth Client Secret loaded from SSM"
         fi
 
+        # WebAuthn Configuration
+        WEBAUTHN_RP_ID_PARAM="/evo/${ENV}/webauthn-rp-id"
+        export WEBAUTHN_RP_ID=$(aws ssm get-parameter --name "$WEBAUTHN_RP_ID_PARAM" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+        if [ -z "$WEBAUTHN_RP_ID" ]; then
+          echo "WARNING: WEBAUTHN_RP_ID not found in SSM ($WEBAUTHN_RP_ID_PARAM). Using APP_DOMAIN as fallback."
+          export WEBAUTHN_RP_ID="$APP_DOMAIN"
+        else
+          echo "WEBAUTHN_RP_ID loaded from SSM: $WEBAUTHN_RP_ID"
+        fi
+
+        WEBAUTHN_RP_NAME_PARAM="/evo/${ENV}/webauthn-rp-name"
+        export WEBAUTHN_RP_NAME=$(aws ssm get-parameter --name "$WEBAUTHN_RP_NAME_PARAM" --query 'Parameter.Value' --output text 2>/dev/null || echo "EVO Platform")
+        echo "WEBAUTHN_RP_NAME loaded: $WEBAUTHN_RP_NAME"
+
       - echo "=== Analyzing deploy strategy ==="
       - |
         CHANGED_FILES=$(cat /tmp/changed_files.txt)
@@ -246,8 +260,8 @@ phases:
           export VITE_AWS_REGION=us-east-1
           export VITE_AWS_USER_POOL_ID="$COGNITO_USER_POOL_ID"
           export VITE_AWS_USER_POOL_CLIENT_ID="$COGNITO_CLIENT_ID"
-          export VITE_WEBAUTHN_RP_ID=nuevacore.com
-          export VITE_WEBAUTHN_RP_NAME="EVO Platform"
+          export VITE_WEBAUTHN_RP_ID="$WEBAUTHN_RP_ID"
+          export VITE_WEBAUTHN_RP_NAME="$WEBAUTHN_RP_NAME"
           export VITE_ENVIRONMENT="$ENV"
           export VITE_DEMO_EMAIL="comercial+evo@uds.com.br"
           export VITE_DEMO_PASSWORD="Demoevouds@00!"
@@ -294,6 +308,13 @@ phases:
           PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthClientId=$AZURE_OAUTH_CLIENT_ID"
           PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI"
           PARAM_OVERRIDES="$PARAM_OVERRIDES AppDomain=$APP_DOMAIN"
+          # WebAuthn params from SSM
+          if [ -n "$WEBAUTHN_RP_ID" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES WebAuthnRpId=$WEBAUTHN_RP_ID"
+          fi
+          if [ -n "$WEBAUTHN_RP_NAME" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES WebAuthnRpName=$WEBAUTHN_RP_NAME"
+          fi
           # Only include secrets if they have values (SAM CLI rejects Key= with empty value)
           if [ -n "$TOKEN_ENCRYPTION_KEY" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES TokenEncryptionKey=$TOKEN_ENCRYPTION_KEY"
