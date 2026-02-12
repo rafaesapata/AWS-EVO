@@ -469,6 +469,27 @@ interface OptimizationRecommendation {
   remediation_ticket_id?: string;  // Link to remediation ticket
 }
 
+// Score calculation weights
+const SCORE_WEIGHTS = { high: 10, medium: 5, low: 2 } as const;
+const MAX_SAVINGS_PENALTY = 30;
+
+// Demo fallback metrics
+const DEMO_FALLBACK_METRICS: CostMetrics = {
+  total_monthly_cost: 15000,
+  total_potential_savings: 3500,
+  optimization_score: 72,
+  recommendations_count: 12,
+  implemented_savings: 0
+};
+
+/** Sum cost values from daily_costs records, handling multiple field name conventions */
+function sumCosts(costs: Array<Record<string, unknown>>): number {
+  return costs.reduce((sum, cost) => {
+    const costValue = Number(cost.cost) || Number(cost.total_cost) || Number(cost.amount) || 0;
+    return sum + (isNaN(costValue) ? 0 : costValue);
+  }, 0);
+}
+
 interface CostMetrics {
   total_monthly_cost: number;
   total_potential_savings: number;
@@ -625,31 +646,23 @@ export default function CostOptimization() {
         
         if (response.data?.summary) {
           return {
-            total_monthly_cost: response.data.summary.total_monthly_cost || 15000,
-            total_potential_savings: response.data.summary.monthly_savings || 3500,
-            optimization_score: response.data.summary.optimization_score || 72,
-            recommendations_count: response.data.optimizations?.length || 12,
+            total_monthly_cost: response.data.summary.total_monthly_cost || DEMO_FALLBACK_METRICS.total_monthly_cost,
+            total_potential_savings: response.data.summary.monthly_savings || DEMO_FALLBACK_METRICS.total_potential_savings,
+            optimization_score: response.data.summary.optimization_score || DEMO_FALLBACK_METRICS.optimization_score,
+            recommendations_count: response.data.optimizations?.length || DEMO_FALLBACK_METRICS.recommendations_count,
             implemented_savings: 0
           };
         }
         
-        // Fallback demo metrics
-        return {
-          total_monthly_cost: 15000,
-          total_potential_savings: 3500,
-          optimization_score: 72,
-          recommendations_count: 12,
-          implemented_savings: 0
-        };
+        return DEMO_FALLBACK_METRICS;
       }
       
       // Fetch recommendations directly for metrics calculation
+      const orgFilter = { organization_id: organizationId, ...getAccountFilter() };
+      
       const recsResponse = await apiClient.select('cost_optimizations', {
         select: '*',
-        eq: { 
-          organization_id: organizationId,
-          ...getAccountFilter() // Multi-cloud compatible filter
-        }
+        eq: orgFilter
       });
       
       const recs = recsResponse.data || [];
@@ -662,10 +675,7 @@ export default function CostOptimization() {
       // Fetch previous month costs (complete month)
       const prevMonthResponse = await apiClient.select('daily_costs', {
         select: '*',
-        eq: { 
-          organization_id: organizationId,
-          ...getAccountFilter()
-        },
+        eq: orgFilter,
         gte: { date: startOfPrevMonth.toISOString().split('T')[0] },
         lt: { date: startOfCurrentMonth.toISOString().split('T')[0] }
       });
@@ -673,20 +683,12 @@ export default function CostOptimization() {
       // Fetch current month costs (partial)
       const currentMonthResponse = await apiClient.select('daily_costs', {
         select: '*',
-        eq: { 
-          organization_id: organizationId,
-          ...getAccountFilter()
-        },
+        eq: orgFilter,
         gte: { date: startOfCurrentMonth.toISOString().split('T')[0] }
       });
 
       const prevCosts = prevMonthResponse.data || [];
       const currentCosts = currentMonthResponse.data || [];
-      
-      const sumCosts = (costs: any[]) => costs.reduce((sum, cost) => {
-        const costValue = Number(cost.cost) || Number(cost.total_cost) || Number(cost.amount) || 0;
-        return sum + (isNaN(costValue) ? 0 : costValue);
-      }, 0);
 
       const prevMonthTotal = sumCosts(prevCosts);
       const currentMonthPartial = sumCosts(currentCosts);
@@ -720,13 +722,13 @@ export default function CostOptimization() {
         ).length;
         const lowImpact = recs.length - highImpact - mediumImpact;
         
-        const deduction = (highImpact * 10) + (mediumImpact * 5) + (lowImpact * 2);
+        const deduction = (highImpact * SCORE_WEIGHTS.high) + (mediumImpact * SCORE_WEIGHTS.medium) + (lowImpact * SCORE_WEIGHTS.low);
         optimizationScore = Math.max(0, Math.min(100, 100 - deduction));
         
         // Also factor in savings percentage if we have cost data
         if (totalMonthlyCost > 0 && totalPotentialSavings > 0) {
           const savingsPercentage = (totalPotentialSavings / totalMonthlyCost) * 100;
-          optimizationScore = Math.max(0, Math.min(100, optimizationScore - Math.min(savingsPercentage, 30)));
+          optimizationScore = Math.max(0, Math.min(100, optimizationScore - Math.min(savingsPercentage, MAX_SAVINGS_PENALTY)));
         }
       }
 
