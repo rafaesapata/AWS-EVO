@@ -41,7 +41,8 @@ describe('Response Format Validation', () => {
 
   // Security headers check (sample — these come from API Gateway, not per-lambda)
   describe('Security Headers', () => {
-    const sample = HTTP_LAMBDAS.filter(l => l.safe && l.auth === 'cognito').slice(0, 5);
+    const HEADER_CHECK_SAMPLE_SIZE = 5;
+    const sample = HTTP_LAMBDAS.filter(l => l.safe && l.auth === 'cognito').slice(0, HEADER_CHECK_SAMPLE_SIZE);
 
     sample.forEach((lambda) => {
       it(`${lambda.name}: should have security headers`, () => {

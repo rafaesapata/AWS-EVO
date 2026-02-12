@@ -3,7 +3,7 @@
  * MFA, WebAuthn, Profiles, Public Auth
  * Tests business logic: validates error messages, required fields, response shapes
  */
-import { expectNoCrash, parseBody } from '../../support/e2e';
+import { expectNoCrash, expectErrorStructure, parseBody } from '../../support/e2e';
 
 describe('Auth Domain - MFA, WebAuthn, Profiles', () => {
   // ── MFA ──────────────────────────────────────────────────────────────────
@@ -32,43 +32,28 @@ describe('Auth Domain - MFA, WebAuthn, Profiles', () => {
     it('mfa-enroll: should reject without factor_type', () => {
       cy.apiPost('mfa-enroll', {}).then((res) => {
         expectNoCrash(res);
-        const body = parseBody(res);
-        if (res.status === 400 || res.status === 422) {
-          expect(body.success).to.be.false;
-          expect(body.error).to.be.a('string');
-        }
+        expectErrorStructure(res, 'mfa-enroll');
       });
     });
 
     it('mfa-challenge-verify: should reject without code', () => {
       cy.apiPost('mfa-challenge-verify', {}).then((res) => {
         expectNoCrash(res);
-        const body = parseBody(res);
-        if (res.status === 400 || res.status === 422) {
-          expect(body.success).to.be.false;
-          expect(body.error).to.be.a('string');
-        }
+        expectErrorStructure(res, 'mfa-challenge-verify');
       });
     });
 
     it('mfa-verify-login: should reject without code', () => {
       cy.apiPost('mfa-verify-login', {}).then((res) => {
         expectNoCrash(res);
-        const body = parseBody(res);
-        if (res.status === 400 || res.status === 422) {
-          expect(body.success).to.be.false;
-        }
+        expectErrorStructure(res, 'mfa-verify-login');
       });
     });
 
     it('mfa-unenroll: should reject without factor_id', () => {
       cy.apiPost('mfa-unenroll', {}).then((res) => {
         expectNoCrash(res);
-        const body = parseBody(res);
-        if (res.status === 400 || res.status === 422) {
-          expect(body.success).to.be.false;
-          expect(body.error).to.be.a('string');
-        }
+        expectErrorStructure(res, 'mfa-unenroll');
       });
     });
   });
@@ -86,32 +71,21 @@ describe('Auth Domain - MFA, WebAuthn, Profiles', () => {
     it('webauthn-register: should reject empty registration data', () => {
       cy.apiPost('webauthn-register', {}).then((res) => {
         expectNoCrash(res);
-        const body = parseBody(res);
-        if (res.status === 400 || res.status === 422) {
-          expect(body.success).to.be.false;
-          expect(body.error).to.be.a('string');
-        }
+        expectErrorStructure(res, 'webauthn-register');
       });
     });
 
     it('webauthn-authenticate: should reject empty auth data', () => {
       cy.apiPost('webauthn-authenticate', {}).then((res) => {
         expectNoCrash(res);
-        const body = parseBody(res);
-        if (res.status === 400 || res.status === 422) {
-          expect(body.success).to.be.false;
-        }
+        expectErrorStructure(res, 'webauthn-authenticate');
       });
     });
 
     it('delete-webauthn-credential: should reject without credential_id', () => {
       cy.apiPost('delete-webauthn-credential', {}).then((res) => {
         expectNoCrash(res);
-        const body = parseBody(res);
-        if (res.status === 400 || res.status === 422) {
-          expect(body.success).to.be.false;
-          expect(body.error).to.be.a('string');
-        }
+        expectErrorStructure(res, 'delete-webauthn-credential');
       });
     });
   });
@@ -139,12 +113,7 @@ describe('Auth Domain - MFA, WebAuthn, Profiles', () => {
     it('verify-tv-token: should return error for missing token', () => {
       cy.apiPost('verify-tv-token', {}).then((res) => {
         expectNoCrash(res);
-        const body = parseBody(res);
-        expect(body).to.have.property('success');
-        // Without a token, should fail gracefully
-        if (res.status === 400 || res.status === 422) {
-          expect(body.success).to.be.false;
-        }
+        expectErrorStructure(res, 'verify-tv-token');
       });
     });
   });

@@ -24,7 +24,8 @@ describe('Auth Enforcement', () => {
 
   // ── Invalid/Malformed Tokens ──────────────────────────────────────────────
   describe('Protected endpoints should reject invalid tokens', () => {
-    const samples = sampleOnePerDomain(HTTP_LAMBDAS).slice(0, 5);
+    const TOKEN_TEST_SAMPLE_SIZE = 5;
+    const samples = sampleOnePerDomain(HTTP_LAMBDAS).slice(0, TOKEN_TEST_SAMPLE_SIZE);
 
     samples.forEach((lambda) => {
       it(`${lambda.name}: should return 401 with malformed token`, () => {

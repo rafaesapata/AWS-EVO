@@ -50,6 +50,9 @@ export function sampleOnePerDomain(lambdas: LambdaDefinition[]): LambdaDefinitio
   return Object.values(byDomain);
 }
 
+/** Max chars of response body to include in error messages */
+const BODY_SNIPPET_LENGTH = 200;
+
 /**
  * Assert response is not a crash (502/503/504).
  * Provides clear error message with status and body snippet on failure.
@@ -58,8 +61,23 @@ export function expectNoCrash(res: Cypress.Response<any>, label?: string): void 
   const prefix = label ? `${label}: ` : '';
   expect(
     CRASH_CODES.includes(res.status),
-    `${prefix}crashed with ${res.status}: ${JSON.stringify(res.body).substring(0, 200)}`
+    `${prefix}crashed with ${res.status}: ${JSON.stringify(res.body).substring(0, BODY_SNIPPET_LENGTH)}`
   ).to.be.false;
+}
+
+/**
+ * Assert a 400/422 response has proper error structure: { success: false, error: string }.
+ * Use for write endpoints that should reject invalid/empty payloads.
+ */
+export function expectErrorStructure(res: Cypress.Response<any>, label?: string): void {
+  if (res.status === 400 || res.status === 422) {
+    const body = parseBody(res);
+    const prefix = label ? `${label} ` : '';
+    expect(body, `${prefix}error response missing 'success'`).to.have.property('success');
+    expect(body.success, `${prefix}error should have success=false`).to.be.false;
+    expect(body, `${prefix}error response missing 'error'`).to.have.property('error');
+    expect(body.error).to.be.a('string');
+  }
 }
 
 /**

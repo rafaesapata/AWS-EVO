@@ -55,9 +55,9 @@ describe('Lambda Registry Validation', () => {
     });
   });
 
-  it('HTTP lambdas should not have duplicate names', () => {
-    const httpNames = HTTP_LAMBDAS.map(l => l.name);
-    const dupes = httpNames.filter((n, i) => httpNames.indexOf(n) !== i);
-    expect(dupes, `Duplicate HTTP lambdas: ${dupes.join(', ')}`).to.have.length(0);
+  it('internal lambdas should not have duplicate names', () => {
+    const internalNames = INTERNAL_LAMBDAS.map(l => l.name);
+    const dupes = internalNames.filter((n, i) => internalNames.indexOf(n) !== i);
+    expect(dupes, `Duplicate internal lambdas: ${dupes.join(', ')}`).to.have.length(0);
   });
 });
