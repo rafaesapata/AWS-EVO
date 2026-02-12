@@ -101,10 +101,10 @@ export async function handler(
       });
       
       if (azureAccount) {
-        return error('Edge Services (CloudFront, WAF, Load Balancers) is an AWS-only feature. Please select an AWS account.');
+        return error('Edge Services (CloudFront, WAF, Load Balancers) is an AWS-only feature. Please select an AWS account.', 400);
       }
       
-      return error('AWS account not found or inactive');
+      return error('AWS account not found or inactive', 404);
     }
     
     // ============================================

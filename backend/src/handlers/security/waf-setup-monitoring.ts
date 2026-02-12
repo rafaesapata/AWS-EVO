@@ -79,16 +79,15 @@ const SUPPORTED_REGIONS = [
 ];
 
 /**
- * Get the destination ARN for a specific region
- * The destination must be in the same region as the log group
- * For unsupported regions, falls back to us-east-1 destination
+ * Get the destination ARN for a specific region.
+ * 
+ * IMPORTANT: The destination must exist in the same region as the log group.
+ * Currently the destination stack is only deployed in us-east-1.
+ * For WAFs in other regions, the destination must be deployed there first.
+ * Use cloudformation/waf-logs-destination-stack.yaml to deploy to additional regions.
  */
 function getDestinationArn(region: string): string {
-  const effectiveRegion = SUPPORTED_REGIONS.includes(region) ? region : 'us-east-1';
-  if (effectiveRegion !== region) {
-    logger.warn(`Region ${region} not in pre-configured list, using us-east-1 destination as fallback`);
-  }
-  return `arn:aws:logs:${effectiveRegion}:${EVO_ACCOUNT_ID}:destination:${EVO_WAF_DESTINATION_NAME}`;
+  return `arn:aws:logs:${region}:${EVO_ACCOUNT_ID}:destination:${EVO_WAF_DESTINATION_NAME}`;
 }
 
 // Subscription filter name
@@ -122,7 +121,7 @@ function isAccessDenied(err: { name?: string; message?: string }): boolean {
 async function updateDestinationPolicyForCustomer(
   customerAwsAccountId: string,
   region: string
-): Promise<void> {
+): Promise<boolean> {
   const { 
     CloudWatchLogsClient: EvoLogsClient, 
     DescribeDestinationsCommand,
@@ -140,11 +139,11 @@ async function updateDestinationPolicyForCustomer(
     
     const destination = destResponse.destinations?.find(d => d.destinationName === EVO_WAF_DESTINATION_NAME);
     if (!destination) {
-      logger.warn('Destination not found, skipping policy update', { 
+      logger.warn('Destination not found in region', { 
         destinationName: EVO_WAF_DESTINATION_NAME, 
         region 
       });
-      return;
+      return false;
     }
     
     // Parse current policy
@@ -193,6 +192,7 @@ async function updateDestinationPolicyForCustomer(
     } else {
       logger.info('Customer account already in destination policy', { customerAwsAccountId, region });
     }
+    return true;
   } catch (err: any) {
     // Log but don't fail - the subscription filter might still work if policy was set manually
     logger.warn('Failed to update destination policy', { 
@@ -200,6 +200,7 @@ async function updateDestinationPolicyForCustomer(
       customerAwsAccountId, 
       region 
     });
+    return false;
   }
 }
 
@@ -403,7 +404,7 @@ export const handler = safeHandler(async (
     });
     
     if (!account) {
-      return error('AWS account not found');
+      return error('AWS account not found', 404);
     }
     
     // Determine region from Web ACL ARN
@@ -425,7 +426,7 @@ export const handler = safeHandler(async (
       customerAwsAccountId = webAclArn.split(':')[4];
     }
     if (!customerAwsAccountId) {
-      return error('Could not determine AWS account ID');
+      return error('Could not determine AWS account ID', 400);
     }
     
     // Create AWS clients for customer account
@@ -807,7 +808,12 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   
   // PRE-FLIGHT: Validate IAM permissions before attempting any operations
   // This catches outdated CloudFormation stacks that lack WAF monitoring permissions
+  logger.info('WAF setup step: PRE-FLIGHT starting', { 
+    organizationId, webAclArn, region, customerAwsAccountId, 
+    hasRoleArn: !!account.role_arn, roleArn: account.role_arn 
+  });
   await validateWafPermissions(credentials, region, customerAwsAccountId, account);
+  logger.info('WAF setup step: PRE-FLIGHT passed', { organizationId, webAclArn });
   
   // Step 0: VALIDATE that the WAF Web ACL exists BEFORE doing anything
   // This prevents creating resources for non-existent WAFs
@@ -867,6 +873,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   }
   
   // Step 1: Check if WAF logging is already configured
+  logger.info('WAF setup step 1: checking existing logging config', { organizationId, webAclArn });
   let loggingConfigured = false;
   try {
     const loggingConfig = await wafClient.send(new GetLoggingConfigurationCommand({
@@ -883,6 +890,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   }
   
   // Step 2: Create CloudWatch Log Group if needed
+  logger.info('WAF setup step 2: creating log group', { organizationId, logGroupName });
   try {
     await logsClient.send(new CreateLogGroupCommand({
       logGroupName,
@@ -904,6 +912,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   }
   
   // Step 2.5: Add resource policy to allow WAF to write to the log group
+  logger.info('WAF setup step 2.5: adding resource policy', { organizationId, logGroupName });
   // This is REQUIRED for WAF logging to work
   try {
     const policyName = `AWSWAFLogsPolicy-${logGroupName}`;
@@ -959,6 +968,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   }
   
   // Step 3: Enable WAF logging to CloudWatch Logs
+  logger.info('WAF setup step 3: enabling WAF logging', { organizationId, webAclArn, loggingConfigured });
   if (!loggingConfigured) {
     const logDestination = `arn:aws:logs:${webAclArn.split(':')[3]}:${webAclArn.split(':')[4]}:log-group:${logGroupName}`;
     
@@ -1000,6 +1010,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   }
   
   // Step 4: Create or update subscription filter to send logs to EVO Lambda
+  logger.info('WAF setup step 4: creating subscription filter', { organizationId, logGroupName, filterMode });
   const filterPattern = getFilterPattern(filterMode);
   
   // First, check if subscription filter already exists
@@ -1029,7 +1040,21 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   
   // IMPORTANT: Update destination policy in EVO account to allow this customer account
   // This must be done BEFORE creating the subscription filter
-  await updateDestinationPolicyForCustomer(customerAwsAccountId, region);
+  // Also validates that the destination exists in this region
+  const destinationExists = await updateDestinationPolicyForCustomer(customerAwsAccountId, region);
+  
+  if (!destinationExists) {
+    logger.error('WAF logs destination does not exist in region', { 
+      region, destinationArn, organizationId 
+    });
+    throw createPermissionError(
+      `WAF monitoring is not yet available in region ${region}. ` +
+      `The EVO WAF logs destination has not been deployed to this region. ` +
+      `Please contact EVO support to enable WAF monitoring for region ${region}. ` +
+      `Destination: ${destinationArn}`,
+      'WAFPermissionPreFlightError'
+    );
+  }
   
   // Get or create the CloudWatch Logs role in customer account
   const cloudWatchLogsRoleArn = await getOrCreateCloudWatchLogsRole(
@@ -1063,10 +1088,12 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     
     if (err.name === 'InvalidParameterException' && err.message?.includes('Could not deliver test message')) {
       throw createPermissionError(
-        `Cross-account log delivery failed. The subscription filter could not deliver a test message to the EVO destination. ` +
-        `This usually means the CloudWatch Logs role 'EVO-CloudWatch-Logs-Role' does not have the correct trust policy, ` +
-        `or the EVO destination policy has not been updated for this account. ` +
-        `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`,
+        `Cross-account log delivery failed (region: ${region}). The subscription filter could not deliver a test message to the EVO destination. ` +
+        `This may mean: (1) The EVO WAF destination does not exist in region ${region}, ` +
+        `(2) The CloudWatch Logs role 'EVO-CloudWatch-Logs-Role' does not have the correct trust policy, ` +
+        `or (3) The EVO destination policy has not been updated for this account. ` +
+        `Destination ARN: ${destinationArn}. Role ARN: ${cloudWatchLogsRoleArn}. ` +
+        `Please contact EVO support if the issue persists.`,
         'WAFPermissionPreFlightError'
       );
     }
@@ -1075,6 +1102,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   }
   
   // Step 5: Save configuration to database
+  logger.info('WAF setup step 5: saving config to database', { organizationId, webAclArn, filterMode });
   await prisma.wafMonitoringConfig.upsert({
     where: {
       organization_id_web_acl_arn: {
@@ -1174,7 +1202,7 @@ async function handleListWafs(
   accountId: string
 ): Promise<APIGatewayProxyResultV2> {
   if (!accountId) {
-    return error('Missing required parameter: accountId');
+    return error('Missing required parameter: accountId', 400);
   }
   
   // Get AWS credentials for the customer account
@@ -1183,7 +1211,7 @@ async function handleListWafs(
   });
   
   if (!account) {
-    return error('AWS account not found');
+    return error('AWS account not found', 404);
   }
   
   // Scan ALL supported regions to find WAFs
@@ -1294,7 +1322,7 @@ async function handleDisableConfig(
   configId: string
 ): Promise<APIGatewayProxyResultV2> {
   if (!configId) {
-    return error('Missing required parameter: configId');
+    return error('Missing required parameter: configId', 400);
   }
   
   const config = await prisma.wafMonitoringConfig.findFirst({
@@ -1302,7 +1330,7 @@ async function handleDisableConfig(
   });
   
   if (!config) {
-    return error('Configuration not found');
+    return error('Configuration not found', 404);
   }
   
   // Get AWS credentials

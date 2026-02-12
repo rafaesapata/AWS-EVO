@@ -41,7 +41,7 @@ export async function handler(
     });
     
     if (!jiraConfig) {
-      return error('Jira integration not configured');
+      return error('Jira integration not configured', 400);
     }
     
     // Criar ticket no Jira

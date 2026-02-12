@@ -474,7 +474,7 @@ export const handler = safeHandler(async (
     } = body;
     
     if (!accountId) {
-      return error('Missing required parameter: accountId');
+      return error('Missing required parameter: accountId', 400);
     }
     
     const account = await prisma.awsCredential.findFirst({
@@ -482,7 +482,7 @@ export const handler = safeHandler(async (
     });
     
     if (!account) {
-      return error('AWS account not found');
+      return error('AWS account not found', 404);
     }
     
     const resolvedCreds = await resolveAwsCredentials(account, region);

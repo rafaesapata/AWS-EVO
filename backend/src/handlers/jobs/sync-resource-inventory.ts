@@ -44,7 +44,7 @@ export async function handler(
     });
     
     if (!account) {
-      return error('AWS account not found');
+      return error('AWS account not found', 404);
     }
     
     // Usar região solicitada, ou primeira região da conta, ou padrão

@@ -74,7 +74,7 @@ export async function handler(
     });
     
     if (historicalCosts.length < 7) {
-      return error('Insufficient historical data. Need at least 7 days of cost data.');
+      return error('Insufficient historical data. Need at least 7 days of cost data.', 400);
     }
     
     // Extrair valores de custo

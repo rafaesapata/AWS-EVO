@@ -33,7 +33,7 @@ export async function handler(
     const { query, limit = 5 } = body;
     
     if (!query) {
-      return error('Missing required parameter: query');
+      return error('Missing required parameter: query', 400);
     }
     
     const prisma = getPrismaClient();

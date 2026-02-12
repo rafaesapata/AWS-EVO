@@ -96,7 +96,7 @@ export const handler = safeHandler(async (
     const { accountId, actions = REQUIRED_PERMISSIONS } = body;
     
     if (!accountId) {
-      return error('Missing required parameter: accountId');
+      return error('Missing required parameter: accountId', 400);
     }
     
     const prisma = getPrismaClient();
@@ -106,7 +106,7 @@ export const handler = safeHandler(async (
     });
     
     if (!account) {
-      return error('AWS account not found');
+      return error('AWS account not found', 404);
     }
     
     const resolvedCreds = await resolveAwsCredentials(account, AWS_REGION);

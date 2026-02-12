@@ -216,7 +216,7 @@ export async function handler(
     });
     
     if (!account) {
-      return error('AWS account not found');
+      return error('AWS account not found', 404);
     }
     
     if (regionsToAnalyze.length === 0) {

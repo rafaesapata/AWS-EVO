@@ -36,7 +36,7 @@ export async function handler(
     const { articleId } = body;
     
     if (!articleId) {
-      return error('Missing required parameter: articleId');
+      return error('Missing required parameter: articleId', 400);
     }
     
     const prisma = getPrismaClient();
@@ -49,7 +49,7 @@ export async function handler(
     });
     
     if (!article) {
-      return error('Article not found');
+      return error('Article not found', 404);
     }
     
     // Gerar HTML

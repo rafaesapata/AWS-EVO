@@ -65,7 +65,7 @@ export const handler = safeHandler(async (
   
   if (!event.requestContext?.authorizer) {
     logger.error('Missing authorizer context', { requestId: context.awsRequestId });
-    return error('Unauthorized - invalid request context');
+    return error('Unauthorized - invalid request context', 401);
   }
   
   const user = getUserFromEvent(event);

@@ -6,7 +6,7 @@
  * Tests ALL safe read-only endpoints (not a sample).
  */
 import { HTTP_LAMBDAS } from '../support/lambda-registry';
-import { CRASH_CODES, expectNoCrash, parseBody, skipIfAwsSdkBundlingIssue } from '../support/e2e';
+import { CRASH_CODES, expectNoCrash, parseBody } from '../support/e2e';
 
 describe('Response Format Validation', () => {
   const safeReadEndpoints = HTTP_LAMBDAS.filter(l => l.safe && l.auth === 'cognito');
@@ -15,7 +15,6 @@ describe('Response Format Validation', () => {
     it(`${lambda.name}: should follow standard response format`, () => {
       cy.apiPost(lambda.name, {}).then((res) => {
         expectNoCrash(res, lambda.name);
-        if (skipIfAwsSdkBundlingIssue(res, lambda.name)) return;
 
         const body = parseBody(res);
 

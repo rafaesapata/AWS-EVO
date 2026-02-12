@@ -3,7 +3,7 @@
  * These are the most important lambdas for platform stability.
  * A failure here = immediate attention required.
  */
-import { expectNoCrash, parseBody, skipIfAwsSdkBundlingIssue } from '../support/e2e';
+import { expectNoCrash, parseBody } from '../support/e2e';
 
 describe('Critical Lambdas - Onboarding', () => {
   const onboardingLambdas = [
@@ -46,7 +46,6 @@ describe('Critical Lambdas - Core', () => {
     it(`🟠 ${name}: should return valid response structure`, () => {
       cy.apiPost(name, {}).then((res) => {
         expectNoCrash(res, name);
-        if (skipIfAwsSdkBundlingIssue(res, name)) return;
 
         const body = parseBody(res);
         expect(body, `${name} missing 'success' field`).to.have.property('success');

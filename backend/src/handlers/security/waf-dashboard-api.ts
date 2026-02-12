@@ -1052,7 +1052,7 @@ async function handleBlockIp(
   const { ipAddress, reason, accountId } = body;
   
   if (!ipAddress) {
-    return error('Missing required parameter: ipAddress');
+    return error('Missing required parameter: ipAddress', 400);
   }
   
   // Get AWS credentials for WAF access
@@ -1065,7 +1065,7 @@ async function handleBlockIp(
   });
   
   if (!account) {
-    return error('AWS account not found');
+    return error('AWS account not found', 404);
   }
   
   const resolvedCreds = await resolveAwsCredentials(account, 'us-east-1');
@@ -1085,7 +1085,7 @@ async function handleBlockIp(
   );
   
   if (!result.success) {
-    return error(result.message);
+    return error(result.message, 400);
   }
   
   return success(result);
@@ -1113,7 +1113,7 @@ async function handleUnblockIp(
   const accountId = params.accountId || bodyParams.accountId;
   
   if (!ipAddress) {
-    return error('Missing required parameter: ipAddress');
+    return error('Missing required parameter: ipAddress', 400);
   }
   
   // Get AWS credentials for WAF access
@@ -1126,7 +1126,7 @@ async function handleUnblockIp(
   });
   
   if (!account) {
-    return error('AWS account not found');
+    return error('AWS account not found', 404);
   }
   
   const resolvedCreds = await resolveAwsCredentials(account, 'us-east-1');

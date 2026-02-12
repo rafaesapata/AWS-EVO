@@ -71,7 +71,7 @@ export async function handler(
     const { accountId, forceRefresh = false } = body;
     
     if (!accountId || typeof accountId !== 'string') {
-      return error('Missing required parameter: accountId');
+      return error('Missing required parameter: accountId', 400);
     }
     
     // Fetch Azure credentials
@@ -93,10 +93,10 @@ export async function handler(
       });
       
       if (awsAccount) {
-        return error('This is an AWS account. Use the AWS Edge Services endpoint instead.');
+        return error('This is an AWS account. Use the AWS Edge Services endpoint instead.', 400);
       }
       
-      return error('Azure credential not found or inactive');
+      return error('Azure credential not found or inactive', 404);
     }
     
     // ============================================

@@ -66,7 +66,7 @@ export const handler = safeHandler(async (event: AuthorizedEvent, context: Lambd
       where: { id: accountId, organization_id: organizationId, is_active: true },
     });
     
-    if (!account) return error('AWS account not found');
+    if (!account) return error('AWS account not found', 404);
     
     // Usar região solicitada, ou primeira região da conta, ou padrão
     const accountRegions = account.regions as string[] | null;

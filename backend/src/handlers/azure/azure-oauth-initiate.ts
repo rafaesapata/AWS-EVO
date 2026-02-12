@@ -51,7 +51,7 @@ export async function handler(
     // Validate OAuth configuration
     if (!AZURE_OAUTH_CLIENT_ID) {
       logger.error('Azure OAuth not configured: missing AZURE_OAUTH_CLIENT_ID');
-      return error('Azure OAuth integration is not configured', 500);
+      return error('Azure OAuth integration is not configured', 400);
     }
 
     const user = getUserFromEvent(event);
