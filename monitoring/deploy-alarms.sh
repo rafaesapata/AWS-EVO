@@ -19,11 +19,9 @@ echo "   Namespace: ${NAMESPACE}"
 
 if [ -z "${SNS_TOPIC_ARN}" ]; then
   echo "⚠️  SNS_TOPIC_ARN not set. Alarms will be created without notification actions."
-  echo "   Set SNS_TOPIC_ARN to enable Slack/email notifications."
-  ACTIONS=""
+  echo "   Set SNS_TOPIC_ARN to enable email notifications."
 else
   echo "   SNS Topic: ${SNS_TOPIC_ARN}"
-  ACTIONS="--alarm-actions ${SNS_TOPIC_ARN} --ok-actions ${SNS_TOPIC_ARN}"
 fi
 
 # ---------------------------------------------------------------------------
@@ -42,24 +40,33 @@ create_alarm() {
 
   echo "   🔔 ${ALARM_NAME} (${METRIC_NAME} ${COMPARISON} ${THRESHOLD})"
 
-  local CMD="aws cloudwatch put-metric-alarm \
-    --region ${REGION} \
-    --alarm-name ${ALARM_NAME} \
-    --namespace ${NAMESPACE} \
-    --metric-name ${METRIC_NAME} \
-    --threshold ${THRESHOLD} \
-    --comparison-operator ${COMPARISON} \
-    --period ${PERIOD} \
-    --evaluation-periods ${EVAL_PERIODS} \
-    --statistic ${STATISTIC} \
-    --treat-missing-data ${TREAT_MISSING} \
-    --alarm-description '${DESCRIPTION}'"
+  # Build args array to avoid eval + shell injection
+  local -a ARGS=(
+    --region "${REGION}"
+    --alarm-name "${ALARM_NAME}"
+    --namespace "${NAMESPACE}"
+    --metric-name "${METRIC_NAME}"
+    --threshold "${THRESHOLD}"
+    --comparison-operator "${COMPARISON}"
+    --period "${PERIOD}"
+    --evaluation-periods "${EVAL_PERIODS}"
+    --treat-missing-data "${TREAT_MISSING}"
+    --alarm-description "${DESCRIPTION}"
+  )
 
-  if [ -n "${ACTIONS}" ]; then
-    CMD="${CMD} ${ACTIONS}"
+  # p* statistics require --extended-statistic instead of --statistic
+  if [[ "${STATISTIC}" == p* ]]; then
+    ARGS+=(--extended-statistic "${STATISTIC}")
+  else
+    ARGS+=(--statistic "${STATISTIC}")
   fi
 
-  eval "${CMD}" 2>/dev/null || echo "     ⚠️  Failed to create alarm: ${ALARM_NAME}"
+  if [ -n "${SNS_TOPIC_ARN}" ]; then
+    ARGS+=(--alarm-actions "${SNS_TOPIC_ARN}" --ok-actions "${SNS_TOPIC_ARN}")
+  fi
+
+  aws cloudwatch put-metric-alarm "${ARGS[@]}" 2>/dev/null \
+    || echo "     ⚠️  Failed to create alarm: ${ALARM_NAME}"
 }
 
 # ---------------------------------------------------------------------------

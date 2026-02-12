@@ -37,25 +37,19 @@ echo "   Topic ARN: ${TOPIC_ARN}"
 # Pass emails as arguments: ./configure-email-notifications.sh email1@example.com email2@example.com
 # Or set EMAIL_ADDRESSES env var (comma-separated)
 
+# Default notification recipients
+DEFAULT_EMAILS=("rafael@uds.com.br" "infra@uds.com.br")
+
 EMAILS=("$@")
 
 if [ ${#EMAILS[@]} -eq 0 ] && [ -n "${EMAIL_ADDRESSES:-}" ]; then
   IFS=',' read -ra EMAILS <<< "${EMAIL_ADDRESSES}"
 fi
 
+# Use defaults if no emails provided via args or env var
 if [ ${#EMAILS[@]} -eq 0 ]; then
-  echo ""
-  echo "⚠️  No email addresses provided."
-  echo ""
-  echo "Usage:"
-  echo "  ./configure-email-notifications.sh user@example.com admin@example.com"
-  echo ""
-  echo "Or set EMAIL_ADDRESSES env var:"
-  echo "  EMAIL_ADDRESSES=user@example.com,admin@example.com ./configure-email-notifications.sh"
-  echo ""
-  echo "Topic ARN created. Use it in deploy-alarms.sh:"
-  echo "  SNS_TOPIC_ARN=${TOPIC_ARN} ./deploy-alarms.sh"
-  exit 0
+  EMAILS=("${DEFAULT_EMAILS[@]}")
+  echo "   Using default recipients: ${EMAILS[*]}"
 fi
 
 echo ""
