@@ -216,7 +216,36 @@ phases:
 
         if [ "$DEPLOY_FRONTEND_BUILD" = "true" ]; then
           echo "=== Building Frontend ==="
-          npm run build
+          # Vite picks up VITE_* env vars from process.env automatically
+          # .env.production is gitignored, so we export vars from CodeBuild context
+          if [ "$ENVIRONMENT" = "production" ]; then
+            export VITE_AWS_REGION=us-east-1
+            export VITE_AWS_ACCOUNT_ID=523115032346
+            export VITE_AWS_USER_POOL_ID="$COGNITO_USER_POOL_ID"
+            export VITE_AWS_USER_POOL_CLIENT_ID="$COGNITO_CLIENT_ID"
+            export VITE_API_BASE_URL=https://api.evo.nuevacore.com
+            export VITE_CLOUDFRONT_DOMAIN=evo.nuevacore.com
+            export VITE_WEBAUTHN_RP_ID=nuevacore.com
+            export VITE_WEBAUTHN_RP_NAME="EVO Platform"
+            export VITE_STORAGE_ENCRYPTION_KEY="evo-uds-v3-production-secure-key-2024"
+            export VITE_ENVIRONMENT=production
+            export VITE_DEMO_EMAIL="comercial+evo@uds.com.br"
+            export VITE_DEMO_PASSWORD="Demoevouds@00!"
+          else
+            export VITE_AWS_REGION=us-east-1
+            export VITE_AWS_ACCOUNT_ID=971354623291
+            export VITE_AWS_USER_POOL_ID="$COGNITO_USER_POOL_ID"
+            export VITE_AWS_USER_POOL_CLIENT_ID="$COGNITO_CLIENT_ID"
+            export VITE_API_BASE_URL=https://igyifo56v7.execute-api.us-east-1.amazonaws.com/prod
+            export VITE_CLOUDFRONT_DOMAIN=evo.sandbox.nuevacore.com
+            export VITE_WEBAUTHN_RP_ID=nuevacore.com
+            export VITE_WEBAUTHN_RP_NAME="EVO Platform"
+            export VITE_STORAGE_ENCRYPTION_KEY="evo-uds-v3-sandbox-secure-key-2024-local"
+            export VITE_ENVIRONMENT=sandbox
+            export VITE_DEMO_EMAIL="comercial+evo@uds.com.br"
+            export VITE_DEMO_PASSWORD="Demoevouds@00!"
+          fi
+          npm run build:prod
         else
           echo "=== Skipping Frontend Build (no frontend changes) ==="
         fi
