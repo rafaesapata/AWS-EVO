@@ -185,12 +185,17 @@ export async function handler(
     const isAdmin = userRoles.includes('admin') || userRoles.includes('org_admin') || userRoles.includes('super_admin');
     
     // Allow users to update their own profile preferences (language, timezone)
+    const SELF_UPDATABLE_PROFILE_FIELDS = ['language', 'timezone'];
     const isSelfProfileUpdate = body.table === 'profiles' 
       && body.operation === 'update' 
       && body.data 
       && body.where
-      && Object.keys(body.data).every(k => ['language', 'timezone'].includes(k))
-      && (body.where.id === userId || body.where.user_id === userId);
+      && typeof body.data === 'object'
+      && !Array.isArray(body.data)
+      && Object.keys(body.data).length > 0
+      && Object.keys(body.data).every(k => SELF_UPDATABLE_PROFILE_FIELDS.includes(k))
+      && body.where.user_id === userId
+      && Object.keys(body.where).length === 1;
     
     if (ADMIN_ONLY_TABLES.has(body.table) && !isAdmin && !isSelfProfileUpdate) {
       logger.warn('Unauthorized mutation attempt', { table: body.table, userId, userRoles });
