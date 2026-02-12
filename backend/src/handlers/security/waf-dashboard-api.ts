@@ -171,6 +171,7 @@ export async function handler(
         case 'list-wafs':
         case 'setup':
         case 'disable':
+        case 'test-setup':
           return await proxyToWafSetupMonitoring(event);
         default:
           return error(`Unknown action: ${body.action}`, 400);

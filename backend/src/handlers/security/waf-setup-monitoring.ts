@@ -396,12 +396,16 @@ export const handler = safeHandler(async (
       return await handleGetConfigs(prisma, organizationId, accountId);
     }
     
-    // SECURITY: Block write operations in demo mode (disable, setup)
+    // SECURITY: Block write operations in demo mode (disable, setup, test-setup)
     const demoCheck = await ensureNotDemoMode(prisma, organizationId);
     if (demoCheck.blocked) return demoCheck.response;
     
     if (action === 'disable') {
       return await handleDisableConfig(prisma, organizationId, body.configId);
+    }
+    
+    if (action === 'test-setup') {
+      return await handleTestSetup(prisma, organizationId, body);
     }
     
     // Default: setup action
@@ -1309,6 +1313,166 @@ async function disableWafMonitoring(
     filterMode: 'block_only',
     message: `WAF monitoring disabled for ${extractWebAclName(webAclArn)}`,
   };
+}
+
+
+/**
+ * Dry-run diagnostic: tests each step of WAF setup without making changes.
+ * Returns step-by-step results so we can identify exactly where setup fails.
+ */
+async function handleTestSetup(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string,
+  body: { accountId?: string; webAclArn?: string }
+): Promise<APIGatewayProxyResultV2> {
+  const { accountId, webAclArn } = body;
+  if (!accountId || !webAclArn) {
+    return error('Missing accountId or webAclArn', 400);
+  }
+
+  const steps: Array<{ step: string; status: 'ok' | 'fail' | 'skip'; detail?: string }> = [];
+
+  const account = await prisma.awsCredential.findFirst({
+    where: { id: accountId, organization_id: organizationId, is_active: true },
+  });
+  if (!account) {
+    return success({ steps: [{ step: 'find-account', status: 'fail', detail: 'AWS account not found' }] });
+  }
+  steps.push({ step: 'find-account', status: 'ok' });
+
+  const arnParts = webAclArn.split(':');
+  const region = arnParts[3] || 'us-east-1';
+  const scope = webAclArn.includes('/global/') ? 'CLOUDFRONT' : 'REGIONAL';
+  const wafRegion = scope === 'CLOUDFRONT' ? 'us-east-1' : region;
+
+  let credentials: any;
+  try {
+    const resolvedCreds = await resolveAwsCredentials(account, wafRegion);
+    credentials = toAwsCredentials(resolvedCreds);
+    steps.push({ step: 'assume-role', status: 'ok', detail: `region=${wafRegion}` });
+  } catch (err: any) {
+    steps.push({ step: 'assume-role', status: 'fail', detail: err.message });
+    return success({ steps });
+  }
+
+  let customerAwsAccountId = account.role_arn?.split(':')[4] || webAclArn.split(':')[4];
+  steps.push({ step: 'resolve-account-id', status: customerAwsAccountId ? 'ok' : 'fail', detail: customerAwsAccountId || 'Could not determine' });
+  if (!customerAwsAccountId) return success({ steps });
+
+  // Test PRE-FLIGHT permissions
+  const roleArn = account.role_arn;
+  if (roleArn) {
+    try {
+      const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+      const logGroupArn = `arn:aws:logs:${wafRegion}:${customerAwsAccountId}:log-group:aws-waf-logs-*`;
+      const [globalResult, scopedResult] = await Promise.all([
+        iamClient.send(new SimulatePrincipalPolicyCommand({
+          PolicySourceArn: roleArn, ActionNames: GLOBAL_PERMISSIONS, ResourceArns: ['*'],
+        })),
+        iamClient.send(new SimulatePrincipalPolicyCommand({
+          PolicySourceArn: roleArn, ActionNames: LOGS_SCOPED_PERMISSIONS, ResourceArns: [logGroupArn],
+        })),
+      ]);
+      const denied = [
+        ...(globalResult.EvaluationResults || []),
+        ...(scopedResult.EvaluationResults || []),
+      ].filter(r => r.EvalDecision !== 'allowed').map(r => `${r.EvalActionName}=${r.EvalDecision}`);
+      steps.push({ step: 'pre-flight-permissions', status: denied.length === 0 ? 'ok' : 'fail', detail: denied.length > 0 ? denied.join(', ') : 'All permissions OK' });
+    } catch (err: any) {
+      steps.push({ step: 'pre-flight-permissions', status: 'skip', detail: `SimulatePrincipalPolicy failed: ${err.message}` });
+    }
+  } else {
+    steps.push({ step: 'pre-flight-permissions', status: 'skip', detail: 'No role_arn' });
+  }
+
+  // Test WAF exists
+  const wafClient = new WAFV2Client({ region: wafRegion, credentials });
+  try {
+    const resourceParts = arnParts[5]?.split('/') || [];
+    await wafClient.send(new GetWebACLCommand({
+      Name: resourceParts[2], Scope: resourceParts[0] === 'global' ? 'CLOUDFRONT' : 'REGIONAL', Id: resourceParts[3],
+    }));
+    steps.push({ step: 'waf-exists', status: 'ok' });
+  } catch (err: any) {
+    steps.push({ step: 'waf-exists', status: 'fail', detail: `${err.name}: ${err.message}` });
+    return success({ steps });
+  }
+
+  // Test CreateLogGroup
+  const webAclName = extractWebAclName(webAclArn);
+  const logGroupName = getLogGroupName(webAclName);
+  const logsClient = new CloudWatchLogsClient({ region: wafRegion, credentials });
+  try {
+    await logsClient.send(new CreateLogGroupCommand({ logGroupName }));
+    steps.push({ step: 'create-log-group', status: 'ok', detail: logGroupName });
+  } catch (err: any) {
+    if (err.name === 'ResourceAlreadyExistsException') {
+      steps.push({ step: 'create-log-group', status: 'ok', detail: `${logGroupName} (already exists)` });
+    } else {
+      steps.push({ step: 'create-log-group', status: 'fail', detail: `${err.name}: ${err.message}` });
+    }
+  }
+
+  // Test PutResourcePolicy
+  try {
+    const policyName = `AWSWAFLogsPolicy-${logGroupName}-test`;
+    await logsClient.send(new PutResourcePolicyCommand({
+      policyName,
+      policyDocument: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [{ Effect: 'Allow', Principal: { Service: 'wafv2.amazonaws.com' },
+          Action: ['logs:CreateLogStream', 'logs:PutLogEvents'],
+          Resource: `arn:aws:logs:${wafRegion}:${customerAwsAccountId}:log-group:${logGroupName}:*`,
+        }],
+      }),
+    }));
+    steps.push({ step: 'put-resource-policy', status: 'ok' });
+  } catch (err: any) {
+    steps.push({ step: 'put-resource-policy', status: 'fail', detail: `${err.name}: ${err.message}` });
+  }
+
+  // Test WAF logging config
+  try {
+    const loggingConfig = await wafClient.send(new GetLoggingConfigurationCommand({ ResourceArn: webAclArn }));
+    steps.push({ step: 'waf-logging', status: 'ok', detail: loggingConfig.LoggingConfiguration ? 'Already configured' : 'Not configured (will be created)' });
+  } catch (err: any) {
+    if (err.name === 'WAFNonexistentItemException') {
+      steps.push({ step: 'waf-logging', status: 'ok', detail: 'Not configured (will be created)' });
+    } else {
+      steps.push({ step: 'waf-logging', status: 'fail', detail: `${err.name}: ${err.message}` });
+    }
+  }
+
+  // Test destination exists
+  const destinationArn = getDestinationArn(wafRegion);
+  const destinationExists = await updateDestinationPolicyForCustomer(customerAwsAccountId, wafRegion);
+  steps.push({ step: 'destination-exists', status: destinationExists ? 'ok' : 'fail', detail: `${destinationArn} (region=${wafRegion})` });
+
+  // Test CloudWatch Logs role
+  let cloudWatchLogsRoleArn = '';
+  try {
+    const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+    await iamClient.send(new GetRoleCommand({ RoleName: CLOUDWATCH_LOGS_ROLE_NAME }));
+    cloudWatchLogsRoleArn = `arn:aws:iam::${customerAwsAccountId}:role/${CLOUDWATCH_LOGS_ROLE_NAME}`;
+    
+    // Check trust policy
+    const roleInfo = await iamClient.send(new GetRoleCommand({ RoleName: CLOUDWATCH_LOGS_ROLE_NAME }));
+    const trustDoc = roleInfo.Role?.AssumeRolePolicyDocument ? decodeURIComponent(roleInfo.Role.AssumeRolePolicyDocument) : '';
+    const regionalSvc = `logs.${wafRegion}.amazonaws.com`;
+    const hasTrust = trustDoc.includes(regionalSvc) || trustDoc.includes('logs.amazonaws.com');
+    steps.push({ step: 'cw-logs-role', status: 'ok', detail: `${CLOUDWATCH_LOGS_ROLE_NAME} exists, trust=${hasTrust ? 'OK' : 'MISSING ' + regionalSvc}` });
+  } catch (err: any) {
+    steps.push({ step: 'cw-logs-role', status: 'fail', detail: `${err.name}: ${err.message}` });
+  }
+
+  // Test PutSubscriptionFilter (dry — we don't actually create it, just report readiness)
+  if (destinationExists && cloudWatchLogsRoleArn) {
+    steps.push({ step: 'subscription-filter-ready', status: 'ok', detail: `dest=${destinationArn}, role=${cloudWatchLogsRoleArn}` });
+  } else {
+    steps.push({ step: 'subscription-filter-ready', status: 'fail', detail: `destinationExists=${destinationExists}, roleArn=${cloudWatchLogsRoleArn || 'none'}` });
+  }
+
+  return success({ steps, region: wafRegion, customerAwsAccountId, logGroupName, destinationArn });
 }
 
 
