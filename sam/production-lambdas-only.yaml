@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: |
-  EVO Platform - Lambda Functions Only (194 total) - v10 force FULL_SAM rebuild for validate-permissions
+  EVO Platform - Lambda Functions Only (194 total) - v11 FULL_SAM rebuild all lambdas with esbuild bundling
   Uses existing VPC, RDS, Cognito infrastructure
   All functions use ARM64 + esbuild for fast builds
-  Updated: 2026-02-11 - Fix validate-permissions ARN conversion + deploy script arithmetic bug
+  Updated: 2026-02-11 - Force complete rebuild to fix dependency resolution across all lambdas
 Globals:
   Function:
     Runtime: nodejs20.x
