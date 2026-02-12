@@ -11,14 +11,10 @@ import {
   ConfirmForgotPasswordCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 import { corsOptions, success, error as errorResponse } from '../../lib/response.js';
+import { logger } from '../../lib/logger.js';
 
 interface CheckRequest {
   email: string;
-}
-
-interface CheckResponse {
-  hasWebAuthn: boolean;
-  credentialsCount: number;
 }
 
 interface ForgotPasswordRequest {
@@ -46,9 +42,8 @@ function isValidPassword(password: string): boolean {
 }
 
 export async function handler(event: any): Promise<any> {
-  console.log('🔐 Auth handler called', { 
-    httpMethod: event.httpMethod,
-    body: event.body 
+  logger.info('Auth handler called', { 
+    httpMethod: event.httpMethod
   });
 
   const origin = event.headers?.['origin'] || event.headers?.['Origin'] || '*';
@@ -71,7 +66,7 @@ export async function handler(event: any): Promise<any> {
     return await handleWebAuthnCheck(body, origin);
 
   } catch (err: any) {
-    console.error('🔐 Auth handler error:', err);
+    logger.error('Auth handler error:', err);
     return errorResponse('Internal server error', 500, undefined, origin);
   }
 }
@@ -79,7 +74,7 @@ export async function handler(event: any): Promise<any> {
 async function handleWebAuthnCheck(body: CheckRequest, origin: string): Promise<any> {
   const { email } = body;
 
-  console.log('🔐 Checking WebAuthn for email:', email);
+  logger.info('Checking WebAuthn for email', { email });
 
   if (!email) {
     return errorResponse('Email is required', 400, undefined, origin);
@@ -92,8 +87,7 @@ async function handleWebAuthnCheck(body: CheckRequest, origin: string): Promise<
     where: { email }
   });
 
-  console.log('🔐 User lookup result:', { 
-    email, 
+  logger.info('User lookup result', { 
     userFound: !!profile, 
     userId: profile?.user_id 
   });
@@ -107,7 +101,7 @@ async function handleWebAuthnCheck(body: CheckRequest, origin: string): Promise<
     where: { user_id: profile.user_id }
   });
 
-  console.log('🔐 WebAuthn credentials found:', {
+  logger.info('WebAuthn credentials found', {
     userId: profile.user_id,
     credentialsCount: webauthnCredentials.length,
   });
@@ -121,7 +115,7 @@ async function handleWebAuthnCheck(body: CheckRequest, origin: string): Promise<
 async function handleForgotPassword(body: ForgotPasswordRequest, event: any, origin: string): Promise<any> {
   const { action, email, confirmationCode, newPassword } = body;
 
-  console.log('🔐 Forgot password request:', { action, email });
+  logger.info('Forgot password request', { action });
 
   if (!action || !email) {
     return errorResponse('Missing required fields: action and email', 400, undefined, origin);
@@ -135,7 +129,7 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any, ori
   const clientId = process.env.COGNITO_CLIENT_ID;
 
   if (!userPoolId || !clientId) {
-    console.error('Cognito configuration missing', { userPoolId: !!userPoolId, clientId: !!clientId });
+    logger.error('Cognito configuration missing', { userPoolId: !!userPoolId, clientId: !!clientId });
     return errorResponse('Authentication service not configured', 500, undefined, origin);
   }
 
@@ -150,7 +144,7 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any, ori
     const safeMessage = 'Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.';
 
     if (!profile) {
-      console.log('🔐 Password reset requested for non-existent user:', email);
+      logger.info('Password reset requested for non-existent user');
       return success({ message: safeMessage }, 200, origin);
     }
 
@@ -174,11 +168,11 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any, ori
         }
       });
 
-      console.log('✅ Password reset email sent:', { email, userId: profile.user_id });
+      logger.info('Password reset email sent', { userId: profile.user_id });
       return success({ message: safeMessage }, 200, origin);
 
     } catch (cognitoError: any) {
-      console.error('❌ Cognito forgot password error:', { email, error: cognitoError });
+      logger.error('Cognito forgot password error:', cognitoError);
 
       if (cognitoError.name === 'UserNotFoundException') {
         return success({ message: safeMessage }, 200, origin);
@@ -230,11 +224,11 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any, ori
         });
       }
 
-      console.log('✅ Password reset completed:', email);
+      logger.info('Password reset completed');
       return success({ message: 'Senha redefinida com sucesso. Você pode fazer login com sua nova senha.' }, 200, origin);
 
     } catch (cognitoError: any) {
-      console.error('❌ Cognito confirm forgot password error:', { email, error: cognitoError });
+      logger.error('Cognito confirm forgot password error:', cognitoError);
 
       if (cognitoError.name === 'CodeMismatchException') {
         return errorResponse('Código de confirmação inválido', 400, undefined, origin);

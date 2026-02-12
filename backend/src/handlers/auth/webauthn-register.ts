@@ -78,7 +78,7 @@ async function generateChallenge(
   
   try {
     // Verificar se o usuário existe na tabela profiles
-    let user = await prisma.profile.findFirst({
+    const user = await prisma.profile.findFirst({
       where: { user_id: userId }
     });
 
@@ -248,11 +248,11 @@ function extractPublicKeyFromAttestation(attestationBase64: string): string | nu
     const authData = extractAuthDataFromCBOR(buf);
     if (!authData) return null;
 
-    const flags = authData[32];
-    if (!(flags & 0x40)) return null; // no attested credential data
+    const flags = authData[32]; // flags byte is at offset 32 (after 32-byte rpIdHash)
+    if (!(flags & 0x40)) return null; // AT (attested credential data) flag not set
 
-    const credIdLen = authData.readUInt16BE(53);
-    const coseKeyStart = 55 + credIdLen;
+    const credIdLen = authData.readUInt16BE(53); // credIdLen at offset 53 (32 rpIdHash + 1 flags + 4 counter + 16 aaguid)
+    const coseKeyStart = 55 + credIdLen; // COSE key starts after credIdLen (2 bytes) + credId
     const coseKeyBytes = authData.subarray(coseKeyStart);
     return extractECKeyFromCOSE(coseKeyBytes);
   } catch {
