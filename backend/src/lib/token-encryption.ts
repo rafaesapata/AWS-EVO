@@ -26,6 +26,17 @@ export interface EncryptedToken {
   keyId: string;       // For key rotation
 }
 
+/** Flag to avoid spamming logs with fallback warning */
+let _fallbackKeyWarningLogged = false;
+
+/**
+ * Derive a 32-byte encryption key from a secret string using SHA-256.
+ * Used as fallback when TOKEN_ENCRYPTION_KEY is not configured.
+ */
+function deriveKeyFromSecret(secret: string): Buffer {
+  return crypto.createHash('sha256').update(secret).digest();
+}
+
 /**
  * Get encryption key from environment
  * 
@@ -33,10 +44,6 @@ export interface EncryptedToken {
  * @returns 32-byte encryption key
  * @throws Error if key is not configured or invalid
  */
-function deriveKeyFromSecret(secret: string): Buffer {
-  return crypto.createHash('sha256').update(secret).digest();
-}
-
 function getEncryptionKey(keyId: string = 'v1'): Buffer {
   // Support multiple keys for rotation
   const envKey = keyId === 'v1' 
@@ -44,7 +51,6 @@ function getEncryptionKey(keyId: string = 'v1'): Buffer {
     : process.env[`TOKEN_ENCRYPTION_KEY_${keyId.toUpperCase()}`];
   
   if (envKey) {
-    // Key should be base64 encoded 32-byte key
     const keyBuffer = Buffer.from(envKey, 'base64');
     
     if (keyBuffer.length !== KEY_LENGTH) {
@@ -54,14 +60,22 @@ function getEncryptionKey(keyId: string = 'v1'): Buffer {
     return keyBuffer;
   }
   
+  // Fallback only for default key — rotated keys MUST be explicitly configured
+  if (keyId !== 'v1') {
+    throw new Error(`Encryption key not configured for keyId: ${keyId}. Set TOKEN_ENCRYPTION_KEY_${keyId.toUpperCase()} environment variable.`);
+  }
+  
   // Fallback: derive key from DATABASE_URL (always available in Lambda environment)
   const databaseUrl = process.env.DATABASE_URL;
   if (databaseUrl) {
-    logger.warn('TOKEN_ENCRYPTION_KEY not configured, deriving key from DATABASE_URL. Set TOKEN_ENCRYPTION_KEY for production use.');
+    if (!_fallbackKeyWarningLogged) {
+      logger.warn('TOKEN_ENCRYPTION_KEY not configured, deriving key from DATABASE_URL. Set TOKEN_ENCRYPTION_KEY for production use.');
+      _fallbackKeyWarningLogged = true;
+    }
     return deriveKeyFromSecret(databaseUrl);
   }
   
-  throw new Error(`Encryption key not configured for keyId: ${keyId}. Set TOKEN_ENCRYPTION_KEY environment variable.`);
+  throw new Error('Encryption key not configured. Set TOKEN_ENCRYPTION_KEY environment variable.');
 }
 
 /**
