@@ -171,8 +171,19 @@ export function extractImports(filePath: string): ImportInfo[] {
   let inTemplateLiteral = false;
   let inBlockComment = false;
 
+  /** Try to extract a valid relative import from `line`; push to results if found before `beforeIdx`. */
+  function tryPush(line: string, lineNum: number, beforeIdx = Infinity): void {
+    const importPath = matchImportPath(line);
+    if (!importPath || !isRelativeImport(importPath) || SHELL_CHARS_REGEX.test(importPath)) return;
+    const matchIdx = line.indexOf(importPath);
+    if (matchIdx >= 0 && matchIdx < beforeIdx) {
+      results.push({ sourcePath: absolutePath, importPath, line: lineNum });
+    }
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const lineNum = i + 1;
 
     // Track multiline block comments (/* ... */)
     if (inBlockComment) {
@@ -185,14 +196,7 @@ export function extractImports(filePath: string): ImportInfo[] {
     if (line.includes('/*')) {
       if (!line.includes('*/')) {
         // Multiline block comment starts — check for import before the comment
-        const commentIdx = line.indexOf('/*');
-        const importPath = matchImportPath(line);
-        if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
-          const matchIdx = line.indexOf(importPath);
-          if (matchIdx >= 0 && matchIdx < commentIdx) {
-            results.push({ sourcePath: absolutePath, importPath, line: i + 1 });
-          }
-        }
+        tryPush(line, lineNum, line.indexOf('/*'));
         inBlockComment = true;
         continue;
       }
@@ -203,7 +207,7 @@ export function extractImports(filePath: string): ImportInfo[] {
       if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
         const matchIdx = line.indexOf(importPath);
         if (matchIdx >= 0 && (matchIdx < commentStart || matchIdx > commentEnd + 2)) {
-          results.push({ sourcePath: absolutePath, importPath, line: i + 1 });
+          results.push({ sourcePath: absolutePath, importPath, line: lineNum });
         }
       }
       continue;
@@ -217,23 +221,13 @@ export function extractImports(filePath: string): ImportInfo[] {
     }
     if (backtickCount % 2 === 1) {
       inTemplateLiteral = true;
-      const backtickIdx = line.indexOf('`');
-      const importPath = matchImportPath(line);
-      if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
-        const matchIdx = line.indexOf(importPath);
-        if (matchIdx >= 0 && matchIdx < backtickIdx) {
-          results.push({ sourcePath: absolutePath, importPath, line: i + 1 });
-        }
-      }
+      tryPush(line, lineNum, line.indexOf('`'));
       continue;
     }
 
     if (isCommentLine(line)) continue;
 
-    const importPath = matchImportPath(line);
-    if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
-      results.push({ sourcePath: absolutePath, importPath, line: i + 1 });
-    }
+    tryPush(line, lineNum);
   }
 
   return results;
