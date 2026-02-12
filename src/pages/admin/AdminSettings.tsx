@@ -18,9 +18,10 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { apiClient } from '@/integrations/aws/api-client';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Settings2, ShieldCheck, RefreshCw, Pencil, CheckCircle, XCircle,
-  AlertTriangle, Clock, Key, Building2,
+  AlertTriangle, Clock, Key, Building2, Globe, CalendarClock, CloudCog,
 } from 'lucide-react';
 
 interface AzureCredential {
@@ -53,6 +54,27 @@ interface TestResult {
   appDisplayName?: string | null;
 }
 
+interface EvoAppData {
+  current: { clientId: string; clientSecretMasked: string; redirectUri: string };
+  ssm: { clientId: string; clientSecretMasked: string; redirectUri: string; inSync: boolean };
+  metadata: {
+    secretExpiresAt: string | null;
+    ssmSyncedAt: string | null;
+    lambdasSyncedAt: string | null;
+    lambdasSyncedCount: number | null;
+    notes: string | null;
+    updatedBy: string | null;
+    updatedAt: string | null;
+  } | null;
+}
+
+interface EvoAppUpdateResult {
+  message: string;
+  ssm: { synced: boolean; syncedAt: string };
+  lambdas: { updated: number; failed: number; syncedAt: string };
+  secretExpiresAt: string | null;
+}
+
 const MS_PER_DAY = 86_400_000;
 
 function getExpiryBadge(expiresAt: string | null, t: (key: string, fallback: string) => string) {
@@ -72,6 +94,12 @@ export default function AdminSettings() {
   const [editForm, setEditForm] = useState({ tenant_id: '', client_id: '', client_secret: '', subscription_id: '' });
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
+
+  // EVO App Credentials state
+  const [evoForm, setEvoForm] = useState({
+    clientId: '', clientSecret: '', redirectUri: '', secretExpiresAt: '', notes: '',
+  });
+  const [showEvoForm, setShowEvoForm] = useState(false);
 
   // Fetch all Azure credentials
   const { data: credentialsData, isLoading } = useQuery({
@@ -133,6 +161,68 @@ export default function AdminSettings() {
     },
   });
 
+  // EVO App Credentials query
+  const { data: evoData, isLoading: evoLoading } = useQuery({
+    queryKey: ['admin-evo-app-credentials'],
+    queryFn: async () => {
+      const res = await apiClient.invoke<EvoAppData>('admin-evo-app-credentials', {
+        body: { action: 'get' },
+      });
+      if ('error' in res) throw new Error(res.error);
+      return res.data;
+    },
+  });
+
+  // EVO App update mutation
+  const evoUpdateMutation = useMutation({
+    mutationFn: async (form: typeof evoForm) => {
+      const res = await apiClient.invoke<EvoAppUpdateResult>('admin-evo-app-credentials', {
+        body: {
+          action: 'update',
+          clientId: form.clientId,
+          clientSecret: form.clientSecret,
+          redirectUri: form.redirectUri,
+          secretExpiresAt: form.secretExpiresAt || undefined,
+          notes: form.notes || undefined,
+        },
+      });
+      if ('error' in res) throw new Error(res.error);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: t('adminSettings.evoUpdateSuccess', 'Credentials updated and synced'),
+        description: `${data.lambdas.updated} Lambdas ${t('adminSettings.evoUpdated', 'updated')}${data.lambdas.failed > 0 ? `, ${data.lambdas.failed} ${t('adminSettings.evoFailed', 'failed')}` : ''}`,
+      });
+      setShowEvoForm(false);
+      queryClient.invalidateQueries({ queryKey: ['admin-evo-app-credentials'] });
+    },
+    onError: (err: Error) => {
+      toast({ title: t('adminSettings.evoUpdateError', 'Sync failed'), description: err.message, variant: 'destructive' });
+    },
+  });
+
+  // EVO App sync-only mutation
+  const evoSyncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.invoke<EvoAppUpdateResult>('admin-evo-app-credentials', {
+        body: { action: 'sync' },
+      });
+      if ('error' in res) throw new Error(res.error);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: t('adminSettings.evoSyncSuccess', 'Sync completed'),
+        description: `${data.lambdas.updated} Lambdas ${t('adminSettings.evoUpdated', 'updated')}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin-evo-app-credentials'] });
+    },
+    onError: (err: Error) => {
+      toast({ title: t('adminSettings.evoSyncError', 'Sync failed'), description: err.message, variant: 'destructive' });
+    },
+  });
+
   const handleEdit = (cred: AzureCredential) => {
     setEditingCredential(cred);
     setEditForm({
@@ -141,6 +231,25 @@ export default function AdminSettings() {
       client_secret: '',
       subscription_id: cred.subscription_id || '',
     });
+  };
+
+  const handleOpenEvoForm = () => {
+    setEvoForm({
+      clientId: evoData?.current.clientId || '',
+      clientSecret: '',
+      redirectUri: evoData?.current.redirectUri || '',
+      secretExpiresAt: evoData?.metadata?.secretExpiresAt ? evoData.metadata.secretExpiresAt.split('T')[0] : '',
+      notes: evoData?.metadata?.notes || '',
+    });
+    setShowEvoForm(true);
+  };
+
+  const handleEvoSave = () => {
+    if (!evoForm.clientId || !evoForm.clientSecret) {
+      toast({ title: t('adminSettings.evoRequiredFields', 'Client ID and Secret are required'), variant: 'destructive' });
+      return;
+    }
+    evoUpdateMutation.mutate(evoForm);
   };
 
   const handleSave = () => {
@@ -160,7 +269,7 @@ export default function AdminSettings() {
 
   const testAll = async () => {
     if (!credentialsData) return;
-    for (const cred of credentialsData.filter(c => c.auth_type === 'service_principal' && c.is_active)) {
+    for (const cred of credentialsData.filter((c: AzureCredential) => c.auth_type === 'service_principal' && c.is_active)) {
       testMutation.mutate(cred.id);
     }
   };
@@ -174,13 +283,201 @@ export default function AdminSettings() {
       icon={<Settings2 className="h-4 w-4 text-white" />}
     >
       <div className="space-y-6">
-        <Tabs defaultValue="azure">
+        <Tabs defaultValue="evo-app">
           <TabsList className="glass">
+            <TabsTrigger value="evo-app">
+              <CloudCog className="h-4 w-4 mr-2" />
+              {t('adminSettings.evoAppTab', 'EVO App')}
+            </TabsTrigger>
             <TabsTrigger value="azure">
               <Key className="h-4 w-4 mr-2" />
               {t('adminSettings.azureCredentials', 'Azure Credentials')}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="evo-app" className="space-y-6">
+            {/* Current Credentials Card */}
+            <Card className="glass border-primary/20">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>{t('adminSettings.evoCurrentTitle', 'EVO Platform Azure App Registration')}</CardTitle>
+                    <CardDescription>{t('adminSettings.evoCurrentDesc', 'OAuth intermediary credentials used by all organizations')}</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="glass"
+                      onClick={() => evoSyncMutation.mutate()}
+                      disabled={evoSyncMutation.isPending}
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${evoSyncMutation.isPending ? 'animate-spin' : ''}`} />
+                      {t('adminSettings.evoResync', 'Re-sync')}
+                    </Button>
+                    <Button className="glass hover-glow" onClick={handleOpenEvoForm}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      {t('adminSettings.evoUpdate', 'Update Credentials')}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {evoLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Credential Details */}
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoClientId', 'Client ID')}</Label>
+                          <p className="font-mono text-sm mt-1">{evoData?.current.clientId || '-'}</p>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoClientSecret', 'Client Secret')}</Label>
+                          <p className="font-mono text-sm mt-1">{evoData?.current.clientSecretMasked || '-'}</p>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoRedirectUri', 'Redirect URI')}</Label>
+                          <p className="font-mono text-sm mt-1 break-all">{evoData?.current.redirectUri || '-'}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoSecretExpiry', 'Secret Expiry')}</Label>
+                          <div className="mt-1">{getExpiryBadge(evoData?.metadata?.secretExpiresAt || null, t)}</div>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoSsmSync', 'SSM Sync')}</Label>
+                          <div className="mt-1">
+                            {evoData?.ssm.inSync
+                              ? <Badge className="bg-green-500/20 text-green-400 border-green-500/30"><CheckCircle className="h-3 w-3 mr-1" />{t('adminSettings.evoInSync', 'In Sync')}</Badge>
+                              : <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />{t('adminSettings.evoOutOfSync', 'Out of Sync')}</Badge>
+                            }
+                          </div>
+                        </div>
+                        {evoData?.metadata?.notes && (
+                          <div>
+                            <Label className="text-muted-foreground text-xs">{t('adminSettings.evoNotes', 'Notes')}</Label>
+                            <p className="text-sm mt-1">{evoData.metadata.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Sync Status Cards */}
+                    <div className="grid gap-6 md:grid-cols-3">
+                      <Card className="glass border-primary/20">
+                        <CardHeader className="pb-2">
+                          <CardDescription>{t('adminSettings.evoSsmSyncedAt', 'SSM Last Sync')}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center gap-2">
+                            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm">
+                              {evoData?.metadata?.ssmSyncedAt
+                                ? new Date(evoData.metadata.ssmSyncedAt).toLocaleString()
+                                : t('adminSettings.evoNever', 'Never')}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="glass border-primary/20">
+                        <CardHeader className="pb-2">
+                          <CardDescription>{t('adminSettings.evoLambdasSyncedAt', 'Lambdas Last Sync')}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center gap-2">
+                            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm">
+                              {evoData?.metadata?.lambdasSyncedAt
+                                ? new Date(evoData.metadata.lambdasSyncedAt).toLocaleString()
+                                : t('adminSettings.evoNever', 'Never')}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="glass border-primary/20">
+                        <CardHeader className="pb-2">
+                          <CardDescription>{t('adminSettings.evoLambdasCount', 'Lambdas Synced')}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{evoData?.metadata?.lambdasSyncedCount ?? '-'}</div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Update Form Dialog */}
+            <Dialog open={showEvoForm} onOpenChange={setShowEvoForm}>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>{t('adminSettings.evoEditTitle', 'Update EVO App Credentials')}</DialogTitle>
+                  <DialogDescription>{t('adminSettings.evoEditDesc', 'Updates SSM Parameter Store and propagates to all Lambdas')}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>{t('adminSettings.evoClientIdLabel', 'Client ID (App Registration)')}</Label>
+                    <Input
+                      value={evoForm.clientId}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, clientId: e.target.value }))}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t('adminSettings.evoClientSecretLabel', 'Client Secret')}</Label>
+                    <Input
+                      type="password"
+                      value={evoForm.clientSecret}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, clientSecret: e.target.value }))}
+                      placeholder={t('adminSettings.evoSecretPlaceholder', 'Enter the new client secret')}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t('adminSettings.evoRedirectUriLabel', 'Redirect URI')}</Label>
+                    <Input
+                      value={evoForm.redirectUri}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, redirectUri: e.target.value }))}
+                      placeholder="https://evo.nuevacore.com/azure/callback"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t('adminSettings.evoExpiryLabel', 'Secret Expiry Date')}</Label>
+                    <Input
+                      type="date"
+                      value={evoForm.secretExpiresAt}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, secretExpiresAt: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t('adminSettings.evoNotesLabel', 'Notes')}</Label>
+                    <Textarea
+                      value={evoForm.notes}
+                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEvoForm(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder={t('adminSettings.evoNotesPlaceholder', 'Optional notes about this credential update')}
+                      rows={2}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowEvoForm(false)}>
+                    {t('common.cancel', 'Cancel')}
+                  </Button>
+                  <Button className="glass hover-glow" onClick={handleEvoSave} disabled={evoUpdateMutation.isPending}>
+                    {evoUpdateMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Globe className="h-4 w-4 mr-2" />}
+                    {t('adminSettings.evoUpdateAndSync', 'Update & Sync')}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </TabsContent>
 
           <TabsContent value="azure" className="space-y-6">
             {/* Summary Cards */}

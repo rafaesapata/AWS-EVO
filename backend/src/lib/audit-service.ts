@@ -58,7 +58,9 @@ export type AuditAction =
   | 'DATA_CREATE'
   | 'DATA_UPDATE'
   | 'DATA_UPSERT'
-  | 'ADMIN_UPDATE_AZURE_CREDENTIAL';
+  | 'ADMIN_UPDATE_AZURE_CREDENTIAL'
+  | 'EVO_APP_CREDENTIALS_UPDATE'
+  | 'EVO_APP_CREDENTIALS_SYNC';
 
 export type AuditResourceType =
   | 'user'
@@ -78,6 +80,7 @@ export type AuditResourceType =
   | 'waf'
   | 'report'
   | 'mfa'
+  | 'evo_app_credentials'
   | 'session'
   | 'ai_notification'
   | 'organization_license_config'

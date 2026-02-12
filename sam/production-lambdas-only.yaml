@@ -237,6 +237,32 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+  AdminEvoAppCredentialsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-admin-evo-app-credentials'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: admin-evo-app-credentials.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 120
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/admin-evo-app-credentials
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - admin-evo-app-credentials.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
   AdminManageUserFunction:
     Type: AWS::Serverless::Function
     Properties:

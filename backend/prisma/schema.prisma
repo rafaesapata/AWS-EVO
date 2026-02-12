@@ -2519,3 +2519,24 @@ model MentionNotification {
   @@index([is_read])
   @@map("mention_notifications")
 }
+
+// ==================== EVO APP CREDENTIALS (Platform-level) ====================
+
+model EvoAppCredential {
+  id                    String    @id @default(uuid())
+  provider              String    @default("azure")
+  client_id             String
+  client_secret_masked  String?
+  secret_expires_at     DateTime?
+  redirect_uri          String?
+  ssm_synced_at         DateTime?
+  lambdas_synced_at     DateTime?
+  lambdas_synced_count  Int?      @default(0)
+  notes                 String?
+  updated_by            String?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @default(now()) @updatedAt
+
+  @@unique([provider, client_id])
+  @@map("evo_app_credentials")
+}
