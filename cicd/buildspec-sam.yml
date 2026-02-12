@@ -136,22 +136,41 @@ phases:
           DEPLOY_FRONTEND_BUILD="true"
         fi
 
-        # 4. Shared backend lib/types changed → incremental deploy ALL handlers
+        # 4. Shared backend lib/types changed → FULL SAM (incremental breaks @aws-sdk imports)
         if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^backend/src/(lib|types)/"; then
-          echo ">>> Shared lib/types changed - incremental deploy of ALL handlers"
-          DEPLOY_HANDLERS="true"
-          DEPLOY_ALL_HANDLERS="true"
+          echo ">>> Shared lib/types changed - FULL SAM DEPLOY (incremental would break @aws-sdk bundling)"
+          DEPLOY_FULL_SAM="true"
           DEPLOY_BACKEND_BUILD="true"
+          DEPLOY_FRONTEND="true"
+          DEPLOY_FRONTEND_BUILD="true"
         fi
 
-        # 5. Specific handlers changed → incremental deploy only those
+        # 5. Specific handlers changed → check if they use @aws-sdk (need FULL_SAM) or can do incremental
         if [ "$DEPLOY_FULL_SAM" = "false" ]; then
           HANDLER_CHANGES=$(echo "$CHANGED_FILES" | grep "^backend/src/handlers/" | sed "s|backend/src/handlers/||" || true)
           if [ -n "$HANDLER_CHANGES" ]; then
             echo ">>> Handlers changed: $HANDLER_CHANGES"
-            DEPLOY_HANDLERS="true"
-            DEPLOY_BACKEND_BUILD="true"
-            CHANGED_HANDLERS="$HANDLER_CHANGES"
+            # Check if any changed handler imports @aws-sdk (incremental would break it)
+            NEEDS_FULL_SAM="false"
+            for handler_file in $HANDLER_CHANGES; do
+              handler_path="backend/src/handlers/${handler_file}"
+              # Check .ts source for real @aws-sdk imports (not comments or type-only)
+              if [ -f "$handler_path" ] && grep -qE "^\s*(import|require).*@aws-sdk/" "$handler_path"; then
+                echo ">>> SAFETY: $handler_file imports @aws-sdk/* - forcing FULL_SAM"
+                NEEDS_FULL_SAM="true"
+                break
+              fi
+            done
+            if [ "$NEEDS_FULL_SAM" = "true" ]; then
+              DEPLOY_FULL_SAM="true"
+              DEPLOY_BACKEND_BUILD="true"
+              DEPLOY_FRONTEND="true"
+              DEPLOY_FRONTEND_BUILD="true"
+            else
+              DEPLOY_HANDLERS="true"
+              DEPLOY_BACKEND_BUILD="true"
+              CHANGED_HANDLERS="$HANDLER_CHANGES"
+            fi
           fi
         fi
 

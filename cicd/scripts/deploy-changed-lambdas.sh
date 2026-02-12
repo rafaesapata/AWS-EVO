@@ -305,6 +305,24 @@ deploy_lambda() {
     return 1
   fi
   
+  # ==========================================================================
+  # SAFETY CHECK: Block incremental deploy for handlers that import @aws-sdk
+  # @aws-sdk is NOT in the Lambda Layer — it must be bundled by esbuild (FULL_SAM)
+  # Incremental deploy copies .js without bundling → runtime crash
+  # ==========================================================================
+  local handler_ts="backend/src/handlers/${handler_path}.ts"
+  local handler_js="backend/dist/handlers/${handler_path}.js"
+  if [ -f "$handler_ts" ] && grep -qE '^\s*(import|require).*@aws-sdk/' "$handler_ts"; then
+    log_error "BLOCKED: $full_name imports @aws-sdk/* — incremental deploy would break it. Use FULL_SAM."
+    return 1
+  fi
+  # Fallback: also check compiled .js in case .ts is unavailable
+  if grep -qE 'require\("@aws-sdk/' "$handler_source" 2>/dev/null; then
+    log_error "BLOCKED: $full_name compiled output requires @aws-sdk/* — incremental deploy would break it. Use FULL_SAM."
+    return 1
+  fi
+  # ==========================================================================
+  
   # Criar diretório temporário
   local temp_dir
   temp_dir=$(mktemp -d)

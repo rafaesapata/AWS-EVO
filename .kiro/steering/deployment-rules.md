@@ -10,8 +10,9 @@ inclusion: always
 
 | Mudança | Estratégia | Tempo |
 |---------|-----------|-------|
-| Handler(s) em `backend/src/handlers/` | INCREMENTAL | ~1-2min |
-| `backend/src/lib/` ou `types/` | INCREMENTAL_ALL | ~5min |
+| Handler(s) sem `@aws-sdk` em `backend/src/handlers/` | INCREMENTAL | ~1-2min |
+| Handler(s) com `@aws-sdk` em `backend/src/handlers/` | FULL_SAM (auto-detectado) | ~10min |
+| `backend/src/lib/` ou `types/` | FULL_SAM | ~10min |
 | `sam/*.yaml` ou `prisma/schema.prisma` | FULL_SAM | ~10min |
 | `src/`, `public/`, `index.html` | FRONTEND_ONLY | ~2min |
 | `docs/`, `scripts/`, `cicd/`, `.md` | SKIP | ~1min |
@@ -37,10 +38,15 @@ Metadata:
 ```
 
 ## FULL_SAM vs INCREMENTAL
-- `@aws-sdk/*` no External funciona APENAS com FULL_SAM (esbuild pelo SAM)
+- `@aws-sdk/*` NÃO está na Lambda Layer — precisa ser bundled pelo esbuild (FULL_SAM)
 - INCREMENTAL copia .js sem bundling → `Cannot find module '@aws-sdk/client-*'`
 - Diagnóstico: CodeSize ~40KB = incremental (quebrado) | ~1-2MB = SAM (correto)
 - Fix: alterar `sam/production-lambdas-only.yaml` (bump Description) para forçar FULL_SAM
+
+### Proteções implementadas (3 camadas)
+1. **CI/CD buildspec**: `lib/types` mudanças → FULL_SAM (nunca mais INCREMENTAL_ALL)
+2. **CI/CD buildspec**: Handlers com `@aws-sdk/*` → auto-detecta e força FULL_SAM
+3. **Deploy script**: `deploy-changed-lambdas.sh` bloqueia deploy de handler que importa `@aws-sdk/*`
 
 ## Azure SDK — Crypto Polyfill (PRIMEIRO import em handlers Azure)
 ```typescript
