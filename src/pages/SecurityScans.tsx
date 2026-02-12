@@ -1232,7 +1232,7 @@ export default function SecurityScans() {
  <Card>
  <CardContent className="pt-6">
  <div className="flex flex-wrap items-center gap-4">
- <div className="flex-1 min-w-[200px]">
+ <div className="flex-1 min-w-[200px] max-w-md">
  <input
  type="text"
  placeholder={t('securityScans.searchFindings', 'Search findings...')}
