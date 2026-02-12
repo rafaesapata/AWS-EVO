@@ -20,6 +20,9 @@ const REGION = process.env.AWS_REGION || 'us-east-1';
 const ENV = process.env.ENVIRONMENT || 'production';
 const LAMBDA_PREFIX = `evo-uds-v3-${ENV}`;
 const SSM_PREFIX = `/evo-uds-v3/${ENV}`;
+const MASK_MIN_LENGTH = 12;
+const LAMBDA_LIST_PAGE_SIZE = 200;
+const LAMBDA_CONCURRENCY = 10;
 
 const ssmClient = new SSMClient({ region: REGION });
 const lambdaClient = new LambdaClient({ region: REGION });
@@ -35,7 +38,7 @@ interface ActionBody {
 
 /** Mask a secret, showing only first 6 and last 4 chars */
 function maskSecret(secret: string): string {
-  if (!secret || secret.length < 12) return '***';
+  if (!secret || secret.length < MASK_MIN_LENGTH) return '***';
   return `${secret.substring(0, 6)}...${secret.substring(secret.length - 4)}`;
 }
 
@@ -97,7 +100,7 @@ async function listAllLambdas(): Promise<string[]> {
   let marker: string | undefined;
   do {
     const res = await lambdaClient.send(new ListFunctionsCommand({
-      MaxItems: 200,
+      MaxItems: LAMBDA_LIST_PAGE_SIZE,
       Marker: marker,
     }));
     for (const fn of res.Functions || []) {
@@ -118,20 +121,27 @@ async function syncLambdaEnvVars(
   let updated = 0;
   let failed = 0;
 
-  for (const funcName of functions) {
-    try {
-      const config = await lambdaClient.send(new GetFunctionConfigurationCommand({ FunctionName: funcName }));
-      const currentVars = config.Environment?.Variables || {};
-      const mergedVars = { ...currentVars, ...vars };
-
-      await lambdaClient.send(new UpdateFunctionConfigurationCommand({
-        FunctionName: funcName,
-        Environment: { Variables: mergedVars },
-      }));
-      updated++;
-    } catch (err: any) {
-      logger.error(`Failed to update Lambda ${funcName}`, { error: err.message });
-      failed++;
+  // Process in batches to avoid API throttling
+  for (let i = 0; i < functions.length; i += LAMBDA_CONCURRENCY) {
+    const batch = functions.slice(i, i + LAMBDA_CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async (funcName) => {
+        const config = await lambdaClient.send(new GetFunctionConfigurationCommand({ FunctionName: funcName }));
+        const mergedVars = { ...config.Environment?.Variables, ...vars };
+        await lambdaClient.send(new UpdateFunctionConfigurationCommand({
+          FunctionName: funcName,
+          Environment: { Variables: mergedVars },
+        }));
+      })
+    );
+    for (let j = 0; j < results.length; j++) {
+      if (results[j].status === 'fulfilled') {
+        updated++;
+      } else {
+        failed++;
+        const reason = (results[j] as PromiseRejectedResult).reason;
+        logger.error(`Failed to update Lambda ${batch[j]}`, { error: reason?.message });
+      }
     }
   }
 
@@ -157,6 +167,55 @@ async function syncToSSM(clientId: string, clientSecret: string, redirectUri: st
   }
 }
 
+/** Common sync: SSM + Lambdas + DB upsert. Returns sync result. */
+async function performFullSync(
+  prisma: any,
+  credentials: { clientId: string; clientSecret: string; redirectUri: string },
+  userId: string,
+  extraDbFields?: { secret_expires_at?: Date | null; notes?: string | null }
+): Promise<{ ssmSyncedAt: Date; lambdasSyncedAt: Date; updated: number; failed: number }> {
+  const { clientId, clientSecret, redirectUri } = credentials;
+
+  await syncToSSM(clientId, clientSecret, redirectUri);
+  const ssmSyncedAt = new Date();
+
+  const { updated, failed } = await syncLambdaEnvVars({
+    AZURE_OAUTH_CLIENT_ID: clientId,
+    AZURE_OAUTH_CLIENT_SECRET: clientSecret,
+    AZURE_OAUTH_REDIRECT_URI: redirectUri,
+  });
+  const lambdasSyncedAt = new Date();
+
+  await prisma.evoAppCredential.upsert({
+    where: { provider_client_id: { provider: 'azure', client_id: clientId } },
+    create: {
+      provider: 'azure',
+      client_id: clientId,
+      client_secret_masked: maskSecret(clientSecret),
+      redirect_uri: redirectUri,
+      secret_expires_at: extraDbFields?.secret_expires_at ?? null,
+      ssm_synced_at: ssmSyncedAt,
+      lambdas_synced_at: lambdasSyncedAt,
+      lambdas_synced_count: updated,
+      notes: extraDbFields?.notes ?? null,
+      updated_by: userId,
+    },
+    update: {
+      client_secret_masked: maskSecret(clientSecret),
+      redirect_uri: redirectUri,
+      ...(extraDbFields?.secret_expires_at !== undefined && { secret_expires_at: extraDbFields.secret_expires_at }),
+      ...(extraDbFields?.notes !== undefined && { notes: extraDbFields.notes }),
+      ssm_synced_at: ssmSyncedAt,
+      lambdas_synced_at: lambdasSyncedAt,
+      lambdas_synced_count: updated,
+      updated_by: userId,
+      updated_at: new Date(),
+    },
+  });
+
+  return { ssmSyncedAt, lambdasSyncedAt, updated, failed };
+}
+
 /** Update credentials: SSM + all Lambdas + DB metadata */
 async function handleUpdate(
   prisma: any,
@@ -172,49 +231,14 @@ async function handleUpdate(
     return error('clientId and clientSecret are required', 400, undefined, origin);
   }
 
-  // 1. Write to SSM
-  logger.info('Syncing Azure OAuth credentials to SSM...');
-  await syncToSSM(clientId, clientSecret, redirectUri);
-  const ssmSyncedAt = new Date();
-
-  // 2. Propagate to all Lambdas
-  logger.info('Propagating Azure OAuth credentials to all Lambdas...');
-  const lambdaVars: Record<string, string> = {
-    AZURE_OAUTH_CLIENT_ID: clientId,
-    AZURE_OAUTH_CLIENT_SECRET: clientSecret,
-    AZURE_OAUTH_REDIRECT_URI: redirectUri,
-  };
-  const { updated, failed } = await syncLambdaEnvVars(lambdaVars);
-  const lambdasSyncedAt = new Date();
-
-  // 3. Save metadata to DB
+  logger.info('Updating and syncing Azure OAuth credentials...');
   const secretExpiresAt = body.secretExpiresAt ? new Date(body.secretExpiresAt) : null;
-  await prisma.evoAppCredential.upsert({
-    where: { provider_client_id: { provider: 'azure', client_id: clientId } },
-    create: {
-      provider: 'azure',
-      client_id: clientId,
-      client_secret_masked: maskSecret(clientSecret),
-      secret_expires_at: secretExpiresAt,
-      redirect_uri: redirectUri,
-      ssm_synced_at: ssmSyncedAt,
-      lambdas_synced_at: lambdasSyncedAt,
-      lambdas_synced_count: updated,
-      notes: body.notes || null,
-      updated_by: userId,
-    },
-    update: {
-      client_secret_masked: maskSecret(clientSecret),
-      secret_expires_at: secretExpiresAt,
-      redirect_uri: redirectUri,
-      ssm_synced_at: ssmSyncedAt,
-      lambdas_synced_at: lambdasSyncedAt,
-      lambdas_synced_count: updated,
-      notes: body.notes || undefined,
-      updated_by: userId,
-      updated_at: new Date(),
-    },
-  });
+  const { ssmSyncedAt, lambdasSyncedAt, updated, failed } = await performFullSync(
+    prisma,
+    { clientId, clientSecret, redirectUri },
+    userId,
+    { secret_expires_at: secretExpiresAt, notes: body.notes || null }
+  );
 
   return success({
     message: 'Credentials updated successfully',
@@ -238,39 +262,12 @@ async function handleSync(
     return error('AZURE_OAUTH_CLIENT_ID/SECRET not configured in this Lambda', 400, undefined, origin);
   }
 
-  // Sync to SSM
-  await syncToSSM(clientId, clientSecret, redirectUri);
-  const ssmSyncedAt = new Date();
-
-  // Sync to Lambdas
-  const { updated, failed } = await syncLambdaEnvVars({
-    AZURE_OAUTH_CLIENT_ID: clientId,
-    AZURE_OAUTH_CLIENT_SECRET: clientSecret,
-    AZURE_OAUTH_REDIRECT_URI: redirectUri,
-  });
-  const lambdasSyncedAt = new Date();
-
-  // Update DB metadata
-  await prisma.evoAppCredential.upsert({
-    where: { provider_client_id: { provider: 'azure', client_id: clientId } },
-    create: {
-      provider: 'azure',
-      client_id: clientId,
-      client_secret_masked: maskSecret(clientSecret),
-      redirect_uri: redirectUri,
-      ssm_synced_at: ssmSyncedAt,
-      lambdas_synced_at: lambdasSyncedAt,
-      lambdas_synced_count: updated,
-      updated_by: userId,
-    },
-    update: {
-      ssm_synced_at: ssmSyncedAt,
-      lambdas_synced_at: lambdasSyncedAt,
-      lambdas_synced_count: updated,
-      updated_by: userId,
-      updated_at: new Date(),
-    },
-  });
+  logger.info('Re-syncing Azure OAuth credentials...');
+  const { ssmSyncedAt, lambdasSyncedAt, updated, failed } = await performFullSync(
+    prisma,
+    { clientId, clientSecret, redirectUri },
+    userId
+  );
 
   return success({
     message: 'Sync completed',
