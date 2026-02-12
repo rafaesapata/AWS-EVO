@@ -44,6 +44,16 @@ describe('parseCLIArgs', () => {
     const result = parseCLIArgs(['--unknown', 'value']);
     expect(result).toEqual({});
   });
+
+  it('ignores --handler when no value follows', () => {
+    const result = parseCLIArgs(['--handler']);
+    expect(result.handler).toBeUndefined();
+  });
+
+  it('ignores --output-graph when no value follows', () => {
+    const result = parseCLIArgs(['--output-graph']);
+    expect(result.outputGraph).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -238,6 +248,66 @@ describe('extractImports', () => {
     expect(imports).toHaveLength(1);
     expect(imports[0].importPath).toBe('../../types/foo.js');
   });
+
+  it('handles import * as namespace syntax', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, `import * as crypto from '../../lib/crypto-utils.js';\n`);
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(1);
+    expect(imports[0].importPath).toBe('../../lib/crypto-utils.js');
+  });
+
+  it('handles default import syntax', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, `import logger from '../../lib/logging.js';\n`);
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(1);
+    expect(imports[0].importPath).toBe('../../lib/logging.js');
+  });
+
+  it('skips imports inside block comments', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, [
+      `/* import { old } from '../../lib/old.js'; */`,
+      `import { real } from '../../lib/real.js';`,
+    ].join('\n'));
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(1);
+    expect(imports[0].importPath).toBe('../../lib/real.js');
+  });
+
+  it('skips imports inside template literals', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, [
+      `import { real } from '../../lib/real.js';`,
+      'const sql = `',
+      `  import { fake } from '../../lib/fake.js';`,
+      '`;',
+    ].join('\n'));
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(1);
+    expect(imports[0].importPath).toBe('../../lib/real.js');
+  });
+
+  it('handles require with extra spaces', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, `const db = require(  '../../lib/database.js'  );\n`);
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(1);
+    expect(imports[0].importPath).toBe('../../lib/database.js');
+  });
+
+  it('rejects import paths with shell injection characters', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, [
+      `import { x } from '../../lib/ok.js';`,
+      `import { y } from '../../lib/bad | rm.js';`,
+      `import { z } from '../../lib/bad\${x}.js';`,
+    ].join('\n'));
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(1);
+    expect(imports[0].importPath).toBe('../../lib/ok.js');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -311,6 +381,23 @@ describe('resolveImport', () => {
     const result = resolveImport(tmpDir, './lib/response.js');
     expect(result).not.toBeNull();
     expect(result!.startsWith('/')).toBe(true);
+  });
+
+  it('returns null for .ts import that does not exist', () => {
+    const result = resolveImport(tmpDir, './lib/ghost.ts');
+    expect(result).toBeNull();
+  });
+
+  it('returns null for .js import when .ts equivalent does not exist', () => {
+    const result = resolveImport(tmpDir, './lib/ghost.js');
+    expect(result).toBeNull();
+  });
+
+  it('resolves extensionless import to directory index.ts when no .ts file exists', () => {
+    mkdirSync(join(tmpDir, 'lib', 'engine'), { recursive: true });
+    writeFileSync(join(tmpDir, 'lib', 'engine', 'index.ts'), 'export const e = 1;');
+    const result = resolveImport(tmpDir, './lib/engine');
+    expect(result).toBe(resolve(tmpDir, 'lib', 'engine', 'index.ts'));
   });
 });
 
@@ -488,6 +575,36 @@ describe('buildDependencyGraph', () => {
     expect(graph[handler2]).toContain(resolve(libDir, 'auth.ts'));
     expect(graph[handler2]).toContain(resolve(libDir, 'shared.ts'));
   });
+
+  it('includes cross-handler imports when one handler imports another handler file', () => {
+    const handler1 = join(handlersDir, 'login.ts');
+    const handler2Dir = join(tmpDir, 'handlers', 'security');
+    mkdirSync(handler2Dir, { recursive: true });
+    const handler2 = join(handler2Dir, 'scan.ts');
+    writeFileSync(handler2, `export const scan = () => {};`);
+    writeFileSync(handler1, `import { scan } from '../security/scan.js';\n`);
+
+    const { graph, brokenImports } = buildDependencyGraph([handler1], tmpDir);
+
+    expect(brokenImports).toHaveLength(0);
+    expect(graph[handler1]).toContain(resolve(handler2));
+  });
+
+  it('uses import cache — same lib parsed once across multiple handlers', () => {
+    const handler1 = join(handlersDir, 'login.ts');
+    const handler2 = join(handlersDir, 'logout.ts');
+    writeFileSync(join(libDir, 'response.ts'), 'export const ok = () => {};');
+    writeFileSync(handler1, `import { ok } from '../../lib/response.js';\n`);
+    writeFileSync(handler2, `import { ok } from '../../lib/response.js';\n`);
+
+    const { graph, brokenImports } = buildDependencyGraph([handler1, handler2], tmpDir);
+
+    expect(brokenImports).toHaveLength(0);
+    expect(graph[handler1]).toHaveLength(1);
+    expect(graph[handler2]).toHaveLength(1);
+    // Both should resolve to the same lib
+    expect(graph[handler1][0]).toBe(graph[handler2][0]);
+  });
 });
 
 
@@ -638,6 +755,26 @@ describe('detectCycles', () => {
     for (const cycle of cycles) {
       expect(cycle.path[0]).toBe(cycle.path[cycle.path.length - 1]);
     }
+  });
+
+  it('detects self-loop combined with regular cycle', () => {
+    const adj = new Map<string, string[]>();
+    adj.set('A.ts', ['A.ts', 'B.ts']); // self-loop + edge to B
+    adj.set('B.ts', ['C.ts']);
+    adj.set('C.ts', ['B.ts']); // cycle B → C → B
+
+    const cycles = detectCycles(adj);
+    // Should detect self-loop on A and cycle B↔C
+    expect(cycles.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('handles large linear chain with no cycles', () => {
+    const adj = new Map<string, string[]>();
+    for (let i = 0; i < 20; i++) {
+      adj.set(`node${i}.ts`, i < 19 ? [`node${i + 1}.ts`] : []);
+    }
+    const cycles = detectCycles(adj);
+    expect(cycles).toHaveLength(0);
   });
 });
 
@@ -948,6 +1085,33 @@ describe('writeGraphJson', () => {
     expect(parsed.metadata.brokenImports).toBe(2);
     expect(parsed.metadata.circularDependencies).toBe(1);
   });
+
+  it('outputs empty arrays for handler with zero dependencies', () => {
+    const cwd = process.cwd();
+    const handlerPath = join(cwd, 'backend/src/handlers/auth/noop.ts');
+
+    const graph: DependencyGraph = { [handlerPath]: [] };
+    const adjacencyMap = new Map<string, string[]>();
+    adjacencyMap.set(handlerPath, []);
+
+    const result: ValidationResult = {
+      handlersScanned: 1,
+      uniqueLibs: 0,
+      brokenImports: [],
+      cycles: [],
+    };
+
+    const outputPath = join(tmpDir, 'graph.json');
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    writeGraphJson(graph, adjacencyMap, result, outputPath);
+    logSpy.mockRestore();
+
+    const parsed = JSON.parse(readFileSync(outputPath, 'utf-8'));
+    const entry = parsed.handlers['backend/src/handlers/auth/noop.ts'];
+    expect(entry).toBeDefined();
+    expect(entry.directImports).toEqual([]);
+    expect(entry.transitiveImports).toEqual([]);
+  });
 });
 
 
@@ -970,6 +1134,14 @@ describe('collapseLibPath', () => {
   it('keeps types files as-is', () => {
     expect(collapseLibPath('types/lambda.ts')).toBe('types/lambda.ts');
     expect(collapseLibPath('types/cloud.ts')).toBe('types/cloud.ts');
+  });
+
+  it('handles single-segment paths', () => {
+    expect(collapseLibPath('response.ts')).toBe('response.ts');
+  });
+
+  it('handles types subdirectory paths as-is (no collapse)', () => {
+    expect(collapseLibPath('types/sub/deep.ts')).toBe('types/sub/deep.ts');
   });
 });
 
