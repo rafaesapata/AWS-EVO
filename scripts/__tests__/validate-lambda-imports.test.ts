@@ -343,6 +343,44 @@ describe('extractImports', () => {
     expect(imports[0].importPath).toBe('../../lib/real.js');
     expect(imports[1].importPath).toBe('../../lib/also-real.js');
   });
+
+  it('extracts import on same line after closing block comment */', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, [
+      `/*`,
+      `import { fake } from '../../lib/fake.js';`,
+      `*/ import { real } from '../../lib/real.js';`,
+    ].join('\n'));
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(1);
+    expect(imports[0].importPath).toBe('../../lib/real.js');
+  });
+
+  it('extracts re-export statements (export { x } from)', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, [
+      `export { foo } from '../../lib/foo.js';`,
+      `export type { Bar } from '../../types/bar.js';`,
+      `export * from '../../lib/utils.js';`,
+    ].join('\n'));
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(3);
+    expect(imports[0].importPath).toBe('../../lib/foo.js');
+    expect(imports[1].importPath).toBe('../../types/bar.js');
+    expect(imports[2].importPath).toBe('../../lib/utils.js');
+  });
+
+  it('extracts dynamic import() statements', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, [
+      `const mod = await import('../../lib/dynamic.js');`,
+      `import('../../lib/lazy.js').then(m => m.init());`,
+    ].join('\n'));
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(2);
+    expect(imports[0].importPath).toBe('../../lib/dynamic.js');
+    expect(imports[1].importPath).toBe('../../lib/lazy.js');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -433,6 +471,23 @@ describe('resolveImport', () => {
     writeFileSync(join(tmpDir, 'lib', 'engine', 'index.ts'), 'export const e = 1;');
     const result = resolveImport(tmpDir, './lib/engine');
     expect(result).toBe(resolve(tmpDir, 'lib', 'engine', 'index.ts'));
+  });
+
+  it('rejects path traversal beyond explicit projectRoot', () => {
+    // File exists at parent level but should be rejected by projectRoot guard
+    const subDir = join(tmpDir, 'sub');
+    mkdirSync(subDir, { recursive: true });
+    writeFileSync(join(tmpDir, 'lib', 'response.ts'), 'export const r = {};');
+    // Without projectRoot, resolve('.') is used — the file is within CWD so it resolves
+    // With explicit projectRoot = subDir, the file is outside so it should be null
+    const result = resolveImport(subDir, '../lib/response.js', subDir);
+    expect(result).toBeNull();
+  });
+
+  it('allows resolution within explicit projectRoot', () => {
+    writeFileSync(join(tmpDir, 'lib', 'response.ts'), 'export const r = {};');
+    const result = resolveImport(tmpDir, './lib/response.js', tmpDir);
+    expect(result).toBe(resolve(tmpDir, 'lib', 'response.ts'));
   });
 });
 
@@ -639,6 +694,20 @@ describe('buildDependencyGraph', () => {
     expect(graph[handler2]).toHaveLength(1);
     // Both should resolve to the same lib
     expect(graph[handler1][0]).toBe(graph[handler2][0]);
+  });
+
+  it('deduplicates broken imports when multiple handlers reach same broken lib', () => {
+    const handler1 = join(handlersDir, 'login.ts');
+    const handler2 = join(handlersDir, 'logout.ts');
+    writeFileSync(join(libDir, 'auth.ts'), `import { missing } from './nonexistent.js';\nexport const auth = () => {};`);
+    writeFileSync(handler1, `import { auth } from '../../lib/auth.js';\n`);
+    writeFileSync(handler2, `import { auth } from '../../lib/auth.js';\n`);
+
+    const { brokenImports } = buildDependencyGraph([handler1, handler2], tmpDir);
+
+    // The broken import in auth.ts should be reported only once, not twice
+    expect(brokenImports).toHaveLength(1);
+    expect(brokenImports[0].sourcePath).toBe(resolve(libDir, 'auth.ts'));
   });
 });
 

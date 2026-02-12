@@ -132,8 +132,9 @@ function walkDirectory(dir: string): string[] {
 // ---------------------------------------------------------------------------
 
 // Regex patterns (compiled once, reused across calls)
-const IMPORT_FROM_REGEX = /import\s+.*?\s+from\s+['"](.+?)['"]/;
+const IMPORT_FROM_REGEX = /(?:import|export)\s+.*?\s+from\s+['"](.+?)['"]/;
 const REQUIRE_REGEX = /require\(\s*['"](.+?)['"]\s*\)/;
+const DYNAMIC_IMPORT_REGEX = /import\(\s*['"](.+?)['"]\s*\)/;
 const SHELL_CHARS_REGEX = /[|>\s${}]/;
 
 /** Minimum number of domains that must use a lib for it to be classified as "shared" */
@@ -144,12 +145,14 @@ function jsToTs(importPath: string): string {
   return importPath.endsWith('.js') ? importPath.slice(0, -3) + '.ts' : importPath;
 }
 
-/** Extract the import/require path from a line, or null if none found. */
+/** Extract the import/require/re-export/dynamic-import path from a line, or null if none found. */
 function matchImportPath(line: string): string | null {
   const importMatch = line.match(IMPORT_FROM_REGEX);
   if (importMatch) return importMatch[1];
   const requireMatch = line.match(REQUIRE_REGEX);
   if (requireMatch) return requireMatch[1];
+  const dynamicMatch = line.match(DYNAMIC_IMPORT_REGEX);
+  if (dynamicMatch) return dynamicMatch[1];
   return null;
 }
 
@@ -189,6 +192,14 @@ export function extractImports(filePath: string): ImportInfo[] {
     if (inBlockComment) {
       if (line.includes('*/')) {
         inBlockComment = false;
+        // Check for import AFTER the closing */ on this same line
+        const afterComment = line.substring(line.indexOf('*/') + 2);
+        if (afterComment.trim().length > 0) {
+          const importPath = matchImportPath(afterComment);
+          if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
+            results.push({ sourcePath: absolutePath, importPath, line: lineNum });
+          }
+        }
       }
       continue;
     }
@@ -237,7 +248,7 @@ export function extractImports(filePath: string): ImportInfo[] {
 // Import Resolution
 // ---------------------------------------------------------------------------
 
-export function resolveImport(sourceDir: string, importPath: string): string | null {
+export function resolveImport(sourceDir: string, importPath: string, projectRoot?: string): string | null {
   let candidate = importPath;
 
   // Step 1: Replace .js extension with .ts
@@ -247,8 +258,8 @@ export function resolveImport(sourceDir: string, importPath: string): string | n
   const absolutePath = resolve(sourceDir, candidate);
 
   // Security: reject paths that escape the project root (path traversal)
-  const projectRoot = resolve('.');
-  if (!absolutePath.startsWith(projectRoot)) {
+  const root = projectRoot ?? resolve('.');
+  if (!absolutePath.startsWith(root)) {
     return null;
   }
 
@@ -273,13 +284,17 @@ export function resolveImport(sourceDir: string, importPath: string): string | n
 
 export function buildDependencyGraph(
   handlers: string[],
-  _basePath: string // reserved for future use (e.g., relative path output); kept for API stability
+  _basePath: string, // reserved for future use (e.g., relative path output); kept for API stability
+  projectRoot?: string,
 ): { graph: DependencyGraph; brokenImports: BrokenImport[]; adjacencyMap: Map<string, string[]> } {
   const graph: DependencyGraph = {};
   const brokenImports: BrokenImport[] = [];
   const adjacencyMap = new Map<string, string[]>();
   // Cache extractImports results to avoid re-parsing shared libs across handlers
   const importCache = new Map<string, ImportInfo[]>();
+  // Deduplicate broken imports by sourcePath:line to avoid reporting the same broken import
+  // multiple times when multiple handlers transitively reach the same broken lib
+  const seenBrokenKeys = new Set<string>();
 
   // For each handler, DFS to collect all transitive deps and broken imports
   for (const handler of handlers) {
@@ -309,7 +324,7 @@ export function buildDependencyGraph(
       const resolvedForAdjacency: string[] = [];
 
       for (const imp of imports) {
-        const resolvedPath = resolveImport(sourceDir, imp.importPath);
+        const resolvedPath = resolveImport(sourceDir, imp.importPath, projectRoot);
 
         if (resolvedPath) {
           resolvedForAdjacency.push(resolvedPath);
@@ -322,13 +337,18 @@ export function buildDependencyGraph(
           const attempt = jsToTs(imp.importPath);
           const resolvedAttempt = resolve(sourceDir, attempt);
 
-          brokenImports.push({
-            sourcePath: imp.sourcePath,
-            importPath: imp.importPath,
-            resolvedAttempt,
-            line: imp.line,
-            chain: [...chain, resolvedAttempt],
-          });
+          // Deduplicate: same source file + same line = same broken import
+          const brokenKey = `${imp.sourcePath}:${imp.line}`;
+          if (!seenBrokenKeys.has(brokenKey)) {
+            seenBrokenKeys.add(brokenKey);
+            brokenImports.push({
+              sourcePath: imp.sourcePath,
+              importPath: imp.importPath,
+              resolvedAttempt,
+              line: imp.line,
+              chain: [...chain, resolvedAttempt],
+            });
+          }
         }
       }
 
@@ -729,8 +749,10 @@ async function main(): Promise<void> {
   const handlers = discoverHandlers(basePath, options.handler);
   console.log(`📂 Discovered ${handlers.length} handler(s)`);
 
+  const projectRoot = resolve('.');
+
   // 2. Build dependency graph (includes transitive crawl + broken import detection)
-  const { graph, brokenImports, adjacencyMap } = buildDependencyGraph(handlers, basePath);
+  const { graph, brokenImports, adjacencyMap } = buildDependencyGraph(handlers, basePath, projectRoot);
 
   // 3. Detect cycles
   const cycles = detectCycles(adjacencyMap);
