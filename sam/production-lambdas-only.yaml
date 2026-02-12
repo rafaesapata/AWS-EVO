@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: |
-  EVO Platform - Lambda Functions Only (194 total) - v18 add evo_app_credentials table + SSM permissions
+  EVO Platform - Lambda Functions Only (194 total) - v19 fix SAM param-overrides space in WebAuthnRpName
   Uses existing VPC, RDS, Cognito infrastructure
   All functions use ARM64 + esbuild for fast builds
   Updated: 2026-02-12 - Add missing evo_app_credentials table migration + SSM PutParameter permission for Lambda role

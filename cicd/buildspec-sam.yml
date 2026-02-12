@@ -135,8 +135,12 @@ phases:
         fi
 
         WEBAUTHN_RP_NAME_PARAM="/evo/${ENV}/webauthn-rp-name"
-        export WEBAUTHN_RP_NAME=$(aws ssm get-parameter --name "$WEBAUTHN_RP_NAME_PARAM" --query 'Parameter.Value' --output text 2>/dev/null || echo "EVO Platform")
-        echo "WEBAUTHN_RP_NAME loaded: $WEBAUTHN_RP_NAME"
+        export WEBAUTHN_RP_NAME=$(aws ssm get-parameter --name "$WEBAUTHN_RP_NAME_PARAM" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+        if [ -z "$WEBAUTHN_RP_NAME" ]; then
+          echo "WEBAUTHN_RP_NAME not found in SSM, will use SAM template default"
+        else
+          echo "WEBAUTHN_RP_NAME loaded from SSM: $WEBAUTHN_RP_NAME"
+        fi
 
       - echo "=== Analyzing deploy strategy ==="
       - |
@@ -295,7 +299,7 @@ phases:
           sam build --template-file sam/production-lambdas-only.yaml --build-dir .aws-sam/build --parallel --cached
 
           echo "SAM Deploy..."
-          # Build parameter overrides (SAM CLI rejects empty values)
+          # Build parameter overrides (SAM CLI rejects empty values and spaces break Key=Value format)
           PARAM_OVERRIDES="Environment=$ENV"
           PARAM_OVERRIDES="$PARAM_OVERRIDES ProjectName=evo-uds-v3"
           PARAM_OVERRIDES="$PARAM_OVERRIDES DatabaseUrl=$DATABASE_URL"
@@ -308,14 +312,15 @@ phases:
           PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthClientId=$AZURE_OAUTH_CLIENT_ID"
           PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI"
           PARAM_OVERRIDES="$PARAM_OVERRIDES AppDomain=$APP_DOMAIN"
-          # WebAuthn params from SSM
+          # Optional params - only include if they have values (SAM template defaults will be used otherwise)
           if [ -n "$WEBAUTHN_RP_ID" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES WebAuthnRpId=$WEBAUTHN_RP_ID"
           fi
-          if [ -n "$WEBAUTHN_RP_NAME" ]; then
+          # NOTE: WebAuthnRpName may contain spaces - skip it and let SAM template default handle it
+          # If SSM param exists with no spaces, it will be passed; otherwise SAM default 'EVO Platform' is used
+          if [ -n "$WEBAUTHN_RP_NAME" ] && ! echo "$WEBAUTHN_RP_NAME" | grep -q ' '; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES WebAuthnRpName=$WEBAUTHN_RP_NAME"
           fi
-          # Only include secrets if they have values (SAM CLI rejects Key= with empty value)
           if [ -n "$TOKEN_ENCRYPTION_KEY" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES TokenEncryptionKey=$TOKEN_ENCRYPTION_KEY"
           fi
