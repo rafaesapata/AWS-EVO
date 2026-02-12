@@ -57,6 +57,20 @@ interface DiagnosticResult {
   checks: DiagnosticCheck[];
 }
 
+interface TestSetupStep {
+  step: string;
+  status: 'ok' | 'fail' | 'skip';
+  detail?: string;
+}
+
+interface TestSetupResult {
+  steps: TestSetupStep[];
+  region?: string;
+  customerAwsAccountId?: string;
+  logGroupName?: string;
+  destinationArn?: string;
+}
+
 interface WafSetupPanelProps {
   onSetupComplete?: () => void;
 }
@@ -73,6 +87,8 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
   const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [testSetupOpen, setTestSetupOpen] = useState(false);
+  const [testSetupResult, setTestSetupResult] = useState<TestSetupResult | null>(null);
 
   // Fetch existing WAF configurations
   const { data: configsData, isLoading: configsLoading, refetch: refetchConfigs } = useQuery({
@@ -226,6 +242,26 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
         description: error.message, 
         variant: "destructive" 
       });
+    },
+  });
+
+  // Test Setup diagnostic mutation
+  const testSetupMutation = useMutation({
+    mutationFn: async (data: { accountId: string; webAclArn: string }) => {
+      const response = await apiClient.invoke<TestSetupResult>('waf-dashboard-api', {
+        body: { action: 'test-setup', accountId: data.accountId, webAclArn: data.webAclArn }
+      });
+      if (response.error) throw new Error(getErrorMessage(response.error));
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data) {
+        setTestSetupResult(data);
+        setTestSetupOpen(true);
+      }
+    },
+    onError: (error) => {
+      toast({ title: t('common.error'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -481,19 +517,37 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
             </Select>
           </div>
 
-          {/* Setup Button */}
-          <Button
-            onClick={handleSetup}
-            disabled={!webAclArn || setupMutation.isPending}
-            className="w-full"
-          >
-            {setupMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Shield className="h-4 w-4 mr-2" />
-            )}
-            {t('waf.enableMonitoring')}
-          </Button>
+          {/* Setup Buttons */}
+          <div className="flex gap-3">
+            <Button
+              onClick={handleSetup}
+              disabled={!webAclArn || setupMutation.isPending}
+              className="flex-1"
+            >
+              {setupMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Shield className="h-4 w-4 mr-2" />
+              )}
+              {t('waf.enableMonitoring')}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!webAclArn || !selectedAccountId) return;
+                testSetupMutation.mutate({ accountId: selectedAccountId, webAclArn });
+              }}
+              disabled={!webAclArn || !selectedAccountId || testSetupMutation.isPending}
+              title={t('waf.testSetupDesc', 'Run diagnostic to test each setup step without making changes')}
+            >
+              {testSetupMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Stethoscope className="h-4 w-4 mr-2" />
+              )}
+              {t('waf.testSetup', 'Test Setup')}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -630,6 +684,83 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
               <div className="flex justify-end">
                 <Button variant="outline" onClick={() => setDiagnosticOpen(false)}>
                   {t('waf.closeDiagnostic', 'Close')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Test Setup Dialog */}
+      <Dialog open={testSetupOpen} onOpenChange={setTestSetupOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Stethoscope className="h-5 w-5 text-primary" />
+              {t('waf.testSetupTitle', 'WAF Setup Diagnostic')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('waf.testSetupDialogDesc', 'Step-by-step test of each setup operation')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {testSetupResult && (
+            <div className="space-y-4">
+              {testSetupResult.region && (
+                <div className="flex gap-4 text-sm text-muted-foreground">
+                  <span>Region: {testSetupResult.region}</span>
+                  <span>Account: {testSetupResult.customerAwsAccountId}</span>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {testSetupResult.steps.map((step, index) => (
+                  <div 
+                    key={index}
+                    className={`p-3 rounded-lg border ${
+                      step.status === 'ok' ? 'border-green-500/30 bg-green-500/5' :
+                      step.status === 'skip' ? 'border-yellow-500/30 bg-yellow-500/5' :
+                      'border-red-500/30 bg-red-500/5'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {step.status === 'ok' && <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />}
+                      {step.status === 'skip' && <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />}
+                      {step.status === 'fail' && <XCircle className="h-4 w-4 text-red-500 mt-0.5" />}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{step.step}</p>
+                        {step.detail && (
+                          <p className="text-xs text-muted-foreground break-all mt-1">{step.detail}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {testSetupResult.steps.some(s => s.status === 'fail') && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>{t('waf.testSetupFailed', 'Setup will fail')}</AlertTitle>
+                  <AlertDescription className="text-sm">
+                    {t('waf.testSetupFailedDesc', 'One or more steps failed. Fix the issues above before enabling monitoring.')}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {testSetupResult.steps.every(s => s.status === 'ok') && (
+                <Alert>
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <AlertTitle>{t('waf.testSetupPassed', 'All checks passed')}</AlertTitle>
+                  <AlertDescription className="text-sm">
+                    {t('waf.testSetupPassedDesc', 'Setup should work. Click "Enable Monitoring" to proceed.')}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setTestSetupOpen(false)}>
+                  {t('common.close', 'Close')}
                 </Button>
               </div>
             </div>
