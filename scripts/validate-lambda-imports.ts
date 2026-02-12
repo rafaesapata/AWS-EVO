@@ -188,7 +188,7 @@ export function extractImports(filePath: string): ImportInfo[] {
       // Check for imports before the opening backtick on this line
       const backtickIdx = line.indexOf('`');
       const importPath = matchImportPath(line);
-      if (importPath && isRelativeImport(importPath)) {
+      if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
         const matchIdx = line.indexOf(importPath);
         if (matchIdx >= 0 && matchIdx < backtickIdx) {
           results.push({ sourcePath: absolutePath, importPath, line: i + 1 });
@@ -247,6 +247,8 @@ export function buildDependencyGraph(
   const graph: DependencyGraph = {};
   const brokenImports: BrokenImport[] = [];
   const adjacencyMap = new Map<string, string[]>();
+  // Cache extractImports results to avoid re-parsing shared libs across handlers
+  const importCache = new Map<string, ImportInfo[]>();
 
   // For each handler, DFS to collect all transitive deps and broken imports
   for (const handler of handlers) {
@@ -267,12 +269,15 @@ export function buildDependencyGraph(
         allDeps.push(currentFile);
       }
 
-      // Extract imports from current file
-      const imports = extractImports(currentFile);
+      // Extract imports from current file (cached)
+      if (!importCache.has(currentFile)) {
+        importCache.set(currentFile, extractImports(currentFile));
+      }
+      const imports = importCache.get(currentFile)!;
+      const sourceDir = dirname(currentFile);
       const resolvedForAdjacency: string[] = [];
 
       for (const imp of imports) {
-        const sourceDir = dirname(currentFile);
         const resolvedPath = resolveImport(sourceDir, imp.importPath);
 
         if (resolvedPath) {
