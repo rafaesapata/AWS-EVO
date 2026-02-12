@@ -13,15 +13,20 @@ set -euo pipefail
 
 PROJECT_NAME="evo-uds-v3"
 ENVIRONMENT="production"
+EVO_ACCOUNT_ID="523115032346"
 STACK_NAME="${PROJECT_NAME}-${ENVIRONMENT}-waf-logs-destination"
 TEMPLATE="cloudformation/waf-logs-destination-stack.yaml"
-WAF_LOG_PROCESSOR_ARN="arn:aws:lambda:us-east-1:523115032346:function:${PROJECT_NAME}-${ENVIRONMENT}-waf-log-processor"
+WAF_LOG_PROCESSOR_ARN="arn:aws:lambda:us-east-1:${EVO_ACCOUNT_ID}:function:${PROJECT_NAME}-${ENVIRONMENT}-waf-log-processor"
+DEST_NAME="${PROJECT_NAME}-${ENVIRONMENT}-waf-logs-destination"
+LOG_FILE="/tmp/deploy-waf-destinations-$(date +%Y%m%d-%H%M%S).log"
 
 DRY_RUN=false
 if [[ "${1:-}" == "--dry-run" ]]; then
   DRY_RUN=true
   echo "=== DRY RUN MODE ==="
 fi
+
+echo "Log file: ${LOG_FILE}"
 
 # All regions where customers may have WAF resources
 REGIONS=(
@@ -70,7 +75,7 @@ for REGION in "${REGIONS[@]}"; do
     --query 'Stacks[0].StackStatus' \
     --output text 2>/dev/null || echo "DOES_NOT_EXIST")
 
-  if [[ "$STACK_STATUS" == "CREATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_COMPLETE" ]]; then
+  if [[ "$STACK_STATUS" == "CREATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_ROLLBACK_COMPLETE" ]]; then
     echo "Already deployed (${STACK_STATUS})"
     ((SKIPPED++))
     continue
@@ -88,12 +93,10 @@ for REGION in "${REGIONS[@]}"; do
       "WafLogProcessorArn=${WAF_LOG_PROCESSOR_ARN}" \
     --capabilities CAPABILITY_NAMED_IAM \
     --no-fail-on-empty-changeset \
-    2>/dev/null; then
+    2>>"$LOG_FILE"; then
 
     # Add destination policy (CloudFormation doesn't support Principal:"*" inline)
     # The handler's updateDestinationPolicyForCustomer will add customer accounts dynamically
-    DEST_NAME="${PROJECT_NAME}-${ENVIRONMENT}-waf-logs-destination"
-    EVO_ACCOUNT_ID="523115032346"
     DEST_ARN="arn:aws:logs:${REGION}:${EVO_ACCOUNT_ID}:destination:${DEST_NAME}"
     POLICY="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"AllowCrossAccountSubscription\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"${EVO_ACCOUNT_ID}\"},\"Action\":\"logs:PutSubscriptionFilter\",\"Resource\":\"${DEST_ARN}\"}]}"
 
@@ -101,7 +104,7 @@ for REGION in "${REGIONS[@]}"; do
       --destination-name "$DEST_NAME" \
       --access-policy "$POLICY" \
       --region "$REGION" \
-      2>/dev/null; then
+      2>>"$LOG_FILE"; then
       echo "OK (with policy)"
     else
       echo "OK (policy failed — will be set by handler)"
