@@ -1,8 +1,8 @@
-import { expectNoCrash, parseBody } from '../../support/e2e';
 /**
  * INTEGRATIONS DOMAIN - Deep E2E Tests (25 lambdas)
  * Notifications, Jira, data, storage, websocket, organizations, license
  */
+import { expectNoCrash, parseBody } from '../../support/e2e';
 
 describe('Integrations Domain', () => {
   // ── License ──────────────────────────────────────────────────────────────

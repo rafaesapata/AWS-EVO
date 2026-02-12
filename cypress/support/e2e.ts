@@ -25,11 +25,30 @@ declare global {
   }
 }
 
+import type { LambdaDefinition } from './lambda-registry';
+
 /** Status codes that indicate a lambda crash or infrastructure failure */
 export const CRASH_CODES = [502, 503, 504];
 
 /** Valid HTTP methods for method rejection tests */
 export const INVALID_METHODS = ['GET', 'PUT', 'DELETE', 'PATCH'] as const;
+
+/** Structurally valid but unsigned/expired JWT for auth rejection tests */
+export const FAKE_EXPIRED_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZXhwIjoxfQ.invalid';
+
+/**
+ * Pick one safe+cognito lambda per domain for sampling.
+ * Useful for tests that need broad domain coverage without testing every endpoint.
+ */
+export function sampleOnePerDomain(lambdas: LambdaDefinition[]): LambdaDefinition[] {
+  const byDomain = lambdas
+    .filter(l => l.auth === 'cognito' && l.safe)
+    .reduce<Record<string, LambdaDefinition>>((acc, l) => {
+      if (!acc[l.domain]) acc[l.domain] = l;
+      return acc;
+    }, {});
+  return Object.values(byDomain);
+}
 
 /**
  * Assert response is not a crash (502/503/504).
@@ -195,6 +214,9 @@ Cypress.Commands.add('apiPostInvalidToken', (lambdaName: string, token: string, 
   });
 });
 
+/** HTTP methods that should be rejected (platform only supports POST) */
+const BODYLESS_METHODS = ['GET', 'DELETE', 'HEAD'] as const;
+
 /**
  * Send request with arbitrary HTTP method (for method rejection tests)
  */
@@ -207,7 +229,7 @@ Cypress.Commands.add('apiRequest', (lambdaName: string, method: string, body: Re
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: ['GET', 'DELETE', 'HEAD'].includes(method) ? undefined : body,
+      body: (BODYLESS_METHODS as readonly string[]).includes(method) ? undefined : body,
       failOnStatusCode: false,
     });
   });

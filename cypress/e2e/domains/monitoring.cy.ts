@@ -1,8 +1,8 @@
-import { expectNoCrash, parseBody } from '../../support/e2e';
 /**
  * MONITORING DOMAIN - Deep E2E Tests (20 lambdas)
  * Alerts, metrics, health checks, dashboard, endpoints
  */
+import { expectNoCrash, parseBody } from '../../support/e2e';
 
 describe('Monitoring Domain', () => {
   // ── Alerts ───────────────────────────────────────────────────────────────

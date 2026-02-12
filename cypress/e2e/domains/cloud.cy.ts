@@ -1,8 +1,8 @@
-import { expectNoCrash, parseBody } from '../../support/e2e';
 /**
  * CLOUD DOMAIN - Deep E2E Tests (26 lambdas)
  * AWS credentials, Azure integration, multi-cloud
  */
+import { expectNoCrash, parseBody } from '../../support/e2e';
 
 describe('Cloud Domain - AWS & Azure', () => {
   // ── AWS Credentials ──────────────────────────────────────────────────────

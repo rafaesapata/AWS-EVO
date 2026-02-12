@@ -1,8 +1,8 @@
-import { expectNoCrash, parseBody } from '../../support/e2e';
 /**
  * OPERATIONS DOMAIN - Deep E2E Tests (43 lambdas)
  * Admin, jobs, system, maintenance, debug
  */
+import { expectNoCrash, parseBody } from '../../support/e2e';
 
 describe('Operations Domain', () => {
   // ── Admin ────────────────────────────────────────────────────────────────

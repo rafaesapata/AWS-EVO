@@ -11,10 +11,8 @@ describe('Lambda Registry Validation', () => {
 
   it('should have no duplicate lambda names', () => {
     const names = ALL_LAMBDAS.map(l => l.name);
-    const unique = [...new Set(names)];
     const duplicates = names.filter((n, i) => names.indexOf(n) !== i);
     expect(duplicates, `Duplicate lambdas: ${duplicates.join(', ')}`).to.have.length(0);
-    expect(unique.length).to.eq(names.length);
   });
 
   it('should have HTTP lambdas with API routes', () => {

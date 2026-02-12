@@ -27,22 +27,22 @@ describe('Critical Lambdas - Onboarding', () => {
 
 describe('Critical Lambdas - Core', () => {
   const coreLambdas = [
-    { name: 'security-scan', safe: true },
-    { name: 'compliance-scan', safe: true },
-    { name: 'mfa-check', safe: true },
-    { name: 'mfa-list-factors', safe: true },
-    { name: 'get-executive-dashboard', safe: true },
-    { name: 'list-aws-credentials', safe: true },
-    { name: 'list-azure-credentials', safe: true },
-    { name: 'list-cloud-credentials', safe: true },
-    { name: 'fetch-daily-costs', safe: true },
-    { name: 'get-findings', safe: true },
-    { name: 'get-security-posture', safe: true },
-    { name: 'alerts', safe: true },
-    { name: 'validate-license', safe: true },
+    'security-scan',
+    'compliance-scan',
+    'mfa-check',
+    'mfa-list-factors',
+    'get-executive-dashboard',
+    'list-aws-credentials',
+    'list-azure-credentials',
+    'list-cloud-credentials',
+    'fetch-daily-costs',
+    'get-findings',
+    'get-security-posture',
+    'alerts',
+    'validate-license',
   ];
 
-  coreLambdas.forEach(({ name }) => {
+  coreLambdas.forEach((name) => {
     it(`🟠 ${name}: should return valid response structure`, () => {
       cy.apiPost(name, {}).then((res) => {
         expectNoCrash(res, name);

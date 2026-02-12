@@ -1,8 +1,8 @@
-import { expectNoCrash, parseBody } from '../../support/e2e';
 /**
  * SECURITY DOMAIN - Deep E2E Tests (28 lambdas)
  * Core security scanning, compliance, WAF, threat detection
  */
+import { expectNoCrash, parseBody } from '../../support/e2e';
 
 describe('Security Domain', () => {
   // ── Security Scanning ────────────────────────────────────────────────────

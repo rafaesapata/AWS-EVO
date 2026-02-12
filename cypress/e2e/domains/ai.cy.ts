@@ -1,8 +1,8 @@
-import { expectNoCrash, parseBody } from '../../support/e2e';
 /**
  * AI DOMAIN - Deep E2E Tests (20 lambdas)
  * Bedrock chat, AI notifications, KB, reports
  */
+import { expectNoCrash, parseBody } from '../../support/e2e';
 
 describe('AI Domain - Chat, KB, Reports', () => {
   // ── AI Chat ──────────────────────────────────────────────────────────────

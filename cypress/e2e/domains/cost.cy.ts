@@ -1,8 +1,8 @@
-import { expectNoCrash } from '../../support/e2e';
 /**
  * COST DOMAIN - Deep E2E Tests (17 lambdas)
  * Cost analysis, optimization, RI/SP, ML waste detection, anomaly detection
  */
+import { expectNoCrash } from '../../support/e2e';
 
 describe('Cost Domain - FinOps & ML', () => {
   // ── Daily Costs ──────────────────────────────────────────────────────────

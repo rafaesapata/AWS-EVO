@@ -3,10 +3,10 @@
  * Uses registry-driven sampling: picks 3 lambdas per domain for broad coverage
  * instead of a hardcoded list that drifts out of sync.
  */
-import { PUBLIC_LAMBDAS, getLambdasByDomain } from '../support/lambda-registry';
+import { ALL_LAMBDAS, PUBLIC_LAMBDAS, getLambdasByDomain } from '../support/lambda-registry';
 import { expectNoCrash } from '../support/e2e';
 
-const DOMAINS = ['auth', 'security', 'cloud', 'cost', 'monitoring', 'operations', 'ai', 'integrations'];
+const DOMAINS = [...new Set(ALL_LAMBDAS.map(l => l.domain))].sort();
 const SAMPLE_PER_DOMAIN = 3;
 
 describe('CORS Validation - Registry-Driven Sampling', () => {

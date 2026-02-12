@@ -5,19 +5,8 @@
  * 3. Public endpoints accept unauthenticated requests
  * 4. HTTP endpoints reject invalid HTTP methods (only POST allowed)
  */
-import { HTTP_LAMBDAS, PUBLIC_LAMBDAS, type LambdaDefinition } from '../support/lambda-registry';
-import { expectNoCrash, INVALID_METHODS } from '../support/e2e';
-
-/** Pick one safe+cognito lambda per domain for sampling */
-function sampleOnePerDomain(lambdas: LambdaDefinition[]): LambdaDefinition[] {
-  const byDomain = lambdas
-    .filter(l => l.auth === 'cognito' && l.safe)
-    .reduce<Record<string, LambdaDefinition>>((acc, l) => {
-      if (!acc[l.domain]) acc[l.domain] = l;
-      return acc;
-    }, {});
-  return Object.values(byDomain);
-}
+import { HTTP_LAMBDAS, PUBLIC_LAMBDAS } from '../support/lambda-registry';
+import { expectNoCrash, INVALID_METHODS, FAKE_EXPIRED_JWT, sampleOnePerDomain } from '../support/e2e';
 
 describe('Auth Enforcement', () => {
   // ── Missing Token ────────────────────────────────────────────────────────
@@ -45,9 +34,7 @@ describe('Auth Enforcement', () => {
       });
 
       it(`${lambda.name}: should return 401 with expired-format token`, () => {
-        // A structurally valid but unsigned/expired JWT
-        const fakeJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZXhwIjoxfQ.invalid';
-        cy.apiPostInvalidToken(lambda.name, fakeJwt, {}).then((res) => {
+        cy.apiPostInvalidToken(lambda.name, FAKE_EXPIRED_JWT, {}).then((res) => {
           expect(res.status, `${lambda.name} should reject expired/invalid JWT`).to.eq(401);
         });
       });
