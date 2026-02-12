@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: |
-  EVO Platform - Lambda Functions Only (194 total) - v14 FULL_SAM rebuild - proper HTTP status codes for validation errors in 20+ handlers
+  EVO Platform - Lambda Functions Only (194 total) - v15 FULL_SAM rebuild - remove @aws-sdk/* from External for 5 cost lambdas to fix Runtime.ImportModuleError
   Uses existing VPC, RDS, Cognito infrastructure
   All functions use ARM64 + esbuild for fast builds
   Updated: 2026-02-11 - Force FULL_SAM to restore esbuild bundling for all lambdas
@@ -1844,7 +1844,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
   CostOptimizationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1872,7 +1871,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
   FetchDailyCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1900,7 +1898,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
   FinopsCopilotFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1928,7 +1925,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
   GenerateCostForecastFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2058,7 +2054,6 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
-          - '@aws-sdk/*'
   RiSpAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
