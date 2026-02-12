@@ -17,6 +17,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
+import { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } from '../../lib/azure-helpers.js';
 
 interface ValidationResult {
   permission: string;
@@ -121,14 +122,8 @@ export async function handler(
       const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
       
       if (!tokenResult.success) {
-        // Provide a clearer error for OAuth client secret issues
-        const isClientSecretError = tokenResult.error.includes('invalid_client') || 
-                                     tokenResult.error.includes('AADSTS7000215');
-        if (isClientSecretError) {
-          return error(
-            'Azure OAuth client secret is invalid or expired. A new secret must be generated in Azure Portal (App registrations > Certificates & secrets) and updated in the server environment variables.',
-            401
-          );
+        if (isInvalidClientSecretError(tokenResult.error)) {
+          return error(INVALID_CLIENT_SECRET_MESSAGE, 401);
         }
         return error(tokenResult.error, 400);
       }

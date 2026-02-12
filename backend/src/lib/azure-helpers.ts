@@ -22,6 +22,15 @@ function getAzureTokenUrl(tenantId: string): string {
   return `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
 }
 
+/** Checks if an Azure AD error indicates an invalid or expired OAuth client secret */
+export function isInvalidClientSecretError(errorText: string): boolean {
+  return errorText.includes('invalid_client') || errorText.includes('AADSTS7000215');
+}
+
+/** User-facing message for invalid/expired OAuth client secret */
+export const INVALID_CLIENT_SECRET_MESSAGE = 
+  'Azure OAuth client secret is invalid or expired. Generate a new secret in Azure Portal (App registrations > Certificates & secrets) and update AZURE_OAUTH_CLIENT_SECRET.';
+
 /**
  * Credential type from Prisma
  */
@@ -174,9 +183,8 @@ async function refreshOAuthToken(
   
   if (!response.ok) {
     const errorText = await response.text();
-    const isClientSecretError = errorText.includes('invalid_client') || errorText.includes('AADSTS7000215');
-    if (isClientSecretError) {
-      throw new Error('invalid_client: Azure OAuth client secret is invalid or expired. Generate a new secret in Azure Portal (App registrations > Certificates & secrets) and update AZURE_OAUTH_CLIENT_SECRET.');
+    if (isInvalidClientSecretError(errorText)) {
+      throw new Error(`invalid_client: ${INVALID_CLIENT_SECRET_MESSAGE}`);
     }
     throw new Error(`Failed to refresh OAuth token: ${response.status} ${errorText}`);
   }

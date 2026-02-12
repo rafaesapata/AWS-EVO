@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: |
   EVO Platform - CloudWatch Logs Destination for Cross-Account WAF Log Streaming.
-  Creates the Destination resource that allows customer accounts to send WAF logs
-  to the EVO Platform via subscription filters.
+  Deploy this stack in EACH region where customers have WAF resources.
+  Regional destinations forward logs to the central waf-log-processor in us-east-1.
 
 Parameters:
   Environment:
@@ -11,24 +11,78 @@ Parameters:
     AllowedValues:
       - production
       - sandbox
-    Description: Environment name
 
   ProjectName:
     Type: String
     Default: evo-uds-v3
-    Description: Project name prefix for resources
 
   WafLogProcessorArn:
     Type: String
     Default: arn:aws:lambda:us-east-1:523115032346:function:evo-uds-v3-production-waf-log-processor
-    Description: ARN of the existing WAF Log Processor Lambda function
+    Description: ARN of the central WAF Log Processor Lambda in us-east-1
 
 Resources:
-  # IAM Role for CloudWatch Logs Destination to invoke Lambda
+  # Forwarder Lambda — receives logs from destination, forwards to central processor
+  WafLogForwarderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-waf-fwd-${AWS::Region}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: InvokeCentralProcessor
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Ref WafLogProcessorArn
+
+  WafLogForwarderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-waf-fwd-${AWS::Region}'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt WafLogForwarderRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Architectures: [arm64]
+      Environment:
+        Variables:
+          CENTRAL_PROCESSOR_ARN: !Ref WafLogProcessorArn
+      Code:
+        ZipFile: |
+          const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+          const client = new LambdaClient({ region: 'us-east-1' });
+          exports.handler = async (event) => {
+            await client.send(new InvokeCommand({
+              FunctionName: process.env.CENTRAL_PROCESSOR_ARN,
+              InvocationType: 'Event',
+              Payload: JSON.stringify(event),
+            }));
+          };
+
+  WafLogForwarderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt WafLogForwarderFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref 'AWS::AccountId'
+
+  # IAM Role for Destination to invoke the forwarder Lambda
   WafLogsDestinationRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${ProjectName}-${Environment}-waf-logs-destination-role'
+      RoleName: !Sub '${ProjectName}-${Environment}-waf-dest-${AWS::Region}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -43,31 +97,21 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: lambda:InvokeFunction
-                Resource: !Ref WafLogProcessorArn
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
+                Resource: !GetAtt WafLogForwarderFunction.Arn
 
-  # CloudWatch Logs Destination for Cross-Account WAF Logs
+  # CloudWatch Logs Destination — customers' subscription filters point here
   WafLogsDestination:
     Type: AWS::Logs::Destination
-    DependsOn: WafLogsDestinationRole
+    DependsOn: [WafLogsDestinationRole, WafLogForwarderPermission]
     Properties:
       DestinationName: !Sub '${ProjectName}-${Environment}-waf-logs-destination'
       RoleArn: !GetAtt WafLogsDestinationRole.Arn
-      TargetArn: !Ref WafLogProcessorArn
+      TargetArn: !GetAtt WafLogForwarderFunction.Arn
 
 Outputs:
   WafLogsDestinationArn:
-    Description: ARN of the CloudWatch Logs Destination
     Value: !GetAtt WafLogsDestination.Arn
-    Export:
-      Name: !Sub '${ProjectName}-${Environment}-waf-logs-destination-arn'
-
   WafLogsDestinationName:
-    Description: Name of the CloudWatch Logs Destination
     Value: !Sub '${ProjectName}-${Environment}-waf-logs-destination'
-    Export:
-      Name: !Sub '${ProjectName}-${Environment}-waf-logs-destination-name'
+  Region:
+    Value: !Ref 'AWS::Region'
