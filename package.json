@@ -8,12 +8,7 @@
     "build:dev": "vite build --mode development",
     "build:prod": "vite build --mode production",
     "preview": "vite preview",
-    "deploy:dev": "bash scripts/deploy-dev.sh",
-    "deploy:prod": "bash scripts/deploy-prod.sh",
-    "cdk:dev": "cd infra && npm run deploy:dev",
-    "cdk:prod": "cd infra && npm run deploy:prod",
-    "cdk:diff:dev": "cd infra && npm run diff:dev",
-    "cdk:diff:prod": "cd infra && npm run diff:prod",
+
     "e2e": "cypress run",
     "e2e:open": "cypress open",
     "e2e:health": "cypress run --spec 'cypress/e2e/01-health-check-all.cy.ts'",

@@ -8,26 +8,12 @@
     "test": "jest",
     "cdk": "cdk",
     
-    "deploy:dev": "AWS_PROFILE=default cdk deploy --all --context env=development --require-approval never --profile default",
-    "deploy:prod": "AWS_PROFILE=EVO_PRODUCTION cdk deploy --all --context env=production --require-approval broadening --profile EVO_PRODUCTION",
-    
-    "diff:dev": "AWS_PROFILE=default cdk diff --context env=development --profile default",
-    "diff:prod": "AWS_PROFILE=EVO_PRODUCTION cdk diff --context env=production --profile EVO_PRODUCTION",
-    
     "synth:dev": "cdk synth --context env=development",
     "synth:prod": "cdk synth --context env=production",
-    
-    "bootstrap:dev": "AWS_PROFILE=default cdk bootstrap --profile default",
-    "bootstrap:prod": "AWS_PROFILE=EVO_PRODUCTION cdk bootstrap --profile EVO_PRODUCTION",
-    
-    "destroy:dev": "AWS_PROFILE=default cdk destroy --all --context env=development --force --profile default",
-    "destroy:prod": "AWS_PROFILE=EVO_PRODUCTION cdk destroy --all --context env=production --force --profile EVO_PRODUCTION",
-    
-    "deploy": "cdk deploy --all --require-approval never",
-    "destroy": "cdk destroy --all --force",
-    "diff": "cdk diff",
     "synth": "cdk synth",
-    "bootstrap": "cdk bootstrap"
+    "diff:dev": "AWS_PROFILE=default cdk diff --context env=development --profile default",
+    "diff:prod": "AWS_PROFILE=EVO_PRODUCTION cdk diff --context env=production --profile EVO_PRODUCTION",
+    "diff": "cdk diff"
   },
   "devDependencies": {
     "@types/jest": "^29.4.0",

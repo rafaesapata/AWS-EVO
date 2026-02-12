@@ -6,8 +6,8 @@ inclusion: manual
 
 ## Scripts (⛔ Deploy scripts são CI/CD only)
 
-Validação: `check-critical-lambdas-health.sh`, `validate-lambda-deployment.sh`, `npx tsx scripts/check-circular-imports.ts`
-Utilitários: `node scripts/copy-deps.cjs <src> <tgt> <pkgs>`, `npx tsx scripts/increment-version.ts [patch|minor|major]`, `npx tsx scripts/invalidate-cloudfront.ts`
+Validação: `npx tsx scripts/validate-lambda-imports.ts`
+Utilitários: `node scripts/copy-deps.cjs <src> <tgt> <pkgs>`, `npx tsx scripts/increment-version.ts [patch|minor|major]`
 
 ## Versionamento — Source of Truth: `version.json`
 ```bash
