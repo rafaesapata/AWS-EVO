@@ -18,6 +18,7 @@ import type {
 import { CloudProviderError } from '../../types/cloud';
 import { AWSProvider } from './aws-provider';
 import { AzureProvider } from './azure-provider';
+import { resolveClientSecret } from '../azure-helpers.js';
 import { logger } from '../logging.js';
 
 import { createHash } from 'crypto';
@@ -224,8 +225,12 @@ export class CloudProviderFactory {
     }
 
     if (provider === 'AZURE') {
+      const resolvedSecret = resolveClientSecret({
+        client_id: credentialRecord.client_id ?? null,
+        client_secret: credentialRecord.client_secret ?? null,
+      });
       if (!credentialRecord.tenant_id || !credentialRecord.client_id || 
-          !credentialRecord.client_secret || !credentialRecord.subscription_id) {
+          !resolvedSecret || !credentialRecord.subscription_id) {
         throw new CloudProviderError(
           'Missing required Azure credential fields',
           'AZURE',
@@ -237,7 +242,7 @@ export class CloudProviderFactory {
       const azureCredentials: AzureCredentialFields = {
         tenantId: credentialRecord.tenant_id,
         clientId: credentialRecord.client_id,
-        clientSecret: credentialRecord.client_secret,
+        clientSecret: resolvedSecret,
         subscriptionId: credentialRecord.subscription_id,
       };
 

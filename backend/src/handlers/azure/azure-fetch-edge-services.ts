@@ -244,12 +244,14 @@ async function getAzureTokenCredential(credential: any): Promise<any> {
     }
     
     // Service Principal authentication
-    if (credential.client_id && credential.client_secret && credential.tenant_id) {
+    const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
+    const resolvedSecret = resolveClientSecret(credential);
+    if (credential.client_id && resolvedSecret && credential.tenant_id) {
       const { ClientSecretCredential } = await import('@azure/identity');
       return new ClientSecretCredential(
         credential.tenant_id,
         credential.client_id,
-        credential.client_secret
+        resolvedSecret
       );
     }
     

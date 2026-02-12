@@ -81,7 +81,9 @@ async function getAccessToken(
     }
     
     // Service Principal flow - direct approach (same as debug-azure-costs)
-    if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
+    const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
+    const resolvedSecret = resolveClientSecret(credential);
+    if (!credential.tenant_id || !credential.client_id || !resolvedSecret) {
       return { success: false, error: 'Missing Service Principal credentials (tenant_id, client_id, or client_secret)' };
     }
     
@@ -89,7 +91,7 @@ async function getAccessToken(
     const spCredential = new ClientSecretCredential(
       credential.tenant_id,
       credential.client_id,
-      credential.client_secret
+      resolvedSecret
     );
     
     const tokenResponse = await spCredential.getToken(AZURE_MANAGEMENT_SCOPE);

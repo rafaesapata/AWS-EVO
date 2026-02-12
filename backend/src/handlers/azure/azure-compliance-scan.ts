@@ -723,7 +723,9 @@ export async function handler(
         }
         tokenCredential = createStaticTokenCredential(tokenResult.accessToken);
       } else {
-        if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
+        const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
+        const resolvedSecret = resolveClientSecret(credential);
+        if (!credential.tenant_id || !credential.client_id || !resolvedSecret) {
           await prisma.backgroundJob.update({
             where: { id: jobId },
             data: { status: 'failed', error: 'Incomplete Service Principal credentials', completed_at: new Date() },
@@ -731,7 +733,7 @@ export async function handler(
           return error('Service Principal credentials incomplete', 400, undefined, origin);
         }
         const identity = await import('@azure/identity');
-        tokenCredential = new identity.ClientSecretCredential(credential.tenant_id, credential.client_id, credential.client_secret);
+        tokenCredential = new identity.ClientSecretCredential(credential.tenant_id, credential.client_id, resolvedSecret);
       }
     } catch (authErr: any) {
       await prisma.backgroundJob.update({

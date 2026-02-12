@@ -140,7 +140,9 @@ export async function handler(
         new Date(Date.now() + ONE_HOUR_MS)
       );
     } else {
-      if (!credential.tenant_id || !credential.client_id || !credential.client_secret) {
+      const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
+      const resolvedSecret = resolveClientSecret(credential);
+      if (!credential.tenant_id || !credential.client_id || !resolvedSecret) {
         return error('Service Principal credentials incomplete. Missing tenant_id, client_id, or client_secret.', 400);
       }
       
@@ -149,7 +151,7 @@ export async function handler(
         subscriptionName: credential.subscription_name || undefined,
         tenantId: credential.tenant_id,
         clientId: credential.client_id,
-        clientSecret: credential.client_secret,
+        clientSecret: resolvedSecret,
       });
     }
 

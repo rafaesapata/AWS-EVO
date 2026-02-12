@@ -99,19 +99,13 @@ export function validateServicePrincipalCredentials(
     return { valid: false, error: 'Missing client_id in Service Principal credentials.' };
   }
   
-  if (!credential.client_secret) {
+  if (!credential.client_secret && !(process.env.AZURE_OAUTH_CLIENT_ID && process.env.AZURE_OAUTH_CLIENT_SECRET && credential.client_id === process.env.AZURE_OAUTH_CLIENT_ID)) {
     return { valid: false, error: 'Missing client_secret in Service Principal credentials.' };
   }
 
-  // Decrypt client_secret if it's encrypted (JSON format)
-  let clientSecret = credential.client_secret;
-  try {
-    const parsed = JSON.parse(clientSecret);
-    if (parsed.ciphertext && parsed.iv && parsed.tag && parsed.keyId) {
-      clientSecret = decryptToken(parsed);
-    }
-  } catch {
-    // Not JSON — use as-is (legacy plaintext)
+  const clientSecret = resolveClientSecret(credential);
+  if (!clientSecret) {
+    return { valid: false, error: 'Missing client_secret in Service Principal credentials.' };
   }
   
   return {
@@ -124,6 +118,33 @@ export function validateServicePrincipalCredentials(
       subscriptionName: credential.subscription_name || undefined,
     },
   };
+}
+
+/**
+ * Resolves the client secret for an Azure credential.
+ * Prefers the centralized SSM secret (env var) when the credential uses the EVO app registration.
+ * Falls back to decrypting the client_secret stored in the database.
+ */
+export function resolveClientSecret(credential: Pick<AzureCredentialRecord, 'client_id' | 'client_secret'>): string | null {
+  const evoClientId = process.env.AZURE_OAUTH_CLIENT_ID;
+  const evoClientSecret = process.env.AZURE_OAUTH_CLIENT_SECRET;
+
+  if (evoClientId && evoClientSecret && credential.client_id === evoClientId) {
+    return evoClientSecret;
+  }
+
+  if (!credential.client_secret) return null;
+
+  let secret = credential.client_secret;
+  try {
+    const parsed = JSON.parse(secret);
+    if (parsed.ciphertext && parsed.iv && parsed.tag && parsed.keyId) {
+      secret = decryptToken(parsed);
+    }
+  } catch {
+    // Not JSON — use as-is (legacy plaintext)
+  }
+  return secret;
 }
 
 /**
