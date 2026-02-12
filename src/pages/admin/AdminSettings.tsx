@@ -3,7 +3,7 @@
  * Manage and test Azure credentials across all organizations
  */
 
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/Layout';
@@ -163,7 +163,7 @@ export default function AdminSettings() {
     }
   };
 
-  const credentials = credentialsData || [];
+  const credentials: AzureCredential[] = credentialsData || [];
 
   return (
     <Layout
@@ -341,7 +341,7 @@ export default function AdminSettings() {
         </Tabs>
 
         {/* Edit Dialog */}
-        <Dialog open={!!editingCredential} onOpenChange={(open) => !open && setEditingCredential(null)}>
+        <Dialog open={!!editingCredential} onOpenChange={(open: boolean) => !open && setEditingCredential(null)}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>{t('adminSettings.editTitle', 'Edit Azure Credential')}</DialogTitle>
@@ -354,7 +354,7 @@ export default function AdminSettings() {
                 <Label>{t('adminSettings.tenantIdLabel', 'Tenant ID')}</Label>
                 <Input
                   value={editForm.tenant_id}
-                  onChange={e => setEditForm(prev => ({ ...prev, tenant_id: e.target.value }))}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEditForm(prev => ({ ...prev, tenant_id: e.target.value }))}
                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                   className="font-mono"
                 />
@@ -363,7 +363,7 @@ export default function AdminSettings() {
                 <Label>{t('adminSettings.clientIdLabel', 'Client ID')}</Label>
                 <Input
                   value={editForm.client_id}
-                  onChange={e => setEditForm(prev => ({ ...prev, client_id: e.target.value }))}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEditForm(prev => ({ ...prev, client_id: e.target.value }))}
                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                   className="font-mono"
                 />
@@ -373,7 +373,7 @@ export default function AdminSettings() {
                 <Input
                   type="password"
                   value={editForm.client_secret}
-                  onChange={e => setEditForm(prev => ({ ...prev, client_secret: e.target.value }))}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEditForm(prev => ({ ...prev, client_secret: e.target.value }))}
                   placeholder={t('adminSettings.clientSecretPlaceholder', 'Enter new secret or leave empty')}
                 />
               </div>
@@ -381,7 +381,7 @@ export default function AdminSettings() {
                 <Label>{t('adminSettings.subscriptionIdLabel', 'Subscription ID')}</Label>
                 <Input
                   value={editForm.subscription_id}
-                  onChange={e => setEditForm(prev => ({ ...prev, subscription_id: e.target.value }))}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEditForm(prev => ({ ...prev, subscription_id: e.target.value }))}
                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                   className="font-mono"
                 />

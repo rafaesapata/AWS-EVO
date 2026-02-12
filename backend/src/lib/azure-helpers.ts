@@ -18,7 +18,7 @@ const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
 export const ONE_HOUR_MS = DEFAULT_TOKEN_EXPIRY_SECONDS * 1000;
 
 /** Azure AD OAuth v2.0 token endpoint template */
-function getAzureTokenUrl(tenantId: string): string {
+export function getAzureTokenUrl(tenantId: string): string {
   return `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
 }
 
