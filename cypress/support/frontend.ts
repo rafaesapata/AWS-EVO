@@ -19,13 +19,11 @@ declare global {
 }
 
 const FRONTEND_URL = Cypress.env('FRONTEND_URL') || 'https://evo.nuevacore.com';
-const STORAGE_KEY_PREFIX = 'evo_secure_';
-const SESSION_KEY = 'evo-auth';
+const STORAGE_KEY = `evo_secure_evo-auth`;
 const ENCRYPTION_KEY = 'evo-uds-v3-production-secure-key-2024';
+const MIN_CONTENT_LENGTH = 50;
 
 let cachedIdToken: string | null = null;
-let cachedAccessToken: string | null = null;
-let cachedRefreshToken: string | null = null;
 let cachedSessionObj: any = null;
 let tokenTimestamp = 0;
 const TOKEN_TTL_MS = 50 * 60 * 1000;
@@ -77,8 +75,6 @@ Cypress.Commands.add('loginViaCognito', () => {
     expect(response.status).to.eq(200);
     const { IdToken, AccessToken, RefreshToken } = response.body.AuthenticationResult;
     cachedIdToken = IdToken;
-    cachedAccessToken = AccessToken;
-    cachedRefreshToken = RefreshToken;
     tokenTimestamp = Date.now();
 
     const payload = parseJwt(IdToken);
@@ -103,28 +99,22 @@ Cypress.Commands.add('loginViaCognito', () => {
   });
 });
 
-Cypress.Commands.add('loginAndVisit', (path = '/app') => {
-  cy.loginViaCognito().then(() => {
-    const encrypted = encryptValue(JSON.stringify(cachedSessionObj));
-    const storageKey = `${STORAGE_KEY_PREFIX}${SESSION_KEY}`;
-
-    cy.visit(FRONTEND_URL + path, {
-      onBeforeLoad(win) {
-        win.sessionStorage.setItem(storageKey, encrypted);
-      },
-    });
+/** Visits a page with encrypted session injected into sessionStorage */
+function visitWithSession(path: string) {
+  const encrypted = encryptValue(JSON.stringify(cachedSessionObj));
+  cy.visit(FRONTEND_URL + path, {
+    onBeforeLoad(win) {
+      win.sessionStorage.setItem(STORAGE_KEY, encrypted);
+    },
   });
+}
+
+Cypress.Commands.add('loginAndVisit', (path = '/app') => {
+  cy.loginViaCognito().then(() => visitWithSession(path));
 });
 
 Cypress.Commands.add('visitApp', (path: string) => {
-  const encrypted = encryptValue(JSON.stringify(cachedSessionObj));
-  const storageKey = `${STORAGE_KEY_PREFIX}${SESSION_KEY}`;
-
-  cy.visit(FRONTEND_URL + path, {
-    onBeforeLoad(win) {
-      win.sessionStorage.setItem(storageKey, encrypted);
-    },
-  });
+  visitWithSession(path);
 });
 
 Cypress.Commands.add('assertLayoutLoaded', () => {
@@ -139,7 +129,7 @@ Cypress.Commands.add('assertNoCrash', () => {
     expect(text).not.to.include('Unexpected Application Error');
     expect(text).not.to.include('ChunkLoadError');
   });
-  cy.get('body').invoke('text').should('have.length.greaterThan', 50);
+  cy.get('body').invoke('text').should('have.length.greaterThan', MIN_CONTENT_LENGTH);
 });
 
 Cypress.Commands.add('waitForLoad', (timeout = 30000) => {

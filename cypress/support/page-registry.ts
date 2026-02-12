@@ -86,6 +86,7 @@ export const OPERATIONS_PAGES: PageDefinition[] = [
   { path: '/audit-log', name: 'Audit Log', domain: 'operations', expectedContent: '', loadsData: true },
   { path: '/admin/ai-notifications', name: 'AI Notifications Admin', domain: 'operations', expectedContent: '', loadsData: true },
   { path: '/tv-dashboards', name: 'TV Dashboard Management', domain: 'operations', expectedContent: '', loadsData: true },
+  { path: '/api-docs', name: 'API Docs', domain: 'operations', expectedContent: '', loadsData: false },
 ];
 
 export const INTEGRATIONS_PAGES: PageDefinition[] = [
@@ -95,7 +96,6 @@ export const INTEGRATIONS_PAGES: PageDefinition[] = [
 
 export const MISC_PAGES: PageDefinition[] = [
   { path: '/change-password', name: 'Change Password', domain: 'auth', expectedContent: '', loadsData: false, noLayout: true },
-  { path: '/api-docs', name: 'API Docs', domain: 'operations', expectedContent: '', loadsData: false },
 ];
 
 /** All protected pages combined */

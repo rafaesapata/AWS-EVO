@@ -25,8 +25,6 @@ describe('Auth & Misc Pages', () => {
     cy.loginAndVisit('/change-password');
     cy.waitForLoad();
     cy.assertNoCrash();
-    // ChangePassword does not use <Layout> - it has its own standalone UI
-    cy.get('body').invoke('text').should('have.length.greaterThan', 50);
     cy.get('input[type="password"]').should('have.length.greaterThan', 0);
   });
 });
