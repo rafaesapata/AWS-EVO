@@ -5,6 +5,28 @@ import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 
 // ---------------------------------------------------------------------------
+// Shared test helpers
+// ---------------------------------------------------------------------------
+
+/** Suppress console.log and capture output. Returns joined output getter. */
+function captureLog(): { start: () => void; stop: () => string } {
+  let spy: ReturnType<typeof vi.spyOn>;
+  const lines: string[] = [];
+  return {
+    start() {
+      lines.length = 0;
+      spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+        lines.push(args.map(String).join(' '));
+      });
+    },
+    stop() {
+      spy.mockRestore();
+      return lines.join('\n');
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // CLI Argument Parsing
 // ---------------------------------------------------------------------------
 
@@ -65,7 +87,6 @@ describe('discoverHandlers', () => {
   const handlersDir = join(tmpDir, 'handlers');
 
   beforeEach(() => {
-    // Create temp directory structure
     mkdirSync(join(handlersDir, 'auth'), { recursive: true });
     mkdirSync(join(handlersDir, 'security'), { recursive: true });
     mkdirSync(join(handlersDir, '_templates'), { recursive: true });
@@ -74,7 +95,6 @@ describe('discoverHandlers', () => {
     writeFileSync(join(handlersDir, 'auth', 'logout.ts'), 'export const handler = () => {};');
     writeFileSync(join(handlersDir, 'security', 'scan.ts'), 'export const handler = () => {};');
     writeFileSync(join(handlersDir, '_templates', 'template.ts'), 'export const handler = () => {};');
-    // Non-ts file should be ignored
     writeFileSync(join(handlersDir, 'auth', 'README.md'), '# Auth');
   });
 
@@ -113,7 +133,7 @@ describe('discoverHandlers', () => {
   it('exits with code 1 when singleHandler does not exist', () => {
     const mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {
       throw new Error('process.exit called');
-    }) as any);
+    }) as never);
     const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     expect(() => {
@@ -126,7 +146,6 @@ describe('discoverHandlers', () => {
   });
 
   it('returns empty array when handlers directory is empty', () => {
-    // Remove all files from handlers subdirs
     rmSync(handlersDir, { recursive: true, force: true });
     mkdirSync(handlersDir, { recursive: true });
 
@@ -784,15 +803,9 @@ describe('detectCycles', () => {
 // ---------------------------------------------------------------------------
 
 describe('reportResults', () => {
-  let logSpy: ReturnType<typeof vi.spyOn>;
+  const log = captureLog();
 
-  beforeEach(() => {
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    logSpy.mockRestore();
-  });
+  beforeEach(() => { log.start(); });
 
   it('prints summary with correct counts', () => {
     const result: ValidationResult = {
@@ -803,8 +816,8 @@ describe('reportResults', () => {
     };
 
     reportResults(result);
+    const output = log.stop();
 
-    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join('\n');
     expect(output).toContain('Handlers scanned: 10');
     expect(output).toContain('Unique libs referenced: 5');
     expect(output).toContain('Broken imports: 0');
@@ -831,8 +844,8 @@ describe('reportResults', () => {
     };
 
     reportResults(result);
+    const output = log.stop();
 
-    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join('\n');
     expect(output).toContain('❌ BROKEN IMPORTS FOUND:');
     expect(output).toContain('backend/src/handlers/auth/login.ts:3');
     expect(output).toContain("import '../../lib/nonexistent.js'");
@@ -853,8 +866,8 @@ describe('reportResults', () => {
     };
 
     reportResults(result);
+    const output = log.stop();
 
-    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join('\n');
     expect(output).toContain('🔄 CIRCULAR IMPORTS DETECTED:');
     expect(output).toContain('Cycle 1: auth.ts → database.ts → auth.ts');
     expect(output).toContain('Cycle 2: middleware.ts → logging.ts → middleware.ts');
@@ -870,8 +883,8 @@ describe('reportResults', () => {
     };
 
     reportResults(result);
+    const output = log.stop();
 
-    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join('\n');
     expect(output).not.toContain('❌ BROKEN IMPORTS FOUND:');
   });
 
@@ -884,8 +897,8 @@ describe('reportResults', () => {
     };
 
     reportResults(result);
+    const output = log.stop();
 
-    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join('\n');
     expect(output).not.toContain('🔄 CIRCULAR IMPORTS DETECTED:');
   });
 
@@ -922,8 +935,8 @@ describe('reportResults', () => {
     };
 
     reportResults(result);
+    const output = log.stop();
 
-    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join('\n');
     expect(output).toContain('Total: 3 broken import(s) across 2 handler(s)');
   });
 });
@@ -1544,7 +1557,7 @@ describe('updateDomainMap', () => {
   it('exits with code 1 when domain map file not found', () => {
     const mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {
       throw new Error('process.exit called');
-    }) as any);
+    }) as never);
     const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     expect(() => {
