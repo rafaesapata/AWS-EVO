@@ -2,7 +2,7 @@ import { defineConfig } from 'cypress';
 
 export default defineConfig({
   e2e: {
-    baseUrl: process.env.CYPRESS_API_URL || 'https://igyifo56v7.execute-api.us-east-1.amazonaws.com/prod',
+    baseUrl: process.env.CYPRESS_API_URL || 'https://api.evo.nuevacore.com',
     specPattern: 'cypress/e2e/**/*.cy.ts',
     supportFile: 'cypress/support/e2e.ts',
     fixturesFolder: false,

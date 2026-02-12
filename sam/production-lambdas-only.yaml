@@ -1813,6 +1813,7 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+          - '@aws-sdk/*'
   CostOptimizationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1840,6 +1841,7 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+          - '@aws-sdk/*'
   FetchDailyCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1867,6 +1869,7 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+          - '@aws-sdk/*'
   FinopsCopilotFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1894,6 +1897,7 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+          - '@aws-sdk/*'
   GenerateCostForecastFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2023,6 +2027,7 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+          - '@aws-sdk/*'
   RiSpAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
