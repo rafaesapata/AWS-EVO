@@ -123,7 +123,8 @@ DASHBOARD_BODY=$(cat <<'DASHBOARD_EOF'
         "query": "fields @timestamp, handler, message, errorMessage, meta.errorType\n| filter level = 'ERROR' or level = 'CRITICAL'\n| sort @timestamp desc\n| limit 20",
         "region": "__REGION__",
         "stacked": false,
-        "view": "table"
+        "view": "table",
+        "logGroupNames": __LOG_GROUPS_JSON__
       }
     }
   ]
@@ -131,11 +132,28 @@ DASHBOARD_BODY=$(cat <<'DASHBOARD_EOF'
 DASHBOARD_EOF
 )
 
+# Build JSON array of log group names for Logs Insights widget (first 20 to avoid size limits)
+LOG_GROUPS_JSON=$(aws logs describe-log-groups \
+  --region "${REGION}" \
+  --log-group-name-prefix "/aws/lambda/evo-" \
+  --query 'logGroups[].logGroupName' \
+  --output json 2>/dev/null | python3 -c "import sys,json; groups=json.load(sys.stdin)[:20]; print(json.dumps(groups))" 2>/dev/null || echo '[]')
+
+if [ "${LOG_GROUPS_JSON}" = "[]" ] || [ -z "${LOG_GROUPS_JSON}" ]; then
+  LOG_GROUPS_JSON='["/aws/lambda/evo-placeholder"]'
+fi
+
 # Replace placeholders
-DASHBOARD_BODY=$(echo "${DASHBOARD_BODY}" | sed \
-  -e "s/__NAMESPACE__/${NAMESPACE//\//\\/}/g" \
-  -e "s/__REGION__/${REGION}/g" \
-  -e "s/__ENVIRONMENT__/${ENVIRONMENT}/g")
+# Use python for safe JSON substitution (sed breaks on special chars in log group names)
+DASHBOARD_BODY=$(python3 -c "
+import sys
+body = sys.stdin.read()
+body = body.replace('__NAMESPACE__', '${NAMESPACE}')
+body = body.replace('__REGION__', '${REGION}')
+body = body.replace('__ENVIRONMENT__', '${ENVIRONMENT}')
+body = body.replace('__LOG_GROUPS_JSON__', '''${LOG_GROUPS_JSON}''')
+print(body)
+" <<< "${DASHBOARD_BODY}")
 
 aws cloudwatch put-dashboard \
   --region "${REGION}" \

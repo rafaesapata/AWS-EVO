@@ -38,6 +38,30 @@ const REQUIRED_PERMISSIONS = [
   'organizations:ListAccounts',
   'ce:GetCostAndUsage',
   'wellarchitected:ListWorkloads',
+  // WAF Monitoring - global resource permissions
+  'wafv2:GetWebACL',
+  'wafv2:GetLoggingConfiguration',
+  'wafv2:PutLoggingConfiguration',
+  'wafv2:ListWebACLs',
+  'logs:PutResourcePolicy',
+  'logs:DescribeResourcePolicies',
+  // WAF Monitoring - scoped to aws-waf-logs-* (tested separately)
+  'logs:CreateLogGroup',
+  'logs:PutSubscriptionFilter',
+  'logs:DeleteSubscriptionFilter',
+  'logs:DescribeSubscriptionFilters',
+  'logs:PutRetentionPolicy',
+];
+
+// WAF log permissions scoped to aws-waf-logs-* log groups in the CloudFormation template.
+// SimulatePrincipalPolicy returns implicitDeny for these when tested with Resource: *,
+// so they must be simulated separately with matching resource ARNs.
+const WAF_LOGS_SCOPED_PERMISSIONS = [
+  'logs:CreateLogGroup',
+  'logs:PutSubscriptionFilter',
+  'logs:DeleteSubscriptionFilter',
+  'logs:DescribeSubscriptionFilters',
+  'logs:PutRetentionPolicy',
 ];
 
 /** Convert STS assumed-role session ARN to IAM role ARN for SimulatePrincipalPolicy */
@@ -101,15 +125,40 @@ export const handler = safeHandler(async (
     
     const iamClient = new IAMClient({ region: AWS_REGION, credentials });
     
-    const simulateCommand = new SimulatePrincipalPolicyCommand({
-      PolicySourceArn: principalArn,
-      ActionNames: actions,
-    });
+    // Separate WAF scoped permissions from global ones for accurate simulation.
+    // CloudFormation template scopes logs:* actions to aws-waf-logs-* log groups,
+    // so SimulatePrincipalPolicy with Resource: * returns implicitDeny for those.
+    const globalActions = actions.filter(a => !WAF_LOGS_SCOPED_PERMISSIONS.includes(a));
+    const scopedActions = actions.filter(a => WAF_LOGS_SCOPED_PERMISSIONS.includes(a));
     
-    const simulateResponse = await iamClient.send(simulateCommand);
+    const simulationPromises: Promise<any>[] = [
+      iamClient.send(new SimulatePrincipalPolicyCommand({
+        PolicySourceArn: principalArn,
+        ActionNames: globalActions,
+        ResourceArns: ['*'],
+      })),
+    ];
+    
+    // Only simulate scoped permissions if any were requested
+    if (scopedActions.length > 0) {
+      const awsAccountId = identityResponse.Account!;
+      const logGroupArn = `arn:aws:logs:${AWS_REGION}:${awsAccountId}:log-group:aws-waf-logs-*`;
+      simulationPromises.push(
+        iamClient.send(new SimulatePrincipalPolicyCommand({
+          PolicySourceArn: principalArn,
+          ActionNames: scopedActions,
+          ResourceArns: [logGroupArn],
+        }))
+      );
+    }
+    
+    const simulateResponses = await Promise.all(simulationPromises);
+    
+    // Merge all evaluation results
+    const allEvaluationResults = simulateResponses.flatMap(r => r.EvaluationResults || []);
     
     // Processar resultados
-    const results = (simulateResponse.EvaluationResults || []).map(result => ({
+    const results = allEvaluationResults.map(result => ({
       action: result.EvalActionName,
       decision: result.EvalDecision,
       allowed: result.EvalDecision === 'allowed',
