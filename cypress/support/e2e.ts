@@ -30,6 +30,33 @@ import type { LambdaDefinition } from './lambda-registry';
 /** Status codes that indicate a lambda crash or infrastructure failure */
 export const CRASH_CODES = [502, 503, 504];
 
+/**
+ * Detect if a 500 response is a raw API Gateway error (lambda crashed at import time)
+ * vs a structured error from our code. Raw API GW errors have { message: 'Internal Server Error' }
+ * without our standard { success, error } structure.
+ */
+export function isRawApiGateway500(res: Cypress.Response<any>): boolean {
+  if (res.status !== 500) return false;
+  const body = parseBody(res);
+  return body.message === 'Internal Server Error' && !('success' in body);
+}
+
+/**
+ * Lambdas known to require FULL_SAM deploy (import @aws-sdk/* directly).
+ * When these return raw API Gateway 500, it's an infrastructure issue, not a code bug.
+ */
+export const AWS_SDK_LAMBDAS = new Set([
+  'fetch-daily-costs', 'cost-optimization', 'budget-forecast', 'finops-copilot',
+  'ml-waste-detection', 'scheduled-scan-executor', 'guardduty-scan',
+  'lateral-movement-detection', 'fetch-cloudtrail', 'ri-sp-analyzer',
+  'analyze-ri-sp', 'detect-anomalies', 'bedrock-chat', 'kb-export-pdf',
+  'generate-excel-report', 'generate-security-pdf', 'security-scan-pdf-export',
+  'fetch-cloudwatch-metrics', 'fetch-edge-services', 'get-lambda-health',
+  'create-user', 'manage-organizations', 'start-security-scan',
+  'start-azure-security-scan', 'ticket-attachments', 'process-background-jobs',
+  'storage-delete', 'upload-attachment', 'webauthn-check', 'forgot-password',
+]);
+
 /** Valid HTTP methods for method rejection tests */
 export const INVALID_METHODS = ['GET', 'PUT', 'DELETE', 'PATCH'] as const;
 

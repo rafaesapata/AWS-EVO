@@ -325,7 +325,7 @@ export const ORGANIZATIONS_LAMBDAS: LambdaDefinition[] = [
 // ============================================================================
 export const INTEGRATIONS_LAMBDAS: LambdaDefinition[] = [
   { name: 'create-jira-ticket', type: 'http', auth: 'cognito', safe: false, domain: 'integrations', description: 'Create Jira ticket' },
-  { name: 'cloudformation-webhook', type: 'http', auth: 'none', safe: false, domain: 'integrations', description: 'CloudFormation webhook (public)' },
+  { name: 'cloudformation-webhook', type: 'internal', auth: 'none', safe: false, domain: 'integrations', description: 'CloudFormation webhook (dedicated route)' },
 ];
 
 // ============================================================================
@@ -341,8 +341,8 @@ export const STORAGE_LAMBDAS: LambdaDefinition[] = [
 // WEBSOCKET DOMAIN (2 lambdas)
 // ============================================================================
 export const WEBSOCKET_LAMBDAS: LambdaDefinition[] = [
-  { name: 'websocket-connect', type: 'http', auth: 'none', safe: true, domain: 'integrations', description: 'WebSocket connect' },
-  { name: 'websocket-disconnect', type: 'http', auth: 'none', safe: true, domain: 'integrations', description: 'WebSocket disconnect' },
+  { name: 'websocket-connect', type: 'internal', auth: 'none', safe: true, domain: 'integrations', description: 'WebSocket connect (dedicated route)' },
+  { name: 'websocket-disconnect', type: 'internal', auth: 'none', safe: true, domain: 'integrations', description: 'WebSocket disconnect (dedicated route)' },
 ];
 
 // ============================================================================
