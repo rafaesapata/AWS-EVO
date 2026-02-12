@@ -112,8 +112,18 @@ export const handler = safeHandler(async (
     return corsOptions();
   }
   
-  const user = getUserFromEvent(event);
-  const organizationId = getOrganizationIdWithImpersonation(event, user);
+  let user: ReturnType<typeof getUserFromEvent>;
+  let organizationId: string;
+  
+  try {
+    user = getUserFromEvent(event);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
+  } catch (authErr) {
+    logger.error('ML Waste Detection auth error', authErr as Error, {
+      requestId: context.awsRequestId,
+    });
+    return error('Authentication failed. Please sign in again.', 401);
+  }
   
   logger.info('ML Waste Detection v3.0 started', { 
     organizationId,
@@ -130,7 +140,16 @@ export const handler = safeHandler(async (
       maxResources = 50 
     } = body;
     
-    const prisma = getPrismaClient();
+    let prisma: ReturnType<typeof getPrismaClient>;
+    try {
+      prisma = getPrismaClient();
+    } catch (dbErr) {
+      logger.error('ML Waste Detection database connection error', dbErr as Error, {
+        organizationId,
+        requestId: context.awsRequestId,
+      });
+      return error('Service temporarily unavailable. Please try again in a few minutes.', 503);
+    }
     
     // =========================================================================
     // DEMO MODE CHECK - Retorna dados de demonstração se ativado
@@ -303,7 +322,21 @@ export const handler = safeHandler(async (
         }
         
       } catch (err) {
-        logger.error('Error analyzing region', err as Error, { region });
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error('Error analyzing region', err as Error, { 
+          region,
+          organizationId,
+          errorType: err instanceof Error ? err.name : 'Unknown',
+          errorMessage: errMsg,
+        });
+        // If credentials are invalid, no point trying other regions
+        if (errMsg.includes('No valid AWS credentials') || 
+            errMsg.includes('Failed to assume role') ||
+            errMsg.includes('ExpiredTokenException') ||
+            errMsg.includes('InvalidIdentityToken')) {
+          logger.warn('Credential error detected, skipping remaining regions');
+          break;
+        }
       }
     }
     
@@ -414,24 +447,27 @@ export const handler = safeHandler(async (
     });
     
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    const errorName = err instanceof Error ? err.name : 'Error';
+    
     logger.error('ML Waste Detection error', err as Error, { 
       organizationId,
       userId: user.sub,
-      requestId: context.awsRequestId 
+      requestId: context.awsRequestId,
+      errorName,
     });
     
     // Update history record with error status if historyId exists
     try {
-      const prisma = getPrismaClient();
-      // Try to find and update any running history for this org/account
-      await prisma.mLAnalysisHistory.updateMany({
+      const prismaForUpdate = getPrismaClient();
+      await prismaForUpdate.mLAnalysisHistory.updateMany({
         where: {
           organization_id: organizationId,
           status: 'running',
         },
         data: {
           status: 'failed',
-          error_message: err instanceof Error ? err.message : 'Unknown error',
+          error_message: errorMessage,
           completed_at: new Date(),
         },
       });
@@ -445,7 +481,21 @@ export const handler = safeHandler(async (
       organizationId
     );
     
-    return error('An unexpected error occurred. Please try again.', 500);
+    // Return specific error messages based on error type (without exposing internals)
+    if (errorMessage.includes('No valid AWS credentials') || errorMessage.includes('Failed to assume role')) {
+      return error('AWS credentials are invalid or expired. Please update your credentials.', 400);
+    }
+    if (errorMessage.includes('AccessDenied') || errorMessage.includes('UnauthorizedAccess')) {
+      return error('Insufficient AWS permissions. Please verify your IAM role has the required policies.', 403);
+    }
+    if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ETIMEDOUT') || errorMessage.includes('socket hang up')) {
+      return error('Service temporarily unavailable. Please try again in a few minutes.', 503);
+    }
+    if (errorName === 'SyntaxError') {
+      return error('Invalid request body. Please check the request format.', 400);
+    }
+    
+    return error('An unexpected error occurred during waste analysis. Please try again.', 500);
   }
 });
 
