@@ -212,12 +212,9 @@ async function sendPasswordChangedNotification(
       let htmlBody = dbTemplate.html_body;
       let textBody = dbTemplate.text_body || '';
 
-      for (const [key, value] of Object.entries(variables)) {
-        const regex = new RegExp(`{${key}}`, 'g');
-        htmlBody = htmlBody.replace(regex, value);
-        textBody = textBody.replace(regex, value);
-        subject = subject.replace(regex, value);
-      }
+      htmlBody = replaceTemplateVars(htmlBody, variables);
+      textBody = replaceTemplateVars(textBody, variables);
+      subject = replaceTemplateVars(subject, variables);
 
       result = await emailService.sendEmail({
         to: { email, name },
