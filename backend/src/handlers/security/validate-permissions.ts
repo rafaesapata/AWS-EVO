@@ -11,17 +11,18 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { logger } from '../../lib/logger.js';
-import { IAMClient, SimulatePrincipalPolicyCommand } from '@aws-sdk/client-iam';
+import { IAMClient, SimulatePrincipalPolicyCommand, type SimulatePolicyResponse } from '@aws-sdk/client-iam';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 
 const AWS_REGION = 'us-east-1';
 
 interface ValidatePermissionsRequest {
   accountId: string;
-  actions?: string[]; // Lista de ações para validar
+  actions?: string[];
 }
 
-const REQUIRED_PERMISSIONS = [
+// Core platform permissions (Resource: *)
+const CORE_PERMISSIONS = [
   'ec2:DescribeInstances',
   'ec2:DescribeSecurityGroups',
   'rds:DescribeDBInstances',
@@ -38,20 +39,17 @@ const REQUIRED_PERMISSIONS = [
   'organizations:ListAccounts',
   'ce:GetCostAndUsage',
   'wellarchitected:ListWorkloads',
-  // WAF Monitoring - global resource permissions
+] as const;
+
+// WAF Monitoring permissions (Resource: *)
+const WAF_GLOBAL_PERMISSIONS = [
   'wafv2:GetWebACL',
   'wafv2:GetLoggingConfiguration',
   'wafv2:PutLoggingConfiguration',
   'wafv2:ListWebACLs',
   'logs:PutResourcePolicy',
   'logs:DescribeResourcePolicies',
-  // WAF Monitoring - scoped to aws-waf-logs-* (tested separately)
-  'logs:CreateLogGroup',
-  'logs:PutSubscriptionFilter',
-  'logs:DeleteSubscriptionFilter',
-  'logs:DescribeSubscriptionFilters',
-  'logs:PutRetentionPolicy',
-];
+] as const;
 
 // WAF log permissions scoped to aws-waf-logs-* log groups in the CloudFormation template.
 // SimulatePrincipalPolicy returns implicitDeny for these when tested with Resource: *,
@@ -62,6 +60,12 @@ const WAF_LOGS_SCOPED_PERMISSIONS = [
   'logs:DeleteSubscriptionFilter',
   'logs:DescribeSubscriptionFilters',
   'logs:PutRetentionPolicy',
+] as const;
+
+const REQUIRED_PERMISSIONS: string[] = [
+  ...CORE_PERMISSIONS,
+  ...WAF_GLOBAL_PERMISSIONS,
+  ...WAF_LOGS_SCOPED_PERMISSIONS,
 ];
 
 /** Convert STS assumed-role session ARN to IAM role ARN for SimulatePrincipalPolicy */
@@ -128,10 +132,11 @@ export const handler = safeHandler(async (
     // Separate WAF scoped permissions from global ones for accurate simulation.
     // CloudFormation template scopes logs:* actions to aws-waf-logs-* log groups,
     // so SimulatePrincipalPolicy with Resource: * returns implicitDeny for those.
-    const globalActions = actions.filter(a => !WAF_LOGS_SCOPED_PERMISSIONS.includes(a));
-    const scopedActions = actions.filter(a => WAF_LOGS_SCOPED_PERMISSIONS.includes(a));
+    const scopedPermSet = new Set<string>(WAF_LOGS_SCOPED_PERMISSIONS as unknown as string[]);
+    const globalActions = actions.filter(a => !scopedPermSet.has(a));
+    const scopedActions = actions.filter(a => scopedPermSet.has(a));
     
-    const simulationPromises: Promise<any>[] = [
+    const simulationPromises: Promise<SimulatePolicyResponse>[] = [
       iamClient.send(new SimulatePrincipalPolicyCommand({
         PolicySourceArn: principalArn,
         ActionNames: globalActions,
@@ -139,7 +144,6 @@ export const handler = safeHandler(async (
       })),
     ];
     
-    // Only simulate scoped permissions if any were requested
     if (scopedActions.length > 0) {
       const awsAccountId = identityResponse.Account!;
       const logGroupArn = `arn:aws:logs:${AWS_REGION}:${awsAccountId}:log-group:aws-waf-logs-*`;
