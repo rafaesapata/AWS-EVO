@@ -1614,7 +1614,9 @@
     "logoutSuccess": "Logged out",
     "goodbye": "Goodbye!",
     "fullName": "Full Name",
-    "email": "Email"
+    "email": "Email",
+    "securitySection": "Security",
+    "securityDesc": "Manage your access password"
   },
   "changePassword": {
     "title": "Change Password",
@@ -1642,6 +1644,11 @@
       "lowercase": "One lowercase letter",
       "number": "One number",
       "special": "One special character"
+    },
+    "strength": {
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong"
     }
   },
   "impersonation": {

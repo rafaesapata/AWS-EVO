@@ -1106,7 +1106,9 @@
     "logoutSuccess": "Sesión cerrada",
     "goodbye": "¡Hasta luego!",
     "fullName": "Nombre Completo",
-    "email": "Correo Electrónico"
+    "email": "Correo Electrónico",
+    "securitySection": "Seguridad",
+    "securityDesc": "Gestiona tu contraseña de acceso"
   },
   "changePassword": {
     "title": "Cambiar Contraseña",
@@ -1134,6 +1136,11 @@
       "lowercase": "Una letra minúscula",
       "number": "Un número",
       "special": "Un carácter especial"
+    },
+    "strength": {
+      "weak": "Débil",
+      "medium": "Media",
+      "strong": "Fuerte"
     }
   },
   "impersonation": {

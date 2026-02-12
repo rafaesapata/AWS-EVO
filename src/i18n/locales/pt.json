@@ -1874,7 +1874,9 @@
     "logoutSuccess": "Logout realizado",
     "goodbye": "Até logo!",
     "fullName": "Nome Completo",
-    "email": "E-mail"
+    "email": "E-mail",
+    "securitySection": "Segurança",
+    "securityDesc": "Gerencie sua senha de acesso"
   },
   "changePassword": {
     "title": "Alterar Senha",
@@ -1902,6 +1904,11 @@
       "lowercase": "Uma letra minúscula",
       "number": "Um número",
       "special": "Um caractere especial"
+    },
+    "strength": {
+      "weak": "Fraca",
+      "medium": "Média",
+      "strong": "Forte"
     }
   },
   "impersonation": {
