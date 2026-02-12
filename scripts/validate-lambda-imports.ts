@@ -13,7 +13,7 @@
  *   npx tsx scripts/validate-lambda-imports.ts --update-domain-map
  */
 
-import { readdirSync, statSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { readdirSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, resolve, relative, dirname, basename } from 'path';
 
 // ---------------------------------------------------------------------------
@@ -113,18 +113,14 @@ export function discoverHandlers(basePath: string, singleHandler?: string): stri
 
 function walkDirectory(dir: string): string[] {
   const results: string[] = [];
-  const entries = readdirSync(dir);
+  const entries = readdirSync(dir, { withFileTypes: true });
 
   for (const entry of entries) {
-    const fullPath = join(dir, entry);
-    const stat = statSync(fullPath);
-
-    if (stat.isDirectory()) {
-      // Exclude _templates/ directory
-      if (entry === '_templates') continue;
-      results.push(...walkDirectory(fullPath));
-    } else if (stat.isFile() && entry.endsWith('.ts')) {
-      results.push(fullPath);
+    if (entry.isDirectory()) {
+      if (entry.name === '_templates') continue;
+      results.push(...walkDirectory(join(dir, entry.name)));
+    } else if (entry.isFile() && entry.name.endsWith('.ts')) {
+      results.push(join(dir, entry.name));
     }
   }
 
@@ -173,19 +169,54 @@ export function extractImports(filePath: string): ImportInfo[] {
   const results: ImportInfo[] = [];
 
   let inTemplateLiteral = false;
+  let inBlockComment = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    // Track multiline block comments (/* ... */)
+    if (inBlockComment) {
+      if (line.includes('*/')) {
+        inBlockComment = false;
+      }
+      continue;
+    }
+    // Check for block comment opening on this line
+    if (line.includes('/*')) {
+      if (!line.includes('*/')) {
+        // Multiline block comment starts — check for import before the comment
+        const commentIdx = line.indexOf('/*');
+        const importPath = matchImportPath(line);
+        if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
+          const matchIdx = line.indexOf(importPath);
+          if (matchIdx >= 0 && matchIdx < commentIdx) {
+            results.push({ sourcePath: absolutePath, importPath, line: i + 1 });
+          }
+        }
+        inBlockComment = true;
+        continue;
+      }
+      // Single-line block comment (/* ... */ on same line) — skip if import is inside it
+      const commentStart = line.indexOf('/*');
+      const commentEnd = line.indexOf('*/');
+      const importPath = matchImportPath(line);
+      if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
+        const matchIdx = line.indexOf(importPath);
+        if (matchIdx >= 0 && (matchIdx < commentStart || matchIdx > commentEnd + 2)) {
+          results.push({ sourcePath: absolutePath, importPath, line: i + 1 });
+        }
+      }
+      continue;
+    }
 
     // Track template literal boundaries (backtick counting)
     const backtickCount = (line.match(/`/g) || []).length;
     if (inTemplateLiteral) {
       if (backtickCount % 2 === 1) inTemplateLiteral = false;
-      continue; // skip lines inside template literals
+      continue;
     }
     if (backtickCount % 2 === 1) {
       inTemplateLiteral = true;
-      // Check for imports before the opening backtick on this line
       const backtickIdx = line.indexOf('`');
       const importPath = matchImportPath(line);
       if (importPath && isRelativeImport(importPath) && !SHELL_CHARS_REGEX.test(importPath)) {
@@ -220,6 +251,12 @@ export function resolveImport(sourceDir: string, importPath: string): string | n
 
   // Step 2: Resolve to absolute path
   const absolutePath = resolve(sourceDir, candidate);
+
+  // Security: reject paths that escape the project root (path traversal)
+  const projectRoot = resolve('.');
+  if (!absolutePath.startsWith(projectRoot)) {
+    return null;
+  }
 
   // If candidate already has .ts extension, check directly
   if (candidate.endsWith('.ts')) {
@@ -331,18 +368,19 @@ export function detectCycles(adjacencyMap: Map<string, string[]>): Cycle[] {
     color.set(node, WHITE);
   }
 
-  function dfs(node: string, stack: string[]): void {
+  function dfs(node: string, stack: string[], stackSet: Map<string, number>): void {
     color.set(node, GRAY);
     stack.push(node);
+    stackSet.set(node, stack.length - 1);
 
     const neighbors = adjacencyMap.get(node) || [];
     for (const neighbor of neighbors) {
       const neighborColor = color.get(neighbor);
 
       if (neighborColor === GRAY) {
-        // Back-edge found — extract cycle from stack
-        const cycleStart = stack.indexOf(neighbor);
-        if (cycleStart !== -1) {
+        // Back-edge found — extract cycle from stack using O(1) index lookup
+        const cycleStart = stackSet.get(neighbor);
+        if (cycleStart !== undefined) {
           const cyclePath = stack.slice(cycleStart);
           cyclePath.push(neighbor); // close the cycle
 
@@ -363,18 +401,19 @@ export function detectCycles(adjacencyMap: Map<string, string[]>): Cycle[] {
           }
         }
       } else if (neighborColor === WHITE || neighborColor === undefined) {
-        dfs(neighbor, stack);
+        dfs(neighbor, stack, stackSet);
       }
       // BLACK nodes are fully processed, skip
     }
 
     stack.pop();
+    stackSet.delete(node);
     color.set(node, BLACK);
   }
 
   for (const node of adjacencyMap.keys()) {
     if (color.get(node) === WHITE) {
-      dfs(node, []);
+      dfs(node, [], new Map());
     }
   }
 
@@ -550,7 +589,8 @@ export function parseDomainConfigs(content: string): Map<string, { handlerGlobs:
   const configs = new Map<string, { handlerGlobs: string[] }>();
 
   // Match each domain block: domainName: { ... handlers: [...] ... }
-  const domainRegex = /(\w+):\s*\{[^}]*?handlers:\s*\[([\s\S]*?)\]/g;
+  // Uses [\s\S]*? to handle any content including } inside strings
+  const domainRegex = /(\w+):\s*\{[\s\S]*?handlers:\s*\[([\s\S]*?)\]/g;
   let match: RegExpExecArray | null;
 
   while ((match = domainRegex.exec(content)) !== null) {
@@ -701,7 +741,7 @@ async function main(): Promise<void> {
   // 3. Detect cycles
   const cycles = detectCycles(adjacencyMap);
 
-  // 4. Compute unique libs count
+  // 4. Compute unique libs count from adjacencyMap (all non-handler files)
   const allLibs = new Set<string>();
   for (const deps of Object.values(graph)) {
     for (const dep of deps) {

@@ -327,6 +327,22 @@ describe('extractImports', () => {
     expect(imports).toHaveLength(1);
     expect(imports[0].importPath).toBe('../../lib/ok.js');
   });
+
+  it('skips imports inside multiline block comments', () => {
+    const filePath = join(tmpDir, 'test.ts');
+    writeFileSync(filePath, [
+      `import { real } from '../../lib/real.js';`,
+      `/*`,
+      `import { fake1 } from '../../lib/fake1.js';`,
+      `import { fake2 } from '../../lib/fake2.js';`,
+      `*/`,
+      `import { also_real } from '../../lib/also-real.js';`,
+    ].join('\n'));
+    const imports = extractImports(filePath);
+    expect(imports).toHaveLength(2);
+    expect(imports[0].importPath).toBe('../../lib/real.js');
+    expect(imports[1].importPath).toBe('../../lib/also-real.js');
+  });
 });
 
 // ---------------------------------------------------------------------------
