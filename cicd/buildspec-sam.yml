@@ -21,7 +21,7 @@ phases:
   pre_build:
     commands:
       - echo "=== Validating Lambda imports ==="
-      - npx tsx scripts/validate-lambda-imports.ts
+      - npx --prefix backend tsx scripts/validate-lambda-imports.ts
       - echo "=== Fetching git history for incremental detection ==="
       - |
         # Determine the branch we're on
