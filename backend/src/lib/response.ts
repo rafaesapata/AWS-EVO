@@ -262,11 +262,29 @@ export function safeHandler<TEvent = any, TContext = any>(
       return await fn(event, context);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
+      const errorName = err instanceof Error ? err.name : 'Error';
       const ctx = context as any;
       console.error('[safeHandler] Unhandled error:', message, {
         requestId: ctx?.awsRequestId,
         functionName: ctx?.functionName,
+        errorName,
       });
+
+      // Map known error names to appropriate HTTP status codes
+      const knownErrors: Record<string, number> = {
+        ForbiddenError: 403,
+        UnauthorizedError: 401,
+        NotFoundError: 404,
+        RateLimitError: 429,
+        ValidationError: 400,
+        ZodError: 400,
+        AuthValidationError: 400,
+      };
+      const statusCode = knownErrors[errorName];
+      if (statusCode) {
+        return error(message, statusCode);
+      }
+
       return error('An internal error occurred. Please try again later.', 500);
     }
   };

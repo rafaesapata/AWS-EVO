@@ -7,7 +7,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import type { APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error } from '../../lib/response.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 const execAsync = promisify(exec);
 

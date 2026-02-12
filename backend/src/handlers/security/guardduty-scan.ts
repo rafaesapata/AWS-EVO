@@ -10,7 +10,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { GuardDutyClient, ListDetectorsCommand, ListFindingsCommand, GetFindingsCommand } from '@aws-sdk/client-guardduty';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { isOrganizationInDemoMode, generateDemoGuardDutyFindings } from '../../lib/demo-data-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';

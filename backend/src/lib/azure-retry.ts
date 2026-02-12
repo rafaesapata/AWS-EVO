@@ -4,7 +4,7 @@
  * Respects Retry-After and x-ms-ratelimit headers from Azure.
  */
 
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 export interface AzureRetryConfig {
   maxRetries: number;

@@ -6,7 +6,7 @@
  * Para usar Redis real, adicionar ioredis ao Lambda layer
  */
 
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 // In-memory cache fallback
 const memoryCache = new Map<string, { value: any; expiry: number }>();

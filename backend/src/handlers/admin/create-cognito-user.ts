@@ -10,7 +10,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, forbidden, corsOptions, safeHandler } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, isSuperAdmin, isAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { parseEventBody } from '../../lib/request-parser.js';
 import { 
   CognitoIdentityProviderClient, 

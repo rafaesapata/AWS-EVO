@@ -3,7 +3,7 @@
  * Military-grade testing suite with automated test generation and execution
  */
 
-import { logger } from './logging';
+import { logger } from './logger.js';
 import { getPrismaClient } from './database';
 import { realTimeMonitoring } from './real-time-monitoring';
 import { advancedSecurityScanner } from './advanced-security-scanner';

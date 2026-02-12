@@ -9,7 +9,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { parseEventBody } from '../../lib/request-parser.js';
 import { isOrganizationInDemoMode, generateDemoMonitoredResources, generateDemoResourceMetrics, generateDemoEdgeServicesTable, generateDemoEdgeMetricsTable, generateDemoAlertRules, generateDemoRemediationTickets, generateDemoKnowledgeBaseArticles, generateDemoCloudTrailEventsTable, generateDemoAuditLogs, generateDemoSecurityScansTable, generateDemoFindingsTable } from '../../lib/demo-data-service.js';
 

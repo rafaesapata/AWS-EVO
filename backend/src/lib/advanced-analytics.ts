@@ -3,7 +3,7 @@
  * Military-grade analytics with AI-powered insights and comprehensive reporting
  */
 
-import { logger } from './logging';
+import { logger } from './logger.js';
 import { getPrismaClient } from './database';
 import { realTimeMonitoring } from './real-time-monitoring';
 import { performanceOptimizer } from './performance-optimizer';

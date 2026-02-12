@@ -12,7 +12,7 @@
  */
 
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import type { LambdaContext } from '../../types/lambda.js';
 
 // CloudWatch Logs Subscription Filter event type

@@ -6,7 +6,7 @@
 import { CloudFormationClient, DescribeStacksCommand, UpdateStackCommand } from '@aws-sdk/client-cloudformation';
 import { LambdaClient, UpdateFunctionCodeCommand, UpdateAliasCommand, GetAliasCommand } from '@aws-sdk/client-lambda';
 import { Route53Client, ChangeResourceRecordSetsCommand } from '@aws-sdk/client-route-53';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 import { metricsCollector } from './monitoring-alerting.js';
 
 export interface DeploymentConfig {

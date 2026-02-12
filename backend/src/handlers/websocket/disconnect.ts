@@ -4,7 +4,7 @@
 
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { DynamoDBClient, DeleteItemCommand } from '@aws-sdk/client-dynamodb';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 const dynamodb = new DynamoDBClient({});
 const CONNECTIONS_TABLE = process.env.CONNECTIONS_TABLE || 'evo-uds-websocket-connections';

@@ -12,7 +12,7 @@ import { success, error, corsOptions, safeHandler } from '../../lib/response.js'
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
 import { isOrganizationInDemoMode, generateDemoDriftDetection } from '../../lib/demo-data-service.js';
 

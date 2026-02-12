@@ -14,7 +14,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { CloudWatchClient, GetMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 
 const cloudwatch = new CloudWatchClient({ region: 'us-east-1' });

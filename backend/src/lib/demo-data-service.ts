@@ -17,7 +17,7 @@
  * IMPORTANTE: Nunca misturar dados demo com dados reais!
  */
 
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 // Tipos para dados demo
 interface DemoSecurityFinding {

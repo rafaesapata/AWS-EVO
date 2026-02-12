@@ -6,7 +6,8 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
+import { withErrorMonitoring } from '../../lib/error-middleware.js';
 import { success, error, badRequest, forbidden, corsOptions } from '../../lib/response.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, requireRole } from '../../lib/auth.js';
@@ -23,40 +24,37 @@ import {
   AdminSetUserPasswordCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
-export async function handler(
+export const handler = withErrorMonitoring('admin-manage-user', async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
-  logger.info('👤 Admin manage user started');
-  
+): Promise<APIGatewayProxyResultV2> => {
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   
-  try {
-    const user = getUserFromEvent(event);
-    const organizationId = getOrganizationIdWithImpersonation(event, user);
-    
-    // Apenas admins podem gerenciar usuários
-    requireRole(user, 'admin');
-    
-    // Validar input com Zod usando parseAndValidateBody
-    const validation = parseAndValidateBody(manageUserSchema, event.body);
-    if (!validation.success) {
-      return validation.error;
-    }
-    
-    const { action, email, attributes, password } = validation.data;
-    
-    const userPoolId = process.env.USER_POOL_ID;
-    if (!userPoolId) {
-      throw new Error('USER_POOL_ID not configured');
-    }
-    
-    const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION || 'us-east-1' });
-    const prisma = getPrismaClient();
-    
-    logger.info(`🔧 Action: ${action} for user: ${email}`);
+  const user = getUserFromEvent(event);
+  const organizationId = getOrganizationIdWithImpersonation(event, user);
+  
+  // Apenas admins podem gerenciar usuários
+  requireRole(user, 'admin');
+  
+  // Validar input com Zod usando parseAndValidateBody
+  const validation = parseAndValidateBody(manageUserSchema, event.body);
+  if (!validation.success) {
+    return validation.error;
+  }
+  
+  const { action, email, attributes, password } = validation.data;
+  
+  const userPoolId = process.env.USER_POOL_ID;
+  if (!userPoolId) {
+    throw new Error('USER_POOL_ID not configured');
+  }
+  
+  const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION || 'us-east-1' });
+  const prisma = getPrismaClient();
+  
+  logger.info(`Action: ${action} for user: ${email}`);
     
     switch (action) {
       case 'update': {
@@ -295,9 +293,4 @@ export async function handler(
       default:
         return badRequest(`Invalid action: ${action}`);
     }
-    
-  } catch (err) {
-    logger.error('❌ Manage user error:', err);
-    return error('Failed to manage user. Please try again.', 500);
-  }
-}
+});

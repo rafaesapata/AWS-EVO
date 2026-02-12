@@ -9,7 +9,7 @@
  * - Error tracking
  */
 
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 // ============================================================================
 // TYPES

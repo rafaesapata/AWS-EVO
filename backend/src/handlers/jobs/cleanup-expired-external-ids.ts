@@ -19,7 +19,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 export async function handler(
   event: AuthorizedEvent,

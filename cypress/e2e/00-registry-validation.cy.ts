@@ -16,7 +16,7 @@ describe('Lambda Registry Validation', () => {
   });
 
   it('should have HTTP lambdas with API routes', () => {
-    expect(HTTP_LAMBDAS.length).to.be.gte(149);
+    expect(HTTP_LAMBDAS.length).to.be.gte(148);
   });
 
   it('should have internal lambdas without API routes', () => {

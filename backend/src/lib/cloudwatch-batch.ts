@@ -14,7 +14,7 @@ import {
   MetricDataResult 
 } from '@aws-sdk/client-cloudwatch';
 import { metricsCache } from './metrics-cache.js';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 const cloudwatch = new CloudWatchClient({ region: 'us-east-1' });
 

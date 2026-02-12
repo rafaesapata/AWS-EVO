@@ -6,7 +6,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { emailService, EmailOptions } from '../../lib/email-service.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, checkUserRateLimit, RateLimitError } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { sanitizeStringAdvanced, parseAndValidateBody } from '../../lib/validation.js';

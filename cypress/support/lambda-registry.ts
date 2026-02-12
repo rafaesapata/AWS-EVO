@@ -265,7 +265,7 @@ export const LICENSE_LAMBDAS: LambdaDefinition[] = [
   { name: 'admin-sync-license', type: 'http', auth: 'cognito', safe: false, domain: 'integrations', description: 'Admin sync license' },
   { name: 'manage-seats', type: 'http', auth: 'cognito', safe: false, domain: 'integrations', description: 'Manage seats' },
   { name: 'manage-seat-assignments', type: 'internal', auth: 'cognito', safe: false, domain: 'integrations', description: 'Manage seat assignments' },
-  { name: 'daily-license-validation', type: 'http', auth: 'cognito', safe: true, domain: 'integrations', description: 'Daily license validation' },
+  { name: 'daily-license-validation', type: 'internal', auth: 'cognito', safe: true, domain: 'integrations', description: 'Daily license validation (scheduled)' },
   { name: 'scheduled-license-sync', type: 'internal', auth: 'cognito', safe: false, domain: 'integrations', description: 'Scheduled license sync' },
   { name: 'cleanup-seats', type: 'internal', auth: 'cognito', safe: false, domain: 'integrations', description: 'Cleanup seats' },
 ];

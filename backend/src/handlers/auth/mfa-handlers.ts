@@ -10,7 +10,8 @@ import { getUserFromEvent, getOrganizationId, checkUserRateLimit, RateLimitError
 import { getPrismaClient } from '../../lib/database.js';
 import { mfaEnrollSchema, mfaVerifySchema, mfaUnenrollSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
+import { withErrorMonitoring } from '../../lib/error-middleware.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import * as crypto from 'crypto';
 
@@ -724,10 +725,10 @@ function verifyTOTP(secret: string, token: string, window: number = 1): boolean 
 }
 
 // Main handler that routes to specific MFA function
-export async function handler(
+export const handler = withErrorMonitoring('mfa-handlers', async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+): Promise<APIGatewayProxyResultV2> => {
   const path = getHttpPath(event);
   
   if (path.includes('mfa-list-factors')) {
@@ -745,4 +746,4 @@ export async function handler(
   }
   
   return badRequest('Unknown MFA operation');
-}
+});

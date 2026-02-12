@@ -6,7 +6,7 @@
 
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { businessMetrics } from '../../lib/metrics.js';
 
 const dynamodb = new DynamoDBClient({});
@@ -40,7 +40,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (requestedOrgId) {
     // If orgId specified in query, it MUST match token's org (no cross-org access)
     if (requestedOrgId !== tokenOrgId) {
-      logger.security('WEBSOCKET_UNAUTHORIZED_ORG_ACCESS', {
+      logger.security('WEBSOCKET_UNAUTHORIZED_ORG_ACCESS', 'HIGH', {
         userId,
         requestedOrgId,
         tokenOrgId,

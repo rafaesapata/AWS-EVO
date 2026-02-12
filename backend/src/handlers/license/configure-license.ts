@@ -4,7 +4,7 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { success, error, badRequest, corsOptions, forbidden } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, isAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';

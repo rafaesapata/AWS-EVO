@@ -8,7 +8,8 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient, getOptionalCredentialFilter } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
+import { withErrorMonitoring } from '../../lib/error-middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
@@ -75,44 +76,36 @@ interface PlatformContext {
 
 const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
-export async function handler(
+export const handler = withErrorMonitoring('bedrock-chat', async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
-  logger.info('🤖 Bedrock Chat started', { requestId: context.awsRequestId });
-  
+): Promise<APIGatewayProxyResultV2> => {
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
   
+  const user = getUserFromEvent(event);
+  const organizationId = getOrganizationIdWithImpersonation(event, user);
+  
+  const validation = parseAndValidateBody(bedrockChatSchema, event.body);
+  if (!validation.success) {
+    return validation.error;
+  }
+  
+  const { message, history, accountId, language } = validation.data;
+  
+  const prisma = getPrismaClient();
+  
+  // Buscar contexto simplificado da plataforma (queries otimizadas)
+  const platformContext = await fetchPlatformContextFast(prisma, organizationId, accountId);
+
+  // Construir prompt compacto COM histórico e idioma
+  const compactPrompt = buildCompactPrompt(platformContext, user, message, history, language);
+
+  // Call Bedrock with Claude 3.5 Sonnet v1
+  let bedrockResponse;
   try {
-    const user = getUserFromEvent(event);
-    const organizationId = getOrganizationIdWithImpersonation(event, user);
-    
-    const validation = parseAndValidateBody(bedrockChatSchema, event.body);
-    if (!validation.success) {
-      return validation.error;
-    }
-    
-    const { message, history, accountId, language } = validation.data;
-    
-    const prisma = getPrismaClient();
-    
-    // Buscar contexto simplificado da plataforma (queries otimizadas)
-    const platformContext = await fetchPlatformContextFast(prisma, organizationId, accountId);
-    
-    logger.info('📊 Platform context fetched', { 
-      organizationId,
-      costs: platformContext.costs.total7Days,
-      findings: platformContext.security.totalFindings,
-      language
-    });
-
-    // Construir prompt compacto COM histórico e idioma
-    const compactPrompt = buildCompactPrompt(platformContext, user, message, history, language);
-
-    // Call Bedrock with Claude 3.5 Sonnet v1 (on-demand compatible)
-    const bedrockResponse = await bedrockClient.send(new InvokeModelCommand({
+    bedrockResponse = await bedrockClient.send(new InvokeModelCommand({
       modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
       contentType: 'application/json',
       accept: 'application/json',
@@ -121,19 +114,18 @@ export async function handler(
         max_tokens: 512,
         temperature: 0.4,
         top_p: 0.9,
-        messages: [
-          {
-            role: 'user',
-            content: compactPrompt
-          }
-        ]
+        messages: [{ role: 'user', content: compactPrompt }]
       })
     }));
+  } catch (err) {
+    logger.error('Bedrock API failed', err as Error, { model: 'claude-sonnet', retryable: true });
+    return error('AI service temporarily unavailable', 503);
+  }
 
-    const responseBody = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
-    let aiResponse = responseBody.content?.[0]?.text || (language === 'en' 
-      ? 'Sorry, I could not process your request.' 
-      : 'Desculpe, não consegui processar sua solicitação.');
+  const responseBody = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
+  let aiResponse = responseBody.content?.[0]?.text || (language === 'en' 
+    ? 'Sorry, I could not process your request.' 
+    : 'Desculpe, não consegui processar sua solicitação.');
     
     // Limpeza agressiva: cortar qualquer conversa inventada
     // Corta no primeiro sinal de pergunta/resposta inventada
@@ -170,25 +162,14 @@ export async function handler(
     // Generate contextual suggestions
     const suggestions = generateContextualSuggestions(message, platformContext, language);
 
-    // Log conversation for audit (async, don't wait)
-    prisma.auditLog.create({
-      data: {
-        organization_id: organizationId,
-        user_id: user.sub,
-        action: 'AI_CHAT',
-        resource_type: 'copilot',
-        details: { 
-          message: message.substring(0, 200),
-          contextSummary: {
-            costs: platformContext.costs.total7Days,
-            findings: platformContext.security.totalFindings,
-            resources: platformContext.resources.totalResources
-          }
-        }
+    logger.audit('ai_chat', {
+      message: message.substring(0, 200),
+      contextSummary: {
+        costs: platformContext.costs.total7Days,
+        findings: platformContext.security.totalFindings,
+        resources: platformContext.resources.totalResources
       }
     });
-
-    logger.info('✅ Bedrock Chat completed', { requestId: context.awsRequestId });
     
     return success({
       response: aiResponse,
@@ -200,12 +181,7 @@ export async function handler(
         resources: platformContext.resources
       }
     });
-    
-  } catch (err) {
-    logger.error('❌ Bedrock Chat error', err as Error);
-    return error('An unexpected error occurred. Please try again.', 500);
-  }
-}
+});
 
 /**
  * Busca contexto completo da plataforma do banco de dados

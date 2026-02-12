@@ -6,7 +6,7 @@
 
 import type { LambdaContext } from '../../types/lambda.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 interface CleanupEvent {
   thresholdMinutes?: number;

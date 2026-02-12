@@ -10,7 +10,7 @@
  */
 
 import Redis from 'ioredis';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 // ============================================================================
 // TYPES

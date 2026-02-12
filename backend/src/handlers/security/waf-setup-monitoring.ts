@@ -16,7 +16,7 @@ import { success, error, corsOptions, safeHandler } from '../../lib/response.js'
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { 
   WAFV2Client, 
@@ -383,10 +383,10 @@ export const handler = safeHandler(async (
     // Default: setup action
     // Validate required parameters
     if (!accountId) {
-      return error('Missing required parameter: accountId');
+      return error('Missing required parameter: accountId', 400);
     }
     if (!webAclArn) {
-      return error('Missing required parameter: webAclArn');
+      return error('Missing required parameter: webAclArn', 400);
     }
     
     // For setup action, enabled defaults to true if not specified

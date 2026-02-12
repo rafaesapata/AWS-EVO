@@ -20,7 +20,7 @@ import { checkRateLimit, checkMultipleRateLimits, type RateLimitContext } from '
 import { withRequestContext, createRequestContext, getContextHeaders, getLoggingContext } from './request-context.js';
 import { withAwsCircuitBreaker } from './circuit-breaker.js';
 import { withVersioning, extractVersion } from './api-versioning.js';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 import { sanitizeObject, validatePayloadSize, detectMaliciousPatterns } from './validation.js';
 import { getHttpMethod } from './middleware.js';
 import { getPrismaClient } from './database.js';

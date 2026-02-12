@@ -4,7 +4,7 @@
  */
 
 import { getPrismaClient } from './database.js';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 export type AuditAction = 
   | 'LOGIN'

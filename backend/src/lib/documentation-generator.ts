@@ -5,7 +5,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 export interface DocumentationConfig {
   outputDir: string;

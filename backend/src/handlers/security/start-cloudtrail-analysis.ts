@@ -12,7 +12,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions, safeHandler } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { getOrigin, getHttpMethod } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';

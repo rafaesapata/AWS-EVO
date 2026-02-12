@@ -3,7 +3,7 @@
  * Provides secure JSON parsing with error handling
  */
 
-import { logger } from './logging';
+import { logger } from './logger.js';
 
 /**
  * Safely parse JSON with error handling

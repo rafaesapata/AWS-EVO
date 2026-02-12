@@ -24,7 +24,9 @@ describe('Auth Domain - MFA, WebAuthn, Profiles', () => {
         expectNoCrash(res);
         const body = parseBody(res);
         if (res.status === 200 && body.success) {
-          expect(body.data).to.be.an('array');
+          // Response returns { data: { all: [...] } }
+          const factors = body.data?.all ?? body.data;
+          expect(factors).to.be.an('array');
         }
       });
     });

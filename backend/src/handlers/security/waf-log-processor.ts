@@ -12,7 +12,7 @@
 import { gunzipSync } from 'zlib';
 import { createHash } from 'crypto';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { parseWafLogBatch, analyzeWafEvent, type ParsedWafEvent } from '../../lib/waf/index.js';
 import type { LambdaContext } from '../../types/lambda.js';
 

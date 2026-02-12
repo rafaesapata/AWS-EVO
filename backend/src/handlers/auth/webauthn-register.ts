@@ -1,5 +1,5 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { success, error as errorResponse, corsOptions, badRequest } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';

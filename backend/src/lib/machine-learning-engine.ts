@@ -3,7 +3,7 @@
  * Military-grade ML system for predictive analytics, anomaly detection, and intelligent automation
  */
 
-import { logger } from './logging';
+import { logger } from './logger.js';
 import { getPrismaClient } from './database';
 import { realTimeMonitoring } from './real-time-monitoring';
 import { EventEmitter } from 'events';

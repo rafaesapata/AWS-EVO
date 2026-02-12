@@ -302,7 +302,9 @@ export function hasAnyRole(user: CognitoUser, requiredRoles: AllowedRole[]): boo
 
 export function requireRole(user: CognitoUser, role: string): void {
   if (!hasRole(user, role)) {
-    throw new Error(`User does not have required role: ${role}`);
+    const err = new Error(`User does not have required role: ${role}`);
+    err.name = 'ForbiddenError';
+    throw err;
   }
 }
 

@@ -14,7 +14,7 @@
  */
 
 import type { ScheduledEvent } from 'aws-lambda';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { getPrismaClient } from '../../lib/database.js';
 
 // External License API configuration
@@ -172,7 +172,7 @@ export async function handler(event: ScheduledEvent): Promise<RetryReport> {
       duration_ms: Date.now() - startTime,
     };
 
-    logger.info('Retry fallback licenses job completed', report);
+    logger.info('Retry fallback licenses job completed', report as unknown as Record<string, unknown>);
 
     // Log system event via raw SQL (payload column may not exist in Prisma schema)
     try {

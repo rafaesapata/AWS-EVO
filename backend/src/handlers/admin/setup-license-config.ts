@@ -4,7 +4,7 @@
  */
 
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 export async function handler(event: any): Promise<{statusCode: number; headers: Record<string, string>; body: string}> {
   const headers = {

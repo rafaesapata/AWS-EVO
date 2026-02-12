@@ -1,5 +1,6 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
+import { withErrorMonitoring } from '../../lib/error-middleware.js';
 import { success, error as errorResponse, corsOptions, badRequest, unauthorized } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getOrigin } from '../../lib/middleware.js';
@@ -112,10 +113,10 @@ function coseKeyToPem(coseKey: Buffer): string | null {
   }
 }
 
-export async function handler(
+export const handler = withErrorMonitoring('webauthn-authenticate', async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+): Promise<APIGatewayProxyResultV2> => {
   const origin = getOrigin(event);
   const httpMethod = event.httpMethod || event.requestContext?.http?.method;
   
@@ -124,26 +125,19 @@ export async function handler(
     return corsOptions(origin);
   }
   
-  try {
-    const body: AuthenticationRequest = event.body ? JSON.parse(event.body) : {};
-    const { action } = body;
+  const body: AuthenticationRequest = event.body ? JSON.parse(event.body) : {};
+  const { action } = body;
 
-    logger.info('🔐 WebAuthn handler called', { action, hasEmail: !!body.email });
+  logger.info('WebAuthn handler called', { action, hasEmail: !!body.email });
 
-    if (action === 'start') {
-      // Start action doesn't require authentication - just checking if user has WebAuthn
-      return await startAuthentication(body.email, origin);
-    } else if (action === 'finish') {
-      // Finish action processes the WebAuthn response and creates session
-      return await finishAuthentication(body, event, origin);
-    }
-
-    return badRequest('Invalid action', undefined, origin);
-  } catch (err) {
-    logger.error('WebAuthn authentication error:', err);
-    return errorResponse('Internal server error', 500, undefined, origin);
+  if (action === 'start') {
+    return await startAuthentication(body.email, origin);
+  } else if (action === 'finish') {
+    return await finishAuthentication(body, event, origin);
   }
-}
+
+  return badRequest('Invalid action', undefined, origin);
+}, { extractUser: false, extractOrg: false });
 
 async function startAuthentication(email?: string, origin?: string): Promise<APIGatewayProxyResultV2> {
   const prisma = getPrismaClient();

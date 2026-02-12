@@ -10,7 +10,7 @@ import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { analyzeRiSpSchema, type AnalyzeRiSpInput } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';

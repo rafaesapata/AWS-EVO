@@ -22,7 +22,7 @@ import type { APIGatewayProxyResultV2 } from 'aws-lambda';
 import type { PrismaClient } from '@prisma/client';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import {
   verifySchemaIntegrity,
   checkDatabaseConnectivity,

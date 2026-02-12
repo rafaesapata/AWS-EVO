@@ -7,7 +7,7 @@
 import type { CloudWatchLogsEvent, CloudWatchLogsDecodedData, Context } from 'aws-lambda';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { gunzipSync } from 'zlib';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 const snsClient = new SNSClient({ region: process.env.AWS_REGION || 'us-east-1' });
 const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN || '';

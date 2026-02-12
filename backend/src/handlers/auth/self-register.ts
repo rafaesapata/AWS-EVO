@@ -10,7 +10,7 @@
 import type { APIGatewayProxyEventV2, Context, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { 

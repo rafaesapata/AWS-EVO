@@ -8,7 +8,7 @@ import { success, error, badRequest, corsOptions, safeHandler } from '../../lib/
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { parseAndValidateBody, createRemediationTicketSchema } from '../../lib/validation.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 

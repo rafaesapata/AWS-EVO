@@ -6,7 +6,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest } from '../../lib/response.js';
 import { withSecurityMiddleware, type MiddlewareContext } from '../../lib/middleware.js';
 import { getBedrockClient } from '../../lib/bedrock-client.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 

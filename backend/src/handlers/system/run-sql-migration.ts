@@ -4,7 +4,7 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { success, error, corsOptions, badRequest } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
@@ -54,7 +54,7 @@ export async function handler(
   try {
     user = getUserFromEvent(event);
   } catch {
-    logger.security('UNAUTHORIZED_MIGRATION_ATTEMPT', {
+    logger.security('UNAUTHORIZED_MIGRATION_ATTEMPT', 'HIGH', {
       ip: event.requestContext?.identity?.sourceIp
     });
     return error('Unauthorized', 401);
@@ -62,7 +62,7 @@ export async function handler(
   
   // SECURITY: Require super_admin role
   if (!isSuperAdmin(user)) {
-    logger.security('FORBIDDEN_MIGRATION_ATTEMPT', {
+    logger.security('FORBIDDEN_MIGRATION_ATTEMPT', 'CRITICAL', {
       userId: user.sub,
       ip: event.requestContext?.identity?.sourceIp
     });
@@ -94,7 +94,7 @@ export async function handler(
       // MILITARY GRADE: Check for dangerous patterns
       for (const pattern of DANGEROUS_PATTERNS) {
         if (pattern.test(sql)) {
-          logger.security('DANGEROUS_SQL_BLOCKED', {
+          logger.security('DANGEROUS_SQL_BLOCKED', 'CRITICAL', {
             userId: user.sub,
             pattern: pattern.toString(),
             sql: sql.substring(0, 100)
@@ -106,7 +106,7 @@ export async function handler(
       // MILITARY GRADE: Verify SQL matches allowed patterns
       const isAllowed = ALLOWED_DDL_PATTERNS.some(pattern => pattern.test(sql));
       if (!isAllowed) {
-        logger.security('UNALLOWED_SQL_BLOCKED', {
+        logger.security('UNALLOWED_SQL_BLOCKED', 'HIGH', {
           userId: user.sub,
           sql: sql.substring(0, 100)
         });

@@ -2,7 +2,7 @@
  * Batch Operations - Sistema de processamento em lote
  */
 
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 import { metricsCollector } from './metrics-collector.js';
 
 export interface BatchConfig {

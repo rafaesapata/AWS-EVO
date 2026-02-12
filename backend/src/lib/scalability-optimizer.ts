@@ -3,7 +3,7 @@
  * Military-grade auto-scaling and resource optimization system
  */
 
-import { logger } from './logging';
+import { logger } from './logger.js';
 import { getPrismaClient } from './database';
 import { realTimeMonitoring } from './real-time-monitoring';
 import { machineLearningEngine } from './machine-learning-engine';

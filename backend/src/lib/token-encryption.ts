@@ -8,7 +8,7 @@
  */
 
 import * as crypto from 'crypto';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 // Encryption configuration
 const ALGORITHM = 'aes-256-gcm';

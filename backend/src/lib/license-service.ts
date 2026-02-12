@@ -3,7 +3,7 @@
  * Integrates with external license validation API
  */
 
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 import { getPrismaClient } from './database.js';
 
 // ============================================================================

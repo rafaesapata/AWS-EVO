@@ -15,7 +15,7 @@ import { success, error, corsOptions, safeHandler } from '../../lib/response.js'
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { getContextualExplanation, getSecurityExplanation } from '../../lib/security-explanations.js';
 import { CloudTrailClient, LookupEventsCommand, LookupEventsCommandInput } from '@aws-sdk/client-cloudtrail';
 import { isOrganizationInDemoMode, generateDemoCloudTrailAnalysis } from '../../lib/demo-data-service.js';

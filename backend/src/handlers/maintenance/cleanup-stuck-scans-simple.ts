@@ -6,7 +6,7 @@
 import type { APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 export async function handler(): Promise<APIGatewayProxyResultV2> {
   const prisma = getPrismaClient();

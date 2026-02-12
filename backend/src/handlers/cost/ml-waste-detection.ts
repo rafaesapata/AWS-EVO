@@ -15,7 +15,7 @@ import { success, error, corsOptions, safeHandler } from '../../lib/response.js'
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { businessMetrics } from '../../lib/metrics.js';
 import { isOrganizationInDemoMode, generateDemoMLWasteDetection } from '../../lib/demo-data-service.js';
 import { EC2Client, DescribeInstancesCommand, DescribeVolumesCommand, DescribeAddressesCommand, DescribeNatGatewaysCommand } from '@aws-sdk/client-ec2';

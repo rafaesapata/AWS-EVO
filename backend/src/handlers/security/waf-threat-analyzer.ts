@@ -11,7 +11,7 @@
  */
 
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import {
   analyzeWafEvent,
   detectCampaign,

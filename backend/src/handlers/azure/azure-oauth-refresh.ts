@@ -18,7 +18,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { refreshAccessToken } from '../../lib/oauth-utils.js';
 import {
@@ -53,7 +53,7 @@ export async function handler(
     // Validate OAuth configuration
     if (!AZURE_OAUTH_CLIENT_ID || !AZURE_OAUTH_CLIENT_SECRET) {
       logger.error('Azure OAuth not configured');
-      return error('Azure OAuth integration is not configured', 500);
+      return error('Azure OAuth integration is not configured. Contact administrator.', 400);
     }
 
     const user = getUserFromEvent(event);

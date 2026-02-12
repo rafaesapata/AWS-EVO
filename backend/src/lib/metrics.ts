@@ -4,7 +4,7 @@
  */
 
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 const cloudwatch = new CloudWatchClient({});
 const NAMESPACE = 'EVO-UDS';

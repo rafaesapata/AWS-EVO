@@ -9,7 +9,7 @@ import { success, error, corsOptions, safeHandler } from '../../lib/response.js'
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 import { IAMClient, ListUsersCommand, ListUserPoliciesCommand, ListAttachedUserPoliciesCommand } from '@aws-sdk/client-iam';

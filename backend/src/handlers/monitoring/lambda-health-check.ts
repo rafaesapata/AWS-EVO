@@ -13,7 +13,7 @@ import { LambdaClient, InvokeCommand, GetFunctionConfigurationCommand } from '@a
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 interface CriticalLambda {
   name: string;

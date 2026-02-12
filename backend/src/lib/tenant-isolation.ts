@@ -4,7 +4,7 @@
  */
 
 import { getPrismaClient } from './database.js';
-import { logger } from './structured-logging.js';
+import { logger } from './logger.js';
 import type { CognitoUser } from '../types/lambda.js';
 
 export interface TenantContext {
@@ -111,24 +111,22 @@ export class TenantIsolationManager {
       });
 
       // Log de warning para auditoria
-      logger.logSecurityEvent(
+      logger.security(
         'SUPER_ADMIN_CROSS_ORG_ACCESS',
         'HIGH',
         {
           targetOrgId,
           reason: auditReason,
           hasValidReason: !!auditReason && auditReason !== 'NO_REASON_PROVIDED'
-        },
-        this.context
+        }
       );
 
       // Se não forneceu razão válida, registrar alerta adicional
       if (!auditReason || auditReason === 'NO_REASON_PROVIDED') {
-        logger.logSecurityEvent(
+        logger.security(
           'CROSS_ORG_ACCESS_WITHOUT_REASON',
           'CRITICAL',
-          { targetOrgId },
-          this.context
+          { targetOrgId }
         );
       }
 
@@ -544,7 +542,13 @@ export async function logTenantIsolationViolation(
     });
 
     // 3. Log security event via structured logger
-    await logger.logTenantViolation(context, violation);
+    logger.security('TENANT_VIOLATION', 'CRITICAL', {
+      violationType: violation.type,
+      organizationId: context.organizationId,
+      userId: context.userId,
+      resource: violation.resource,
+      attemptedAccess: violation.attemptedAccess,
+    });
 
   } catch (error) {
     // Log de falha, mas não falhar a operação principal

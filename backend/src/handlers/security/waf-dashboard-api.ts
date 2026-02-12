@@ -21,7 +21,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { WAFV2Client } from '@aws-sdk/client-wafv2';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { handler as wafSetupMonitoringHandler } from './waf-setup-monitoring.js';
@@ -1552,7 +1552,7 @@ async function handleDiagnose(
           });
         }
       } catch (err) {
-        logger.warn('Could not check log streams', err as Error);
+        logger.warn('Could not check log streams', { error: String(err) });
       }
       
       // Check 4: Subscription Filters

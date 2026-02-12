@@ -10,7 +10,7 @@
  * - Fallback support
  */
 
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 export enum CircuitState {
   CLOSED = 'CLOSED',

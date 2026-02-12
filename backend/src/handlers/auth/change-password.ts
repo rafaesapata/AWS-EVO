@@ -7,7 +7,8 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
+import { withErrorMonitoring } from '../../lib/error-middleware.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { emailService } from '../../lib/email-service.js';
@@ -42,20 +43,19 @@ function isValidPassword(password: string): boolean {
   );
 }
 
-export async function handler(
+export const handler = withErrorMonitoring('change-password', async (
   event: AuthorizedEvent,
   _context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+): Promise<APIGatewayProxyResultV2> => {
   const origin = getOrigin(event);
 
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions(origin);
   }
 
-  try {
-    const user = getUserFromEvent(event);
-    const organizationId = getOrganizationId(user);
-    const prisma = getPrismaClient();
+  const user = getUserFromEvent(event);
+  const organizationId = getOrganizationId(user);
+  const prisma = getPrismaClient();
 
     const body = safeParseJSON<ChangePasswordRequest>(
       event.body,
@@ -136,11 +136,7 @@ export async function handler(
     logger.info('Password changed successfully', { userId: user.sub });
 
     return success({ message: 'Senha alterada com sucesso' }, 200, origin);
-  } catch (err) {
-    logger.error('Change password error', err);
-    return error('Erro ao alterar senha', 500, undefined, origin);
-  }
-}
+});
 
 const NOTIFICATION_SUBJECT = 'Sua senha foi alterada - EVO Platform';
 const TEMPLATE_TYPE = 'password_changed';

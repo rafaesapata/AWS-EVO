@@ -3,7 +3,7 @@
  * Production-ready monitoring with alerts and metrics collection
  */
 
-import { logger } from './logging';
+import { logger } from './logger.js';
 import { metricsCollector } from './metrics-collector';
 import { getPrismaClient } from './database';
 import { EventEmitter } from 'events';

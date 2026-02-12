@@ -6,7 +6,7 @@
  */
 
 import * as crypto from 'crypto';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 // PKCE configuration
 const CODE_VERIFIER_LENGTH = 64; // 64 characters = 256 bits of entropy

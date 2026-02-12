@@ -4,7 +4,7 @@
  */
 
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 // SES Configuration from environment variables
 const SES_CONFIG = {

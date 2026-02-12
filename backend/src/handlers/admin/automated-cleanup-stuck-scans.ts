@@ -5,7 +5,7 @@
 
 import type { EventBridgeEvent, Context } from 'aws-lambda';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 interface CleanupEventDetail {
   thresholdMinutes?: number;

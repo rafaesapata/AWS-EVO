@@ -8,7 +8,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, corsOptions, safeHandler } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { OrganizationsClient, ListAccountsCommand } from '@aws-sdk/client-organizations';
 
 export const handler = safeHandler(async (
@@ -111,12 +111,18 @@ export const handler = safeHandler(async (
       synced_at: new Date().toISOString(),
     });
     
-  } catch (err) {
+  } catch (err: any) {
     logger.error('Sync organization accounts error', err as Error, { 
       organizationId,
       userId: user.sub,
       requestId: context.awsRequestId 
     });
+    
+    // Handle AWS permission errors
+    if (err?.name === 'AccessDeniedException' || err?.message?.includes('not authorized')) {
+      return error('AWS Organizations access denied. Ensure the Lambda role has organizations:ListAccounts permission.', 403);
+    }
+    
     return error('An unexpected error occurred. Please try again.', 500);
   }
 });

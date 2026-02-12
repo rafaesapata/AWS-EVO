@@ -4,7 +4,7 @@
  */
 
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Context } from 'aws-lambda';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 export interface TestCase {
   id: string;

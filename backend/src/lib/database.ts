@@ -4,7 +4,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { logger } from './logging';
+import { logger } from './logger.js';
 
 let prisma: PrismaClient | null = null;
 

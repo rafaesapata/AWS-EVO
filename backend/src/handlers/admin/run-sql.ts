@@ -7,7 +7,8 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, badRequest, corsOptions, unauthorized } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
+import { withErrorMonitoring } from '../../lib/error-middleware.js';
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { getUserFromEvent, isSuperAdmin } from '../../lib/auth.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
@@ -47,120 +48,100 @@ const ALLOWED_TABLES = [
   'security_events',
 ];
 
-export async function handler(
+export const handler = withErrorMonitoring('run-sql', async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+): Promise<APIGatewayProxyResultV2> => {
   const origin = getOrigin(event) || '*';
-  logger.info('Run SQL started', { requestId: context.awsRequestId });
   
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions(origin);
   }
   
-  try {
-    // MILITARY GRADE: Only super_admin can run raw SQL
-    const user = getUserFromEvent(event);
-    if (!isSuperAdmin(user)) {
-      logger.warn('Unauthorized SQL access attempt', { userId: user.sub });
-      return unauthorized('Only super_admin can execute raw SQL queries', origin);
-    }
-
-    // Parse and validate body using centralized validation
-    const validation = parseAndValidateBody(runSqlSchema, event.body);
-    if (!validation.success) {
-      return validation.error;
-    }
-    
-    const { sql } = validation.data;
-    
-    // Only allow SELECT queries for safety
-    const normalizedSql = sql.trim().toUpperCase();
-    if (!normalizedSql.startsWith('SELECT')) {
-      return badRequest('Only SELECT queries are allowed');
-    }
-
-    // MILITARY GRADE: Check for dangerous patterns
-    for (const pattern of DANGEROUS_PATTERNS) {
-      if (pattern.test(sql)) {
-        logger.warn('Dangerous SQL pattern detected', { 
-          userId: user.sub, 
-          pattern: pattern.toString(),
-          sql: sql.substring(0, 100) 
-        });
-        return badRequest('Query contains forbidden patterns');
-      }
-    }
-
-    // MILITARY GRADE: Validate that query only references allowed tables
-    const sqlLower = sql.toLowerCase();
-    const tablePattern = /(?:from|join|into|update|table)\s+([a-z_][a-z0-9_]*)/gi;
-    let tableMatch;
-    const referencedTables: string[] = [];
-    while ((tableMatch = tablePattern.exec(sqlLower)) !== null) {
-      referencedTables.push(tableMatch[1]);
-    }
-    
-    const disallowedTables = referencedTables.filter(t => !ALLOWED_TABLES.includes(t));
-    if (disallowedTables.length > 0) {
-      logger.warn('SQL references disallowed tables', { 
-        userId: user.sub, 
-        disallowedTables,
-        sql: sql.substring(0, 200) 
-      });
-      return badRequest(`Query references restricted tables: ${disallowedTables.join(', ')}`);
-    }
-
-    // MILITARY GRADE: Block semicolons entirely to prevent statement chaining
-    if (sql.includes(';')) {
-      return badRequest('Multiple statements are not allowed');
-    }
-
-    // Block subqueries that could reference restricted tables
-    const subqueryPattern = /\(\s*SELECT/i;
-    if (subqueryPattern.test(sql)) {
-      return badRequest('Subqueries are not allowed');
-    }
-
-    // Block information_schema and pg_catalog access
-    if (/information_schema|pg_catalog|pg_tables|pg_stat/i.test(sql)) {
-      return badRequest('System catalog access is not allowed');
-    }
-
-    // Enforce result limit to prevent memory exhaustion
-    const hasLimit = /\bLIMIT\s+\d+/i.test(sql);
-    const finalSql = hasLimit ? sql : `${sql} LIMIT 1000`;
-
-    // MILITARY GRADE: Audit log the query
-    logger.info('Admin SQL query executed', { 
-      userId: user.sub, 
-      sql: sql.substring(0, 500),
-      referencedTables,
-      requestId: context.awsRequestId 
-    });
-    
-    const prisma = getPrismaClient();
-    
-    const results = await prisma.$queryRawUnsafe(finalSql);
-    
-    logger.info('SQL completed', { 
-      rowCount: Array.isArray(results) ? results.length : 1,
-      userId: user.sub 
-    });
-    
-    return success({
-      success: true,
-      data: results,
-      rowCount: Array.isArray(results) ? results.length : 1,
-    });
-    
-  } catch (err) {
-    logger.error('SQL error', err as Error, { requestId: context.awsRequestId });
-    const errMsg = err instanceof Error ? err.message : 'Unknown error';
-    // Don't expose raw SQL errors in production - could leak schema info
-    const safeMessage = process.env.NODE_ENV === 'production' 
-      ? 'SQL query execution failed' 
-      : errMsg;
-    return error(safeMessage, 500);
+  // MILITARY GRADE: Only super_admin can run raw SQL
+  const user = getUserFromEvent(event);
+  if (!isSuperAdmin(user)) {
+    logger.security('unauthorized_sql_access', 'HIGH', { userId: user.sub });
+    return unauthorized('Only super_admin can execute raw SQL queries', origin);
   }
-}
+
+  // Parse and validate body using centralized validation
+  const validation = parseAndValidateBody(runSqlSchema, event.body);
+  if (!validation.success) {
+    return validation.error;
+  }
+  
+  const { sql } = validation.data;
+  
+  // Only allow SELECT queries for safety
+  const normalizedSql = sql.trim().toUpperCase();
+  if (!normalizedSql.startsWith('SELECT')) {
+    return badRequest('Only SELECT queries are allowed');
+  }
+
+  // MILITARY GRADE: Check for dangerous patterns
+  for (const pattern of DANGEROUS_PATTERNS) {
+    if (pattern.test(sql)) {
+      logger.security('dangerous_sql_pattern', 'HIGH', { 
+        userId: user.sub, 
+        pattern: pattern.toString(),
+        sql: sql.substring(0, 100) 
+      });
+      return badRequest('Query contains forbidden patterns');
+    }
+  }
+
+  // MILITARY GRADE: Validate that query only references allowed tables
+  const sqlLower = sql.toLowerCase();
+  const tablePattern = /(?:from|join|into|update|table)\s+([a-z_][a-z0-9_]*)/gi;
+  let tableMatch;
+  const referencedTables: string[] = [];
+  while ((tableMatch = tablePattern.exec(sqlLower)) !== null) {
+    referencedTables.push(tableMatch[1]);
+  }
+  
+  const disallowedTables = referencedTables.filter(t => !ALLOWED_TABLES.includes(t));
+  if (disallowedTables.length > 0) {
+    logger.security('sql_restricted_table_access', 'HIGH', { 
+      userId: user.sub, 
+      disallowedTables,
+      sql: sql.substring(0, 200) 
+    });
+    return badRequest(`Query references restricted tables: ${disallowedTables.join(', ')}`);
+  }
+
+  // MILITARY GRADE: Block semicolons entirely to prevent statement chaining
+  if (sql.includes(';')) {
+    return badRequest('Multiple statements are not allowed');
+  }
+
+  // Block subqueries that could reference restricted tables
+  const subqueryPattern = /\(\s*SELECT/i;
+  if (subqueryPattern.test(sql)) {
+    return badRequest('Subqueries are not allowed');
+  }
+
+  // Block information_schema and pg_catalog access
+  if (/information_schema|pg_catalog|pg_tables|pg_stat/i.test(sql)) {
+    return badRequest('System catalog access is not allowed');
+  }
+
+  // Enforce result limit to prevent memory exhaustion
+  const hasLimit = /\bLIMIT\s+\d+/i.test(sql);
+  const finalSql = hasLimit ? sql : `${sql} LIMIT 1000`;
+
+  logger.audit('sql_query_executed', {
+    userId: user.sub,
+    sql: sql.substring(0, 500),
+    referencedTables,
+  });
+  
+  const prisma = getPrismaClient();
+  const results = await prisma.$queryRawUnsafe(finalSql);
+  
+  return success({
+    success: true,
+    data: results,
+    rowCount: Array.isArray(results) ? results.length : 1,
+  });
+});

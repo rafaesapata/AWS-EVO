@@ -15,7 +15,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { parseAndValidateBody, securityScanSchema } from '../../lib/validation.js';
 import { resolveAwsCredentials } from '../../lib/aws-helpers.js';
 import { withAwsCircuitBreaker } from '../../lib/circuit-breaker.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { businessMetrics } from '../../lib/metrics.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { runSecurityScan, type ScanContext, type ScanLevel, resetGlobalCache } from '../../lib/security-engine/index.js';

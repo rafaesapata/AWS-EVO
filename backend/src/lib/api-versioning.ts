@@ -14,7 +14,7 @@
  */
 
 import type { AuthorizedEvent, APIGatewayProxyResultV2 } from '../types/lambda.js';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 // ============================================================================
 // TYPES

@@ -6,7 +6,7 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { RDSClient, CreateDBSnapshotCommand, DescribeDBSnapshotsCommand } from '@aws-sdk/client-rds';
 import { Readable } from 'stream';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 export interface BackupConfig {
   enabled: boolean;

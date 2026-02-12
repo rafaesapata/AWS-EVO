@@ -8,7 +8,7 @@ import { success, error, corsOptions, safeHandler } from '../../lib/response.js'
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { CloudWatchClient, GetMetricStatisticsCommand, ListMetricsCommand, Statistic } from '@aws-sdk/client-cloudwatch';
 import { LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda';

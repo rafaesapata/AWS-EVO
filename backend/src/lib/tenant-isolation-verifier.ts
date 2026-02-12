@@ -3,7 +3,7 @@
  * Military-grade verification of tenant data isolation and security boundaries
  */
 
-import { logger } from './logging';
+import { logger } from './logger.js';
 import { getPrismaClient } from './database';
 import { realTimeMonitoring } from './real-time-monitoring';
 

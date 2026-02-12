@@ -12,7 +12,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 // Constantes de conversão (exportadas para uso em handlers)
 export const BYTES_PER_KB = 1024;

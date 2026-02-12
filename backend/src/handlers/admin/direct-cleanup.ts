@@ -5,7 +5,7 @@
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions, unauthorized } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { getUserFromEvent, isSuperAdmin } from '../../lib/auth.js';
 
 function getOriginFromEvent(event: AuthorizedEvent): string {

@@ -8,7 +8,7 @@ import { getUserFromEvent, getOrganizationId, hasRole, requireRole } from './aut
 import { checkRateLimit, validateOrganizationContext } from './validation.js';
 import { error, badRequest, forbidden, corsOptions, clearRequestContext, setRequestContext } from './response.js';
 import { TenantIsolatedPrisma } from './database.js';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 
 /**
  * Helper to get HTTP method from event (supports both REST API v1 and HTTP API v2)

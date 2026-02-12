@@ -5,7 +5,7 @@
  */
 
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';

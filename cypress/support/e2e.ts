@@ -165,6 +165,7 @@ Cypress.Commands.add('apiPost', (lambdaName: string, body: Record<string, any> =
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
+        Origin: Cypress.config('baseUrl') || '',
       },
       body,
       failOnStatusCode: false,
@@ -179,7 +180,10 @@ Cypress.Commands.add('apiPostPublic', (lambdaName: string, body: Record<string, 
   return cy.request({
     method: 'POST',
     url: `/api/functions/${lambdaName}`,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: Cypress.config('baseUrl') || '',
+    },
     body,
     failOnStatusCode: false,
   });
@@ -226,6 +230,7 @@ Cypress.Commands.add('apiPostInvalidToken', (lambdaName: string, token: string, 
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
+      Origin: Cypress.config('baseUrl') || '',
     },
     body,
     failOnStatusCode: false,
@@ -246,6 +251,7 @@ Cypress.Commands.add('apiRequest', (lambdaName: string, method: string, body: Re
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
+        Origin: Cypress.config('baseUrl') || '',
       },
       body: (BODYLESS_METHODS as readonly string[]).includes(method) ? undefined : body,
       failOnStatusCode: false,

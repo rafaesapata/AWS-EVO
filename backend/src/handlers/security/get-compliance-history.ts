@@ -8,7 +8,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';

@@ -8,7 +8,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions, safeHandler } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { generatePdfReportSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';

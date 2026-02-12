@@ -13,7 +13,8 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, forbidden, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, isSuperAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
+import { withErrorMonitoring } from '../../lib/error-middleware.js';
 import { parseEventBody } from '../../lib/request-parser.js';
 import { randomUUID } from 'crypto';
 import { 

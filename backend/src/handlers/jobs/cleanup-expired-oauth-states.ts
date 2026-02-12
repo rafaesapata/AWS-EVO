@@ -11,7 +11,7 @@
 import type { LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 
 // Cleanup thresholds
 const EXPIRED_STATE_THRESHOLD_HOURS = 1; // Delete expired states older than 1 hour

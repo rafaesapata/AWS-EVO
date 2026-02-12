@@ -8,7 +8,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, badRequest, corsOptions, safeHandler } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, requireRole } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { logger } from '../../lib/logging.js';
+import { logger } from '../../lib/logger.js';
 import { OrganizationsClient, CreateAccountCommand } from '@aws-sdk/client-organizations';
 
 interface CreateAccountRequest {
@@ -36,10 +36,10 @@ export const handler = safeHandler(async (
     requestId: context.awsRequestId 
   });
   
+  // Apenas admins podem criar contas — throws ForbiddenError caught by safeHandler
+  requireRole(user, 'admin');
+  
   try {
-    // Apenas admins podem criar contas
-    requireRole(user, 'admin');
-    
     const body: CreateAccountRequest = event.body ? JSON.parse(event.body) : {};
     const { accountName, email, roleName = 'OrganizationAccountAccessRole', iamUserAccessToBilling = 'DENY' } = body;
     
@@ -97,12 +97,18 @@ export const handler = safeHandler(async (
       message: 'Account creation initiated. It may take a few minutes to complete.',
     });
     
-  } catch (err) {
+  } catch (err: any) {
     logger.error('Create organization account error', err as Error, { 
       organizationId,
       userId: user.sub,
       requestId: context.awsRequestId 
     });
+    
+    // Handle AWS permission errors
+    if (err?.name === 'AccessDeniedException' || err?.message?.includes('not authorized')) {
+      return error('AWS Organizations access denied. Ensure the Lambda role has organizations:CreateAccount permission.', 403);
+    }
+    
     return error('An unexpected error occurred. Please try again.', 500);
   }
 });

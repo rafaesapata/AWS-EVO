@@ -5,7 +5,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { logger } from './logging.js';
+import { logger } from './logger.js';
 import { containerSecurityManager } from './container-security.js';
 import { testRunner } from './testing-framework.js';
 import { deploymentManager } from './deployment-strategies.js';

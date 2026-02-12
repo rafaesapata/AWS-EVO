@@ -3,7 +3,7 @@
  * Military-grade performance optimization with intelligent caching and resource management
  */
 
-import { logger } from './logging';
+import { logger } from './logger.js';
 import { realTimeMonitoring } from './real-time-monitoring';
 import { getPrismaClient } from './database';
 import { EventEmitter } from 'events';
