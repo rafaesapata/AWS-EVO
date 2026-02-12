@@ -68,6 +68,7 @@ const NOTIFICATION_TYPES = [
   { type: 'security_notification', name: 'Notificações de Segurança', description: 'Novos findings de segurança', category: 'security' },
   { type: 'proactive_notification', name: 'Notificações Proativas da IA', description: 'Sugestões e alertas da IA', category: 'ai' },
   { type: 'cost_alert', name: 'Alertas de Custos', description: 'Anomalias e picos de custo', category: 'costs' },
+  { type: 'password_changed', name: 'Notificação de Alteração de Senha', description: 'Enviado quando a senha do usuário é alterada', category: 'security' },
 ];
 
 export async function handler(

@@ -746,6 +746,32 @@ Resources:
           - '.prisma/client'
           - '@aws-sdk/*'
 
+  ChangePasswordFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-change-password'
+      CodeUri: ../backend/src/handlers/auth/
+      Handler: change-password.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/functions/change-password
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - change-password.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+          - '@aws-sdk/*'
+
   MfaEnrollFunction:
     Type: AWS::Serverless::Function
     Properties:

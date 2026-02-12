@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
+import { apiClient } from "@/integrations/aws/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,7 +93,16 @@ export default function ChangePasswordSection() {
         throw new Error(t("changePassword.errors.samePassword"));
       }
 
-      await cognitoAuth.changePassword(formData.currentPassword, formData.newPassword);
+      const result = await apiClient.invoke('change-password', {
+        body: {
+          currentPassword: formData.currentPassword,
+          newPassword: formData.newPassword,
+        },
+      });
+
+      if ('error' in result && result.error) {
+        throw new Error(result.error.message || t("changePassword.errors.generic"));
+      }
 
       toast({
         title: t("common.success"),

@@ -457,6 +457,45 @@ export class EmailService {
   }
 
   /**
+   * Send password changed notification email
+   */
+  async sendPasswordChangedEmail(
+    to: EmailAddress,
+    data: {
+      userName: string;
+      changeTime: string;
+      ipAddress: string;
+      userAgent: string;
+    }
+  ): Promise<{ messageId: string }> {
+    const template = this.templates.get('password-changed');
+    if (!template) {
+      throw new Error('Password changed template not found');
+    }
+
+    const templateData = {
+      userName: data.userName,
+      changeTime: data.changeTime,
+      ipAddress: data.ipAddress,
+      userAgent: data.userAgent,
+      supportUrl: process.env.PLATFORM_BASE_URL || 'https://evo.nuevacore.com',
+    };
+
+    const htmlBody = this.processTemplate(template.htmlBody, templateData);
+    const textBody = this.processTemplate(template.textBody || '', templateData);
+
+    return await this.sendEmail({
+      to,
+      subject: template.subject,
+      htmlBody,
+      textBody: textBody || undefined,
+      tags: {
+        type: 'password-changed',
+      },
+    });
+  }
+
+  /**
    * Add email template
    */
   addTemplate(template: EmailTemplate): void {
@@ -825,6 +864,71 @@ Please investigate this alert and take appropriate action if necessary.
           </body>
         </html>
       `,
+    });
+
+    // Password changed notification template
+    this.addTemplate({
+      id: 'password-changed',
+      name: 'Password Changed Notification',
+      subject: 'Sua senha foi alterada - EVO Platform',
+      htmlBody: `
+        <html>
+          <body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <div style="background-color: #dc3545; color: white; padding: 20px; text-align: center;">
+                <h1 style="margin: 0; font-size: 24px;">🔒 Senha Alterada</h1>
+              </div>
+              <div style="padding: 30px;">
+                <h2 style="color: #333; margin-top: 0;">Olá, {userName}</h2>
+                <p style="font-size: 16px; line-height: 1.6; color: #555;">
+                  Sua senha da plataforma EVO foi alterada com sucesso.
+                </p>
+                <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 8px 0; font-weight: bold; color: #333; width: 40%;">Data/Hora:</td>
+                      <td style="padding: 8px 0; color: #555;">{changeTime}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; font-weight: bold; color: #333;">Endereço IP:</td>
+                      <td style="padding: 8px 0; color: #555;">{ipAddress}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; font-weight: bold; color: #333;">Navegador:</td>
+                      <td style="padding: 8px 0; color: #555; word-break: break-all;">{userAgent}</td>
+                    </tr>
+                  </table>
+                </div>
+                <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+                  <p style="margin: 0; font-size: 14px; color: #856404;">
+                    <strong>⚠️ Não foi você?</strong> Se você não realizou esta alteração, sua conta pode estar comprometida. 
+                    Acesse a plataforma imediatamente e redefina sua senha, ou entre em contato com o suporte.
+                  </p>
+                </div>
+                <div style="text-align: center; margin: 25px 0;">
+                  <a href="{supportUrl}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                    Acessar Plataforma
+                  </a>
+                </div>
+                <p style="color: #999; font-size: 12px; text-align: center; margin-top: 30px;">
+                  Este é um email automático de segurança. Não responda a este email.
+                </p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+      textBody: `Olá, {userName}
+
+Sua senha da plataforma EVO foi alterada com sucesso.
+
+Data/Hora: {changeTime}
+Endereço IP: {ipAddress}
+Navegador: {userAgent}
+
+Se você não realizou esta alteração, acesse a plataforma imediatamente: {supportUrl}
+
+Este é um email automático de segurança.`,
     });
 
     // Password reset template

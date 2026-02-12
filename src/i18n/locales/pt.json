@@ -1892,7 +1892,8 @@
     "errors": {
       "currentRequired": "Informe a senha atual",
       "mismatch": "As senhas não coincidem",
-      "samePassword": "A nova senha deve ser diferente da atual"
+      "samePassword": "A nova senha deve ser diferente da atual",
+      "generic": "Erro ao alterar senha. Tente novamente."
     },
     "rules": {
       "hint": "Mín. 8 caracteres, maiúscula, minúscula, número e caractere especial",

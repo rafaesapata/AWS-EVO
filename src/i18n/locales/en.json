@@ -1632,7 +1632,8 @@
     "errors": {
       "currentRequired": "Current password is required",
       "mismatch": "Passwords do not match",
-      "samePassword": "New password must be different from current password"
+      "samePassword": "New password must be different from current password",
+      "generic": "Failed to change password. Please try again."
     },
     "rules": {
       "hint": "Min. 8 characters, uppercase, lowercase, number and special character",

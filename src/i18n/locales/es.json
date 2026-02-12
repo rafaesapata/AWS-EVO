@@ -1124,7 +1124,8 @@
     "errors": {
       "currentRequired": "Ingrese la contraseña actual",
       "mismatch": "Las contraseñas no coinciden",
-      "samePassword": "La nueva contraseña debe ser diferente de la actual"
+      "samePassword": "La nueva contraseña debe ser diferente de la actual",
+      "generic": "Error al cambiar la contraseña. Intente nuevamente."
     },
     "rules": {
       "hint": "Mín. 8 caracteres, mayúscula, minúscula, número y carácter especial",
