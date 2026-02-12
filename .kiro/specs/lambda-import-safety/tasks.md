@@ -10,7 +10,7 @@ Build `scripts/validate-lambda-imports.ts` incrementally — starting with core 
   - [x] 1.1 Create `scripts/validate-lambda-imports.ts` with CLI argument parsing (`--handler`, `--output-graph`, `--update-domain-map`) and the `discoverHandlers` function that recursively finds all `.ts` files under `backend/src/handlers/` (excluding `_templates/`)
     - _Requirements: 1.1, 8.1, 8.2, 8.3_
 
-  - [ ]* 1.2 Write property test for file discovery
+  - [x]* 1.2 Write property test for file discovery
     - **Property 1: Import extraction filters correctly**
     - **Validates: Requirements 1.2, 1.4**
 
@@ -21,7 +21,7 @@ Build `scripts/validate-lambda-imports.ts` incrementally — starting with core 
   - [x] 2.2 Implement `resolveImport` function that resolves import paths: `.js` → `.ts` mapping, directory → `index.ts` fallback, and file existence check via `fs.existsSync`
     - _Requirements: 2.1, 2.2_
 
-  - [ ]* 2.3 Write property tests for import extraction and resolution
+  - [x]* 2.3 Write property tests for import extraction and resolution
     - **Property 1: Import extraction filters correctly** — For any file content with mixed import types, extraction returns exactly the relative imports
     - **Property 2: .js to .ts resolution mapping** — For any import path ending in .js, resolver produces .ts equivalent
     - **Validates: Requirements 1.2, 1.3, 1.4**
@@ -30,7 +30,7 @@ Build `scripts/validate-lambda-imports.ts` incrementally — starting with core 
   - [x] 3.1 Implement `buildDependencyGraph` function that starts from each handler, follows imports transitively through libs using a visited set, and collects all `BrokenImport` records with full import chains
     - _Requirements: 2.3, 3.1, 3.2, 3.3_
 
-  - [ ]* 3.2 Write property tests for transitive closure and broken import reporting
+  - [x]* 3.2 Write property tests for transitive closure and broken import reporting
     - **Property 5: Transitive closure completeness** — For any DAG, the built graph equals the transitive closure
     - **Property 3: Broken import record completeness** — For any unresolvable import, the record contains sourcePath, importPath, and resolvedAttempt
     - **Property 6: Transitive broken import chain reporting** — For any broken import at depth > 1, the chain contains the full path with valid edges
@@ -40,7 +40,7 @@ Build `scripts/validate-lambda-imports.ts` incrementally — starting with core 
   - [x] 4.1 Implement `detectCycles` function using DFS with white/gray/black coloring to find all back-edges in the import graph, returning `Cycle[]` with full cycle paths
     - _Requirements: 4.1, 4.2_
 
-  - [ ]* 4.2 Write property tests for cycle detection
+  - [x]* 4.2 Write property tests for cycle detection
     - **Property 7: Cycle detection completeness** — For any graph with cycles, at least one cycle is reported per strongly connected component
     - **Property 8: Cycle path validity** — For any reported cycle, first equals last node and all consecutive pairs are valid edges
     - **Validates: Requirements 4.1, 4.2**
@@ -52,7 +52,7 @@ Build `scripts/validate-lambda-imports.ts` incrementally — starting with core 
   - [x] 6.1 Implement `reportResults` function that formats broken imports and cycles to stdout with file paths and line numbers, and `writeGraphJson` that serializes the dependency graph to JSON
     - _Requirements: 2.4, 2.5, 2.6, 4.3, 5.1, 5.2, 5.3_
 
-  - [ ]* 6.2 Write property tests for reporting and serialization
+  - [x]* 6.2 Write property tests for reporting and serialization
     - **Property 4: Broken import report completeness** — For any list of broken imports, the report contains every source path and line number
     - **Property 9: Dependency graph serialization round-trip** — For any graph, serialize then parse equals original
     - **Property 10: Summary statistics accuracy** — For any ValidationResult, summary numbers match actual counts
@@ -62,7 +62,7 @@ Build `scripts/validate-lambda-imports.ts` incrementally — starting with core 
   - [x] 7.1 Implement `updateDomainMap` function that reads `backend/src/domains/index.ts`, computes actual sharedLibs per domain from the dependency graph, and updates only the `sharedLibs` arrays while preserving all other structure
     - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-  - [ ]* 7.2 Write property tests for domain map update
+  - [x]* 7.2 Write property tests for domain map update
     - **Property 11: Domain map libs match dependency graph** — Computed sharedLibs equals union of libs used by domain's handlers
     - **Property 12: Domain map update preserves structure** — Domain names, descriptions, and handler globs remain identical after update
     - **Validates: Requirements 7.1, 7.2, 7.3**
@@ -71,7 +71,7 @@ Build `scripts/validate-lambda-imports.ts` incrementally — starting with core 
   - [x] 8.1 Wire all components into the main CLI entry point: parse args, discover handlers (or single handler via `--handler`), build graph, detect cycles, report results, optionally write graph JSON and update domain map. Set exit code based on validation result.
     - _Requirements: 2.5, 2.6, 4.3, 8.2, 8.3_
 
-  - [ ]* 8.2 Write property test for single handler subset
+  - [x]* 8.2 Write property test for single handler subset
     - **Property 13: Single handler validation is subset of full** — For any handler, --handler result is a subset of the full graph
     - **Validates: Requirements 8.3**
 
@@ -86,7 +86,7 @@ Build `scripts/validate-lambda-imports.ts` incrementally — starting with core 
   - [x] 11.1 Add or update a steering file in `.kiro/steering/` explaining the import validation system: how it works, when it runs in CI/CD, how to run locally, and what to do when adding new shared libs.
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
-- [-] 12. Final checkpoint
+- [x] 12. Final checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

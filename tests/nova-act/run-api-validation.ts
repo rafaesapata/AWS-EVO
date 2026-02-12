@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * API Validation E2E Test Suite
+ * API Validation Test Suite
  * 
  * Testa todas as páginas e captura erros de API (403, 502, etc.)
  * para identificar problemas de backend
@@ -77,7 +77,7 @@ class ApiValidationRunner {
   async run(): Promise<void> {
     console.log('\n');
     log('╔════════════════════════════════════════════════════════════════════╗', COLORS.cyan);
-    log('║     🔍 EVO UDS - API Validation E2E Test Suite                     ║', COLORS.cyan);
+    log('║     🔍 EVO UDS - API Validation Test Suite                          ║', COLORS.cyan);
     log('║     Detecta erros de API em todas as páginas                       ║', COLORS.cyan);
     log('╚════════════════════════════════════════════════════════════════════╝', COLORS.cyan);
     console.log('\n');

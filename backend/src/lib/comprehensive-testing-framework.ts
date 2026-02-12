@@ -13,7 +13,7 @@ export interface TestSuite {
   id: string;
   name: string;
   description: string;
-  category: 'unit' | 'integration' | 'e2e' | 'security' | 'performance' | 'load';
+  category: 'unit' | 'integration' | 'security' | 'performance' | 'load';
   priority: 'critical' | 'high' | 'medium' | 'low';
   tests: Test[];
   setup?: () => Promise<void>;

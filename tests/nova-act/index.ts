@@ -1,7 +1,7 @@
 /**
  * Nova Act Test Framework - EVO UDS Platform
  * 
- * Framework de testes E2E usando Amazon Nova Act
+ * Framework de testes usando Amazon Nova Act
  * 
  * @example
  * ```typescript
@@ -56,7 +56,7 @@ export {
   EXPECTED_MESSAGES,
   TIMEOUTS,
   TEST_SCENARIOS,
-  E2E_FLOWS,
+  USER_FLOWS,
   type DashboardMetrics,
   type SecurityScanResult,
   type AWSResource,

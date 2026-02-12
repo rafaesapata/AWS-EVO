@@ -1,4 +1,4 @@
-# Amazon Nova Act - Testes E2E Automatizados
+# Amazon Nova Act - Testes Automatizados
 
 ## Visão Geral
 
@@ -51,9 +51,6 @@ tests/nova-act/
 │   │   ├── credentials.test.ts
 │   │   ├── resources.test.ts
 │   │   └── cloudwatch.test.ts
-│   └── e2e/                    # Fluxos completos
-│       ├── user-journey.test.ts
-│       └── admin-workflow.test.ts
 ├── schemas/
 │   └── test-case.schema.json   # Schema dos casos de teste
 ├── reports/                    # Relatórios gerados
@@ -156,7 +153,6 @@ npm run test:auth
 npm run test:dashboard
 npm run test:security
 npm run test:cost
-npm run test:e2e
 
 # Com interface visual
 npm run test:ui
@@ -176,7 +172,6 @@ npm run test:report
 | `security` | Security scans, posture, compliance | `tests/security/*.test.ts` |
 | `cost` | Cost optimization, RI, waste detection | `tests/cost/*.test.ts` |
 | `aws` | AWS settings, credentials, regions | `tests/aws/*.test.ts` |
-| `e2e` | Fluxos completos end-to-end | `tests/e2e/*.test.ts` |
 
 ### Prioridades
 
@@ -280,7 +275,6 @@ npm run test:auth           # Testes de autenticação
 npm run test:dashboard      # Testes do dashboard
 npm run test:security       # Testes de segurança
 npm run test:cost           # Testes de custos
-npm run test:e2e            # Testes end-to-end
 
 # Utilitários
 npm run lint                # Verificar código
@@ -319,7 +313,7 @@ Os relatórios são gerados em `./reports/`:
 ### GitHub Actions
 
 ```yaml
-name: Nova Act E2E Tests
+name: Nova Act Tests
 
 on:
   push:
@@ -328,7 +322,7 @@ on:
     branches: [main]
 
 jobs:
-  e2e-tests:
+  nova-act-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -343,7 +337,7 @@ jobs:
           cd tests/nova-act
           npm ci
           
-      - name: Run E2E tests
+      - name: Run tests
         env:
           NOVA_ACT_API_KEY: ${{ secrets.NOVA_ACT_API_KEY }}
           TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}

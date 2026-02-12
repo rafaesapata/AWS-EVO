@@ -1,6 +1,6 @@
 /**
  * Testes de Security Scans - Amazon Nova Act
- * Testes E2E das funcionalidades de scan de segurança
+ * Testes das funcionalidades de scan de segurança
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

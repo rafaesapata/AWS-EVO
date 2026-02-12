@@ -226,51 +226,6 @@ const TEST_CASES: TestCase[] = [
       },
     ],
   },
-
-  // E2E Tests
-  {
-    id: 'e2e-full-journey',
-    name: 'Jornada Completa do Usuário',
-    description: 'Testa o fluxo completo de um usuário típico',
-    category: 'e2e',
-    priority: 'critical',
-    tags: ['e2e', 'smoke', 'journey'],
-    steps: [
-      {
-        name: 'Login',
-        action: `Navigate to login page and login with "${config.testUser.email}"`,
-      },
-      {
-        name: 'Verificar Dashboard',
-        action: 'Verify dashboard loaded with all KPI cards',
-      },
-      {
-        name: 'Navegar Security',
-        action: 'Navigate to Security Scans and verify page loaded',
-      },
-      {
-        name: 'Navegar Costs',
-        action: 'Navigate to Cost Optimization and verify page loaded',
-      },
-      {
-        name: 'Navegar AWS Settings',
-        action: 'Navigate to AWS Settings and verify page loaded',
-      },
-      {
-        name: 'Voltar Dashboard',
-        action: 'Navigate back to Dashboard',
-      },
-      {
-        name: 'Logout',
-        action: 'Click user menu and logout',
-      },
-      {
-        name: 'Verificar Logout',
-        action: 'Verify redirected to login page',
-        expectedResult: 'login',
-      },
-    ],
-  },
 ];
 
 // Parse argumentos da linha de comando
@@ -326,7 +281,7 @@ Uso:
   npx tsx run-tests.ts [options]
 
 Opções:
-  -c, --category <category>   Filtrar por categoria (auth, dashboard, security, cost, e2e)
+  -c, --category <category>   Filtrar por categoria (auth, dashboard, security, cost)
   -p, --priority <priority>   Filtrar por prioridade (critical, high, medium, low)
   -t, --tags <tags>           Filtrar por tags (separadas por vírgula)
   --parallel <n>              Número de sessões paralelas

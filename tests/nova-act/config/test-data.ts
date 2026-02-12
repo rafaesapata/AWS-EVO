@@ -176,8 +176,8 @@ export const TEST_SCENARIOS = {
   },
 };
 
-// Fluxos E2E completos
-export const E2E_FLOWS = {
+// Fluxos completos
+export const USER_FLOWS = {
   completeUserJourney: {
     name: 'Jornada Completa do Usuário',
     steps: [
@@ -226,5 +226,5 @@ export default {
   EXPECTED_MESSAGES,
   TIMEOUTS,
   TEST_SCENARIOS,
-  E2E_FLOWS,
+  USER_FLOWS,
 };

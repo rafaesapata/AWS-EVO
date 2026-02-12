@@ -1,6 +1,6 @@
 /**
  * Testes do Dashboard - Amazon Nova Act
- * Testes E2E do dashboard principal
+ * Testes do dashboard principal
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';

@@ -22,7 +22,10 @@ export default defineConfig(({ mode }) => {
   },
   
   define: {
-    global: 'globalThis',
+    // Use 'globalThis' polyfill only for specific AWS SDK usage pattern.
+    // IMPORTANT: 'global' alone would replace ALL occurrences including local
+    // variables in dependencies, causing TDZ errors in minified builds.
+    'global.crypto': 'globalThis.crypto',
     // Explicitly define demo credentials to prevent tree-shaking
     'import.meta.env.VITE_DEMO_EMAIL': JSON.stringify(env.VITE_DEMO_EMAIL || 'comercial+evo@uds.com.br'),
     'import.meta.env.VITE_DEMO_PASSWORD': JSON.stringify(env.VITE_DEMO_PASSWORD || 'Demoevouds@00!'),
@@ -33,13 +36,14 @@ export default defineConfig(({ mode }) => {
     
     rollupOptions: {
       output: {
-        // Function-based chunk splitting avoids circular initialization issues
-        // when react-router-dom re-exports from react in the same chunk
+        // Keep react + react-dom + react-router in the SAME chunk to prevent
+        // TDZ errors ("Cannot access '_' before initialization") caused by
+        // cross-chunk initialization order issues in Rollup.
+        // See: https://github.com/vitejs/vite/discussions/9686
         manualChunks(id) {
-          if (id.includes('node_modules/react-router-dom') || id.includes('node_modules/react-router/')) {
-            return 'vendor-router';
-          }
-          if (id.includes('node_modules/react-dom/') || id.includes('node_modules/react/')) {
+          if (id.includes('node_modules/react-router-dom') || id.includes('node_modules/react-router/') ||
+              id.includes('node_modules/react-dom/') || id.includes('node_modules/react/') ||
+              id.includes('node_modules/scheduler/')) {
             return 'vendor-react';
           }
           if (id.includes('node_modules/@radix-ui/')) {

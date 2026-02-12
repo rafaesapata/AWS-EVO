@@ -1,6 +1,6 @@
 /**
  * Amazon Nova Act Configuration
- * Configuração principal para testes E2E com Nova Act
+ * Configuração principal para testes com Nova Act
  */
 
 import { z } from 'zod';

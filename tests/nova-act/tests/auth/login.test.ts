@@ -1,6 +1,6 @@
 /**
  * Testes de Login - Amazon Nova Act
- * Testes E2E do fluxo de autenticação
+ * Testes do fluxo de autenticação
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

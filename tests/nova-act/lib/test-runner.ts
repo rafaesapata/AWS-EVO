@@ -1,6 +1,6 @@
 /**
  * Test Runner - Executor de testes Nova Act
- * Orquestra execução de testes E2E com relatórios detalhados
+ * Orquestra execução de testes Nova Act com relatórios detalhados
  */
 
 import { NovaActClient, createNovaActClient, type ActResult } from './nova-client';
@@ -23,7 +23,7 @@ export interface TestCase {
   id: string;
   name: string;
   description: string;
-  category: 'auth' | 'dashboard' | 'security' | 'cost' | 'aws' | 'e2e';
+  category: 'auth' | 'dashboard' | 'security' | 'cost' | 'aws';
   priority: 'critical' | 'high' | 'medium' | 'low';
   steps: TestStep[];
   setup?: () => Promise<void>;
@@ -260,7 +260,7 @@ export class NovaActTestRunner {
     const skipped = this.results.filter(r => r.status === 'skipped').length;
 
     const suiteResult: TestSuiteResult = {
-      name: 'Nova Act E2E Tests',
+      name: 'Nova Act Tests',
       startTime,
       endTime,
       duration: endTime.getTime() - startTime.getTime(),

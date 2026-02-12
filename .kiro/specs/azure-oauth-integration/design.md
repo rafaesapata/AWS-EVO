@@ -426,7 +426,7 @@ interface OAuthErrorResponse {
 - Subscription listing
 - Credential revocation
 
-### E2E Tests (Manual)
+### Manual Tests
 
 - Complete OAuth flow in browser
 - Multi-subscription selection

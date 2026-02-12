@@ -1,6 +1,6 @@
 /**
  * Testes de AWS Credentials - Amazon Nova Act
- * Testes E2E das configurações de credenciais AWS
+ * Testes das configurações de credenciais AWS
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

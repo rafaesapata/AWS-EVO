@@ -79,3 +79,9 @@ packaged.yaml
 
 # Separate repositories (managed independently)
 evo-frontend/
+
+# Cypress
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
+cypress.env.json

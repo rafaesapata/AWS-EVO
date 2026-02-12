@@ -1,6 +1,6 @@
 /**
  * Testes de Cost Analysis - Amazon Nova Act
- * Testes E2E das funcionalidades de análise de custos
+ * Testes das funcionalidades de análise de custos
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

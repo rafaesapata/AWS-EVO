@@ -4,24 +4,17 @@ inclusion: always
 
 # Padrões de Desenvolvimento
 
-## Stack Tecnológica
+## Stack
+- Backend: Node.js 18.x (Lambda), TypeScript (CommonJS), Prisma, PostgreSQL
+- Frontend: React 18 + Vite, TypeScript, shadcn/ui + Tailwind CSS
 
-| Camada | Tecnologia |
-|--------|------------|
-| **Backend** | Node.js 18.x (Lambda), TypeScript (CommonJS), Prisma, PostgreSQL |
-| **Frontend** | React 18 + Vite, TypeScript, shadcn/ui + Tailwind CSS |
-| **Infra** | AWS CDK (TypeScript) |
+## ⛔ PROIBIÇÕES
+1. NÃO criar Lambdas em Python — só Node.js/TypeScript
+2. NÃO usar DynamoDB — só PostgreSQL via Prisma
+3. NÃO usar mocks/dados sintéticos — dados e serviços reais sempre
+4. NÃO mudar arquitetura sem aprovação
 
-## ⛔ PROIBIÇÕES ABSOLUTAS
-
-1. **NÃO criar Lambdas em Python** - Todo backend DEVE ser Node.js/TypeScript
-2. **NÃO usar DynamoDB** - Banco de dados é PostgreSQL via Prisma
-3. **NÃO usar mocks em testes** - Testes DEVEM usar dados e serviços reais
-4. **NÃO mudar arquitetura** sem aprovação explícita
-
----
-
-## Padrão de Handler Lambda
+## Handler Lambda (template)
 
 ```typescript
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -30,176 +23,40 @@ import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
 
-export async function handler(
-  event: AuthorizedEvent,
-  context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
-  if (event.requestContext.http.method === 'OPTIONS') {
-    return corsOptions();
-  }
-  
+export async function handler(event: AuthorizedEvent, context: LambdaContext): Promise<APIGatewayProxyResultV2> {
+  if (event.requestContext.http.method === 'OPTIONS') return corsOptions();
   const user = getUserFromEvent(event);
   const organizationId = getOrganizationId(user);
   const prisma = getPrismaClient();
-  
   // Implementação...
 }
 ```
 
----
-
-## Audit Logging
-
-### Usar em TODOS os handlers que modificam dados
+## Audit Logging (OBRIGATÓRIO em handlers que modificam dados)
 
 ```typescript
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
-
-// Após ação bem-sucedida
-logAuditAsync({
-  organizationId,
-  userId: user.sub,
-  action: 'SECURITY_SCAN_COMPLETE',
-  resourceType: 'security_scan',
-  resourceId: scan.id,
-  details: { duration_ms: duration, findings_count: findings.length },
-  ipAddress: getIpFromEvent(event),
-  userAgent: getUserAgentFromEvent(event),
-});
+logAuditAsync({ organizationId, userId: user.sub, action: 'ACTION_NAME', resourceType: 'type', resourceId: id, details: {}, ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event) });
 ```
-
-### Ações Disponíveis
-`LOGIN`, `LOGOUT`, `LOGIN_FAILED`, `MFA_ENABLED`, `MFA_DISABLED`, `MFA_VERIFIED`, `PASSWORD_CHANGE`, `USER_CREATE`, `USER_UPDATE`, `USER_DELETE`, `USER_DISABLE`, `USER_ENABLE`, `CREDENTIAL_CREATE`, `CREDENTIAL_UPDATE`, `CREDENTIAL_DELETE`, `SECURITY_SCAN_START`, `SECURITY_SCAN_COMPLETE`, `COMPLIANCE_SCAN_START`, `COMPLIANCE_SCAN_COMPLETE`, `COST_ANALYSIS`, `REPORT_GENERATE`, `REPORT_EXPORT`, `ALERT_CREATE`, `ALERT_UPDATE`, `ALERT_DELETE`, `TICKET_CREATE`, `TICKET_UPDATE`, `TICKET_CLOSE`, `AI_CHAT`, `SETTINGS_UPDATE`, `ORGANIZATION_UPDATE`, `LICENSE_SYNC`, `DATA_EXPORT`, `DATA_DELETE`, `PERMISSION_CHANGE`, `API_KEY_CREATE`, `API_KEY_REVOKE`, `CLOUDTRAIL_ANALYSIS`, `WAF_SETUP`, `WAF_BLOCK_IP`, `WAF_UNBLOCK_IP`
-
----
-
-## MFA Implementation
-
-### 🚨 NÃO usar Cognito para MFA
-
-MFA é implementado localmente, não via Cognito.
-
-### Fluxo
-1. Backend gera secret TOTP com `crypto.randomBytes(20)`
-2. Secret salvo na tabela `mfa_factors` (PostgreSQL)
-3. Verificação local com função `verifyTOTP()`
-
-### Lambdas MFA
-| Lambda | Função |
-|--------|--------|
-| `mfa-enroll` | Cadastrar novo fator |
-| `mfa-check` | Verificar se usuário tem MFA |
-| `mfa-challenge-verify` | Verificar código durante enrollment |
-| `mfa-verify-login` | Verificar código durante login |
-| `mfa-list-factors` | Listar fatores do usuário |
-| `mfa-unenroll` | Remover fator |
-
----
 
 ## Multi-tenancy
-
-- **TODAS** as queries DEVEM filtrar por `organization_id`
+- TODAS queries DEVEM filtrar por `organization_id`
 - Usar `getOrganizationId(user)` ou `getOrganizationIdWithImpersonation(event, user)`
-- **NUNCA** expor dados de outras organizações
 
----
+## MFA — implementação LOCAL (NÃO Cognito)
+Secret TOTP via `crypto.randomBytes(20)`, salvo em `mfa_factors` (PostgreSQL).
 
-## Política Anti-Mocks
-
-### ⛔ PROIBIDO
-```typescript
-// ❌ Dados mockados
-const mockData = { tenantId: 'test-tenant-id' };
-return success({ data: mockData });
-
-// ❌ Mocks em testes
-jest.mock('@azure/identity');
-
-// ❌ Fallback para mock
-catch { return mockData; }
-```
-
-### ✅ CORRETO
-```typescript
-// ✅ Dados reais do banco
-const credentials = await prisma.azureCredential.findFirst({ where: { organizationId } });
-if (!credentials) return error('No credentials found', 404);
-
-// ✅ Erros reais
-catch (err) { return error(err.message, 500); }
-```
-
----
-
-## Build Commands
-
+## Build (SEMPRE testar antes de push)
 ```bash
-# Frontend
-npm run build
-
-# Backend
-npm run build --prefix backend
-
-# TypeScript check
-npx tsc --noEmit -p backend/tsconfig.json
+npm run build --prefix backend  # Backend
+npm run build                    # Frontend
 ```
 
----
-
-## 🚨 REGRA CRÍTICA: Testar Build Local ANTES de Push
-
-### ⛔ NUNCA faça push sem testar o build localmente
-
-**SEMPRE execute o build local antes de fazer commit/push:**
-
-```bash
-# Backend (TypeScript)
-npm run build --prefix backend
-
-# Frontend
-npm run build
+## Estrutura
 ```
-
-### Por que isso é CRÍTICO?
-
-1. **Evita falhas no CI/CD** - Pipeline leva 15-20 minutos para falhar
-2. **Detecta erros de compilação** - TypeScript, imports, variáveis não definidas
-3. **Economiza tempo** - 30 segundos local vs 15 minutos no pipeline
-4. **Mantém histórico limpo** - Sem commits quebrados
-
-### Checklist Antes de Push
-
-- [ ] `npm run build --prefix backend` executado com sucesso
-- [ ] `npm run build` executado com sucesso (se alterou frontend)
-- [ ] Nenhum erro de TypeScript
-- [ ] Nenhum erro de imports
-- [ ] Código testado localmente (se possível)
-
-### ⛔ NUNCA confie apenas em:
-- ❌ Syntax highlighting do editor
-- ❌ "Parece correto"
-- ❌ "É só uma linha"
-
-### ✅ SEMPRE:
-- ✅ Execute o build completo
-- ✅ Verifique a saída do comando
-- ✅ Confirme que não há erros ou warnings críticos
-
----
-
-## Estrutura de Diretórios
-
+backend/src/handlers/  — Lambda handlers por categoria
+backend/src/lib/       — Bibliotecas compartilhadas
+backend/src/types/     — Tipos TypeScript
+backend/prisma/        — Schema Prisma
+src/                   — Frontend React
 ```
-├── backend/
-│   ├── src/handlers/    # Lambda handlers por categoria
-│   ├── src/lib/         # Bibliotecas compartilhadas
-│   ├── src/types/       # Tipos TypeScript
-│   └── prisma/schema.prisma
-├── src/                 # Frontend React
-├── infra/               # AWS CDK
-└── .kiro/steering/      # Instruções para IA
-```
-
----
-
-**Última atualização:** 2026-02-05

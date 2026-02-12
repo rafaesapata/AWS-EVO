@@ -108,7 +108,7 @@ interface TestingEnforcer {
 
 interface TestConfiguration {
   framework: 'jest' | 'vitest';
-  environment: 'unit' | 'integration' | 'e2e';
+  environment: 'unit' | 'integration';
   dataSource: DataSource;
   mockingDisabled: boolean;
 }
@@ -193,7 +193,7 @@ interface DataAuthenticityRecord {
 interface TestExecutionRecord {
   id: string;
   testName: string;
-  testType: 'unit' | 'integration' | 'property' | 'e2e';
+  testType: 'unit' | 'integration' | 'property';
   usedRealData: boolean;
   dataSourcesUsed: DataSource[];
   executionTime: Date;
@@ -225,7 +225,7 @@ Many of the individual acceptance criteria can be grouped into broader, more com
 **Validates: Requirements 1.1, 1.2, 1.5, 8.3**
 
 **Property 2: Testing Framework Authenticity**
-*For any* test execution (unit, integration, property-based, or e2e), the test must use real database connections, authentic API endpoints, and legitimate service instances, never mocks or stubs.
+*For any* test execution (unit, integration, or property-based), the test must use real database connections, authentic API endpoints, and legitimate service instances, never mocks or stubs.
 **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5**
 
 **Property 3: Database Connection Integrity**

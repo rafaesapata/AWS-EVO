@@ -21,7 +21,7 @@ export interface TestCase {
   dependencies?: string[];
 }
 
-export type TestCategory = 'unit' | 'integration' | 'e2e' | 'performance' | 'security' | 'smoke';
+export type TestCategory = 'unit' | 'integration' | 'performance' | 'security' | 'smoke';
 export type TestPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export interface TestResult {

@@ -234,8 +234,24 @@ export function classifyWaste(
 ): MLRecommendation {
   const currentCost = getMonthlyCost(resourceType, currentSize);
   
-  // TERMINATE: Very low usage, essentially idle
+  // For stateful resources (EC2, RDS), prefer downsize over terminate
+  // Terminate is destructive and should only apply to truly disposable resources
+  const isStatefulResource = resourceType === 'EC2' || resourceType === 'RDS';
+  
+  // Very low usage - essentially idle
   if (metrics.avgCpu < 1 && metrics.maxCpu < 5) {
+    if (isStatefulResource) {
+      // EC2/RDS: recommend downsize to smallest type, NOT terminate
+      const recommendedSize = getDownsizeRecommendation(resourceType, currentSize, metrics.maxCpu);
+      const savings = calculateDownsizeSavings(resourceType, currentSize, recommendedSize);
+      return {
+        type: 'downsize',
+        confidence: calculateConfidence(metrics, 0.95),
+        recommendedSize,
+        savings: savings > 0 ? savings : currentCost * 0.7,
+        complexity: 'low',
+      };
+    }
     return {
       type: 'terminate',
       confidence: calculateConfidence(metrics, 0.95),
@@ -244,8 +260,20 @@ export function classifyWaste(
     };
   }
   
-  // TERMINATE: Zombie resource (no meaningful activity)
+  // Zombie resource (no meaningful activity)
   if (metrics.avgCpu < 2 && metrics.maxCpu < 10 && metrics.stdDevCpu < 2) {
+    if (isStatefulResource) {
+      // EC2/RDS: recommend downsize, not terminate
+      const recommendedSize = getDownsizeRecommendation(resourceType, currentSize, metrics.maxCpu);
+      const savings = calculateDownsizeSavings(resourceType, currentSize, recommendedSize);
+      return {
+        type: 'downsize',
+        confidence: calculateConfidence(metrics, 0.90),
+        recommendedSize,
+        savings: savings > 0 ? savings : currentCost * 0.6,
+        complexity: 'low',
+      };
+    }
     return {
       type: 'terminate',
       confidence: calculateConfidence(metrics, 0.90),
