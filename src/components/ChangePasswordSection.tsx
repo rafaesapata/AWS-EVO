@@ -11,6 +11,18 @@ import { cn } from "@/lib/utils";
 const MIN_PASSWORD_LENGTH = 8;
 const SPECIAL_CHARS_REGEX = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/;
 
+// Centralized password validation rules
+const PASSWORD_RULES = [
+  { key: 'minLength', test: (p: string) => p.length >= MIN_PASSWORD_LENGTH },
+  { key: 'uppercase', test: (p: string) => /[A-Z]/.test(p) },
+  { key: 'lowercase', test: (p: string) => /[a-z]/.test(p) },
+  { key: 'number', test: (p: string) => /[0-9]/.test(p) },
+  { key: 'special', test: (p: string) => SPECIAL_CHARS_REGEX.test(p) },
+] as const;
+
+const STRENGTH_LEVELS = 3;
+const STRENGTH_THRESHOLDS = { weak: 2, medium: 4 } as const;
+
 interface PasswordInputProps {
   id: string;
   label: string;
@@ -55,16 +67,17 @@ function PasswordInput({ id, label, placeholder, value, onChange, autoComplete }
 function PasswordStrength({ password }: { password: string }) {
   const { t } = useTranslation();
 
-  const rules = useMemo(() => [
-    { key: 'minLength', label: t("changePassword.rules.minLength"), met: password.length >= MIN_PASSWORD_LENGTH },
-    { key: 'uppercase', label: t("changePassword.rules.uppercase"), met: /[A-Z]/.test(password) },
-    { key: 'lowercase', label: t("changePassword.rules.lowercase"), met: /[a-z]/.test(password) },
-    { key: 'number', label: t("changePassword.rules.number"), met: /[0-9]/.test(password) },
-    { key: 'special', label: t("changePassword.rules.special"), met: SPECIAL_CHARS_REGEX.test(password) },
-  ], [password, t]);
+  const rules = useMemo(() =>
+    PASSWORD_RULES.map(({ key, test }) => ({
+      key,
+      label: t(`changePassword.rules.${key}`),
+      met: test(password),
+    })),
+    [password, t]
+  );
 
   const metCount = rules.filter(r => r.met).length;
-  const strength = metCount === 0 ? 0 : metCount <= 2 ? 1 : metCount <= 4 ? 2 : 3;
+  const strength = metCount === 0 ? 0 : metCount <= STRENGTH_THRESHOLDS.weak ? 1 : metCount <= STRENGTH_THRESHOLDS.medium ? 2 : 3;
   const strengthColors = ['bg-gray-200 dark:bg-gray-700', 'bg-destructive', 'bg-warning', 'bg-success'];
   const strengthLabels = [
     '',
@@ -80,7 +93,7 @@ function PasswordStrength({ password }: { password: string }) {
       {/* Strength bar */}
       <div className="space-y-1.5">
         <div className="flex gap-1">
-          {[1, 2, 3].map((level) => (
+          {Array.from({ length: STRENGTH_LEVELS }, (_, i) => i + 1).map((level) => (
             <div
               key={level}
               className={cn(
@@ -133,13 +146,9 @@ export default function ChangePasswordSection() {
   const [formData, setFormData] = useState(INITIAL_FORM);
 
   const validatePassword = (password: string): string[] => {
-    const errors: string[] = [];
-    if (password.length < MIN_PASSWORD_LENGTH) errors.push(t("changePassword.rules.minLength"));
-    if (!/[A-Z]/.test(password)) errors.push(t("changePassword.rules.uppercase"));
-    if (!/[a-z]/.test(password)) errors.push(t("changePassword.rules.lowercase"));
-    if (!/[0-9]/.test(password)) errors.push(t("changePassword.rules.number"));
-    if (!SPECIAL_CHARS_REGEX.test(password)) errors.push(t("changePassword.rules.special"));
-    return errors;
+    return PASSWORD_RULES
+      .filter(({ test }) => !test(password))
+      .map(({ key }) => t(`changePassword.rules.${key}`));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

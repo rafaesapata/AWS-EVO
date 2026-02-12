@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
-import { apiClient } from "@/integrations/aws/api-client";
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import {
@@ -25,6 +24,20 @@ interface Profile {
   full_name: string;
   email: string;
   avatar_url?: string;
+}
+
+function ProfileInfoCard({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
+  return (
+    <div className="glass rounded-xl p-4 border border-primary/10">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+          <Icon className="h-3.5 w-3.5 text-[#003C7D]" />
+        </div>
+        <span className="text-xs text-muted-foreground">{label}</span>
+      </div>
+      <p className="text-sm font-medium text-foreground truncate">{value}</p>
+    </div>
+  );
 }
 
 export default function UserMenu() {
@@ -96,7 +109,7 @@ export default function UserMenu() {
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56 " align="end">
+      <DropdownMenuContent className="w-56" align="end">
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium">{profile.full_name}</p>
@@ -150,24 +163,8 @@ export default function UserMenu() {
           <div className="p-6 space-y-6">
             {/* Info Cards */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="glass rounded-xl p-4 border border-primary/10">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
-                    <User className="h-3.5 w-3.5 text-[#003C7D]" />
-                  </div>
-                  <span className="text-xs text-muted-foreground">{t('userMenu.fullName')}</span>
-                </div>
-                <p className="text-sm font-medium text-foreground truncate">{profile.full_name}</p>
-              </div>
-              <div className="glass rounded-xl p-4 border border-primary/10">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
-                    <Mail className="h-3.5 w-3.5 text-[#003C7D]" />
-                  </div>
-                  <span className="text-xs text-muted-foreground">{t('userMenu.email')}</span>
-                </div>
-                <p className="text-sm font-medium text-foreground truncate">{profile.email}</p>
-              </div>
+              <ProfileInfoCard icon={User} label={t('userMenu.fullName')} value={profile.full_name} />
+              <ProfileInfoCard icon={Mail} label={t('userMenu.email')} value={profile.email} />
             </div>
 
             <Separator className="bg-border/50" />
