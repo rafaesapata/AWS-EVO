@@ -30,6 +30,7 @@ Globals:
         LICENSE_API_URL: https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/validate-license
         LICENSE_CREATE_API_URL: https://mhutjgpipiklepvjrboi.supabase.co/functions/v1/api-create-trial
         LICENSE_API_KEY: nck_59707b56bf8def71dfb657bb8f2f4b9c
+        TOKEN_ENCRYPTION_KEY: !Ref TokenEncryptionKey
     Layers:
       - !Ref DependenciesLayer
 
@@ -69,6 +70,11 @@ Parameters:
     Type: String
     Description: Private Subnet 2
     Default: subnet-0f68017cc0b95edda
+  TokenEncryptionKey:
+    Type: String
+    NoEcho: true
+    Description: Base64-encoded 32-byte key for encrypting sensitive credentials (Azure client secrets, OAuth tokens)
+    Default: ''
 
 Resources:
   # Lambda Layer - Prisma + Zod

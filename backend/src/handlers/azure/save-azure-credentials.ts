@@ -143,8 +143,12 @@ export async function handler(
         const encrypted = encryptToken(spData.clientSecret);
         encryptedClientSecret = serializeEncryptedToken(encrypted);
       } catch (encErr: any) {
-        logger.error('Failed to encrypt client secret', { error: encErr.message });
-        return error('Failed to securely store credentials', 500, undefined, origin);
+        logger.error('Failed to encrypt client secret', { 
+          error: encErr.message,
+          hasTokenKey: !!process.env.TOKEN_ENCRYPTION_KEY,
+          hasDatabaseUrl: !!process.env.DATABASE_URL,
+        });
+        return error('Failed to securely store credentials. Encryption configuration error.', 500, undefined, origin);
       }
 
       if (existingCredential) {

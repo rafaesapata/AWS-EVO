@@ -33,24 +33,35 @@ export interface EncryptedToken {
  * @returns 32-byte encryption key
  * @throws Error if key is not configured or invalid
  */
+function deriveKeyFromSecret(secret: string): Buffer {
+  return crypto.createHash('sha256').update(secret).digest();
+}
+
 function getEncryptionKey(keyId: string = 'v1'): Buffer {
   // Support multiple keys for rotation
   const envKey = keyId === 'v1' 
     ? process.env.TOKEN_ENCRYPTION_KEY 
     : process.env[`TOKEN_ENCRYPTION_KEY_${keyId.toUpperCase()}`];
   
-  if (!envKey) {
-    throw new Error(`Encryption key not configured for keyId: ${keyId}`);
+  if (envKey) {
+    // Key should be base64 encoded 32-byte key
+    const keyBuffer = Buffer.from(envKey, 'base64');
+    
+    if (keyBuffer.length !== KEY_LENGTH) {
+      throw new Error(`Invalid encryption key length: expected ${KEY_LENGTH} bytes, got ${keyBuffer.length}`);
+    }
+    
+    return keyBuffer;
   }
   
-  // Key should be base64 encoded 32-byte key
-  const keyBuffer = Buffer.from(envKey, 'base64');
-  
-  if (keyBuffer.length !== KEY_LENGTH) {
-    throw new Error(`Invalid encryption key length: expected ${KEY_LENGTH} bytes, got ${keyBuffer.length}`);
+  // Fallback: derive key from DATABASE_URL (always available in Lambda environment)
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl) {
+    logger.warn('TOKEN_ENCRYPTION_KEY not configured, deriving key from DATABASE_URL. Set TOKEN_ENCRYPTION_KEY for production use.');
+    return deriveKeyFromSecret(databaseUrl);
   }
   
-  return keyBuffer;
+  throw new Error(`Encryption key not configured for keyId: ${keyId}. Set TOKEN_ENCRYPTION_KEY environment variable.`);
 }
 
 /**
