@@ -4,7 +4,7 @@ import { success, error as errorResponse, corsOptions, badRequest } from '../../
 import { getPrismaClient } from '../../lib/database.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
-import { getWebAuthnRpId, getWebAuthnOrigin, getWebAuthnRpName } from '../../lib/app-domain.js';
+import { getWebAuthnRpId, getWebAuthnOrigin, getWebAuthnRpName, WEBAUTHN_CHALLENGE_EXPIRY_MS } from '../../lib/app-domain.js';
 import * as crypto from 'crypto';
 
 interface RegistrationRequest {
@@ -89,7 +89,7 @@ async function generateChallenge(
 
     // Gerar challenge com crypto seguro
     const challenge = crypto.randomBytes(32).toString('base64url');
-    const challengeExpiry = new Date(Date.now() + 300000); // 5 minutos
+    const challengeExpiry = new Date(Date.now() + WEBAUTHN_CHALLENGE_EXPIRY_MS);
 
     // Salvar challenge
     await prisma.webauthnChallenge.create({

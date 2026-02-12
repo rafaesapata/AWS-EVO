@@ -9,6 +9,19 @@
 
 const DEFAULT_DOMAIN = 'evo.nuevacore.com';
 
+// ============================================================================
+// Shared Constants
+// ============================================================================
+
+/** WebAuthn challenge expiry in milliseconds (5 minutes) */
+export const WEBAUTHN_CHALLENGE_EXPIRY_MS = 5 * 60 * 1000;
+
+/** Offset in authenticatorData where the sign counter starts (per WebAuthn spec) */
+export const WEBAUTHN_COUNTER_OFFSET = 33;
+
+/** Fallback organization ID for system-level events when no org context is available */
+export const SYSTEM_ORG_ID_FALLBACK = '00000000-0000-0000-0000-000000000000';
+
 /** Base domain (e.g., evo.nuevacore.com) */
 export function getAppDomain(): string {
   return process.env.APP_DOMAIN || DEFAULT_DOMAIN;

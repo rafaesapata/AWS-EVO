@@ -4,6 +4,7 @@
  */
 
 import { getPrismaClient } from '../../lib/database.js';
+import { SYSTEM_ORG_ID_FALLBACK } from '../../lib/app-domain.js';
 import { 
   CognitoIdentityProviderClient, 
   ForgotPasswordCommand,
@@ -27,7 +28,7 @@ interface ForgotPasswordRequest {
   newPassword?: string;
 }
 
-const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
+const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -156,7 +157,7 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any, ori
     try {
       await cognitoClient.send(new ForgotPasswordCommand({ ClientId: clientId, Username: email }));
 
-      const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000';
+      const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || SYSTEM_ORG_ID_FALLBACK;
       
       await prisma.securityEvent.create({
         data: {
@@ -211,7 +212,7 @@ async function handleForgotPassword(body: ForgotPasswordRequest, event: any, ori
       });
 
       if (profile) {
-        const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000';
+        const organizationId = profile.organization_id || process.env.SYSTEM_ORGANIZATION_ID || SYSTEM_ORG_ID_FALLBACK;
         
         await prisma.securityEvent.create({
           data: {

@@ -12,8 +12,9 @@
 import { logger } from '../../lib/logger.js';
 import { success, error as errorResponse, corsOptions, badRequest, unauthorized } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { getWebAuthnRpId, getWebAuthnOrigin } from '../../lib/app-domain.js';
+import { getWebAuthnRpId, getWebAuthnOrigin, WEBAUTHN_CHALLENGE_EXPIRY_MS, WEBAUTHN_COUNTER_OFFSET, SYSTEM_ORG_ID_FALLBACK } from '../../lib/app-domain.js';
 import * as crypto from 'crypto';
+import type { PrismaClient } from '@prisma/client';
 
 const SESSION_TOKEN_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -151,7 +152,7 @@ async function startAuthentication(email?: string, origin?: string): Promise<any
 
   // Generate challenge (base64url encoded)
   const challenge = crypto.randomBytes(32).toString('base64url');
-  const challengeExpiry = new Date(Date.now() + 300000); // 5 minutes
+  const challengeExpiry = new Date(Date.now() + WEBAUTHN_CHALLENGE_EXPIRY_MS);
 
   await prisma.webauthnChallenge.create({
     data: {
@@ -173,7 +174,7 @@ async function startAuthentication(email?: string, origin?: string): Promise<any
     options: {
       challenge,
       rpId,
-      timeout: 300000,
+      timeout: WEBAUTHN_CHALLENGE_EXPIRY_MS,
       userVerification: 'preferred',
       allowCredentials
     }
@@ -277,7 +278,7 @@ async function finishAuthentication(
     }
 
     // Verify counter (replay protection)
-    const counter = authenticatorData.readUInt32BE(33);
+    const counter = authenticatorData.readUInt32BE(WEBAUTHN_COUNTER_OFFSET);
     if (counter > 0 && counter <= credential.counter) {
       await logSecurityEvent(prisma, 'WEBAUTHN_REPLAY_DETECTED', 'HIGH',
         'Replay attack detected', { 
@@ -333,17 +334,17 @@ async function finishAuthentication(
 }
 
 async function logSecurityEvent(
-  prisma: any, eventType: string, severity: string, 
-  description: string, metadata: any, orgId?: string
+  prisma: PrismaClient, eventType: string, severity: string, 
+  description: string, metadata: Record<string, unknown>, orgId?: string
 ): Promise<void> {
   try {
     await prisma.securityEvent.create({
       data: {
-        organization_id: orgId || process.env.SYSTEM_ORGANIZATION_ID || '00000000-0000-0000-0000-000000000000',
+        organization_id: orgId || process.env.SYSTEM_ORGANIZATION_ID || SYSTEM_ORG_ID_FALLBACK,
         event_type: eventType,
         severity,
         description,
-        metadata
+        metadata: metadata as any
       }
     });
   } catch (err) {
