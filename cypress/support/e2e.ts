@@ -44,6 +44,9 @@ export function isRawApiGateway500(res: Cypress.Response<any>): boolean {
 /**
  * Lambdas known to require FULL_SAM deploy (import @aws-sdk/* directly).
  * When these return raw API Gateway 500, it's an infrastructure issue, not a code bug.
+ * 
+ * MAINTENANCE: Keep in sync with handlers that import @aws-sdk/*.
+ * Run: grep -rl "@aws-sdk" backend/src/handlers/ to find them.
  */
 export const AWS_SDK_LAMBDAS = new Set([
   'fetch-daily-costs', 'cost-optimization', 'budget-forecast', 'finops-copilot',
@@ -56,6 +59,18 @@ export const AWS_SDK_LAMBDAS = new Set([
   'start-azure-security-scan', 'ticket-attachments', 'process-background-jobs',
   'storage-delete', 'upload-attachment', 'webauthn-check', 'forgot-password',
 ]);
+
+/**
+ * Check if a response is a known @aws-sdk bundling issue (raw API GW 500).
+ * If so, logs a warning and returns true so the caller can skip further assertions.
+ */
+export function skipIfAwsSdkBundlingIssue(res: Cypress.Response<any>, lambdaName: string): boolean {
+  if (isRawApiGateway500(res) && AWS_SDK_LAMBDAS.has(lambdaName)) {
+    Cypress.log({ name: 'SKIP', message: `${lambdaName}: raw API GW 500 - needs FULL_SAM redeploy` });
+    return true;
+  }
+  return false;
+}
 
 /** Valid HTTP methods for method rejection tests */
 export const INVALID_METHODS = ['GET', 'PUT', 'DELETE', 'PATCH'] as const;

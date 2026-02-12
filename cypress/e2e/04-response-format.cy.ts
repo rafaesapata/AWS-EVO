@@ -6,7 +6,7 @@
  * Tests ALL safe read-only endpoints (not a sample).
  */
 import { HTTP_LAMBDAS } from '../support/lambda-registry';
-import { CRASH_CODES, expectNoCrash, parseBody, isRawApiGateway500, AWS_SDK_LAMBDAS } from '../support/e2e';
+import { CRASH_CODES, expectNoCrash, parseBody, skipIfAwsSdkBundlingIssue } from '../support/e2e';
 
 describe('Response Format Validation', () => {
   const safeReadEndpoints = HTTP_LAMBDAS.filter(l => l.safe && l.auth === 'cognito');
@@ -15,12 +15,7 @@ describe('Response Format Validation', () => {
     it(`${lambda.name}: should follow standard response format`, () => {
       cy.apiPost(lambda.name, {}).then((res) => {
         expectNoCrash(res, lambda.name);
-
-        // Skip format validation for known @aws-sdk lambdas with bundling issues
-        if (isRawApiGateway500(res) && AWS_SDK_LAMBDAS.has(lambda.name)) {
-          cy.log(`⚠️ ${lambda.name}: raw API GW 500 — needs FULL_SAM redeploy`);
-          return;
-        }
+        if (skipIfAwsSdkBundlingIssue(res, lambda.name)) return;
 
         const body = parseBody(res);
 

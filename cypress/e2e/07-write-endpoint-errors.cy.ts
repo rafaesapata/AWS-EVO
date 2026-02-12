@@ -4,7 +4,7 @@
  * Complements 04-response-format which only tests safe read-only endpoints.
  */
 import { HTTP_LAMBDAS } from '../support/lambda-registry';
-import { expectNoCrash, expectErrorStructure, parseBody, isRawApiGateway500, AWS_SDK_LAMBDAS } from '../support/e2e';
+import { expectNoCrash, expectErrorStructure, parseBody, skipIfAwsSdkBundlingIssue } from '../support/e2e';
 
 describe('Write Endpoint Error Responses', () => {
   // All non-safe HTTP endpoints that require auth
@@ -14,11 +14,7 @@ describe('Write Endpoint Error Responses', () => {
     it(`${lambda.name}: should return structured error with empty body`, () => {
       cy.apiPost(lambda.name, {}).then((res) => {
         expectNoCrash(res, lambda.name);
-
-        if (isRawApiGateway500(res) && AWS_SDK_LAMBDAS.has(lambda.name)) {
-          cy.log(`⚠️ ${lambda.name}: raw API GW 500 — needs FULL_SAM redeploy`);
-          return;
-        }
+        if (skipIfAwsSdkBundlingIssue(res, lambda.name)) return;
 
         expectErrorStructure(res, lambda.name);
 
