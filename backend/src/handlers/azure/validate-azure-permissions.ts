@@ -17,7 +17,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
-import { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } from '../../lib/azure-helpers.js';
+import { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE, resolveClientSecret } from '../../lib/azure-helpers.js';
 
 interface ValidationResult {
   permission: string;
@@ -140,7 +140,6 @@ export async function handler(
         new Date(Date.now() + ONE_HOUR_MS)
       );
     } else {
-      const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
       const resolvedSecret = resolveClientSecret(credential);
       if (!credential.tenant_id || !credential.client_id || !resolvedSecret) {
         return error('Service Principal credentials incomplete. Missing tenant_id, client_id, or client_secret.', 400);
