@@ -94,6 +94,30 @@ const DOWNSIZE_FALLBACK_SAVINGS_RATIO = 0.7;
 const TIME_BUFFER_MS = 2000;
 const STOPPED_ANALYSIS_BUFFER_MS = 5000;
 
+// Error patterns for credential failures (used to short-circuit region loop and map HTTP status)
+const CREDENTIAL_ERROR_PATTERNS = [
+  'No valid AWS credentials',
+  'Failed to assume role',
+  'ExpiredTokenException',
+  'InvalidIdentityToken',
+] as const;
+
+const PERMISSION_ERROR_PATTERNS = ['AccessDenied', 'UnauthorizedAccess'] as const;
+const CONNECTIVITY_ERROR_PATTERNS = ['ECONNREFUSED', 'ETIMEDOUT', 'socket hang up'] as const;
+
+/** Check if an error message matches any pattern in the list */
+function matchesAny(message: string, patterns: readonly string[]): boolean {
+  return patterns.some(p => message.includes(p));
+}
+
+/** Extract error info safely from unknown catch value */
+function extractError(err: unknown): { message: string; name: string } {
+  return {
+    message: err instanceof Error ? err.message : String(err),
+    name: err instanceof Error ? err.name : 'Error',
+  };
+}
+
 function calculatePriority(savings: number, confidence: number): number {
   if (savings > 500 && confidence > 0.8) return 5;
   if (savings > 200 || (savings > 500 && confidence > 0.6)) return 4;
@@ -322,18 +346,15 @@ export const handler = safeHandler(async (
         }
         
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
+        const { message: errMsg, name: errName } = extractError(err);
         logger.error('Error analyzing region', err as Error, { 
           region,
           organizationId,
-          errorType: err instanceof Error ? err.name : 'Unknown',
+          errorType: errName,
           errorMessage: errMsg,
         });
         // If credentials are invalid, no point trying other regions
-        if (errMsg.includes('No valid AWS credentials') || 
-            errMsg.includes('Failed to assume role') ||
-            errMsg.includes('ExpiredTokenException') ||
-            errMsg.includes('InvalidIdentityToken')) {
+        if (matchesAny(errMsg, CREDENTIAL_ERROR_PATTERNS)) {
           logger.warn('Credential error detected, skipping remaining regions');
           break;
         }
@@ -447,8 +468,7 @@ export const handler = safeHandler(async (
     });
     
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    const errorName = err instanceof Error ? err.name : 'Error';
+    const { message: errorMessage, name: errorName } = extractError(err);
     
     logger.error('ML Waste Detection error', err as Error, { 
       organizationId,
@@ -472,7 +492,7 @@ export const handler = safeHandler(async (
         },
       });
     } catch (updateErr) {
-      logger.warn('Failed to update history record on error', { error: (updateErr as Error).message });
+      logger.warn('Failed to update history record on error', { error: extractError(updateErr).message });
     }
     
     await businessMetrics.errorOccurred(
@@ -482,13 +502,13 @@ export const handler = safeHandler(async (
     );
     
     // Return specific error messages based on error type (without exposing internals)
-    if (errorMessage.includes('No valid AWS credentials') || errorMessage.includes('Failed to assume role')) {
+    if (matchesAny(errorMessage, CREDENTIAL_ERROR_PATTERNS)) {
       return error('AWS credentials are invalid or expired. Please update your credentials.', 400);
     }
-    if (errorMessage.includes('AccessDenied') || errorMessage.includes('UnauthorizedAccess')) {
+    if (matchesAny(errorMessage, PERMISSION_ERROR_PATTERNS)) {
       return error('Insufficient AWS permissions. Please verify your IAM role has the required policies.', 403);
     }
-    if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ETIMEDOUT') || errorMessage.includes('socket hang up')) {
+    if (matchesAny(errorMessage, CONNECTIVITY_ERROR_PATTERNS)) {
       return error('Service temporarily unavailable. Please try again in a few minutes.', 503);
     }
     if (errorName === 'SyntaxError') {
