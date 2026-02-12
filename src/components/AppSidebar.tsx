@@ -121,6 +121,7 @@ const menuItems: MenuItem[] = [
       { titleKey: "sidebar.scheduledJobs", value: "scheduled-jobs", superAdminOnly: true },
     ]
   },
+  { titleKey: "sidebar.adminSettings", value: "admin-settings", icon: Settings, superAdminOnly: true },
   { titleKey: "sidebar.devTools", value: "devtools", icon: Activity, superAdminOnly: true },
   { titleKey: "sidebar.platformMonitoring", value: "platform-monitoring", icon: Activity, superAdminOnly: true },
   { titleKey: "sidebar.aiNotifications", value: "ai-notifications", icon: Bell, superAdminOnly: true },
@@ -176,6 +177,8 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/background-jobs');
     } else if (value === 'devtools') {
       navigate('/bedrock-test');
+    } else if (value === 'admin-settings') {
+      navigate('/admin/settings');
     } else if (value === 'platform-monitoring') {
       navigate('/platform-monitoring');
     } else if (value === 'ai-notifications') {

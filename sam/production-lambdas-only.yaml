@@ -205,6 +205,32 @@ Resources:
   # ==========================================================================
   # ADMIN FUNCTIONS (16)
   # ==========================================================================
+  AdminAzureCredentialsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-admin-azure-credentials'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: admin-azure-credentials.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/admin-azure-credentials
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - admin-azure-credentials.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
   AdminManageUserFunction:
     Type: AWS::Serverless::Function
     Properties:

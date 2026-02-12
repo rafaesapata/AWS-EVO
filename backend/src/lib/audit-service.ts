@@ -57,7 +57,8 @@ export type AuditAction =
   | 'SEAT_RELEASED'
   | 'DATA_CREATE'
   | 'DATA_UPDATE'
-  | 'DATA_UPSERT';
+  | 'DATA_UPSERT'
+  | 'ADMIN_UPDATE_AZURE_CREDENTIAL';
 
 export type AuditResourceType =
   | 'user'
