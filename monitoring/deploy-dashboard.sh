@@ -120,9 +120,8 @@ DASHBOARD_BODY=$(cat <<'DASHBOARD_EOF'
       "x": 0, "y": 13, "width": 24, "height": 6,
       "properties": {
         "title": "Recent Errors (Logs Insights)",
-        "query": "fields @timestamp, handler, message, errorMessage, meta.errorType\n| filter level = 'ERROR' or level = 'CRITICAL'\n| sort @timestamp desc\n| limit 20",
+        "query": "fields @timestamp, coalesce(handler, functionName) as src_handler, message, errorMessage\n| filter level = 'ERROR' or level = 'CRITICAL'\n| sort @timestamp desc\n| limit 20",
         "region": "__REGION__",
-        "stacked": false,
         "view": "table",
         "logGroupNames": __LOG_GROUPS_JSON__
       }
