@@ -508,6 +508,13 @@ export const handler = safeHandler(async (
     
     if (isAccessDenied({ name: errName, message: errMsg })) {
       // Use 422 instead of 403 to avoid frontend interpreting as auth error and triggering token refresh
+      logger.error('WAF setup AccessDenied (pre-flight may have been skipped)', {
+        organizationId,
+        userId: user.sub,
+        errName,
+        errMsg,
+      });
+      
       return error(
         `Access denied. The IAM role does not have sufficient permissions to configure WAF logging. ` +
         `This usually means the CloudFormation stack needs to be updated. ${CF_UPDATE_INSTRUCTION} ` +
