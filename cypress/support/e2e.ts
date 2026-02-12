@@ -13,6 +13,10 @@ declare global {
       apiPost(lambdaName: string, body?: Record<string, any>): Chainable<Cypress.Response<any>>;
       /** POST to a Lambda endpoint WITHOUT auth (public endpoints) */
       apiPostPublic(lambdaName: string, body?: Record<string, any>): Chainable<Cypress.Response<any>>;
+      /** Send request with invalid/malformed auth token */
+      apiPostInvalidToken(lambdaName: string, token: string, body?: Record<string, any>): Chainable<Cypress.Response<any>>;
+      /** Send request with a specific HTTP method (for method rejection tests) */
+      apiRequest(lambdaName: string, method: string, body?: Record<string, any>): Chainable<Cypress.Response<any>>;
       /** Validate standard response structure */
       validateResponse(): Chainable<any>;
       /** Validate that lambda is reachable (not 502/503/504) */
@@ -23,6 +27,9 @@ declare global {
 
 /** Status codes that indicate a lambda crash or infrastructure failure */
 export const CRASH_CODES = [502, 503, 504];
+
+/** Valid HTTP methods for method rejection tests */
+export const INVALID_METHODS = ['GET', 'PUT', 'DELETE', 'PATCH'] as const;
 
 /**
  * Assert response is not a crash (502/503/504).
@@ -67,6 +74,9 @@ Cypress.Commands.add('authenticate', () => {
   }
 
   // Force refresh if expired
+  if (cachedToken) {
+    Cypress.log({ name: 'auth', message: 'Token expired, refreshing...' });
+  }
   cachedToken = null;
 
   const email = Cypress.env('TEST_USER_EMAIL');
@@ -165,6 +175,41 @@ Cypress.Commands.add('validateLambdaHealth', (lambdaName: string) => {
   return cy.apiPost(lambdaName, {}).then((response) => {
     expectNoCrash(response, lambdaName);
     return cy.wrap(response);
+  });
+});
+
+/**
+ * POST with invalid/malformed auth token
+ * Used to test that auth validation rejects bad tokens, not just missing ones
+ */
+Cypress.Commands.add('apiPostInvalidToken', (lambdaName: string, token: string, body: Record<string, any> = {}) => {
+  return cy.request({
+    method: 'POST',
+    url: `/api/functions/${lambdaName}`,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body,
+    failOnStatusCode: false,
+  });
+});
+
+/**
+ * Send request with arbitrary HTTP method (for method rejection tests)
+ */
+Cypress.Commands.add('apiRequest', (lambdaName: string, method: string, body: Record<string, any> = {}) => {
+  return cy.authenticate().then((token) => {
+    return cy.request({
+      method,
+      url: `/api/functions/${lambdaName}`,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: ['GET', 'DELETE', 'HEAD'].includes(method) ? undefined : body,
+      failOnStatusCode: false,
+    });
   });
 });
 

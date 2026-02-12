@@ -91,6 +91,18 @@ describe('Operations Domain', () => {
         expectNoCrash(res);
       });
     });
+
+    it('cancel-background-job: should handle job cancellation', () => {
+      cy.apiPost('cancel-background-job', {}).then((res) => {
+        expectNoCrash(res);
+      });
+    });
+
+    it('retry-background-job: should handle job retry', () => {
+      cy.apiPost('retry-background-job', {}).then((res) => {
+        expectNoCrash(res);
+      });
+    });
   });
 
   // ── System ───────────────────────────────────────────────────────────────

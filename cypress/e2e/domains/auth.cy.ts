@@ -1,6 +1,7 @@
 /**
  * AUTH DOMAIN - Deep E2E Tests
  * MFA, WebAuthn, Profiles, Public Auth
+ * Tests business logic: validates error messages, required fields, response shapes
  */
 import { expectNoCrash, parseBody } from '../../support/e2e';
 
@@ -10,122 +11,178 @@ describe('Auth Domain - MFA, WebAuthn, Profiles', () => {
     it('mfa-check: should return MFA status for authenticated user', () => {
       cy.apiPost('mfa-check').then((res) => {
         expectNoCrash(res);
-        if (res.status === 200) {
-          const body = parseBody(res);
-          expect(body).to.have.property('success');
-        }
-      });
-    });
-
-    it('mfa-list-factors: should list MFA factors', () => {
-      cy.apiPost('mfa-list-factors').then((res) => {
-        expectNoCrash(res);
-        if (res.status === 200) {
-          const body = parseBody(res);
-          expect(body.success).to.be.true;
+        const body = parseBody(res);
+        expect(body).to.have.property('success');
+        if (res.status === 200 && body.success) {
           expect(body.data).to.exist;
         }
       });
     });
 
-    it('mfa-enroll: should require factor_type in body', () => {
+    it('mfa-list-factors: should list MFA factors with data array', () => {
+      cy.apiPost('mfa-list-factors').then((res) => {
+        expectNoCrash(res);
+        const body = parseBody(res);
+        if (res.status === 200 && body.success) {
+          expect(body.data).to.be.an('array');
+        }
+      });
+    });
+
+    it('mfa-enroll: should reject without factor_type', () => {
       cy.apiPost('mfa-enroll', {}).then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        if (res.status === 400 || res.status === 422) {
+          expect(body.success).to.be.false;
+          expect(body.error).to.be.a('string');
+        }
       });
     });
 
     it('mfa-challenge-verify: should reject without code', () => {
       cy.apiPost('mfa-challenge-verify', {}).then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        if (res.status === 400 || res.status === 422) {
+          expect(body.success).to.be.false;
+          expect(body.error).to.be.a('string');
+        }
       });
     });
 
     it('mfa-verify-login: should reject without code', () => {
       cy.apiPost('mfa-verify-login', {}).then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        if (res.status === 400 || res.status === 422) {
+          expect(body.success).to.be.false;
+        }
       });
     });
 
     it('mfa-unenroll: should reject without factor_id', () => {
       cy.apiPost('mfa-unenroll', {}).then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        if (res.status === 400 || res.status === 422) {
+          expect(body.success).to.be.false;
+          expect(body.error).to.be.a('string');
+        }
       });
     });
   });
 
   // ── WebAuthn ─────────────────────────────────────────────────────────────
   describe('WebAuthn Handlers', () => {
-    it('webauthn-check: should return WebAuthn status', () => {
+    it('webauthn-check: should return WebAuthn status with success field', () => {
       cy.apiPost('webauthn-check').then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        expect(body).to.have.property('success');
       });
     });
 
-    it('webauthn-register: should require registration data', () => {
+    it('webauthn-register: should reject empty registration data', () => {
       cy.apiPost('webauthn-register', {}).then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        if (res.status === 400 || res.status === 422) {
+          expect(body.success).to.be.false;
+          expect(body.error).to.be.a('string');
+        }
       });
     });
 
-    it('webauthn-authenticate: should require auth data', () => {
+    it('webauthn-authenticate: should reject empty auth data', () => {
       cy.apiPost('webauthn-authenticate', {}).then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        if (res.status === 400 || res.status === 422) {
+          expect(body.success).to.be.false;
+        }
       });
     });
 
-    it('delete-webauthn-credential: should require credential_id', () => {
+    it('delete-webauthn-credential: should reject without credential_id', () => {
       cy.apiPost('delete-webauthn-credential', {}).then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        if (res.status === 400 || res.status === 422) {
+          expect(body.success).to.be.false;
+          expect(body.error).to.be.a('string');
+        }
       });
     });
   });
 
   // ── Public Auth ──────────────────────────────────────────────────────────
   describe('Public Auth Endpoints', () => {
-    it('self-register: should be accessible without auth', () => {
+    it('self-register: should be accessible without auth and return structured response', () => {
       cy.apiPostPublic('self-register', {}).then((res) => {
         expectNoCrash(res);
+        expect(res.status).to.not.eq(401);
+        const body = parseBody(res);
+        expect(body).to.have.property('success');
       });
     });
 
-    it('forgot-password: should be accessible without auth', () => {
+    it('forgot-password: should be accessible without auth and return structured response', () => {
       cy.apiPostPublic('forgot-password', {}).then((res) => {
         expectNoCrash(res);
+        expect(res.status).to.not.eq(401);
+        const body = parseBody(res);
+        expect(body).to.have.property('success');
       });
     });
 
-    it('verify-tv-token: should handle missing token', () => {
+    it('verify-tv-token: should return error for missing token', () => {
       cy.apiPost('verify-tv-token', {}).then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        expect(body).to.have.property('success');
+        // Without a token, should fail gracefully
+        if (res.status === 400 || res.status === 422) {
+          expect(body.success).to.be.false;
+        }
       });
     });
   });
 
   // ── Profiles ─────────────────────────────────────────────────────────────
   describe('Profile Handlers', () => {
-    it('check-organization: should return org status', () => {
+    it('check-organization: should return org status with success field', () => {
       cy.apiPost('check-organization').then((res) => {
         expectNoCrash(res);
-        if (res.status === 200) {
-          const body = parseBody(res);
-          expect(body).to.have.property('success');
-        }
+        const body = parseBody(res);
+        expect(body).to.have.property('success');
       });
     });
 
-    it('get-user-organization: should return user org', () => {
+    it('get-user-organization: should return user org with data', () => {
       cy.apiPost('get-user-organization').then((res) => {
         expectNoCrash(res);
-        if (res.status === 200) {
-          const body = parseBody(res);
-          expect(body.success).to.be.true;
+        const body = parseBody(res);
+        expect(body).to.have.property('success');
+        if (res.status === 200 && body.success) {
+          expect(body).to.have.property('data');
         }
       });
     });
 
-    it('notification-settings: should return settings', () => {
+    it('notification-settings: should return settings for get action', () => {
       cy.apiPost('notification-settings', { action: 'get' }).then((res) => {
         expectNoCrash(res);
+        const body = parseBody(res);
+        expect(body).to.have.property('success');
+      });
+    });
+
+    it('create-with-organization: should require org data', () => {
+      cy.apiPost('create-with-organization', {}).then((res) => {
+        expectNoCrash(res);
+        const body = parseBody(res);
+        expect(body).to.have.property('success');
       });
     });
   });

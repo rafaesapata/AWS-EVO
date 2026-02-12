@@ -265,7 +265,7 @@ export const LICENSE_LAMBDAS: LambdaDefinition[] = [
   { name: 'admin-sync-license', type: 'http', auth: 'cognito', safe: false, domain: 'integrations', description: 'Admin sync license' },
   { name: 'manage-seats', type: 'http', auth: 'cognito', safe: false, domain: 'integrations', description: 'Manage seats' },
   { name: 'manage-seat-assignments', type: 'internal', auth: 'cognito', safe: false, domain: 'integrations', description: 'Manage seat assignments' },
-  { name: 'daily-license-validation', type: 'internal', auth: 'cognito', safe: true, domain: 'integrations', description: 'Daily license validation' },
+  { name: 'daily-license-validation', type: 'http', auth: 'cognito', safe: true, domain: 'integrations', description: 'Daily license validation' },
   { name: 'scheduled-license-sync', type: 'internal', auth: 'cognito', safe: false, domain: 'integrations', description: 'Scheduled license sync' },
   { name: 'cleanup-seats', type: 'internal', auth: 'cognito', safe: false, domain: 'integrations', description: 'Cleanup seats' },
 ];
@@ -299,6 +299,8 @@ export const JOBS_LAMBDAS: LambdaDefinition[] = [
   { name: 'list-background-jobs', type: 'http', auth: 'cognito', safe: true, domain: 'operations', description: 'List background jobs' },
   { name: 'execute-scheduled-job', type: 'http', auth: 'cognito', safe: false, domain: 'operations', description: 'Execute scheduled job' },
   { name: 'scheduled-scan-executor', type: 'http', auth: 'cognito', safe: false, domain: 'operations', description: 'Scheduled scan executor' },
+  { name: 'cancel-background-job', type: 'http', auth: 'cognito', safe: false, domain: 'operations', description: 'Cancel background job' },
+  { name: 'retry-background-job', type: 'http', auth: 'cognito', safe: false, domain: 'operations', description: 'Retry background job' },
   { name: 'send-scheduled-emails', type: 'internal', auth: 'cognito', safe: false, domain: 'operations', description: 'Send scheduled emails' },
   { name: 'cleanup-expired-oauth-states', type: 'internal', auth: 'cognito', safe: false, domain: 'operations', description: 'Cleanup expired OAuth states' },
   { name: 'cleanup-expired-external-ids', type: 'internal', auth: 'cognito', safe: false, domain: 'operations', description: 'Cleanup expired external IDs' },

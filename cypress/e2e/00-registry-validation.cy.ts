@@ -1,5 +1,5 @@
 /**
- * Registry Validation - Ensures ALL 195+ lambdas are registered
+ * Registry Validation - Ensures ALL 203+ lambdas are registered
  * This test validates the registry itself before running domain tests
  */
 import { ALL_LAMBDAS, HTTP_LAMBDAS, INTERNAL_LAMBDAS, PUBLIC_LAMBDAS } from '../support/lambda-registry';
@@ -18,7 +18,7 @@ describe('Lambda Registry Validation', () => {
   });
 
   it('should have HTTP lambdas with API routes', () => {
-    expect(HTTP_LAMBDAS.length).to.be.gte(148);
+    expect(HTTP_LAMBDAS.length).to.be.gte(149);
   });
 
   it('should have internal lambdas without API routes', () => {
@@ -49,5 +49,17 @@ describe('Lambda Registry Validation', () => {
   it('should cover all 8 domains', () => {
     const domains = [...new Set(ALL_LAMBDAS.map(l => l.domain))].sort();
     expect(domains).to.include.members(['auth', 'security', 'cloud', 'cost', 'monitoring', 'operations', 'ai', 'integrations']);
+  });
+
+  it('all public lambdas should have auth: none', () => {
+    PUBLIC_LAMBDAS.forEach(l => {
+      expect(l.auth, `${l.name} is public but auth is not 'none'`).to.eq('none');
+    });
+  });
+
+  it('HTTP lambdas should not have duplicate names', () => {
+    const httpNames = HTTP_LAMBDAS.map(l => l.name);
+    const dupes = httpNames.filter((n, i) => httpNames.indexOf(n) !== i);
+    expect(dupes, `Duplicate HTTP lambdas: ${dupes.join(', ')}`).to.have.length(0);
   });
 });

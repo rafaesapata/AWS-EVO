@@ -1,41 +1,43 @@
 /**
  * CORS Validation - Ensures all HTTP endpoints return proper CORS headers
- * Tests response headers on both authenticated and public endpoints
+ * Uses registry-driven sampling: picks 3 lambdas per domain for broad coverage
+ * instead of a hardcoded list that drifts out of sync.
  */
-import { HTTP_LAMBDAS } from '../support/lambda-registry';
+import { PUBLIC_LAMBDAS, getLambdasByDomain } from '../support/lambda-registry';
 import { expectNoCrash } from '../support/e2e';
 
-describe('CORS Validation - All HTTP Endpoints', () => {
-  // Sample 20 lambdas across domains for CORS check (testing all 148 would be slow)
-  const sampleLambdas = [
-    'mfa-check', 'list-aws-credentials', 'security-scan', 'fetch-daily-costs',
-    'get-executive-dashboard', 'alerts', 'bedrock-chat', 'validate-license',
-    'query-table', 'get-communication-logs', 'list-azure-credentials',
-    'get-findings', 'cost-optimization', 'get-lambda-health', 'kb-analytics-dashboard',
-    'list-background-jobs', 'get-user-organization', 'list-cloud-credentials',
-    'generate-pdf-report', 'manage-seats',
-  ];
+const DOMAINS = ['auth', 'security', 'cloud', 'cost', 'monitoring', 'operations', 'ai', 'integrations'];
+const SAMPLE_PER_DOMAIN = 3;
 
-  sampleLambdas.forEach((name) => {
-    it(`${name}: should return CORS headers`, () => {
-      cy.apiPost(name, {}).then((res) => {
-        expectNoCrash(res, name);
-        expect(
-          res.headers['access-control-allow-origin'],
-          `${name} missing Access-Control-Allow-Origin`
-        ).to.exist;
+describe('CORS Validation - Registry-Driven Sampling', () => {
+  // Sample N lambdas per domain from the registry (auth-required HTTP endpoints)
+  DOMAINS.forEach((domain) => {
+    const domainLambdas = getLambdasByDomain(domain)
+      .filter(l => l.type === 'http' && l.auth === 'cognito')
+      .slice(0, SAMPLE_PER_DOMAIN);
+
+    domainLambdas.forEach((lambda) => {
+      it(`[${domain}] ${lambda.name}: should return CORS headers`, () => {
+        cy.apiPost(lambda.name, {}).then((res) => {
+          expectNoCrash(res, lambda.name);
+          expect(
+            res.headers['access-control-allow-origin'],
+            `${lambda.name} missing Access-Control-Allow-Origin`
+          ).to.exist;
+        });
       });
     });
   });
 
-  const publicLambdas = ['self-register', 'forgot-password', 'log-frontend-error', 'get-executive-dashboard-public'];
-  publicLambdas.forEach((name) => {
-    it(`[PUBLIC] ${name}: should return CORS headers without auth`, () => {
-      cy.apiPostPublic(name, {}).then((res) => {
-        expectNoCrash(res, name);
+  // All public endpoints must have CORS (no sampling — there are few)
+  const publicHttp = PUBLIC_LAMBDAS.filter(l => l.type === 'http');
+  publicHttp.forEach((lambda) => {
+    it(`[PUBLIC] ${lambda.name}: should return CORS headers without auth`, () => {
+      cy.apiPostPublic(lambda.name, {}).then((res) => {
+        expectNoCrash(res, lambda.name);
         expect(
           res.headers['access-control-allow-origin'],
-          `${name} missing Access-Control-Allow-Origin`
+          `${lambda.name} missing Access-Control-Allow-Origin`
         ).to.exist;
       });
     });

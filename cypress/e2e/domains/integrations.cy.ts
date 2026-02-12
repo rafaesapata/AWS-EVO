@@ -31,6 +31,12 @@ describe('Integrations Domain', () => {
       });
     });
 
+    it('daily-license-validation: should handle daily validation', () => {
+      cy.apiPost('daily-license-validation', {}).then((res) => {
+        expectNoCrash(res);
+      });
+    });
+
     it('manage-seats: should handle seats', () => {
       cy.apiPost('manage-seats', { action: 'list' }).then((res) => {
         expectNoCrash(res);
