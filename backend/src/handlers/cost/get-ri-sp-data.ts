@@ -11,6 +11,8 @@ import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoRISPAnalysis } from '../../lib/demo-data-service.js';
 
+const HOURS_PER_MONTH = 730;
+
 interface GetRISPDataRequest {
   accountId: string;
 }
@@ -29,7 +31,13 @@ export async function handler(
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
-    const body: GetRISPDataRequest = event.body ? JSON.parse(event.body) : {};
+    let body: GetRISPDataRequest;
+    try {
+      body = typeof event.body === 'string' ? JSON.parse(event.body) : (event.body || {});
+    } catch (parseErr) {
+      logger.error('Failed to parse request body', parseErr);
+      return error('Invalid request body', 400);
+    }
     const { accountId } = body;
     
     const prisma = getPrismaClient();
@@ -47,7 +55,7 @@ export async function handler(
     }
     
     if (!accountId) {
-      return error('Missing required parameter: accountId');
+      return error('Missing required parameter: accountId', 400);
     }
     
     // Verify account belongs to organization
@@ -56,39 +64,37 @@ export async function handler(
     });
     
     if (!account) {
-      return error('AWS account not found');
+      return error('AWS account not found', 404);
     }
     
-    // Fetch Reserved Instances
-    const reservedInstances = await prisma.reservedInstance.findMany({
-      where: {
-        organization_id: organizationId,
-        aws_account_id: accountId,
-      },
-      orderBy: { created_at: 'desc' },
-    });
-    
-    // Fetch Savings Plans
-    const savingsPlans = await prisma.savingsPlan.findMany({
-      where: {
-        organization_id: organizationId,
-        aws_account_id: accountId,
-      },
-      orderBy: { created_at: 'desc' },
-    });
-    
-    // Fetch Recommendations
-    const recommendations = await prisma.riSpRecommendation.findMany({
-      where: {
-        organization_id: organizationId,
-        aws_account_id: accountId,
-        status: 'active',
-      },
-      orderBy: [
-        { priority: 'asc' },
-        { estimated_annual_savings: 'desc' },
-      ],
-    });
+    // Fetch all data in parallel
+    const [reservedInstances, savingsPlans, recommendations] = await Promise.all([
+      prisma.reservedInstance.findMany({
+        where: {
+          organization_id: organizationId,
+          aws_account_id: accountId,
+        },
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.savingsPlan.findMany({
+        where: {
+          organization_id: organizationId,
+          aws_account_id: accountId,
+        },
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.riSpRecommendation.findMany({
+        where: {
+          organization_id: organizationId,
+          aws_account_id: accountId,
+          status: 'active',
+        },
+        orderBy: [
+          { priority: 'asc' },
+          { estimated_annual_savings: 'desc' },
+        ],
+      }),
+    ]);
     
     // If no data found, return empty state
     if (reservedInstances.length === 0 && savingsPlans.length === 0 && recommendations.length === 0) {
@@ -193,7 +199,7 @@ export async function handler(
           region: ri.region,
           utilizationPercentage: ri.utilization_percentage,
           hourlyCost: ri.usage_price || 0,
-          monthlyCost: (ri.usage_price || 0) * 730,
+          monthlyCost: (ri.usage_price || 0) * HOURS_PER_MONTH,
         })),
         rds: rdsRIs.map(ri => ({
           id: ri.reserved_instance_id,
@@ -206,7 +212,7 @@ export async function handler(
           offeringType: ri.offering_type,
           region: ri.region,
           hourlyCost: ri.usage_price || 0,
-          monthlyCost: (ri.usage_price || 0) * 730,
+          monthlyCost: (ri.usage_price || 0) * HOURS_PER_MONTH,
         })),
         total: reservedInstances.length,
         active: activeRIs.length,
@@ -219,8 +225,8 @@ export async function handler(
           type: sp.savings_plan_type,
           state: sp.state,
           commitment: sp.commitment,
-          start: sp.start_date.toISOString(),
-          end: sp.end_date?.toISOString() || '',
+          start: sp.start_date ? new Date(sp.start_date).toISOString() : '',
+          end: sp.end_date ? new Date(sp.end_date).toISOString() : '',
           paymentOption: sp.payment_option,
           region: sp.region,
           utilizationPercentage: sp.utilization_percentage,
@@ -239,21 +245,28 @@ export async function handler(
       potentialSavings: {
         monthly: totalPotentialSavings / 12,
         annual: totalPotentialSavings,
-        maxPercentage: Math.max(...transformedRecommendations.map(r => r.potentialSavings.percentage), 0),
+        maxPercentage: transformedRecommendations.length > 0
+          ? Math.max(...transformedRecommendations.map(r => r.potentialSavings.percentage || 0))
+          : 0,
       },
       analysisMetadata: {
         accountId,
-        // Use the most recent timestamp from recommendations (which are recreated on each analysis)
-        timestamp: recommendations[0]?.generated_at?.toISOString() || 
-                   recommendations[0]?.created_at?.toISOString() || 
-                   reservedInstances[0]?.updated_at?.toISOString() ||
-                   new Date().toISOString(),
+        timestamp: (() => {
+          try {
+            if (recommendations[0]?.generated_at) return new Date(recommendations[0].generated_at).toISOString();
+            if (recommendations[0]?.created_at) return new Date(recommendations[0].created_at).toISOString();
+            if (reservedInstances[0]?.updated_at) return new Date(reservedInstances[0].updated_at).toISOString();
+            return new Date().toISOString();
+          } catch { return new Date().toISOString(); }
+        })(),
         dataSource: 'database',
       },
     });
     
   } catch (err) {
-    logger.error('❌ Get RI/SP Data error:', err);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    logger.error('❌ Get RI/SP Data error:', { message: errorMessage, stack: errorStack });
     return error('An unexpected error occurred. Please try again.', 500);
   }
 }
