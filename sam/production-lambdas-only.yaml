@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: |
-  EVO Platform - Lambda Functions Only (194 total) - v15 FULL_SAM rebuild - remove @aws-sdk/* from External for 5 cost lambdas to fix Runtime.ImportModuleError
+  EVO Platform - Lambda Functions Only (194 total) - v16 FULL_SAM rebuild - fix TOKEN_ENCRYPTION_KEY loading from SSM
   Uses existing VPC, RDS, Cognito infrastructure
   All functions use ARM64 + esbuild for fast builds
-  Updated: 2026-02-11 - Force FULL_SAM to restore esbuild bundling for all lambdas
+  Updated: 2026-02-12 - Fix TOKEN_ENCRYPTION_KEY blank in all lambdas, load from SSM Parameter Store
 Globals:
   Function:
     Runtime: nodejs20.x

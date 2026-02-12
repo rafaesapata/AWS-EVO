@@ -104,8 +104,18 @@ phases:
           export APP_DOMAIN="evo.nuevacore.com"
         fi
       - echo "Environment $ENV | Stack $STACK_NAME"
-      # Fetch Azure OAuth Client Secret from SSM Parameter Store (secret not stored in code)
+      # Fetch secrets from SSM Parameter Store (secrets not stored in code)
       - |
+        # Token Encryption Key
+        TOKEN_KEY_PARAM="/evo/${ENV}/token-encryption-key"
+        export TOKEN_ENCRYPTION_KEY=$(aws ssm get-parameter --name "$TOKEN_KEY_PARAM" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+        if [ -z "$TOKEN_ENCRYPTION_KEY" ]; then
+          echo "WARNING: TOKEN_ENCRYPTION_KEY not found in SSM ($TOKEN_KEY_PARAM). Token encryption will use fallback."
+        else
+          echo "TOKEN_ENCRYPTION_KEY loaded from SSM (${TOKEN_ENCRYPTION_KEY:0:5}...)"
+        fi
+
+        # Azure OAuth Client Secret
         AZURE_SECRET_PARAM="/evo/${ENV}/azure-oauth-client-secret"
         export AZURE_OAUTH_CLIENT_SECRET=$(aws ssm get-parameter --name "$AZURE_SECRET_PARAM" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
         if [ -z "$AZURE_OAUTH_CLIENT_SECRET" ]; then
@@ -293,7 +303,7 @@ phases:
               AzureOAuthClientId=$AZURE_OAUTH_CLIENT_ID \
               AzureOAuthClientSecret="$AZURE_OAUTH_CLIENT_SECRET" \
               AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI \
-              TokenEncryptionKey="${TOKEN_ENCRYPTION_KEY:-none}"
+              TokenEncryptionKey="${TOKEN_ENCRYPTION_KEY}"
 
         elif [ "$DEPLOY_HANDLERS" = "true" ]; then
           echo "=== INCREMENTAL LAMBDA DEPLOY ==="
