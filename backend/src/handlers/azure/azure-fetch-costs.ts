@@ -72,6 +72,12 @@ async function getAccessToken(
       const tokenResult = await getAzureCredentialWithToken(prisma, credential.id, credential.organization_id);
       
       if (!tokenResult.success) {
+        // Provide clearer error for OAuth client secret issues
+        const isClientSecretError = tokenResult.error.includes('invalid_client') || 
+                                     tokenResult.error.includes('AADSTS7000215');
+        if (isClientSecretError) {
+          return { success: false, error: 'Azure OAuth client secret is invalid or expired. Please generate a new secret in Azure Portal and update the server configuration.' };
+        }
         return { success: false, error: tokenResult.error };
       }
       return { success: true, token: tokenResult.accessToken };

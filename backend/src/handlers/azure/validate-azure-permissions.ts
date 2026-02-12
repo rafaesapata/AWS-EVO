@@ -104,11 +104,32 @@ export async function handler(
     let azureProvider: AzureProvider;
     
     if (credential.auth_type === 'oauth') {
-      // Use getAzureCredentialWithToken for OAuth
+      // Force a fresh token refresh to validate the full OAuth flow
+      // (including client_secret validity), not just a cached token
       const { getAzureCredentialWithToken, ONE_HOUR_MS } = await import('../../lib/azure-helpers.js');
+      
+      // Expire the cached token to force a real refresh cycle
+      try {
+        await prisma.azureCredential.update({
+          where: { id: credentialId },
+          data: { token_expires_at: new Date(0) },
+        });
+      } catch (updateErr: any) {
+        logger.warn('Could not expire cached token for validation', { error: updateErr.message });
+      }
+      
       const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
       
       if (!tokenResult.success) {
+        // Provide a clearer error for OAuth client secret issues
+        const isClientSecretError = tokenResult.error.includes('invalid_client') || 
+                                     tokenResult.error.includes('AADSTS7000215');
+        if (isClientSecretError) {
+          return error(
+            'Azure OAuth client secret is invalid or expired. A new secret must be generated in Azure Portal (App registrations > Certificates & secrets) and updated in the server environment variables.',
+            401
+          );
+        }
         return error(tokenResult.error, 400);
       }
       

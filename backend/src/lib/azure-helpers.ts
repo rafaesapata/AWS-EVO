@@ -174,6 +174,10 @@ async function refreshOAuthToken(
   
   if (!response.ok) {
     const errorText = await response.text();
+    const isClientSecretError = errorText.includes('invalid_client') || errorText.includes('AADSTS7000215');
+    if (isClientSecretError) {
+      throw new Error('invalid_client: Azure OAuth client secret is invalid or expired. Generate a new secret in Azure Portal (App registrations > Certificates & secrets) and update AZURE_OAUTH_CLIENT_SECRET.');
+    }
     throw new Error(`Failed to refresh OAuth token: ${response.status} ${errorText}`);
   }
   
