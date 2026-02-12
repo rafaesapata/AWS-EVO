@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Smartphone, Key, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Smartphone, Key, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import QRCode from "qrcode";
 
@@ -21,6 +21,7 @@ interface MFAFactor {
 }
 
 export default function MFASettings() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [factors, setFactors] = useState<MFAFactor[]>([]);
   const [webauthnCredentials, setWebauthnCredentials] = useState<any[]>([]);
@@ -124,7 +125,7 @@ export default function MFASettings() {
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Erro ao configurar TOTP",
+        title: t('mfa.enrollError', 'Erro ao configurar TOTP'),
         description: error.message
       });
     } finally {
@@ -148,8 +149,8 @@ export default function MFASettings() {
       }
 
       toast({
-        title: "TOTP ativado com sucesso!",
-        description: "Seu autenticador foi configurado."
+        title: t('mfa.totpActivated', 'TOTP ativado com sucesso!'),
+        description: t('mfa.totpConfigured', 'Seu autenticador foi configurado.')
       });
 
       setShowTOTPDialog(false);
@@ -159,8 +160,8 @@ export default function MFASettings() {
       console.error('MFA Verify Error:', error);
       toast({
         variant: "destructive",
-        title: "Código inválido",
-        description: error?.message || "Verifique o código e tente novamente."
+        title: t('mfa.invalidCode', 'Código inválido'),
+        description: error?.message || t('mfa.verifyRetry', 'Verifique o código e tente novamente.')
       });
     } finally {
       setLoading(false);
@@ -237,8 +238,8 @@ export default function MFASettings() {
       }
 
       toast({
-        title: "Chave de segurança registrada!",
-        description: "Seu dispositivo foi configurado com sucesso."
+        title: t('mfa.keyRegistered', 'Chave de segurança registrada!'),
+        description: t('mfa.deviceConfigured', 'Seu dispositivo foi configurado com sucesso.')
       });
 
       await loadWebAuthnCredentials();
@@ -247,8 +248,8 @@ export default function MFASettings() {
       console.error('WebAuthn error:', error);
       toast({
         variant: "destructive",
-        title: "Erro ao configurar WebAuthn",
-        description: error.message || "Verifique se seu navegador suporta WebAuthn e se você tem um dispositivo compatível."
+        title: t('mfa.webauthnError', 'Erro ao configurar WebAuthn'),
+        description: error.message || t('mfa.webauthnCheckBrowser', 'Verifique se seu navegador suporta WebAuthn.')
       });
     } finally {
       setLoading(false);
@@ -272,8 +273,8 @@ export default function MFASettings() {
         }
 
         toast({
-          title: "Chave removida",
-          description: "A chave de segurança foi desativada."
+          title: t('mfa.keyRemoved', 'Chave removida'),
+          description: t('mfa.keyDeactivated', 'A chave de segurança foi desativada.')
         });
 
         await loadWebAuthnCredentials();
@@ -285,8 +286,8 @@ export default function MFASettings() {
         }
 
         toast({
-          title: "Fator removido",
-          description: "O método de autenticação foi desativado."
+          title: t('mfa.factorRemoved', 'Fator removido'),
+          description: t('mfa.factorDeactivated', 'O método de autenticação foi desativado.')
         });
 
         await loadMFAFactors();
@@ -294,7 +295,7 @@ export default function MFASettings() {
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Erro ao remover fator",
+        title: t('mfa.removeError', 'Erro ao remover fator'),
         description: error.message
       });
     } finally {
@@ -307,128 +308,124 @@ export default function MFASettings() {
   const totalMethods = verifiedFactors.length + webauthnCredentials.length;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-primary" />
-          <CardTitle>Autenticação Multi-Fator (MFA)</CardTitle>
-        </div>
-        <CardDescription>
-          Adicione uma camada extra de segurança à sua conta
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {hasMFA ? (
-          <Alert className="border-green-500/50 bg-green-500/10">
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-            <AlertDescription className="text-green-500">
-              MFA está ativo na sua conta. {totalMethods} método(s) configurado(s).
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <Alert className="border-yellow-500/50 bg-yellow-500/10">
-            <AlertCircle className="h-4 w-4 text-yellow-500" />
-            <AlertDescription className="text-yellow-500">
-              MFA não está ativo. Recomendamos fortemente ativar para maior segurança.
-            </AlertDescription>
-          </Alert>
-        )}
+    <div className="space-y-4">
+      {hasMFA ? (
+        <Alert className="border-green-500/50 bg-green-500/10">
+          <CheckCircle2 className="h-4 w-4 text-green-500" />
+          <AlertDescription className="text-green-500">
+            {t('mfa.mfaActive', 'MFA está ativo na sua conta.')} {totalMethods} {t('mfa.methodsConfigured', 'método(s) configurado(s).')}
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert className="border-yellow-500/50 bg-yellow-500/10">
+          <AlertCircle className="h-4 w-4 text-yellow-500" />
+          <AlertDescription className="text-yellow-500">
+            {t('mfa.mfaInactive', 'MFA não está ativo. Recomendamos fortemente ativar para maior segurança.')}
+          </AlertDescription>
+        </Alert>
+      )}
 
-        <div className="space-y-4">
-          <div>
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <Smartphone className="h-4 w-4" />
-              Autenticador TOTP
-            </h3>
-            <p className="text-sm text-muted-foreground mb-3">
-              Use aplicativos como Google Authenticator, Authy ou Microsoft Authenticator
-            </p>
-            <Button onClick={enrollTOTP} disabled={loading} variant="outline">
-              <Smartphone className="h-4 w-4 mr-2" />
-              Configurar Autenticador TOTP
-            </Button>
+      <div className="space-y-4">
+        <div className="glass rounded-xl p-4 border border-primary/10">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+              <Smartphone className="h-3.5 w-3.5 text-[#003C7D]" />
+            </div>
+            <h3 className="text-sm font-medium">{t('mfa.totpTitle', 'Autenticador TOTP')}</h3>
           </div>
-
-          <div className="opacity-50">
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <Key className="h-4 w-4" />
-              Chave de Segurança (WebAuthn)
-            </h3>
-            <p className="text-sm text-muted-foreground mb-3">
-              Esta funcionalidade requer uma licença Enterprise
-            </p>
-            <Button disabled variant="outline" className="cursor-not-allowed">
-              <Key className="h-4 w-4 mr-2" />
-              Indisponível nesta licença
-            </Button>
-          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            {t('mfa.totpDesc', 'Use aplicativos como Google Authenticator, Authy ou Microsoft Authenticator')}
+          </p>
+          <Button onClick={enrollTOTP} disabled={loading} variant="outline" className="glass border-primary/10">
+            <Smartphone className="h-4 w-4 mr-2" />
+            {t('mfa.configureTOTP', 'Configurar Autenticador TOTP')}
+          </Button>
         </div>
 
-        {(factors.length > 0 || webauthnCredentials.length > 0) && (
-          <div className="space-y-3">
-            <h3 className="font-semibold">Métodos Ativos</h3>
-            
-            {/* TOTP Factors */}
-            {factors.map((factor) => (
-              <div key={factor.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Smartphone className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">{factor.friendly_name}</p>
-                    <p className="text-xs text-muted-foreground">Autenticador TOTP</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={factor.status === 'verified' ? 'default' : 'secondary'}>
-                    {factor.status === 'verified' ? 'Ativo' : 'Pendente'}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => unenrollFactor(factor.id, false)}
-                    disabled={loading}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-
-            {/* WebAuthn Credentials */}
-            {webauthnCredentials.map((cred) => (
-              <div key={cred.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Key className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">{cred.friendly_name || 'Chave de Segurança'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      WebAuthn • Último uso: {cred.last_used_at ? new Date(cred.last_used_at).toLocaleDateString('pt-BR') : 'Nunca'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="default">Ativo</Badge>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => unenrollFactor(cred.id, true)}
-                    disabled={loading}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+        <div className="glass rounded-xl p-4 border border-primary/10 opacity-50">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+              <Key className="h-3.5 w-3.5 text-[#003C7D]" />
+            </div>
+            <h3 className="text-sm font-medium">{t('mfa.webauthnTitle', 'Chave de Segurança (WebAuthn)')}</h3>
           </div>
-        )}
+          <p className="text-xs text-muted-foreground mb-3">
+            {t('mfa.webauthnEnterprise', 'Esta funcionalidade requer uma licença Enterprise')}
+          </p>
+          <Button disabled variant="outline" className="cursor-not-allowed glass border-primary/10">
+            <Key className="h-4 w-4 mr-2" />
+            {t('mfa.unavailable', 'Indisponível nesta licença')}
+          </Button>
+        </div>
+      </div>
+
+      {(factors.length > 0 || webauthnCredentials.length > 0) && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium">{t('mfa.activeMethods', 'Métodos Ativos')}</h3>
+          
+          {factors.map((factor) => (
+            <div key={factor.id} className="flex items-center justify-between p-3 glass rounded-xl border border-primary/10">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                  <Smartphone className="h-3.5 w-3.5 text-[#003C7D]" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{factor.friendly_name}</p>
+                  <p className="text-xs text-muted-foreground">{t('mfa.totpTitle', 'Autenticador TOTP')}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={factor.status === 'verified' ? 'default' : 'secondary'}>
+                  {factor.status === 'verified' ? t('mfa.active', 'Ativo') : t('mfa.pending', 'Pendente')}
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => unenrollFactor(factor.id, false)}
+                  disabled={loading}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          {webauthnCredentials.map((cred) => (
+            <div key={cred.id} className="flex items-center justify-between p-3 glass rounded-xl border border-primary/10">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                  <Key className="h-3.5 w-3.5 text-[#003C7D]" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{cred.friendly_name || 'Chave de Segurança'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    WebAuthn • Último uso: {cred.last_used_at ? new Date(cred.last_used_at).toLocaleDateString('pt-BR') : 'Nunca'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="default">{t('mfa.active', 'Ativo')}</Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => unenrollFactor(cred.id, true)}
+                  disabled={loading}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
         {/* TOTP Setup Dialog */}
         <Dialog open={showTOTPDialog} onOpenChange={setShowTOTPDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Configurar Autenticador TOTP</DialogTitle>
+              <DialogTitle>{t('mfa.setupTOTP', 'Configurar Autenticador TOTP')}</DialogTitle>
               <DialogDescription>
-                Escaneie o QR Code com seu aplicativo autenticador
+                {t('mfa.scanQRCode', 'Escaneie o QR Code com seu aplicativo autenticador')}
               </DialogDescription>
             </DialogHeader>
 
@@ -437,25 +434,25 @@ export default function MFASettings() {
                 <div className="flex flex-col items-center gap-2">
                   <img src={qrCode} alt="QR Code" className="border rounded-lg p-2" />
                   <p className="text-xs text-muted-foreground text-center">
-                    Escaneie com Google Authenticator, Authy ou similar
+                    {t('mfa.scanWithApp', 'Escaneie com Google Authenticator, Authy ou similar')}
                   </p>
                 </div>
               ) : (
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Use o código manual abaixo para configurar seu autenticador
+                    {t('mfa.useManualCode', 'Use o código manual abaixo para configurar seu autenticador')}
                   </AlertDescription>
                 </Alert>
               )}
 
               <div className="space-y-2">
-                <Label>Ou insira manualmente:</Label>
+                <Label>{t('mfa.manualEntry', 'Ou insira manualmente:')}</Label>
                 <Input value={totpSecret} readOnly className="font-mono text-sm" />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="verify-code">Código de Verificação</Label>
+                <Label htmlFor="verify-code">{t('mfa.verificationCode', 'Código de Verificação')}</Label>
                 <Input
                   id="verify-code"
                   placeholder="000000"
@@ -465,22 +462,21 @@ export default function MFASettings() {
                   className="text-center text-2xl tracking-widest"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Digite o código de 6 dígitos gerado pelo seu aplicativo
+                  {t('mfa.enterCode', 'Digite o código de 6 dígitos gerado pelo seu aplicativo')}
                 </p>
               </div>
             </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowTOTPDialog(false)}>
-                Cancelar
+                {t('common.cancel', 'Cancelar')}
               </Button>
               <Button onClick={verifyTOTP} disabled={loading || verifyCode.length !== 6}>
-                {loading ? "Verificando..." : "Verificar e Ativar"}
+                {loading ? t('mfa.verifying', 'Verificando...') : t('mfa.verifyAndActivate', 'Verificar e Ativar')}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

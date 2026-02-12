@@ -2,13 +2,13 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Globe, Clock, Shield } from "lucide-react";
 import MFASettings from "@/components/MFASettings";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -42,7 +42,6 @@ export default function UserSettings() {
         return;
       }
 
-      // Try to load user profile settings
       try {
         const profile = await apiClient.select('profiles', {
           select: 'language, timezone',
@@ -61,7 +60,6 @@ export default function UserSettings() {
         }
       } catch (profileError) {
         console.warn('Could not load user profile settings:', profileError);
-        // Don't show error for missing profile - use defaults
       }
     } catch (error) {
       console.error('Error loading user settings:', error);
@@ -112,14 +110,12 @@ export default function UserSettings() {
   if (initialLoading) {
     return (
       <div className="space-y-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin mr-2" />
-              Carregando configurações...
-            </div>
-          </CardContent>
-        </Card>
+        <div className="glass rounded-xl p-6 border border-primary/10">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            {t('settings.loading', 'Carregando configurações...')}
+          </div>
+        </div>
       </div>
     );
   }
@@ -129,12 +125,10 @@ export default function UserSettings() {
       <div className="space-y-6">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {error}
-          </AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <Button onClick={loadUserSettings} variant="outline">
-          Tentar Novamente
+        <Button onClick={loadUserSettings} variant="outline" className="glass">
+          {t('settings.retry', 'Tentar Novamente')}
         </Button>
       </div>
     );
@@ -142,15 +136,18 @@ export default function UserSettings() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('settings.title')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>{t('settings.language')}</Label>
+      {/* Preferences Section */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="glass rounded-xl p-4 border border-primary/10 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                <Globe className="h-3.5 w-3.5 text-[#003C7D]" />
+              </div>
+              <Label className="text-xs text-muted-foreground">{t('settings.language')}</Label>
+            </div>
             <Select value={language} onValueChange={setLanguage}>
-              <SelectTrigger>
+              <SelectTrigger className="glass border-primary/10 focus:border-[#003C7D]/30 focus:ring-[#003C7D]/20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -161,10 +158,15 @@ export default function UserSettings() {
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>{t('settings.timezone')}</Label>
+          <div className="glass rounded-xl p-4 border border-primary/10 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                <Clock className="h-3.5 w-3.5 text-[#003C7D]" />
+              </div>
+              <Label className="text-xs text-muted-foreground">{t('settings.timezone')}</Label>
+            </div>
             <Select value={timezone} onValueChange={setTimezone}>
-              <SelectTrigger>
+              <SelectTrigger className="glass border-primary/10 focus:border-[#003C7D]/30 focus:ring-[#003C7D]/20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -174,12 +176,36 @@ export default function UserSettings() {
               </SelectContent>
             </Select>
           </div>
+        </div>
 
-          <Button onClick={handleSave} disabled={loading}>
-            {loading ? t('common.loading') : t('settings.save')}
-          </Button>
-        </CardContent>
-      </Card>
+        <Button
+          onClick={handleSave}
+          disabled={loading}
+          className="w-full bg-gradient-to-r from-[#003C7D] to-[#008CFF] hover:from-[#003C7D]/90 hover:to-[#008CFF]/90 text-white shadow-md hover:shadow-lg transition-all duration-200"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              {t('common.loading')}
+            </>
+          ) : (
+            t('settings.save')
+          )}
+        </Button>
+      </div>
+
+      <Separator className="bg-border/50" />
+
+      {/* MFA Section Header */}
+      <div className="flex items-center gap-2.5">
+        <div className="p-2 bg-[#003C7D]/10 rounded-xl">
+          <Shield className="h-4 w-4 text-[#003C7D]" />
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-foreground">{t('settings.securitySection', 'Segurança')}</h3>
+          <p className="text-xs text-muted-foreground">{t('settings.securityDesc', 'Gerencie a autenticação multi-fator')}</p>
+        </div>
+      </div>
 
       <ErrorBoundary level="component" context="MFASettings">
         <MFASettings />

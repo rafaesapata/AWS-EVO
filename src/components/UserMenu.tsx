@@ -40,6 +40,18 @@ function ProfileInfoCard({ icon: Icon, label, value }: { icon: React.ComponentTy
   );
 }
 
+function DialogHeroHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative overflow-hidden rounded-t-lg">
+      <div className="absolute inset-0 bg-gradient-to-br from-[#003C7D] via-[#0055A4] to-[#008CFF]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.15)_0%,_transparent_60%)]" />
+      <div className="relative px-6 pt-8 pb-6 flex items-center gap-5">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function UserMenu() {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -139,25 +151,20 @@ export default function UserMenu() {
       {/* Profile Dialog */}
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
         <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto p-0 gap-0 glass border-primary/20">
-          {/* Hero Header */}
-          <div className="relative overflow-hidden rounded-t-lg">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#003C7D] via-[#0055A4] to-[#008CFF]" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.15)_0%,_transparent_60%)]" />
-            <div className="relative px-6 pt-8 pb-6 flex items-center gap-5">
-              <Avatar className="h-16 w-16 ring-2 ring-white/30 shadow-lg">
-                <AvatarFallback className="bg-white/20 text-white text-xl font-light backdrop-blur-sm">
-                  {getInitials(profile.full_name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-light text-white truncate">{profile.full_name}</h2>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <Mail className="h-3 w-3 text-white/70" />
-                  <span className="text-sm text-white/80">{profile.email}</span>
-                </div>
+          <DialogHeroHeader>
+            <Avatar className="h-16 w-16 ring-2 ring-white/30 shadow-lg">
+              <AvatarFallback className="bg-white/20 text-white text-xl font-light backdrop-blur-sm">
+                {getInitials(profile.full_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-light text-white truncate">{profile.full_name}</h2>
+              <div className="flex items-center gap-1.5 mt-1">
+                <Mail className="h-3 w-3 text-white/70" />
+                <span className="text-sm text-white/80">{profile.email}</span>
               </div>
             </div>
-          </div>
+          </DialogHeroHeader>
 
           {/* Content */}
           <div className="p-6 space-y-6">
@@ -187,11 +194,21 @@ export default function UserMenu() {
 
       {/* Settings Dialog */}
       <Dialog open={showSettings} onOpenChange={setShowSettings}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('userMenu.settings')}</DialogTitle>
-          </DialogHeader>
-          <UserSettings />
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto p-0 gap-0 glass border-primary/20">
+          <DialogHeroHeader>
+            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm ring-2 ring-white/30 shadow-lg">
+              <Settings className="h-7 w-7 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-light text-white">{t('userMenu.settings')}</h2>
+              <p className="text-sm text-white/80 mt-1">{t('settings.settingsDesc', 'Personalize sua experiência na plataforma')}</p>
+            </div>
+          </DialogHeroHeader>
+
+          {/* Content */}
+          <div className="p-6">
+            <UserSettings />
+          </div>
         </DialogContent>
       </Dialog>
     </DropdownMenu>
