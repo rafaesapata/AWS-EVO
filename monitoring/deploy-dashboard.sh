@@ -120,10 +120,9 @@ DASHBOARD_BODY=$(cat <<'DASHBOARD_EOF'
       "x": 0, "y": 13, "width": 24, "height": 6,
       "properties": {
         "title": "Recent Errors (Logs Insights)",
-        "query": "fields @timestamp, coalesce(handler, functionName) as src_handler, message, errorMessage\n| filter level = 'ERROR' or level = 'CRITICAL'\n| sort @timestamp desc\n| limit 20",
+        "query": "__SOURCE_CLAUSE__| fields @timestamp, coalesce(handler, functionName) as src_handler, message, errorMessage\n| filter level = 'ERROR' or level = 'CRITICAL'\n| sort @timestamp desc\n| limit 20",
         "region": "__REGION__",
-        "view": "table",
-        "logGroupNames": __LOG_GROUPS_JSON__
+        "view": "table"
       }
     }
   ]
@@ -131,26 +130,32 @@ DASHBOARD_BODY=$(cat <<'DASHBOARD_EOF'
 DASHBOARD_EOF
 )
 
-# Build JSON array of log group names for Logs Insights widget (max 50 per query)
-LOG_GROUPS_JSON=$(aws logs describe-log-groups \
+# Build SOURCE clause for Logs Insights query (max 50 log groups)
+SOURCE_CLAUSE=$(aws logs describe-log-groups \
   --region "${REGION}" \
   --log-group-name-prefix "/aws/lambda/evo-" \
   --query 'logGroups[].logGroupName' \
-  --output json 2>/dev/null | python3 -c "import sys,json; groups=json.load(sys.stdin)[:50]; print(json.dumps(groups))" 2>/dev/null || echo '[]')
+  --output json 2>/dev/null | python3 -c "
+import sys, json
+groups = json.load(sys.stdin)[:50]
+clause = ' | '.join([\"SOURCE '\" + g + \"'\" for g in groups])
+print(clause)
+" 2>/dev/null || echo "SOURCE '/aws/lambda/evo-placeholder'")
 
-if [ "${LOG_GROUPS_JSON}" = "[]" ] || [ -z "${LOG_GROUPS_JSON}" ]; then
-  LOG_GROUPS_JSON='["/aws/lambda/evo-placeholder"]'
+if [ -z "${SOURCE_CLAUSE}" ]; then
+  SOURCE_CLAUSE="SOURCE '/aws/lambda/evo-placeholder'"
 fi
 
-# Replace placeholders
-# Use python for safe JSON substitution (sed breaks on special chars in log group names)
+# Replace placeholders using python for safe JSON substitution
+# Pass SOURCE_CLAUSE via env var to avoid quote escaping issues
+export SOURCE_CLAUSE NAMESPACE REGION ENVIRONMENT
 DASHBOARD_BODY=$(python3 -c "
-import sys
+import sys, os
 body = sys.stdin.read()
-body = body.replace('__NAMESPACE__', '${NAMESPACE}')
-body = body.replace('__REGION__', '${REGION}')
-body = body.replace('__ENVIRONMENT__', '${ENVIRONMENT}')
-body = body.replace('__LOG_GROUPS_JSON__', '''${LOG_GROUPS_JSON}''')
+body = body.replace('__NAMESPACE__', os.environ.get('NAMESPACE', 'EVO/production'))
+body = body.replace('__REGION__', os.environ.get('REGION', 'us-east-1'))
+body = body.replace('__ENVIRONMENT__', os.environ.get('ENVIRONMENT', 'production'))
+body = body.replace('__SOURCE_CLAUSE__', os.environ.get('SOURCE_CLAUSE', '') + ' ')
 print(body)
 " <<< "${DASHBOARD_BODY}")
 
