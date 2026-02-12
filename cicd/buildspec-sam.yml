@@ -281,6 +281,27 @@ phases:
           sam build --template-file sam/production-lambdas-only.yaml --build-dir .aws-sam/build --parallel --cached
 
           echo "SAM Deploy..."
+          # Build parameter overrides (SAM CLI rejects empty values)
+          PARAM_OVERRIDES="Environment=$ENV"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES ProjectName=evo-uds-v3"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES DatabaseUrl=$DATABASE_URL"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES CognitoUserPoolId=$COGNITO_USER_POOL_ID"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES CognitoUserPoolArn=$COGNITO_USER_POOL_ARN"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES CognitoClientId=$COGNITO_CLIENT_ID"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES LambdaSecurityGroupId=$LAMBDA_SG"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES PrivateSubnet1Id=$PRIVATE_SUBNET_1"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES PrivateSubnet2Id=$PRIVATE_SUBNET_2"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthClientId=$AZURE_OAUTH_CLIENT_ID"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES AppDomain=$APP_DOMAIN"
+          # Only include secrets if they have values (SAM CLI rejects Key= with empty value)
+          if [ -n "$TOKEN_ENCRYPTION_KEY" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES TokenEncryptionKey=$TOKEN_ENCRYPTION_KEY"
+          fi
+          if [ -n "$AZURE_OAUTH_CLIENT_SECRET" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthClientSecret=$AZURE_OAUTH_CLIENT_SECRET"
+          fi
+
           sam deploy \
             --template-file .aws-sam/build/template.yaml \
             --stack-name $STACK_NAME \
@@ -290,20 +311,7 @@ phases:
             --region us-east-1 \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              Environment=$ENV \
-              ProjectName=evo-uds-v3 \
-              DatabaseUrl="$DATABASE_URL" \
-              CognitoUserPoolId=$COGNITO_USER_POOL_ID \
-              CognitoUserPoolArn=$COGNITO_USER_POOL_ARN \
-              CognitoClientId=$COGNITO_CLIENT_ID \
-              LambdaSecurityGroupId=$LAMBDA_SG \
-              PrivateSubnet1Id=$PRIVATE_SUBNET_1 \
-              PrivateSubnet2Id=$PRIVATE_SUBNET_2 \
-              AzureOAuthClientId=$AZURE_OAUTH_CLIENT_ID \
-              AzureOAuthClientSecret="$AZURE_OAUTH_CLIENT_SECRET" \
-              AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI \
-              TokenEncryptionKey="${TOKEN_ENCRYPTION_KEY}"
+            --parameter-overrides $PARAM_OVERRIDES
 
         elif [ "$DEPLOY_HANDLERS" = "true" ]; then
           echo "=== INCREMENTAL LAMBDA DEPLOY ==="
