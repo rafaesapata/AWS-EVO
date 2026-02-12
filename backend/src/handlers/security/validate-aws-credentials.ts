@@ -5,7 +5,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { validateAwsCredentials, resolveAwsCredentials } from '../../lib/aws-helpers.js';
@@ -21,10 +21,10 @@ interface ValidateCredentialsRequest {
   secretAccessKey?: string;
 }
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   // Handle OPTIONS first - before any auth checks
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
@@ -177,7 +177,7 @@ export async function handler(
       message: `Validation failed: ${errorMessage}`,
     });
   }
-}
+});
 
 async function checkPermissions(creds: any): Promise<any> {
   const requiredPermissions = [

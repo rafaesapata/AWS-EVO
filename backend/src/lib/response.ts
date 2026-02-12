@@ -246,3 +246,26 @@ export function streamingResponse(
     body: JSON.stringify(data),
   };
 }
+
+/**
+ * Safe handler wrapper — wraps any Lambda handler with a top-level try/catch
+ * to prevent unhandled exceptions from causing raw 500 errors.
+ * 
+ * Usage:
+ *   export const handler = safeHandler(async (event, context) => { ... });
+ */
+export function safeHandler(
+  fn: (event: any, context: any) => Promise<APIGatewayProxyResultV2>
+): (event: any, context: any) => Promise<APIGatewayProxyResultV2> {
+  return async (event: any, context: any): Promise<APIGatewayProxyResultV2> => {
+    try {
+      return await fn(event, context);
+    } catch (err: any) {
+      console.error('Unhandled handler error:', err?.message || err, {
+        requestId: context?.awsRequestId,
+        functionName: context?.functionName,
+      });
+      return error('An internal error occurred. Please try again later.', 500);
+    }
+  };
+}

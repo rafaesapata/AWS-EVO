@@ -7,7 +7,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
@@ -53,27 +53,28 @@ interface Optimization {
   category: string;
 }
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   const startTime = Date.now();
-  
-  if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
-  }
-  
-  if (!event.requestContext?.authorizer) {
-    logger.error('Missing authorizer context', { requestId: context.awsRequestId });
-    return error('Unauthorized - invalid request context');
-  }
-  
-  const user = getUserFromEvent(event);
-  const organizationId = getOrganizationIdWithImpersonation(event, user);
-  
-  logger.info('Cost optimization started', { organizationId, requestId: context.awsRequestId });
+  let organizationId = 'unknown';
   
   try {
+    if (getHttpMethod(event) === 'OPTIONS') {
+      return corsOptions();
+    }
+    
+    if (!event.requestContext?.authorizer) {
+      logger.error('Missing authorizer context', { requestId: context.awsRequestId });
+      return error('Unauthorized - invalid request context');
+    }
+    
+    const user = getUserFromEvent(event);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
+    
+    logger.info('Cost optimization started', { organizationId, requestId: context.awsRequestId });
+    
     const validation = parseAndValidateBody(costOptimizationSchema, event.body);
     if (!validation.success) {
       return validation.error;
@@ -206,10 +207,14 @@ export async function handler(
     
   } catch (err) {
     logger.error('Cost optimization error', err as Error, { organizationId });
-    await businessMetrics.errorOccurred('cost_optimization_error', 'cost-optimization', organizationId);
+    try {
+      await businessMetrics.errorOccurred('cost_optimization_error', 'cost-optimization', organizationId);
+    } catch (_metricsErr) {
+      // Metrics failure should never cause a 500
+    }
     return error('An unexpected error occurred. Please try again.', 500);
   }
-}
+});
 
 
 // ============================================================================

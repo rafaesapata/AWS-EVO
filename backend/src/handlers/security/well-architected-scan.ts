@@ -1,6 +1,6 @@
 import { getHttpMethod } from '../../lib/middleware.js';
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
@@ -29,7 +29,7 @@ interface PillarScore {
   recommendations: Record<string, unknown>[];
 }
 
-export async function handler(event: AuthorizedEvent, context: LambdaContext): Promise<APIGatewayProxyResultV2> {
+export const handler = safeHandler(async (event: AuthorizedEvent, context: LambdaContext) => {
   if (getHttpMethod(event) === 'OPTIONS') return corsOptions();
   
   const user = getUserFromEvent(event);
@@ -161,7 +161,7 @@ export async function handler(event: AuthorizedEvent, context: LambdaContext): P
     logger.error('Well-Architected Scan error', err as Error, { organizationId });
     return error('An unexpected error occurred. Please try again.', 500);
   }
-}
+});
 
 
 function analyzeOps(instances: Record<string, unknown>[], alarms: Record<string, unknown>[]): PillarScore {

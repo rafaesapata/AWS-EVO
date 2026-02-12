@@ -9,7 +9,7 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
@@ -155,10 +155,10 @@ async function checkPeriodOverlap(
   };
 }
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   _context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   const origin = getOrigin(event);
   
   if (getHttpMethod(event) === 'OPTIONS') {
@@ -359,4 +359,4 @@ export async function handler(
     logger.error('Start CloudTrail analysis error', err as Error);
     return error('An unexpected error occurred. Please try again.', 500, undefined, origin);
   }
-}
+});

@@ -5,7 +5,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
@@ -13,10 +13,10 @@ import { parseAndValidateBody } from '../../lib/validation.js';
 import { executeScheduledJobSchema } from '../../lib/schemas.js';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   // Handle CORS preflight FIRST
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
@@ -137,7 +137,7 @@ export async function handler(
     });
     return error('An unexpected error occurred. Please try again.', 500);
   }
-}
+});
 
 async function invokeLambda(functionName: string, payload: any): Promise<any> {
   const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });

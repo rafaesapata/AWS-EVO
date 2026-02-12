@@ -5,7 +5,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, requireRole } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
@@ -18,10 +18,10 @@ interface CreateAccountRequest {
   iamUserAccessToBilling?: 'ALLOW' | 'DENY';
 }
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   // Handle CORS preflight FIRST
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
@@ -105,4 +105,4 @@ export async function handler(
     });
     return error('An unexpected error occurred. Please try again.', 500);
   }
-}
+});

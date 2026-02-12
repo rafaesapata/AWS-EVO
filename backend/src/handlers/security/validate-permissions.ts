@@ -5,7 +5,7 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, corsOptions } from '../../lib/response.js';
+import { success, error, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
@@ -46,10 +46,10 @@ function toIamRoleArn(arn: string): string {
   return match ? `arn:aws:iam::${match[1]}:role/${match[2]}` : arn;
 }
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
   }
@@ -165,4 +165,4 @@ export async function handler(
     
     return error('An unexpected error occurred. Please try again.', 500);
   }
-}
+});

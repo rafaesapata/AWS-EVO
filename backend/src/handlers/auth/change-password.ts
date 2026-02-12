@@ -26,6 +26,12 @@ interface ChangePasswordRequest {
 
 const MIN_PASSWORD_LENGTH = 8;
 
+const COGNITO_ERROR_MAP: Record<string, { message: string; status?: number }> = {
+  NotAuthorizedException: { message: 'Senha atual incorreta' },
+  InvalidPasswordException: { message: 'Nova senha não atende aos requisitos de segurança' },
+  LimitExceededException: { message: 'Muitas tentativas. Tente novamente mais tarde.', status: 429 },
+};
+
 function isValidPassword(password: string): boolean {
   return (
     password.length >= MIN_PASSWORD_LENGTH &&
@@ -38,7 +44,7 @@ function isValidPassword(password: string): boolean {
 
 export async function handler(
   event: AuthorizedEvent,
-  context: LambdaContext
+  _context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   const origin = getOrigin(event);
 
@@ -91,14 +97,11 @@ export async function handler(
     } catch (cognitoError: any) {
       logger.error('Cognito change password error', { error: cognitoError.name });
 
-      if (cognitoError.name === 'NotAuthorizedException') {
-        return badRequest('Senha atual incorreta', undefined, origin);
-      }
-      if (cognitoError.name === 'InvalidPasswordException') {
-        return badRequest('Nova senha não atende aos requisitos de segurança', undefined, origin);
-      }
-      if (cognitoError.name === 'LimitExceededException') {
-        return error('Muitas tentativas. Tente novamente mais tarde.', 429, undefined, origin);
+      const mapped = COGNITO_ERROR_MAP[cognitoError.name];
+      if (mapped) {
+        return mapped.status
+          ? error(mapped.message, mapped.status, undefined, origin)
+          : badRequest(mapped.message, undefined, origin);
       }
 
       throw cognitoError;
@@ -149,6 +152,13 @@ interface NotificationData {
   changeTime: string;
   ipAddress: string;
   userAgent: string;
+}
+
+function replaceTemplateVars(template: string, variables: Record<string, string>): string {
+  return Object.entries(variables).reduce(
+    (result, [key, value]) => result.replace(new RegExp(`{${key}}`, 'g'), value),
+    template
+  );
 }
 
 async function logCommunication(

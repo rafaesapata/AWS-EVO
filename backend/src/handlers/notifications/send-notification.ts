@@ -5,7 +5,7 @@ import { getHttpMethod, getHttpPath, getOrigin } from '../../lib/middleware.js';
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
@@ -41,10 +41,10 @@ function createSESClient(): SESClient {
   return new SESClient(config);
 }
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   const origin = getOrigin(event);
   
   if (getHttpMethod(event) === 'OPTIONS') {
@@ -221,4 +221,4 @@ export async function handler(
     
     return error('Failed to send notification. Please try again.', 500, undefined, origin);
   }
-}
+});

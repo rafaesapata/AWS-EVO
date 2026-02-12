@@ -4,7 +4,7 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, corsOptions, unauthorized } from '../../lib/response.js';
+import { success, error, corsOptions, unauthorized, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
@@ -16,10 +16,10 @@ interface CleanupRequest {
   organizationId?: string; // Opcional: limitar a uma organização específica
 }
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   _context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   if (event.requestContext?.http?.method === 'OPTIONS') {
     return corsOptions();
   }
@@ -202,4 +202,4 @@ export async function handler(
 
     return error('Manual cleanup failed. Check logs for details.', 500);
   }
-}
+});

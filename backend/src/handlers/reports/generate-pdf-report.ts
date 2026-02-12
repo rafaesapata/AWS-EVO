@@ -5,7 +5,7 @@ import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
@@ -14,10 +14,10 @@ import { parseAndValidateBody } from '../../lib/validation.js';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   // Handle CORS preflight FIRST
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
@@ -193,7 +193,7 @@ export async function handler(
     });
     return error('Failed to generate report. Please try again.', 500, undefined, origin);
   }
-}
+});
 
 /**
  * Gera PDF simples (placeholder)

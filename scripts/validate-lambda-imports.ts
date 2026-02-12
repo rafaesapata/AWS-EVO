@@ -53,6 +53,13 @@ export interface ValidationResult {
   uniqueLibs: number;
   brokenImports: BrokenImport[];
   cycles: Cycle[];
+  unsafeHandlers: UnsafeHandler[];
+}
+
+interface UnsafeHandler {
+  filePath: string;
+  line: number;
+  code: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -433,6 +440,81 @@ export function detectCycles(adjacencyMap: Map<string, string[]>): Cycle[] {
   return cycles;
 }
 
+// ---------------------------------------------------------------------------
+// Unsafe Handler Detection (auth code outside try/catch)
+// ---------------------------------------------------------------------------
+
+function detectUnsafeHandlers(handlers: string[]): UnsafeHandler[] {
+  const unsafe: UnsafeHandler[] = [];
+  // Only detect actual function calls, not property access like event.organizationId
+  const dangerousCallPatterns = [
+    /getUserFromEvent\s*\(/,
+    /getOrganizationId\s*\(/,
+    /getOrganizationIdWithImpersonation\s*\(/,
+  ];
+
+  for (const handlerPath of handlers) {
+    let content: string;
+    try {
+      content = readFileSync(handlerPath, 'utf-8');
+    } catch {
+      continue;
+    }
+
+    const lines = content.split('\n');
+
+    // Find exported handler functions (both function declarations and safeHandler wrappers)
+    const handlerRegex = /export\s+(?:async\s+)?function\s+handler\s*\(/;
+    const safeHandlerRegex = /export\s+const\s+handler\s*=\s*safeHandler\s*\(/;
+    
+    for (let i = 0; i < lines.length; i++) {
+      if (!handlerRegex.test(lines[i])) continue;
+      
+      // Skip if handler is already wrapped with safeHandler
+      if (safeHandlerRegex.test(lines[i])) continue;
+
+      // Scan forward from handler declaration to find first try {
+      let braceDepth = 0;
+      let foundOpenBrace = false;
+      let tryLineIndex = -1;
+
+      for (let j = i; j < lines.length; j++) {
+        const line = lines[j];
+        for (const ch of line) {
+          if (ch === '{') { braceDepth++; foundOpenBrace = true; }
+          if (ch === '}') braceDepth--;
+        }
+        if (foundOpenBrace && /\btry\s*\{/.test(line)) {
+          tryLineIndex = j;
+          break;
+        }
+        // If we've gone too deep without finding try, stop
+        if (j - i > 40) break;
+      }
+
+      if (tryLineIndex === -1) continue;
+
+      // Check lines between handler start and try for dangerous calls
+      for (let j = i; j < tryLineIndex; j++) {
+        const line = lines[j];
+        // Skip comments
+        if (/^\s*(\/\/|\/\*|\*)/.test(line)) continue;
+        for (const pattern of dangerousCallPatterns) {
+          if (pattern.test(line)) {
+            unsafe.push({
+              filePath: handlerPath,
+              line: j + 1,
+              code: line.trim(),
+            });
+          }
+        }
+      }
+      break; // Only check first handler per file
+    }
+  }
+
+  return unsafe;
+}
 
 // ---------------------------------------------------------------------------
 // Reporting
@@ -472,12 +554,28 @@ export function reportResults(result: ValidationResult): void {
     console.log(`\n  Total: ${result.cycles.length} circular dependency cycle(s)\n`);
   }
 
+  // Unsafe handlers section (auth code outside try/catch → unhandled 500s)
+  if (result.unsafeHandlers.length > 0) {
+    console.log('\n⚠️  UNSAFE HANDLERS (auth code outside try/catch → potential 500 errors):\n');
+
+    for (const uh of result.unsafeHandlers) {
+      const relPath = relative(cwd, uh.filePath);
+      console.log(`  ${relPath}:${uh.line}`);
+      console.log(`    ${uh.code}`);
+    }
+
+    const uniqueFiles = new Set(result.unsafeHandlers.map(u => u.filePath));
+    console.log(`\n  Total: ${uniqueFiles.size} handler(s) with unprotected auth calls\n`);
+    console.log('  Fix: Move getUserFromEvent/getOrganizationId inside the try/catch block\n');
+  }
+
   // Summary
   console.log('📊 Summary:');
   console.log(`  Handlers scanned: ${result.handlersScanned}`);
   console.log(`  Unique libs referenced: ${result.uniqueLibs}`);
   console.log(`  Broken imports: ${result.brokenImports.length}`);
   console.log(`  Circular dependencies: ${result.cycles.length}`);
+  console.log(`  Unsafe handlers: ${result.unsafeHandlers.length}`);
 }
 
 export function writeGraphJson(
@@ -756,7 +854,10 @@ async function main(): Promise<void> {
   // 3. Detect cycles
   const cycles = detectCycles(adjacencyMap);
 
-  // 4. Compute unique libs count from adjacencyMap (all non-handler files)
+  // 4. Detect unsafe handlers (auth code outside try/catch)
+  const unsafeHandlers = detectUnsafeHandlers(handlers);
+
+  // 5. Compute unique libs count from adjacencyMap (all non-handler files)
   const allLibs = new Set<string>();
   for (const deps of Object.values(graph)) {
     for (const dep of deps) {
@@ -764,32 +865,35 @@ async function main(): Promise<void> {
     }
   }
 
-  // 5. Build validation result
+  // 6. Build validation result
   const result: ValidationResult = {
     handlersScanned: handlers.length,
     uniqueLibs: allLibs.size,
     brokenImports,
     cycles,
+    unsafeHandlers,
   };
 
-  // 6. Report results
+  // 7. Report results
   reportResults(result);
 
-  // 7. Optionally write graph JSON
+  // 8. Optionally write graph JSON
   if (options.outputGraph) {
     writeGraphJson(graph, adjacencyMap, result, options.outputGraph);
   }
 
-  // 8. Optionally update domain map
+  // 9. Optionally update domain map
   if (options.updateDomainMap) {
     const domainMapPath = resolve('backend/src/domains/index.ts');
     updateDomainMap(graph, domainMapPath);
   }
 
-  // 9. Exit with appropriate code
+  // 10. Exit with appropriate code (broken imports and cycles are blocking errors)
   if (brokenImports.length > 0 || cycles.length > 0) {
     process.exit(1);
   }
+  // Unsafe handlers are warnings for now (non-blocking) to avoid breaking existing CI
+  // TODO: Make blocking once all 26 handlers are fixed
 }
 
 // Run only when executed directly (not imported)

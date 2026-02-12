@@ -7,7 +7,7 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, forbidden, corsOptions } from '../../lib/response.js';
+import { success, error, badRequest, forbidden, corsOptions, safeHandler} from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, isSuperAdmin, isAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logging.js';
@@ -72,10 +72,10 @@ function generateTemporaryPassword(): string {
   return arr.join('');
 }
 
-export async function handler(
+export const handler = safeHandler(async (
   event: AuthorizedEvent,
   context: LambdaContext
-): Promise<APIGatewayProxyResultV2> {
+) => {
   if (event.requestContext?.http?.method === 'OPTIONS') {
     return corsOptions();
   }
@@ -308,4 +308,4 @@ export async function handler(
     
     return error('Failed to create user. Please try again.', 500);
   }
-}
+});
