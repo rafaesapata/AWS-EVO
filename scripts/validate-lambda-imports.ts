@@ -242,7 +242,7 @@ export function resolveImport(sourceDir: string, importPath: string): string | n
 
 export function buildDependencyGraph(
   handlers: string[],
-  _basePath: string
+  _basePath: string // reserved for future use (e.g., relative path output); kept for API stability
 ): { graph: DependencyGraph; brokenImports: BrokenImport[]; adjacencyMap: Map<string, string[]> } {
   const graph: DependencyGraph = {};
   const brokenImports: BrokenImport[] = [];
@@ -646,6 +646,10 @@ export function collapseLibPath(relPath: string): string {
   return relPath;
 }
 
+/** Indentation constants matching the domain map file formatting */
+const SHARED_LIBS_ITEM_INDENT = '      '; // 6 spaces
+const SHARED_LIBS_CLOSE_INDENT = '    ';  // 4 spaces
+
 /**
  * Replaces the sharedLibs array for a specific domain in the file content.
  */
@@ -669,9 +673,8 @@ export function replaceSharedLibsInContent(
   if (libs.length === 0) {
     newArray = '[]';
   } else {
-    const indent = '      '; // 6 spaces to match existing formatting
-    const items = libs.map(lib => `${indent}'${lib}',`).join('\n');
-    newArray = `[\n${items}\n    ]`;
+    const items = libs.map(lib => `${SHARED_LIBS_ITEM_INDENT}'${lib}',`).join('\n');
+    newArray = `[\n${items}\n${SHARED_LIBS_CLOSE_INDENT}]`;
   }
 
   return content.slice(0, match.index) +
