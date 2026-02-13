@@ -50,7 +50,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
             <CardCTA 
               textKey="executiveDashboard.optimizeHealthCTA"
               fallback="Ver como otimizar saúde"
-              href="/security-scan"
+              href="/security-scans"
               align="center"
             />
           </div>
