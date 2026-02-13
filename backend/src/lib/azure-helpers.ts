@@ -25,6 +25,9 @@ const SSM_PREFIX = `/evo-uds-v3/${SSM_ENV}`;
 /** Cache TTL: 5 minutes — balances freshness vs. SSM API calls */
 const SSM_CACHE_TTL_MS = 5 * 60 * 1000;
 
+/** Reuse SSM client across invocations (Lambda container reuse) */
+let _ssmClient: SSMClient | null = null;
+
 interface AzureOAuthCreds {
   clientId: string;
   clientSecret: string;
@@ -33,6 +36,13 @@ interface AzureOAuthCreds {
 
 let _cachedCreds: AzureOAuthCreds | null = null;
 let _cachedAt = 0;
+
+function getSsmClient(): SSMClient {
+  if (!_ssmClient) {
+    _ssmClient = new SSMClient({ region: SSM_REGION });
+  }
+  return _ssmClient;
+}
 
 /**
  * Fetches Azure OAuth credentials from SSM Parameter Store with in-memory cache.
@@ -45,7 +55,7 @@ export async function getAzureOAuthCredentials(): Promise<AzureOAuthCreds> {
   }
 
   try {
-    const ssm = new SSMClient({ region: SSM_REGION });
+    const ssm = getSsmClient();
     const [cidRes, secRes, uriRes] = await Promise.all([
       ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-id` })),
       ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-secret`, WithDecryption: true })),
