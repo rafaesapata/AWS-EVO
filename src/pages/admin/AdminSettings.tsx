@@ -108,7 +108,7 @@ export default function AdminSettings() {
       const res = await apiClient.invoke<{ credentials: AzureCredential[] }>('admin-azure-credentials', {
         body: { action: 'list' },
       });
-      if ('error' in res) throw new Error(res.error);
+      if (res.error) throw new Error(res.error.message || 'Request failed');
       return res.data.credentials;
     },
   });
@@ -119,7 +119,7 @@ export default function AdminSettings() {
       const res = await apiClient.invoke<TestResult>('admin-azure-credentials', {
         body: { action: 'test', credentialId },
       });
-      if ('error' in res) throw new Error(res.error);
+      if (res.error) throw new Error(res.error.message || 'Request failed');
       return res.data;
     },
     onMutate: (credentialId) => {
@@ -148,7 +148,7 @@ export default function AdminSettings() {
       const res = await apiClient.invoke<{ updated: boolean }>('admin-azure-credentials', {
         body: { action: 'update', credentialId, updates },
       });
-      if ('error' in res) throw new Error(res.error);
+      if (res.error) throw new Error(res.error.message || 'Request failed');
       return res.data;
     },
     onSuccess: () => {
@@ -168,7 +168,7 @@ export default function AdminSettings() {
       const res = await apiClient.invoke<EvoAppData>('admin-evo-app-credentials', {
         body: { action: 'get' },
       });
-      if ('error' in res) throw new Error(res.error);
+      if (res.error) throw new Error(res.error.message || 'Request failed');
       return res.data;
     },
   });
@@ -186,7 +186,7 @@ export default function AdminSettings() {
           notes: form.notes || undefined,
         },
       });
-      if ('error' in res) throw new Error(res.error);
+      if (res.error) throw new Error(res.error.message || 'Request failed');
       return res.data;
     },
     onSuccess: (data) => {
@@ -208,7 +208,7 @@ export default function AdminSettings() {
       const res = await apiClient.invoke<EvoAppUpdateResult>('admin-evo-app-credentials', {
         body: { action: 'sync' },
       });
-      if ('error' in res) throw new Error(res.error);
+      if (res.error) throw new Error(res.error.message || 'Request failed');
       return res.data;
     },
     onSuccess: (data) => {
