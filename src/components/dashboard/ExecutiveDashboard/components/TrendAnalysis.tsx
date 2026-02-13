@@ -31,6 +31,7 @@ interface Props {
   data: TrendData;
   period: '7d' | '30d' | '90d';
   onPeriodChange: (period: '7d' | '30d' | '90d') => void;
+  isLoading?: boolean;
 }
 
 // Get color based on cost value relative to min/max
@@ -52,7 +53,7 @@ const getCostColor = (cost: number, minCost: number, maxCost: number): string =>
   }
 };
 
-export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
+export default function TrendAnalysis({ data, period, onPeriodChange, isLoading }: Props) {
   const { t } = useTranslation();
 
   const periodLabels = {
@@ -118,7 +119,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange }: Props) {
         </div>
       </div>
 
-      <div className="p-6">
+      <div className={`p-6 transition-opacity duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Cost Trend - Bar Chart with dynamic colors */}
           <div className="space-y-4">

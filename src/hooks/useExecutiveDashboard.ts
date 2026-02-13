@@ -14,9 +14,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface UseExecutiveDashboardOptions {
   includeForecasts?: boolean;
-  includeTrends?: boolean;
   includeInsights?: boolean;
-  trendPeriod?: '7d' | '30d' | '90d';
   refetchInterval?: number;
 }
 
@@ -35,9 +33,7 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
 
   const {
     includeForecasts = true,
-    includeTrends = true,
     includeInsights = true,
-    trendPeriod = '30d',
     refetchInterval = isTVMode ? 30000 : 120000 // 30s TV, 2min normal
   } = options;
 
@@ -47,7 +43,6 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
       effectiveOrgId,
       selectedAccountId,
       selectedProvider,
-      trendPeriod,
       isTVMode,
       isInDemoMode
     ],
@@ -65,9 +60,8 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
           body: JSON.stringify({
             organizationId: tvOrgId,
             includeForecasts,
-            includeTrends,
-            includeInsights,
-            trendPeriod
+            includeTrends: false,
+            includeInsights
           })
         });
 
@@ -84,11 +78,10 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
       // Normal authenticated mode - pass provider for correct filtering
       const response = await apiClient.lambda<ExecutiveDashboardData>('get-executive-dashboard', {
         accountId: selectedAccountId,
-        provider: selectedProvider, // Pass provider to backend for correct field filtering
+        provider: selectedProvider,
         includeForecasts,
-        includeTrends,
-        includeInsights,
-        trendPeriod
+        includeTrends: false,
+        includeInsights
       });
 
       if (response.error) {

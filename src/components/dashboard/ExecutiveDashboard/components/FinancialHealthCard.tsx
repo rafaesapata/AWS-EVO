@@ -11,6 +11,7 @@
 import { AlertTriangle, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import InfoIcon from './InfoIcon';
 import type { FinancialHealth } from '../types';
 
@@ -20,6 +21,7 @@ interface Props {
 
 export default function FinancialHealthCard({ data }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const hasNoCostData = data.mtdCost === 0 && data.ytdCost === 0 && data.budget === 0;
 
@@ -143,22 +145,28 @@ export default function FinancialHealthCard({ data }: Props) {
           </span>
           
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl bg-white border border-gray-200">
-              <div className="text-xl font-light text-[#393939] tabular-nums">
+            <button
+              onClick={() => navigate('/cost-optimization')}
+              className="p-3 rounded-xl bg-white border border-gray-200 text-left transition-all duration-200 hover:border-[#00B2FF]/40 hover:shadow-md hover:bg-[#00B2FF]/5 cursor-pointer group"
+            >
+              <div className="text-xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">
                 ${data.savings.costRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
-              <span className="text-xs font-light text-[#5F5F5F]">
+              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">
                 {t('executiveDashboard.costOptimizations', 'Cost Optimizations')}
               </span>
-            </div>
-            <div className="p-3 rounded-xl bg-white border border-gray-200">
-              <div className="text-xl font-light text-[#393939] tabular-nums">
+            </button>
+            <button
+              onClick={() => navigate('/ri-savings-plans')}
+              className="p-3 rounded-xl bg-white border border-gray-200 text-left transition-all duration-200 hover:border-[#00B2FF]/40 hover:shadow-md hover:bg-[#00B2FF]/5 cursor-pointer group"
+            >
+              <div className="text-xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">
                 ${data.savings.riSpRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
-              <span className="text-xs font-light text-[#5F5F5F]">
+              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">
                 {t('executiveDashboard.riSavingsPlans', 'RI/Savings Plans')}
               </span>
-            </div>
+            </button>
           </div>
 
           <div className="flex items-center justify-between p-4 rounded-xl bg-[#00B2FF]/10 border border-[#00B2FF]/20">

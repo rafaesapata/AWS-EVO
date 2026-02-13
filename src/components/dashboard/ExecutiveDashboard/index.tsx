@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 import { useExecutiveDashboard } from '@/hooks/useExecutiveDashboard';
+import { useExecutiveTrends } from '@/hooks/useExecutiveTrends';
 import { useTVDashboard } from '@/contexts/TVDashboardContext';
 import { useOrganization } from '@/hooks/useOrganization';
 import DashboardAlerts from '../DashboardAlerts';
@@ -93,10 +94,14 @@ export default function ExecutiveDashboardV2() {
     refresh,
     isFetching
   } = useExecutiveDashboard({
-    trendPeriod,
-    includeInsights: true,
-    includeTrends: true
+    includeInsights: true
   });
+
+  // Separate query for trends - changes period without reloading entire dashboard
+  const {
+    data: trendsData,
+    isFetching: isTrendsFetching
+  } = useExecutiveTrends({ trendPeriod });
 
   // Track which sections have valid data for progressive loading
   const sectionStates = useExecutiveDashboardSections(data, isLoading);
@@ -186,11 +191,12 @@ export default function ExecutiveDashboardV2() {
           isLoading={!sectionStates.trends && isFetching}
           skeleton={<TrendAnalysisSkeleton />}
         >
-          {data.trends && (
+          {(trendsData || data.trends) && (
             <TrendAnalysis 
-              data={data.trends}
+              data={(trendsData || data.trends)!}
               period={trendPeriod}
               onPeriodChange={setTrendPeriod}
+              isLoading={isTrendsFetching}
             />
           )}
         </CardLoader>
