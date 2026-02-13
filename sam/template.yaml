@@ -35,7 +35,7 @@ Globals:
         AZURE_OAUTH_CLIENT_SECRET: !Ref AzureOAuthClientSecret
         AZURE_OAUTH_REDIRECT_URI: !Ref AzureOAuthRedirectUri
         APP_DOMAIN: !Ref AppDomain
-        API_DOMAIN: !Sub 'api-${AppDomain}'
+        API_DOMAIN: !Ref ApiDomain
         WEBAUTHN_RP_ID: !Ref WebAuthnRpId
         WEBAUTHN_ORIGIN: !Sub 'https://${AppDomain}'
         WEBAUTHN_RP_NAME: !Ref WebAuthnRpName
@@ -100,6 +100,10 @@ Parameters:
     Type: String
     Description: Base application domain (e.g., evo.nuevacore.com)
     Default: 'evo.nuevacore.com'
+  ApiDomain:
+    Type: String
+    Description: API domain (e.g., api.evo.nuevacore.com)
+    Default: 'api.evo.nuevacore.com'
   WebAuthnRpId:
     Type: String
     Description: WebAuthn Relying Party ID (registrable domain)

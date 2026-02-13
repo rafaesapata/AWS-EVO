@@ -724,7 +724,7 @@ export async function handler(
         tokenCredential = createStaticTokenCredential(tokenResult.accessToken);
       } else {
         const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
-        const resolvedSecret = resolveClientSecret(credential);
+        const resolvedSecret = await resolveClientSecret(credential);
         if (!credential.tenant_id || !credential.client_id || !resolvedSecret) {
           await prisma.backgroundJob.update({
             where: { id: jobId },

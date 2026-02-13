@@ -24,7 +24,6 @@ import CloudCredentials from "./pages/CloudCredentials";
 import SystemMonitoring from "./pages/SystemMonitoring";
 import ResourceMonitoring from "./pages/ResourceMonitoring";
 import ThreatDetection from "./pages/ThreatDetection";
-import AttackDetection from "./pages/AttackDetection";
 import WafMonitoring from "./pages/WafMonitoring";
 import AnomalyDetection from "./pages/AnomalyDetection";
 import MLWasteDetection from "./pages/MLWasteDetection";
@@ -173,14 +172,6 @@ createRoot(document.getElementById("root")!).render(
               />
               <Route 
                 path="/attack-detection" 
-                element={
-                  <ProtectedRoute>
-                    <AttackDetection />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/waf-monitoring" 
                 element={
                   <ProtectedRoute>
                     <WafMonitoring />

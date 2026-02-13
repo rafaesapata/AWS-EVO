@@ -19,7 +19,6 @@ import {
   ShieldAlert,
   BookOpen,
   Mail,
-  Radar,
   Settings,
   AlertTriangle
 } from "lucide-react";
@@ -79,7 +78,6 @@ const menuItems: MenuItem[] = [
     ]
   },
   { titleKey: "sidebar.attackDetection", value: "attack-detection", icon: ShieldAlert },
-  { titleKey: "sidebar.wafMonitoring", value: "waf-monitoring", icon: Radar },
   { 
     titleKey: "sidebar.analysisScans", 
     value: "scans", 
@@ -189,8 +187,6 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/copilot-ai');
     } else if (value === 'attack-detection') {
       navigate('/attack-detection');
-    } else if (value === 'waf-monitoring') {
-      navigate('/waf-monitoring');
     } else if (value === 'alerts') {
       navigate('/intelligent-alerts');
     } else if (value === 'security') {

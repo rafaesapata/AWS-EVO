@@ -62,7 +62,7 @@ export const LazyAnomalyDetection = withLazyLoading(
 );
 
 export const LazyAttackDetection = withLazyLoading(
-  () => import('@/pages/AttackDetection'),
+  () => import('@/pages/WafMonitoring'),
   'Attack Detection'
 );
 

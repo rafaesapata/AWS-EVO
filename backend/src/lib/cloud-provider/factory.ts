@@ -179,7 +179,7 @@ export class CloudProviderFactory {
    * @param organizationId Organization ID for the provider
    * @returns ICloudProvider instance
    */
-  static fromDatabaseCredential(
+  static async fromDatabaseCredential(
     credentialRecord: {
       provider: CloudProviderType;
       // AWS fields
@@ -195,7 +195,7 @@ export class CloudProviderFactory {
       subscription_id?: string | null;
     },
     organizationId: string
-  ): ICloudProvider {
+  ): Promise<ICloudProvider> {
     const { provider } = credentialRecord;
 
     if (provider === 'AWS') {
@@ -225,7 +225,7 @@ export class CloudProviderFactory {
     }
 
     if (provider === 'AZURE') {
-      const resolvedSecret = resolveClientSecret({
+      const resolvedSecret = await resolveClientSecret({
         client_id: credentialRecord.client_id ?? null,
         client_secret: credentialRecord.client_secret ?? null,
       });

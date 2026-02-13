@@ -27,9 +27,9 @@ export function getAppDomain(): string {
   return process.env.APP_DOMAIN || DEFAULT_DOMAIN;
 }
 
-/** API domain (e.g., api-evo.nuevacore.com) */
+/** API domain (e.g., api.evo.nuevacore.com) */
 export function getApiDomain(): string {
-  return process.env.API_DOMAIN || `api-${getAppDomain()}`;
+  return process.env.API_DOMAIN || `api.${getAppDomain()}`;
 }
 
 /** Full app URL (e.g., https://evo.nuevacore.com) */
@@ -37,7 +37,7 @@ export function getAppUrl(): string {
   return `https://${getAppDomain()}`;
 }
 
-/** Full API URL (e.g., https://api-evo.nuevacore.com) */
+/** Full API URL (e.g., https://api.evo.nuevacore.com) */
 export function getApiUrl(): string {
   return `https://${getApiDomain()}`;
 }

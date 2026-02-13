@@ -174,7 +174,7 @@ async function handleTest(prisma: any, credentialId: string, origin: string): Pr
     return error('Credential missing tenant_id or client_id', 400, undefined, origin);
   }
 
-  const clientSecret = resolveClientSecret(credential);
+  const clientSecret = await resolveClientSecret(credential);
   if (!clientSecret) return error('Could not resolve client_secret', 400, undefined, origin);
 
   const testResult = await testServicePrincipalCredentials(tenantId, credential.client_id, clientSecret);

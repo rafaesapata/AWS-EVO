@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: |
-  EVO Platform - Lambda Functions Only (194 total) - v19 fix SAM param-overrides space in WebAuthnRpName
+  EVO Platform - Lambda Functions Only (194 total) - v21 fix API_DOMAIN explicit param instead of Sub
   Uses existing VPC, RDS, Cognito infrastructure
   All functions use ARM64 + esbuild for fast builds
   Updated: 2026-02-12 - Add missing evo_app_credentials table migration + SSM PutParameter permission for Lambda role
@@ -35,7 +35,7 @@ Globals:
         AZURE_OAUTH_CLIENT_SECRET: !Ref AzureOAuthClientSecret
         AZURE_OAUTH_REDIRECT_URI: !Ref AzureOAuthRedirectUri
         APP_DOMAIN: !Ref AppDomain
-        API_DOMAIN: !Sub 'api-${AppDomain}'
+        API_DOMAIN: !Ref ApiDomain
         WEBAUTHN_RP_ID: !Ref WebAuthnRpId
         WEBAUTHN_ORIGIN: !Sub 'https://${AppDomain}'
         WEBAUTHN_RP_NAME: !Ref WebAuthnRpName
@@ -94,6 +94,10 @@ Parameters:
     Type: String
     Description: Base application domain (e.g., evo.nuevacore.com)
     Default: 'evo.nuevacore.com'
+  ApiDomain:
+    Type: String
+    Description: API domain (e.g., api.evo.nuevacore.com)
+    Default: 'api.evo.nuevacore.com'
   WebAuthnRpId:
     Type: String
     Description: WebAuthn Relying Party ID (registrable domain)

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { OperationsCenter } from '../types';
 import InfoIcon from './InfoIcon';
 
@@ -27,8 +28,14 @@ interface Props {
   data: OperationsCenter;
 }
 
+// Reusable hover styles for clickable indicator boxes
+const HOVER_BOX = 'transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group';
+const HOVER_TEXT = 'group-hover:text-[#00B2FF] transition-colors duration-200';
+const HOVER_LABEL = 'group-hover:text-[#00B2FF]/70 transition-colors duration-200';
+
 export default function OperationsCenterCard({ data }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [alertsExpanded, setAlertsExpanded] = useState(false);
   const INITIAL_ALERTS_COUNT = 3;
 
@@ -63,56 +70,71 @@ export default function OperationsCenterCard({ data }: Props) {
           </div>
 
           <div className="grid grid-cols-4 gap-2">
-            <div className="p-3 rounded-xl bg-white border border-gray-200 text-center">
+            <button
+              onClick={() => navigate('/endpoint-monitoring')}
+              className={`p-3 rounded-xl bg-white border border-gray-200 text-center ${HOVER_BOX}`}
+            >
               <Server className="h-4 w-4 text-[#00B2FF] mx-auto mb-1" />
-              <div className="text-xl font-light text-[#393939] tabular-nums">{data.endpoints.total}</div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.total', 'Total')}</span>
-            </div>
-            <div className="p-3 rounded-xl bg-[#00B2FF]/5 border border-[#00B2FF]/20 text-center">
+              <div className={`text-xl font-light text-[#393939] tabular-nums ${HOVER_TEXT}`}>{data.endpoints.total}</div>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.total', 'Total')}</span>
+            </button>
+            <button
+              onClick={() => navigate('/endpoint-monitoring?status=healthy')}
+              className="p-3 rounded-xl bg-[#00B2FF]/5 border border-[#00B2FF]/20 text-center transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/10 cursor-pointer group"
+            >
               <CheckCircle2 className="h-4 w-4 text-[#00B2FF] mx-auto mb-1" />
               <div className="text-xl font-light text-[#00B2FF] tabular-nums">{data.endpoints.healthy}</div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.healthy', 'Healthy')}</span>
-            </div>
-            <div className={cn(
-              "p-3 rounded-xl text-center border",
-              data.endpoints.degraded > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
-            )}>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.healthy', 'Healthy')}</span>
+            </button>
+            <button
+              onClick={() => navigate('/endpoint-monitoring?status=degraded')}
+              className={cn(
+                `p-3 rounded-xl text-center border ${HOVER_BOX}`,
+                data.endpoints.degraded > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
+              )}
+            >
               <AlertTriangle className={cn(
-                "h-4 w-4 mx-auto mb-1",
+                `h-4 w-4 mx-auto mb-1 ${HOVER_TEXT}`,
                 data.endpoints.degraded > 0 ? 'text-amber-500' : 'text-gray-400'
               )} />
               <div className={cn(
-                "text-xl font-light tabular-nums",
+                `text-xl font-light tabular-nums ${HOVER_TEXT}`,
                 data.endpoints.degraded > 0 ? 'text-amber-500' : 'text-[#393939]'
               )}>{data.endpoints.degraded}</div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.degraded', 'Degraded')}</span>
-            </div>
-            <div className={cn(
-              "p-3 rounded-xl text-center border",
-              data.endpoints.down > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
-            )}>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.degraded', 'Degraded')}</span>
+            </button>
+            <button
+              onClick={() => navigate('/endpoint-monitoring?status=down')}
+              className={cn(
+                `p-3 rounded-xl text-center border ${HOVER_BOX}`,
+                data.endpoints.down > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
+              )}
+            >
               <AlertTriangle className={cn(
-                "h-4 w-4 mx-auto mb-1",
+                `h-4 w-4 mx-auto mb-1 ${HOVER_TEXT}`,
                 data.endpoints.down > 0 ? 'text-red-500' : 'text-gray-400'
               )} />
               <div className={cn(
-                "text-xl font-light tabular-nums",
+                `text-xl font-light tabular-nums ${HOVER_TEXT}`,
                 data.endpoints.down > 0 ? 'text-red-500' : 'text-[#393939]'
               )}>
                 {data.endpoints.down}
               </div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.down', 'Down')}</span>
-            </div>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.down', 'Down')}</span>
+            </button>
           </div>
         </div>
 
         {/* Uptime & Response Time */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="p-4 rounded-xl bg-white border border-gray-200">
-            <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.uptime', 'Uptime')}</span>
+          <button
+            onClick={() => navigate('/endpoint-monitoring')}
+            className={`p-4 rounded-xl bg-white border border-gray-200 text-left ${HOVER_BOX}`}
+          >
+            <span className={`text-sm font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.uptime', 'Uptime')}</span>
             {data.endpoints.total > 0 ? (
               <>
-                <p className={cn('tabular-nums mt-1', getUptimeColor(data.uptime.current))} style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
+                <p className={cn(`tabular-nums mt-1 ${HOVER_TEXT}`, getUptimeColor(data.uptime.current))} style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
                   {data.uptime.current.toFixed(2)}%
                 </p>
                 <span className="text-sm font-light text-[#5F5F5F]">
@@ -129,15 +151,18 @@ export default function OperationsCenterCard({ data }: Props) {
                 </span>
               </>
             )}
-          </div>
-          <div className="p-4 rounded-xl bg-white border border-gray-200">
+          </button>
+          <button
+            onClick={() => navigate('/endpoint-monitoring')}
+            className={`p-4 rounded-xl bg-white border border-gray-200 text-left ${HOVER_BOX}`}
+          >
             <div className="flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-[#5F5F5F]" />
-              <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.avgResponse', 'Avg Response')}</span>
+              <Clock className={`h-3.5 w-3.5 text-[#5F5F5F] ${HOVER_TEXT}`} />
+              <span className={`text-sm font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.avgResponse', 'Avg Response')}</span>
             </div>
             {data.endpoints.total > 0 ? (
               <>
-                <p className="text-[#393939] tabular-nums mt-1" style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
+                <p className={`text-[#393939] tabular-nums mt-1 ${HOVER_TEXT}`} style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
                   {data.responseTime.avg}ms
                 </p>
                 <span className={cn(
@@ -157,7 +182,7 @@ export default function OperationsCenterCard({ data }: Props) {
                 </span>
               </>
             )}
-          </div>
+          </button>
         </div>
 
         {/* Active Alerts */}
@@ -179,8 +204,9 @@ export default function OperationsCenterCard({ data }: Props) {
                 {data.alerts.active.slice(0, alertsExpanded ? undefined : INITIAL_ALERTS_COUNT).map((alert, index) => (
                   <div 
                     key={alert.id} 
+                    onClick={() => navigate('/intelligent-alerts')}
                     className={cn(
-                      "flex items-center gap-2 p-2.5",
+                      "flex items-center gap-2 p-2.5 cursor-pointer transition-all duration-200 hover:bg-[#00B2FF]/5 group",
                       alert.severity.toLowerCase() === 'critical' ? 'bg-red-50' : 'bg-white',
                       index > 0 && 'border-t border-gray-100'
                     )}
@@ -238,18 +264,27 @@ export default function OperationsCenterCard({ data }: Props) {
           </span>
 
           <div className="grid grid-cols-3 gap-2">
-            <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-center">
-              <div className="text-lg font-light text-[#393939] tabular-nums">{data.remediations.pending}</div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.pending', 'Pending')}</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#00B2FF]/5 border border-[#00B2FF]/20 text-center">
+            <button
+              onClick={() => navigate('/remediation-tickets?status=open')}
+              className={`p-2.5 rounded-xl bg-white border border-gray-200 text-center ${HOVER_BOX}`}
+            >
+              <div className={`text-lg font-light text-[#393939] tabular-nums ${HOVER_TEXT}`}>{data.remediations.pending}</div>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.pending', 'Pending')}</span>
+            </button>
+            <button
+              onClick={() => navigate('/remediation-tickets?status=in_progress')}
+              className="p-2.5 rounded-xl bg-[#00B2FF]/5 border border-[#00B2FF]/20 text-center transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/10 cursor-pointer group"
+            >
               <div className="text-lg font-light text-[#00B2FF] tabular-nums">{data.remediations.inProgress}</div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.inProgress', 'In Progress')}</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#00B2FF]/5 border border-[#00B2FF]/20 text-center">
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.inProgress', 'In Progress')}</span>
+            </button>
+            <button
+              onClick={() => navigate('/remediation-tickets?status=resolved')}
+              className="p-2.5 rounded-xl bg-[#00B2FF]/5 border border-[#00B2FF]/20 text-center transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/10 cursor-pointer group"
+            >
               <div className="text-lg font-light text-[#00B2FF] tabular-nums">{data.remediations.resolved}</div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.resolved', 'Resolved')}</span>
-            </div>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.resolved', 'Resolved')}</span>
+            </button>
           </div>
         </div>
       </div>

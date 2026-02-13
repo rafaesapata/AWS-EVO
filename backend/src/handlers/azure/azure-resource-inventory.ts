@@ -84,7 +84,7 @@ export async function handler(
         new Date(Date.now() + ONE_HOUR_MS)
       );
     } else {
-      const spValidation = validateServicePrincipalCredentials(credential);
+      const spValidation = await validateServicePrincipalCredentials(credential);
       if (!spValidation.valid) {
         return error(spValidation.error, 400);
       }

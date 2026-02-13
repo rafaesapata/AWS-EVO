@@ -142,10 +142,11 @@ export default function PredictiveIncidents() {
  }
  };
 
- const getProbabilityColor = (probability: number) => {
- if (probability >= 80) return 'text-destructive';
- if (probability >= 60) return 'text-orange-600';
- return 'text-yellow-600';
+ const getProbabilityBaseColor = (probability: number) => {
+ if (probability >= 90) return { text: 'text-red-500', bg: 'bg-red-500' };
+ if (probability >= 80) return { text: 'text-orange-500', bg: 'bg-orange-500' };
+ if (probability >= 70) return { text: 'text-yellow-500', bg: 'bg-yellow-500' };
+ return { text: 'text-primary', bg: 'bg-primary' };
  };
 
  const highRiskCount = incidents?.filter(i => i.probability >= 80).length || 0;
@@ -349,51 +350,63 @@ export default function PredictiveIncidents() {
  </div>
 
  <div className="space-y-2 mb-4">
- <div className="flex items-center justify-between text-sm">
- <span className="text-muted-foreground flex items-center gap-1.5">
- <TrendingUp className="h-3.5 w-3.5" />
- Probabilidade:
- </span>
- <div className="flex items-center gap-2">
- <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+ <div className="flex items-start gap-3 bg-muted/30 p-2 rounded">
+ <div className="flex-shrink-0 mt-1">
+ <div className="w-12 text-center">
+ <div className={`text-xs font-semibold ${getProbabilityBaseColor(incident.probability).text}`}>{incident.probability}%</div>
+ <div className="h-1.5 bg-muted rounded-full mt-1">
  <div 
- className={`h-full transition-all ${
- incident.probability >= 90 ? 'bg-red-500' :
- incident.probability >= 80 ? 'bg-orange-500' :
- incident.probability >= 70 ? 'bg-yellow-500' :
- 'bg-blue-500'
- }`}
+ className={`h-full rounded-full transition-all ${getProbabilityBaseColor(incident.probability).bg}`}
  style={{ width: `${incident.probability}%` }}
  />
  </div>
- <span className="font-semibold tabular-nums min-w-[3rem] text-right">{incident.probability}%</span>
  </div>
  </div>
- <div className="flex items-center justify-between text-sm">
- <span className="text-muted-foreground flex items-center gap-1.5">
- <Shield className="h-3.5 w-3.5" />
- Confiança:
- </span>
- <div className="flex items-center gap-2">
- <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+ <div className="flex-1 min-w-0">
+ <div className="text-sm font-medium flex items-center gap-1.5">
+ <TrendingUp className="h-3.5 w-3.5" />
+ Probabilidade
+ </div>
+ <div className="text-xs text-muted-foreground mt-0.5">Chance de ocorrência do incidente</div>
+ </div>
+ </div>
+ <div className="flex items-start gap-3 bg-muted/30 p-2 rounded">
+ <div className="flex-shrink-0 mt-1">
+ <div className="w-12 text-center">
+ <div className="text-xs font-semibold text-primary">{incident.confidence_score}%</div>
+ <div className="h-1.5 bg-muted rounded-full mt-1">
  <div 
- className="h-full bg-primary transition-all"
+ className="h-full bg-primary rounded-full transition-all"
  style={{ width: `${incident.confidence_score}%` }}
  />
  </div>
- <span className="font-semibold tabular-nums min-w-[3rem] text-right">{incident.confidence_score}%</span>
  </div>
  </div>
- <div className="flex items-center justify-between text-sm">
- <span className="text-muted-foreground flex items-center gap-1.5">
- <Clock className="h-3.5 w-3.5" />
- Tempo estimado:
- </span>
- <span className="font-semibold tabular-nums min-w-[3rem] text-right">
+ <div className="flex-1 min-w-0">
+ <div className="text-sm font-medium flex items-center gap-1.5">
+ <Shield className="h-3.5 w-3.5" />
+ Confiança
+ </div>
+ <div className="text-xs text-muted-foreground mt-0.5">Nível de certeza da predição</div>
+ </div>
+ </div>
+ <div className="flex items-start gap-3 bg-muted/30 p-2 rounded">
+ <div className="flex-shrink-0 mt-1">
+ <div className="w-12 text-center">
+ <div className="text-xs font-semibold text-primary">
  {incident.time_to_incident_hours < 48 
  ? `${incident.time_to_incident_hours}h`
  : `${Math.round(incident.time_to_incident_hours / 24)}d`}
- </span>
+ </div>
+ </div>
+ </div>
+ <div className="flex-1 min-w-0">
+ <div className="text-sm font-medium flex items-center gap-1.5">
+ <Clock className="h-3.5 w-3.5" />
+ Tempo estimado
+ </div>
+ <div className="text-xs text-muted-foreground mt-0.5">Tempo previsto até o incidente</div>
+ </div>
  </div>
  </div>
 

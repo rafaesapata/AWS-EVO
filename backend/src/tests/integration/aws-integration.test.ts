@@ -182,7 +182,7 @@ describeIntegration('Database Integration Tests', () => {
 });
 
 describeIntegration('API Gateway Integration Tests', () => {
-  const API_BASE_URL = process.env.API_BASE_URL || 'https://api-evo.nuevacore.com';
+  const API_BASE_URL = process.env.API_BASE_URL || 'https://api.evo.nuevacore.com';
 
   describe('Health Check Endpoints', () => {
     it('should respond to health check', async () => {
@@ -237,7 +237,7 @@ describeIntegration('API Gateway Integration Tests', () => {
 });
 
 describeIntegration('Rate Limiting Integration Tests', () => {
-  const API_BASE_URL = process.env.API_BASE_URL || 'https://api-evo.nuevacore.com';
+  const API_BASE_URL = process.env.API_BASE_URL || 'https://api.evo.nuevacore.com';
 
   it('should enforce rate limits on rapid requests', async () => {
     const requests = [];

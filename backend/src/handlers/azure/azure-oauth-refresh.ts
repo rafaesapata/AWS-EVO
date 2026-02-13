@@ -30,11 +30,7 @@ import {
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { getAzureOAuthRedirectUri } from '../../lib/app-domain.js';
-
-// OAuth configuration from environment
-const AZURE_OAUTH_CLIENT_ID = process.env.AZURE_OAUTH_CLIENT_ID;
-const AZURE_OAUTH_CLIENT_SECRET = process.env.AZURE_OAUTH_CLIENT_SECRET;
-const AZURE_OAUTH_REDIRECT_URI = getAzureOAuthRedirectUri();
+import { getAzureOAuthCredentials } from '../../lib/azure-helpers.js';
 
 // Validation schema
 const refreshSchema = z.object({
@@ -51,6 +47,12 @@ export async function handler(
   }
 
   try {
+    // Fetch OAuth credentials from SSM
+    const oauthCreds = await getAzureOAuthCredentials();
+    const AZURE_OAUTH_CLIENT_ID = oauthCreds.clientId;
+    const AZURE_OAUTH_CLIENT_SECRET = oauthCreds.clientSecret;
+    const AZURE_OAUTH_REDIRECT_URI = oauthCreds.redirectUri || getAzureOAuthRedirectUri();
+
     // Validate OAuth configuration
     if (!AZURE_OAUTH_CLIENT_ID || !AZURE_OAUTH_CLIENT_SECRET) {
       logger.error('Azure OAuth not configured');
@@ -248,12 +250,13 @@ export async function getValidAccessToken(
 
   // Refresh the token
   try {
+    const oauthCreds = await getAzureOAuthCredentials();
     const tokenResponse = await refreshAccessToken(
       refreshToken,
       {
-        clientId: AZURE_OAUTH_CLIENT_ID!,
-        clientSecret: AZURE_OAUTH_CLIENT_SECRET!,
-        redirectUri: AZURE_OAUTH_REDIRECT_URI,
+        clientId: oauthCreds.clientId,
+        clientSecret: oauthCreds.clientSecret,
+        redirectUri: oauthCreds.redirectUri || getAzureOAuthRedirectUri(),
       },
       credential.oauth_tenant_id || 'common'
     );

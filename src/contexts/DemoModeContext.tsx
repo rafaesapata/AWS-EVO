@@ -153,9 +153,9 @@ export const DEMO_PAGE_DESCRIPTIONS: Record<string, { title: string; description
       'Projeção de economia'
     ]
   },
-  '/waf-monitoring': {
-    title: 'WAF Monitoring',
-    description: 'Monitoramento de Web Application Firewall com análise de ameaças.',
+  '/attack-detection': {
+    title: 'Attack Detection',
+    description: 'Detecção de ataques em tempo real com análise de ameaças WAF.',
     features: [
       'Dashboard de eventos em tempo real',
       'Análise de ataques com IA',

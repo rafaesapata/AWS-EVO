@@ -134,7 +134,7 @@ export async function handler(
         isOAuth: true,
       };
     } else {
-      const spValidation = validateServicePrincipalCredentials(credential);
+      const spValidation = await validateServicePrincipalCredentials(credential);
       if (!spValidation.valid) {
         await failBackgroundJob(spValidation.error);
         return error(spValidation.error, 400);

@@ -82,7 +82,7 @@ async function getAccessToken(
     
     // Service Principal flow - direct approach (same as debug-azure-costs)
     const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
-    const resolvedSecret = resolveClientSecret(credential);
+    const resolvedSecret = await resolveClientSecret(credential);
     if (!credential.tenant_id || !credential.client_id || !resolvedSecret) {
       return { success: false, error: 'Missing Service Principal credentials (tenant_id, client_id, or client_secret)' };
     }

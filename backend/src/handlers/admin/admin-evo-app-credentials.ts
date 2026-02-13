@@ -15,6 +15,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { SSMClient, PutParameterCommand, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { LambdaClient, ListFunctionsCommand, GetFunctionConfigurationCommand, UpdateFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
+import { invalidateAzureOAuthCredsCache } from '../../lib/azure-helpers.js';
 
 const REGION = process.env.AWS_REGION || 'us-east-1';
 const ENV = process.env.ENVIRONMENT || 'production';
@@ -197,6 +198,7 @@ async function performFullSync(
   const { clientId, clientSecret, redirectUri } = credentials;
 
   await syncToSSM(clientId, clientSecret, redirectUri);
+  invalidateAzureOAuthCredsCache();
   const ssmSyncedAt = new Date();
 
   const { updated, failed } = await syncLambdaEnvVars({

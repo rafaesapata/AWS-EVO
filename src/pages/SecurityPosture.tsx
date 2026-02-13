@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -86,16 +87,17 @@ export default function SecurityPosture() {
   const { user } = useAuthSafe();
   const queryClient = useQueryClient();
   const { shouldEnableAccountQuery } = useDemoAwareQuery();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedStandard, setSelectedStandard] = useState<string>('all');
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
   const [creatingBatchTickets, setCreatingBatchTickets] = useState(false);
   const [historyDays, setHistoryDays] = useState(30);
   
-  // Findings filters, search and pagination state
+  // Findings filters, search and pagination state - initialize from URL params
   const [findingsSearch, setFindingsSearch] = useState('');
-  const [severityFilter, setSeverityFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [severityFilter, setSeverityFilter] = useState<string>(searchParams.get('severity') || 'all');
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);

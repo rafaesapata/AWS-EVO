@@ -21,6 +21,14 @@ interface Props {
   data: SecurityPosture;
 }
 
+// Reusable hover styles for clickable indicator boxes
+const HOVER_BOX = 'transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group';
+const HOVER_TEXT = 'group-hover:text-[#00B2FF] transition-colors duration-200';
+const HOVER_LABEL = 'group-hover:text-[#00B2FF]/70 transition-colors duration-200';
+
+// SVG circle circumference for r=85: 2 * π * 85
+const CIRCLE_CIRCUMFERENCE = 534.07;
+
 export default function SecurityPostureCard({ data }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -126,7 +134,7 @@ export default function SecurityPostureCard({ data }: Props) {
                 stroke={data.score >= 80 ? '#00B2FF' : data.score >= 60 ? '#393939' : '#EF4444'}
                 strokeWidth="16"
                 strokeLinecap="round"
-                strokeDasharray={`${(data.score / 100) * 534.07} 534.07`}
+                strokeDasharray={`${(data.score / 100) * CIRCLE_CIRCUMFERENCE} ${CIRCLE_CIRCUMFERENCE}`}
                 className="transition-all duration-1000 ease-out"
               />
             </svg>
@@ -166,40 +174,40 @@ export default function SecurityPostureCard({ data }: Props) {
           
           <div className="grid grid-cols-4 gap-2">
             <button
-              onClick={() => navigate('/security-posture')}
+              onClick={() => navigate('/security-posture?severity=critical')}
               className={cn(
-                "p-3 rounded-xl text-center border transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group",
+                `p-3 rounded-xl text-center border ${HOVER_BOX}`,
                 data.findings.critical > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
               )}
             >
               <div className={cn(
-                "text-2xl font-light tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200",
+                `text-2xl font-light tabular-nums ${HOVER_TEXT}`,
                 data.findings.critical > 0 ? 'text-red-500' : 'text-[#393939]'
               )}>
                 {data.findings.critical}
               </div>
-              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.severityCritical', 'Critical')}</span>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.severityCritical', 'Critical')}</span>
             </button>
             <button
-              onClick={() => navigate('/security-posture')}
-              className="p-3 rounded-xl bg-white border border-gray-200 text-center transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+              onClick={() => navigate('/security-posture?severity=high')}
+              className={`p-3 rounded-xl bg-white border border-gray-200 text-center ${HOVER_BOX}`}
             >
-              <div className="text-2xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.findings.high}</div>
-              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.severityHigh', 'High')}</span>
+              <div className={`text-2xl font-light text-[#393939] tabular-nums ${HOVER_TEXT}`}>{data.findings.high}</div>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.severityHigh', 'High')}</span>
             </button>
             <button
-              onClick={() => navigate('/security-posture')}
-              className="p-3 rounded-xl bg-white border border-gray-200 text-center transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+              onClick={() => navigate('/security-posture?severity=medium')}
+              className={`p-3 rounded-xl bg-white border border-gray-200 text-center ${HOVER_BOX}`}
             >
-              <div className="text-2xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.findings.medium}</div>
-              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.severityMedium', 'Medium')}</span>
+              <div className={`text-2xl font-light text-[#393939] tabular-nums ${HOVER_TEXT}`}>{data.findings.medium}</div>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.severityMedium', 'Medium')}</span>
             </button>
             <button
-              onClick={() => navigate('/security-posture')}
-              className="p-3 rounded-xl bg-white border border-gray-200 text-center transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+              onClick={() => navigate('/security-posture?severity=low')}
+              className={`p-3 rounded-xl bg-white border border-gray-200 text-center ${HOVER_BOX}`}
             >
-              <div className="text-2xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.findings.low}</div>
-              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.severityLow', 'Low')}</span>
+              <div className={`text-2xl font-light text-[#393939] tabular-nums ${HOVER_TEXT}`}>{data.findings.low}</div>
+              <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.severityLow', 'Low')}</span>
             </button>
           </div>
         </div>
@@ -224,23 +232,23 @@ export default function SecurityPostureCard({ data }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={() => navigate('/security-posture')}
-              className="flex items-center gap-2 p-3 rounded-xl bg-white border border-gray-200 text-left transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+              onClick={() => navigate('/security-posture?status=new')}
+              className={`flex items-center gap-2 p-3 rounded-xl bg-white border border-gray-200 text-left ${HOVER_BOX}`}
             >
-              <AlertTriangle className="h-4 w-4 text-amber-500 group-hover:text-[#00B2FF] transition-colors duration-200" />
+              <AlertTriangle className={`h-4 w-4 text-amber-500 ${HOVER_TEXT}`} />
               <div>
-                <div className="text-lg font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.trend.newLast7Days}</div>
-                <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.newIssues', 'New Issues')}</span>
+                <div className={`text-lg font-light text-[#393939] tabular-nums ${HOVER_TEXT}`}>{data.trend.newLast7Days}</div>
+                <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.newIssues', 'New Issues')}</span>
               </div>
             </button>
             <button
-              onClick={() => navigate('/security-posture')}
+              onClick={() => navigate('/security-posture?status=resolved')}
               className="flex items-center gap-2 p-3 rounded-xl bg-[#00B2FF]/10 border border-[#00B2FF]/20 text-left transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/20 cursor-pointer group"
             >
               <Shield className="h-4 w-4 text-[#00B2FF]" />
               <div>
                 <div className="text-lg font-light text-[#00B2FF] tabular-nums">{data.trend.resolvedLast7Days}</div>
-                <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.resolved', 'Resolved')}</span>
+                <span className={`text-xs font-light text-[#5F5F5F] ${HOVER_LABEL}`}>{t('executiveDashboard.resolved', 'Resolved')}</span>
               </div>
             </button>
           </div>
@@ -248,13 +256,13 @@ export default function SecurityPostureCard({ data }: Props) {
 
         {/* Total Findings */}
         <button
-          onClick={() => navigate('/security-posture')}
-          className="w-full flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200 text-left transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+          onClick={() => navigate('/security-posture?severity=all')}
+          className={`w-full flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200 text-left ${HOVER_BOX}`}
         >
-          <span className="text-sm font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">
+          <span className={`text-sm font-light text-[#5F5F5F] ${HOVER_LABEL}`}>
             {t('executiveDashboard.totalFindings', 'Total Active Findings')}
           </span>
-          <span className="text-lg font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.findings.total}</span>
+          <span className={`text-lg font-light text-[#393939] tabular-nums ${HOVER_TEXT}`}>{data.findings.total}</span>
         </button>
 
         {/* Last Scan */}

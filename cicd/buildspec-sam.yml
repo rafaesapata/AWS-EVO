@@ -86,6 +86,7 @@ phases:
           export AZURE_OAUTH_CLIENT_ID="cb8027cd-877e-458a-8f46-b090312f79aa"
           export AZURE_OAUTH_REDIRECT_URI="https://evo.nuevacore.com/azure/callback"
           export APP_DOMAIN="evo.nuevacore.com"
+          export API_DOMAIN="api.evo.nuevacore.com"
         else
           export STACK_NAME="evo-uds-v3-sandbox-lambdas"
           export COGNITO_USER_POOL_ID="us-east-1_HPU98xnmT"
@@ -102,6 +103,7 @@ phases:
           export AZURE_OAUTH_CLIENT_ID="cb8027cd-877e-458a-8f46-b090312f79aa"
           export AZURE_OAUTH_REDIRECT_URI="https://evo.nuevacore.com/azure/callback"
           export APP_DOMAIN="evo.nuevacore.com"
+          export API_DOMAIN="api.evo.nuevacore.com"
         fi
       - echo "Environment $ENV | Stack $STACK_NAME"
       # Fetch secrets from SSM Parameter Store (secrets not stored in code)
@@ -312,6 +314,7 @@ phases:
           PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthClientId=$AZURE_OAUTH_CLIENT_ID"
           PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI"
           PARAM_OVERRIDES="$PARAM_OVERRIDES AppDomain=$APP_DOMAIN"
+          PARAM_OVERRIDES="$PARAM_OVERRIDES ApiDomain=$API_DOMAIN"
           # Optional params - only include if they have values (SAM template defaults will be used otherwise)
           if [ -n "$WEBAUTHN_RP_ID" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES WebAuthnRpId=$WEBAUTHN_RP_ID"

@@ -10,9 +10,80 @@ import {
   encryptToken,
   serializeEncryptedToken,
 } from './token-encryption.js';
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { logger } from './logger.js';
 
 /** Default token expiry in seconds when Azure doesn't return expires_in */
 const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
+
+// --- SSM-backed Azure OAuth credentials with in-memory cache ---
+
+const SSM_REGION = process.env.AWS_REGION || 'us-east-1';
+const SSM_ENV = process.env.ENVIRONMENT || 'production';
+const SSM_PREFIX = `/evo-uds-v3/${SSM_ENV}`;
+
+/** Cache TTL: 5 minutes — balances freshness vs. SSM API calls */
+const SSM_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface AzureOAuthCreds {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}
+
+let _cachedCreds: AzureOAuthCreds | null = null;
+let _cachedAt = 0;
+
+/**
+ * Fetches Azure OAuth credentials from SSM Parameter Store with in-memory cache.
+ * Falls back to process.env if SSM is unavailable (local dev).
+ */
+export async function getAzureOAuthCredentials(): Promise<AzureOAuthCreds> {
+  // Return cache if still valid
+  if (_cachedCreds && Date.now() - _cachedAt < SSM_CACHE_TTL_MS) {
+    return _cachedCreds;
+  }
+
+  try {
+    const ssm = new SSMClient({ region: SSM_REGION });
+    const [cidRes, secRes, uriRes] = await Promise.all([
+      ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-id` })),
+      ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-secret`, WithDecryption: true })),
+      ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-redirect-uri` })),
+    ]);
+
+    const clientId = cidRes.Parameter?.Value;
+    const clientSecret = secRes.Parameter?.Value;
+    const redirectUri = uriRes.Parameter?.Value;
+
+    if (clientId && clientSecret && redirectUri) {
+      _cachedCreds = { clientId, clientSecret, redirectUri };
+      _cachedAt = Date.now();
+      return _cachedCreds;
+    }
+
+    logger.warn('SSM Azure OAuth params incomplete, falling back to env vars');
+  } catch (err: any) {
+    logger.warn('Failed to fetch Azure OAuth creds from SSM, falling back to env vars', {
+      error: err.message,
+    });
+  }
+
+  // Fallback to env vars (local dev or SSM not configured)
+  _cachedCreds = {
+    clientId: process.env.AZURE_OAUTH_CLIENT_ID || '',
+    clientSecret: process.env.AZURE_OAUTH_CLIENT_SECRET || '',
+    redirectUri: process.env.AZURE_OAUTH_REDIRECT_URI || '',
+  };
+  _cachedAt = Date.now();
+  return _cachedCreds;
+}
+
+/** Invalidates the cached SSM credentials (useful after admin updates) */
+export function invalidateAzureOAuthCredsCache(): void {
+  _cachedCreds = null;
+  _cachedAt = 0;
+}
 
 /** One hour in milliseconds — used for OAuth token credential expiry estimates */
 export const ONE_HOUR_MS = DEFAULT_TOKEN_EXPIRY_SECONDS * 1000;
@@ -29,7 +100,7 @@ export function isInvalidClientSecretError(errorText: string): boolean {
 
 /** User-facing message for invalid/expired OAuth client secret */
 export const INVALID_CLIENT_SECRET_MESSAGE = 
-  'Azure OAuth client secret is invalid or expired. Generate a new secret in Azure Portal (App registrations > Certificates & secrets) and update AZURE_OAUTH_CLIENT_SECRET.';
+  'Azure OAuth client secret is invalid or expired. Generate a new secret in Azure Portal (App registrations > Certificates & secrets) and update via Admin > EVO App Credentials.';
 
 /**
  * Credential type from Prisma
@@ -79,9 +150,9 @@ export type ServicePrincipalValidationResult =
  * @param credential - The Azure credential record from the database
  * @returns Validation result with credentials if valid, or error message if not
  */
-export function validateServicePrincipalCredentials(
+export async function validateServicePrincipalCredentials(
   credential: Pick<AzureCredentialRecord, 'auth_type' | 'tenant_id' | 'client_id' | 'client_secret' | 'subscription_id' | 'subscription_name'>
-): ServicePrincipalValidationResult {
+): Promise<ServicePrincipalValidationResult> {
   // Check if this is an OAuth credential
   if (credential.auth_type === 'oauth') {
     return { 
@@ -98,12 +169,8 @@ export function validateServicePrincipalCredentials(
   if (!credential.client_id) {
     return { valid: false, error: 'Missing client_id in Service Principal credentials.' };
   }
-  
-  if (!credential.client_secret && !(process.env.AZURE_OAUTH_CLIENT_ID && process.env.AZURE_OAUTH_CLIENT_SECRET && credential.client_id === process.env.AZURE_OAUTH_CLIENT_ID)) {
-    return { valid: false, error: 'Missing client_secret in Service Principal credentials.' };
-  }
 
-  const clientSecret = resolveClientSecret(credential);
+  const clientSecret = await resolveClientSecret(credential);
   if (!clientSecret) {
     return { valid: false, error: 'Missing client_secret in Service Principal credentials.' };
   }
@@ -122,15 +189,14 @@ export function validateServicePrincipalCredentials(
 
 /**
  * Resolves the client secret for an Azure credential.
- * Prefers the centralized SSM secret (env var) when the credential uses the EVO app registration.
+ * Prefers the centralized SSM secret when the credential uses the EVO app registration.
  * Falls back to decrypting the client_secret stored in the database.
  */
-export function resolveClientSecret(credential: Pick<AzureCredentialRecord, 'client_id' | 'client_secret'>): string | null {
-  const evoClientId = process.env.AZURE_OAUTH_CLIENT_ID;
-  const evoClientSecret = process.env.AZURE_OAUTH_CLIENT_SECRET;
+export async function resolveClientSecret(credential: Pick<AzureCredentialRecord, 'client_id' | 'client_secret'>): Promise<string | null> {
+  const creds = await getAzureOAuthCredentials();
 
-  if (evoClientId && evoClientSecret && credential.client_id === evoClientId) {
-    return evoClientSecret;
+  if (creds.clientId && creds.clientSecret && credential.client_id === creds.clientId) {
+    return creds.clientSecret;
   }
 
   if (!credential.client_secret) return null;
@@ -177,11 +243,12 @@ async function refreshOAuthToken(
   tenantId: string,
   refreshToken: string
 ): Promise<{ accessToken: string; expiresIn: number; newRefreshToken?: string }> {
-  const clientId = process.env.AZURE_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.AZURE_OAUTH_CLIENT_SECRET;
+  const creds = await getAzureOAuthCredentials();
+  const clientId = creds.clientId;
+  const clientSecret = creds.clientSecret;
   
   if (!clientId || !clientSecret) {
-    throw new Error('Azure OAuth client credentials not configured');
+    throw new Error('Azure OAuth client credentials not configured (check SSM parameters)');
   }
   
   const tokenUrl = getAzureTokenUrl(tenantId);
@@ -303,7 +370,7 @@ export async function getAzureCredentialWithToken(
   }
   
   // Handle Service Principal credentials
-  const spValidation = validateServicePrincipalCredentials(credential);
+  const spValidation = await validateServicePrincipalCredentials(credential);
   if (!spValidation.valid) {
     return { success: false, error: spValidation.error };
   }

@@ -291,7 +291,7 @@ describe('Property 4: Provider Routing Correctness', () => {
   });
 
   describe('Database Credential Conversion', () => {
-    it('should create AWS provider from database record', () => {
+    it('should create AWS provider from database record', async () => {
       const dbRecord = {
         provider: 'AWS' as CloudProviderType,
         access_key_id: 'AKIAIOSFODNN7EXAMPLE',
@@ -305,13 +305,13 @@ describe('Property 4: Provider Routing Correctness', () => {
         subscription_id: null,
       };
 
-      const provider = CloudProviderFactory.fromDatabaseCredential(dbRecord, 'org-123');
+      const provider = await CloudProviderFactory.fromDatabaseCredential(dbRecord, 'org-123');
       
       expect(provider).toBeInstanceOf(AWSProvider);
       expect(provider.providerType).toBe('AWS');
     });
 
-    it('should create AWS provider from database record with role ARN', () => {
+    it('should create AWS provider from database record with role ARN', async () => {
       const dbRecord = {
         provider: 'AWS' as CloudProviderType,
         access_key_id: null,
@@ -325,13 +325,13 @@ describe('Property 4: Provider Routing Correctness', () => {
         subscription_id: null,
       };
 
-      const provider = CloudProviderFactory.fromDatabaseCredential(dbRecord, 'org-123');
+      const provider = await CloudProviderFactory.fromDatabaseCredential(dbRecord, 'org-123');
       
       expect(provider).toBeInstanceOf(AWSProvider);
       expect(provider.providerType).toBe('AWS');
     });
 
-    it('should create Azure provider from database record', () => {
+    it('should create Azure provider from database record', async () => {
       const dbRecord = {
         provider: 'AZURE' as CloudProviderType,
         access_key_id: null,
@@ -345,13 +345,13 @@ describe('Property 4: Provider Routing Correctness', () => {
         subscription_id: 'subscription-id-abc',
       };
 
-      const provider = CloudProviderFactory.fromDatabaseCredential(dbRecord, 'org-123');
+      const provider = await CloudProviderFactory.fromDatabaseCredential(dbRecord, 'org-123');
       
       expect(provider).toBeInstanceOf(AzureProvider);
       expect(provider.providerType).toBe('AZURE');
     });
 
-    it('should throw error for Azure record with missing fields', () => {
+    it('should throw error for Azure record with missing fields', async () => {
       const dbRecord = {
         provider: 'AZURE' as CloudProviderType,
         access_key_id: null,
@@ -365,8 +365,8 @@ describe('Property 4: Provider Routing Correctness', () => {
         subscription_id: 'subscription-id-abc',
       };
 
-      expect(() => CloudProviderFactory.fromDatabaseCredential(dbRecord, 'org-123'))
-        .toThrow(CloudProviderError);
+      await expect(CloudProviderFactory.fromDatabaseCredential(dbRecord, 'org-123'))
+        .rejects.toThrow(CloudProviderError);
     });
   });
 

@@ -82,7 +82,7 @@ export async function handler(
         tokenCredential = createStaticTokenCredential(tokenResult.accessToken);
       } else {
         const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
-        const resolvedSecret = resolveClientSecret(credential);
+        const resolvedSecret = await resolveClientSecret(credential);
         if (!credential.tenant_id || !credential.client_id || !resolvedSecret) {
           return error('Service Principal credentials incomplete. Missing tenant_id, client_id, or client_secret.', 400);
         }

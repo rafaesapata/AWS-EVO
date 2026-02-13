@@ -79,8 +79,6 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
       setActiveTab('waste');
     } else if (path === '/resource-monitoring') {
       setActiveTab('resource-monitoring');
-    } else if (path === '/attack-detection') {
-      setActiveTab('attack-detection');
     } else if (path === '/aws-settings') {
       setActiveTab('aws-settings');
     } else if (path === '/knowledge-base') {

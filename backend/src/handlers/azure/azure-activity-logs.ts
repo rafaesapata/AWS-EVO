@@ -91,7 +91,7 @@ export async function handler(
       );
     } else {
       // Validate Service Principal credentials
-      const spValidation = validateServicePrincipalCredentials(credential);
+      const spValidation = await validateServicePrincipalCredentials(credential);
       if (!spValidation.valid) {
         return error(spValidation.error, 400);
       }
