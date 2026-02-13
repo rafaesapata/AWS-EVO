@@ -4218,7 +4218,11 @@
     "evoUpdateError": "Sync failed",
     "evoSyncSuccess": "Sync completed",
     "evoSyncError": "Sync failed",
-    "evoRequiredFields": "Client ID and Secret are required"
+    "evoRequiredFields": "Client ID and Secret are required",
+    "evoTestBtn": "Test Credentials",
+    "evoTestSuccess": "Credentials are valid",
+    "evoTestFailed": "Credentials are invalid",
+    "evoTestError": "Test failed"
   },
   "endpointMonitoring": {
     "noMetricData": "No metric data available",

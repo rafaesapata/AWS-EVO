@@ -15,7 +15,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { SSMClient, PutParameterCommand, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { LambdaClient, ListFunctionsCommand, GetFunctionConfigurationCommand, UpdateFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
-import { invalidateAzureOAuthCredsCache } from '../../lib/azure-helpers.js';
+import { invalidateAzureOAuthCredsCache, getAzureOAuthCredentials, getAzureTokenUrl } from '../../lib/azure-helpers.js';
 
 const REGION = process.env.AWS_REGION || 'us-east-1';
 const ENV = process.env.ENVIRONMENT || 'production';
@@ -31,7 +31,7 @@ const ssmClient = new SSMClient({ region: REGION });
 const lambdaClient = new LambdaClient({ region: REGION });
 
 interface ActionBody {
-  action: 'get' | 'update' | 'sync';
+  action: 'get' | 'update' | 'sync' | 'test';
   clientId?: string;
   clientSecret?: string;
   redirectUri?: string;
@@ -298,6 +298,64 @@ async function handleSync(
   }, 200, origin);
 }
 
+/**
+ * Test EVO App credentials by requesting a client_credentials token from Azure AD.
+ * Uses the SSM-backed credentials (same path as all handlers).
+ */
+async function handleTest(origin: string): Promise<APIGatewayProxyResultV2> {
+  const creds = await getAzureOAuthCredentials();
+
+  if (!creds.clientId || !creds.clientSecret) {
+    return success({ valid: false, error: 'Azure OAuth credentials not configured', source: 'none' }, 200, origin);
+  }
+
+  // We need a tenant to test against — use 'common' for multi-tenant apps
+  const tokenUrl = getAzureTokenUrl('organizations');
+  const params = new URLSearchParams({
+    client_id: creds.clientId,
+    client_secret: creds.clientSecret,
+    grant_type: 'client_credentials',
+    scope: 'https://graph.microsoft.com/.default',
+  });
+
+  try {
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.warn('EVO App credential test failed', {
+        status: response.status,
+        clientId: creds.clientId,
+        secretLength: creds.clientSecret.length,
+        secretPrefix: creds.clientSecret.substring(0, 4) + '***',
+        error: errorText.substring(0, 500),
+      });
+
+      // Parse Azure AD error for user-friendly message
+      let userError = `Azure AD returned ${response.status}`;
+      if (errorText.includes('AADSTS7000215') || errorText.includes('invalid_client')) {
+        userError = 'Invalid client secret. Ensure you are using the secret Value, not the secret ID.';
+      } else if (errorText.includes('AADSTS700016')) {
+        userError = 'Application not found in the directory.';
+      } else if (errorText.includes('AADSTS90002')) {
+        userError = 'Tenant not found. Check the tenant configuration.';
+      }
+
+      return success({ valid: false, error: userError, source: 'ssm' }, 200, origin);
+    }
+
+    logger.info('EVO App credential test passed', { clientId: creds.clientId });
+    return success({ valid: true, source: 'ssm', clientId: creds.clientId }, 200, origin);
+  } catch (err: any) {
+    logger.error('EVO App credential test error', { error: err.message });
+    return success({ valid: false, error: err.message, source: 'ssm' }, 200, origin);
+  }
+}
+
 export async function handler(
   event: AuthorizedEvent,
   _context: LambdaContext
@@ -344,8 +402,11 @@ export async function handler(
         });
         return handleSync(prisma, user.sub, origin);
 
+      case 'test':
+        return handleTest(origin);
+
       default:
-        return error('Invalid action. Use: get, update, sync', 400, undefined, origin);
+        return error('Invalid action. Use: get, update, sync, test', 400, undefined, origin);
     }
   } catch (err: any) {
     logger.error('Admin EVO app credentials error', { error: err.message });

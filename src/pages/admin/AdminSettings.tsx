@@ -202,6 +202,29 @@ export default function AdminSettings() {
     },
   });
 
+  // EVO App test credentials mutation
+  const evoTestMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.invoke<{ valid: boolean; error?: string; source?: string; clientId?: string }>('admin-evo-app-credentials', {
+        body: { action: 'test' },
+      });
+      if (res.error) throw new Error(res.error.message || 'Request failed');
+      return res.data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.valid
+          ? t('adminSettings.evoTestSuccess', 'Credentials are valid')
+          : t('adminSettings.evoTestFailed', 'Credentials are invalid'),
+        description: data.error || (data.clientId ? `Client ID: ${data.clientId}` : undefined),
+        variant: data.valid ? 'default' : 'destructive',
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: t('adminSettings.evoTestError', 'Test failed'), description: err.message, variant: 'destructive' });
+    },
+  });
+
   // EVO App sync-only mutation
   const evoSyncMutation = useMutation({
     mutationFn: async () => {
@@ -305,6 +328,15 @@ export default function AdminSettings() {
                     <CardDescription>{t('adminSettings.evoCurrentDesc', 'OAuth intermediary credentials used by all organizations')}</CardDescription>
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="glass"
+                      onClick={() => evoTestMutation.mutate()}
+                      disabled={evoTestMutation.isPending}
+                    >
+                      <ShieldCheck className={`h-4 w-4 mr-2 ${evoTestMutation.isPending ? 'animate-pulse' : ''}`} />
+                      {t('adminSettings.evoTestBtn', 'Test Credentials')}
+                    </Button>
                     <Button
                       variant="outline"
                       className="glass"
