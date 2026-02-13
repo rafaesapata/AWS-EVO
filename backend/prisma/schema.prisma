@@ -136,6 +136,11 @@ model AzureCredential {
   client_id             String?  // Service Principal App ID (optional for OAuth)
   client_secret         String?  // Service Principal Secret (encrypted, optional for OAuth)
   
+  // Certificate fields (used when auth_type = 'certificate')
+  certificate_pem           String?  // Encrypted combined PEM (cert+key)
+  certificate_thumbprint    String?  // SHA-1 thumbprint
+  certificate_expires_at    DateTime? @db.Timestamptz(6) // Certificate expiration date
+  
   // OAuth fields (used when auth_type = 'oauth')
   encrypted_refresh_token String? // Encrypted OAuth refresh token
   token_expires_at      DateTime? @db.Timestamptz(6) // When current access token expires

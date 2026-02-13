@@ -21,13 +21,24 @@ import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
 // Validation schema for Azure credentials
-const validateAzureCredentialsSchema = z.object({
-  tenantId: z.string().min(1, 'Tenant ID is required'),
-  clientId: z.string().min(1, 'Client ID is required'),
-  clientSecret: z.string().min(1, 'Client Secret is required'),
-  subscriptionId: z.string().min(1, 'Subscription ID is required'),
-  subscriptionName: z.string().optional(),
-});
+const validateAzureCredentialsSchema = z.discriminatedUnion('authType', [
+  z.object({
+    authType: z.literal('service_principal').optional().default('service_principal'),
+    tenantId: z.string().min(1, 'Tenant ID is required'),
+    clientId: z.string().min(1, 'Client ID is required'),
+    clientSecret: z.string().min(1, 'Client Secret is required'),
+    subscriptionId: z.string().min(1, 'Subscription ID is required'),
+    subscriptionName: z.string().optional(),
+  }),
+  z.object({
+    authType: z.literal('certificate'),
+    tenantId: z.string().min(1, 'Tenant ID is required'),
+    clientId: z.string().min(1, 'Client ID is required'),
+    certificatePem: z.string().min(100, 'Certificate PEM is required'),
+    subscriptionId: z.string().min(1, 'Subscription ID is required'),
+    subscriptionName: z.string().optional(),
+  }),
+]);
 
 export async function handler(
   event: AuthorizedEvent,
@@ -45,21 +56,43 @@ export async function handler(
     logger.info('Validating Azure credentials', { organizationId });
 
     // Parse and validate request body
-    const validation = parseAndValidateBody(validateAzureCredentialsSchema, event.body);
+    let bodyWithDefault: any;
+    try {
+      bodyWithDefault = JSON.parse(event.body || '{}');
+      if (!bodyWithDefault.authType) {
+        bodyWithDefault.authType = 'service_principal';
+      }
+    } catch {
+      return error('Invalid JSON in request body', 400);
+    }
+
+    const validation = parseAndValidateBody(validateAzureCredentialsSchema, JSON.stringify(bodyWithDefault));
     if (!validation.success) {
       return validation.error;
     }
 
-    const { tenantId, clientId, clientSecret, subscriptionId, subscriptionName } = validation.data;
+    const data = validation.data;
 
-    // Create Azure provider and validate credentials
-    const azureProvider = new AzureProvider(organizationId, {
-      tenantId,
-      clientId,
-      clientSecret,
-      subscriptionId,
-      subscriptionName,
-    });
+    // Create Azure provider based on auth type
+    let azureProvider: AzureProvider;
+    
+    if (data.authType === 'certificate') {
+      azureProvider = new AzureProvider(organizationId, {
+        tenantId: data.tenantId,
+        clientId: data.clientId,
+        certificatePem: data.certificatePem,
+        subscriptionId: data.subscriptionId,
+        subscriptionName: data.subscriptionName,
+      });
+    } else {
+      azureProvider = new AzureProvider(organizationId, {
+        tenantId: data.tenantId,
+        clientId: data.clientId,
+        clientSecret: data.clientSecret,
+        subscriptionId: data.subscriptionId,
+        subscriptionName: data.subscriptionName,
+      });
+    }
 
     const result = await azureProvider.validateCredentials();
 

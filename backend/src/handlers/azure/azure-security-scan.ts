@@ -18,7 +18,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
-import { validateServicePrincipalCredentials, getAzureCredentialWithToken, ONE_HOUR_MS } from '../../lib/azure-helpers.js';
+import { validateServicePrincipalCredentials, validateCertificateCredentials, getAzureCredentialWithToken, ONE_HOUR_MS } from '../../lib/azure-helpers.js';
 import { runAllAzureScanners, azureScannerMetadata } from '../../lib/security-engine/scanners/azure/index.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import type { AzureScanContext } from '../../lib/security-engine/scanners/azure/types.js';
@@ -133,6 +133,13 @@ export async function handler(
         accessToken: tokenResult.accessToken,
         isOAuth: true,
       };
+    } else if (credential.auth_type === 'certificate') {
+      const certValidation = await validateCertificateCredentials(credential);
+      if (!certValidation.valid) {
+        await failBackgroundJob(certValidation.error);
+        return error(certValidation.error, 400);
+      }
+      spCredentials = certValidation.credentials;
     } else {
       const spValidation = await validateServicePrincipalCredentials(credential);
       if (!spValidation.valid) {

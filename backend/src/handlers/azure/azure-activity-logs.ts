@@ -17,7 +17,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
-import { validateServicePrincipalCredentials, ONE_HOUR_MS } from '../../lib/azure-helpers.js';
+import { validateServicePrincipalCredentials, validateCertificateCredentials, ONE_HOUR_MS } from '../../lib/azure-helpers.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import type { ActivityQueryParams } from '../../types/cloud.js';
 import { z } from 'zod';
@@ -89,6 +89,12 @@ export async function handler(
         tokenResult.accessToken,
         new Date(Date.now() + ONE_HOUR_MS)
       );
+    } else if (credential.auth_type === 'certificate') {
+      const certValidation = await validateCertificateCredentials(credential);
+      if (!certValidation.valid) {
+        return error(certValidation.error, 400);
+      }
+      azureProvider = new AzureProvider(organizationId, certValidation.credentials);
     } else {
       // Validate Service Principal credentials
       const spValidation = await validateServicePrincipalCredentials(credential);

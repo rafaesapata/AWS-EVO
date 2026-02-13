@@ -146,6 +146,11 @@ export interface AzureCredentialRecord {
   oauth_user_email: string | null;
   last_refresh_at: Date | null;
   refresh_error: string | null;
+  // Certificate fields
+  certificate_pem: string | null;
+  certificate_thumbprint: string | null;
+  certificate_expires_at: Date | null;
+  // Common fields
   regions: string[];
   is_active: boolean;
   created_at: Date;
@@ -159,6 +164,17 @@ export interface ServicePrincipalCredentials {
   tenantId: string;
   clientId: string;
   clientSecret: string;
+  subscriptionId: string;
+  subscriptionName?: string;
+}
+
+/**
+ * Certificate credentials for Azure SDK
+ */
+export interface CertificateCredentials {
+  tenantId: string;
+  clientId: string;
+  certificatePem: string;
   subscriptionId: string;
   subscriptionName?: string;
 }
@@ -271,6 +287,63 @@ export function isOAuthCredential(credential: Pick<AzureCredentialRecord, 'auth_
  */
 export function isServicePrincipalCredential(credential: Pick<AzureCredentialRecord, 'auth_type'>): boolean {
   return credential.auth_type === 'service_principal' || !credential.auth_type;
+}
+
+/**
+ * Checks if an Azure credential is a Certificate credential
+ */
+export function isCertificateCredential(credential: Pick<AzureCredentialRecord, 'auth_type'>): boolean {
+  return credential.auth_type === 'certificate';
+}
+
+/**
+ * Resolves the certificate PEM from a credential record.
+ * Decrypts if stored encrypted, returns as-is if plaintext.
+ */
+export async function resolveCertificatePem(
+  credential: Pick<AzureCredentialRecord, 'certificate_pem'>
+): Promise<string | null> {
+  if (!credential.certificate_pem) return null;
+
+  let pem = credential.certificate_pem;
+  try {
+    const parsed = JSON.parse(pem);
+    if (parsed.ciphertext && parsed.iv && parsed.tag && parsed.keyId) {
+      pem = decryptToken(parsed);
+      logger.info('resolveCertificatePem: decrypted from DB');
+    }
+  } catch {
+    // Not JSON — use as-is (legacy plaintext)
+    logger.info('resolveCertificatePem: using plaintext from DB');
+  }
+  return pem;
+}
+
+/**
+ * Validates that an Azure credential has valid Certificate credentials
+ */
+export async function validateCertificateCredentials(
+  credential: Pick<AzureCredentialRecord, 'auth_type' | 'tenant_id' | 'client_id' | 'certificate_pem' | 'subscription_id' | 'subscription_name'>
+): Promise<{ valid: true; credentials: CertificateCredentials } | { valid: false; error: string }> {
+  if (credential.auth_type !== 'certificate') {
+    return { valid: false, error: 'Credential is not certificate type' };
+  }
+
+  const pem = await resolveCertificatePem(credential);
+  if (!credential.tenant_id || !credential.client_id || !pem) {
+    return { valid: false, error: 'Certificate credentials incomplete. Missing tenant_id, client_id, or certificate_pem.' };
+  }
+
+  return {
+    valid: true,
+    credentials: {
+      tenantId: credential.tenant_id,
+      clientId: credential.client_id,
+      certificatePem: pem,
+      subscriptionId: credential.subscription_id,
+      subscriptionName: credential.subscription_name || undefined,
+    },
+  };
 }
 
 
@@ -412,6 +485,33 @@ export async function getAzureCredentialWithToken(
       });
       
       return { success: false, error: `Failed to refresh OAuth token: ${err.message}` };
+    }
+  }
+  
+  // Handle Certificate credentials
+  if (credential.auth_type === 'certificate') {
+    const certValidation = await validateCertificateCredentials(credential);
+    if (!certValidation.valid) {
+      return { success: false, error: certValidation.error };
+    }
+    
+    try {
+      const { ClientCertificateCredential } = await import('@azure/identity');
+      const certCredential = new ClientCertificateCredential(
+        certValidation.credentials.tenantId,
+        certValidation.credentials.clientId,
+        { certificate: certValidation.credentials.certificatePem }
+      );
+      
+      const tokenResponse = await certCredential.getToken('https://management.azure.com/.default');
+      
+      return {
+        success: true,
+        credential,
+        accessToken: tokenResponse.token,
+      };
+    } catch (err: any) {
+      return { success: false, error: `Failed to get Certificate token: ${err.message}` };
     }
   }
   

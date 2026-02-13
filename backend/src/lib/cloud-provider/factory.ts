@@ -94,26 +94,39 @@ export class CloudProviderFactory {
         break;
 
       case 'AZURE':
-        // Cast to AzureServicePrincipalCredentials - factory assumes Service Principal auth
+        // Cast to AzureCredentialFields - factory supports Service Principal and Certificate auth
         const azureCreds = credentials as AzureCredentialFields;
-        if (!azureCreds.tenantId || !azureCreds.clientId || !azureCreds.clientSecret) {
+        if (azureCreds.certificatePem && azureCreds.tenantId && azureCreds.clientId) {
+          // Certificate-based auth
+          providerInstance = new AzureProvider(
+            organizationId,
+            {
+              tenantId: azureCreds.tenantId,
+              clientId: azureCreds.clientId,
+              certificatePem: azureCreds.certificatePem,
+              subscriptionId: azureCreds.subscriptionId,
+              subscriptionName: azureCreds.subscriptionName,
+            }
+          );
+        } else if (!azureCreds.tenantId || !azureCreds.clientId || !azureCreds.clientSecret) {
           throw new CloudProviderError(
             'Azure Service Principal credentials are incomplete',
             'AZURE',
             'INVALID_CREDENTIALS',
             400
           );
+        } else {
+          providerInstance = new AzureProvider(
+            organizationId,
+            {
+              tenantId: azureCreds.tenantId,
+              clientId: azureCreds.clientId,
+              clientSecret: azureCreds.clientSecret,
+              subscriptionId: azureCreds.subscriptionId,
+              subscriptionName: azureCreds.subscriptionName,
+            }
+          );
         }
-        providerInstance = new AzureProvider(
-          organizationId,
-          {
-            tenantId: azureCreds.tenantId,
-            clientId: azureCreds.clientId,
-            clientSecret: azureCreds.clientSecret,
-            subscriptionId: azureCreds.subscriptionId,
-            subscriptionName: azureCreds.subscriptionName,
-          }
-        );
         break;
 
       case 'GCP':
@@ -193,6 +206,7 @@ export class CloudProviderFactory {
       client_id?: string | null;
       client_secret?: string | null;
       subscription_id?: string | null;
+      certificate_pem?: string | null;
     },
     organizationId: string
   ): Promise<ICloudProvider> {
@@ -225,6 +239,34 @@ export class CloudProviderFactory {
     }
 
     if (provider === 'AZURE') {
+      // Check for certificate-based auth first
+      if (credentialRecord.certificate_pem && credentialRecord.tenant_id && credentialRecord.client_id) {
+        const { resolveCertificatePem } = await import('../azure-helpers.js');
+        const resolvedPem = await resolveCertificatePem({ certificate_pem: credentialRecord.certificate_pem });
+        if (!resolvedPem || !credentialRecord.subscription_id) {
+          throw new CloudProviderError(
+            'Missing required Azure certificate credential fields',
+            'AZURE',
+            'INVALID_CREDENTIALS',
+            400
+          );
+        }
+
+        const azureCredentials: AzureCredentialFields = {
+          tenantId: credentialRecord.tenant_id,
+          clientId: credentialRecord.client_id,
+          certificatePem: resolvedPem,
+          subscriptionId: credentialRecord.subscription_id,
+        };
+
+        return this.getProvider({
+          provider: 'AZURE',
+          organizationId,
+          credentials: azureCredentials,
+        });
+      }
+
+      // Service Principal auth
       const resolvedSecret = await resolveClientSecret({
         client_id: credentialRecord.client_id ?? null,
         client_secret: credentialRecord.client_secret ?? null,

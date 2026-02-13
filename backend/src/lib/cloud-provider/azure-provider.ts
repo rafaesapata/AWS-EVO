@@ -20,6 +20,7 @@ import type {
   ActivityEvent,
   ActivityQueryParams,
   AzureServicePrincipalCredentials,
+  AzureCertificateCredentials,
 } from '../../types/cloud.js';
 import { CloudProviderError } from '../../types/cloud.js';
 import { logger } from '../logging.js';
@@ -38,7 +39,7 @@ export interface AzureOAuthCredentials {
 /**
  * Combined credentials type
  */
-export type AzureCredentials = AzureServicePrincipalCredentials | AzureOAuthCredentials;
+export type AzureCredentials = AzureServicePrincipalCredentials | AzureOAuthCredentials | AzureCertificateCredentials;
 
 /**
  * Type guard for OAuth credentials
@@ -52,6 +53,13 @@ function isOAuthCredentials(creds: AzureCredentials): creds is AzureOAuthCredent
  */
 function isServicePrincipalCredentials(creds: AzureCredentials): creds is AzureServicePrincipalCredentials {
   return 'clientId' in creds && 'clientSecret' in creds;
+}
+
+/**
+ * Type guard for Certificate credentials
+ */
+function isCertificateCredentials(creds: AzureCredentials): creds is AzureCertificateCredentials {
+  return 'clientId' in creds && 'certificatePem' in creds;
 }
 
 /**
@@ -97,13 +105,17 @@ export class AzureProvider implements ICloudProvider {
   
   private readonly organizationId: string;
   private readonly credentials: AzureCredentials;
-  private readonly authType: 'service_principal' | 'oauth';
+  private readonly authType: 'service_principal' | 'oauth' | 'certificate';
   private tokenCredential: any = null;
 
   constructor(organizationId: string, credentials: AzureCredentials) {
     this.organizationId = organizationId;
     this.credentials = credentials;
-    this.authType = isOAuthCredentials(credentials) ? 'oauth' : 'service_principal';
+    this.authType = isOAuthCredentials(credentials) 
+      ? 'oauth' 
+      : isCertificateCredentials(credentials) 
+        ? 'certificate' 
+        : 'service_principal';
   }
 
   /**
@@ -123,7 +135,7 @@ export class AzureProvider implements ICloudProvider {
   /**
    * Get the authentication type
    */
-  get authenticationType(): 'service_principal' | 'oauth' {
+  get authenticationType(): 'service_principal' | 'oauth' | 'certificate' {
     return this.authType;
   }
 
@@ -205,6 +217,10 @@ export class AzureProvider implements ICloudProvider {
       return this.createOAuthCredential();
     }
     
+    if (isCertificateCredentials(this.credentials)) {
+      return this.createCertificateCredential();
+    }
+    
     if (isServicePrincipalCredentials(this.credentials)) {
       return this.createServicePrincipalCredential();
     }
@@ -254,6 +270,33 @@ export class AzureProvider implements ICloudProvider {
     );
     
     logger.debug('Service Principal credential created successfully');
+    return credential;
+  }
+
+  /**
+   * Create a certificate-based credential using @azure/identity ClientCertificateCredential.
+   * The PEM must contain both the certificate and private key.
+   */
+  private async createCertificateCredential(): Promise<any> {
+    const creds = this.credentials as AzureCertificateCredentials;
+    
+    logger.debug('Creating Certificate credential', {
+      tenantId: creds.tenantId,
+      clientId: creds.clientId,
+    });
+    
+    const { ClientCertificateCredential } = await import('@azure/identity');
+    
+    // ClientCertificateCredential accepts PEM string via sendCertificateChain option
+    const credential = new ClientCertificateCredential(
+      creds.tenantId,
+      creds.clientId,
+      {
+        certificate: creds.certificatePem,
+      }
+    );
+    
+    logger.debug('Certificate credential created successfully');
     return credential;
   }
 

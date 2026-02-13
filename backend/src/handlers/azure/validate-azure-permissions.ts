@@ -17,7 +17,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
-import { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE, resolveClientSecret } from '../../lib/azure-helpers.js';
+import { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE, resolveClientSecret, resolveCertificatePem } from '../../lib/azure-helpers.js';
 
 interface ValidationResult {
   permission: string;
@@ -139,6 +139,19 @@ export async function handler(
         tokenResult.accessToken,
         new Date(Date.now() + ONE_HOUR_MS)
       );
+    } else if (credential.auth_type === 'certificate') {
+      const pem = await resolveCertificatePem(credential);
+      if (!credential.tenant_id || !credential.client_id || !pem) {
+        return error('Certificate credentials incomplete. Missing tenant_id, client_id, or certificate_pem.', 400);
+      }
+      
+      azureProvider = new AzureProvider(organizationId, {
+        subscriptionId: credential.subscription_id,
+        subscriptionName: credential.subscription_name || undefined,
+        tenantId: credential.tenant_id,
+        clientId: credential.client_id,
+        certificatePem: pem,
+      });
     } else {
       const resolvedSecret = await resolveClientSecret(credential);
       if (!credential.tenant_id || !credential.client_id || !resolvedSecret) {

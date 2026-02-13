@@ -37,6 +37,18 @@ const servicePrincipalSchema = z.object({
   validateFirst: z.boolean().optional().default(true),
 });
 
+// Validation schema for Certificate credentials
+const certificateSchema = z.object({
+  authType: z.literal('certificate'),
+  tenantId: z.string().min(1, 'Tenant ID is required'),
+  clientId: z.string().min(1, 'Client ID is required'),
+  certificatePem: z.string().min(100, 'Certificate PEM must contain cert and private key'),
+  subscriptionId: z.string().min(1, 'Subscription ID is required'),
+  subscriptionName: z.string().optional(),
+  regions: z.array(z.string()).optional().default(['eastus']),
+  validateFirst: z.boolean().optional().default(true),
+});
+
 // Validation schema for OAuth credentials (from OAuth callback)
 const oauthSchema = z.object({
   authType: z.literal('oauth'),
@@ -53,6 +65,7 @@ const oauthSchema = z.object({
 const saveAzureCredentialsSchema = z.discriminatedUnion('authType', [
   servicePrincipalSchema,
   oauthSchema,
+  certificateSchema,
 ]);
 
 export async function handler(
@@ -201,6 +214,122 @@ export async function handler(
           subscriptionId: spData.subscriptionId,
         });
       }
+    } else if (authType === 'certificate') {
+      // Certificate credentials
+      const certData = data as z.infer<typeof certificateSchema>;
+      
+      // Optionally validate credentials before saving
+      if (certData.validateFirst) {
+        const azureProvider = new AzureProvider(organizationId, {
+          tenantId: certData.tenantId,
+          clientId: certData.clientId,
+          certificatePem: certData.certificatePem,
+          subscriptionId: certData.subscriptionId,
+          subscriptionName: certData.subscriptionName,
+        });
+
+        const validationResult = await azureProvider.validateCredentials();
+        
+        if (!validationResult.valid) {
+          logger.warn('Azure certificate credential validation failed before save', {
+            organizationId,
+            error: validationResult.error,
+          });
+          
+          return error(validationResult.error || 'Invalid Azure certificate credentials', 401, {
+            valid: false,
+            details: validationResult.details,
+          }, origin);
+        }
+      }
+
+      // Extract thumbprint and expiration from PEM
+      let thumbprint: string | null = null;
+      let certExpiresAt: Date | null = null;
+      try {
+        const { execSync } = await import('child_process');
+        const certOnly = certData.certificatePem.split('-----END CERTIFICATE-----')[0] + '-----END CERTIFICATE-----';
+        const tmpFile = `/tmp/azure-cert-${Date.now()}.pem`;
+        const { writeFileSync, unlinkSync } = await import('fs');
+        writeFileSync(tmpFile, certOnly);
+        
+        const fpOutput = execSync(`openssl x509 -in "${tmpFile}" -fingerprint -noout -sha1`, { encoding: 'utf-8' }).trim();
+        thumbprint = fpOutput.split('=')[1]?.replace(/:/g, '').toUpperCase() || null;
+        
+        const dateOutput = execSync(`openssl x509 -in "${tmpFile}" -enddate -noout`, { encoding: 'utf-8' }).trim();
+        const dateStr = dateOutput.split('=')[1];
+        if (dateStr) certExpiresAt = new Date(dateStr);
+        
+        unlinkSync(tmpFile);
+      } catch (parseErr: any) {
+        logger.warn('Could not extract cert metadata', { error: parseErr.message });
+      }
+
+      // Encrypt certificate PEM before storage
+      let encryptedCertPem: string;
+      try {
+        const encrypted = encryptToken(certData.certificatePem);
+        encryptedCertPem = serializeEncryptedToken(encrypted);
+      } catch (encErr: any) {
+        logger.error('Failed to encrypt certificate PEM', { error: encErr.message });
+        return error('Failed to securely store certificate. Encryption configuration error.', 500, undefined, origin);
+      }
+
+      if (existingCredential) {
+        credential = await prisma.azureCredential.update({
+          where: { id: existingCredential.id },
+          data: {
+            auth_type: 'certificate',
+            tenant_id: certData.tenantId,
+            client_id: certData.clientId,
+            certificate_pem: encryptedCertPem,
+            certificate_thumbprint: thumbprint,
+            certificate_expires_at: certExpiresAt,
+            subscription_name: certData.subscriptionName,
+            regions: certData.regions,
+            // Clear secret and OAuth fields
+            client_secret: null,
+            encrypted_refresh_token: null,
+            token_expires_at: null,
+            oauth_tenant_id: null,
+            oauth_user_email: null,
+            last_refresh_at: null,
+            refresh_error: null,
+            is_active: true,
+            updated_at: new Date(),
+          },
+        });
+
+        logger.info('Azure Certificate credentials updated', {
+          organizationId,
+          credentialId: credential.id,
+          subscriptionId: certData.subscriptionId,
+          thumbprint,
+        });
+      } else {
+        credential = await prisma.azureCredential.create({
+          data: {
+            organization_id: organizationId,
+            auth_type: 'certificate',
+            tenant_id: certData.tenantId,
+            client_id: certData.clientId,
+            certificate_pem: encryptedCertPem,
+            certificate_thumbprint: thumbprint,
+            certificate_expires_at: certExpiresAt,
+            subscription_id: certData.subscriptionId,
+            subscription_name: certData.subscriptionName,
+            regions: certData.regions,
+            is_active: true,
+          },
+        });
+
+        logger.info('Azure Certificate credentials created', {
+          organizationId,
+          credentialId: credential.id,
+          subscriptionId: certData.subscriptionId,
+          thumbprint,
+        });
+      }
     } else {
       // OAuth credentials
       const oauthData = data as z.infer<typeof oauthSchema>;
@@ -284,6 +413,9 @@ export async function handler(
       // Service Principal fields (only if applicable)
       tenantId: credential.tenant_id,
       clientId: credential.client_id,
+      // Certificate fields (only if applicable)
+      certificateThumbprint: credential.certificate_thumbprint,
+      certificateExpiresAt: credential.certificate_expires_at,
       // OAuth fields (only if applicable)
       oauthTenantId: credential.oauth_tenant_id,
       oauthUserEmail: credential.oauth_user_email,

@@ -64,12 +64,17 @@ export interface AWSCredentialFields {
 export interface AzureCredentialFields {
   subscriptionId: string;
   subscriptionName?: string;
-  authType?: 'service_principal' | 'oauth';
+  authType?: 'service_principal' | 'oauth' | 'certificate';
   
   // Service Principal fields (required when authType = 'service_principal')
   tenantId?: string | null;
   clientId?: string | null;
   clientSecret?: string | null;
+  
+  // Certificate fields (used when authType = 'certificate')
+  certificatePem?: string | null;
+  certificateThumbprint?: string | null;
+  certificateExpiresAt?: Date | null;
   
   // OAuth fields (used when authType = 'oauth')
   oauthTenantId?: string | null;
@@ -87,6 +92,17 @@ export interface AzureServicePrincipalCredentials {
   tenantId: string;
   clientId: string;
   clientSecret: string;
+  subscriptionId: string;
+  subscriptionName?: string;
+}
+
+/**
+ * Azure Certificate credentials (for certificate-based auth)
+ */
+export interface AzureCertificateCredentials {
+  tenantId: string;
+  clientId: string;
+  certificatePem: string;
   subscriptionId: string;
   subscriptionName?: string;
 }
