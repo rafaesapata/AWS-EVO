@@ -80,6 +80,14 @@ export async function handler(
         }
         
         tokenCredential = createStaticTokenCredential(tokenResult.accessToken);
+      } else if (credential.auth_type === 'certificate') {
+        const { resolveCertificatePem } = await import('../../lib/azure-helpers.js');
+        const pem = await resolveCertificatePem(credential);
+        if (!credential.tenant_id || !credential.client_id || !pem) {
+          return error('Certificate credentials incomplete.', 400);
+        }
+        const identity = await import('@azure/identity');
+        tokenCredential = new identity.ClientCertificateCredential(credential.tenant_id, credential.client_id, { certificate: pem });
       } else {
         const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
         const resolvedSecret = await resolveClientSecret(credential);

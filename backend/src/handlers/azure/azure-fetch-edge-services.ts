@@ -243,6 +243,16 @@ async function getAzureTokenCredential(credential: any): Promise<any> {
       return createStaticTokenCredential(tokenResult.accessToken);
     }
     
+    if (credential.auth_type === 'certificate') {
+      const { resolveCertificatePem } = await import('../../lib/azure-helpers.js');
+      const pem = await resolveCertificatePem(credential);
+      if (credential.client_id && pem && credential.tenant_id) {
+        const { ClientCertificateCredential } = await import('@azure/identity');
+        return new ClientCertificateCredential(credential.tenant_id, credential.client_id, { certificate: pem });
+      }
+      throw new Error('Incomplete certificate credentials');
+    }
+    
     // Service Principal authentication
     const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
     const resolvedSecret = await resolveClientSecret(credential);

@@ -72,19 +72,28 @@ export async function handler(
       const security = await import('@azure/arm-security');
       SecurityCenter = security.SecurityCenter;
       
-      // Handle both OAuth and Service Principal credentials
+      // Handle OAuth, Certificate, and Service Principal credentials
       if (credential.auth_type === 'oauth') {
-        // Use getAzureCredentialWithToken for OAuth
-        const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
+        const { getAzureCredentialWithToken, createStaticTokenCredential } = await import('../../lib/azure-helpers.js');
         const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
         
         if (!tokenResult.success) {
           return error(tokenResult.error, 400);
         }
         
-        // Create a token credential that returns the OAuth token
-        const { createStaticTokenCredential } = await import('../../lib/azure-helpers.js');
         tokenCredential = createStaticTokenCredential(tokenResult.accessToken);
+      } else if (credential.auth_type === 'certificate') {
+        const { resolveCertificatePem } = await import('../../lib/azure-helpers.js');
+        const pem = await resolveCertificatePem(credential);
+        if (!credential.tenant_id || !credential.client_id || !pem) {
+          return error('Certificate credentials incomplete. Missing tenant_id, client_id, or certificate_pem.', 400);
+        }
+        const { ClientCertificateCredential } = await import('@azure/identity');
+        tokenCredential = new ClientCertificateCredential(
+          credential.tenant_id,
+          credential.client_id,
+          { certificate: pem }
+        );
       } else {
         // Service Principal credentials - validate required fields
         const { resolveClientSecret } = await import('../../lib/azure-helpers.js');

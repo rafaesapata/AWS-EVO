@@ -149,8 +149,35 @@ Resources:
         Type: REGIONAL
 
   # ============================================================================
-  # ADMIN FUNCTIONS (16)
+  # ADMIN FUNCTIONS (17)
   # ============================================================================
+  GenerateAzureCertificateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-generate-azure-certificate'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: generate-azure-certificate.handler
+      Timeout: 30
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/functions/generate-azure-certificate
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - generate-azure-certificate.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+          - '@aws-sdk/*'
+
   AdminAzureCredentialsFunction:
     Type: AWS::Serverless::Function
     Properties:

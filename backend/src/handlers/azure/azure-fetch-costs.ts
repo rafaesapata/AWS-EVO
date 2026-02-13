@@ -47,6 +47,9 @@ interface AzureCredentialRecord {
   client_secret: string | null;
   encrypted_refresh_token: string | null;
   oauth_tenant_id: string | null;
+  certificate_pem: string | null;
+  certificate_thumbprint: string | null;
+  certificate_expires_at: Date | null;
   regions: string[];
 }
 
@@ -78,6 +81,18 @@ async function getAccessToken(
         return { success: false, error: tokenResult.error };
       }
       return { success: true, token: tokenResult.accessToken };
+    }
+    
+    if (credential.auth_type === 'certificate') {
+      const { resolveCertificatePem } = await import('../../lib/azure-helpers.js');
+      const pem = await resolveCertificatePem(credential);
+      if (!credential.tenant_id || !credential.client_id || !pem) {
+        return { success: false, error: 'Missing Certificate credentials (tenant_id, client_id, or certificate_pem)' };
+      }
+      const { ClientCertificateCredential } = await import('@azure/identity');
+      const certCredential = new ClientCertificateCredential(credential.tenant_id, credential.client_id, { certificate: pem });
+      const tokenResponse = await certCredential.getToken(AZURE_MANAGEMENT_SCOPE);
+      return { success: true, token: tokenResponse.token };
     }
     
     // Service Principal flow - direct approach (same as debug-azure-costs)

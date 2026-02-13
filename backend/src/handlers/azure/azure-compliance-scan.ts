@@ -722,6 +722,18 @@ export async function handler(
           return error(tokenResult.error, 400, undefined, origin);
         }
         tokenCredential = createStaticTokenCredential(tokenResult.accessToken);
+      } else if (credential.auth_type === 'certificate') {
+        const { resolveCertificatePem } = await import('../../lib/azure-helpers.js');
+        const pem = await resolveCertificatePem(credential);
+        if (!credential.tenant_id || !credential.client_id || !pem) {
+          await prisma.backgroundJob.update({
+            where: { id: jobId },
+            data: { status: 'failed', error: 'Incomplete Certificate credentials', completed_at: new Date() },
+          });
+          return error('Certificate credentials incomplete', 400, undefined, origin);
+        }
+        const identity = await import('@azure/identity');
+        tokenCredential = new identity.ClientCertificateCredential(credential.tenant_id, credential.client_id, { certificate: pem });
       } else {
         const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
         const resolvedSecret = await resolveClientSecret(credential);
