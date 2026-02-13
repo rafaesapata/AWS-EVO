@@ -62,7 +62,7 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
     } else if (path === '/ri-savings-plans') {
       setActiveTab('risp');
     } else if (path === '/security-scans') {
-      setActiveTab('scans');
+      setActiveTab('security-scan');
     } else if (path === '/cloudtrail-audit') {
       setActiveTab('cloudtrail-audit');
     } else if (path === '/compliance') {

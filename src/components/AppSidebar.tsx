@@ -253,22 +253,21 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
                 // Skip super admin only items if user is not super admin
                 if (item.superAdminOnly && !isSuperAdmin) return null;
                 
-                const isActive = activeTab === item.value;
-                
                 if (item.subItems) {
+                  const hasActiveChild = item.subItems.some(sub => activeTab === sub.value);
                   const isOpen = openGroups.has(item.value);
                   
                   return (
                     <Collapsible
                       key={item.value}
-                      open={isOpen}
+                      open={isOpen || hasActiveChild}
                       onOpenChange={() => toggleGroup(item.value)}
                     >
                       <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton
                             size="sm"
-                            className={`h-5 ${isActive ? "bg-primary/10 text-primary font-medium" : ""}`}
+                            className={`h-5 ${hasActiveChild ? "text-primary font-medium" : ""}`}
                           >
                             <item.icon className="h-2.5 w-2.5 flex-shrink-0" />
                             {!isCollapsed && (
@@ -312,7 +311,7 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
                     <SidebarMenuButton
                       size="sm"
                       onClick={() => handleItemClick(item.value)}
-                      className={`h-5 ${isActive ? "bg-primary/10 text-primary font-medium" : ""}`}
+                      className={`h-5 ${activeTab === item.value ? "bg-primary/10 text-primary font-medium" : ""}`}
                     >
                       <item.icon className="h-2.5 w-2.5 flex-shrink-0" />
                       {!isCollapsed && <span className="truncate text-xs">{t(item.titleKey)}</span>}
