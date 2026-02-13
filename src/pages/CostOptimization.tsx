@@ -51,39 +51,35 @@ import {
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
 // Helper function to generate specific implementation steps and scripts based on optimization type
+const OPTIMIZATION_TYPE_MAP: Record<string, string> = {
+  'terminate_stopped_instance': 'unused_resources',
+  'delete_unattached_volume': 'unused_resources',
+  'release_unused_eip': 'unused_resources',
+  'cleanup_old_snapshots': 'unused_resources',
+  'rightsize_instance': 'rightsizing',
+  'rightsize_lambda_memory': 'rightsizing',
+  'upgrade_instance_generation': 'rightsizing',
+  'upgrade_rds_generation': 'rightsizing',
+  'migrate_gp2_to_gp3': 'storage_optimization',
+  'rds_storage_gp3': 'storage_optimization',
+  'savings_plan_candidate': 'reserved_instances',
+  'reserved_instance': 'reserved_instances',
+  'disable_multiaz_nonprod': 'scheduling',
+  'schedule_instance': 'scheduling',
+};
+
 function normalizeOptimizationType(backendType: string): string {
-  const typeMap: Record<string, string> = {
-    // unused_resources
-    'terminate_stopped_instance': 'unused_resources',
-    'delete_unattached_volume': 'unused_resources',
-    'release_unused_eip': 'unused_resources',
-    'cleanup_old_snapshots': 'unused_resources',
-    // rightsizing
-    'rightsize_instance': 'rightsizing',
-    'rightsize_lambda_memory': 'rightsizing',
-    'upgrade_instance_generation': 'rightsizing',
-    'upgrade_rds_generation': 'rightsizing',
-    // storage_optimization
-    'migrate_gp2_to_gp3': 'storage_optimization',
-    'rds_storage_gp3': 'storage_optimization',
-    // reserved_instances
-    'savings_plan_candidate': 'reserved_instances',
-    'reserved_instance': 'reserved_instances',
-    // scheduling
-    'disable_multiaz_nonprod': 'scheduling',
-    'schedule_instance': 'scheduling',
-  };
-  return typeMap[backendType] || backendType;
+  return OPTIMIZATION_TYPE_MAP[backendType] || backendType;
 }
 
 function normalizeResourceType(backendType: string, resourceType: string): string {
-  // Map backend resource types to what getSpecificImplementation expects
   const type = backendType.toLowerCase();
-  if (type.includes('rds') || resourceType.toLowerCase().includes('rds')) return 'RDS';
-  if (type.includes('eip') || resourceType.toLowerCase().includes('elastic ip')) return 'Elastic IP';
-  if (type.includes('ebs') || type.includes('volume') || type.includes('snapshot') || resourceType.toLowerCase().includes('ebs')) return 'EBS Volume';
-  if (type.includes('s3') || resourceType.toLowerCase().includes('s3')) return 'S3';
-  if (type.includes('lambda') || resourceType.toLowerCase().includes('lambda')) return 'Lambda';
+  const rt = resourceType.toLowerCase();
+  if (type.includes('rds') || rt.includes('rds')) return 'RDS';
+  if (type.includes('eip') || rt.includes('elastic ip')) return 'Elastic IP';
+  if (type.includes('ebs') || type.includes('volume') || type.includes('snapshot') || rt.includes('ebs')) return 'EBS Volume';
+  if (type.includes('s3') || rt.includes('s3')) return 'S3';
+  if (type.includes('lambda') || rt.includes('lambda')) return 'Lambda';
   return resourceType;
 }
 
