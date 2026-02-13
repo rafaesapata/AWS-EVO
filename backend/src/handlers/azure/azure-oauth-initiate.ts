@@ -29,10 +29,7 @@ import {
   getAllowedRedirectUris,
 } from '../../lib/oauth-utils.js';
 import { getAzureOAuthRedirectUri } from '../../lib/app-domain.js';
-
-// OAuth configuration from environment
-const AZURE_OAUTH_CLIENT_ID = process.env.AZURE_OAUTH_CLIENT_ID;
-const AZURE_OAUTH_REDIRECT_URI = getAzureOAuthRedirectUri();
+import { getAzureOAuthCredentials } from '../../lib/azure-helpers.js';
 
 // Rate limiting configuration
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
@@ -49,9 +46,14 @@ export async function handler(
   }
 
   try {
+    // Fetch OAuth credentials from SSM (with cache) instead of module-level env vars
+    const oauthCreds = await getAzureOAuthCredentials();
+    const AZURE_OAUTH_CLIENT_ID = oauthCreds.clientId;
+    const AZURE_OAUTH_REDIRECT_URI = oauthCreds.redirectUri || getAzureOAuthRedirectUri();
+
     // Validate OAuth configuration
     if (!AZURE_OAUTH_CLIENT_ID) {
-      logger.error('Azure OAuth not configured: missing AZURE_OAUTH_CLIENT_ID');
+      logger.error('Azure OAuth not configured: missing client ID in SSM/env');
       return error('Azure OAuth integration is not configured', 400);
     }
 

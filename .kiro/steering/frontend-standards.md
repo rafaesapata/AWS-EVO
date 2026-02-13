@@ -73,6 +73,19 @@ src/i18n/locales/     — pt.json, en.json
 src/lib/              — Utilitários
 ```
 
+## 🎨 Referência Visual Obrigatória — Tela "Meu Perfil"
+
+Toda tela nova DEVE seguir as orientações visuais implementadas na tela "Meu Perfil" (`src/pages/Profile.tsx`). Esta tela é a referência canônica de:
+- Estrutura de layout com `<Layout>` e uso correto de ícones
+- Organização em `<Tabs>` com `glass` effect
+- Cards com `glass border-primary/20` e espaçamento `space-y-6`
+- Formulários com labels, inputs e botões seguindo o design system
+- Feedback visual (toasts, loading states, badges)
+- Responsividade e grid layout
+- Uso correto de i18n com `useTranslation()`
+
+Antes de criar qualquer tela nova, leia `src/pages/Profile.tsx` como referência e replique os mesmos padrões visuais, de espaçamento, componentes e interação.
+
 ## ⛔ Erros Comuns
 - Headers/sidebars custom → usar `<Layout>`
 - Strings hardcoded → usar `t()`

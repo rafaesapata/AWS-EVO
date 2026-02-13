@@ -30,7 +30,7 @@ import {
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { getAzureOAuthRedirectUri } from '../../lib/app-domain.js';
-import { getAzureOAuthCredentials } from '../../lib/azure-helpers.js';
+import { getAzureOAuthCredentials, resolveAzureTenantId } from '../../lib/azure-helpers.js';
 
 // Validation schema
 const refreshSchema = z.object({
@@ -135,7 +135,7 @@ export async function handler(
           clientSecret: AZURE_OAUTH_CLIENT_SECRET,
           redirectUri: AZURE_OAUTH_REDIRECT_URI,
         },
-        credential.oauth_tenant_id || 'common'
+        resolveAzureTenantId(credential)
       );
 
       // Calculate new expiration
@@ -178,13 +178,17 @@ export async function handler(
         error: err.message,
       });
 
-      // Determine if this is a permanent failure
+      // Determine if this is a permanent failure (re-auth required, no point retrying)
       const isPermanentFailure = 
         err.message.includes('invalid_grant') ||
-        err.message.includes('AADSTS700082') || // Refresh token expired
-        err.message.includes('AADSTS50076') || // MFA required
-        err.message.includes('AADSTS50078') || // Conditional access
-        err.message.includes('AADSTS50079'); // User action required
+        err.message.includes('AADSTS700082') ||  // Refresh token expired
+        err.message.includes('AADSTS700084') ||  // Refresh token expired by inactivity
+        err.message.includes('AADSTS50173') ||   // Refresh token expired by age
+        err.message.includes('AADSTS65001') ||   // Consent revoked
+        err.message.includes('AADSTS50076') ||   // MFA required
+        err.message.includes('AADSTS50078') ||   // Conditional access
+        err.message.includes('AADSTS50079') ||   // User action required
+        err.message.includes('AADSTS7000215');    // Invalid client secret
 
       if (isPermanentFailure) {
         // Mark credential as invalid
@@ -258,7 +262,7 @@ export async function getValidAccessToken(
         clientSecret: oauthCreds.clientSecret,
         redirectUri: oauthCreds.redirectUri || getAzureOAuthRedirectUri(),
       },
-      credential.oauth_tenant_id || 'common'
+      resolveAzureTenantId(credential)
     );
 
     // Update credential with new token info

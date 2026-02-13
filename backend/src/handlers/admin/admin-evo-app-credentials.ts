@@ -214,6 +214,7 @@ async function performFullSync(
     AZURE_OAUTH_CLIENT_SECRET: clientSecret,
     AZURE_OAUTH_REDIRECT_URI: redirectUri,
     AZURE_OAUTH_TENANT_ID: tenantId,
+    AZURE_CREDS_UPDATED_AT: new Date().toISOString(),
   });
   const lambdasSyncedAt = new Date();
 

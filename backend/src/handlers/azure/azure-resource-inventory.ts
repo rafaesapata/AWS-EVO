@@ -17,7 +17,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
-import { validateServicePrincipalCredentials, validateCertificateCredentials, ONE_HOUR_MS } from '../../lib/azure-helpers.js';
+import { validateServicePrincipalCredentials, validateCertificateCredentials, ONE_HOUR_MS, resolveAzureTenantId } from '../../lib/azure-helpers.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
@@ -79,7 +79,7 @@ export async function handler(
         organizationId,
         credential.subscription_id,
         credential.subscription_name || undefined,
-        credential.oauth_tenant_id || credential.tenant_id || '',
+        resolveAzureTenantId(credential),
         tokenResult.accessToken,
         new Date(Date.now() + ONE_HOUR_MS)
       );

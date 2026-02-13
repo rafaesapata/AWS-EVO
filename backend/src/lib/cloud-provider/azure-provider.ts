@@ -63,24 +63,52 @@ function isCertificateCredentials(creds: AzureCredentials): creds is AzureCertif
 }
 
 /**
- * Custom TokenCredential implementation for OAuth access tokens
- * This allows using pre-obtained OAuth tokens with Azure SDK clients
+ * Custom TokenCredential implementation for OAuth access tokens.
+ * Supports auto-refresh for long-running operations (scans).
+ * When the token is within 5 minutes of expiry and a refreshFn is provided,
+ * it proactively refreshes the token.
  */
 class OAuthTokenCredential {
   private accessToken: string;
   private expiresAt: Date;
+  private readonly refreshFn: (() => Promise<{ accessToken: string; expiresIn: number }>) | null;
 
-  constructor(accessToken: string, expiresAt?: Date) {
+  /** Buffer of 5 min before the real expiration to trigger proactive refresh */
+  private static readonly REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+  constructor(
+    accessToken: string,
+    expiresAt?: Date,
+    refreshFn?: () => Promise<{ accessToken: string; expiresIn: number }>
+  ) {
     this.accessToken = accessToken;
     // Default to 1 hour if not specified
     this.expiresAt = expiresAt || new Date(Date.now() + 60 * 60 * 1000);
+    this.refreshFn = refreshFn || null;
   }
 
   async getToken(_scopes: string | string[]): Promise<{ token: string; expiresOnTimestamp: number }> {
+    const now = Date.now();
+    const needsRefresh = this.expiresAt.getTime() - now < OAuthTokenCredential.REFRESH_BUFFER_MS;
+
+    if (needsRefresh && this.refreshFn) {
+      try {
+        const result = await this.refreshFn();
+        this.accessToken = result.accessToken;
+        this.expiresAt = new Date(now + result.expiresIn * 1000);
+        logger.info('OAuthTokenCredential: token refreshed proactively');
+      } catch (err: any) {
+        logger.warn('OAuthTokenCredential: proactive refresh failed, using existing token', {
+          error: err.message,
+          expiresIn: Math.round((this.expiresAt.getTime() - now) / 1000) + 's',
+        });
+      }
+    }
+
     // Check if token is expired
     if (this.expiresAt.getTime() < Date.now()) {
       throw new CloudProviderError(
-        'OAuth access token has expired. Please refresh the token.',
+        'OAuth access token has expired and could not be refreshed.',
         'AZURE',
         'TOKEN_EXPIRED',
         401
@@ -237,8 +265,8 @@ export class AzureProvider implements ICloudProvider {
   }
 
   /**
-   * Create OAuth token credential
-   */
+ * Create OAuth token credential
+ */
   private createOAuthCredential(): OAuthTokenCredential {
     const creds = this.credentials as AzureOAuthCredentials;
     
@@ -247,7 +275,7 @@ export class AzureProvider implements ICloudProvider {
       tenantId: creds.tenantId,
     });
     
-    return new OAuthTokenCredential(creds.accessToken, creds.expiresAt);
+    return new OAuthTokenCredential(creds.accessToken, creds.expiresAt, creds.refreshFn);
   }
 
   /**

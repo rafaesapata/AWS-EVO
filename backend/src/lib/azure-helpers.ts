@@ -22,8 +22,8 @@ const SSM_REGION = process.env.AWS_REGION || 'us-east-1';
 const SSM_ENV = process.env.ENVIRONMENT || 'production';
 const SSM_PREFIX = `/evo-uds-v3/${SSM_ENV}`;
 
-/** Cache TTL: 5 minutes — balances freshness vs. SSM API calls */
-const SSM_CACHE_TTL_MS = 5 * 60 * 1000;
+/** Cache TTL: 1 minute — balances freshness vs. SSM API calls */
+const SSM_CACHE_TTL_MS = 60 * 1000;
 
 /** Reuse SSM client across invocations (Lambda container reuse) */
 let _ssmClient: SSMClient | null = null;
@@ -48,67 +48,113 @@ function getSsmClient(): SSMClient {
 /**
  * Fetches Azure OAuth credentials from SSM Parameter Store with in-memory cache.
  * Falls back to process.env if SSM is unavailable (local dev).
+ * Retries SSM up to 3 times with backoff on transient failures.
+ * Does NOT cache empty env var fallbacks to allow SSM retry on next call.
  */
 export async function getAzureOAuthCredentials(): Promise<AzureOAuthCreds> {
-  // Return cache if still valid
-  if (_cachedCreds && Date.now() - _cachedAt < SSM_CACHE_TTL_MS) {
+  // Check if cache is stale due to admin credential update
+  const lastAdminUpdate = process.env.AZURE_CREDS_UPDATED_AT;
+  const cacheStale = lastAdminUpdate && _cachedAt > 0 &&
+    new Date(lastAdminUpdate).getTime() > _cachedAt;
+
+  // Return cache if still valid and not stale
+  if (_cachedCreds && !cacheStale && Date.now() - _cachedAt < SSM_CACHE_TTL_MS) {
     return _cachedCreds;
   }
 
-  try {
-    const ssm = getSsmClient();
-    const [cidRes, secRes, uriRes, tidRes] = await Promise.all([
-      ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-id` })),
-      ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-secret`, WithDecryption: true })),
-      ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-redirect-uri` })),
-      ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-tenant-id` })).catch(() => null),
-    ]);
+  // Retry SSM up to 3 times with backoff
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const ssm = getSsmClient();
+      const [cidRes, secRes, uriRes, tidRes] = await Promise.all([
+        ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-id` })),
+        ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-secret`, WithDecryption: true })),
+        ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-redirect-uri` })),
+        ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-tenant-id` })).catch((err) => {
+          // Tenant ID may not exist in SSM for multi-tenant apps — that's OK
+          logger.info('azure-oauth-tenant-id not found in SSM (OK for multi-tenant)', { error: err.message });
+          return null;
+        }),
+      ]);
 
-    const clientId = cidRes.Parameter?.Value;
-    const clientSecret = secRes.Parameter?.Value;
-    const redirectUri = uriRes.Parameter?.Value;
-    const tenantId = tidRes?.Parameter?.Value || '';
+      const clientId = cidRes.Parameter?.Value;
+      const clientSecret = secRes.Parameter?.Value;
+      const redirectUri = uriRes.Parameter?.Value;
+      const tenantId = tidRes?.Parameter?.Value || 'common';
 
-    if (clientId && clientSecret && redirectUri) {
-      _cachedCreds = { clientId, clientSecret, redirectUri, tenantId };
-      _cachedAt = Date.now();
-      logger.info('Azure OAuth creds loaded from SSM', {
-        clientId,
-        tenantId: tenantId || '(not set)',
-        secretLength: clientSecret.length,
-        secretPrefix: clientSecret.substring(0, 4) + '***',
-      });
-      return _cachedCreds;
+      if (clientId && clientSecret && redirectUri) {
+        _cachedCreds = { clientId, clientSecret, redirectUri, tenantId };
+        _cachedAt = Date.now();
+        logger.info('Azure OAuth creds loaded from SSM', {
+          clientId,
+          tenantId,
+          secretLength: clientSecret.length,
+          secretPrefix: clientSecret.substring(0, 4) + '***',
+        });
+        return _cachedCreds;
+      }
+
+      // Data incomplete — no point retrying
+      logger.warn('SSM Azure OAuth params incomplete, falling back to env vars', { attempt });
+      break;
+    } catch (err: any) {
+      if (attempt < 2) {
+        const delay = (attempt + 1) * 500; // 500ms, 1000ms
+        logger.warn(`SSM fetch failed, retrying in ${delay}ms`, { attempt, error: err.message });
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      logger.error('SSM fetch failed after 3 attempts, falling back to env vars', { error: err.message });
     }
-
-    logger.warn('SSM Azure OAuth params incomplete, falling back to env vars');
-  } catch (err: any) {
-    logger.warn('Failed to fetch Azure OAuth creds from SSM, falling back to env vars', {
-      error: err.message,
-    });
   }
 
   // Fallback to env vars (local dev or SSM not configured)
-  _cachedCreds = {
+  const fallback: AzureOAuthCreds = {
     clientId: process.env.AZURE_OAUTH_CLIENT_ID || '',
     clientSecret: process.env.AZURE_OAUTH_CLIENT_SECRET || '',
     redirectUri: process.env.AZURE_OAUTH_REDIRECT_URI || '',
-    tenantId: process.env.AZURE_OAUTH_TENANT_ID || '',
+    tenantId: process.env.AZURE_OAUTH_TENANT_ID || 'common',
   };
-  _cachedAt = Date.now();
-  logger.info('Azure OAuth creds loaded from env vars (fallback)', {
-    clientId: _cachedCreds.clientId,
-    tenantId: _cachedCreds.tenantId || '(not set)',
-    secretLength: _cachedCreds.clientSecret.length,
-    secretPrefix: _cachedCreds.clientSecret ? _cachedCreds.clientSecret.substring(0, 4) + '***' : '(empty)',
-  });
-  return _cachedCreds;
+
+  // Only cache if we actually have valid credentials — otherwise retry SSM next call
+  if (fallback.clientId && fallback.clientSecret) {
+    _cachedCreds = fallback;
+    _cachedAt = Date.now();
+    logger.info('Azure OAuth creds loaded from env vars (fallback)', {
+      clientId: fallback.clientId,
+      tenantId: fallback.tenantId,
+      secretLength: fallback.clientSecret.length,
+      secretPrefix: fallback.clientSecret.substring(0, 4) + '***',
+    });
+  } else {
+    logger.warn('Azure OAuth env vars are empty — will retry SSM on next call');
+  }
+
+  return fallback;
 }
 
 /** Invalidates the cached SSM credentials (useful after admin updates) */
 export function invalidateAzureOAuthCredsCache(): void {
   _cachedCreds = null;
   _cachedAt = 0;
+}
+/**
+ * Resolve o tenant ID para uma credencial Azure, com fallback seguro.
+ * Ordem de prioridade: oauth_tenant_id > tenant_id > 'common' (multi-tenant)
+ * NUNCA retorna string vazia.
+ */
+export function resolveAzureTenantId(
+  credential: Pick<AzureCredentialRecord, 'oauth_tenant_id' | 'tenant_id'>
+): string {
+  const tenantId = credential.oauth_tenant_id || credential.tenant_id;
+  if (!tenantId || tenantId.trim() === '') {
+    logger.warn('resolveAzureTenantId: no tenant ID found, falling back to "common"', {
+      oauthTenantId: credential.oauth_tenant_id,
+      tenantId: credential.tenant_id,
+    });
+    return 'common';
+  }
+  return tenantId;
 }
 
 /** One hour in milliseconds — used for OAuth token credential expiry estimates */
@@ -440,7 +486,7 @@ export async function getAzureCredentialWithToken(
       return { success: false, error: 'OAuth credential missing refresh token' };
     }
     
-    const tenantId = credential.oauth_tenant_id || credential.tenant_id;
+    const tenantId = resolveAzureTenantId(credential);
     if (!tenantId) {
       return { success: false, error: 'OAuth credential missing tenant ID' };
     }
