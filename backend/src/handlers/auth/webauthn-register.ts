@@ -50,7 +50,15 @@ export async function handler(
     }
 
     const userId = authUser.sub || authUser.id;
-    const body: RegistrationRequest = event.body ? JSON.parse(event.body) : {};
+    
+    let body: RegistrationRequest;
+    try {
+      body = event.body ? JSON.parse(typeof event.body === 'string' ? event.body : JSON.stringify(event.body)) : {};
+    } catch (parseError) {
+      logger.error('Failed to parse request body:', parseError);
+      return badRequest('Invalid JSON in request body', undefined, origin);
+    }
+    
     const { action } = body;
 
     logger.info('WebAuthn registration request:', { action, userId, organizationId });
@@ -91,11 +99,19 @@ async function generateChallenge(
     const challenge = crypto.randomBytes(32).toString('base64url');
     const challengeExpiry = new Date(Date.now() + WEBAUTHN_CHALLENGE_EXPIRY_MS);
 
-    // Salvar challenge
+    // Salvar challenge - user_id na tabela webauthn_challenges é uuid,
+    // garantir que o valor é um UUID válido
+    const challengeUserId = user.user_id;
+    logger.info('Creating WebAuthn challenge:', { 
+      challengeUserId, 
+      userIdType: typeof challengeUserId,
+      profileId: user.id 
+    });
+    
     await prisma.webauthnChallenge.create({
       data: {
         challenge,
-        user_id: user.user_id,
+        user_id: challengeUserId,
         expires_at: challengeExpiry
       }
     });
@@ -116,8 +132,13 @@ async function generateChallenge(
     logger.info('Challenge generated successfully:', { userId, challenge: challenge.substring(0, 10) + '...' });
 
     return success(registrationOptions, 200, origin);
-  } catch (error) {
-    logger.error('Error generating challenge:', error);
+  } catch (err: any) {
+    logger.error('Error generating challenge:', {
+      error: err?.message,
+      code: err?.code,
+      meta: err?.meta,
+      stack: err?.stack?.substring(0, 500)
+    });
     return errorResponse('Failed to generate challenge', 500, undefined, origin);
   }
 }
@@ -232,8 +253,13 @@ async function verifyRegistration(
         createdAt: webauthnCredential.created_at
       }
     }, 200, origin);
-  } catch (error) {
-    logger.error('Error verifying registration:', error);
+  } catch (err: any) {
+    logger.error('Error verifying registration:', {
+      error: err?.message,
+      code: err?.code,
+      meta: err?.meta,
+      stack: err?.stack?.substring(0, 500)
+    });
     return errorResponse('Failed to verify registration', 500, undefined, origin);
   }
 }
