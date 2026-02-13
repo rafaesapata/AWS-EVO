@@ -5,7 +5,11 @@ import { getPrismaClient } from '../../lib/database.js';
 import { getUserFromEvent, getOrganizationId } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { getWebAuthnRpId, getWebAuthnOrigin, getWebAuthnRpName, WEBAUTHN_CHALLENGE_EXPIRY_MS } from '../../lib/app-domain.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import * as crypto from 'crypto';
+
+/** EC P-256 coordinate length in bytes */
+const EC_P256_COORDINATE_LENGTH = 32;
 
 interface RegistrationRequest {
   action: 'generate-challenge' | 'verify-registration';
@@ -66,7 +70,7 @@ export async function handler(
     if (action === 'generate-challenge') {
       return await generateChallenge(userId, organizationId, body.deviceName, origin);
     } else if (action === 'verify-registration') {
-      return await verifyRegistration(userId, organizationId, body, origin);
+      return await verifyRegistration(userId, organizationId, body, origin, event);
     }
 
     return badRequest('Invalid action. Use "generate-challenge" or "verify-registration"', undefined, origin);
@@ -99,19 +103,11 @@ async function generateChallenge(
     const challenge = crypto.randomBytes(32).toString('base64url');
     const challengeExpiry = new Date(Date.now() + WEBAUTHN_CHALLENGE_EXPIRY_MS);
 
-    // Salvar challenge - user_id na tabela webauthn_challenges é uuid,
-    // garantir que o valor é um UUID válido
-    const challengeUserId = user.user_id;
-    logger.info('Creating WebAuthn challenge:', { 
-      challengeUserId, 
-      userIdType: typeof challengeUserId,
-      profileId: user.id 
-    });
-    
+    // Salvar challenge
     await prisma.webauthnChallenge.create({
       data: {
         challenge,
-        user_id: challengeUserId,
+        user_id: user.user_id,
         expires_at: challengeExpiry
       }
     });
@@ -147,7 +143,8 @@ async function verifyRegistration(
   userId: string,
   organizationId: string,
   body: RegistrationRequest,
-  origin?: string
+  origin?: string,
+  event?: AuthorizedEvent
 ): Promise<APIGatewayProxyResultV2> {
   const prisma = getPrismaClient();
   const { credential, challengeId } = body;
@@ -189,8 +186,13 @@ async function verifyRegistration(
     
     // If clientDataJSON is provided, verify the registration
     if (credential.clientDataJSON) {
-      const clientDataJSON = Buffer.from(credential.clientDataJSON, 'base64');
-      const clientData = JSON.parse(clientDataJSON.toString());
+      let clientData: any;
+      try {
+        const clientDataJSON = Buffer.from(credential.clientDataJSON, 'base64');
+        clientData = JSON.parse(clientDataJSON.toString());
+      } catch {
+        return badRequest('Invalid clientDataJSON encoding', undefined, origin);
+      }
       
       // Verify type
       if (clientData.type !== 'webauthn.create') {
@@ -245,8 +247,21 @@ async function verifyRegistration(
       deviceName: webauthnCredential.device_name 
     });
 
+    // Audit logging (obrigatório para operações que modificam dados)
+    if (event) {
+      logAuditAsync({
+        organizationId,
+        userId,
+        action: 'CREDENTIAL_CREATE',
+        resourceType: 'webauthn_credential',
+        resourceId: webauthnCredential.id,
+        details: { deviceName: webauthnCredential.device_name },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event)
+      });
+    }
+
     return success({
-      success: true,
       credential: {
         id: webauthnCredential.id,
         deviceName: webauthnCredential.device_name,
@@ -388,7 +403,7 @@ function extractECKeyFromCOSE(coseBytes: Buffer): string | null {
       }
     }
 
-    if (x && y && x.length === 32 && y.length === 32) {
+    if (x && y && x.length === EC_P256_COORDINATE_LENGTH && y.length === EC_P256_COORDINATE_LENGTH) {
       return Buffer.concat([Buffer.from([0x04]), x, y]).toString('base64');
     }
     return null;
