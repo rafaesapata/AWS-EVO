@@ -165,30 +165,42 @@ export default function SecurityPostureCard({ data }: Props) {
           </span>
           
           <div className="grid grid-cols-4 gap-2">
-            <div className={cn(
-              "p-3 rounded-xl text-center border cursor-default",
-              data.findings.critical > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
-            )}>
+            <button
+              onClick={() => navigate('/security-posture')}
+              className={cn(
+                "p-3 rounded-xl text-center border transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group",
+                data.findings.critical > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
+              )}
+            >
               <div className={cn(
-                "text-2xl font-light tabular-nums",
+                "text-2xl font-light tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200",
                 data.findings.critical > 0 ? 'text-red-500' : 'text-[#393939]'
               )}>
                 {data.findings.critical}
               </div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.severityCritical', 'Critical')}</span>
-            </div>
-            <div className="p-3 rounded-xl bg-white border border-gray-200 text-center cursor-default">
-              <div className="text-2xl font-light text-[#393939] tabular-nums">{data.findings.high}</div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.severityHigh', 'High')}</span>
-            </div>
-            <div className="p-3 rounded-xl bg-white border border-gray-200 text-center cursor-default">
-              <div className="text-2xl font-light text-[#393939] tabular-nums">{data.findings.medium}</div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.severityMedium', 'Medium')}</span>
-            </div>
-            <div className="p-3 rounded-xl bg-white border border-gray-200 text-center cursor-default">
-              <div className="text-2xl font-light text-[#393939] tabular-nums">{data.findings.low}</div>
-              <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.severityLow', 'Low')}</span>
-            </div>
+              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.severityCritical', 'Critical')}</span>
+            </button>
+            <button
+              onClick={() => navigate('/security-posture')}
+              className="p-3 rounded-xl bg-white border border-gray-200 text-center transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+            >
+              <div className="text-2xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.findings.high}</div>
+              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.severityHigh', 'High')}</span>
+            </button>
+            <button
+              onClick={() => navigate('/security-posture')}
+              className="p-3 rounded-xl bg-white border border-gray-200 text-center transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+            >
+              <div className="text-2xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.findings.medium}</div>
+              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.severityMedium', 'Medium')}</span>
+            </button>
+            <button
+              onClick={() => navigate('/security-posture')}
+              className="p-3 rounded-xl bg-white border border-gray-200 text-center transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+            >
+              <div className="text-2xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.findings.low}</div>
+              <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.severityLow', 'Low')}</span>
+            </button>
           </div>
         </div>
 
@@ -211,30 +223,39 @@ export default function SecurityPostureCard({ data }: Props) {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-white border border-gray-200">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <button
+              onClick={() => navigate('/security-posture')}
+              className="flex items-center gap-2 p-3 rounded-xl bg-white border border-gray-200 text-left transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+            >
+              <AlertTriangle className="h-4 w-4 text-amber-500 group-hover:text-[#00B2FF] transition-colors duration-200" />
               <div>
-                <div className="text-lg font-light text-[#393939] tabular-nums">{data.trend.newLast7Days}</div>
-                <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.newIssues', 'New Issues')}</span>
+                <div className="text-lg font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.trend.newLast7Days}</div>
+                <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.newIssues', 'New Issues')}</span>
               </div>
-            </div>
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#00B2FF]/10 border border-[#00B2FF]/20">
+            </button>
+            <button
+              onClick={() => navigate('/security-posture')}
+              className="flex items-center gap-2 p-3 rounded-xl bg-[#00B2FF]/10 border border-[#00B2FF]/20 text-left transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/20 cursor-pointer group"
+            >
               <Shield className="h-4 w-4 text-[#00B2FF]" />
               <div>
                 <div className="text-lg font-light text-[#00B2FF] tabular-nums">{data.trend.resolvedLast7Days}</div>
-                <span className="text-xs font-light text-[#5F5F5F]">{t('executiveDashboard.resolved', 'Resolved')}</span>
+                <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">{t('executiveDashboard.resolved', 'Resolved')}</span>
               </div>
-            </div>
+            </button>
           </div>
         </div>
 
         {/* Total Findings */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-          <span className="text-sm font-light text-[#5F5F5F]">
+        <button
+          onClick={() => navigate('/security-posture')}
+          className="w-full flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200 text-left transition-all duration-200 hover:shadow-md hover:border-[#00B2FF]/40 hover:bg-[#00B2FF]/5 cursor-pointer group"
+        >
+          <span className="text-sm font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">
             {t('executiveDashboard.totalFindings', 'Total Active Findings')}
           </span>
-          <span className="text-lg font-light text-[#393939] tabular-nums">{data.findings.total}</span>
-        </div>
+          <span className="text-lg font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">{data.findings.total}</span>
+        </button>
 
         {/* Last Scan */}
         {data.lastScanDate && (
