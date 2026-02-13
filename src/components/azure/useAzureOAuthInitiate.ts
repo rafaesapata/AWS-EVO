@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 interface InitiateResponse {
   authorizationUrl: string;
   state: string;
-  codeVerifier: string;
+  expiresAt: string;
 }
 
 export function useAzureOAuthInitiate(options?: { onError?: (error: string) => void }) {
@@ -20,7 +20,6 @@ export function useAzureOAuthInitiate(options?: { onError?: (error: string) => v
   const initiate = async () => {
     setIsPending(true);
     try {
-      sessionStorage.removeItem('azure_oauth_code_verifier');
       sessionStorage.removeItem('azure_oauth_state');
       sessionStorage.removeItem('azure_oauth_timestamp');
 
@@ -30,13 +29,13 @@ export function useAzureOAuthInitiate(options?: { onError?: (error: string) => v
       }
 
       const data = result.data;
-      if (!data?.authorizationUrl || !data?.codeVerifier || !data?.state) {
+      if (!data?.authorizationUrl || !data?.state) {
         toast.error(t('azure.oauth.invalidResponse', 'Invalid response from server'));
         setIsPending(false);
         return;
       }
 
-      sessionStorage.setItem('azure_oauth_code_verifier', data.codeVerifier);
+      // codeVerifier stays server-side only (PKCE security) — only store state for CSRF validation
       sessionStorage.setItem('azure_oauth_state', data.state);
       sessionStorage.setItem('azure_oauth_timestamp', Date.now().toString());
 

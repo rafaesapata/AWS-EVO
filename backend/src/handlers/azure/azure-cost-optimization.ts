@@ -185,6 +185,10 @@ export async function handler(
       }
     } catch (err: any) {
       logger.error('Failed to initialize Azure SDK', { error: err.message });
+      const { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } = await import('../../lib/azure-helpers.js');
+      if (isInvalidClientSecretError(err.message || '')) {
+        return error(INVALID_CLIENT_SECRET_MESSAGE, 400);
+      }
       return error('Failed to connect to Azure. Please check your credentials.', 500);
     }
 

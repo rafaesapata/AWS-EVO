@@ -578,10 +578,17 @@ export async function handler(
       if (!credential.tenant_id || !credential.client_id || !resolvedSecret) {
         return error('Service Principal credentials incomplete.', 400);
       }
-      const { ClientSecretCredential } = await import('@azure/identity');
-      const spCred = new ClientSecretCredential(credential.tenant_id, credential.client_id, resolvedSecret);
-      const tokenRes = await spCred.getToken('https://management.azure.com/.default');
-      accessToken = tokenRes.token;
+      try {
+        const { ClientSecretCredential } = await import('@azure/identity');
+        const spCred = new ClientSecretCredential(credential.tenant_id, credential.client_id, resolvedSecret);
+        const tokenRes = await spCred.getToken('https://management.azure.com/.default');
+        accessToken = tokenRes.token;
+      } catch (spErr: any) {
+        if (isInvalidClientSecretError(spErr.message || '')) {
+          return error(INVALID_CLIENT_SECRET_MESSAGE, 401);
+        }
+        return error(`Service Principal authentication failed: ${spErr.message}`, 400);
+      }
     }
 
     // ── Run all tests in parallel (batches of 5) ──────────────────────

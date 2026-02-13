@@ -748,11 +748,15 @@ export async function handler(
         tokenCredential = new identity.ClientSecretCredential(credential.tenant_id, credential.client_id, resolvedSecret);
       }
     } catch (authErr: any) {
+      const { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } = await import('../../lib/azure-helpers.js');
+      const errMsg = isInvalidClientSecretError(authErr.message || '')
+        ? INVALID_CLIENT_SECRET_MESSAGE
+        : `Authentication failed: ${authErr.message}`;
       await prisma.backgroundJob.update({
         where: { id: jobId },
-        data: { status: 'failed', error: `Authentication failed: ${authErr.message}`, completed_at: new Date() },
+        data: { status: 'failed', error: errMsg, completed_at: new Date() },
       });
-      return error('Azure authentication failed. Please check your credentials.', 500, undefined, origin);
+      return error(errMsg, isInvalidClientSecretError(authErr.message || '') ? 400 : 500, undefined, origin);
     }
 
     const azureClients: AzureClients = { tokenCredential, subscriptionId: credential.subscription_id };

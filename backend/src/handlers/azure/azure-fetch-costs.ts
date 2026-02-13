@@ -116,6 +116,11 @@ async function getAccessToken(
       ? { message: err.message, code: (err as NodeJS.ErrnoException).code, name: err.name }
       : { message: 'Unknown error' };
     logger.error('Failed to get Azure access token', { error: errorDetails });
+    // Check for invalid client secret across all auth types
+    const { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } = await import('../../lib/azure-helpers.js');
+    if (isInvalidClientSecretError(errorDetails.message)) {
+      return { success: false, error: INVALID_CLIENT_SECRET_MESSAGE };
+    }
     return { success: false, error: `Failed to get access token: ${errorDetails.message}` };
   }
 }

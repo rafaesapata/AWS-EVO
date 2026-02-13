@@ -109,7 +109,12 @@ export async function handler(
         );
       }
     } catch (err: any) {
-      logger.error('Azure SDK not installed', { error: err.message });
+      logger.error('Azure SDK not installed or credential error', { error: err.message });
+      // Check for invalid client secret
+      const { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } = await import('../../lib/azure-helpers.js');
+      if (isInvalidClientSecretError(err.message || '')) {
+        return error(INVALID_CLIENT_SECRET_MESSAGE, 400);
+      }
       return error('Azure SDK not available. Contact administrator.', 500);
     }
 

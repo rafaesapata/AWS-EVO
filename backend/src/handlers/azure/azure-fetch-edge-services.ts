@@ -270,6 +270,10 @@ async function getAzureTokenCredential(credential: any): Promise<any> {
     if (err.code === 'ERR_MODULE_NOT_FOUND' || err.code === 'MODULE_NOT_FOUND') {
       throw new Error('Azure SDK not installed');
     }
+    const { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } = await import('../../lib/azure-helpers.js');
+    if (isInvalidClientSecretError(err.message || '')) {
+      throw new Error(INVALID_CLIENT_SECRET_MESSAGE);
+    }
     throw err;
   }
 }

@@ -67,9 +67,9 @@ export default function AzureOAuthCallback() {
 
   // Exchange code for tokens
   const callbackMutation = useMutation({
-    mutationFn: async ({ code, state, codeVerifier }: { code: string; state: string; codeVerifier: string }) => {
+    mutationFn: async ({ code, state }: { code: string; state: string }) => {
       const result = await apiClient.invoke<CallbackResponse>('azure-oauth-callback', {
-        body: { code, state, codeVerifier },
+        body: { code, state },
       });
       
       if (result.error) {
@@ -80,7 +80,6 @@ export default function AzureOAuthCallback() {
     },
     onSuccess: (data) => {
       // Clear OAuth data from sessionStorage after successful callback
-      sessionStorage.removeItem('azure_oauth_code_verifier');
       sessionStorage.removeItem('azure_oauth_state');
       sessionStorage.removeItem('azure_oauth_timestamp');
 
@@ -103,7 +102,6 @@ export default function AzureOAuthCallback() {
     },
     onError: (err: Error) => {
       // Clear OAuth data from sessionStorage on error too
-      sessionStorage.removeItem('azure_oauth_code_verifier');
       sessionStorage.removeItem('azure_oauth_state');
       sessionStorage.removeItem('azure_oauth_timestamp');
       
@@ -196,7 +194,6 @@ export default function AzureOAuthCallback() {
 
     // Get stored OAuth data
     const storedState = sessionStorage.getItem('azure_oauth_state');
-    const codeVerifier = sessionStorage.getItem('azure_oauth_code_verifier');
     const timestamp = sessionStorage.getItem('azure_oauth_timestamp');
 
     // Validate state parameter (CSRF protection)
@@ -223,23 +220,11 @@ export default function AzureOAuthCallback() {
       }
     }
 
-    // Validate code verifier
-    if (!codeVerifier) {
-      callbackProcessedRef.current = true;
-      setErrorMessage(t('azure.oauth.missingVerifier', 'Missing security token. Please try again.'));
-      setState('error');
-      return;
-    }
-
     // Mark as processed BEFORE making the API call to prevent duplicates
     callbackProcessedRef.current = true;
-    
-    // Store codeVerifier in a local variable before clearing sessionStorage
-    // We'll clear sessionStorage only after successful API call
-    const storedCodeVerifier = codeVerifier;
 
-    // Exchange code for tokens
-    callbackMutation.mutate({ code, state: urlState, codeVerifier: storedCodeVerifier });
+    // Exchange code for tokens (codeVerifier stays server-side — PKCE security)
+    callbackMutation.mutate({ code, state: urlState });
   }, []); // Empty dependency array - run only once on mount
 
   const handleSubscriptionSelect = (selected: AzureSubscription[]) => {
@@ -254,14 +239,12 @@ export default function AzureOAuthCallback() {
 
   const handleRetry = () => {
     // Clear OAuth data and redirect to credentials page to try again
-    sessionStorage.removeItem('azure_oauth_code_verifier');
     sessionStorage.removeItem('azure_oauth_state');
     sessionStorage.removeItem('azure_oauth_timestamp');
     navigate('/cloud-credentials');
   };
 
   const handleCancel = () => {
-    sessionStorage.removeItem('azure_oauth_code_verifier');
     sessionStorage.removeItem('azure_oauth_state');
     sessionStorage.removeItem('azure_oauth_timestamp');
     navigate('/cloud-credentials');
