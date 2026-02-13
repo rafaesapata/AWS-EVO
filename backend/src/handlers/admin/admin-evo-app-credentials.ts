@@ -23,6 +23,8 @@ const SSM_PREFIX = `/evo-uds-v3/${ENV}`;
 const MASK_MIN_LENGTH = 12;
 const LAMBDA_LIST_PAGE_SIZE = 200;
 const LAMBDA_CONCURRENCY = 10;
+const LAMBDA_RETRY_DELAY_MS = 3000;
+const LAMBDA_MAX_RETRIES = 2;
 
 const ssmClient = new SSMClient({ region: REGION });
 const lambdaClient = new LambdaClient({ region: REGION });
@@ -126,13 +128,12 @@ async function syncLambdaEnvVars(
     const batch = functions.slice(i, i + LAMBDA_CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map(async (funcName) => {
-        const maxRetries = 2;
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        for (let attempt = 0; attempt <= LAMBDA_MAX_RETRIES; attempt++) {
           try {
             const config = await lambdaClient.send(new GetFunctionConfigurationCommand({ FunctionName: funcName }));
             // Skip if Lambda is being updated by another process (SAM deploy)
             if (config.LastUpdateStatus === 'InProgress') {
-              if (attempt < maxRetries) { await new Promise(r => setTimeout(r, 3000)); continue; }
+              if (attempt < LAMBDA_MAX_RETRIES) { await new Promise(r => setTimeout(r, LAMBDA_RETRY_DELAY_MS)); continue; }
               throw new Error(`Lambda ${funcName} still updating after retries`);
             }
             const mergedVars = { ...config.Environment?.Variables, ...vars };
@@ -142,8 +143,8 @@ async function syncLambdaEnvVars(
             }));
             return; // success
           } catch (err: any) {
-            if (err.name === 'ResourceConflictException' && attempt < maxRetries) {
-              await new Promise(r => setTimeout(r, 3000));
+            if (err.name === 'ResourceConflictException' && attempt < LAMBDA_MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, LAMBDA_RETRY_DELAY_MS));
               continue;
             }
             throw err;
