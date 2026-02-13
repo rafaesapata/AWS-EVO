@@ -23,7 +23,6 @@ export default function ExecutiveSummaryBar({ data }: Props) {
   const { t } = useTranslation();
 
   const budgetPercentage = Math.min(100, data.budgetUtilization);
-  const totalAlerts = data.activeAlerts.critical + data.activeAlerts.high + data.activeAlerts.medium;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">

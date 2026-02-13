@@ -7,11 +7,13 @@
 #
 # Uso: ./azure-quick-connect.sh [SUBSCRIPTION_ID]
 #
+# Compatível com macOS e Linux (Bash 3.2+)
+#
 # Se SUBSCRIPTION_ID não for fornecido, o script listará as subscriptions
 # disponíveis e pedirá para você escolher uma.
 #
 
-set -e
+set -euo pipefail
 
 # Cores para output
 RED='\033[0;31m'
@@ -23,6 +25,7 @@ NC='\033[0m' # No Color
 
 # Nome do App Registration
 APP_NAME="EVO Platform"
+USE_EXISTING=""
 
 echo -e "${CYAN}"
 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -37,15 +40,42 @@ if ! command -v az &> /dev/null; then
     echo -e "${RED}❌ Azure CLI não está instalado.${NC}"
     echo ""
     echo "Por favor, instale o Azure CLI:"
-    echo "  - macOS: brew install azure-cli"
-    echo "  - Windows: winget install Microsoft.AzureCLI"
-    echo "  - Linux: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "  brew install azure-cli"
+    elif [[ -f /etc/debian_version ]]; then
+        echo "  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash"
+    elif [[ -f /etc/redhat-release ]]; then
+        echo "  sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc"
+        echo "  sudo dnf install -y azure-cli"
+    else
+        echo "  Consulte: https://docs.microsoft.com/cli/azure/install-azure-cli-linux"
+    fi
     echo ""
-    echo "Documentação: https://docs.microsoft.com/cli/azure/install-azure-cli"
+    echo "Documentação: https://learn.microsoft.com/cli/azure/install-azure-cli"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Azure CLI encontrado${NC}"
+AZ_VERSION=$(az version --query '"azure-cli"' -o tsv 2>/dev/null || echo "desconhecida")
+echo -e "${GREEN}✓ Azure CLI encontrado (versão ${AZ_VERSION})${NC}"
+
+# Verificar se jq está instalado
+if ! command -v jq &> /dev/null; then
+    echo -e "${RED}❌ jq não está instalado.${NC}"
+    echo ""
+    echo "Por favor, instale o jq:"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "  brew install jq"
+    elif [[ -f /etc/debian_version ]]; then
+        echo "  sudo apt-get install -y jq"
+    elif [[ -f /etc/redhat-release ]]; then
+        echo "  sudo dnf install -y jq"
+    else
+        echo "  Consulte: https://jqlang.github.io/jq/download/"
+    fi
+    exit 1
+fi
+
+echo -e "${GREEN}✓ jq encontrado${NC}"
 
 # Verificar se está logado
 echo -e "\n${BLUE}Verificando autenticação...${NC}"
@@ -63,7 +93,7 @@ TENANT_ID=$(az account show --query tenantId -o tsv)
 echo -e "${GREEN}✓ Tenant ID: ${TENANT_ID}${NC}"
 
 # Obter ou selecionar Subscription
-SUBSCRIPTION_ID=$1
+SUBSCRIPTION_ID="${1:-}"
 
 if [ -z "$SUBSCRIPTION_ID" ]; then
     echo -e "\n${BLUE}Listando subscriptions disponíveis...${NC}\n"
@@ -109,17 +139,21 @@ if [ -n "$EXISTING_APP" ]; then
 fi
 
 # Criar App Registration se não existir
-if [ -z "$EXISTING_APP" ] || [ "$USE_EXISTING" = "n" ] || [ "$USE_EXISTING" = "N" ]; then
+if [ -z "$EXISTING_APP" ]; then
     echo -e "\n${BLUE}Passo 1/4: Criando App Registration...${NC}"
     
     APP_RESULT=$(az ad app create \
         --display-name "$APP_NAME" \
         --sign-in-audience AzureADMyOrg \
-        --query "{appId:appId, id:id}" \
+        --query "{appId:appId}" \
         -o json)
     
-    APP_ID=$(echo $APP_RESULT | jq -r '.appId')
-    APP_OBJECT_ID=$(echo $APP_RESULT | jq -r '.id')
+    APP_ID=$(echo "$APP_RESULT" | jq -r '.appId')
+    
+    if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
+        echo -e "${RED}❌ Falha ao criar App Registration.${NC}"
+        exit 1
+    fi
     
     echo -e "${GREEN}✓ App Registration criado${NC}"
     echo -e "  App ID (Client ID): ${APP_ID}"
@@ -136,7 +170,7 @@ if [ -n "$EXISTING_SP" ]; then
     echo -e "${GREEN}✓ Service Principal já existe${NC}"
 else
     SP_RESULT=$(az ad sp create --id "$APP_ID" --query "{id:id, appId:appId}" -o json)
-    SP_ID=$(echo $SP_RESULT | jq -r '.id')
+    SP_ID=$(echo "$SP_RESULT" | jq -r '.id')
     echo -e "${GREEN}✓ Service Principal criado${NC}"
 fi
 
@@ -153,8 +187,13 @@ SECRET_RESULT=$(az ad app credential reset \
     --query "{password:password, endDateTime:endDateTime}" \
     -o json)
 
-CLIENT_SECRET=$(echo $SECRET_RESULT | jq -r '.password')
-SECRET_EXPIRY=$(echo $SECRET_RESULT | jq -r '.endDateTime')
+CLIENT_SECRET=$(echo "$SECRET_RESULT" | jq -r '.password')
+SECRET_EXPIRY=$(echo "$SECRET_RESULT" | jq -r '.endDateTime')
+
+if [ -z "$CLIENT_SECRET" ] || [ "$CLIENT_SECRET" = "null" ]; then
+    echo -e "${RED}❌ Falha ao criar Client Secret.${NC}"
+    exit 1
+fi
 
 echo -e "${GREEN}✓ Client Secret criado${NC}"
 echo -e "  Expira em: ${SECRET_EXPIRY}"
@@ -170,7 +209,7 @@ ROLES=(
     "Reader"
     "Security Reader"
     "Cost Management Reader"
-    "Log Analytics Reader"
+    "Monitoring Reader"
 )
 
 SCOPE="/subscriptions/${SUBSCRIPTION_ID}"
@@ -189,15 +228,15 @@ for ROLE in "${ROLES[@]}"; do
     if [ -n "$EXISTING_ROLE" ]; then
         echo -e "    ${GREEN}✓ ${ROLE} (já atribuída)${NC}"
     else
-        az role assignment create \
+        if az role assignment create \
             --assignee "$APP_ID" \
             --role "$ROLE" \
             --scope "$SCOPE" \
-            --output none 2>/dev/null || {
-                echo -e "    ${YELLOW}⚠ Falha ao atribuir ${ROLE} - pode precisar de permissões adicionais${NC}"
-                continue
-            }
-        echo -e "    ${GREEN}✓ ${ROLE}${NC}"
+            --output none 2>/dev/null; then
+            echo -e "    ${GREEN}✓ ${ROLE}${NC}"
+        else
+            echo -e "    ${YELLOW}⚠ Falha ao atribuir ${ROLE} - pode precisar de permissões adicionais${NC}"
+        fi
     fi
 done
 
@@ -230,7 +269,7 @@ echo -e "└──────────────────────�
 echo -e "\n${YELLOW}⚠ IMPORTANTE: Guarde o Client Secret em local seguro!${NC}"
 echo -e "${YELLOW}  Ele não poderá ser visualizado novamente.${NC}"
 
-# Salvar em arquivo (opcional)
+# Salvar em arquivo
 OUTPUT_FILE="evo-azure-credentials-${SUBSCRIPTION_ID:0:8}.txt"
 echo -e "\n${BLUE}Salvando credenciais em: ${OUTPUT_FILE}${NC}"
 
@@ -248,15 +287,16 @@ SUBSCRIPTION_ID=${SUBSCRIPTION_ID}
 SUBSCRIPTION_NAME=${SUBSCRIPTION_NAME}
 
 # Roles atribuídas:
-# - Reader
-# - Security Reader
-# - Cost Management Reader
-# - Log Analytics Reader
+# - Reader (acesso de leitura a todos os recursos)
+# - Security Reader (Defender for Cloud, assessments, secure scores)
+# - Cost Management Reader (custos, consumo, orçamentos)
+# - Monitoring Reader (métricas, logs de atividade, alertas)
 
 # Secret expira em: ${SECRET_EXPIRY}
 EOF
 
-echo -e "${GREEN}✓ Credenciais salvas em ${OUTPUT_FILE}${NC}"
+chmod 600 "$OUTPUT_FILE"
+echo -e "${GREEN}✓ Credenciais salvas em ${OUTPUT_FILE} (permissão 600)${NC}"
 
 echo -e "\n${GREEN}✅ Configuração concluída com sucesso!${NC}"
 echo -e "\nAgora você pode usar estas credenciais na plataforma EVO."

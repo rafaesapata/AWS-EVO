@@ -24,8 +24,8 @@ function Write-ColorOutput {
 
 function Write-Success { param([string]$Message) Write-ColorOutput "✓ $Message" "Green" }
 function Write-Info { param([string]$Message) Write-ColorOutput $Message "Cyan" }
-function Write-Warning { param([string]$Message) Write-ColorOutput "⚠ $Message" "Yellow" }
-function Write-Error { param([string]$Message) Write-ColorOutput "❌ $Message" "Red" }
+function Write-Warn { param([string]$Message) Write-ColorOutput "⚠ $Message" "Yellow" }
+function Write-Err { param([string]$Message) Write-ColorOutput "❌ $Message" "Red" }
 
 # Nome do App Registration
 $AppName = "EVO Platform"
@@ -43,18 +43,15 @@ try {
     $azVersion = az version 2>$null | ConvertFrom-Json
     Write-Success "Azure CLI encontrado (versão $($azVersion.'azure-cli'))"
 } catch {
-    Write-Error "Azure CLI não está instalado."
+    Write-Err "Azure CLI não está instalado."
     Write-Host ""
     Write-Host "Por favor, instale o Azure CLI:"
     Write-Host "  - Windows: winget install Microsoft.AzureCLI"
     Write-Host "  - Ou baixe de: https://aka.ms/installazurecliwindows"
     Write-Host ""
-    Write-Host "Documentação: https://docs.microsoft.com/cli/azure/install-azure-cli"
+    Write-Host "Documentação: https://learn.microsoft.com/cli/azure/install-azure-cli"
     exit 1
 }
-
-# Verificar se jq está disponível (ou usar ConvertFrom-Json)
-$useNativeJson = $true
 
 # Verificar se está logado
 Write-Host ""
@@ -64,7 +61,7 @@ try {
     $currentUser = $accountInfo.user.name
     Write-Success "Logado como: $currentUser"
 } catch {
-    Write-Warning "Você não está logado no Azure CLI."
+    Write-Warn "Você não está logado no Azure CLI."
     Write-Host "Iniciando login..."
     az login
     $accountInfo = az account show | ConvertFrom-Json
@@ -86,7 +83,7 @@ if ([string]::IsNullOrEmpty($SubscriptionId)) {
     $SubscriptionId = Read-Host "Digite o Subscription ID que deseja usar"
     
     if ([string]::IsNullOrEmpty($SubscriptionId)) {
-        Write-Error "Subscription ID é obrigatório."
+        Write-Err "Subscription ID é obrigatório."
         exit 1
     }
 }
@@ -108,7 +105,7 @@ $useExisting = $false
 
 if ($existingApps -and $existingApps.Count -gt 0) {
     $existingApp = $existingApps[0]
-    Write-Warning "Já existe um App Registration chamado '$AppName'"
+    Write-Warn "Já existe um App Registration chamado '$AppName'"
     Write-Host "  App ID: $($existingApp.appId)"
     Write-Host ""
     $response = Read-Host "Deseja usar o existente (s) ou criar um novo (n)? [s/n]"
@@ -133,11 +130,15 @@ if (-not $useExisting) {
     $appResult = az ad app create `
         --display-name $AppName `
         --sign-in-audience AzureADMyOrg `
-        --query "{appId:appId, id:id}" `
+        --query "{appId:appId}" `
         -o json | ConvertFrom-Json
     
     $AppId = $appResult.appId
-    $AppObjectId = $appResult.id
+    
+    if ([string]::IsNullOrEmpty($AppId)) {
+        Write-Err "Falha ao criar App Registration."
+        exit 1
+    }
     
     Write-Success "App Registration criado"
     Write-Host "  App ID (Client ID): $AppId"
@@ -175,12 +176,17 @@ $secretResult = az ad app credential reset `
 $ClientSecret = $secretResult.password
 $SecretExpiry = $secretResult.endDateTime
 
+if ([string]::IsNullOrEmpty($ClientSecret)) {
+    Write-Err "Falha ao criar Client Secret."
+    exit 1
+}
+
 Write-Success "Client Secret criado"
 Write-Host "  Expira em: $SecretExpiry"
 
 # Aguardar propagação do Service Principal
 Write-Host ""
-Write-Warning "Aguardando propagação do Service Principal (30 segundos)..."
+Write-Warn "Aguardando propagação do Service Principal (30 segundos)..."
 Start-Sleep -Seconds 30
 
 # Atribuir Roles
@@ -191,7 +197,7 @@ $roles = @(
     "Reader",
     "Security Reader",
     "Cost Management Reader",
-    "Log Analytics Reader"
+    "Monitoring Reader"
 )
 
 $scope = "/subscriptions/$SubscriptionId"
@@ -221,7 +227,7 @@ foreach ($role in $roles) {
             Write-Success $role
         } catch {
             Write-Host "    " -NoNewline
-            Write-Warning "Falha ao atribuir $role - pode precisar de permissões adicionais"
+            Write-Warn "Falha ao atribuir $role - pode precisar de permissões adicionais"
         }
     }
 }
@@ -254,8 +260,8 @@ Write-Host "│ $SubscriptionName"
 Write-Host "└────────────────────────────────────────────────────────────────┘"
 
 Write-Host ""
-Write-Warning "IMPORTANTE: Guarde o Client Secret em local seguro!"
-Write-Warning "Ele não poderá ser visualizado novamente."
+Write-Warn "IMPORTANTE: Guarde o Client Secret em local seguro!"
+Write-Warn "Ele não poderá ser visualizado novamente."
 
 # Salvar em arquivo
 $outputFile = "evo-azure-credentials-$($SubscriptionId.Substring(0,8)).txt"
@@ -276,10 +282,10 @@ SUBSCRIPTION_ID=$SubscriptionId
 SUBSCRIPTION_NAME=$SubscriptionName
 
 # Roles atribuídas:
-# - Reader
-# - Security Reader
-# - Cost Management Reader
-# - Log Analytics Reader
+# - Reader (acesso de leitura a todos os recursos)
+# - Security Reader (Defender for Cloud, assessments, secure scores)
+# - Cost Management Reader (custos, consumo, orçamentos)
+# - Monitoring Reader (métricas, logs de atividade, alertas)
 
 # Secret expira em: $SecretExpiry
 "@

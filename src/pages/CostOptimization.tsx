@@ -476,8 +476,8 @@ const MAX_SAVINGS_PENALTY = 30;
 // Demo fallback metrics
 const DEMO_FALLBACK_METRICS: CostMetrics = {
   total_monthly_cost: 15000,
-  total_potential_savings: 3500,
-  optimization_score: 72,
+  total_potential_savings: 2541.12,
+  optimization_score: 52,
   recommendations_count: 12,
   implemented_savings: 0
 };

@@ -4,8 +4,8 @@
  * Provides step-by-step instructions and ARM template deployment for Azure setup.
  */
 
-import React, { useState } from 'react';
-import { ExternalLink, Copy, Check, Cloud, Shield, DollarSign, Activity, Download, Terminal, Apple, Monitor } from 'lucide-react';
+import { useState } from 'react';
+import { ExternalLink, Copy, Check, Cloud, Shield, DollarSign, Activity, Terminal, Apple, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -53,7 +53,7 @@ export function AzureQuickConnect({ onManualSetup }: AzureQuickConnectProps) {
     { name: 'Reader', scope: 'Subscription', description: 'Read access to all resources' },
     { name: 'Security Reader', scope: 'Subscription', description: 'View security recommendations' },
     { name: 'Cost Management Reader', scope: 'Subscription', description: 'View cost data' },
-    { name: 'Log Analytics Reader', scope: 'Subscription', description: 'View activity logs' },
+    { name: 'Monitoring Reader', scope: 'Subscription', description: 'View metrics and activity logs' },
   ];
 
   // Azure CLI commands for manual setup
@@ -64,7 +64,7 @@ export function AzureQuickConnect({ onManualSetup }: AzureQuickConnectProps) {
     assignReader: `az role assignment create --assignee <SP_ID> --role "Reader" --scope /subscriptions/<SUBSCRIPTION_ID>`,
     assignSecurity: `az role assignment create --assignee <SP_ID> --role "Security Reader" --scope /subscriptions/<SUBSCRIPTION_ID>`,
     assignCost: `az role assignment create --assignee <SP_ID> --role "Cost Management Reader" --scope /subscriptions/<SUBSCRIPTION_ID>`,
-    assignLogs: `az role assignment create --assignee <SP_ID> --role "Log Analytics Reader" --scope /subscriptions/<SUBSCRIPTION_ID>`,
+    assignLogs: `az role assignment create --assignee <SP_ID> --role "Monitoring Reader" --scope /subscriptions/<SUBSCRIPTION_ID>`,
   };
 
   return (
@@ -231,39 +231,24 @@ export function AzureQuickConnect({ onManualSetup }: AzureQuickConnectProps) {
               <div>
                 <p className="text-sm font-medium mb-2">{t('azure.selectOS', 'Selecione seu sistema operacional:')}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <Button 
-                    variant="outline"
-                    className="glass hover-glow flex items-center justify-center gap-2"
-                    onClick={() => {
-                      window.open('/scripts/azure-quick-connect.ps1', '_blank');
-                      toast.success(t('azure.scriptDownloaded', 'Script baixado!'));
-                    }}
-                  >
-                    <Monitor className="h-4 w-4" />
-                    Windows
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    className="glass hover-glow flex items-center justify-center gap-2"
-                    onClick={() => {
-                      window.open('/scripts/azure-quick-connect.sh', '_blank');
-                      toast.success(t('azure.scriptDownloaded', 'Script baixado!'));
-                    }}
-                  >
-                    <Apple className="h-4 w-4" />
-                    macOS
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    className="glass hover-glow flex items-center justify-center gap-2"
-                    onClick={() => {
-                      window.open('/scripts/azure-quick-connect.sh', '_blank');
-                      toast.success(t('azure.scriptDownloaded', 'Script baixado!'));
-                    }}
-                  >
-                    <Terminal className="h-4 w-4" />
-                    Linux
-                  </Button>
+                  {([
+                    { label: 'Windows', icon: Monitor, script: '/scripts/azure-quick-connect.ps1' },
+                    { label: 'macOS', icon: Apple, script: '/scripts/azure-quick-connect.sh' },
+                    { label: 'Linux', icon: Terminal, script: '/scripts/azure-quick-connect.sh' },
+                  ] as const).map(({ label, icon: Icon, script }) => (
+                    <Button
+                      key={label}
+                      variant="outline"
+                      className="glass hover-glow flex items-center justify-center gap-2"
+                      onClick={() => {
+                        window.open(script, '_blank');
+                        toast.success(t('azure.scriptDownloaded', 'Script baixado!'));
+                      }}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </Button>
+                  ))}
                 </div>
               </div>
               
@@ -373,7 +358,7 @@ export function AzureQuickConnect({ onManualSetup }: AzureQuickConnectProps) {
                   assignReader: 'Reader',
                   assignSecurity: 'Security Reader',
                   assignCost: 'Cost Management Reader',
-                  assignLogs: 'Log Analytics Reader',
+                  assignLogs: 'Monitoring Reader',
                 }).map(([key, role]) => (
                   <div key={key}>
                     <p className="text-xs text-muted-foreground mb-1">{role}:</p>
