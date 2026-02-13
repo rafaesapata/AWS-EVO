@@ -126,12 +126,29 @@ async function syncLambdaEnvVars(
     const batch = functions.slice(i, i + LAMBDA_CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map(async (funcName) => {
-        const config = await lambdaClient.send(new GetFunctionConfigurationCommand({ FunctionName: funcName }));
-        const mergedVars = { ...config.Environment?.Variables, ...vars };
-        await lambdaClient.send(new UpdateFunctionConfigurationCommand({
-          FunctionName: funcName,
-          Environment: { Variables: mergedVars },
-        }));
+        const maxRetries = 2;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          try {
+            const config = await lambdaClient.send(new GetFunctionConfigurationCommand({ FunctionName: funcName }));
+            // Skip if Lambda is being updated by another process (SAM deploy)
+            if (config.LastUpdateStatus === 'InProgress') {
+              if (attempt < maxRetries) { await new Promise(r => setTimeout(r, 3000)); continue; }
+              throw new Error(`Lambda ${funcName} still updating after retries`);
+            }
+            const mergedVars = { ...config.Environment?.Variables, ...vars };
+            await lambdaClient.send(new UpdateFunctionConfigurationCommand({
+              FunctionName: funcName,
+              Environment: { Variables: mergedVars },
+            }));
+            return; // success
+          } catch (err: any) {
+            if (err.name === 'ResourceConflictException' && attempt < maxRetries) {
+              await new Promise(r => setTimeout(r, 3000));
+              continue;
+            }
+            throw err;
+          }
+        }
       })
     );
     for (let j = 0; j < results.length; j++) {
@@ -140,7 +157,9 @@ async function syncLambdaEnvVars(
       } else {
         failed++;
         const reason = (results[j] as PromiseRejectedResult).reason;
-        logger.error(`Failed to update Lambda ${batch[j]}`, { error: reason?.message });
+        const errMsg = reason instanceof Error ? reason.message : (typeof reason === 'string' ? reason : JSON.stringify(reason));
+        const errName = reason instanceof Error ? reason.name : 'UnknownError';
+        logger.error(`Failed to update Lambda ${batch[j]}`, { errorMessage: errMsg, errorName: errName });
       }
     }
   }
