@@ -191,10 +191,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
                 </span>
               </div>
             </div>
-            
-            <p className="text-sm font-light text-[#5F5F5F]">
-              {t('executiveDashboard.alertTarget', 'Meta')}: 0
-            </p>
+
           </div>
 
           {/* Card: Potencial de Economia */}
