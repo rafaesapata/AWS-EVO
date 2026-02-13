@@ -32,6 +32,26 @@ export async function handler(
       return badRequest('token is required', undefined, origin);
     }
 
+    // Check if this is a demo token (starts with 'demo-tv-')
+    if (token.startsWith('demo-tv-')) {
+      // For demo tokens, return a demo dashboard config
+      // This allows demo org users to preview the TV dashboard experience
+      return success({
+        success: true,
+        dashboard: {
+          id: 'demo-dashboard',
+          name: 'TV Dashboard (Demo)',
+          layout: [
+            { widgetId: 'executive' },
+            { widgetId: 'security-posture' },
+            { widgetId: 'cost-optimization' },
+            { widgetId: 'compliance' }
+          ],
+          refreshInterval: 60,
+          organizationId: 'demo-organization-id'
+        }
+      }, 200, origin);
+    }
 
     // Buscar token no banco
     const tvToken = await prisma.tvDisplayToken.findFirst({

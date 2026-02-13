@@ -74,18 +74,13 @@ export const handler = safeHandler(async (
   logger.info('Cost optimization started', { organizationId, requestId: context.awsRequestId });
   
   try {
-    const validation = parseAndValidateBody(costOptimizationSchema, event.body);
-    if (!validation.success) {
-      return validation.error;
-    }
-    
-    const { accountId } = validation.data;
-    
     const prisma = getPrismaClient();
     
     // =========================================================================
     // DEMO MODE CHECK - Retorna dados de demonstração se ativado
     // FAIL-SAFE: isOrganizationInDemoMode retorna false em caso de erro
+    // IMPORTANTE: Deve rodar ANTES da validação do body, pois o frontend
+    // envia accountId: 'demo' que não passa na validação UUID
     // =========================================================================
     const isDemoMode = await isOrganizationInDemoMode(prisma, organizationId);
     if (isDemoMode === true) {
@@ -100,6 +95,13 @@ export const handler = safeHandler(async (
       return success(demoData);
     }
     // =========================================================================
+    
+    const validation = parseAndValidateBody(costOptimizationSchema, event.body);
+    if (!validation.success) {
+      return validation.error;
+    }
+    
+    const { accountId } = validation.data;
     
     const credential = await prisma.awsCredential.findFirst({
       where: {

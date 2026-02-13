@@ -76,9 +76,17 @@ export default function TVDashboard() {
   };
 
   const renderWidget = (widgetId: string, index: number) => {
-    // In TV mode, only render ExecutiveDashboard which has public endpoint support
+    // In TV mode, render available widgets
     const widgetMap: Record<string, JSX.Element> = {
       'executive': <ExecutiveDashboard key={`${widgetId}-${index}`} />,
+      'security-posture': <SecurityPosture key={`${widgetId}-${index}`} />,
+      'cost-optimization': <CostOptimization key={`${widgetId}-${index}`} />,
+      'well-architected': <WellArchitectedScorecard key={`${widgetId}-${index}`} />,
+      'anomaly-detection': <AnomalyDetection key={`${widgetId}-${index}`} />,
+      'waste-detection': <WasteDetection key={`${widgetId}-${index}`} />,
+      'predictive-incidents': <PredictiveIncidents key={`${widgetId}-${index}`} />,
+      'compliance': <ComplianceFrameworks key={`${widgetId}-${index}`} />,
+      'budget-forecasting': <BudgetForecasting key={`${widgetId}-${index}`} />,
     };
 
     return widgetMap[widgetId] || null;
@@ -140,8 +148,12 @@ export default function TVDashboard() {
       </header>
 
       {/* Dashboard Content - Fullscreen optimized */}
-      <main className="w-full px-6 py-6">
-        <ExecutiveDashboard />
+      <main className="w-full px-6 py-6 space-y-6">
+        {dashboard.layout.map((item, index) => (
+          <div key={index} className="tv-widget">
+            {renderWidget(item.widgetId, index)}
+          </div>
+        ))}
       </main>
 
       {/* TV-specific styles */}
