@@ -34,6 +34,8 @@ export interface AzureOAuthCredentials {
   tenantId: string;
   accessToken: string;
   expiresAt?: Date;
+  /** Optional function to refresh the access token for long-running operations */
+  refreshFn?: () => Promise<{ accessToken: string; expiresIn: number }>;
 }
 
 /**
@@ -356,7 +358,8 @@ export class AzureProvider implements ICloudProvider {
     subscriptionName: string | undefined,
     tenantId: string,
     accessToken: string,
-    expiresAt?: Date
+    expiresAt?: Date,
+    refreshFn?: () => Promise<{ accessToken: string; expiresIn: number }>
   ): AzureProvider {
     return new AzureProvider(organizationId, {
       subscriptionId,
@@ -364,6 +367,7 @@ export class AzureProvider implements ICloudProvider {
       tenantId,
       accessToken,
       expiresAt,
+      refreshFn,
     });
   }
 

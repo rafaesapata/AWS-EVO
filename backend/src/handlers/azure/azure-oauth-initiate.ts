@@ -161,7 +161,7 @@ export async function handler(
     return success({
       authorizationUrl,
       state, // Frontend needs this to verify callback
-      codeVerifier, // Frontend stores this and sends back during callback
+      // codeVerifier intentionally NOT returned — stays server-side only (PKCE security)
       expiresAt: expiresAt.toISOString(),
     });
   } catch (err: any) {

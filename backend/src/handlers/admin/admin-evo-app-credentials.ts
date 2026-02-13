@@ -46,12 +46,14 @@ function maskSecret(secret: string): string {
   return `${secret.substring(0, 6)}...${secret.substring(secret.length - 4)}`;
 }
 
-/** Read current credentials from env vars + DB metadata */
+/** Read current credentials from SSM (canonical source) + DB metadata */
 async function handleGet(prisma: any, origin: string): Promise<APIGatewayProxyResultV2> {
-  const clientId = process.env.AZURE_OAUTH_CLIENT_ID || '';
-  const clientSecret = process.env.AZURE_OAUTH_CLIENT_SECRET || '';
-  const redirectUri = process.env.AZURE_OAUTH_REDIRECT_URI || '';
-  const tenantId = process.env.AZURE_OAUTH_TENANT_ID || '';
+  // Read from SSM (canonical source) instead of process.env
+  const creds = await getAzureOAuthCredentials();
+  const clientId = creds.clientId;
+  const clientSecret = creds.clientSecret;
+  const redirectUri = creds.redirectUri;
+  const tenantId = creds.tenantId;
 
   // Get metadata from DB
   const record = clientId
@@ -255,10 +257,12 @@ async function handleUpdate(
   userId: string,
   origin: string
 ): Promise<APIGatewayProxyResultV2> {
-  const clientId = body.clientId || process.env.AZURE_OAUTH_CLIENT_ID || '';
-  const clientSecret = body.clientSecret || process.env.AZURE_OAUTH_CLIENT_SECRET || '';
-  const redirectUri = body.redirectUri || process.env.AZURE_OAUTH_REDIRECT_URI || '';
-  const tenantId = body.tenantId || process.env.AZURE_OAUTH_TENANT_ID || '';
+  // Read current values from SSM (canonical source), override with body fields
+  const currentCreds = await getAzureOAuthCredentials();
+  const clientId = body.clientId || currentCreds.clientId;
+  const clientSecret = body.clientSecret || currentCreds.clientSecret;
+  const redirectUri = body.redirectUri || currentCreds.redirectUri;
+  const tenantId = body.tenantId || currentCreds.tenantId;
 
   if (!clientId || !clientSecret) {
     return error('clientId and clientSecret are required', 400, undefined, origin);
@@ -281,19 +285,21 @@ async function handleUpdate(
   }, 200, origin);
 }
 
-/** Sync-only: propagate current env vars to all Lambdas (no secret change) */
+/** Sync-only: propagate current SSM credentials to all Lambdas (no secret change) */
 async function handleSync(
   prisma: any,
   userId: string,
   origin: string
 ): Promise<APIGatewayProxyResultV2> {
-  const clientId = process.env.AZURE_OAUTH_CLIENT_ID || '';
-  const clientSecret = process.env.AZURE_OAUTH_CLIENT_SECRET || '';
-  const redirectUri = process.env.AZURE_OAUTH_REDIRECT_URI || '';
-  const tenantId = process.env.AZURE_OAUTH_TENANT_ID || '';
+  // Read from SSM (canonical source) instead of process.env
+  const creds = await getAzureOAuthCredentials();
+  const clientId = creds.clientId;
+  const clientSecret = creds.clientSecret;
+  const redirectUri = creds.redirectUri;
+  const tenantId = creds.tenantId;
 
   if (!clientId || !clientSecret) {
-    return error('AZURE_OAUTH_CLIENT_ID/SECRET not configured in this Lambda', 400, undefined, origin);
+    return error('Azure OAuth credentials not found in SSM. Configure them first via Update.', 400, undefined, origin);
   }
 
   logger.info('Re-syncing Azure OAuth credentials...');

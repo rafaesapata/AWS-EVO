@@ -39,7 +39,6 @@ import { getAzureOAuthCredentials } from '../../lib/azure-helpers.js';
 const callbackSchema = z.object({
   code: z.string().min(1, 'Authorization code is required'),
   state: z.string().min(1, 'State parameter is required'),
-  codeVerifier: z.string().min(43, 'Code verifier must be at least 43 characters'),
 });
 
 // Azure subscription interface
@@ -83,7 +82,7 @@ export async function handler(
       return validation.error;
     }
 
-    const { code, state, codeVerifier } = validation.data;
+    const { code, state } = validation.data;
 
     logger.info('Processing Azure OAuth callback', {
       organizationId,
@@ -146,6 +145,13 @@ export async function handler(
       where: { id: storedState.id },
       data: { used: true },
     });
+
+    // Retrieve codeVerifier from server-side storage (PKCE security: never from client)
+    const codeVerifier = storedState.code_verifier;
+    if (!codeVerifier) {
+      logger.error('OAuth state missing code_verifier', { statePrefix: state.substring(0, 8) + '...' });
+      return error('Invalid authorization session: missing PKCE verifier.', 400);
+    }
 
     // Exchange authorization code for tokens
     let tokenResponse: AzureTokenResponse;

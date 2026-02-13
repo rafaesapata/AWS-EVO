@@ -12,6 +12,7 @@ import {
 } from './token-encryption.js';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { logger } from './logger.js';
+import { AzureProvider } from './cloud-provider/azure-provider.js';
 
 /** Default token expiry in seconds when Azure doesn't return expires_in */
 const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
@@ -588,6 +589,9 @@ export async function getAzureCredentialWithToken(
     
     if (!response.ok) {
       const errorText = await response.text();
+      if (isInvalidClientSecretError(errorText)) {
+        return { success: false, error: `invalid_client: ${INVALID_CLIENT_SECRET_MESSAGE}` };
+      }
       return { success: false, error: `Failed to get access token: ${response.status} ${errorText}` };
     }
     
@@ -603,6 +607,79 @@ export async function getAzureCredentialWithToken(
   }
 }
 
+
+/**
+ * Gets an AzureProvider instance for a credential, handling all auth types.
+ * Single entry point to replace duplicated auth logic across handlers.
+ */
+export async function getAzureProviderForCredential(
+  prisma: any,
+  credentialId: string,
+  organizationId: string
+): Promise<
+  | { success: true; provider: AzureProvider; credential: AzureCredentialRecord }
+  | { success: false; error: string }
+> {
+  const credential = await prisma.azureCredential.findFirst({
+    where: { id: credentialId, organization_id: organizationId, is_active: true },
+  });
+
+  if (!credential) {
+    return { success: false, error: 'Azure credential not found or inactive' };
+  }
+
+  if (credential.auth_type === 'oauth') {
+    const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
+    if (!tokenResult.success) {
+      return { success: false, error: tokenResult.error };
+    }
+
+    const tenantId = resolveAzureTenantId(credential);
+
+    // Build a refreshFn for long-running operations (H-02)
+    const refreshFn = credential.encrypted_refresh_token
+      ? async () => {
+          const innerResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
+          if (!innerResult.success) throw new Error(innerResult.error);
+          return { accessToken: innerResult.accessToken, expiresIn: 3600 };
+        }
+      : undefined;
+
+    const provider = AzureProvider.withOAuthToken(
+      organizationId,
+      credential.subscription_id,
+      credential.subscription_name || undefined,
+      tenantId,
+      tokenResult.accessToken,
+      new Date(Date.now() + ONE_HOUR_MS),
+      refreshFn
+    );
+    return { success: true, provider, credential };
+  }
+
+  if (credential.auth_type === 'certificate') {
+    const certValidation = await validateCertificateCredentials(credential);
+    if (!certValidation.valid) {
+      return { success: false, error: certValidation.error };
+    }
+    return {
+      success: true,
+      provider: new AzureProvider(organizationId, certValidation.credentials),
+      credential,
+    };
+  }
+
+  // Service Principal
+  const spValidation = await validateServicePrincipalCredentials(credential);
+  if (!spValidation.valid) {
+    return { success: false, error: spValidation.error };
+  }
+  return {
+    success: true,
+    provider: new AzureProvider(organizationId, spValidation.credentials),
+    credential,
+  };
+}
 
 /**
  * Creates a lightweight TokenCredential-compatible object from an access token.

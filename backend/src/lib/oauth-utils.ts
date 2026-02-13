@@ -180,6 +180,12 @@ export async function exchangeCodeForTokens(
       status: response.status,
       error: errorBody,
     });
+    if (errorBody.includes('invalid_client') || errorBody.includes('AADSTS7000215')) {
+      throw new Error(
+        'invalid_client: Azure OAuth client secret is invalid or expired. ' +
+        'Generate a new secret in Azure Portal and update via Admin > EVO App Credentials.'
+      );
+    }
     throw new Error(`Token exchange failed: ${response.status} - ${errorBody}`);
   }
   
@@ -236,6 +242,12 @@ export async function refreshAccessToken(
       status: response.status,
       error: errorBody,
     });
+    if (errorBody.includes('invalid_client') || errorBody.includes('AADSTS7000215')) {
+      throw new Error(
+        'invalid_client: Azure OAuth client secret is invalid or expired. ' +
+        'Generate a new secret in Azure Portal and update via Admin > EVO App Credentials.'
+      );
+    }
     throw new Error(`Token refresh failed: ${response.status} - ${errorBody}`);
   }
   
