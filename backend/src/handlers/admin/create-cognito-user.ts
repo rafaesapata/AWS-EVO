@@ -7,10 +7,12 @@
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, badRequest, forbidden, corsOptions, safeHandler } from '../../lib/response.js';
+import { success, error, badRequest, forbidden, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, isSuperAdmin, isAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
+import { withErrorMonitoring } from '../../lib/error-middleware.js';
+import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { parseEventBody } from '../../lib/request-parser.js';
 import { 
   CognitoIdentityProviderClient, 
@@ -19,7 +21,7 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { randomBytes } from 'crypto';
 
-const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' });
+const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 interface CreateCognitoUserRequest {
   email: string;
@@ -72,12 +74,18 @@ function generateTemporaryPassword(): string {
   return arr.join('');
 }
 
-export const handler = safeHandler(async (
+export const handler = withErrorMonitoring('create-cognito-user', async (
   event: AuthorizedEvent,
   context: LambdaContext
-) => {
-  if (event.requestContext?.http?.method === 'OPTIONS') {
-    return corsOptions();
+): Promise<APIGatewayProxyResultV2> => {
+  const origin = getOrigin(event);
+  
+  if (getHttpMethod(event) === 'OPTIONS') {
+    return corsOptions(origin);
+  }
+  
+  if (getHttpMethod(event) !== 'POST') {
+    return badRequest('Method not allowed. Use POST.', undefined, origin);
   }
   
   const user = getUserFromEvent(event);
@@ -98,11 +106,11 @@ export const handler = safeHandler(async (
     
     // Validações
     if (!email || !name) {
-      return badRequest('Missing required fields: email and name');
+      return badRequest('Missing required fields: email and name', undefined, origin);
     }
     
     if (!isValidEmail(email)) {
-      return badRequest('Invalid email format');
+      return badRequest('Invalid email format', undefined, origin);
     }
     
     // Verificar permissões de admin
@@ -111,7 +119,7 @@ export const handler = safeHandler(async (
         userId: user.sub,
         email: user.email
       });
-      return forbidden('Only admins can create users');
+      return forbidden('Only admins can create users', origin);
     }
     
     // Determinar organização alvo
@@ -125,7 +133,7 @@ export const handler = safeHandler(async (
           userOrg: userOrganizationId,
           targetOrg: targetOrgId
         });
-        return forbidden('Only super admins can create users in other organizations');
+        return forbidden('Only super admins can create users in other organizations', origin);
       }
       organizationId = targetOrgId;
     }
@@ -133,7 +141,7 @@ export const handler = safeHandler(async (
     const userPoolId = process.env.COGNITO_USER_POOL_ID;
     if (!userPoolId) {
       logger.error('COGNITO_USER_POOL_ID not configured');
-      return error('Cognito not configured', 500);
+      return error('Cognito not configured', 500, undefined, origin);
     }
     
     const prisma = getPrismaClient();
@@ -144,7 +152,7 @@ export const handler = safeHandler(async (
     });
     
     if (!targetOrg) {
-      return badRequest('Target organization not found');
+      return badRequest('Target organization not found', undefined, origin);
     }
     
     // Verificar se usuário já existe no banco (profiles table)
@@ -153,7 +161,7 @@ export const handler = safeHandler(async (
     });
     
     if (existingProfile) {
-      return error('User with this email already exists', 409);
+      return error('User with this email already exists', 409, undefined, origin);
     }
     
     // Gerar senha temporária se não fornecida
@@ -189,7 +197,7 @@ export const handler = safeHandler(async (
     
     if (!cognitoUserId) {
       logger.error('Failed to get Cognito user ID');
-      return error('Failed to create user in Cognito', 500);
+      return error('Failed to create user in Cognito', 500, undefined, origin);
     }
 
     // Get the Cognito sub (unique user ID) from attributes
@@ -245,11 +253,15 @@ export const handler = safeHandler(async (
         });
 
         if (!existingSeat) {
+          // Validate user.sub is a valid UUID before using as assigned_by (field is @db.Uuid)
+          const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+          const assignedBy = user.sub && UUID_REGEX.test(user.sub) ? user.sub : undefined;
+          
           await prisma.licenseSeatAssignment.create({
             data: {
               license_id: primaryLicense.id,
               user_id: cognitoSub,
-              assigned_by: user.sub || undefined,
+              assigned_by: assignedBy,
             }
           });
 
@@ -284,7 +296,7 @@ export const handler = safeHandler(async (
       name,
       temporaryPassword: sendInvite ? undefined : password,
       inviteSent: sendInvite
-    }, 201);
+    }, 201, origin);
     
   } catch (err: any) {
     logger.error('Create Cognito user error', err, { 
@@ -295,17 +307,17 @@ export const handler = safeHandler(async (
     
     // Handle Cognito-specific errors
     if (err.name === 'UsernameExistsException') {
-      return error('User already exists in Cognito', 409);
+      return error('User already exists in Cognito', 409, undefined, origin);
     }
     
     if (err.name === 'InvalidPasswordException') {
-      return error('Invalid password format', 400);
+      return error('Invalid password format', 400, undefined, origin);
     }
     
     if (err.name === 'InvalidParameterException') {
-      return error('Invalid parameters provided', 400);
+      return error('Invalid parameters provided', 400, undefined, origin);
     }
     
-    return error('Failed to create user. Please try again.', 500);
+    return error('Failed to create user. Please try again.', 500, undefined, origin);
   }
 });
