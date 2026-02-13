@@ -69,6 +69,11 @@ export async function getAzureOAuthCredentials(): Promise<AzureOAuthCreds> {
     if (clientId && clientSecret && redirectUri) {
       _cachedCreds = { clientId, clientSecret, redirectUri };
       _cachedAt = Date.now();
+      logger.info('Azure OAuth creds loaded from SSM', {
+        clientId,
+        secretLength: clientSecret.length,
+        secretPrefix: clientSecret.substring(0, 4) + '***',
+      });
       return _cachedCreds;
     }
 
@@ -86,6 +91,11 @@ export async function getAzureOAuthCredentials(): Promise<AzureOAuthCreds> {
     redirectUri: process.env.AZURE_OAUTH_REDIRECT_URI || '',
   };
   _cachedAt = Date.now();
+  logger.info('Azure OAuth creds loaded from env vars (fallback)', {
+    clientId: _cachedCreds.clientId,
+    secretLength: _cachedCreds.clientSecret.length,
+    secretPrefix: _cachedCreds.clientSecret ? _cachedCreds.clientSecret.substring(0, 4) + '***' : '(empty)',
+  });
   return _cachedCreds;
 }
 
@@ -206,19 +216,39 @@ export async function resolveClientSecret(credential: Pick<AzureCredentialRecord
   const creds = await getAzureOAuthCredentials();
 
   if (creds.clientId && creds.clientSecret && credential.client_id === creds.clientId) {
+    logger.info('resolveClientSecret: using SSM/env credential', {
+      clientId: credential.client_id,
+      secretLength: creds.clientSecret.length,
+      secretPrefix: creds.clientSecret.substring(0, 4) + '***',
+    });
     return creds.clientSecret;
   }
 
-  if (!credential.client_secret) return null;
+  if (!credential.client_secret) {
+    logger.info('resolveClientSecret: no client_secret in DB and no SSM match', {
+      clientId: credential.client_id,
+    });
+    return null;
+  }
 
   let secret = credential.client_secret;
   try {
     const parsed = JSON.parse(secret);
     if (parsed.ciphertext && parsed.iv && parsed.tag && parsed.keyId) {
       secret = decryptToken(parsed);
+      logger.info('resolveClientSecret: decrypted from DB', {
+        clientId: credential.client_id,
+        secretLength: secret.length,
+        secretPrefix: secret.substring(0, 4) + '***',
+      });
     }
   } catch {
     // Not JSON — use as-is (legacy plaintext)
+    logger.info('resolveClientSecret: using plaintext from DB', {
+      clientId: credential.client_id,
+      secretLength: secret.length,
+      secretPrefix: secret.substring(0, 4) + '***',
+    });
   }
   return secret;
 }

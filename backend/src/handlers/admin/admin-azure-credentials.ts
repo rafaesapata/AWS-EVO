@@ -18,7 +18,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { encryptToken, serializeEncryptedToken } from '../../lib/token-encryption.js';
-import { resolveClientSecret, getAzureTokenUrl } from '../../lib/azure-helpers.js';
+import { resolveClientSecret, getAzureTokenUrl, getAzureOAuthCredentials } from '../../lib/azure-helpers.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 interface AdminAction {
@@ -176,6 +176,15 @@ async function handleTest(prisma: any, credentialId: string, origin: string): Pr
 
   const clientSecret = await resolveClientSecret(credential);
   if (!clientSecret) return error('Could not resolve client_secret', 400, undefined, origin);
+
+  logger.info('Testing Azure credential', {
+    credentialId,
+    clientId: credential.client_id,
+    tenantId,
+    secretLength: clientSecret.length,
+    secretPrefix: clientSecret.substring(0, 4) + '***',
+    secretSource: credential.client_id === (await getAzureOAuthCredentials()).clientId ? 'ssm' : 'database',
+  });
 
   const testResult = await testServicePrincipalCredentials(tenantId, credential.client_id, clientSecret);
 
