@@ -51,6 +51,42 @@ import {
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
 // Helper function to generate specific implementation steps and scripts based on optimization type
+function normalizeOptimizationType(backendType: string): string {
+  const typeMap: Record<string, string> = {
+    // unused_resources
+    'terminate_stopped_instance': 'unused_resources',
+    'delete_unattached_volume': 'unused_resources',
+    'release_unused_eip': 'unused_resources',
+    'cleanup_old_snapshots': 'unused_resources',
+    // rightsizing
+    'rightsize_instance': 'rightsizing',
+    'rightsize_lambda_memory': 'rightsizing',
+    'upgrade_instance_generation': 'rightsizing',
+    'upgrade_rds_generation': 'rightsizing',
+    // storage_optimization
+    'migrate_gp2_to_gp3': 'storage_optimization',
+    'rds_storage_gp3': 'storage_optimization',
+    // reserved_instances
+    'savings_plan_candidate': 'reserved_instances',
+    'reserved_instance': 'reserved_instances',
+    // scheduling
+    'disable_multiaz_nonprod': 'scheduling',
+    'schedule_instance': 'scheduling',
+  };
+  return typeMap[backendType] || backendType;
+}
+
+function normalizeResourceType(backendType: string, resourceType: string): string {
+  // Map backend resource types to what getSpecificImplementation expects
+  const type = backendType.toLowerCase();
+  if (type.includes('rds') || resourceType.toLowerCase().includes('rds')) return 'RDS';
+  if (type.includes('eip') || resourceType.toLowerCase().includes('elastic ip')) return 'Elastic IP';
+  if (type.includes('ebs') || type.includes('volume') || type.includes('snapshot') || resourceType.toLowerCase().includes('ebs')) return 'EBS Volume';
+  if (type.includes('s3') || resourceType.toLowerCase().includes('s3')) return 'S3';
+  if (type.includes('lambda') || resourceType.toLowerCase().includes('lambda')) return 'Lambda';
+  return resourceType;
+}
+
 function getSpecificImplementation(type: string, resourceType: string, resourceId: string): {
   steps: string[];
   scripts: { title: string; command: string; description: string }[];
@@ -519,6 +555,7 @@ export default function CostOptimization() {
   const [creatingBatchTickets, setCreatingBatchTickets] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
 
   // Get optimization recommendations - enabled in demo mode
   const { data: recommendations, isLoading, refetch } = useQuery<OptimizationRecommendation[]>({
@@ -534,15 +571,18 @@ export default function CostOptimization() {
         
         if (response.data?.optimizations) {
           return response.data.optimizations.map((opt: any) => {
+            const rawType = opt.type || opt.optimization_type || 'rightsizing';
+            const normalizedType = normalizeOptimizationType(rawType);
+            const normalizedResourceType = normalizeResourceType(rawType, opt.resource_type || 'EC2');
             const implementation = getSpecificImplementation(
-              opt.type || opt.optimization_type || 'rightsizing',
-              opt.resource_type || 'EC2',
+              normalizedType,
+              normalizedResourceType,
               opt.resource_id || 'demo-resource'
             );
             
             return {
               id: opt.id || `demo-${Math.random().toString(36).substr(2, 9)}`,
-              type: opt.type || opt.optimization_type || 'rightsizing',
+              type: normalizedType,
               resource_type: opt.resource_type || 'EC2',
               resource_id: opt.resource_id || 'demo-resource',
               resource_name: opt.resource_name || opt.resource_id || 'Demo Resource',
@@ -1495,15 +1535,27 @@ export default function CostOptimization() {
                             <div className="mb-4">
                               <h6 className="font-medium text-sm mb-2">{t('costOptimization.implementationSteps', 'Implementation Steps')}:</h6>
                               <ol className="text-sm text-muted-foreground space-y-1">
-                                {rec.implementation_steps.slice(0, 3).map((step: string, idx: number) => (
+                                {(expandedSteps[rec.id] ? rec.implementation_steps : rec.implementation_steps.slice(0, 3)).map((step: string, idx: number) => (
                                   <li key={idx} className="flex gap-2">
                                     <span className="font-medium text-primary">{idx + 1}.</span>
                                     <span>{step}</span>
                                   </li>
                                 ))}
                                 {rec.implementation_steps.length > 3 && (
-                                  <li className="text-xs text-muted-foreground italic">
-                                    + {rec.implementation_steps.length - 3} {t('costOptimization.additionalSteps', 'additional steps')}...
+                                  <li>
+                                    <button
+                                      type="button"
+                                      className="text-xs text-primary hover:text-primary/80 hover:underline cursor-pointer transition-colors"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedSteps(prev => ({ ...prev, [rec.id]: !prev[rec.id] }));
+                                      }}
+                                    >
+                                      {expandedSteps[rec.id]
+                                        ? t('costOptimization.showLessSteps', 'Show less')
+                                        : `+ ${rec.implementation_steps.length - 3} ${t('costOptimization.additionalSteps', 'additional steps')}...`
+                                      }
+                                    </button>
                                   </li>
                                 )}
                               </ol>
@@ -1987,22 +2039,22 @@ export default function CostOptimization() {
 
               {/* Copilot Integration */}
               {selectedRecommendation.copilot_prompt && (
-                <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-                  <h4 className="font-semibold flex items-center gap-2 text-blue-800">
-                    <MessageSquare className="h-4 w-4" />
+                <div className="space-y-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                  <h4 className="font-semibold flex items-center gap-2 text-gray-900">
+                    <MessageSquare className="h-4 w-4 text-blue-600" />
                     {t('costOptimization.needHelp', 'Need Help? Use FinOps Copilot')}
                   </h4>
-                  <p className="text-sm text-blue-700">
+                  <p className="text-sm text-gray-700">
                     {t('costOptimization.copyPromptDesc', 'Copy the prompt below and paste it in FinOps Copilot to get personalized guidance on this optimization.')}
                   </p>
-                  <div className="bg-white/80 rounded p-3 border border-blue-200">
-                    <p className="text-sm text-slate-700 italic">"{selectedRecommendation.copilot_prompt}"</p>
+                  <div className="bg-white rounded p-3 border border-blue-200">
+                    <p className="text-sm text-gray-800 italic">"{selectedRecommendation.copilot_prompt}"</p>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                      className="border-blue-400 text-gray-900 hover:bg-blue-100"
                       onClick={() => {
                         navigator.clipboard.writeText(selectedRecommendation.copilot_prompt || '');
                         toast({
@@ -2017,7 +2069,7 @@ export default function CostOptimization() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                      className="border-blue-400 text-gray-900 hover:bg-blue-100"
                       onClick={() => {
                         // Navigate to FinOps Copilot page
                         window.location.href = '/finops-copilot';

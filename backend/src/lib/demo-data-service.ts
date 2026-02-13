@@ -1243,14 +1243,14 @@ export function generateDemoCostOptimizations() {
   const optimizations = [
     {
       type: 'terminate_stopped_instance',
-      resource_id: 'i-demo-stopped-001',
+      resource_id: 'i-0a3f7c9e12b456d8',
       resource_type: 'EC2',
-      resource_name: 'demo-web-server-old',
+      resource_name: 'legacy-checkout-api',
       current_cost: 245.00,
       optimized_cost: 0,
       savings: 245.00,
-      recommendation: 'Terminate stopped instance "demo-web-server-old" or create AMI and terminate',
-      details: 'Stopped for 45 days. EBS volumes still incurring charges.',
+      recommendation: 'Terminar instância parada "legacy-checkout-api" (m5.xlarge) ou criar AMI e terminar',
+      details: 'Parada há 52 dias após migração para ECS Fargate. Volumes EBS (200GB gp2) continuam gerando custos de $20/mês.',
       priority: 'high' as const,
       effort: 'low' as const,
       category: 'Idle Resources',
@@ -1258,14 +1258,14 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'delete_unattached_volume',
-      resource_id: 'vol-demo-unattached-001',
+      resource_id: 'vol-0b8e4f2a1c3d5678',
       resource_type: 'EBS',
-      resource_name: 'demo-data-backup',
+      resource_name: 'jenkins-ci-data-old',
       current_cost: 125.00,
       optimized_cost: 0,
       savings: 125.00,
-      recommendation: 'Delete unattached volume "demo-data-backup" (500GB gp2)',
-      details: 'Create snapshot before deletion if data might be needed',
+      recommendation: 'Deletar volume desanexado "jenkins-ci-data-old" (500GB gp2)',
+      details: 'Volume órfão desde a migração do Jenkins para GitHub Actions em Nov/2025. Último attach em i-0f9a8b7c (terminada).',
       priority: 'high' as const,
       effort: 'low' as const,
       category: 'Idle Resources',
@@ -1273,14 +1273,14 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'migrate_gp2_to_gp3',
-      resource_id: 'vol-demo-gp2-001',
+      resource_id: 'vol-0c7d3e9f4a5b6012',
       resource_type: 'EBS',
-      resource_name: 'demo-app-data',
+      resource_name: 'prod-api-data',
       current_cost: 250.00,
       optimized_cost: 200.00,
       savings: 50.00,
-      recommendation: 'Migrate "demo-app-data" from gp2 to gp3',
-      details: 'gp3 offers 20% lower cost and better baseline performance',
+      recommendation: 'Migrar volume "prod-api-data" (500GB) de gp2 para gp3',
+      details: 'gp3 oferece 3.000 IOPS base (vs 1.500 do gp2 para 500GB) por 20% menos. Migração online sem downtime.',
       priority: 'medium' as const,
       effort: 'low' as const,
       category: 'Modernization',
@@ -1288,14 +1288,14 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'upgrade_instance_generation',
-      resource_id: 'i-demo-old-gen-001',
+      resource_id: 'i-0d4e5f6a7b8c9012',
       resource_type: 'EC2',
-      resource_name: 'demo-api-server',
+      resource_name: 'prod-order-processor',
       current_cost: 536.00,
       optimized_cost: 408.80,
       savings: 127.20,
-      recommendation: 'Upgrade "demo-api-server" from m4.2xlarge to m6i.2xlarge',
-      details: 'New generation offers 40% better price/performance ratio',
+      recommendation: 'Atualizar "prod-order-processor" de m5.2xlarge para m7i.2xlarge',
+      details: 'Instância m5 (geração anterior) rodando há 14 meses. m7i oferece 15% mais performance por 24% menos custo. CPU média: 45%.',
       priority: 'medium' as const,
       effort: 'medium' as const,
       category: 'Modernization',
@@ -1303,14 +1303,14 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'rightsize_instance',
-      resource_id: 'i-demo-oversized-001',
+      resource_id: 'i-0e5f6a7b8c9d0123',
       resource_type: 'EC2',
-      resource_name: 'demo-batch-processor',
+      resource_name: 'staging-ml-training',
       current_cost: 1280.00,
       optimized_cost: 640.00,
       savings: 640.00,
-      recommendation: 'Consider rightsizing "demo-batch-processor" from r5.4xlarge to r5.2xlarge',
-      details: 'Average CPU utilization 12%, memory utilization 35% over last 30 days',
+      recommendation: 'Redimensionar "staging-ml-training" de r5.4xlarge (128GB) para r5.2xlarge (64GB)',
+      details: 'CPU média 12%, memória 35% nos últimos 30 dias. Pico de memória: 48GB (cabe em 64GB). Ambiente de staging sem SLA.',
       priority: 'high' as const,
       effort: 'medium' as const,
       category: 'Right-sizing',
@@ -1318,29 +1318,29 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'savings_plan_candidate',
-      resource_id: 'i-demo-ondemand-001',
+      resource_id: 'i-0f6a7b8c9d0e1234',
       resource_type: 'EC2',
-      resource_name: 'demo-production-web',
+      resource_name: 'prod-web-cluster (3x r6i.2xlarge)',
       current_cost: 1482.00,
       optimized_cost: 1067.04,
       savings: 414.96,
-      recommendation: 'Consider Savings Plan for "demo-production-web" (r5.2xlarge cluster)',
-      details: '1-year Compute Savings Plan can save up to 28%',
-      priority: 'medium' as const,
+      recommendation: 'Contratar Compute Savings Plan para cluster web de produção (3x r6i.2xlarge)',
+      details: 'Cluster estável há 8 meses com 99.7% uptime. Savings Plan 1 ano No Upfront economiza 28%. Payback imediato.',
+      priority: 'low' as const,
       effort: 'low' as const,
       category: 'Commitment Discounts',
       _isDemo: true
     },
     {
       type: 'release_unused_eip',
-      resource_id: 'eipalloc-demo-001',
+      resource_id: 'eipalloc-0a1b2c3d4e5f6789',
       resource_type: 'Elastic IP',
-      resource_name: '54.123.45.67',
+      resource_name: '18.230.45.67',
       current_cost: 7.30,
       optimized_cost: 0,
       savings: 7.30,
-      recommendation: 'Release 2 unused Elastic IPs (54.123.45.67, 54.123.45.68)',
-      details: 'Unassociated Elastic IPs incur $3.65/month each',
+      recommendation: 'Liberar 2 Elastic IPs não associados (18.230.45.67, 18.230.45.68)',
+      details: 'IPs reservados para ambiente de DR que foi desativado em Dez/2025. Cada EIP não associado custa $3.65/mês.',
       priority: 'high' as const,
       effort: 'low' as const,
       category: 'Idle Resources',
@@ -1348,14 +1348,14 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'upgrade_rds_generation',
-      resource_id: 'demo-database-prod',
+      resource_id: 'prod-payments-db',
       resource_type: 'RDS',
-      resource_name: 'demo-database-prod',
+      resource_name: 'prod-payments-db (PostgreSQL 15)',
       current_cost: 760.00,
       optimized_cost: 580.00,
       savings: 180.00,
-      recommendation: 'Upgrade "demo-database-prod" from db.r4.2xlarge to db.r6g.2xlarge',
-      details: 'Graviton-based instances offer up to 35% better price/performance',
+      recommendation: 'Migrar "prod-payments-db" de db.r5.2xlarge para db.r7g.2xlarge (Graviton3)',
+      details: 'Graviton3 oferece até 35% melhor custo-benefício. CPU média 38%, conexões ativas ~120 de 500 max. Janela de manutenção: Dom 03:00-05:00.',
       priority: 'medium' as const,
       effort: 'medium' as const,
       category: 'Modernization',
@@ -1363,14 +1363,14 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'disable_multiaz_nonprod',
-      resource_id: 'demo-database-staging',
+      resource_id: 'staging-analytics-db',
       resource_type: 'RDS',
-      resource_name: 'demo-database-staging',
+      resource_name: 'staging-analytics-db (PostgreSQL 15)',
       current_cost: 892.00,
       optimized_cost: 446.00,
       savings: 446.00,
-      recommendation: 'Disable Multi-AZ for non-production database "demo-database-staging"',
-      details: 'Multi-AZ doubles cost - not needed for dev/test environments',
+      recommendation: 'Desabilitar Multi-AZ no banco de staging "staging-analytics-db"',
+      details: 'Multi-AZ dobra o custo e não é necessário para ambiente de staging. Sem SLA de disponibilidade. Usado apenas em horário comercial.',
       priority: 'high' as const,
       effort: 'low' as const,
       category: 'Configuration',
@@ -1378,14 +1378,14 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'rds_storage_gp3',
-      resource_id: 'demo-database-analytics',
+      resource_id: 'analytics-warehouse-db',
       resource_type: 'RDS',
-      resource_name: 'demo-database-analytics',
+      resource_name: 'analytics-warehouse-db (1TB)',
       current_cost: 287.50,
       optimized_cost: 200.00,
       savings: 87.50,
-      recommendation: 'Migrate "demo-database-analytics" storage from gp2 to gp3 (1TB)',
-      details: 'gp3 storage is ~30% cheaper with better baseline performance',
+      recommendation: 'Migrar storage de "analytics-warehouse-db" de gp2 para gp3 (1TB)',
+      details: 'Storage gp3 é ~30% mais barato com 3.000 IOPS base. IOPS atual: 3.000 (gp2 baseline para 1TB). Migração online sem impacto.',
       priority: 'medium' as const,
       effort: 'low' as const,
       category: 'Modernization',
@@ -1393,14 +1393,14 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'cleanup_old_snapshots',
-      resource_id: 'vol-demo-snapshots',
+      resource_id: 'vol-0a1b2c3d4e5f',
       resource_type: 'EBS Snapshot',
-      resource_name: 'Snapshots for vol-demo-data',
+      resource_name: 'Snapshots de prod-api-data (85 snapshots)',
       current_cost: 145.00,
       optimized_cost: 43.50,
       savings: 101.50,
-      recommendation: 'Clean up 85 old snapshots for volume vol-demo-data',
-      details: 'Implement snapshot lifecycle policy to retain only last 30 days',
+      recommendation: 'Limpar 85 snapshots antigos do volume prod-api-data',
+      details: 'Snapshots diários sem lifecycle policy. 70% têm mais de 90 dias. Reter últimos 30 dias economiza 70%. Total: 2.3TB em snapshots.',
       priority: 'medium' as const,
       effort: 'low' as const,
       category: 'Storage Optimization',
@@ -1408,14 +1408,14 @@ export function generateDemoCostOptimizations() {
     },
     {
       type: 'rightsize_lambda_memory',
-      resource_id: 'arn:aws:lambda:us-east-1:demo:function:demo-image-processor',
+      resource_id: 'arn:aws:lambda:sa-east-1:123456789012:function:pdf-invoice-generator',
       resource_type: 'Lambda',
-      resource_name: 'demo-image-processor',
+      resource_name: 'pdf-invoice-generator',
       current_cost: 233.33,
       optimized_cost: 116.67,
       savings: 116.66,
-      recommendation: 'Review memory allocation for "demo-image-processor" (3072MB → 1536MB)',
-      details: 'AWS Lambda Power Tuning shows optimal memory at 1536MB with same execution time',
+      recommendation: 'Reduzir memória de "pdf-invoice-generator" de 3072MB para 1536MB',
+      details: 'Lambda Power Tuning mostra performance idêntica com 1536MB (avg 2.1s vs 2.0s). Memória usada: max 890MB. ~180K invocações/mês.',
       priority: 'medium' as const,
       effort: 'low' as const,
       category: 'Right-sizing',
@@ -1425,14 +1425,16 @@ export function generateDemoCostOptimizations() {
 
   // Calculate summary
   const totalSavings = optimizations.reduce((sum, opt) => sum + opt.savings, 0);
-  const totalCurrentCost = optimizations.reduce((sum, opt) => sum + opt.current_cost, 0);
-  const totalMonthlyCost = 15000; // Simulated total monthly AWS spend
+  const DEMO_MONTHLY_SPEND = 15000;
+  
+  // Score penalty weights per priority level
+  const SCORE_PENALTY = { high: 10, medium: 5, low: 2 } as const;
   
   // Add savings_percentage to each optimization
   const enrichedOptimizations = optimizations.map(opt => ({
     ...opt,
     savings_percentage: parseFloat(((opt.savings / opt.current_cost) * 100).toFixed(1)),
-    confidence: opt.priority === 'high' ? 'high' as const : opt.priority === 'medium' ? 'medium' as const : 'low' as const,
+    confidence: opt.priority,
     impact: opt.priority,
     status: 'pending' as const,
   }));
@@ -1444,25 +1446,26 @@ export function generateDemoCostOptimizations() {
   }, {} as Record<string, number>);
 
   // Calculate optimization score (100 minus penalties for pending recommendations)
-  const highCount = optimizations.filter(o => o.priority === 'high').length;
-  const mediumCount = optimizations.filter(o => o.priority === 'medium').length;
-  const lowCount = optimizations.filter(o => o.priority === 'low').length;
-  const optimizationScore = Math.max(0, Math.min(100, 100 - (highCount * 10) - (mediumCount * 5) - (lowCount * 2)));
+  const priorityCounts = { 
+    high: optimizations.filter(o => o.priority === 'high').length,
+    medium: optimizations.filter(o => o.priority === 'medium').length,
+    low: optimizations.filter(o => o.priority === 'low').length,
+  };
+  const totalPenalty = priorityCounts.high * SCORE_PENALTY.high 
+    + priorityCounts.medium * SCORE_PENALTY.medium 
+    + priorityCounts.low * SCORE_PENALTY.low;
+  const optimizationScore = Math.max(0, Math.min(100, 100 - totalPenalty));
 
   return {
     _isDemo: true,
     optimizations: enrichedOptimizations,
     summary: {
       total_opportunities: optimizations.length,
-      total_monthly_cost: totalMonthlyCost,
+      total_monthly_cost: DEMO_MONTHLY_SPEND,
       monthly_savings: parseFloat(totalSavings.toFixed(2)),
       annual_savings: parseFloat((totalSavings * 12).toFixed(2)),
       optimization_score: optimizationScore,
-      by_priority: {
-        high: highCount,
-        medium: mediumCount,
-        low: lowCount,
-      },
+      by_priority: priorityCounts,
       by_category: byCategory,
       analysis_duration_ms: 1250,
     }
