@@ -12,6 +12,11 @@ import type { ExecutiveDashboardData } from '@/components/dashboard/ExecutiveDas
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+const QUERY_KEY_PREFIX = 'executive-dashboard-v2';
+const TV_REFETCH_INTERVAL = 30_000;    // 30s
+const NORMAL_REFETCH_INTERVAL = 120_000; // 2min
+const GC_TIME = 5 * 60 * 1000;          // 5min
+
 interface UseExecutiveDashboardOptions {
   includeForecasts?: boolean;
   includeInsights?: boolean;
@@ -34,12 +39,12 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
   const {
     includeForecasts = true,
     includeInsights = true,
-    refetchInterval = isTVMode ? 30000 : 120000 // 30s TV, 2min normal
+    refetchInterval = isTVMode ? TV_REFETCH_INTERVAL : NORMAL_REFETCH_INTERVAL
   } = options;
 
   const query = useQuery<ExecutiveDashboardData, Error>({
     queryKey: [
-      'executive-dashboard-v2',
+      QUERY_KEY_PREFIX,
       effectiveOrgId,
       selectedAccountId,
       selectedProvider,
@@ -91,17 +96,20 @@ export function useExecutiveDashboard(options: UseExecutiveDashboardOptions = {}
       return response.data as ExecutiveDashboardData;
     },
     staleTime: 0, // Always consider data stale - will refetch when queryKey changes
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: GC_TIME,
     refetchInterval,
     refetchIntervalInBackground: isTVMode,
   });
 
   const refresh = () => {
     queryClient.invalidateQueries({ 
-      queryKey: ['executive-dashboard-v2']
+      queryKey: [QUERY_KEY_PREFIX]
+    });
+    queryClient.invalidateQueries({ 
+      queryKey: ['executive-dashboard-trends']
     });
     queryClient.refetchQueries({
-      queryKey: ['executive-dashboard-v2', effectiveOrgId, selectedAccountId]
+      queryKey: [QUERY_KEY_PREFIX, effectiveOrgId, selectedAccountId]
     });
   };
 

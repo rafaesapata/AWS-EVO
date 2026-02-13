@@ -13,6 +13,10 @@ import type { TrendData } from '@/components/dashboard/ExecutiveDashboard/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+const TRENDS_QUERY_KEY = 'executive-dashboard-trends';
+const STALE_TIME = 60_000;       // 1min
+const GC_TIME = 5 * 60 * 1000;  // 5min
+
 interface UseExecutiveTrendsOptions {
   trendPeriod: '7d' | '30d' | '90d';
 }
@@ -28,7 +32,7 @@ export function useExecutiveTrends({ trendPeriod }: UseExecutiveTrendsOptions) {
 
   const query = useQuery<TrendData, Error>({
     queryKey: [
-      'executive-dashboard-trends',
+      TRENDS_QUERY_KEY,
       effectiveOrgId,
       selectedAccountId,
       selectedProvider,
@@ -70,11 +74,11 @@ export function useExecutiveTrends({ trendPeriod }: UseExecutiveTrendsOptions) {
         throw new Error(response.error.message);
       }
 
-      return (response.data as any).trends as TrendData;
+      return (response.data as { trends: TrendData }).trends;
     },
     placeholderData: (previousData) => previousData,
-    staleTime: 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
   });
 
   return query;
