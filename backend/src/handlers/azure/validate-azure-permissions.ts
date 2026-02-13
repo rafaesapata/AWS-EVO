@@ -69,7 +69,7 @@ interface TestResult {
 
 const BASE = 'https://management.azure.com';
 
-async function azureGet(token: string, url: string, timeoutMs = 15000): Promise<{ status: number; body: any }> {
+async function azureGet(token: string, url: string, timeoutMs = 10000): Promise<{ status: number; body: any }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -84,7 +84,7 @@ async function azureGet(token: string, url: string, timeoutMs = 15000): Promise<
   }
 }
 
-async function azurePost(token: string, url: string, payload: any, timeoutMs = 15000): Promise<{ status: number; body: any }> {
+async function azurePost(token: string, url: string, payload: any, timeoutMs = 10000): Promise<{ status: number; body: any }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -589,7 +589,7 @@ export async function handler(
     const tests = buildFeatureTests(ctx);
     const results: TestResult[] = [];
 
-    const BATCH_SIZE = 5;
+    const BATCH_SIZE = 8;
     for (let i = 0; i < tests.length; i += BATCH_SIZE) {
       const batch = tests.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.allSettled(

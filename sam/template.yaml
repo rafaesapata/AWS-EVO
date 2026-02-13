@@ -1849,7 +1849,8 @@ Resources:
       FunctionName: !Sub '${ProjectName}-${Environment}-validate-azure-permissions'
       CodeUri: ../backend/src/handlers/azure/
       Handler: validate-azure-permissions.handler
-      Timeout: 60
+      Timeout: 120
+      MemorySize: 512
       Events:
         Api:
           Type: Api

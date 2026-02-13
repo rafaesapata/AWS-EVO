@@ -1841,7 +1841,8 @@ Resources:
       CodeUri: ../backend/src/handlers/azure/
       Handler: validate-azure-permissions.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      Timeout: 60
+      Timeout: 120
+      MemorySize: 512
       Events:
         Api:
           Type: HttpApi
