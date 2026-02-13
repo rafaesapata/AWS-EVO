@@ -76,20 +76,19 @@ export default function TVDashboard() {
   };
 
   const renderWidget = (widgetId: string, index: number) => {
-    // In TV mode, render available widgets
-    const widgetMap: Record<string, JSX.Element> = {
-      'executive': <ExecutiveDashboard key={`${widgetId}-${index}`} />,
-      'security-posture': <SecurityPosture key={`${widgetId}-${index}`} />,
-      'cost-optimization': <CostOptimization key={`${widgetId}-${index}`} />,
-      'well-architected': <WellArchitectedScorecard key={`${widgetId}-${index}`} />,
-      'anomaly-detection': <AnomalyDetection key={`${widgetId}-${index}`} />,
-      'waste-detection': <WasteDetection key={`${widgetId}-${index}`} />,
-      'predictive-incidents': <PredictiveIncidents key={`${widgetId}-${index}`} />,
-      'compliance': <ComplianceFrameworks key={`${widgetId}-${index}`} />,
-      'budget-forecasting': <BudgetForecasting key={`${widgetId}-${index}`} />,
-    };
-
-    return widgetMap[widgetId] || null;
+    const key = `${widgetId}-${index}`;
+    switch (widgetId) {
+      case 'executive': return <ExecutiveDashboard key={key} />;
+      case 'security-posture': return <SecurityPosture key={key} />;
+      case 'cost-optimization': return <CostOptimization key={key} />;
+      case 'well-architected': return <WellArchitectedScorecard key={key} />;
+      case 'anomaly-detection': return <AnomalyDetection key={key} />;
+      case 'waste-detection': return <WasteDetection key={key} />;
+      case 'predictive-incidents': return <PredictiveIncidents key={key} />;
+      case 'compliance': return <ComplianceFrameworks key={key} />;
+      case 'budget-forecasting': return <BudgetForecasting key={key} />;
+      default: return null;
+    }
   };
 
   if (loading) {
@@ -150,7 +149,7 @@ export default function TVDashboard() {
       {/* Dashboard Content - Fullscreen optimized */}
       <main className="w-full px-6 py-6 space-y-6">
         {dashboard.layout.map((item, index) => (
-          <div key={index} className="tv-widget">
+          <div key={item.widgetId} className="tv-widget">
             {renderWidget(item.widgetId, index)}
           </div>
         ))}

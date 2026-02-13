@@ -9,6 +9,17 @@ interface TVTokenRequest {
   deviceId?: string;
 }
 
+const DEMO_TV_TOKEN_PREFIX = 'demo-tv-';
+const DEMO_ORG_ID = 'demo-organization-id';
+
+const DEFAULT_TV_LAYOUT = [
+  { widgetId: 'executive' },
+  { widgetId: 'security-posture' },
+  { widgetId: 'cost-optimization' },
+  { widgetId: 'compliance' }
+];
+const DEFAULT_REFRESH_INTERVAL = 60;
+
 export async function handler(
   event: AuthorizedEvent,
   context: LambdaContext
@@ -32,23 +43,16 @@ export async function handler(
       return badRequest('token is required', undefined, origin);
     }
 
-    // Check if this is a demo token (starts with 'demo-tv-')
-    if (token.startsWith('demo-tv-')) {
-      // For demo tokens, return a demo dashboard config
-      // This allows demo org users to preview the TV dashboard experience
+    // Check if this is a demo token
+    if (token.startsWith(DEMO_TV_TOKEN_PREFIX)) {
       return success({
         success: true,
         dashboard: {
           id: 'demo-dashboard',
           name: 'TV Dashboard (Demo)',
-          layout: [
-            { widgetId: 'executive' },
-            { widgetId: 'security-posture' },
-            { widgetId: 'cost-optimization' },
-            { widgetId: 'compliance' }
-          ],
-          refreshInterval: 60,
-          organizationId: 'demo-organization-id'
+          layout: DEFAULT_TV_LAYOUT,
+          refreshInterval: DEFAULT_REFRESH_INTERVAL,
+          organizationId: DEMO_ORG_ID
         }
       }, 200, origin);
     }
@@ -63,27 +67,17 @@ export async function handler(
     });
 
     if (!tvToken) {
-      // Log invalid token attempt without creating security event (no valid org_id)
       logger.warn('Invalid TV token attempt', { deviceId, tokenPrefix: token.substring(0, 8) });
       return error('Invalid token', 401, undefined, origin);
     }
-
-    // Usar configuração padrão do dashboard
-    const layout = [
-      { widgetId: 'executive' },
-      { widgetId: 'security-posture' },
-      { widgetId: 'cost-optimization' },
-      { widgetId: 'compliance' }
-    ];
-    const refreshInterval = 60;
 
     return success({
       success: true,
       dashboard: {
         id: tvToken.id,
         name: 'TV Dashboard',
-        layout,
-        refreshInterval,
+        layout: DEFAULT_TV_LAYOUT,
+        refreshInterval: DEFAULT_REFRESH_INTERVAL,
         organizationId: tvToken.organization_id
       }
     }, 200, origin);
