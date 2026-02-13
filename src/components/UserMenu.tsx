@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
 import { Separator } from "./ui/separator";
 import { LogOut, User, Settings, Mail, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -150,7 +150,9 @@ export default function UserMenu() {
 
       {/* Profile Dialog */}
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto p-0 gap-0 glass border-primary/20">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto p-0 gap-0 glass border-primary/20" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{t('userMenu.myProfile', 'My Profile')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('userMenu.myProfile', 'My Profile')}</DialogDescription>
           <DialogHeroHeader>
             <Avatar className="h-16 w-16 ring-2 ring-white/30 shadow-lg">
               <AvatarFallback className="bg-white/20 text-white text-xl font-light backdrop-blur-sm">
@@ -194,7 +196,9 @@ export default function UserMenu() {
 
       {/* Settings Dialog */}
       <Dialog open={showSettings} onOpenChange={setShowSettings}>
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto p-0 gap-0 glass border-primary/20">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto p-0 gap-0 glass border-primary/20" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{t('userMenu.settings', 'Settings')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('userMenu.settings', 'Settings')}</DialogDescription>
           <DialogHeroHeader>
             <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm ring-2 ring-white/30 shadow-lg">
               <Settings className="h-7 w-7 text-white" />

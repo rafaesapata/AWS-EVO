@@ -94,14 +94,14 @@ const AwsCredentialsManager = () => {
   const allAccounts = awsAccounts.map(toAwsAccountExtended);
 
   // Debug: Log organization state
-  console.log('🏢 AwsCredentialsManager: Organization state', {
+  console.debug('🏢 AwsCredentialsManager: Organization state', {
     organizationId,
     isLoadingOrg,
     orgError: orgError?.message,
   });
 
   // Debug: Log query state
-  console.log('📊 AwsCredentialsManager: Query state', {
+  console.debug('📊 AwsCredentialsManager: Query state', {
     allAccountsCount: allAccounts?.length,
     isLoading,
     queryError: queryError?.message,

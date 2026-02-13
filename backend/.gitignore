@@ -40,3 +40,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 .cache/
+
+# Test scripts with credentials
+scripts/test-*.sh

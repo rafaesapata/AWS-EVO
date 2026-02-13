@@ -213,12 +213,13 @@ export function AzureCredentialsForm({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center gap-2">
-                <FormLabel>{t('azure.tenantId', 'Tenant ID (Directory ID)')}</FormLabel>
+                <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.tenantId', 'Tenant ID (Directory ID)')}</FormLabel>
                 <FieldHelp text="Found in Azure Portal > Azure Active Directory > Overview" />
               </div>
               <FormControl>
                 <Input 
                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" 
+                  className="glass border-primary/10 focus:border-[#003C7D]/30 focus:ring-[#003C7D]/20 transition-all"
                   {...field} 
                 />
               </FormControl>
@@ -234,12 +235,13 @@ export function AzureCredentialsForm({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center gap-2">
-                <FormLabel>{t('azure.clientId', 'Client ID (Application ID)')}</FormLabel>
+                <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.clientId', 'Client ID (Application ID)')}</FormLabel>
                 <FieldHelp text="Found in Azure Portal > App Registrations > Your App > Overview" />
               </div>
               <FormControl>
                 <Input 
                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" 
+                  className="glass border-primary/10 focus:border-[#003C7D]/30 focus:ring-[#003C7D]/20 transition-all"
                   {...field} 
                 />
               </FormControl>
@@ -255,7 +257,7 @@ export function AzureCredentialsForm({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center gap-2">
-                <FormLabel>{t('azure.clientSecret', 'Client Secret')}</FormLabel>
+                <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.clientSecret', 'Client Secret')}</FormLabel>
                 <FieldHelp text="Created in Azure Portal > App Registrations > Your App > Certificates & secrets" />
               </div>
               <FormControl>
@@ -263,13 +265,14 @@ export function AzureCredentialsForm({
                   <Input 
                     type={showSecret ? 'text' : 'password'}
                     placeholder="Enter client secret" 
+                    className="glass border-primary/10 focus:border-[#003C7D]/30 focus:ring-[#003C7D]/20 transition-all pr-10"
                     {...field} 
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3"
+                    className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground"
                     onClick={() => setShowSecret(!showSecret)}
                   >
                     {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -288,12 +291,13 @@ export function AzureCredentialsForm({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center gap-2">
-                <FormLabel>{t('azure.subscriptionId', 'Subscription ID')}</FormLabel>
+                <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.subscriptionId', 'Subscription ID')}</FormLabel>
                 <FieldHelp text="Found in Azure Portal > Subscriptions > Your Subscription" />
               </div>
               <FormControl>
                 <Input 
                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" 
+                  className="glass border-primary/10 focus:border-[#003C7D]/30 focus:ring-[#003C7D]/20 transition-all"
                   {...field} 
                 />
               </FormControl>
@@ -308,10 +312,11 @@ export function AzureCredentialsForm({
           name="subscriptionName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('azure.subscriptionName', 'Subscription Name')} ({t('common.optional', 'optional')})</FormLabel>
+              <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.subscriptionName', 'Subscription Name')} ({t('common.optional', 'optional')})</FormLabel>
               <FormControl>
                 <Input 
                   placeholder="My Azure Subscription" 
+                  className="glass border-primary/10 focus:border-[#003C7D]/30 focus:ring-[#003C7D]/20 transition-all"
                   {...field} 
                 />
               </FormControl>
@@ -429,6 +434,7 @@ export function AzureCredentialsForm({
           <Button
             type="button"
             variant="outline"
+            className="glass hover-glow"
             onClick={validateCredentials}
             disabled={isValidating}
           >
@@ -446,6 +452,7 @@ export function AzureCredentialsForm({
           
           <Button 
             type="submit" 
+            className="bg-gradient-to-r from-[#003C7D] to-[#008CFF] hover:from-[#003C7D]/90 hover:to-[#008CFF]/90 text-white shadow-md hover:shadow-lg transition-all duration-200"
             disabled={form.formState.isSubmitting || (validationResult !== null && !validationResult.valid)}
           >
             {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

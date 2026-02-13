@@ -337,12 +337,24 @@ async function handleTest(origin: string): Promise<APIGatewayProxyResultV2> {
 
       // Parse Azure AD error for user-friendly message
       let userError = `Azure AD returned ${response.status}`;
-      if (errorText.includes('AADSTS7000215') || errorText.includes('invalid_client')) {
+      let credentialsValid = false;
+      if (errorText.includes('AADSTS53003')) {
+        // Conditional Access policy blocked the request — but the secret itself IS valid
+        credentialsValid = true;
+        userError = 'Credentials are valid (blocked by Conditional Access policy — expected from non-whitelisted IPs).';
+      } else if (errorText.includes('AADSTS7000215') || errorText.includes('invalid_client')) {
         userError = 'Invalid client secret. Ensure you are using the secret Value, not the secret ID.';
       } else if (errorText.includes('AADSTS700016')) {
         userError = 'Application not found in the directory.';
       } else if (errorText.includes('AADSTS90002')) {
         userError = 'Tenant not found. Check the tenant configuration.';
+      } else if (errorText.includes('AADSTS7000229')) {
+        userError = 'Service principal not found in tenant. App registration may need admin consent.';
+      }
+
+      if (credentialsValid) {
+        logger.info('EVO App credential test: secret valid but Conditional Access blocked', { clientId: creds.clientId });
+        return success({ valid: true, source: 'ssm', clientId: creds.clientId, note: userError }, 200, origin);
       }
 
       return success({ valid: false, error: userError, source: 'ssm' }, 200, origin);

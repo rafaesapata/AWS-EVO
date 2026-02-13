@@ -118,8 +118,8 @@ const CloudFormationDeploy = () => {
   
   // Debug: Log component mount and organization state
   useEffect(() => {
-    console.log('🚀 CloudFormationDeploy component mounted');
-    console.log('🔐 CloudFormationDeploy: Organization state', {
+    console.debug('🚀 CloudFormationDeploy component mounted');
+    console.debug('🔐 CloudFormationDeploy: Organization state', {
       organizationId,
       isLoadingOrg,
       isOrgError,
@@ -137,7 +137,7 @@ const CloudFormationDeploy = () => {
   const [externalId, setExternalId] = useState(() => {
     const id = generateSecureExternalId();
     currentExternalIdRef.current = id;
-    console.log('🔑 Generated External ID:', id);
+    console.debug('🔑 Generated External ID:', id);
     return id;
   });
   const [accountName, setAccountName] = useState("");

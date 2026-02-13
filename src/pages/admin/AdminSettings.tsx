@@ -205,7 +205,7 @@ export default function AdminSettings() {
   // EVO App test credentials mutation
   const evoTestMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.invoke<{ valid: boolean; error?: string; source?: string; clientId?: string }>('admin-evo-app-credentials', {
+      const res = await apiClient.invoke<{ valid: boolean; error?: string; source?: string; clientId?: string; note?: string }>('admin-evo-app-credentials', {
         body: { action: 'test' },
       });
       if (res.error) throw new Error(res.error.message || 'Request failed');
@@ -216,7 +216,7 @@ export default function AdminSettings() {
         title: data.valid
           ? t('adminSettings.evoTestSuccess', 'Credentials are valid')
           : t('adminSettings.evoTestFailed', 'Credentials are invalid'),
-        description: data.error || (data.clientId ? `Client ID: ${data.clientId}` : undefined),
+        description: data.note || data.error || (data.clientId ? `Client ID: ${data.clientId}` : undefined),
         variant: data.valid ? 'default' : 'destructive',
       });
     },

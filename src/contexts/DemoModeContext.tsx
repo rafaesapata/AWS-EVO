@@ -259,7 +259,7 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
       // Only mark as verified (not demo) if we previously had a session
       // and it was lost (logout scenario), OR if we're on a public page
       if (hasQueriedBackendRef.current) {
-        console.log('[DemoMode] Session lost after previous successful query, marking not-demo');
+        console.debug('[DemoMode] Session lost after previous successful query, marking not-demo');
         setState({
           isDemoMode: false,
           isLoading: false,
@@ -269,7 +269,7 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
           organizationName: null
         });
       } else {
-        console.log('[DemoMode] No session yet, staying in loading state');
+        console.debug('[DemoMode] No session yet, staying in loading state');
         // Keep isVerified=false - AwsAccountGuard will show loading
         setState(prev => ({ ...prev, isLoading: false }));
       }
@@ -298,7 +298,7 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
         const hasExpired = isDemoExpired(org?.demo_expires_at || null);
         const isActiveDemo = isDemoFromBackend && !hasExpired;
         
-        console.log('[DemoMode] Status fetched:', {
+        console.debug('[DemoMode] Status fetched:', {
           isDemoFromBackend,
           hasExpired,
           isActiveDemo,
@@ -344,21 +344,24 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
     
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key && (e.key.includes('idToken') || e.key.includes('accessToken'))) {
-        console.log('[DemoMode] Auth storage changed, refreshing demo status');
+        console.debug('[DemoMode] Auth storage changed, refreshing demo status');
         fetchDemoStatus();
       }
     };
     
+    let focusDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const handleFocus = () => {
       // Only refetch on focus if we've already queried successfully before
+      // Debounce to avoid repeated fetches on rapid focus/blur cycles
       if (hasQueriedBackendRef.current) {
-        fetchDemoStatus();
+        if (focusDebounceTimer) clearTimeout(focusDebounceTimer);
+        focusDebounceTimer = setTimeout(() => fetchDemoStatus(), 5000);
       }
     };
     
     // CRITICAL: This event fires after successful login in useAuthSafe
     const handleAuthChange = () => {
-      console.log('[DemoMode] Auth change event received, refreshing demo status');
+      console.debug('[DemoMode] Auth change event received, refreshing demo status');
       fetchDemoStatus();
     };
     
@@ -367,6 +370,7 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
     window.addEventListener('auth-state-changed', handleAuthChange);
     
     return () => {
+      if (focusDebounceTimer) clearTimeout(focusDebounceTimer);
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('auth-state-changed', handleAuthChange);

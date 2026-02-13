@@ -13,7 +13,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -399,23 +398,39 @@ export function AzureCredentialsManager() {
 
       {/* Add Credential Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t('azure.addCredential', 'Add Azure Credential')}</DialogTitle>
-            <DialogDescription>
-              {t('azure.addCredentialDescription', 'Enter your Azure Service Principal credentials.')}
-            </DialogDescription>
-          </DialogHeader>
-          <AzureCredentialsForm
-            onSuccess={handleAddSuccess}
-            onCancel={() => setShowAddDialog(false)}
-          />
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto p-0 gap-0 glass border-primary/20" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{t('azure.addCredential', 'Add Azure Credential')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('azure.addCredentialDescription', 'Enter your Azure Service Principal credentials.')}</DialogDescription>
+          {/* Hero Header - same style as Profile/Settings dialogs */}
+          <div className="relative overflow-hidden rounded-t-lg">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#003C7D] via-[#0055A4] to-[#008CFF]" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.15)_0%,_transparent_60%)]" />
+            <div className="relative px-6 pt-8 pb-6 flex items-center gap-5">
+              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm ring-2 ring-white/30 shadow-lg">
+                <Cloud className="h-7 w-7 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-light text-white">{t('azure.addCredential', 'Add Azure Credential')}</h2>
+                <p className="text-sm text-white/80 mt-1">{t('azure.addCredentialDescription', 'Enter your Azure Service Principal credentials.')}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+            <AzureCredentialsForm
+              onSuccess={handleAddSuccess}
+              onCancel={() => setShowAddDialog(false)}
+            />
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Quick Connect Dialog */}
       <Dialog open={showQuickConnect} onOpenChange={setShowQuickConnect}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{t('azure.quickConnect', 'Quick Connect')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('azure.quickConnect', 'Quick Connect')}</DialogDescription>
           <AzureQuickConnect
             onManualSetup={() => {
               setShowQuickConnect(false);
