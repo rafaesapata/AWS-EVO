@@ -18,7 +18,6 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { apiClient } from '@/integrations/aws/api-client';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Settings2, ShieldCheck, RefreshCw, Pencil, CheckCircle, XCircle,
   AlertTriangle, Clock, Key, Building2, Globe, CalendarClock, CloudCog,
@@ -55,8 +54,8 @@ interface TestResult {
 }
 
 interface EvoAppData {
-  current: { clientId: string; clientSecretMasked: string; redirectUri: string };
-  ssm: { clientId: string; clientSecretMasked: string; redirectUri: string; inSync: boolean };
+  current: { clientId: string; clientSecretMasked: string; redirectUri: string; tenantId: string };
+  ssm: { clientId: string; clientSecretMasked: string; redirectUri: string; tenantId: string; inSync: boolean };
   metadata: {
     secretExpiresAt: string | null;
     ssmSyncedAt: string | null;
@@ -97,7 +96,7 @@ export default function AdminSettings() {
 
   // EVO App Credentials state
   const [evoForm, setEvoForm] = useState({
-    clientId: '', clientSecret: '', redirectUri: '', secretExpiresAt: '', notes: '',
+    clientId: '', clientSecret: '', redirectUri: '', tenantId: '', secretExpiresAt: '', notes: '',
   });
   const [showEvoForm, setShowEvoForm] = useState(false);
 
@@ -182,6 +181,7 @@ export default function AdminSettings() {
           clientId: form.clientId,
           clientSecret: form.clientSecret,
           redirectUri: form.redirectUri,
+          tenantId: form.tenantId,
           secretExpiresAt: form.secretExpiresAt || undefined,
           notes: form.notes || undefined,
         },
@@ -261,6 +261,7 @@ export default function AdminSettings() {
       clientId: evoData?.current.clientId || '',
       clientSecret: '',
       redirectUri: evoData?.current.redirectUri || '',
+      tenantId: evoData?.current.tenantId || '',
       secretExpiresAt: evoData?.metadata?.secretExpiresAt ? evoData.metadata.secretExpiresAt.split('T')[0] : '',
       notes: evoData?.metadata?.notes || '',
     });
@@ -360,45 +361,85 @@ export default function AdminSettings() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Credential Details */}
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoClientId', 'Client ID')}</Label>
-                          <p className="font-mono text-sm mt-1">{evoData?.current.clientId || '-'}</p>
+                    {/* Credential Details - glass card grid like UserSettings */}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="glass rounded-xl p-4 border border-primary/10 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                            <Key className="h-3.5 w-3.5 text-[#003C7D]" />
+                          </div>
+                          <Label className="text-xs text-muted-foreground">{t('adminSettings.evoClientId', 'Client ID')}</Label>
                         </div>
-                        <div>
-                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoClientSecret', 'Client Secret')}</Label>
-                          <p className="font-mono text-sm mt-1">{evoData?.current.clientSecretMasked || '-'}</p>
-                        </div>
-                        <div>
-                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoRedirectUri', 'Redirect URI')}</Label>
-                          <p className="font-mono text-sm mt-1 break-all">{evoData?.current.redirectUri || '-'}</p>
-                        </div>
+                        <p className="font-mono text-sm">{evoData?.current.clientId || '-'}</p>
                       </div>
 
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoSecretExpiry', 'Secret Expiry')}</Label>
-                          <div className="mt-1">{getExpiryBadge(evoData?.metadata?.secretExpiresAt || null, t)}</div>
+                      <div className="glass rounded-xl p-4 border border-primary/10 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                            <Building2 className="h-3.5 w-3.5 text-[#003C7D]" />
+                          </div>
+                          <Label className="text-xs text-muted-foreground">{t('adminSettings.evoTenantId', 'Tenant ID (Directory)')}</Label>
+                        </div>
+                        <p className="font-mono text-sm">{evoData?.current.tenantId || <span className="text-muted-foreground italic">{t('adminSettings.evoNotConfigured', 'Not configured')}</span>}</p>
+                      </div>
+
+                      <div className="glass rounded-xl p-4 border border-primary/10 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                            <ShieldCheck className="h-3.5 w-3.5 text-[#003C7D]" />
+                          </div>
+                          <Label className="text-xs text-muted-foreground">{t('adminSettings.evoClientSecret', 'Client Secret')}</Label>
+                        </div>
+                        <p className="font-mono text-sm">{evoData?.current.clientSecretMasked || '-'}</p>
+                      </div>
+
+                      <div className="glass rounded-xl p-4 border border-primary/10 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                            <Globe className="h-3.5 w-3.5 text-[#003C7D]" />
+                          </div>
+                          <Label className="text-xs text-muted-foreground">{t('adminSettings.evoRedirectUri', 'Redirect URI')}</Label>
+                        </div>
+                        <p className="font-mono text-sm break-all">{evoData?.current.redirectUri || '-'}</p>
+                      </div>
+
+                      <div className="glass rounded-xl p-4 border border-primary/10 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                            <CalendarClock className="h-3.5 w-3.5 text-[#003C7D]" />
+                          </div>
+                          <Label className="text-xs text-muted-foreground">{t('adminSettings.evoSecretExpiry', 'Secret Expiry')}</Label>
+                        </div>
+                        <div>{getExpiryBadge(evoData?.metadata?.secretExpiresAt || null, t)}</div>
+                      </div>
+
+                      <div className="glass rounded-xl p-4 border border-primary/10 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                            <RefreshCw className="h-3.5 w-3.5 text-[#003C7D]" />
+                          </div>
+                          <Label className="text-xs text-muted-foreground">{t('adminSettings.evoSsmSync', 'SSM Sync')}</Label>
                         </div>
                         <div>
-                          <Label className="text-muted-foreground text-xs">{t('adminSettings.evoSsmSync', 'SSM Sync')}</Label>
-                          <div className="mt-1">
-                            {evoData?.ssm.inSync
-                              ? <Badge className="bg-green-500/20 text-green-400 border-green-500/30"><CheckCircle className="h-3 w-3 mr-1" />{t('adminSettings.evoInSync', 'In Sync')}</Badge>
-                              : <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />{t('adminSettings.evoOutOfSync', 'Out of Sync')}</Badge>
-                            }
-                          </div>
+                          {evoData?.ssm.inSync
+                            ? <Badge className="bg-green-500/20 text-green-400 border-green-500/30"><CheckCircle className="h-3 w-3 mr-1" />{t('adminSettings.evoInSync', 'In Sync')}</Badge>
+                            : <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />{t('adminSettings.evoOutOfSync', 'Out of Sync')}</Badge>
+                          }
                         </div>
-                        {evoData?.metadata?.notes && (
-                          <div>
-                            <Label className="text-muted-foreground text-xs">{t('adminSettings.evoNotes', 'Notes')}</Label>
-                            <p className="text-sm mt-1">{evoData.metadata.notes}</p>
-                          </div>
-                        )}
                       </div>
                     </div>
+
+                    {evoData?.metadata?.notes && (
+                      <div className="glass rounded-xl p-4 border border-primary/10 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1.5 bg-[#003C7D]/10 rounded-lg">
+                            <Settings2 className="h-3.5 w-3.5 text-[#003C7D]" />
+                          </div>
+                          <Label className="text-xs text-muted-foreground">{t('adminSettings.evoNotes', 'Notes')}</Label>
+                        </div>
+                        <p className="text-sm">{evoData.metadata.notes}</p>
+                      </div>
+                    )}
 
                     {/* Sync Status Cards */}
                     <div className="grid gap-6 md:grid-cols-3">
@@ -454,14 +495,25 @@ export default function AdminSettings() {
                   <DialogDescription>{t('adminSettings.evoEditDesc', 'Updates SSM Parameter Store and propagates to all Lambdas')}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>{t('adminSettings.evoClientIdLabel', 'Client ID (App Registration)')}</Label>
-                    <Input
-                      value={evoForm.clientId}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, clientId: e.target.value }))}
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                      className="font-mono"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>{t('adminSettings.evoTenantIdLabel', 'Tenant ID (Directory ID)')}</Label>
+                      <Input
+                        value={evoForm.tenantId}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, tenantId: e.target.value }))}
+                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                        className="font-mono"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('adminSettings.evoClientIdLabel', 'Client ID (App Registration)')}</Label>
+                      <Input
+                        value={evoForm.clientId}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, clientId: e.target.value }))}
+                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                        className="font-mono"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>{t('adminSettings.evoClientSecretLabel', 'Client Secret')}</Label>
@@ -480,22 +532,23 @@ export default function AdminSettings() {
                       placeholder="https://evo.nuevacore.com/azure/callback"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>{t('adminSettings.evoExpiryLabel', 'Secret Expiry Date')}</Label>
-                    <Input
-                      type="date"
-                      value={evoForm.secretExpiresAt}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, secretExpiresAt: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('adminSettings.evoNotesLabel', 'Notes')}</Label>
-                    <Textarea
-                      value={evoForm.notes}
-                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEvoForm(prev => ({ ...prev, notes: e.target.value }))}
-                      placeholder={t('adminSettings.evoNotesPlaceholder', 'Optional notes about this credential update')}
-                      rows={2}
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>{t('adminSettings.evoExpiryLabel', 'Secret Expiry Date')}</Label>
+                      <Input
+                        type="date"
+                        value={evoForm.secretExpiresAt}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, secretExpiresAt: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('adminSettings.evoNotesLabel', 'Notes')}</Label>
+                      <Input
+                        value={evoForm.notes}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setEvoForm(prev => ({ ...prev, notes: e.target.value }))}
+                        placeholder={t('adminSettings.evoNotesPlaceholder', 'Optional notes about this credential update')}
+                      />
+                    </div>
                   </div>
                 </div>
                 <DialogFooter>

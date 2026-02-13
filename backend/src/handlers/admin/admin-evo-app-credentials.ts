@@ -35,6 +35,7 @@ interface ActionBody {
   clientId?: string;
   clientSecret?: string;
   redirectUri?: string;
+  tenantId?: string;
   secretExpiresAt?: string;
   notes?: string;
 }
@@ -50,6 +51,7 @@ async function handleGet(prisma: any, origin: string): Promise<APIGatewayProxyRe
   const clientId = process.env.AZURE_OAUTH_CLIENT_ID || '';
   const clientSecret = process.env.AZURE_OAUTH_CLIENT_SECRET || '';
   const redirectUri = process.env.AZURE_OAUTH_REDIRECT_URI || '';
+  const tenantId = process.env.AZURE_OAUTH_TENANT_ID || '';
 
   // Get metadata from DB
   const record = clientId
@@ -60,15 +62,18 @@ async function handleGet(prisma: any, origin: string): Promise<APIGatewayProxyRe
   let ssmClientId = '';
   let ssmRedirectUri = '';
   let ssmSecretMasked = '';
+  let ssmTenantId = '';
   try {
-    const [cidRes, secRes, uriRes] = await Promise.allSettled([
+    const [cidRes, secRes, uriRes, tidRes] = await Promise.allSettled([
       ssmClient.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-id` })),
       ssmClient.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-secret`, WithDecryption: true })),
       ssmClient.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-redirect-uri` })),
+      ssmClient.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-tenant-id` })),
     ]);
     if (cidRes.status === 'fulfilled') ssmClientId = cidRes.value.Parameter?.Value || '';
     if (secRes.status === 'fulfilled') ssmSecretMasked = maskSecret(secRes.value.Parameter?.Value || '');
     if (uriRes.status === 'fulfilled') ssmRedirectUri = uriRes.value.Parameter?.Value || '';
+    if (tidRes.status === 'fulfilled') ssmTenantId = tidRes.value.Parameter?.Value || '';
   } catch {
     // SSM params may not exist yet
   }
@@ -78,12 +83,14 @@ async function handleGet(prisma: any, origin: string): Promise<APIGatewayProxyRe
       clientId,
       clientSecretMasked: maskSecret(clientSecret),
       redirectUri,
+      tenantId,
     },
     ssm: {
       clientId: ssmClientId,
       clientSecretMasked: ssmSecretMasked,
       redirectUri: ssmRedirectUri,
-      inSync: ssmClientId === clientId && ssmRedirectUri === redirectUri,
+      tenantId: ssmTenantId,
+      inSync: ssmClientId === clientId && ssmRedirectUri === redirectUri && ssmTenantId === tenantId,
     },
     metadata: record ? {
       secretExpiresAt: record.secret_expires_at,
@@ -170,11 +177,12 @@ async function syncLambdaEnvVars(
 }
 
 /** Write values to SSM Parameter Store */
-async function syncToSSM(clientId: string, clientSecret: string, redirectUri: string): Promise<void> {
+async function syncToSSM(clientId: string, clientSecret: string, redirectUri: string, tenantId: string): Promise<void> {
   const params = [
     { Name: `${SSM_PREFIX}/azure-oauth-client-id`, Value: clientId, Type: 'String' as const },
     { Name: `${SSM_PREFIX}/azure-oauth-client-secret`, Value: clientSecret, Type: 'SecureString' as const },
     { Name: `${SSM_PREFIX}/azure-oauth-redirect-uri`, Value: redirectUri, Type: 'String' as const },
+    { Name: `${SSM_PREFIX}/azure-oauth-tenant-id`, Value: tenantId, Type: 'String' as const },
   ];
 
   for (const p of params) {
@@ -191,13 +199,13 @@ async function syncToSSM(clientId: string, clientSecret: string, redirectUri: st
 /** Common sync: SSM + Lambdas + DB upsert. Returns sync result. */
 async function performFullSync(
   prisma: any,
-  credentials: { clientId: string; clientSecret: string; redirectUri: string },
+  credentials: { clientId: string; clientSecret: string; redirectUri: string; tenantId: string },
   userId: string,
   extraDbFields?: { secret_expires_at?: Date | null; notes?: string | null }
 ): Promise<{ ssmSyncedAt: Date; lambdasSyncedAt: Date; updated: number; failed: number }> {
-  const { clientId, clientSecret, redirectUri } = credentials;
+  const { clientId, clientSecret, redirectUri, tenantId } = credentials;
 
-  await syncToSSM(clientId, clientSecret, redirectUri);
+  await syncToSSM(clientId, clientSecret, redirectUri, tenantId);
   invalidateAzureOAuthCredsCache();
   const ssmSyncedAt = new Date();
 
@@ -205,6 +213,7 @@ async function performFullSync(
     AZURE_OAUTH_CLIENT_ID: clientId,
     AZURE_OAUTH_CLIENT_SECRET: clientSecret,
     AZURE_OAUTH_REDIRECT_URI: redirectUri,
+    AZURE_OAUTH_TENANT_ID: tenantId,
   });
   const lambdasSyncedAt = new Date();
 
@@ -248,6 +257,7 @@ async function handleUpdate(
   const clientId = body.clientId || process.env.AZURE_OAUTH_CLIENT_ID || '';
   const clientSecret = body.clientSecret || process.env.AZURE_OAUTH_CLIENT_SECRET || '';
   const redirectUri = body.redirectUri || process.env.AZURE_OAUTH_REDIRECT_URI || '';
+  const tenantId = body.tenantId || process.env.AZURE_OAUTH_TENANT_ID || '';
 
   if (!clientId || !clientSecret) {
     return error('clientId and clientSecret are required', 400, undefined, origin);
@@ -257,7 +267,7 @@ async function handleUpdate(
   const secretExpiresAt = body.secretExpiresAt ? new Date(body.secretExpiresAt) : null;
   const { ssmSyncedAt, lambdasSyncedAt, updated, failed } = await performFullSync(
     prisma,
-    { clientId, clientSecret, redirectUri },
+    { clientId, clientSecret, redirectUri, tenantId },
     userId,
     { secret_expires_at: secretExpiresAt, notes: body.notes || null }
   );
@@ -279,6 +289,7 @@ async function handleSync(
   const clientId = process.env.AZURE_OAUTH_CLIENT_ID || '';
   const clientSecret = process.env.AZURE_OAUTH_CLIENT_SECRET || '';
   const redirectUri = process.env.AZURE_OAUTH_REDIRECT_URI || '';
+  const tenantId = process.env.AZURE_OAUTH_TENANT_ID || '';
 
   if (!clientId || !clientSecret) {
     return error('AZURE_OAUTH_CLIENT_ID/SECRET not configured in this Lambda', 400, undefined, origin);
@@ -287,7 +298,7 @@ async function handleSync(
   logger.info('Re-syncing Azure OAuth credentials...');
   const { ssmSyncedAt, lambdasSyncedAt, updated, failed } = await performFullSync(
     prisma,
-    { clientId, clientSecret, redirectUri },
+    { clientId, clientSecret, redirectUri, tenantId },
     userId
   );
 
@@ -400,7 +411,7 @@ export async function handler(
         logAuditAsync({
           organizationId, userId: user.sub, action: 'EVO_APP_CREDENTIALS_UPDATE',
           resourceType: 'evo_app_credentials', resourceId: 'azure',
-          details: { clientId: body.clientId, redirectUri: body.redirectUri },
+          details: { clientId: body.clientId, redirectUri: body.redirectUri, tenantId: body.tenantId },
           ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
         });
         return handleUpdate(prisma, body, user.sub, origin);

@@ -32,6 +32,7 @@ interface AzureOAuthCreds {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
+  tenantId: string;
 }
 
 let _cachedCreds: AzureOAuthCreds | null = null;
@@ -56,21 +57,24 @@ export async function getAzureOAuthCredentials(): Promise<AzureOAuthCreds> {
 
   try {
     const ssm = getSsmClient();
-    const [cidRes, secRes, uriRes] = await Promise.all([
+    const [cidRes, secRes, uriRes, tidRes] = await Promise.all([
       ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-id` })),
       ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-client-secret`, WithDecryption: true })),
       ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-redirect-uri` })),
+      ssm.send(new GetParameterCommand({ Name: `${SSM_PREFIX}/azure-oauth-tenant-id` })).catch(() => null),
     ]);
 
     const clientId = cidRes.Parameter?.Value;
     const clientSecret = secRes.Parameter?.Value;
     const redirectUri = uriRes.Parameter?.Value;
+    const tenantId = tidRes?.Parameter?.Value || '';
 
     if (clientId && clientSecret && redirectUri) {
-      _cachedCreds = { clientId, clientSecret, redirectUri };
+      _cachedCreds = { clientId, clientSecret, redirectUri, tenantId };
       _cachedAt = Date.now();
       logger.info('Azure OAuth creds loaded from SSM', {
         clientId,
+        tenantId: tenantId || '(not set)',
         secretLength: clientSecret.length,
         secretPrefix: clientSecret.substring(0, 4) + '***',
       });
@@ -89,10 +93,12 @@ export async function getAzureOAuthCredentials(): Promise<AzureOAuthCreds> {
     clientId: process.env.AZURE_OAUTH_CLIENT_ID || '',
     clientSecret: process.env.AZURE_OAUTH_CLIENT_SECRET || '',
     redirectUri: process.env.AZURE_OAUTH_REDIRECT_URI || '',
+    tenantId: process.env.AZURE_OAUTH_TENANT_ID || '',
   };
   _cachedAt = Date.now();
   logger.info('Azure OAuth creds loaded from env vars (fallback)', {
     clientId: _cachedCreds.clientId,
+    tenantId: _cachedCreds.tenantId || '(not set)',
     secretLength: _cachedCreds.clientSecret.length,
     secretPrefix: _cachedCreds.clientSecret ? _cachedCreds.clientSecret.substring(0, 4) + '***' : '(empty)',
   });

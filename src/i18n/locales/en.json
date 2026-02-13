@@ -4222,7 +4222,10 @@
     "evoTestBtn": "Test Credentials",
     "evoTestSuccess": "Credentials are valid",
     "evoTestFailed": "Credentials are invalid",
-    "evoTestError": "Test failed"
+    "evoTestError": "Test failed",
+    "evoTenantId": "Tenant ID (Directory)",
+    "evoTenantIdLabel": "Tenant ID (Directory ID)",
+    "evoNotConfigured": "Not configured"
   },
   "endpointMonitoring": {
     "noMetricData": "No metric data available",

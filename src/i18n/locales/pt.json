@@ -4367,7 +4367,10 @@
     "evoTestBtn": "Testar Credenciais",
     "evoTestSuccess": "Credenciais válidas",
     "evoTestFailed": "Credenciais inválidas",
-    "evoTestError": "Falha no teste"
+    "evoTestError": "Falha no teste",
+    "evoTenantId": "Tenant ID (Diretório)",
+    "evoTenantIdLabel": "Tenant ID (ID do Diretório)",
+    "evoNotConfigured": "Não configurado"
   },
   "endpointMonitoring": {
     "noMetricData": "Nenhum dado de métrica disponível",
