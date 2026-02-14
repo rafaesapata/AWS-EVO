@@ -55,6 +55,7 @@ export function CostForecast({ accountId }: Props) {
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
       const startDateStr = ninetyDaysAgo.toISOString().split('T')[0];
+      const endDateStr = new Date().toISOString().split('T')[0];
 
       console.log('CostForecast: Fetching with params:', {
         organizationId,
@@ -63,34 +64,57 @@ export function CostForecast({ accountId }: Props) {
         startDateStr
       });
 
-      // Use getAccountFilter() for proper multi-account isolation
-      const accountFilter = getAccountFilter();
-
-      const response = await apiClient.select('daily_costs', {
-        select: '*',
-        eq: { 
-          organization_id: organizationId,
-          ...accountFilter
-        },
-        gte: { date: startDateStr },
-        order: { column: 'date', ascending: true },
-        limit: 10000 // Increase limit to fetch all historical data
+      // Use fetch-daily-costs Lambda which handles both AWS and Azure properly
+      // For Azure, it reads from DB (azure-fetch-costs syncs data separately)
+      const lambdaResponse = await apiClient.invoke<any>('fetch-daily-costs', {
+        body: {
+          accountId: effectiveAccountId,
+          startDate: startDateStr,
+          endDate: endDateStr,
+          granularity: 'DAILY',
+          incremental: true
+        }
       });
       
-      console.log('CostForecast: API response:', response);
+      console.log('CostForecast: API response:', lambdaResponse);
       
-      if (response.error) {
-        // Gracefully handle aborted/cancelled requests
-        const errorMsg = typeof response.error === 'string' ? response.error : (response.error as any)?.message || '';
+      let rawData: any[] = [];
+      
+      if (lambdaResponse.error) {
+        const errorMsg = typeof lambdaResponse.error === 'string' ? lambdaResponse.error : (lambdaResponse.error as any)?.message || '';
         if (errorMsg.includes('Failed to fetch') || errorMsg.includes('aborted') || errorMsg.includes('cancelled')) {
           console.log('CostForecast: Request was aborted/cancelled, returning empty array');
           return [];
         }
-        console.error('CostForecast: Error fetching historical costs:', response.error);
-        throw new Error(typeof response.error === 'string' ? response.error : response.error.message);
+        console.warn('CostForecast: Lambda error, falling back to direct query:', lambdaResponse.error);
+        // Fallback to direct DB query
+        const accountFilter = getAccountFilter();
+        const response = await apiClient.select('daily_costs', {
+          select: '*',
+          eq: { organization_id: organizationId, ...accountFilter },
+          gte: { date: startDateStr },
+          order: { column: 'date', ascending: true },
+          limit: 10000
+        });
+        rawData = response.data || [];
+      } else {
+        // Extract costs from Lambda response
+        const data = lambdaResponse.data;
+        rawData = data?.costs || data?.data?.dailyCosts || [];
       }
       
-      const rawData = response.data || [];
+      // If still empty for Azure, try direct DB query as last resort
+      if (rawData.length === 0 && selectedProvider === 'AZURE') {
+        const accountFilter = getAccountFilter();
+        const dbResponse = await apiClient.select('daily_costs', {
+          select: '*',
+          eq: { organization_id: organizationId, ...accountFilter },
+          gte: { date: startDateStr },
+          order: { column: 'date', ascending: true },
+          limit: 10000
+        });
+        rawData = dbResponse.data || [];
+      }
       
       console.log('CostForecast: Raw data received:', rawData.length, 'records');
       

@@ -315,6 +315,8 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  if (!res.error) {
  queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
  queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
+ queryClient.invalidateQueries({ queryKey: ['daily-costs-history'], exact: false });
+ queryClient.invalidateQueries({ queryKey: ['cost-forecast'], exact: false });
  toast({ title: t('costAnalysis.azureSyncComplete', 'Azure sync complete'), description: t('costAnalysis.azureSyncCompleteDesc', 'Cost data updated from Azure.') });
  }
  }).catch(() => {}).finally(() => { azureSyncInProgress.current = false; setIsAzureSyncing(false); });
@@ -424,6 +426,8 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  if (!res.error) {
  queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
  queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
+ queryClient.invalidateQueries({ queryKey: ['daily-costs-history'], exact: false });
+ queryClient.invalidateQueries({ queryKey: ['cost-forecast'], exact: false });
  toast({ title: t('costAnalysis.azureSyncComplete', 'Azure sync complete'), description: t('costAnalysis.azureSyncCompleteDesc', 'Cost data updated from Azure.') });
  }
  }).catch(() => {}).finally(() => { azureSyncInProgress.current = false; setIsAzureSyncing(false); });
