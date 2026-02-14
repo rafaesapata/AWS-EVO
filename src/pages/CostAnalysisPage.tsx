@@ -92,6 +92,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  staleTime: 5 * 60 * 1000, // 5 minutes - allow refetch on account change
  gcTime: 60 * 60 * 1000,
  refetchOnWindowFocus: false,
+ placeholderData: keepPreviousData, // Keep previous data visible during refetch
  queryFn: async () => {
  
  let startDate: Date;
