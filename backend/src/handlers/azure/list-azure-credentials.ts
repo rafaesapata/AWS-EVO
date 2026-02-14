@@ -91,7 +91,9 @@ export async function handler(
         client_id: true,
         // client_secret is NOT selected for security
         // encrypted_refresh_token is NOT selected for security
-        // certificate fields omitted - migration may not be applied yet
+        // certificate_pem is NOT selected for security
+        certificate_thumbprint: true,
+        certificate_expires_at: true,
         oauth_tenant_id: true,
         oauth_user_email: true,
         token_expires_at: true,
@@ -122,6 +124,9 @@ export async function handler(
       // Service Principal fields
       tenantId: cred.tenant_id,
       clientId: cred.client_id,
+      // Certificate fields
+      certificateThumbprint: cred.certificate_thumbprint,
+      certificateExpiresAt: cred.certificate_expires_at,
       // OAuth fields
       oauthTenantId: cred.oauth_tenant_id,
       oauthUserEmail: cred.oauth_user_email,
