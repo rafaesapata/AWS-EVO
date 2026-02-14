@@ -1,9 +1,11 @@
 /**
  * Azure Fetch Monitor Metrics Handler
  * 
- * Fetches metrics from Azure Monitor API for VMs, App Services, SQL DBs, and Storage.
- * Stores resources in monitored_resources and metrics in resource_metrics.
+ * Fetches metrics from Azure Monitor API for 14 Azure resource types:
+ * VMs, App Services, SQL DBs, Storage, Container Apps, AKS, Cosmos DB,
+ * Key Vault, Redis, PostgreSQL, MySQL, Load Balancers, App Gateways, ACR.
  * 
+ * Stores resources in monitored_resources and metrics in resource_metrics.
  * Optimized: parallel fetching, delete+insert for metrics, proper error handling.
  */
 
@@ -109,7 +111,7 @@ const AZURE_MONITOR_API_VERSION = '2021-05-01';
 
 /** Default fallback duration in ms (1 hour) when ISO duration parsing fails */
 const DEFAULT_DURATION_MS = 3_600_000;
-const RESOURCE_BATCH_SIZE = 3;
+const RESOURCE_BATCH_SIZE = 5;
 /** Max metrics per Prisma createMany call */
 const METRICS_INSERT_BATCH_SIZE = 100;
 
@@ -220,7 +222,7 @@ export async function handler(
         if (rgCount === 0) {
           permissionHint = ' The Service Principal/OAuth token may not have Reader role on this subscription, or the subscription has no resource groups.';
         } else {
-          permissionHint = ` Found ${rgCount} resource group(s) but no supported resource types. The subscription may not contain VMs, App Services, SQL DBs, or Storage Accounts.`;
+          permissionHint = ` Found ${rgCount} resource group(s) but no supported resource types.`;
         }
       } catch (rgErr: any) {
         logger.warn('Resource groups check failed', { error: rgErr.message });
@@ -348,18 +350,27 @@ async function processResource(
       },
     });
   } else {
-    await prisma.monitoredResource.create({
-      data: {
-        organization_id: organizationId,
-        azure_credential_id: credentialId,
-        cloud_provider: 'AZURE',
-        resource_id: resourceId,
-        resource_name: resource.name,
-        resource_type: mappedType,
-        region: resource.location,
-        status: 'active',
-      },
-    });
+    try {
+      await prisma.monitoredResource.create({
+        data: {
+          organization_id: organizationId,
+          azure_credential_id: credentialId,
+          cloud_provider: 'AZURE',
+          resource_id: resourceId,
+          resource_name: resource.name,
+          resource_type: mappedType,
+          region: resource.location,
+          status: 'active',
+        },
+      });
+    } catch (createErr: any) {
+      // Handle unique constraint violation (P2002) — resource may exist from another credential
+      if (createErr.code === 'P2002') {
+        logger.warn('Duplicate monitored resource, skipping create', { resourceId, type: mappedType });
+      } else {
+        throw createErr;
+      }
+    }
   }
 
   // Fetch metrics from Azure Monitor
@@ -605,12 +616,23 @@ async function fetchResourceMetrics(
     }>
   };
 
+  // Pick the value matching the requested aggregation type
+  const aggLower = aggregation.toLowerCase();
+
   for (const metric of data.value || []) {
     const timeseries = metric.timeseries?.[0];
     if (!timeseries?.data) continue;
 
     for (const dp of timeseries.data) {
-      const value = dp.average ?? dp.total ?? dp.maximum ?? dp.minimum;
+      let value: number | undefined;
+      if (aggLower === 'maximum') {
+        value = dp.maximum ?? dp.average ?? dp.total ?? dp.minimum;
+      } else if (aggLower === 'total' || aggLower === 'sum') {
+        value = dp.total ?? dp.average ?? dp.maximum ?? dp.minimum;
+      } else {
+        // Default: Average
+        value = dp.average ?? dp.total ?? dp.maximum ?? dp.minimum;
+      }
       if (value === undefined || value === null) continue;
 
       metrics.push({

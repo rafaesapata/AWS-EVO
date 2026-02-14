@@ -658,6 +658,7 @@ export function reportResults(result: ValidationResult): void {
     console.log(`\n  Total: ${byFile.size} handler(s) importing @aws-sdk — these CANNOT use INCREMENTAL deploy`);
     console.log('  CI/CD auto-detects this and forces FULL_SAM (~10min instead of ~1-2min)\n');
   }
+}
 
 export function writeGraphJson(
   graph: DependencyGraph,
