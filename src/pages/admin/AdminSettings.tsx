@@ -74,6 +74,27 @@ interface EvoAppUpdateResult {
   secretExpiresAt: string | null;
 }
 
+interface DiagnosticStep {
+  step: string;
+  status: 'success' | 'warning' | 'error';
+  message: string;
+  details?: Record<string, any>;
+}
+
+interface EvoTestResult {
+  valid: boolean;
+  conditionalAccess?: boolean;
+  error?: string;
+  source?: string;
+  clientId?: string;
+  note?: string;
+  azureErrorCode?: string;
+  azureCorrelationId?: string;
+  diagnostics?: DiagnosticStep[];
+  suggestions?: string[];
+  errorCategory?: string;
+}
+
 const MS_PER_DAY = 86_400_000;
 
 function getExpiryBadge(expiresAt: string | null, t: (key: string, fallback: string) => string) {
@@ -100,6 +121,7 @@ export default function AdminSettings() {
   });
   const [showEvoForm, setShowEvoForm] = useState(false);
   const [evoPreviewResult, setEvoPreviewResult] = useState<{ valid: boolean; error?: string; note?: string } | null>(null);
+  const [evoDiagnostics, setEvoDiagnostics] = useState<EvoTestResult | null>(null);
 
   // Fetch all Azure credentials
   const { data: credentialsData, isLoading } = useQuery({
@@ -206,31 +228,37 @@ export default function AdminSettings() {
   // EVO App test credentials mutation
   const evoTestMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.invoke<{ valid: boolean; conditionalAccess?: boolean; error?: string; source?: string; clientId?: string; note?: string; azureErrorCode?: string }>('admin-evo-app-credentials', {
+      const res = await apiClient.invoke<EvoTestResult>('admin-evo-app-credentials', {
         body: { action: 'test' },
       });
       if (res.error) throw new Error(res.error.message || 'Request failed');
       return res.data;
     },
     onSuccess: (data) => {
-      if (data.valid && data.conditionalAccess) {
-        // Credentials authenticated but Conditional Access blocked — show as warning
+      setEvoDiagnostics(data);
+      const hasDiagnostics = data.diagnostics && data.diagnostics.length > 0;
+      if (data.valid && !data.diagnostics?.some(d => d.status !== 'success')) {
         toast({
-          title: t('adminSettings.evoTestPartial', 'Credentials authenticated (access restricted)'),
-          description: data.note + (data.azureErrorCode ? ` [${data.azureErrorCode}]` : ''),
+          title: t('adminSettings.evoTestSuccess', 'Credentials are valid'),
+          description: data.note || undefined,
+          variant: 'default',
+        });
+      } else if (data.valid) {
+        toast({
+          title: t('adminSettings.evoTestPartial', 'Credentials authenticated (with warnings)'),
+          description: hasDiagnostics ? t('adminSettings.evoTestSeeDetails', 'See diagnostic details below') : data.note,
           variant: 'default',
         });
       } else {
         toast({
-          title: data.valid
-            ? t('adminSettings.evoTestSuccess', 'Credentials are valid')
-            : t('adminSettings.evoTestFailed', 'Credentials are invalid'),
-          description: data.note || data.error || (data.clientId ? `Client ID: ${data.clientId}` : undefined),
-          variant: data.valid ? 'default' : 'destructive',
+          title: t('adminSettings.evoTestFailed', 'Credentials are invalid'),
+          description: hasDiagnostics ? t('adminSettings.evoTestSeeDetails', 'See diagnostic details below') : (data.error || data.note),
+          variant: 'destructive',
         });
       }
     },
     onError: (err: Error) => {
+      setEvoDiagnostics(null);
       toast({ title: t('adminSettings.evoTestError', 'Test failed'), description: err.message, variant: 'destructive' });
     },
   });
@@ -258,25 +286,28 @@ export default function AdminSettings() {
 
   // EVO App test-preview mutation (test credentials from form BEFORE saving)
   const evoTestPreviewMutation = useMutation({
-    mutationFn: async (form: { clientId: string; clientSecret: string }) => {
-      const res = await apiClient.invoke<{ valid: boolean; error?: string; note?: string; source?: string; clientId?: string }>('admin-evo-app-credentials', {
-        body: { action: 'test-preview', clientId: form.clientId, clientSecret: form.clientSecret },
+    mutationFn: async (form: { clientId: string; clientSecret: string; tenantId?: string }) => {
+      const res = await apiClient.invoke<EvoTestResult>('admin-evo-app-credentials', {
+        body: { action: 'test-preview', clientId: form.clientId, clientSecret: form.clientSecret, tenantId: form.tenantId },
       });
       if (res.error) throw new Error(res.error.message || 'Request failed');
       return res.data;
     },
     onSuccess: (data) => {
       setEvoPreviewResult({ valid: data.valid, error: data.error, note: data.note });
+      setEvoDiagnostics(data);
+      const hasDiagnostics = data.diagnostics && data.diagnostics.length > 0;
       toast({
         title: data.valid
           ? t('adminSettings.evoTestSuccess', 'Credentials are valid')
           : t('adminSettings.evoTestFailed', 'Credentials are invalid'),
-        description: data.note || data.error || undefined,
+        description: hasDiagnostics ? t('adminSettings.evoTestSeeDetails', 'See diagnostic details below') : (data.note || data.error || undefined),
         variant: data.valid ? 'default' : 'destructive',
       });
     },
     onError: (err: Error) => {
       setEvoPreviewResult({ valid: false, error: err.message });
+      setEvoDiagnostics(null);
       toast({ title: t('adminSettings.evoTestError', 'Test failed'), description: err.message, variant: 'destructive' });
     },
   });
@@ -523,6 +554,93 @@ export default function AdminSettings() {
               </CardContent>
             </Card>
 
+            {/* Diagnostic Results Panel */}
+            {evoDiagnostics && evoDiagnostics.diagnostics && evoDiagnostics.diagnostics.length > 0 && (
+              <Card className="glass border-primary/20">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-base">{t('adminSettings.evoDiagTitle', 'Credential Diagnostics')}</CardTitle>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setEvoDiagnostics(null)}>
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {evoDiagnostics.azureCorrelationId && (
+                    <CardDescription className="font-mono text-xs">
+                      Correlation ID: {evoDiagnostics.azureCorrelationId}
+                    </CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Steps */}
+                  <div className="space-y-3">
+                    {evoDiagnostics.diagnostics.map((step, idx) => (
+                      <div key={idx} className={`glass rounded-xl p-4 border ${
+                        step.status === 'success' ? 'border-green-500/20' :
+                        step.status === 'warning' ? 'border-yellow-500/20' :
+                        'border-destructive/20'
+                      }`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-0.5 p-1 rounded-full ${
+                            step.status === 'success' ? 'bg-green-500/10' :
+                            step.status === 'warning' ? 'bg-yellow-500/10' :
+                            'bg-destructive/10'
+                          }`}>
+                            {step.status === 'success' ? <CheckCircle className="h-3.5 w-3.5 text-green-400" /> :
+                             step.status === 'warning' ? <AlertTriangle className="h-3.5 w-3.5 text-yellow-400" /> :
+                             <XCircle className="h-3.5 w-3.5 text-destructive" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                {step.step.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                            <p className="text-sm">{step.message}</p>
+                            {step.details && (
+                              <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                                {step.details.tenant && <div>Tenant: <span className="font-mono">{step.details.tenant}</span></div>}
+                                {step.details.httpStatus && <div>HTTP Status: {step.details.httpStatus}</div>}
+                                {step.details.correlationId && <div>Correlation ID: <span className="font-mono">{step.details.correlationId}</span></div>}
+                                {step.details.displayName && <div>App: {step.details.displayName}</div>}
+                                {step.details.secretExpiry && <div>{t('adminSettings.evoDiagSecretExpiry', 'Secret Expiry')}: {new Date(step.details.secretExpiry).toLocaleDateString()}</div>}
+                                {step.details.granted && step.details.granted.length > 0 && (
+                                  <div>{t('adminSettings.evoDiagPermissions', 'Permissions')}: {step.details.granted.join(', ')}</div>
+                                )}
+                                {step.details.missing && step.details.missing.length > 0 && (
+                                  <div className="text-yellow-400">{t('adminSettings.evoDiagMissing', 'Missing')}: {step.details.missing.join(', ')}</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Suggestions */}
+                  {evoDiagnostics.suggestions && evoDiagnostics.suggestions.length > 0 && (
+                    <div className="glass rounded-xl p-4 border border-blue-500/20">
+                      <div className="flex items-center gap-2 mb-3">
+                        <AlertTriangle className="h-4 w-4 text-blue-400" />
+                        <span className="text-sm font-medium text-blue-400">{t('adminSettings.evoDiagSuggestions', 'Recommended Actions')}</span>
+                      </div>
+                      <ul className="space-y-2">
+                        {evoDiagnostics.suggestions.map((suggestion, idx) => (
+                          <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                            <span className="text-blue-400 mt-1 shrink-0">→</span>
+                            <span>{suggestion}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Update Form Dialog */}
             <Dialog open={showEvoForm} onOpenChange={setShowEvoForm}>
               <DialogContent className="sm:max-w-lg">
@@ -594,6 +712,11 @@ export default function AdminSettings() {
                       <span>{evoPreviewResult.valid ? t('adminSettings.evoPreviewValid', 'Credentials validated successfully') : (evoPreviewResult.error || t('adminSettings.evoPreviewInvalid', 'Credentials are invalid'))}</span>
                     </div>
                   )}
+                  {evoPreviewResult && evoDiagnostics?.diagnostics && evoDiagnostics.diagnostics.length > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {t('adminSettings.evoPreviewDiagHint', 'Close this dialog to see full diagnostic details below.')}
+                    </div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowEvoForm(false)}>
@@ -608,7 +731,7 @@ export default function AdminSettings() {
                         return;
                       }
                       setEvoPreviewResult(null);
-                      evoTestPreviewMutation.mutate({ clientId: evoForm.clientId, clientSecret: evoForm.clientSecret });
+                      evoTestPreviewMutation.mutate({ clientId: evoForm.clientId, clientSecret: evoForm.clientSecret, tenantId: evoForm.tenantId || undefined });
                     }}
                     disabled={evoTestPreviewMutation.isPending}
                   >
