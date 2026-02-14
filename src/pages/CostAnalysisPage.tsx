@@ -111,22 +111,15 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const startDateStr = startDate.toISOString().split('T')[0];
  const endDateStr = endDate.toISOString().split('T')[0];
  
- // Multi-cloud support: Use different Lambda based on provider
- const isAzure = selectedProvider === 'AZURE';
- const lambdaName = isAzure ? 'azure-fetch-costs' : 'fetch-daily-costs';
- const bodyParams = isAzure 
-   ? { 
-       credentialId: selectedAccountId,
-       startDate: startDateStr,
-       endDate: endDateStr,
-       granularity: 'DAILY'
-     }
-   : {
+ // Multi-cloud support: Always use fetch-daily-costs for initial data load (reads from DB)
+ // azure-fetch-costs is only called via fire-and-forget in refresh mutations
+ const lambdaName = 'fetch-daily-costs';
+ const bodyParams = {
        accountId: selectedAccountId,
        startDate: startDateStr,
        endDate: endDateStr,
        granularity: 'DAILY',
-       incremental: true  // Use incremental fetch to avoid re-fetching all data
+       incremental: true
      };
  
  // IMPORTANT: Parameters must be inside 'body' for the Lambda to receive them correctly
@@ -147,15 +140,14 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
    return response.data || [];
  }
  
- // Lambda returns different formats for AWS vs Azure
+ // fetch-daily-costs handles both AWS and Azure, returns costs array
  const lambdaData = lambdaResponse.data;
  
- // For Azure: Lambda saves to DB and returns summary (byService), so we need to query DB
- // For AWS: Lambda returns costs array directly
- let costs: any[] = [];
+ // Extract costs array from Lambda response (works for both providers)
+ let costs: any[] = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
  
- if (isAzure) {
-   // Azure Lambda saves data to DB, query it directly
+ // Fallback: if Lambda returned empty for Azure, query DB directly
+ if ((!costs || costs.length === 0) && selectedProvider === 'AZURE') {
    const dbResponse = await apiClient.select('daily_costs', { 
      eq: { organization_id: organizationId, ...getAccountFilter() },
      gte: { date: startDateStr },
@@ -163,9 +155,6 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
      order: { column: 'date', ascending: false }
    });
    costs = dbResponse.data || [];
- } else {
-   // AWS: Extract costs array from Lambda response
-   costs = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
  }
  
  if (!costs || costs.length === 0) {
