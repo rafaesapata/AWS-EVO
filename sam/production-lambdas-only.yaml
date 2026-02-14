@@ -1422,6 +1422,7 @@ Resources:
   AzureFetchCostsFunction:
     Type: AWS::Serverless::Function
     Properties:
+      Description: 'Azure cost fetch with retry optimization and batch DB saves v2'
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-costs'
       CodeUri: ../backend/src/handlers/azure/
       Handler: azure-fetch-costs.handler
