@@ -144,13 +144,16 @@ export const MonthlyInvoicesPage = () => {
           return;
         }
 
-        const summary = response.data?.summary;
+        // apiClient unwraps responseData.data, so summary may be at top level or nested
+        const data = response.data as any;
+        const summary = data?.summary || {};
+        const newRecords = summary.newRecords || 0;
         
         // Only show toast and refresh if new data was found
-        if (summary && summary.newRecords > 0) {
+        if (newRecords > 0) {
           toast({
             title: t('monthlyInvoices.newDataSynced', 'New data synced'),
-            description: t('monthlyInvoices.newCostRecordsLoaded', '{{count}} new cost records loaded', { count: summary.newRecords }),
+            description: t('monthlyInvoices.newCostRecordsLoaded', '{{count}} new cost records loaded', { count: newRecords }),
           });
           
           // Invalidate cache to reload data from database
@@ -193,7 +196,7 @@ export const MonthlyInvoicesPage = () => {
         }
         
         const lambdaData = lambdaResponse.data;
-        const costs = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
+        const costs = lambdaData?.costs || lambdaData?.dailyCosts || lambdaData?.data?.dailyCosts || [];
         
         // Transform to expected format
         return costs.map((c: any) => ({
@@ -227,7 +230,7 @@ export const MonthlyInvoicesPage = () => {
 
       if (!lambdaResponse.error) {
         const lambdaData = lambdaResponse.data;
-        costs = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
+        costs = lambdaData?.costs || lambdaData?.dailyCosts || lambdaData?.data?.dailyCosts || [];
       }
 
       // Fallback: if Lambda returned empty or failed, query DB directly
@@ -475,7 +478,9 @@ export const MonthlyInvoicesPage = () => {
           throw new Error(getErrorMessage(response.error));
         }
 
-        const summary = response.data?.summary;
+        // apiClient unwraps responseData.data, so summary may not be directly accessible
+        const awsData = response.data as any;
+        const summary = awsData?.summary;
         
         // Invalidar cache para recarregar dados do banco
         await queryClient.invalidateQueries({ 

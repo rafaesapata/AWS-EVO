@@ -353,15 +353,12 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }
  
  const data = result.data;
- 
- if (!data?.success) {
- const errorMsg = typeof data?.error === 'string' 
- ? data.error 
- : data?.error?.message || t('costAnalysis.updateError');
- throw new Error(errorMsg);
- }
-
- return data;
+ // apiClient unwraps responseData.data, so data = { dailyCosts: [...] }
+ return data?.success ? data : {
+ success: true,
+ data: { dailyCosts: data?.dailyCosts || data?.costs || [] },
+ summary: data?.summary || { totalRecords: 0, newRecords: 0 },
+ };
  }
  },
  onSuccess: (data) => {
@@ -474,15 +471,12 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }
  
  const data = result.data;
- 
- if (!data?.success) {
- const errorMsg = typeof data?.error === 'string' 
- ? data.error 
- : data?.error?.message || t('costAnalysis.updateError');
- throw new Error(errorMsg);
- }
-
- return data;
+ // apiClient unwraps responseData.data, so data = { dailyCosts: [...] }
+ return data?.success ? data : {
+ success: true,
+ data: { dailyCosts: data?.dailyCosts || data?.costs || [] },
+ summary: data?.summary || { totalRecords: 0, newRecords: 0 },
+ };
  }
  },
  onSuccess: (data) => {

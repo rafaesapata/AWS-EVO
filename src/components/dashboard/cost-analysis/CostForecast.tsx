@@ -100,7 +100,7 @@ export function CostForecast({ accountId }: Props) {
       } else {
         // Extract costs from Lambda response
         const data = lambdaResponse.data;
-        rawData = data?.costs || data?.data?.dailyCosts || [];
+        rawData = data?.costs || data?.dailyCosts || data?.data?.dailyCosts || [];
       }
       
       // If still empty for Azure, try direct DB query as last resort
