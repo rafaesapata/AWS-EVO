@@ -781,6 +781,23 @@ export default function CostOptimization() {
   // Run cost optimization analysis
   const runOptimizationMutation = useMutation({
     mutationFn: async () => {
+      // Route to correct handler based on cloud provider
+      if (selectedProvider === 'AZURE') {
+        const response = await apiClient.invoke('azure-cost-optimization', {
+          body: {
+            credentialId: selectedAccountId,
+            categories: ['Cost']
+          }
+        });
+
+        if (response.error) {
+          throw new Error(getErrorMessage(response.error));
+        }
+
+        return response.data;
+      }
+
+      // AWS handler
       const response = await apiClient.invoke('cost-optimization', {
         body: {
           ...(selectedAccountId ? { accountId: selectedAccountId } : {})
