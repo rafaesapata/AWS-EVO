@@ -384,8 +384,9 @@ function buildFeatureTests(ctx: TestContext): FeatureTest[] {
       test: async () => {
         const r = await azureGet(ctx.accessToken, `${BASE}/providers/Microsoft.Capacity/reservationOrders?api-version=2022-11-01`);
         if (r.status === 200) return ok(`${r.body?.value?.length ?? 0} reservation order(s)`);
-        if (r.status === 403) return fail('Sem permissão para listar reservations');
-        return fail(`HTTP ${r.status}`);
+        if (r.status === 403) return fail('Sem permissão para listar reservations. Necessário role "Reservations Reader" ou "Owner" no escopo da subscription. Se não usa Reserved Instances, pode ignorar.');
+        if (r.status === 404) return fail('API de Reservations não disponível nesta subscription.');
+        return fail(`HTTP ${r.status}: ${r.body?.error?.message || ''}`);
       },
     },
 
@@ -397,7 +398,7 @@ function buildFeatureTests(ctx: TestContext): FeatureTest[] {
       critical: true,
       permissions: ['Microsoft.Security/assessments/read'],
       test: async () => {
-        const r = await azureGet(ctx.accessToken, `${BASE}/subscriptions/${sub}/providers/Microsoft.Security/assessments?api-version=2021-06-01&$top=5`);
+        const r = await azureGet(ctx.accessToken, `${BASE}/subscriptions/${sub}/providers/Microsoft.Security/assessments?api-version=2021-06-01&$top=5`, 30000);
         if (r.status !== 200) return fail(`HTTP ${r.status}: ${r.body?.error?.message || 'Sem acesso a Security Assessments'}`);
         return ok(`${r.body?.value?.length ?? 0} assessment(s) na primeira página`);
       },
@@ -434,7 +435,8 @@ function buildFeatureTests(ctx: TestContext): FeatureTest[] {
       permissions: ['Microsoft.Security/regulatoryComplianceStandards/read'],
       test: async () => {
         const r = await azureGet(ctx.accessToken, `${BASE}/subscriptions/${sub}/providers/Microsoft.Security/regulatoryComplianceStandards?api-version=2019-01-01-preview`);
-        if (r.status !== 200) return fail(`HTTP ${r.status}`);
+        if (r.status === 401 || r.status === 403) return fail(`HTTP ${r.status}: Defender for Cloud Regulatory Compliance não está habilitado ou o Service Principal não tem role "Security Reader". Ative o plano em Azure Portal → Defender for Cloud → Regulatory Compliance.`);
+        if (r.status !== 200) return fail(`HTTP ${r.status}: ${r.body?.error?.message || ''}`);
         return ok(`${r.body?.value?.length ?? 0} compliance standard(s)`);
       },
     },
@@ -651,6 +653,7 @@ export async function handler(
               durationMs: Date.now() - start,
             };
           } catch (err: any) {
+            const isTimeout = err.name === 'AbortError' || err.message?.includes('aborted');
             return {
               id: t.id,
               name: t.name,
@@ -658,7 +661,9 @@ export async function handler(
               critical: t.critical,
               permissions: t.permissions,
               status: t.critical ? 'error' as const : 'warning' as const,
-              detail: `Exceção: ${err.message}`,
+              detail: isTimeout
+                ? `Timeout: a API do Azure demorou demais para responder. Isso pode acontecer em subscriptions com muitos recursos. Tente novamente.`
+                : `Exceção: ${err.message}`,
               durationMs: Date.now() - start,
             };
           }
