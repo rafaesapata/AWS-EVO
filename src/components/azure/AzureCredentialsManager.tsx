@@ -219,11 +219,50 @@ export function AzureCredentialsManager() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
+      <div className="space-y-6">
+        {/* Header - show immediately */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+              <Cloud className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">{t('azure.credentials', 'Azure Credentials')}</h2>
+              <p className="text-sm text-muted-foreground">
+                {t('azure.credentialsDescription', 'Manage your Azure subscription connections')}
+              </p>
+            </div>
+          </div>
+          <Skeleton className="h-10 w-36" />
+        </div>
+        {/* Credential cards skeleton */}
         <div className="grid gap-4 md:grid-cols-2">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Card key={i} className="glass border-primary/20">
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-5 w-5 rounded" />
+                    <Skeleton className="h-5 w-40" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-5 w-24 rounded-full" />
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, j) => (
+                    <div key={j} className="flex justify-between">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     );

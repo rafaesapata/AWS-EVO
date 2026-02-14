@@ -8,6 +8,7 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Key, Trash2, Building2, ShieldCheck, Pencil, CloudCog, Copy, AlertTriangle, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { RegionSelector } from "./RegionSelector";
 import CloudFormationDeploy from "./CloudFormationDeploy";
 import { useTranslation } from "react-i18next";
@@ -275,6 +276,47 @@ const AwsCredentialsManager = () => {
 
   return (
     <div className="space-y-6">
+      {/* Loading skeleton for accounts list */}
+      {isLoading && (
+        <Card className="border-border shadow-card">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-primary" />
+                <Skeleton className="h-6 w-56" />
+              </div>
+              <Skeleton className="h-9 w-40" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="p-4 border rounded-lg bg-card border-border">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-5 w-36" />
+                      <Skeleton className="h-5 w-20 rounded-md" />
+                    </div>
+                    <Skeleton className="h-3 w-48" />
+                    <Skeleton className="h-3 w-64 mt-3" />
+                    <div className="flex gap-1.5 mt-3">
+                      {Array.from({ length: 3 }).map((_, j) => (
+                        <Skeleton key={j} className="h-5 w-20 rounded-md" />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Skeleton className="h-9 w-32" />
+                    <Skeleton className="h-9 w-9" />
+                    <Skeleton className="h-9 w-9" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Warning for legacy access key accounts */}
       {hasLegacyAccounts && (
         <Alert variant="destructive" className="border-orange-400 dark:border-orange-700 bg-orange-50 dark:bg-orange-950/40">
