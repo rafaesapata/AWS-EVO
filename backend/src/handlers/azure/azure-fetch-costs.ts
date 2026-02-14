@@ -17,7 +17,6 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
-import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 import { fetchWithRetry, DEFAULT_AZURE_RETRY_CONFIG } from '../../lib/azure-retry.js';
 
@@ -253,13 +252,54 @@ export async function handler(
 
     logger.info('Fetching Azure costs', { organizationId });
 
-    // Parse and validate request body
-    const validation = parseAndValidateBody(azureFetchCostsSchema, event.body);
-    if (!validation.success) {
-      return validation.error;
+    // Handle base64-encoded body from API Gateway HTTP API v2
+    let rawBody = event.body;
+    if (rawBody && (event as any).isBase64Encoded) {
+      try {
+        rawBody = Buffer.from(rawBody, 'base64').toString('utf-8');
+      } catch (decodeErr) {
+        logger.warn('Failed to decode base64 body', { error: String(decodeErr) });
+      }
     }
 
-    const { credentialId, startDate, endDate, granularity = 'DAILY' } = validation.data;
+    // Parse body manually first to log what we receive
+    let parsedBody: any = {};
+    if (rawBody) {
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch (parseErr) {
+        logger.error('Failed to parse request body', {
+          bodyPreview: rawBody?.substring(0, 200),
+          isBase64Encoded: (event as any).isBase64Encoded,
+          error: String(parseErr),
+        });
+        return error('Invalid JSON format in request body', 400);
+      }
+    }
+
+    logger.info('Request body parsed', {
+      hasCredentialId: !!parsedBody.credentialId,
+      credentialIdLength: parsedBody.credentialId?.length,
+      startDate: parsedBody.startDate,
+      endDate: parsedBody.endDate,
+      granularity: parsedBody.granularity,
+    });
+
+    // Validate with Zod schema directly (skip sanitization that can corrupt UUIDs)
+    const schemaResult = azureFetchCostsSchema.safeParse(parsedBody);
+    if (!schemaResult.success) {
+      const errorMessages = schemaResult.error.errors.map(err =>
+        `${err.path.join('.')}: ${err.message}`
+      ).join(', ');
+      logger.error('Validation failed', {
+        errors: errorMessages,
+        receivedFields: Object.keys(parsedBody),
+        credentialIdValue: parsedBody.credentialId?.substring(0, 8) + '...',
+      });
+      return error(`Validation error: ${errorMessages}`, 400);
+    }
+
+    const { credentialId, startDate, endDate, granularity = 'DAILY' } = schemaResult.data;
 
     // Azure Cost Management API limits queries to 1 year max
     const maxStartDate = new Date(new Date(endDate).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];

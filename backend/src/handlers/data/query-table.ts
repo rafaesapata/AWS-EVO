@@ -114,9 +114,8 @@ function isFieldNameSafe(fieldName: string): boolean {
 }
 const FIELD_MAPPING: Record<string, Record<string, string | null>> = {
   // Tabelas que tiveram account_id migrado para aws_account_id
-  // NOTA: azure_credential_id é mapeado para aws_account_id porque os custos Azure
-  // são salvos com aws_account_id contendo o ID da credencial Azure
-  'daily_costs': { 'cost_date': 'date', 'account_id': 'aws_account_id', 'azure_credential_id': 'aws_account_id' },
+  // Azure costs use azure_credential_id field (NOT aws_account_id)
+  'daily_costs': { 'cost_date': 'date', 'account_id': 'aws_account_id' },
   'waste_detections': { 'account_id': 'aws_account_id' },
   'waste_detection': { 'account_id': 'aws_account_id' },
   'compliance_violations': { 'account_id': 'aws_account_id' },

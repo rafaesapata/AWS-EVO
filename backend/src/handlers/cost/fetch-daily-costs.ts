@@ -109,11 +109,11 @@ export async function handler(
         
         const requestedStart = requestedStartDate || getDateDaysAgo(365);
         
-        // Fetch Azure costs from database
+        // Fetch Azure costs from database (use azure_credential_id, NOT aws_account_id)
         const azureCosts = await prisma.dailyCost.findMany({
           where: {
             organization_id: organizationId,
-            aws_account_id: accountId, // Azure uses this field to store credential ID
+            azure_credential_id: accountId,
             cloud_provider: 'AZURE',
             date: {
               gte: new Date(requestedStart),
@@ -125,7 +125,7 @@ export async function handler(
         
         // Transform to expected format
         const costs = azureCosts.map(c => ({
-          accountId: c.aws_account_id,
+          accountId: c.azure_credential_id || accountId,
           accountName: azureCredential.subscription_name || azureCredential.subscription_id,
           date: c.date.toISOString().split('T')[0],
           service: c.service || 'Unknown',
