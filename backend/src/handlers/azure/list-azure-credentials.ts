@@ -155,7 +155,21 @@ export async function handler(
       requestId: context.awsRequestId,
       errorDetails,
     });
-    // Include error details in response for debugging (sanitized by response.ts in production)
-    return error(`Failed to list Azure credentials: ${errorDetails.name}: ${errorDetails.message}`, 500, undefined, origin);
+    // Return error info in a custom header to bypass response sanitization
+    return {
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'X-Debug-Error': Buffer.from(JSON.stringify(errorDetails)).toString('base64').substring(0, 500),
+      },
+      body: JSON.stringify({
+        success: false,
+        error: 'Failed to list Azure credentials',
+        debug: errorDetails,
+        timestamp: new Date().toISOString(),
+      }),
+    };
   }
 }
