@@ -261,6 +261,10 @@ export async function handler(
 
     const { credentialId, startDate, endDate, granularity = 'DAILY' } = validation.data;
 
+    // Azure Cost Management API limits queries to 1 year max
+    const maxStartDate = new Date(new Date(endDate).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const effectiveStartDate = startDate < maxStartDate ? maxStartDate : startDate;
+
     // Fetch Azure credential
     const credential = await prisma.azureCredential.findFirst({
       where: {
@@ -294,7 +298,7 @@ export async function handler(
     }
 
     // Build and execute cost query
-    const requestBody = buildCostQueryRequest(startDate, endDate, granularity ?? 'DAILY');
+    const requestBody = buildCostQueryRequest(effectiveStartDate, endDate, granularity ?? 'DAILY');
     const costResult = await queryCostManagementApi(
       credential.subscription_id,
       tokenResult.token,
@@ -329,7 +333,7 @@ export async function handler(
 
     // Transform rows to cost data
     const costs = rows.map((row) => ({
-      date: parseAzureDate(row[columnIndices.date], startDate),
+      date: parseAzureDate(row[columnIndices.date], effectiveStartDate),
       service: String(row[columnIndices.service] || 'Unknown'),
       cost: parseFloat(String(row[columnIndices.cost])) || 0,
       currency: String(row[columnIndices.currency] || 'BRL'),
@@ -410,7 +414,7 @@ export async function handler(
       subscriptionId: credential.subscription_id,
       subscriptionName: credential.subscription_name,
       period: {
-        startDate,
+        startDate: effectiveStartDate,
         endDate,
         granularity,
       },

@@ -418,7 +418,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  // Azure: First trigger azure-fetch-costs in background (fire-and-forget)
  // Then immediately return data from database via fetch-daily-costs
  const endDate = new Date().toISOString().split('T')[0];
- const startDate = '2024-01-01'; // Full fetch from beginning of 2024
+ const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Azure API max 1 year
  
  // Fire-and-forget: trigger Azure cost sync (don't await)
  apiClient.invoke('azure-fetch-costs', {
@@ -443,7 +443,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  accountId,
  incremental: false,
  granularity: 'DAILY',
- startDate: '2024-01-01'
+ startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
  }
  });
  
@@ -720,42 +720,71 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  setCurrentPage(1);
  }, [selectedRegion, selectedTag, selectedAccountId]);
 
- const loadingContent = (
- <Card>
- <CardHeader>
- <Skeleton className="h-8 w-64" />
- <Skeleton className="h-4 w-96 mt-2" />
+ // Skeleton that mirrors the real page structure for perceived performance
+ const mainContentSkeleton = (
+ <>
+ {/* Summary Stats Skeleton */}
+ <div className="grid gap-4 md:grid-cols-4">
+ {Array.from({ length: 4 }).map((_, i) => (
+ <Card key={i} className="glass border-primary/20">
+ <CardHeader className="pb-2">
+ <Skeleton className="h-4 w-24" />
  </CardHeader>
  <CardContent>
- <Skeleton className="h-64 w-full" />
+ <Skeleton className="h-8 w-32" />
  </CardContent>
  </Card>
+ ))}
+ </div>
+ {/* Chart Skeleton */}
+ <Card className="glass border-primary/20">
+ <CardHeader>
+ <Skeleton className="h-6 w-48" />
+ <Skeleton className="h-4 w-72 mt-1" />
+ </CardHeader>
+ <CardContent>
+ <Skeleton className="h-[400px] w-full rounded-md" />
+ </CardContent>
+ </Card>
+ {/* Table Skeleton */}
+ <Card className="glass border-primary/20">
+ <CardHeader>
+ <div className="flex items-center justify-between">
+ <div>
+ <Skeleton className="h-6 w-56" />
+ <Skeleton className="h-4 w-80 mt-1" />
+ </div>
+ <div className="flex gap-2">
+ <Skeleton className="h-9 w-28" />
+ <Skeleton className="h-9 w-28" />
+ </div>
+ </div>
+ </CardHeader>
+ <CardContent className="space-y-3">
+ {/* Filter skeletons */}
+ <div className="flex gap-4">
+ {Array.from({ length: 3 }).map((_, i) => (
+ <Skeleton key={i} className="h-10 flex-1 min-w-[200px]" />
+ ))}
+ </div>
+ {/* Table rows skeleton */}
+ {Array.from({ length: 6 }).map((_, i) => (
+ <Skeleton key={i} className="h-12 w-full" />
+ ))}
+ </CardContent>
+ </Card>
+ </>
  );
-
- if (isLoading) {
- if (embedded) {
- return loadingContent;
- }
- return (
- <Layout
- title={t('costAnalysis.title', 'Análise Detalhada de Custos')}
- description={t('costAnalysis.description', 'Visualize e analise seus custos AWS em detalhes')}
- icon={<DollarSign className="h-4 w-4" />}
- >
- {loadingContent}
- </Layout>
- );
- }
 
  const content = (
  <div className="space-y-4">
- {/* Reserved Instances & Savings Plans */}
+ {/* Reserved Instances & Savings Plans - renders independently with own loading */}
  <RiSpAnalysis />
  
- {/* Previsão e Tendências */}
+ {/* Previsão e Tendências - render independently with own loading */}
  <div className="grid gap-4 md:grid-cols-2">
  <CostForecast accountId={selectedAccountId} />
- <CostTrends accountId={selectedAccountId} costs={costs || []} />
+ <CostTrends accountId={selectedAccountId} costs={isLoading ? [] : (costs || [])} />
  </div>
 
  <Card>
@@ -772,7 +801,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  variant="outline" 
  size="sm" 
  onClick={() => refreshCostsMutation.mutate()}
- disabled={refreshCostsMutation.isPending}
+ disabled={refreshCostsMutation.isPending || isLoading}
  >
  <RefreshCw className={`h-4 w-4 mr-2 ${refreshCostsMutation.isPending ? 'animate-spin' : ''}`} />
  {refreshCostsMutation.isPending ? t('costAnalysis.refreshing') : t('costAnalysis.refresh')}
@@ -781,7 +810,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  variant="outline" 
  size="sm" 
  onClick={() => fullFetchCostsMutation.mutate()}
- disabled={fullFetchCostsMutation.isPending}
+ disabled={fullFetchCostsMutation.isPending || isLoading}
  className="bg-blue-50 hover:bg-blue-100 border-blue-200"
  >
  <RefreshCw className={`h-4 w-4 mr-2 ${fullFetchCostsMutation.isPending ? 'animate-spin' : ''}`} />
@@ -796,7 +825,9 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  </div>
  </CardHeader>
  <CardContent className="space-y-4">
- {/* Filters */}
+ {/* Show skeleton for main content area while loading */}
+ {isLoading ? mainContentSkeleton : (
+ <>
  <div className="flex gap-4 flex-wrap">
  <div className="flex-1 min-w-[200px]">
  <label className="text-sm font-medium mb-2 block">{t('costAnalysis.region')}</label>
