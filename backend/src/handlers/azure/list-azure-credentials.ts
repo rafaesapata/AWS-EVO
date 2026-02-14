@@ -18,25 +18,57 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 
+/**
+ * Get origin from event for CORS headers
+ */
+function getOriginFromEvent(event: AuthorizedEvent): string {
+  const headers = event.headers || {};
+  return headers['origin'] || headers['Origin'] || '*';
+}
+
 export async function handler(
   event: AuthorizedEvent,
-  _context: LambdaContext
+  context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
+  const origin = getOriginFromEvent(event);
+
   // Handle CORS preflight
   if (getHttpMethod(event) === 'OPTIONS') {
-    return corsOptions();
+    return corsOptions(origin);
   }
+
+  // Authenticate first — return 401 on failure, not 500
+  let organizationId: string;
+  let userId: string;
 
   try {
     const user = getUserFromEvent(event);
-    const organizationId = getOrganizationIdWithImpersonation(event, user);
+    userId = user.sub || 'unknown';
+    organizationId = getOrganizationIdWithImpersonation(event, user);
+  } catch (authError: any) {
+    logger.error('Authentication error in list-azure-credentials', authError);
+    return error('Authentication failed. Please login again.', 401, undefined, origin);
+  }
+
+  try {
     const prisma = getPrismaClient();
 
-    logger.info('Listing Azure credentials', { organizationId });
+    logger.info('Listing Azure credentials', { organizationId, userId, requestId: context.awsRequestId });
 
-    // Parse query parameters
-    const queryParams = event.queryStringParameters || {};
-    const activeOnly = queryParams.activeOnly !== 'false';
+    // Parse body or query parameters for activeOnly filter
+    let activeOnly = true;
+    try {
+      const body = event.body ? JSON.parse(event.body) : {};
+      if (body.activeOnly === false || body.activeOnly === 'false') {
+        activeOnly = false;
+      }
+    } catch {
+      // If body parsing fails, check query params as fallback
+      const queryParams = event.queryStringParameters || {};
+      if (queryParams.activeOnly === 'false') {
+        activeOnly = false;
+      }
+    }
 
     // Build where clause
     const where: any = {
@@ -80,6 +112,7 @@ export async function handler(
     logger.info('Azure credentials listed', {
       organizationId,
       count: credentials.length,
+      requestId: context.awsRequestId,
     });
 
     // Transform to camelCase for frontend
@@ -108,12 +141,13 @@ export async function handler(
       provider: 'AZURE',
     }));
 
-    return success({
-      data: transformedCredentials,
-      total: transformedCredentials.length,
-    });
+    return success(transformedCredentials, 200, origin);
   } catch (err: any) {
-    logger.error('Error listing Azure credentials', { error: err.message });
-    return error('Failed to list Azure credentials', 500);
+    logger.error('Error listing Azure credentials', err, {
+      organizationId,
+      userId,
+      requestId: context.awsRequestId,
+    });
+    return error('Failed to list Azure credentials', 500, undefined, origin);
   }
 }
