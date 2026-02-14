@@ -703,7 +703,7 @@
     "clickToGenerate": "Clique em \"Gerar Insights\" para análise de IA"
   },
   "monthlyInvoices": {
-    "title": "Faturas Mensais AWS",
+    "title": "Faturas Mensais",
     "description": "Exploração completa de custos mês a mês com análise detalhada",
     "month": "Mês",
     "selectMonth": "Selecionar mês",

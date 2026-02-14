@@ -434,7 +434,7 @@
     "clickToGenerate": "Click \"Generate Insights\" for AI analysis"
   },
   "monthlyInvoices": {
-    "title": "AWS Monthly Invoices",
+    "title": "Monthly Invoices",
     "description": "Complete month-by-month cost exploration with detailed analysis",
     "month": "Month",
     "selectMonth": "Select month",

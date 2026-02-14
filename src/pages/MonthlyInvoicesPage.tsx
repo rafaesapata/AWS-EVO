@@ -208,21 +208,58 @@ export const MonthlyInvoicesPage = () => {
         })) as DailyCostRecord[];
       }
 
-      const response = await apiClient.select<DailyCostRecord>('daily_costs', {
-        select: '*',
-        eq: { 
-          organization_id: organizationId,
-          ...getAccountFilter() // Multi-cloud compatible
-        },
-        order: { column: 'date', ascending: false },
-        limit: 50000 // Ensure we get all cost records (default is 1000)
+      // Use fetch-daily-costs Lambda which handles both AWS and Azure properly
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 12); // Last 12 months
+
+      const lambdaResponse = await apiClient.invoke<any>('fetch-daily-costs', {
+        body: {
+          accountId: selectedAccountId,
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0],
+          granularity: 'DAILY',
+          incremental: true,
+        }
       });
 
-      if (response.error) {
-        throw new Error(getErrorMessage(response.error));
+      let costs: any[] = [];
+
+      if (!lambdaResponse.error) {
+        const lambdaData = lambdaResponse.data;
+        costs = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
       }
 
-      return response.data || [];
+      // Fallback: if Lambda returned empty or failed, query DB directly
+      if (!costs || costs.length === 0) {
+        const response = await apiClient.select<DailyCostRecord>('daily_costs', {
+          select: '*',
+          eq: { 
+            organization_id: organizationId,
+            ...getAccountFilter() // Multi-cloud compatible
+          },
+          order: { column: 'date', ascending: false },
+          limit: 50000
+        });
+
+        if (response.error) {
+          throw new Error(getErrorMessage(response.error));
+        }
+
+        return response.data || [];
+      }
+
+      // Transform Lambda response to expected format
+      return costs.map((c: any) => ({
+        id: c.id || `cost-${Math.random()}`,
+        organization_id: organizationId,
+        aws_account_id: c.accountId || c.aws_account_id || selectedAccountId,
+        date: c.date || c.cost_date,
+        service: c.service || 'Unknown',
+        cost: c.cost || c.total_cost || 0,
+        usage: c.usage || 0,
+        currency: c.currency || 'USD',
+      })) as DailyCostRecord[];
     },
   });
 
@@ -476,7 +513,7 @@ export const MonthlyInvoicesPage = () => {
 
   return (
     <Layout 
-      title={t('monthlyInvoices.title', 'Monthly Invoices') + ` ${providerDisplayName}`}
+      title={t('monthlyInvoices.title', 'Monthly Invoices')}
       description={t('monthlyInvoices.description', 'Detailed visualization and analysis of monthly invoices')}
       icon={<FileText className="h-5 w-5" />}
     >
