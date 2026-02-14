@@ -6,13 +6,15 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Cloud, CheckCircle, XCircle, RefreshCw, MoreVertical, ShieldCheck, AlertTriangle, Link2 } from 'lucide-react';
+import { Plus, Trash2, Cloud, CheckCircle, XCircle, RefreshCw, MoreVertical, ShieldCheck, AlertTriangle, Link2, CheckCircle2, Clock, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -59,6 +61,37 @@ interface AzureCredential {
   updatedAt: string;
 }
 
+interface AzureTestResult {
+  id: string;
+  name: string;
+  feature: string;
+  critical: boolean;
+  permissions: string[];
+  status: 'ok' | 'error' | 'warning';
+  detail: string;
+  durationMs: number;
+}
+
+interface AzurePermissionResults {
+  summary: {
+    total: number;
+    ok: number;
+    errors: number;
+    warnings: number;
+    isValid: boolean;
+    totalDurationMs: number;
+  };
+  results: AzureTestResult[];
+  byFeature: Record<string, AzureTestResult[]>;
+  missingPermissions: string[];
+  credential: {
+    id: string;
+    subscriptionId: string;
+    subscriptionName: string | null;
+    authType: string;
+  };
+}
+
 export function AzureCredentialsManager() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -66,6 +99,7 @@ export function AzureCredentialsManager() {
   const [showQuickConnect, setShowQuickConnect] = useState(false);
   const [deleteCredentialId, setDeleteCredentialId] = useState<string | null>(null);
   const [validatingCredentialId, setValidatingCredentialId] = useState<string | null>(null);
+  const [permissionResults, setPermissionResults] = useState<AzurePermissionResults | null>(null);
 
   // Fetch Azure credentials
   const { data: credentials = [], isLoading, error, refetch } = useQuery({
@@ -126,9 +160,10 @@ export function AzureCredentialsManager() {
     },
     onSuccess: (data) => {
       setValidatingCredentialId(null);
+      setPermissionResults(data);
       
       const missingPermissions = data.missingPermissions || [];
-      const warnings = data.warnings || [];
+      const warnings = data.results?.filter((r: AzureTestResult) => r.status === 'warning') || [];
       
       if (missingPermissions.length === 0 && warnings.length === 0) {
         toast.success(
@@ -137,20 +172,8 @@ export function AzureCredentialsManager() {
             description: t('azure.permissionsValidDescription', 'Your Azure credentials have all required permissions.'),
           }
         );
-      } else if (missingPermissions.length > 0) {
-        toast.error(
-          t('azure.permissionsMissing', 'Missing required permissions'),
-          {
-            description: `${missingPermissions.length} ${t('azure.permissionsMissingCount', 'permission(s) missing')}`,
-          }
-        );
       } else {
-        toast.warning(
-          t('azure.permissionsWarnings', 'Permissions validated with warnings'),
-          {
-            description: `${warnings.length} ${t('azure.permissionsWarningsCount', 'warning(s) found')}`,
-          }
-        );
+        // Don't show toast — the dialog will open with full details
       }
     },
     onError: (err: Error) => {
@@ -460,6 +483,168 @@ export function AzureCredentialsManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Permission Validation Results Dialog */}
+      <Dialog open={!!permissionResults} onOpenChange={() => setPermissionResults(null)}>
+        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              {t('azure.permissionTestResults', 'Permission Validation Results')}
+            </DialogTitle>
+            <DialogDescription>
+              {permissionResults?.credential?.subscriptionName || permissionResults?.credential?.subscriptionId}
+            </DialogDescription>
+          </DialogHeader>
+          {permissionResults && (
+            <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0">
+              {/* Summary banner */}
+              <div className={`p-4 rounded-lg border ${
+                permissionResults.summary.isValid
+                  ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800'
+                  : 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800'
+              }`}>
+                <div className="flex items-center gap-3">
+                  {permissionResults.summary.isValid ? (
+                    <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400 shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <p className="font-semibold text-foreground">
+                      {permissionResults.summary.isValid
+                        ? t('azure.allPermissionsGranted', 'All permissions granted')
+                        : t('azure.somePermissionsMissing', 'Some permissions are missing')}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {t('azure.permissionsSummary', '{{ok}} of {{total}} tests passed ({{errors}} errors, {{warnings}} warnings)', {
+                        ok: permissionResults.summary.ok,
+                        total: permissionResults.summary.total,
+                        errors: permissionResults.summary.errors,
+                        warnings: permissionResults.summary.warnings,
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                    <Clock className="h-3 w-3" />
+                    {(permissionResults.summary.totalDurationMs / 1000).toFixed(1)}s
+                  </div>
+                </div>
+              </div>
+
+              {/* Results grouped by feature */}
+              <div className="space-y-3 pr-1">
+                {Object.entries(permissionResults.byFeature).map(([feature, tests]) => {
+                  const featureOk = tests.every(t => t.status === 'ok');
+                  const featureErrors = tests.filter(t => t.status === 'error').length;
+                  const featureWarnings = tests.filter(t => t.status === 'warning').length;
+                  return (
+                    <div key={feature} className="border rounded-lg overflow-hidden">
+                      <div className={`px-4 py-2 flex items-center justify-between text-sm font-medium ${
+                        featureOk
+                          ? 'bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-300'
+                          : featureErrors > 0
+                            ? 'bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300'
+                            : 'bg-yellow-50 dark:bg-yellow-950/20 text-yellow-800 dark:text-yellow-300'
+                      }`}>
+                        <span className="flex items-center gap-2">
+                          {featureOk ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                          ) : featureErrors > 0 ? (
+                            <XCircle className="h-4 w-4" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4" />
+                          )}
+                          {feature}
+                        </span>
+                        <span className="text-xs opacity-75">
+                          {tests.filter(t => t.status === 'ok').length}/{tests.length}
+                        </span>
+                      </div>
+                      <div className="divide-y">
+                        {tests.map((test) => (
+                          <div key={test.id} className="px-4 py-2 flex items-start justify-between gap-2 text-sm">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                {test.status === 'ok' ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
+                                ) : test.status === 'error' ? (
+                                  <XCircle className="h-3.5 w-3.5 text-red-500 dark:text-red-400 shrink-0" />
+                                ) : (
+                                  <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 dark:text-yellow-400 shrink-0" />
+                                )}
+                                <span className="font-medium text-foreground">{test.name}</span>
+                                {test.critical && (
+                                  <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">
+                                    {t('azure.critical', 'Critical')}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5 ml-5.5">{test.detail}</p>
+                              {test.status !== 'ok' && test.permissions.length > 0 && (
+                                <div className="mt-1 ml-5.5 flex flex-wrap gap-1">
+                                  {test.permissions.map((perm) => (
+                                    <span key={perm} className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded">
+                                      {perm}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                              {test.durationMs}ms
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Missing permissions summary with copy */}
+              {permissionResults.missingPermissions.length > 0 && (
+                <div className="border border-destructive/30 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-destructive">
+                      {t('azure.missingPermissionsList', '{{count}} missing permission(s)', {
+                        count: permissionResults.missingPermissions.length,
+                      })}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                      onClick={() => {
+                        navigator.clipboard.writeText(permissionResults.missingPermissions.join('\n'));
+                        toast.success(t('azure.permissionsCopied', 'Permissions copied to clipboard'));
+                      }}
+                    >
+                      <Copy className="h-3 w-3" />
+                      {t('common.copy', 'Copy')}
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {permissionResults.missingPermissions.map((perm) => (
+                      <span key={perm} className="text-xs font-mono bg-destructive/10 text-destructive px-2 py-0.5 rounded border border-destructive/20">
+                        {perm}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t('azure.missingPermissionsHint', 'Add these permissions to the Service Principal or user in Azure Portal → Subscriptions → Access Control (IAM) → Add role assignment.')}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPermissionResults(null)}>
+              {t('common.close', 'Close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

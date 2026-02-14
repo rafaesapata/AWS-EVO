@@ -597,6 +597,43 @@ const AwsCredentialsManager = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Missing permissions summary with copy and hint */}
+              {permissionResults.missingPermissions?.length > 0 && (
+                <div className="border border-destructive/30 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-destructive">
+                      {t('aws.missingPermissionsList', '{{count}} missing permission(s)', {
+                        count: permissionResults.missingPermissions.length,
+                      })}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                      onClick={() => {
+                        navigator.clipboard.writeText(permissionResults.missingPermissions.join('\n'));
+                        toast({
+                          title: t('aws.permissionsCopied', 'Permissions copied to clipboard'),
+                        });
+                      }}
+                    >
+                      <Copy className="w-3 h-3" />
+                      {t('common.copy', 'Copy')}
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {permissionResults.missingPermissions.map((perm: string) => (
+                      <span key={perm} className="text-xs font-mono bg-destructive/10 text-destructive px-2 py-0.5 rounded border border-destructive/20">
+                        {perm}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t('aws.missingPermissionsHint', 'Add these permissions to the IAM Role policy in AWS Console → IAM → Roles → select the role → Add permissions, or update the CloudFormation stack.')}
+                  </p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
