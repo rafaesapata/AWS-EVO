@@ -124,28 +124,52 @@ export async function handler(
         // Processar job baseado no tipo
         const result = await processJob(prisma, lambdaClient, job);
         
-        // Marcar como completo
-        await prisma.backgroundJob.update({
-          where: { id: job.id },
-          data: {
+        // For delegated jobs (async Lambda scans), keep status as 'running'.
+        // The invoked Lambda is responsible for marking the job completed/failed.
+        if (result?.delegated) {
+          await prisma.backgroundJob.update({
+            where: { id: job.id },
+            data: {
+              result,
+            },
+          });
+          
+          results.push({
+            jobId: job.id,
+            jobType: job.job_type,
+            status: 'delegated',
+            organizationId: jobOrgId,
+          });
+          
+          logger.info('Background job delegated to scan Lambda', { 
+            jobId: job.id, 
+            jobType: job.job_type,
+            organizationId: jobOrgId 
+          });
+        } else {
+          // Local jobs — mark as completed immediately
+          await prisma.backgroundJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'completed',
+              result,
+              completed_at: new Date(),
+            },
+          });
+          
+          results.push({
+            jobId: job.id,
+            jobType: job.job_type,
             status: 'completed',
-            result,
-            completed_at: new Date(),
-          },
-        });
-        
-        results.push({
-          jobId: job.id,
-          jobType: job.job_type,
-          status: 'completed',
-          organizationId: jobOrgId,
-        });
-        
-        logger.info('Background job completed', { 
-          jobId: job.id, 
-          jobType: job.job_type,
-          organizationId: jobOrgId 
-        });
+            organizationId: jobOrgId,
+          });
+          
+          logger.info('Background job completed', { 
+            jobId: job.id, 
+            jobType: job.job_type,
+            organizationId: jobOrgId 
+          });
+        }
         
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -178,19 +202,21 @@ export async function handler(
     const completed = results.filter(r => r.status === 'completed').length;
     const failed = results.filter(r => r.status === 'failed').length;
     const rateLimited = results.filter(r => r.status === 'rate_limited').length;
+    const delegated = results.filter(r => r.status === 'delegated').length;
     
     logger.info('Process Background Jobs completed', {
       jobsProcessed: results.length,
       completed,
       failed,
       rateLimited,
+      delegated,
       durationMs: Date.now() - startTime
     });
     
     return success({
       success: true,
       jobsProcessed: results.length,
-      summary: { completed, failed, rateLimited },
+      summary: { completed, failed, rateLimited, delegated },
       results,
       durationMs: Date.now() - startTime
     });
@@ -221,6 +247,8 @@ async function processJob(prisma: any, lambdaClient: LambdaClient, job: any): Pr
   // If it's a scan job, invoke the corresponding Lambda
   if (scanJobMapping[job.job_type]) {
     const lambdaName = scanJobMapping[job.job_type];
+    const prefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'production'}`;
+    const functionName = `${prefix}-${lambdaName}`;
     
     const payload = {
       body: JSON.stringify({
@@ -242,15 +270,26 @@ async function processJob(prisma: any, lambdaClient: LambdaClient, job: any): Pr
     };
     
     await lambdaClient.send(new InvokeCommand({
-      FunctionName: `evo-uds-v3-production-${lambdaName}`,
+      FunctionName: functionName,
       InvocationType: 'Event', // Async
       Payload: Buffer.from(JSON.stringify(payload))
     }));
     
+    logger.info('Invoked scan Lambda async from background job', {
+      jobId: job.id,
+      functionName,
+      lambdaName,
+    });
+    
+    // Return as 'delegated' — the invoked Lambda is responsible for
+    // updating the background job status to completed/failed.
+    // Do NOT mark as completed here since the scan hasn't finished yet.
     return { 
       triggered: true, 
+      delegated: true,
       lambdaName,
-      message: `Lambda ${lambdaName} invoked asynchronously` 
+      functionName,
+      message: `Lambda ${lambdaName} invoked asynchronously — job status will be updated by the scan Lambda` 
     };
   }
   

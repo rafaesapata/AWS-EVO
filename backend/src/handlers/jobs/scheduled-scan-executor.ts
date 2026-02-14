@@ -162,8 +162,10 @@ export async function handler(
         });
         
         // Invocar Lambda de forma assíncrona
+        const prefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'production'}`;
+        const functionName = `${prefix}-${lambdaName}`;
         await lambdaClient.send(new InvokeCommand({
-          FunctionName: `evo-uds-v3-production-${lambdaName}`,
+          FunctionName: functionName,
           InvocationType: 'Event', // Async
           Payload: Buffer.from(JSON.stringify(payload))
         }));
