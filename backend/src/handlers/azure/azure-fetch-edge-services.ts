@@ -650,7 +650,7 @@ async function collectFrontDoorMetrics(
     const response = await client.metrics.list(resourceId, {
       timespan,
       interval: 'PT1H',
-      metricnames: 'RequestCount,WebApplicationFirewallRequestCount,TotalLatency,BillableResponseSize,BackendHealthPercentage',
+      metricnames: 'RequestCount,WebApplicationFirewallRequestCount,TotalLatency,BillableResponseSize,BackendHealthPercentage,OriginRequestCount',
       aggregation: 'Total,Average',
     });
     
@@ -661,6 +661,10 @@ async function collectFrontDoorMetrics(
       switch (metric.name?.value) {
         case 'RequestCount':
           metrics.requests = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
+          break;
+        case 'OriginRequestCount':
+          // Requests that went to origin = cache misses
+          metrics.cacheMisses = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
           break;
         case 'WebApplicationFirewallRequestCount':
           metrics.blockedRequests = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
@@ -674,6 +678,11 @@ async function collectFrontDoorMetrics(
           metrics.bandwidthGb = totalBytes / (1024 * 1024 * 1024);
           break;
       }
+    }
+    
+    // Calculate cache hits: total requests - origin requests = served from cache
+    if (metrics.requests > 0 && metrics.cacheMisses > 0) {
+      metrics.cacheHits = Math.max(0, metrics.requests - metrics.cacheMisses);
     }
   } catch (err) {
     logger.warn(`Failed to collect Front Door metrics: ${err}`);
@@ -762,7 +771,7 @@ async function collectLoadBalancerMetrics(
     const response = await client.metrics.list(resourceId, {
       timespan,
       interval: 'PT1H',
-      metricnames: 'PacketCount,ByteCount,SnatConnectionCount,AllocatedSnatPorts,UsedSnatPorts',
+      metricnames: 'SnatConnectionCount,ByteCount,AllocatedSnatPorts,UsedSnatPorts',
       aggregation: 'Total,Average',
     });
     
@@ -771,17 +780,16 @@ async function collectLoadBalancerMetrics(
       const data = timeseries?.data || [];
       
       switch (metric.name?.value) {
-        case 'PacketCount':
+        case 'SnatConnectionCount':
+          // Use SNAT connections as the "request" count for LBs (actual connections, not packets)
           metrics.requests = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
           break;
         case 'ByteCount':
           const totalBytes = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
           metrics.bandwidthGb = totalBytes / (1024 * 1024 * 1024);
           break;
-        case 'SnatConnectionCount':
-          // Use SNAT connections as a proxy for active connections
-          metrics.cacheHits = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
-          break;
+        // Load Balancers don't have cache - cacheHits stays 0
+        // Load Balancers don't block requests - blockedRequests stays 0
       }
     }
   } catch (err) {
@@ -813,7 +821,7 @@ async function collectNatGatewayMetrics(
     const response = await client.metrics.list(resourceId, {
       timespan,
       interval: 'PT1H',
-      metricnames: 'TotalConnectionCount,DroppedConnectionCount,ByteCount,PacketCount,SNATConnectionCount',
+      metricnames: 'TotalConnectionCount,DroppedConnectionCount,ByteCount,SNATConnectionCount',
       aggregation: 'Total,Average',
     });
     
@@ -832,9 +840,7 @@ async function collectNatGatewayMetrics(
           const totalBytes = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
           metrics.bandwidthGb = totalBytes / (1024 * 1024 * 1024);
           break;
-        case 'PacketCount':
-          metrics.cacheHits = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
-          break;
+        // NAT Gateways don't have cache - cacheHits stays 0
       }
     }
   } catch (err) {
