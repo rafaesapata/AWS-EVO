@@ -2145,7 +2145,21 @@
       "elb": "Classic Load Balancers",
       "alb": "Application LB (ALB)",
       "nlb": "Network LB (NLB)",
-      "apigateway": "API Gateway"
+      "apigateway": "API Gateway",
+      "vm": "Máquinas Virtuales",
+      "webapp": "Web Apps",
+      "sqldb": "Bases de datos SQL",
+      "storage": "Cuentas de Almacenamiento",
+      "containerapp": "Container Apps",
+      "aks": "Clústeres AKS",
+      "cosmosdb": "Cosmos DB",
+      "keyvault": "Key Vaults",
+      "redis": "Redis Cache",
+      "postgresql": "PostgreSQL",
+      "mysql": "MySQL",
+      "loadbalancer": "Balanceadores de Carga",
+      "appgateway": "App Gateways",
+      "acr": "Container Registry"
     }
   },
   "notFound": {

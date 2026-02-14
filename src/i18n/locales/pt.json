@@ -3816,7 +3816,17 @@
       "vm": "Virtual Machines",
       "webapp": "Web Apps",
       "sqldb": "SQL Databases",
-      "storage": "Storage Accounts"
+      "storage": "Storage Accounts",
+      "containerapp": "Container Apps",
+      "aks": "AKS Clusters",
+      "cosmosdb": "Cosmos DB",
+      "keyvault": "Key Vaults",
+      "redis": "Redis Cache",
+      "postgresql": "PostgreSQL",
+      "mysql": "MySQL",
+      "loadbalancer": "Load Balancers",
+      "appgateway": "App Gateways",
+      "acr": "Container Registry"
     }
   },
   "notFound": {

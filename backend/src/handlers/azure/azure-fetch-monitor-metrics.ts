@@ -47,6 +47,46 @@ const METRIC_DEFINITIONS: Record<string, { metrics: string[]; aggregation: strin
     metrics: ['UsedCapacity', 'Transactions', 'Ingress', 'Egress', 'SuccessE2ELatency'],
     aggregation: 'Average',
   },
+  'Microsoft.App/containerApps': {
+    metrics: ['Requests', 'Replicas', 'RestartCount', 'RxBytes', 'TxBytes'],
+    aggregation: 'Average',
+  },
+  'Microsoft.ContainerService/managedClusters': {
+    metrics: ['node_cpu_usage_percentage', 'node_memory_rss_percentage', 'kube_pod_status_ready'],
+    aggregation: 'Average',
+  },
+  'Microsoft.DocumentDB/databaseAccounts': {
+    metrics: ['TotalRequests', 'TotalRequestUnits', 'ProvisionedThroughput', 'DocumentCount', 'DataUsage'],
+    aggregation: 'Average',
+  },
+  'Microsoft.KeyVault/vaults': {
+    metrics: ['ServiceApiHit', 'ServiceApiLatency', 'Availability'],
+    aggregation: 'Average',
+  },
+  'Microsoft.Cache/redis': {
+    metrics: ['percentProcessorTime', 'usedmemorypercentage', 'connectedclients', 'totalcommandsprocessed', 'cachehits', 'cachemisses'],
+    aggregation: 'Average',
+  },
+  'Microsoft.DBforPostgreSQL/flexibleServers': {
+    metrics: ['cpu_percent', 'memory_percent', 'active_connections', 'storage_percent', 'network_bytes_ingress', 'network_bytes_egress'],
+    aggregation: 'Average',
+  },
+  'Microsoft.DBforMySQL/flexibleServers': {
+    metrics: ['cpu_percent', 'memory_percent', 'active_connections', 'storage_percent', 'network_bytes_ingress', 'network_bytes_egress'],
+    aggregation: 'Average',
+  },
+  'Microsoft.Network/loadBalancers': {
+    metrics: ['PacketCount', 'ByteCount', 'SnatConnectionCount', 'VipAvailability', 'DipAvailability'],
+    aggregation: 'Average',
+  },
+  'Microsoft.Network/applicationGateways': {
+    metrics: ['TotalRequests', 'FailedRequests', 'Throughput', 'HealthyHostCount', 'UnhealthyHostCount', 'ResponseStatus'],
+    aggregation: 'Average',
+  },
+  'Microsoft.ContainerRegistry/registries': {
+    metrics: ['TotalPullCount', 'TotalPushCount', 'StorageUsed', 'SuccessfulPullCount', 'SuccessfulPushCount'],
+    aggregation: 'Average',
+  },
 };
 
 const TIME_RANGE_MAP: Record<string, { duration: string; interval: string }> = {
@@ -58,7 +98,7 @@ const TIME_RANGE_MAP: Record<string, { duration: string; interval: string }> = {
   '7d': { duration: 'P7D', interval: 'PT6H' },
 };
 
-const HOURLY_INTERVAL_RESOURCE_TYPES = ['Microsoft.Storage/storageAccounts'];
+const HOURLY_INTERVAL_RESOURCE_TYPES = ['Microsoft.Storage/storageAccounts', 'Microsoft.DocumentDB/databaseAccounts', 'Microsoft.ContainerRegistry/registries'];
 
 /** Azure SQL API version for server/database listing */
 const AZURE_SQL_API_VERSION = '2023-05-01-preview';
@@ -79,6 +119,16 @@ const AZURE_TYPE_MAP: Record<string, string> = {
   'Microsoft.Web/sites': 'webapp',
   'Microsoft.Sql/servers/databases': 'sqldb',
   'Microsoft.Storage/storageAccounts': 'storage',
+  'Microsoft.App/containerApps': 'containerapp',
+  'Microsoft.ContainerService/managedClusters': 'aks',
+  'Microsoft.DocumentDB/databaseAccounts': 'cosmosdb',
+  'Microsoft.KeyVault/vaults': 'keyvault',
+  'Microsoft.Cache/redis': 'redis',
+  'Microsoft.DBforPostgreSQL/flexibleServers': 'postgresql',
+  'Microsoft.DBforMySQL/flexibleServers': 'mysql',
+  'Microsoft.Network/loadBalancers': 'loadbalancer',
+  'Microsoft.Network/applicationGateways': 'appgateway',
+  'Microsoft.ContainerRegistry/registries': 'acr',
 };
 
 /** Case-insensitive lookup helper for Record<string, T> */
@@ -182,7 +232,7 @@ export async function handler(
         resourcesFound: 0,
         resourcesProcessed: 0,
         metricsCollected: 0,
-        message: `No supported Azure resources found. Supported: VMs, App Services, SQL DBs, Storage Accounts.${permissionHint}`,
+        message: `No supported Azure resources found. Supported: VMs, App Services, SQL DBs, Storage, Container Apps, AKS, Cosmos DB, Key Vault, Redis, PostgreSQL, MySQL, Load Balancers, App Gateways, Container Registry.${permissionHint}`,
       });
     }
 

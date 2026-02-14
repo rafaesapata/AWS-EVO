@@ -155,6 +155,16 @@ const AZURE_RESOURCE_TYPES = [
   { value: 'webapp', labelKey: 'resourceMonitoring.resourceTypes.webapp', icon: Cloud },
   { value: 'sqldb', labelKey: 'resourceMonitoring.resourceTypes.sqldb', icon: Database },
   { value: 'storage', labelKey: 'resourceMonitoring.resourceTypes.storage', icon: Layers },
+  { value: 'containerapp', labelKey: 'resourceMonitoring.resourceTypes.containerapp', icon: Cloud },
+  { value: 'aks', labelKey: 'resourceMonitoring.resourceTypes.aks', icon: Server },
+  { value: 'cosmosdb', labelKey: 'resourceMonitoring.resourceTypes.cosmosdb', icon: Database },
+  { value: 'keyvault', labelKey: 'resourceMonitoring.resourceTypes.keyvault', icon: Layers },
+  { value: 'redis', labelKey: 'resourceMonitoring.resourceTypes.redis', icon: Zap },
+  { value: 'postgresql', labelKey: 'resourceMonitoring.resourceTypes.postgresql', icon: Database },
+  { value: 'mysql', labelKey: 'resourceMonitoring.resourceTypes.mysql', icon: Database },
+  { value: 'loadbalancer', labelKey: 'resourceMonitoring.resourceTypes.loadbalancer', icon: Activity },
+  { value: 'appgateway', labelKey: 'resourceMonitoring.resourceTypes.appgateway', icon: Activity },
+  { value: 'acr', labelKey: 'resourceMonitoring.resourceTypes.acr', icon: Layers },
 ];
 
 // Legacy constant for backward compatibility
@@ -213,6 +223,12 @@ const COUNT_METRICS = new Set([
   'DatabaseConnections', 'ActiveFlowCount',
   // Azure metrics
   'Transactions', 'Http5xx', 'CpuTime',
+  'TotalRequests', 'TotalRequestUnits', 'DocumentCount', 'ServiceApiHit',
+  'connectedclients', 'totalcommandsprocessed', 'cachehits', 'cachemisses',
+  'active_connections', 'PacketCount', 'SnatConnectionCount',
+  'FailedRequests', 'HealthyHostCount', 'UnhealthyHostCount', 'ResponseStatus',
+  'TotalPullCount', 'TotalPushCount', 'SuccessfulPullCount', 'SuccessfulPushCount',
+  'Replicas', 'RestartCount', 'kube_pod_status_ready',
 ]);
 
 // Função para obter variante do badge baseada no status
@@ -258,6 +274,32 @@ const getPrimaryMetric = (resourceSpecificMetrics: any[], resourceType: string) 
   } else if (resourceType === 'storage') {
     metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Transactions') ||
              resourceSpecificMetrics.find((m: any) => m.metric_name === 'UsedCapacity');
+  } else if (resourceType === 'containerapp') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'Requests') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'Replicas');
+  } else if (resourceType === 'aks') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'node_cpu_usage_percentage');
+  } else if (resourceType === 'cosmosdb') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'TotalRequests') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'TotalRequestUnits');
+  } else if (resourceType === 'keyvault') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'ServiceApiHit') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'Availability');
+  } else if (resourceType === 'redis') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'usedmemorypercentage') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'connectedclients');
+  } else if (resourceType === 'postgresql' || resourceType === 'mysql') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'cpu_percent') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'active_connections');
+  } else if (resourceType === 'loadbalancer') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'VipAvailability') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'PacketCount');
+  } else if (resourceType === 'appgateway') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'TotalRequests') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'HealthyHostCount');
+  } else if (resourceType === 'acr') {
+    metric = resourceSpecificMetrics.find((m: any) => m.metric_name === 'TotalPullCount') ||
+             resourceSpecificMetrics.find((m: any) => m.metric_name === 'StorageUsed');
   }
   
   // Fallback: qualquer métrica disponível se não encontrar a primária esperada
@@ -272,10 +314,10 @@ const formatMetricValue = (metricName: string, value: number): string => {
   if (metricName === 'Duration' || metricName === 'Latency' || metricName === 'IntegrationLatency' || metricName === 'AverageResponseTime' || metricName === 'SuccessE2ELatency') {
     return `${value.toFixed(2)} ms`;
   }
-  if (metricName === 'CPUUtilization' || metricName === 'MemoryUtilization' || metricName === 'Percentage CPU' || metricName === 'cpu_percent' || metricName === 'physical_data_read_percent' || metricName === 'log_write_percent' || metricName === 'dtu_consumption_percent' || metricName === 'storage_percent') {
+  if (metricName === 'CPUUtilization' || metricName === 'MemoryUtilization' || metricName === 'Percentage CPU' || metricName === 'cpu_percent' || metricName === 'physical_data_read_percent' || metricName === 'log_write_percent' || metricName === 'dtu_consumption_percent' || metricName === 'storage_percent' || metricName === 'node_cpu_usage_percentage' || metricName === 'node_memory_rss_percentage' || metricName === 'memory_percent' || metricName === 'percentProcessorTime' || metricName === 'usedmemorypercentage' || metricName === 'Availability' || metricName === 'VipAvailability' || metricName === 'DipAvailability') {
     return `${value.toFixed(1)}%`;
   }
-  if (metricName === 'Available Memory Bytes' || metricName === 'MemoryWorkingSet' || metricName === 'UsedCapacity' || metricName === 'Ingress' || metricName === 'Egress' || metricName === 'Disk Read Bytes' || metricName === 'Disk Write Bytes' || metricName === 'Network In Total' || metricName === 'Network Out Total') {
+  if (metricName === 'Available Memory Bytes' || metricName === 'MemoryWorkingSet' || metricName === 'UsedCapacity' || metricName === 'Ingress' || metricName === 'Egress' || metricName === 'Disk Read Bytes' || metricName === 'Disk Write Bytes' || metricName === 'Network In Total' || metricName === 'Network Out Total' || metricName === 'DataUsage' || metricName === 'StorageUsed' || metricName === 'RxBytes' || metricName === 'TxBytes' || metricName === 'ByteCount' || metricName === 'Throughput' || metricName === 'network_bytes_ingress' || metricName === 'network_bytes_egress') {
     if (value >= 1073741824) return `${(value / 1073741824).toFixed(2)} GB`;
     if (value >= 1048576) return `${(value / 1048576).toFixed(2)} MB`;
     if (value >= 1024) return `${(value / 1024).toFixed(2)} KB`;
