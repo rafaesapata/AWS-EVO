@@ -4369,6 +4369,10 @@
     "evoTestPartial": "Credenciais autenticadas (acesso restrito)",
     "evoTestFailed": "Credenciais inválidas",
     "evoTestError": "Falha no teste",
+    "evoPreviewValid": "Credenciais validadas com sucesso",
+    "evoPreviewInvalid": "Credenciais inválidas",
+    "evoTestPreviewBtn": "Testar Credenciais",
+    "evoTestRequiredFields": "Client ID e Secret são obrigatórios para testar",
     "evoTenantId": "Tenant ID (Diretório)",
     "evoTenantIdLabel": "Tenant ID (ID do Diretório)",
     "evoNotConfigured": "Não configurado"

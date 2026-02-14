@@ -99,6 +99,7 @@ export default function AdminSettings() {
     clientId: '', clientSecret: '', redirectUri: '', tenantId: '', secretExpiresAt: '', notes: '',
   });
   const [showEvoForm, setShowEvoForm] = useState(false);
+  const [evoPreviewResult, setEvoPreviewResult] = useState<{ valid: boolean; error?: string; note?: string } | null>(null);
 
   // Fetch all Azure credentials
   const { data: credentialsData, isLoading } = useQuery({
@@ -255,6 +256,31 @@ export default function AdminSettings() {
     },
   });
 
+  // EVO App test-preview mutation (test credentials from form BEFORE saving)
+  const evoTestPreviewMutation = useMutation({
+    mutationFn: async (form: { clientId: string; clientSecret: string }) => {
+      const res = await apiClient.invoke<{ valid: boolean; error?: string; note?: string; source?: string; clientId?: string }>('admin-evo-app-credentials', {
+        body: { action: 'test-preview', clientId: form.clientId, clientSecret: form.clientSecret },
+      });
+      if (res.error) throw new Error(res.error.message || 'Request failed');
+      return res.data;
+    },
+    onSuccess: (data) => {
+      setEvoPreviewResult({ valid: data.valid, error: data.error, note: data.note });
+      toast({
+        title: data.valid
+          ? t('adminSettings.evoTestSuccess', 'Credentials are valid')
+          : t('adminSettings.evoTestFailed', 'Credentials are invalid'),
+        description: data.note || data.error || undefined,
+        variant: data.valid ? 'default' : 'destructive',
+      });
+    },
+    onError: (err: Error) => {
+      setEvoPreviewResult({ valid: false, error: err.message });
+      toast({ title: t('adminSettings.evoTestError', 'Test failed'), description: err.message, variant: 'destructive' });
+    },
+  });
+
   const handleEdit = (cred: AzureCredential) => {
     setEditingCredential(cred);
     setEditForm({
@@ -274,6 +300,7 @@ export default function AdminSettings() {
       secretExpiresAt: evoData?.metadata?.secretExpiresAt ? evoData.metadata.secretExpiresAt.split('T')[0] : '',
       notes: evoData?.metadata?.notes || '',
     });
+    setEvoPreviewResult(null);
     setShowEvoForm(true);
   };
 
@@ -559,10 +586,34 @@ export default function AdminSettings() {
                       />
                     </div>
                   </div>
+
+                  {/* Test Result */}
+                  {evoPreviewResult && (
+                    <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${evoPreviewResult.valid ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-destructive/10 text-destructive border border-destructive/20'}`}>
+                      {evoPreviewResult.valid ? <CheckCircle className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+                      <span>{evoPreviewResult.valid ? t('adminSettings.evoPreviewValid', 'Credentials validated successfully') : (evoPreviewResult.error || t('adminSettings.evoPreviewInvalid', 'Credentials are invalid'))}</span>
+                    </div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowEvoForm(false)}>
                     {t('common.cancel', 'Cancel')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="glass"
+                    onClick={() => {
+                      if (!evoForm.clientId || !evoForm.clientSecret) {
+                        toast({ title: t('adminSettings.evoTestRequiredFields', 'Client ID and Secret are required to test'), variant: 'destructive' });
+                        return;
+                      }
+                      setEvoPreviewResult(null);
+                      evoTestPreviewMutation.mutate({ clientId: evoForm.clientId, clientSecret: evoForm.clientSecret });
+                    }}
+                    disabled={evoTestPreviewMutation.isPending}
+                  >
+                    <ShieldCheck className={`h-4 w-4 mr-2 ${evoTestPreviewMutation.isPending ? 'animate-pulse' : ''}`} />
+                    {t('adminSettings.evoTestPreviewBtn', 'Test Credentials')}
                   </Button>
                   <Button className="glass hover-glow" onClick={handleEvoSave} disabled={evoUpdateMutation.isPending}>
                     {evoUpdateMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Globe className="h-4 w-4 mr-2" />}

@@ -353,11 +353,11 @@ async function testCredentialsAgainstAzureAD(
     return success({ valid: false, error: 'Azure OAuth credentials not configured', source }, 200, origin);
   }
 
-  // We need a tenant to test against — use 'common' for multi-tenant apps
+  // We need a tenant to test against — use 'organizations' for multi-tenant apps
   const tokenUrl = getAzureTokenUrl('organizations');
   const params = new URLSearchParams({
-    client_id: creds.clientId,
-    client_secret: creds.clientSecret,
+    client_id: clientId,
+    client_secret: clientSecret,
     grant_type: 'client_credentials',
     scope: 'https://graph.microsoft.com/.default',
   });
@@ -387,12 +387,13 @@ async function testCredentialsAgainstAzureAD(
 
       logger.warn('EVO App credential test failed', {
         status: response.status,
-        clientId: creds.clientId,
-        secretLength: creds.clientSecret.length,
-        secretPrefix: creds.clientSecret.substring(0, 4) + '***',
+        clientId,
+        secretLength: clientSecret.length,
+        secretPrefix: clientSecret.substring(0, 4) + '***',
         azureErrorCode,
         azureCorrelationId,
         error: errorText.substring(0, 500),
+        source,
       });
 
       // Parse Azure AD error for user-friendly message
@@ -414,25 +415,25 @@ async function testCredentialsAgainstAzureAD(
       }
 
       if (credentialsValid) {
-        logger.info('EVO App credential test: secret valid but Conditional Access blocked', { clientId: creds.clientId, azureErrorCode });
+        logger.info('EVO App credential test: secret valid but Conditional Access blocked', { clientId, azureErrorCode, source });
         return success({
           valid: true,
           conditionalAccess: true,
-          source: 'ssm',
-          clientId: creds.clientId,
+          source,
+          clientId,
           note: userError,
           azureErrorCode,
         }, 200, origin);
       }
 
-      return success({ valid: false, error: userError, source: 'ssm', azureErrorCode }, 200, origin);
+      return success({ valid: false, error: userError, source, azureErrorCode }, 200, origin);
     }
 
-    logger.info('EVO App credential test passed', { clientId: creds.clientId });
-    return success({ valid: true, source: 'ssm', clientId: creds.clientId }, 200, origin);
+    logger.info('EVO App credential test passed', { clientId, source });
+    return success({ valid: true, source, clientId }, 200, origin);
   } catch (err: any) {
-    logger.error('EVO App credential test error', { error: err.message });
-    return success({ valid: false, error: err.message, source: 'ssm' }, 200, origin);
+    logger.error('EVO App credential test error', { error: err.message, source });
+    return success({ valid: false, error: err.message, source }, 200, origin);
   }
 }
 
@@ -485,8 +486,11 @@ export async function handler(
       case 'test':
         return handleTest(origin);
 
+      case 'test-preview':
+        return handleTestPreview(body, origin);
+
       default:
-        return error('Invalid action. Use: get, update, sync, test', 400, undefined, origin);
+        return error('Invalid action. Use: get, update, sync, test, test-preview', 400, undefined, origin);
     }
   } catch (err: any) {
     logger.error('Admin EVO app credentials error', { error: err.message });

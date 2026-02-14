@@ -4224,6 +4224,10 @@
     "evoTestPartial": "Credentials authenticated (access restricted)",
     "evoTestFailed": "Credentials are invalid",
     "evoTestError": "Test failed",
+    "evoPreviewValid": "Credentials validated successfully",
+    "evoPreviewInvalid": "Credentials are invalid",
+    "evoTestPreviewBtn": "Test Credentials",
+    "evoTestRequiredFields": "Client ID and Secret are required to test",
     "evoTenantId": "Tenant ID (Directory)",
     "evoTenantIdLabel": "Tenant ID (Directory ID)",
     "evoNotConfigured": "Not configured"
