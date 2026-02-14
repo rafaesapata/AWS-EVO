@@ -305,17 +305,31 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const isAzure = selectedProvider === 'AZURE';
 
  if (isAzure) {
- // Azure: Call azure-fetch-costs Lambda
+ // Azure: First trigger azure-fetch-costs in background (fire-and-forget)
+ // Then immediately return data from database via fetch-daily-costs
  const endDate = new Date().toISOString().split('T')[0];
  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
  
- const result = await apiClient.invoke<any>('azure-fetch-costs', {
+ // Fire-and-forget: trigger Azure cost sync (don't await)
+ apiClient.invoke('azure-fetch-costs', {
  body: { 
  credentialId: accountId, 
  startDate,
  endDate,
  granularity: 'DAILY'
+ },
+ timeoutMs: 120000,
+ }).then((res) => {
+ if (!res.error) {
+ // Refresh UI after background sync completes
+ queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
+ queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
  }
+ }).catch(() => { /* silent - background sync */ });
+ 
+ // Return existing data from database immediately
+ const result = await apiClient.invoke<any>('fetch-daily-costs', {
+ body: { accountId, days: 90, incremental: true }
  });
  
  if (result.error) {
@@ -323,18 +337,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }
  
  const data = result.data;
- 
- // Azure Lambda returns different structure
- return {
+ return data?.success ? data : {
  success: true,
- data: {
- dailyCosts: data?.byService ? Object.entries(data.byService).map(([service, cost]) => ({
- service,
- cost,
- date: endDate,
- })) : [],
- },
- summary: data?.summary || { totalRecords: 0, newRecords: data?.summary?.savedCount || 0 },
+ data: { dailyCosts: data?.costs || [] },
+ summary: data?.summary || { totalRecords: 0, newRecords: 0 },
  };
  } else {
  // AWS: Call fetch-daily-costs Lambda with incremental fetch
@@ -409,16 +415,35 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const isAzure = selectedProvider === 'AZURE';
 
  if (isAzure) {
- // Azure: Call azure-fetch-costs Lambda with full date range
+ // Azure: First trigger azure-fetch-costs in background (fire-and-forget)
+ // Then immediately return data from database via fetch-daily-costs
  const endDate = new Date().toISOString().split('T')[0];
  const startDate = '2024-01-01'; // Full fetch from beginning of 2024
  
- const result = await apiClient.invoke<any>('azure-fetch-costs', {
+ // Fire-and-forget: trigger Azure cost sync (don't await)
+ apiClient.invoke('azure-fetch-costs', {
  body: { 
  credentialId: accountId, 
  startDate,
  endDate,
  granularity: 'DAILY'
+ },
+ timeoutMs: 120000,
+ }).then((res) => {
+ if (!res.error) {
+ // Refresh UI after background sync completes
+ queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
+ queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
+ }
+ }).catch(() => { /* silent - background sync */ });
+ 
+ // Return existing data from database immediately
+ const result = await apiClient.invoke<any>('fetch-daily-costs', {
+ body: { 
+ accountId,
+ incremental: false,
+ granularity: 'DAILY',
+ startDate: '2024-01-01'
  }
  });
  
@@ -427,17 +452,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }
  
  const data = result.data;
- 
- return {
+ return data?.success ? data : {
  success: true,
- data: {
- dailyCosts: data?.byService ? Object.entries(data.byService).map(([service, cost]) => ({
- service,
- cost,
- date: endDate,
- })) : [],
- },
- summary: data?.summary || { totalRecords: 0, newRecords: data?.summary?.savedCount || 0 },
+ data: { dailyCosts: data?.costs || [] },
+ summary: data?.summary || { totalRecords: 0, newRecords: 0 },
  };
  } else {
  // AWS: Call fetch-daily-costs Lambda

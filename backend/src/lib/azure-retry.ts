@@ -13,6 +13,8 @@ export interface AzureRetryConfig {
   jitterFactor: number;
   /** Additional Azure-specific headers to check for retry delay (beyond standard Retry-After) */
   retryAfterHeaders?: string[];
+  /** Per-request timeout in ms (prevents indefinite hangs). Default: 45000 */
+  requestTimeoutMs?: number;
 }
 
 export const DEFAULT_AZURE_RETRY_CONFIG: AzureRetryConfig = {
@@ -20,6 +22,7 @@ export const DEFAULT_AZURE_RETRY_CONFIG: AzureRetryConfig = {
   baseDelayMs: 1000,
   maxDelayMs: 30000,
   jitterFactor: 0.2,
+  requestTimeoutMs: 45000,
 };
 
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503]);
@@ -66,10 +69,20 @@ export async function fetchWithRetry(
   config: AzureRetryConfig = DEFAULT_AZURE_RETRY_CONFIG
 ): Promise<Response> {
   const shortUrl = url.substring(0, 120);
+  const perRequestTimeout = config.requestTimeoutMs || 45000;
 
   for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
     try {
-      const response = await fetch(url, options);
+      // Add per-request timeout via AbortSignal to prevent indefinite hangs
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), perRequestTimeout);
+
+      let response: Response;
+      try {
+        response = await fetch(url, { ...options, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (isRetryableStatus(response.status) && attempt < config.maxRetries) {
         const delayMs = getRetryDelay(response, attempt, config);

@@ -163,7 +163,11 @@ async function queryCostManagementApi(
       },
       body: JSON.stringify(requestBody),
     }, {
-      ...DEFAULT_AZURE_RETRY_CONFIG,
+      maxRetries: 2,
+      baseDelayMs: 1000,
+      maxDelayMs: 10000,
+      jitterFactor: 0.2,
+      requestTimeoutMs: 25000,
       retryAfterHeaders: ['x-ms-ratelimit-microsoft.costmanagement-retry-after'],
     });
 
@@ -331,53 +335,60 @@ export async function handler(
       currency: String(row[columnIndices.currency] || 'BRL'),
     }));
 
-    // Store costs in database
+    // Store costs in database using batch transaction
     let savedCount = 0;
     let skippedCount = 0;
 
-    for (const cost of costs) {
+    // Batch upsert: findFirst + create/update in a single transaction
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < costs.length; i += BATCH_SIZE) {
+      const batch = costs.slice(i, i + BATCH_SIZE);
       try {
-        // Use findFirst + create/update since aws_account_id is nullable for Azure
-        const existing = await prisma.dailyCost.findFirst({
-          where: {
-            organization_id: organizationId,
-            azure_credential_id: credentialId,
-            cloud_provider: 'AZURE',
-            date: new Date(cost.date),
-            service: cost.service,
-          },
-        });
+        await prisma.$transaction(async (tx) => {
+          for (const cost of batch) {
+            const existing = await tx.dailyCost.findFirst({
+              where: {
+                organization_id: organizationId,
+                azure_credential_id: credentialId,
+                cloud_provider: 'AZURE',
+                date: new Date(cost.date),
+                service: cost.service,
+              },
+              select: { id: true },
+            });
 
-        if (existing) {
-          await prisma.dailyCost.update({
-            where: { id: existing.id },
-            data: {
-              cost: cost.cost,
-              currency: cost.currency,
-            },
-          });
-        } else {
-          await prisma.dailyCost.create({
-            data: {
-              organization_id: organizationId,
-              cloud_provider: 'AZURE',
-              azure_credential_id: credentialId,
-              date: new Date(cost.date),
-              service: cost.service,
-              cost: cost.cost,
-              currency: cost.currency,
-            },
-          });
-        }
-        savedCount++;
+            if (existing) {
+              await tx.dailyCost.update({
+                where: { id: existing.id },
+                data: {
+                  cost: cost.cost,
+                  currency: cost.currency,
+                },
+              });
+            } else {
+              await tx.dailyCost.create({
+                data: {
+                  organization_id: organizationId,
+                  cloud_provider: 'AZURE',
+                  azure_credential_id: credentialId,
+                  date: new Date(cost.date),
+                  service: cost.service,
+                  cost: cost.cost,
+                  currency: cost.currency,
+                },
+              });
+            }
+            savedCount++;
+          }
+        });
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        logger.warn('Failed to save cost record', { 
+        logger.warn('Failed to save cost batch', { 
           error: errorMessage,
-          date: cost.date,
-          service: cost.service,
+          batchStart: i,
+          batchSize: batch.length,
         });
-        skippedCount++;
+        skippedCount += batch.length;
       }
     }
 

@@ -429,12 +429,13 @@ class ApiClient {
   async invoke<T>(functionName: string, options: {
     body?: any;
     headers?: Record<string, string>;
+    timeoutMs?: number;
   } = {}): Promise<ApiResponse<T> | ApiError> {
     return this.request<T>(`/api/functions/${functionName}`, {
       method: 'POST',
       body: options.body ? JSON.stringify(options.body) : undefined,
       headers: options.headers,
-    });
+    }, options.timeoutMs);
   }
 
   /**
