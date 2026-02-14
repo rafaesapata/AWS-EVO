@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
@@ -84,6 +85,13 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Auto-load on mount
+  useEffect(() => {
+    if (credentialId) {
+      runAnalysis();
+    }
+  }, [credentialId]);
 
   const runAnalysis = async () => {
     setLoading(true);
@@ -171,23 +179,43 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
         </Button>
       </div>
 
-      {/* Loading */}
+      {/* Loading - structured skeletons matching real layout */}
       {loading && (
-        <Card className="glass border-primary/30">
-          <CardContent className="py-12">
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <Loader2 className="h-16 w-16 text-primary animate-spin" />
-              <div className="text-center space-y-2">
-                <h3 className="text-lg font-semibold">
-                  {t('azureReservations.analyzing', 'Analisando suas reservas Azure...')}
-                </h3>
-                <p className="text-muted-foreground max-w-md">
-                  {t('azureReservations.analyzingDesc', 'Coletando dados de utilização e gerando recomendações.')}
-                </p>
+        <div className="space-y-6">
+          {/* Stats Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="glass border-primary/20">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-4 rounded" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-20 mb-1" />
+                  <Skeleton className="h-3 w-32" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {/* Utilization Breakdown Skeleton */}
+          <Card className="glass border-primary/20">
+            <CardHeader>
+              <Skeleton className="h-5 w-48" />
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="text-center p-4 bg-muted/30 rounded-lg">
+                    <Skeleton className="h-8 w-8 mx-auto mb-2" />
+                    <Skeleton className="h-3 w-20 mx-auto" />
+                  </div>
+                ))}
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          {/* Tabs Skeleton */}
+          <Skeleton className="h-10 w-80 rounded-lg" />
+        </div>
       )}
 
       {/* Error */}
