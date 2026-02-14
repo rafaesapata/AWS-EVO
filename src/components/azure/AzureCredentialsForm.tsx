@@ -213,8 +213,8 @@ export function AzureCredentialsForm({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center gap-2">
-                <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.tenantId', 'Tenant ID (Directory ID)')}</FormLabel>
-                <FieldHelp text="Found in Azure Portal > Azure Active Directory > Overview" />
+                <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.tenantId', 'Tenant ID')}</FormLabel>
+                <FieldHelp text={t('azure.tenantIdHelp', 'Tenant ID from the script output. Also found in Azure Portal > Azure Active Directory > Overview.')} />
               </div>
               <FormControl>
                 <Input 
@@ -236,7 +236,7 @@ export function AzureCredentialsForm({
             <FormItem>
               <div className="flex items-center gap-2">
                 <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.clientId', 'Client ID (Application ID)')}</FormLabel>
-                <FieldHelp text="Found in Azure Portal > App Registrations > Your App > Overview" />
+                <FieldHelp text={t('azure.clientIdHelp', 'Client ID (Application ID) from the script output. Also found in Azure Portal > App Registrations > Your App > Overview.')} />
               </div>
               <FormControl>
                 <Input 
@@ -258,7 +258,7 @@ export function AzureCredentialsForm({
             <FormItem>
               <div className="flex items-center gap-2">
                 <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.clientSecret', 'Client Secret')}</FormLabel>
-                <FieldHelp text="Created in Azure Portal > App Registrations > Your App > Certificates & secrets" />
+                <FieldHelp text={t('azure.clientSecretHelp', 'Client Secret from the script output. Keep it safe — it cannot be viewed again.')} />
               </div>
               <FormControl>
                 <div className="relative">
@@ -292,7 +292,7 @@ export function AzureCredentialsForm({
             <FormItem>
               <div className="flex items-center gap-2">
                 <FormLabel className="text-xs font-medium text-muted-foreground">{t('azure.subscriptionId', 'Subscription ID')}</FormLabel>
-                <FieldHelp text="Found in Azure Portal > Subscriptions > Your Subscription" />
+                <FieldHelp text={t('azure.subscriptionIdHelp', 'Subscription ID from the script output. Also found in Azure Portal > Subscriptions > Your Subscription.')} />
               </div>
               <FormControl>
                 <Input 

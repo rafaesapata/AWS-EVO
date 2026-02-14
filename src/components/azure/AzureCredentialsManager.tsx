@@ -1,14 +1,15 @@
 /**
  * Azure Credentials Manager
  * 
- * Manages Azure credentials with list, add, edit, and delete functionality.
+ * Manages Azure credentials with script-based setup flow.
+ * Only supports Service Principal via automated script.
  */
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Cloud, CheckCircle, XCircle, RefreshCw, MoreVertical, ShieldCheck, AlertTriangle, Link2, CheckCircle2, Clock, Copy } from 'lucide-react';
+import { Plus, Trash2, Cloud, CheckCircle, XCircle, RefreshCw, MoreVertical, ShieldCheck, AlertTriangle, CheckCircle2, Clock, Copy, Terminal, Apple, Monitor, FileText, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -35,13 +36,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { apiClient } from '@/integrations/aws/api-client';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { AzureCredentialsForm } from './AzureCredentialsForm';
-import { AzureQuickConnect } from './AzureQuickConnect';
-import { AzureOAuthButton } from './AzureOAuthButton';
-import { useAzureOAuthInitiate } from './useAzureOAuthInitiate';
 
 interface AzureCredential {
   id: string;
@@ -100,21 +99,45 @@ export function AzureCredentialsManager() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showQuickConnect, setShowQuickConnect] = useState(false);
   const [deleteCredentialId, setDeleteCredentialId] = useState<string | null>(null);
   const [validatingCredentialId, setValidatingCredentialId] = useState<string | null>(null);
   const [permissionResults, setPermissionResults] = useState<AzurePermissionResults | null>(null);
+  const [copiedStep, setCopiedStep] = useState<string | null>(null);
+
+  const copyToClipboard = async (text: string, stepId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedStep(stepId);
+      toast.success(t('common.copied', 'Copied to clipboard'));
+      setTimeout(() => setCopiedStep(null), 2000);
+    } catch {
+      toast.error(t('common.copyFailed', 'Failed to copy'));
+    }
+  };
+
+  const CopyButton = ({ text, stepId }: { text: string; stepId: string }) => (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => copyToClipboard(text, stepId)}
+      className="h-8 px-2 shrink-0"
+    >
+      {copiedStep === stepId ? (
+        <CheckCircle2 className="h-4 w-4 text-green-600" />
+      ) : (
+        <Copy className="h-4 w-4" />
+      )}
+    </Button>
+  );
 
   // Fetch Azure credentials
   const { data: credentials = [], isLoading, error, refetch } = useQuery({
     queryKey: ['azure-credentials'],
     queryFn: async () => {
       const result = await apiClient.invoke<any>('list-azure-credentials', {});
-      
       if (result.error) {
         throw new Error(result.error.message || 'Failed to fetch Azure credentials');
       }
-      
       const data = result.data?.data || result.data || [];
       return Array.isArray(data) ? data : [];
     },
@@ -125,15 +148,11 @@ export function AzureCredentialsManager() {
   const deleteMutation = useMutation({
     mutationFn: async (credentialId: string) => {
       const result = await apiClient.invoke<any>('delete-azure-credentials', {
-        body: {
-          credentialId,
-        },
+        body: { credentialId },
       });
-      
       if (result.error) {
         throw new Error(result.error.message || 'Failed to delete credential');
       }
-      
       return result.data;
     },
     onSuccess: () => {
@@ -151,40 +170,28 @@ export function AzureCredentialsManager() {
   const validatePermissionsMutation = useMutation({
     mutationFn: async (credentialId: string) => {
       const result = await apiClient.invoke<any>('validate-azure-permissions', {
-        body: {
-          credentialId,
-        },
+        body: { credentialId },
       });
-      
       if (result.error) {
         throw new Error(result.error.message || 'Failed to validate permissions');
       }
-      
       return result.data;
     },
     onSuccess: (data) => {
       setValidatingCredentialId(null);
       setPermissionResults(data);
-      
       const missingPermissions = data.missingPermissions || [];
       const warnings = data.results?.filter((r: AzureTestResult) => r.status === 'warning') || [];
-      
       if (missingPermissions.length === 0 && warnings.length === 0) {
         toast.success(
           t('azure.permissionsValid', 'All permissions are correctly configured!'),
-          {
-            description: t('azure.permissionsValidDescription', 'Your Azure credentials have all required permissions.'),
-          }
+          { description: t('azure.permissionsValidDescription', 'Your Azure credentials have all required permissions.') }
         );
-      } else {
-        // Don't show toast — the dialog will open with full details
       }
     },
     onError: (err: Error) => {
       setValidatingCredentialId(null);
-      toast.error(t('azure.validationFailed', 'Validation failed'), {
-        description: err.message,
-      });
+      toast.error(t('azure.validationFailed', 'Validation failed'), { description: err.message });
     },
   });
 
@@ -192,8 +199,6 @@ export function AzureCredentialsManager() {
     setValidatingCredentialId(credentialId);
     validatePermissionsMutation.mutate(credentialId);
   };
-
-  const { initiate: handleReconnect } = useAzureOAuthInitiate();
 
   const handleAddSuccess = () => {
     setShowAddDialog(false);
@@ -203,9 +208,7 @@ export function AzureCredentialsManager() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+      year: 'numeric', month: 'short', day: 'numeric',
     });
   };
 
@@ -257,24 +260,15 @@ export function AzureCredentialsManager() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <AzureOAuthButton 
-            variant="default"
-            onError={(error) => toast.error(error)}
-          />
-          <Button variant="outline" onClick={() => setShowQuickConnect(true)}>
-            {t('azure.quickConnect', 'Quick Connect')}
-          </Button>
-          <Button variant="outline" onClick={() => setShowAddDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t('azure.manualSetup', 'Manual Setup')}
-          </Button>
-        </div>
+        <Button onClick={() => setShowAddDialog(true)} className="glass hover-glow">
+          <Plus className="mr-2 h-4 w-4" />
+          {t('azure.connectAzure', 'Connect Azure')}
+        </Button>
       </div>
 
       {/* Credentials List */}
       {credentials.length === 0 ? (
-        <Card>
+        <Card className="glass border-primary/20">
           <CardContent className="pt-6">
             <div className="text-center py-8">
               <Cloud className="mx-auto h-12 w-12 text-muted-foreground/50" />
@@ -282,31 +276,17 @@ export function AzureCredentialsManager() {
               <p className="mt-2 text-sm text-muted-foreground">
                 {t('azure.noCredentialsDescription', 'Add your first Azure subscription to get started.')}
               </p>
-              <div className="mt-6 flex flex-col items-center gap-3">
-                <AzureOAuthButton 
-                  size="lg"
-                  onError={(error) => toast.error(error)}
-                />
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{t('common.or', 'or')}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={() => setShowQuickConnect(true)}>
-                    {t('azure.quickConnect', 'Quick Connect')}
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowAddDialog(true)}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    {t('azure.manualSetup', 'Manual Setup')}
-                  </Button>
-                </div>
-              </div>
+              <Button onClick={() => setShowAddDialog(true)} className="mt-6 glass hover-glow">
+                <Plus className="mr-2 h-4 w-4" />
+                {t('azure.connectAzure', 'Connect Azure')}
+              </Button>
             </div>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {credentials.map((credential: AzureCredential) => (
-            <Card key={credential.id}>
+            <Card key={credential.id} className="glass border-primary/20">
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
@@ -316,26 +296,12 @@ export function AzureCredentialsManager() {
                     </CardTitle>
                   </div>
                   <div className="flex items-center gap-2">
-                    {credential.authType === 'oauth' ? (
-                      <Badge variant="outline" className="border-blue-500 text-blue-600">
-                        OAuth
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">
-                        Service Principal
-                      </Badge>
-                    )}
+                    <Badge variant="outline">Service Principal</Badge>
                     <Badge variant={credential.isActive ? 'default' : 'secondary'}>
                       {credential.isActive ? (
-                        <>
-                          <CheckCircle className="mr-1 h-3 w-3" />
-                          {t('common.active', 'Active')}
-                        </>
+                        <><CheckCircle className="mr-1 h-3 w-3" />{t('common.active', 'Active')}</>
                       ) : (
-                        <>
-                          <XCircle className="mr-1 h-3 w-3" />
-                          {t('common.inactive', 'Inactive')}
-                        </>
+                        <><XCircle className="mr-1 h-3 w-3" />{t('common.inactive', 'Inactive')}</>
                       )}
                     </Badge>
                     <DropdownMenu>
@@ -356,21 +322,12 @@ export function AzureCredentialsManager() {
                           )}
                           {t('azure.validatePermissions', 'Validate Permissions')}
                         </DropdownMenuItem>
-                        {credential.authType === 'oauth' && (
-                          <DropdownMenuItem onClick={handleReconnect}>
-                            <Link2 className="mr-2 h-4 w-4" />
-                            {t('azure.reconnect', 'Reconnect')}
-                          </DropdownMenuItem>
-                        )}
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => setDeleteCredentialId(credential.id)}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          {credential.authType === 'oauth' 
-                            ? t('azure.disconnect', 'Disconnect')
-                            : t('common.delete', 'Delete')
-                          }
+                          {t('common.delete', 'Delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -378,36 +335,15 @@ export function AzureCredentialsManager() {
                 </div>
               </CardHeader>
               <CardContent>
-                {/* Refresh error banner */}
-                {credential.authType === 'oauth' && credential.refreshError && (
-                  <div className="mb-3 flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span className="flex-1">{t('azure.refreshErrorMessage', 'Connection expired. Please reconnect your Azure account.')}</span>
-                    <Button variant="outline" size="sm" className="shrink-0 h-7 text-xs" onClick={handleReconnect}>
-                      <Link2 className="mr-1 h-3 w-3" />
-                      {t('azure.reconnect', 'Reconnect')}
-                    </Button>
-                  </div>
-                )}
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{t('azure.subscriptionId', 'Subscription ID')}:</span>
+                    <span className="text-muted-foreground">Subscription ID:</span>
                     <span className="font-mono">{maskId(credential.subscriptionId)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{t('azure.tenantId', 'Tenant ID (Directory ID)')}:</span>
-                    <span className="font-mono">
-                      {credential.authType === 'oauth' 
-                        ? maskId(credential.oauthTenantId || '') 
-                        : maskId(credential.tenantId || '')}
-                    </span>
+                    <span className="text-muted-foreground">Tenant ID:</span>
+                    <span className="font-mono">{maskId(credential.tenantId || '')}</span>
                   </div>
-                  {credential.authType === 'oauth' && credential.oauthUserEmail && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t('azure.connectedAs', 'Connected as')}:</span>
-                      <span>{credential.oauthUserEmail}</span>
-                    </div>
-                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('azure.regions', 'Regions')}:</span>
                     <span>{credential.regions?.length || 0} {t('azure.regionsConfigured', 'configured')}</span>
@@ -423,12 +359,13 @@ export function AzureCredentialsManager() {
         </div>
       )}
 
-      {/* Add Credential Dialog */}
+      {/* Add Credential Dialog - Script-first flow */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto p-0 gap-0 glass border-primary/20" aria-describedby={undefined}>
-          <DialogTitle className="sr-only">{t('azure.addCredential', 'Add Azure Credential')}</DialogTitle>
-          <DialogDescription className="sr-only">{t('azure.addCredentialDescription', 'Enter your Azure Service Principal credentials.')}</DialogDescription>
-          {/* Hero Header - same style as Profile/Settings dialogs */}
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0 glass border-primary/20" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{t('azure.connectAzure', 'Connect Azure')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('azure.connectAzureDesc', 'Connect your Azure subscription using the automated script.')}</DialogDescription>
+          
+          {/* Hero Header */}
           <div className="relative overflow-hidden rounded-t-lg">
             <div className="absolute inset-0 bg-gradient-to-br from-[#003C7D] via-[#0055A4] to-[#008CFF]" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.15)_0%,_transparent_60%)]" />
@@ -437,33 +374,140 @@ export function AzureCredentialsManager() {
                 <Cloud className="h-7 w-7 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-light text-white">{t('azure.addCredential', 'Add Azure Credential')}</h2>
-                <p className="text-sm text-white/80 mt-1">{t('azure.addCredentialDescription', 'Enter your Azure Service Principal credentials.')}</p>
+                <h2 className="text-xl font-light text-white">{t('azure.connectAzure', 'Connect Azure')}</h2>
+                <p className="text-sm text-white/80 mt-1">{t('azure.connectAzureDesc', 'Connect your Azure subscription using the automated script.')}</p>
               </div>
             </div>
           </div>
 
-          {/* Content */}
-          <div className="p-6">
-            <AzureCredentialsForm
-              onSuccess={handleAddSuccess}
-              onCancel={() => setShowAddDialog(false)}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+          <div className="p-6 space-y-6">
+            {/* Step 1: Run the script */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-semibold shrink-0">1</div>
+                <div>
+                  <h3 className="font-semibold">{t('azure.step1RunScript', 'Run the setup script')}</h3>
+                  <p className="text-sm text-muted-foreground">{t('azure.step1RunScriptDesc', 'Download and run the script on your machine. It will automatically create the Service Principal with all required permissions.')}</p>
+                </div>
+              </div>
 
-      {/* Quick Connect Dialog */}
-      <Dialog open={showQuickConnect} onOpenChange={setShowQuickConnect}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
-          <DialogTitle className="sr-only">{t('azure.quickConnect', 'Quick Connect')}</DialogTitle>
-          <DialogDescription className="sr-only">{t('azure.quickConnect', 'Quick Connect')}</DialogDescription>
-          <AzureQuickConnect
-            onManualSetup={() => {
-              setShowQuickConnect(false);
-              setShowAddDialog(true);
-            }}
-          />
+              <Card className="glass border-primary/10">
+                <CardContent className="pt-4 space-y-4">
+                  {/* Download buttons */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {([
+                      { label: 'Windows (PowerShell)', icon: Monitor, script: '/scripts/azure-quick-connect.ps1' },
+                      { label: 'macOS', icon: Apple, script: '/scripts/azure-quick-connect.sh' },
+                      { label: 'Linux', icon: Terminal, script: '/scripts/azure-quick-connect.sh' },
+                    ] as const).map(({ label, icon: Icon, script }) => (
+                      <Button
+                        key={label}
+                        variant="outline"
+                        className="glass hover-glow flex items-center justify-center gap-2"
+                        onClick={() => {
+                          window.open(script, '_blank');
+                          toast.success(t('azure.scriptDownloaded', 'Script downloaded!'));
+                        }}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* Run instructions */}
+                  <div className="space-y-3">
+                    <div className="text-sm space-y-2">
+                      <p className="font-medium flex items-center gap-2">
+                        <Monitor className="h-4 w-4" /> Windows:
+                      </p>
+                      <div className="bg-muted p-3 rounded-md font-mono text-xs space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">PS&gt;</span>
+                          <code className="flex-1">Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code>
+                          <CopyButton text="Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser" stepId="ps-policy" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">PS&gt;</span>
+                          <code className="flex-1">.\azure-quick-connect.ps1</code>
+                          <CopyButton text=".\azure-quick-connect.ps1" stepId="ps-run" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-sm space-y-2">
+                      <p className="font-medium flex items-center gap-2">
+                        <Apple className="h-4 w-4" /> macOS / Linux:
+                      </p>
+                      <div className="bg-muted p-3 rounded-md font-mono text-xs space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">$</span>
+                          <code className="flex-1">chmod +x azure-quick-connect.sh</code>
+                          <CopyButton text="chmod +x azure-quick-connect.sh" stepId="chmod" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">$</span>
+                          <code className="flex-1">./azure-quick-connect.sh</code>
+                          <CopyButton text="./azure-quick-connect.sh" stepId="run" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Alert>
+                    <Terminal className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      {t('azure.scriptRequirements', 'Requires Azure CLI installed and logged in. The script will guide you through the login if needed.')}
+                    </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Step 2: Copy credentials from script output */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-semibold shrink-0">2</div>
+                <div>
+                  <h3 className="font-semibold">{t('azure.step2FillForm', 'Fill in the credentials below')}</h3>
+                  <p className="text-sm text-muted-foreground">{t('azure.step2FillFormDesc', 'Copy the values from the script output and paste them in the corresponding fields.')}</p>
+                </div>
+              </div>
+
+              {/* Field mapping guide */}
+              <Card className="glass border-amber-500/20 bg-amber-500/5">
+                <CardContent className="pt-4">
+                  <div className="flex items-start gap-2 mb-3">
+                    <FileText className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                      {t('azure.fieldMappingTitle', 'Script output → Form fields')}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    {[
+                      { script: 'Tenant ID', form: t('azure.tenantId', 'Tenant ID') },
+                      { script: 'Client ID (Application ID)', form: t('azure.clientId', 'Client ID (Application ID)') },
+                      { script: 'Client Secret', form: t('azure.clientSecret', 'Client Secret') },
+                      { script: 'Subscription ID', form: t('azure.subscriptionId', 'Subscription ID') },
+                      { script: 'Subscription Name', form: t('azure.subscriptionName', 'Subscription Name') },
+                    ].map(({ script, form }) => (
+                      <div key={script} className="flex items-center gap-2 text-muted-foreground">
+                        <code className="bg-muted px-1.5 py-0.5 rounded font-mono">{script}</code>
+                        <ArrowRight className="h-3 w-3 shrink-0" />
+                        <span className="font-medium text-foreground">{form}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Credentials Form */}
+              <AzureCredentialsForm
+                onSuccess={handleAddSuccess}
+                onCancel={() => setShowAddDialog(false)}
+              />
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -576,7 +620,6 @@ export function AzureCredentialsManager() {
                 {Object.entries(permissionResults.byFeature).map(([feature, tests]) => {
                   const featureOk = tests.every(t => t.status === 'ok');
                   const featureErrors = tests.filter(t => t.status === 'error').length;
-                  const featureWarnings = tests.filter(t => t.status === 'warning').length;
                   return (
                     <div key={feature} className="border rounded-lg overflow-hidden">
                       <div className={`px-4 py-2 flex items-center justify-between text-sm font-medium ${
