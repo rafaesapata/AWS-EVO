@@ -241,8 +241,6 @@ export default function EdgeMonitoring() {
   const totalServices = isDemoMode ? (demoData?.total || 0) : (edgeServicesData?.total || 0);
   const totalPages = Math.ceil(totalServices / itemsPerPage);
   const isLoading = isDemoMode ? false : _isLoadingQuery;
-  const metrics = isDemoMode ? (demoData?.metrics || []) : (metricsRaw || []);
-  const metricsLoading = isDemoMode ? false : _metricsLoadingQuery;
 
   // Reset to first page when filters change
   const handleItemsPerPageChange = (value: string) => {
@@ -305,6 +303,9 @@ export default function EdgeMonitoring() {
       return response.data || [];
     },
   });
+
+  const metrics = isDemoMode ? (demoData?.metrics || []) : (metricsRaw || []);
+  const metricsLoading = isDemoMode ? false : _metricsLoadingQuery;
 
   const handleRefresh = async () => {
     try {
