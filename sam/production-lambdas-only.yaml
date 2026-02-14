@@ -5056,6 +5056,13 @@ Resources:
       Handler: run-sql-migration.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 300
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/run-sql-migration
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
