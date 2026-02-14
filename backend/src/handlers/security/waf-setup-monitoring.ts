@@ -228,6 +228,300 @@ async function updateDestinationPolicyForCustomer(
   }
 }
 
+
+// ─── Auto-provisioning: WAF Logs Destination ────────────────────────────────
+// Replicates cloudformation/waf-logs-destination-stack.yaml via SDK.
+// Only creates resources that are MISSING — never deletes or recreates existing ones.
+
+const WAF_FWD_FUNCTION_PREFIX = 'evo-uds-v3-production-waf-fwd';
+const WAF_DEST_ROLE_PREFIX = 'evo-uds-v3-production-waf-dest';
+const WAF_FWD_ROLE_PREFIX = 'evo-uds-v3-production-waf-fwd';
+const CENTRAL_PROCESSOR_ARN = 'arn:aws:lambda:us-east-1:523115032346:function:evo-uds-v3-production-waf-log-processor';
+
+/**
+ * Auto-provision the WAF logs destination infrastructure in a region if it doesn't exist.
+ * Creates only what is missing: IAM roles, Lambda forwarder, Lambda permission, 
+ * CW Logs Destination. Never deletes or modifies existing resources.
+ * 
+ * This runs with EVO account default credentials (the Lambda execution role).
+ */
+async function ensureDestinationExists(region: string): Promise<boolean> {
+  // Quick check — if destination already exists, nothing to do
+  const alreadyExists = await checkDestinationExists(region);
+  if (alreadyExists) {
+    logger.info('WAF destination already exists in region', { region });
+    return true;
+  }
+
+  logger.info('WAF destination not found in region, auto-provisioning', { region });
+
+  const { IAMClient: EvoIAMClient, GetRoleCommand: EvoGetRole, CreateRoleCommand: EvoCreateRole, PutRolePolicyCommand: EvoPutRolePolicy, AttachRolePolicyCommand } = await import('@aws-sdk/client-iam');
+  const { LambdaClient: EvoLambdaClient, GetFunctionCommand, CreateFunctionCommand, AddPermissionCommand, GetPolicyCommand } = await import('@aws-sdk/client-lambda');
+  const { CloudWatchLogsClient: EvoLogsClient, PutDestinationCommand, PutDestinationPolicyCommand, DescribeDestinationsCommand } = await import('@aws-sdk/client-cloudwatch-logs');
+
+  // All resources use EVO default credentials (Lambda execution role)
+  // IAM is global — always us-east-1
+  const iamClient = new EvoIAMClient({ region: 'us-east-1' });
+  const lambdaClient = new EvoLambdaClient({ region });
+  const logsClient = new EvoLogsClient({ region });
+
+  const fwdFunctionName = `${WAF_FWD_FUNCTION_PREFIX}-${region}`;
+  const fwdRoleName = `${WAF_FWD_ROLE_PREFIX}-${region}`;
+  const destRoleName = `${WAF_DEST_ROLE_PREFIX}-${region}`;
+
+  try {
+    // ── 1. Forwarder Lambda execution role ──────────────────────────────
+    let fwdRoleArn = '';
+    try {
+      const existing = await iamClient.send(new EvoGetRole({ RoleName: fwdRoleName }));
+      fwdRoleArn = existing.Role!.Arn!;
+      logger.info('Forwarder role already exists', { fwdRoleName, fwdRoleArn });
+    } catch (err: any) {
+      if (err.name !== 'NoSuchEntityException' && err.name !== 'NoSuchEntity') throw err;
+      logger.info('Creating forwarder role', { fwdRoleName });
+      const created = await iamClient.send(new EvoCreateRole({
+        RoleName: fwdRoleName,
+        AssumeRolePolicyDocument: JSON.stringify({
+          Version: '2012-10-17',
+          Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+        }),
+      }));
+      fwdRoleArn = created.Role!.Arn!;
+
+      // Attach basic execution policy
+      await iamClient.send(new AttachRolePolicyCommand({
+        RoleName: fwdRoleName,
+        PolicyArn: 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole',
+      }));
+
+      // Inline policy: invoke central processor
+      await iamClient.send(new EvoPutRolePolicy({
+        RoleName: fwdRoleName,
+        PolicyName: 'InvokeCentralProcessor',
+        PolicyDocument: JSON.stringify({
+          Version: '2012-10-17',
+          Statement: [{ Effect: 'Allow', Action: 'lambda:InvokeFunction', Resource: CENTRAL_PROCESSOR_ARN }],
+        }),
+      }));
+
+      // Wait for IAM propagation
+      logger.info('Waiting for IAM role propagation', { fwdRoleName });
+      await new Promise(resolve => setTimeout(resolve, IAM_PROPAGATION_DELAY_MS));
+    }
+
+    // ── 2. Forwarder Lambda function ────────────────────────────────────
+    let fwdFunctionArn = '';
+    try {
+      const existing = await lambdaClient.send(new GetFunctionCommand({ FunctionName: fwdFunctionName }));
+      fwdFunctionArn = existing.Configuration!.FunctionArn!;
+      logger.info('Forwarder function already exists', { fwdFunctionName, fwdFunctionArn });
+    } catch (err: any) {
+      if (err.name !== 'ResourceNotFoundException') throw err;
+      logger.info('Creating forwarder function', { fwdFunctionName });
+
+      const lambdaCode = `const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+const client = new LambdaClient({ region: 'us-east-1' });
+exports.handler = async (event) => {
+  await client.send(new InvokeCommand({
+    FunctionName: process.env.CENTRAL_PROCESSOR_ARN,
+    InvocationType: 'Event',
+    Payload: JSON.stringify(event),
+  }));
+};`;
+
+      const { ZipFile } = await createInlineZip(lambdaCode);
+
+      const created = await lambdaClient.send(new CreateFunctionCommand({
+        FunctionName: fwdFunctionName,
+        Runtime: 'nodejs18.x',
+        Handler: 'index.handler',
+        Role: fwdRoleArn,
+        Timeout: 60,
+        MemorySize: 128,
+        Architectures: ['arm64'],
+        Environment: { Variables: { CENTRAL_PROCESSOR_ARN } },
+        Code: { ZipFile },
+      }));
+      fwdFunctionArn = created.FunctionArn!;
+      logger.info('Created forwarder function', { fwdFunctionName, fwdFunctionArn });
+    }
+
+    // ── 3. Lambda resource-based permission (logs → invoke) ─────────────
+    const permissionSid = `AllowCWLogs-${region}`;
+    try {
+      const policyResp = await lambdaClient.send(new GetPolicyCommand({ FunctionName: fwdFunctionName }));
+      const policy = JSON.parse(policyResp.Policy || '{}');
+      const hasPermission = policy.Statement?.some((s: any) => s.Sid === permissionSid);
+      if (hasPermission) {
+        logger.info('Lambda permission already exists', { fwdFunctionName, permissionSid });
+      } else {
+        throw { name: 'ResourceNotFoundException' }; // fall through to create
+      }
+    } catch (err: any) {
+      if (err.name !== 'ResourceNotFoundException') throw err;
+      logger.info('Adding Lambda permission for CW Logs', { fwdFunctionName });
+      try {
+        await lambdaClient.send(new AddPermissionCommand({
+          FunctionName: fwdFunctionName,
+          StatementId: permissionSid,
+          Action: 'lambda:InvokeFunction',
+          Principal: `logs.${region}.amazonaws.com`,
+          SourceAccount: EVO_ACCOUNT_ID,
+        }));
+      } catch (permErr: any) {
+        // ResourceConflictException means it already exists (race condition)
+        if (permErr.name !== 'ResourceConflictException') throw permErr;
+        logger.info('Lambda permission already exists (race)', { fwdFunctionName });
+      }
+    }
+
+    // ── 4. Destination IAM role (logs → invoke forwarder) ───────────────
+    let destRoleArn = '';
+    try {
+      const existing = await iamClient.send(new EvoGetRole({ RoleName: destRoleName }));
+      destRoleArn = existing.Role!.Arn!;
+      logger.info('Destination role already exists', { destRoleName, destRoleArn });
+    } catch (err: any) {
+      if (err.name !== 'NoSuchEntityException' && err.name !== 'NoSuchEntity') throw err;
+      logger.info('Creating destination role', { destRoleName });
+      const created = await iamClient.send(new EvoCreateRole({
+        RoleName: destRoleName,
+        AssumeRolePolicyDocument: JSON.stringify({
+          Version: '2012-10-17',
+          Statement: [{ Effect: 'Allow', Principal: { Service: 'logs.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+        }),
+      }));
+      destRoleArn = created.Role!.Arn!;
+
+      await iamClient.send(new EvoPutRolePolicy({
+        RoleName: destRoleName,
+        PolicyName: 'InvokeLambda',
+        PolicyDocument: JSON.stringify({
+          Version: '2012-10-17',
+          Statement: [{ Effect: 'Allow', Action: 'lambda:InvokeFunction', Resource: fwdFunctionArn }],
+        }),
+      }));
+
+      logger.info('Waiting for IAM role propagation', { destRoleName });
+      await new Promise(resolve => setTimeout(resolve, IAM_PROPAGATION_DELAY_MS));
+    }
+
+    // ── 5. CloudWatch Logs Destination ──────────────────────────────────
+    // PutDestination is idempotent — safe to call even if it exists
+    logger.info('Creating/updating CW Logs destination', { region, destinationName: EVO_WAF_DESTINATION_NAME });
+    await logsClient.send(new PutDestinationCommand({
+      destinationName: EVO_WAF_DESTINATION_NAME,
+      targetArn: fwdFunctionArn,
+      roleArn: destRoleArn,
+    }));
+
+    // Set open access policy so any account can subscribe (we control via destination policy updates later)
+    await logsClient.send(new PutDestinationPolicyCommand({
+      destinationName: EVO_WAF_DESTINATION_NAME,
+      accessPolicy: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [{
+          Sid: 'AllowCrossAccountSubscription',
+          Effect: 'Allow',
+          Principal: { AWS: EVO_ACCOUNT_ID },
+          Action: 'logs:PutSubscriptionFilter',
+          Resource: `arn:aws:logs:${region}:${EVO_ACCOUNT_ID}:destination:${EVO_WAF_DESTINATION_NAME}`,
+        }],
+      }),
+    }));
+
+    logger.info('WAF destination auto-provisioned successfully', { region });
+    return true;
+
+  } catch (err: any) {
+    logger.error('Failed to auto-provision WAF destination', err, { region, errorName: err.name, errorMessage: err.message });
+    return false;
+  }
+}
+
+/**
+ * Create a minimal zip buffer containing index.js with the given code.
+ * Uses Node.js built-in zlib (no external dependencies).
+ */
+async function createInlineZip(code: string): Promise<{ ZipFile: Buffer }> {
+  // Minimal ZIP file creation using raw buffers
+  // ZIP format: local file header + file data + central directory + end of central directory
+  const fileName = 'index.js';
+  const fileData = Buffer.from(code, 'utf-8');
+  const fileNameBuf = Buffer.from(fileName, 'utf-8');
+
+  // We need to compress the data with deflate (method 8)
+  const zlib = await import('zlib');
+  const deflated = zlib.deflateRawSync(fileData);
+
+  // CRC32 calculation
+  const crc32 = crc32Buf(fileData);
+
+  // Local file header
+  const localHeader = Buffer.alloc(30 + fileNameBuf.length);
+  localHeader.writeUInt32LE(0x04034b50, 0);  // signature
+  localHeader.writeUInt16LE(20, 4);           // version needed
+  localHeader.writeUInt16LE(0, 6);            // flags
+  localHeader.writeUInt16LE(8, 8);            // compression method (deflate)
+  localHeader.writeUInt16LE(0, 10);           // mod time
+  localHeader.writeUInt16LE(0, 12);           // mod date
+  localHeader.writeUInt32LE(crc32, 14);       // crc32
+  localHeader.writeUInt32LE(deflated.length, 18);   // compressed size
+  localHeader.writeUInt32LE(fileData.length, 22);    // uncompressed size
+  localHeader.writeUInt16LE(fileNameBuf.length, 26); // file name length
+  localHeader.writeUInt16LE(0, 28);           // extra field length
+  fileNameBuf.copy(localHeader, 30);
+
+  // Central directory header
+  const centralDir = Buffer.alloc(46 + fileNameBuf.length);
+  centralDir.writeUInt32LE(0x02014b50, 0);   // signature
+  centralDir.writeUInt16LE(20, 4);            // version made by
+  centralDir.writeUInt16LE(20, 6);            // version needed
+  centralDir.writeUInt16LE(0, 8);             // flags
+  centralDir.writeUInt16LE(8, 10);            // compression method
+  centralDir.writeUInt16LE(0, 12);            // mod time
+  centralDir.writeUInt16LE(0, 14);            // mod date
+  centralDir.writeUInt32LE(crc32, 16);        // crc32
+  centralDir.writeUInt32LE(deflated.length, 20);    // compressed size
+  centralDir.writeUInt32LE(fileData.length, 24);     // uncompressed size
+  centralDir.writeUInt16LE(fileNameBuf.length, 28);  // file name length
+  centralDir.writeUInt16LE(0, 30);            // extra field length
+  centralDir.writeUInt16LE(0, 32);            // comment length
+  centralDir.writeUInt16LE(0, 34);            // disk number start
+  centralDir.writeUInt16LE(0, 36);            // internal attrs
+  centralDir.writeUInt32LE(0, 38);            // external attrs
+  centralDir.writeUInt32LE(0, 42);            // local header offset
+  fileNameBuf.copy(centralDir, 46);
+
+  const centralDirOffset = localHeader.length + deflated.length;
+
+  // End of central directory
+  const endOfDir = Buffer.alloc(22);
+  endOfDir.writeUInt32LE(0x06054b50, 0);     // signature
+  endOfDir.writeUInt16LE(0, 4);               // disk number
+  endOfDir.writeUInt16LE(0, 6);               // disk with central dir
+  endOfDir.writeUInt16LE(1, 8);               // entries on this disk
+  endOfDir.writeUInt16LE(1, 10);              // total entries
+  endOfDir.writeUInt32LE(centralDir.length, 12);     // central dir size
+  endOfDir.writeUInt32LE(centralDirOffset, 16);      // central dir offset
+  endOfDir.writeUInt16LE(0, 20);              // comment length
+
+  return { ZipFile: Buffer.concat([localHeader, deflated, centralDir, endOfDir]) };
+}
+
+/** CRC32 for ZIP files */
+function crc32Buf(buf: Buffer): number {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) {
+    crc ^= buf[i];
+    for (let j = 0; j < 8; j++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+    }
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+
 /**
  * Get the CloudWatch Logs filter pattern based on filter mode
  */
@@ -1125,19 +1419,29 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   // Create new subscription filter using CloudWatch Logs Destination (required for cross-account)
   const destinationArn = getDestinationArn(region);
   
-  // IMPORTANT: Update destination policy in EVO account to allow this customer account
+  // IMPORTANT: Ensure the destination infrastructure exists in this region
+  // Auto-provisions Lambda forwarder + IAM roles + CW Logs Destination if missing
+  const destinationReady = await ensureDestinationExists(region);
+  if (!destinationReady) {
+    logger.error('Failed to ensure WAF logs destination in region', { region, destinationArn, organizationId });
+    throw createPermissionError(
+      `Failed to auto-provision WAF monitoring infrastructure in region ${region}. ` +
+      `The EVO Lambda execution role may lack permissions to create IAM roles, Lambda functions, or CW Logs destinations. ` +
+      `Destination: ${destinationArn}`,
+      'WAFPermissionPreFlightError'
+    );
+  }
+  
+  // Update destination policy in EVO account to allow this customer account
   // This must be done BEFORE creating the subscription filter
-  // Also validates that the destination exists in this region
   const destinationExists = await updateDestinationPolicyForCustomer(customerAwsAccountId, region);
   
   if (!destinationExists) {
-    logger.error('WAF logs destination does not exist in region', { 
+    logger.error('WAF logs destination policy update failed', { 
       region, destinationArn, organizationId 
     });
     throw createPermissionError(
-      `WAF monitoring is not yet available in region ${region}. ` +
-      `The EVO WAF logs destination has not been deployed to this region. ` +
-      `Please contact EVO support to enable WAF monitoring for region ${region}. ` +
+      `WAF monitoring destination exists but policy update failed in region ${region}. ` +
       `Destination: ${destinationArn}`,
       'WAFPermissionPreFlightError'
     );
@@ -1460,9 +1764,16 @@ async function handleTestSetup(
     }
   }
 
-  // Test destination exists (read-only check — does NOT modify destination policy)
+  // Test destination exists — auto-provision if missing
   const destinationArn = getDestinationArn(wafRegion);
-  const destinationExists = await checkDestinationExists(wafRegion);
+  let destinationExists = await checkDestinationExists(wafRegion);
+  
+  if (!destinationExists) {
+    // Try to auto-provision the destination infrastructure
+    steps.push({ step: 'destination-auto-provision', status: 'ok', detail: `Destination not found in ${wafRegion}, auto-provisioning...` });
+    destinationExists = await ensureDestinationExists(wafRegion);
+  }
+  
   steps.push({ step: 'destination-exists', status: destinationExists ? 'ok' : 'fail', detail: `${destinationArn} (region=${wafRegion})` });
 
   // Test CloudWatch Logs role
