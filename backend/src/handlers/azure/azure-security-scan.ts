@@ -226,7 +226,7 @@ export async function handler(
       if (accessToken && credential.subscription_id) {
         const scanContext: AzureScanContext = {
           subscriptionId: credential.subscription_id,
-          tenantId: credential.tenant_id || '',
+          tenantId: resolveAzureTenantId(credential),
           accessToken,
           organizationId,
           credentialId,
