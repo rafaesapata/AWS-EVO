@@ -122,9 +122,12 @@ function buildFeatureTests(ctx: TestContext): FeatureTest[] {
       feature: 'Conectividade básica',
       critical: true,
       permissions: ['Microsoft.Resources/subscriptions/read'],
-      test: async () => {
-        const r = await azureGet(ctx.accessToken, `${BASE}/subscriptions/${sub}?api-version=2022-12-01`);
-        return r.status === 200 ? ok(`Assinatura: ${r.body?.displayName || sub}`) : fail(`HTTP ${r.status}`);
+      test: async (testCtx) => {
+        const r = await azureGet(testCtx.accessToken, `${BASE}/subscriptions/${sub}?api-version=2022-12-01`);
+        if (r.status === 200) return ok(`Assinatura: ${r.body?.displayName || sub}`);
+        if (r.status === 404) return fail(`Subscription ${sub} não encontrada. Verifique se o Subscription ID está correto e se o token tem acesso a esta subscription. Isso NÃO é erro de permissão — a subscription simplesmente não existe ou não pertence ao tenant/conta usada para autenticação.`);
+        if (r.status === 403) return fail(`Sem permissão para acessar subscription ${sub} (HTTP 403)`);
+        return fail(`HTTP ${r.status}: ${r.body?.error?.message || 'Erro desconhecido'}`);
       },
     },
     {
@@ -133,9 +136,10 @@ function buildFeatureTests(ctx: TestContext): FeatureTest[] {
       feature: 'Inventário de Recursos',
       critical: true,
       permissions: ['Microsoft.Resources/subscriptions/resourceGroups/read'],
-      test: async () => {
-        const r = await azureGet(ctx.accessToken, `${BASE}/subscriptions/${sub}/resourcegroups?api-version=2021-04-01`);
-        if (r.status !== 200) return fail(`HTTP ${r.status}`);
+      test: async (testCtx) => {
+        const r = await azureGet(testCtx.accessToken, `${BASE}/subscriptions/${sub}/resourcegroups?api-version=2021-04-01`);
+        if (r.status === 404) return fail(`Subscription não encontrada (HTTP 404). Verifique o Subscription ID.`);
+        if (r.status !== 200) return fail(`HTTP ${r.status}: ${r.body?.error?.message || r.body?.error?.code || ''}`);
         const count = r.body?.value?.length ?? 0;
         return ok(`${count} resource group(s) encontrado(s)`);
       },
@@ -146,9 +150,10 @@ function buildFeatureTests(ctx: TestContext): FeatureTest[] {
       feature: 'Inventário de Recursos / Monitor Metrics',
       critical: true,
       permissions: ['Microsoft.Resources/subscriptions/resources/read'],
-      test: async () => {
-        const r = await azureGet(ctx.accessToken, `${BASE}/subscriptions/${sub}/resources?api-version=2021-04-01&$top=5`);
-        if (r.status !== 200) return fail(`HTTP ${r.status}`);
+      test: async (testCtx) => {
+        const r = await azureGet(testCtx.accessToken, `${BASE}/subscriptions/${sub}/resources?api-version=2021-04-01&$top=5`);
+        if (r.status === 404) return fail(`Subscription não encontrada (HTTP 404). Verifique o Subscription ID.`);
+        if (r.status !== 200) return fail(`HTTP ${r.status}: ${r.body?.error?.message || r.body?.error?.code || ''}`);
         const count = r.body?.value?.length ?? 0;
         return ok(`${count} recurso(s) na primeira página`);
       },
@@ -591,8 +596,39 @@ export async function handler(
       }
     }
 
-    // ── Run all tests in parallel (batches of 5) ──────────────────────
+    // ── Pre-flight: verify subscription is accessible by this token ───
     const ctx: TestContext = { accessToken, subscriptionId: credential.subscription_id };
+    let subscriptionMismatch: { available: string[]; requested: string } | null = null;
+
+    try {
+      const subListRes = await azureGet(accessToken, `${BASE}/subscriptions?api-version=2022-12-01`);
+      if (subListRes.status === 200 && subListRes.body?.value) {
+        const availableSubs: Array<{ subscriptionId: string; displayName: string; state: string }> = subListRes.body.value;
+        const match = availableSubs.find(s => s.subscriptionId === credential.subscription_id);
+        if (!match && availableSubs.length > 0) {
+          subscriptionMismatch = {
+            available: availableSubs.map(s => `${s.subscriptionId} (${s.displayName}, ${s.state})`),
+            requested: credential.subscription_id,
+          };
+          logger.warn('Subscription ID not found in token accessible subscriptions', {
+            credentialId,
+            requestedSubscription: credential.subscription_id,
+            availableCount: availableSubs.length,
+            availableIds: availableSubs.map(s => s.subscriptionId),
+          });
+        } else if (availableSubs.length === 0) {
+          subscriptionMismatch = {
+            available: [],
+            requested: credential.subscription_id,
+          };
+          logger.warn('Token has no accessible subscriptions', { credentialId });
+        }
+      }
+    } catch (err: any) {
+      logger.warn('Pre-flight subscription check failed', { error: err.message });
+    }
+
+    // ── Run all tests in parallel (batches of 8) ──────────────────────
     const tests = buildFeatureTests(ctx);
     const results: TestResult[] = [];
 
@@ -672,6 +708,7 @@ export async function handler(
       results,
       byFeature,
       missingPermissions: [...new Set(missingPermissions)],
+      subscriptionMismatch: subscriptionMismatch || undefined,
       credential: {
         id: credential.id,
         subscriptionId: credential.subscription_id,

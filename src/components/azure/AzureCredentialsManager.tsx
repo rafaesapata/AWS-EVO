@@ -84,6 +84,10 @@ interface AzurePermissionResults {
   results: AzureTestResult[];
   byFeature: Record<string, AzureTestResult[]>;
   missingPermissions: string[];
+  subscriptionMismatch?: {
+    available: string[];
+    requested: string;
+  };
   credential: {
     id: string;
     subscriptionId: string;
@@ -531,6 +535,41 @@ export function AzureCredentialsManager() {
                   </div>
                 </div>
               </div>
+
+              {/* Subscription Mismatch Alert */}
+              {permissionResults.subscriptionMismatch && (
+                <div className="p-4 rounded-lg border bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-2">
+                      <p className="font-semibold text-red-700 dark:text-red-300">
+                        {t('azure.subscriptionNotFound', 'Subscription ID not found')}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {t('azure.subscriptionMismatchDesc', 'The Subscription ID "{{requested}}" saved in this credential was not found among the subscriptions accessible by this token. This is NOT a permission error — the subscription does not exist or does not belong to the authenticated tenant/account.', {
+                          requested: permissionResults.subscriptionMismatch.requested,
+                        })}
+                      </p>
+                      {permissionResults.subscriptionMismatch.available.length > 0 ? (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {t('azure.availableSubscriptions', 'Subscriptions accessible by this token:')}
+                          </p>
+                          <div className="bg-muted/50 rounded p-2 space-y-1">
+                            {permissionResults.subscriptionMismatch.available.map((sub, idx) => (
+                              <p key={idx} className="text-xs font-mono">{sub}</p>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          {t('azure.noSubscriptionsAccessible', 'This token has no accessible subscriptions. The OAuth token may have expired or the user may not have access to any Azure subscription.')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Results grouped by feature */}
               <div className="space-y-3 pr-1">
