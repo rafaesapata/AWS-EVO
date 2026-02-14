@@ -91,9 +91,7 @@ export async function handler(
         client_id: true,
         // client_secret is NOT selected for security
         // encrypted_refresh_token is NOT selected for security
-        // certificate_pem is NOT selected for security
-        certificate_thumbprint: true,
-        certificate_expires_at: true,
+        // certificate fields omitted - migration may not be applied yet
         oauth_tenant_id: true,
         oauth_user_email: true,
         token_expires_at: true,
@@ -124,9 +122,6 @@ export async function handler(
       // Service Principal fields
       tenantId: cred.tenant_id,
       clientId: cred.client_id,
-      // Certificate fields
-      certificateThumbprint: cred.certificate_thumbprint,
-      certificateExpiresAt: cred.certificate_expires_at,
       // OAuth fields
       oauthTenantId: cred.oauth_tenant_id,
       oauthUserEmail: cred.oauth_user_email,
@@ -143,33 +138,11 @@ export async function handler(
 
     return success(transformedCredentials, 200, origin);
   } catch (err: any) {
-    const errorDetails = {
-      message: err?.message || 'Unknown error',
-      name: err?.name || 'Error',
-      code: err?.code,
-      stack: err?.stack?.split('\n').slice(0, 5).join(' | '),
-    };
     logger.error('Error listing Azure credentials', err, {
       organizationId,
       userId,
       requestId: context.awsRequestId,
-      errorDetails,
     });
-    // Return error info in a custom header to bypass response sanitization
-    return {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Credentials': 'true',
-        'X-Debug-Error': Buffer.from(JSON.stringify(errorDetails)).toString('base64').substring(0, 500),
-      },
-      body: JSON.stringify({
-        success: false,
-        error: 'Failed to list Azure credentials',
-        debug: errorDetails,
-        timestamp: new Date().toISOString(),
-      }),
-    };
+    return error('Failed to list Azure credentials', 500, undefined, origin);
   }
 }
