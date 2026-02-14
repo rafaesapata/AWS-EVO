@@ -98,7 +98,7 @@ export default function EndpointMonitoring() {
     enabled: !!organizationId,
     staleTime: 1 * 60 * 1000,
     queryFn: async () => {
-      const response = await apiClient.post<Alert[]>('/api/functions/alerts', {});
+      const response = await apiClient.post<Alert[]>('/api/functions/alerts', { _method: 'GET' });
 
       if (response.error) {
         throw new Error(getErrorMessage(response.error));
