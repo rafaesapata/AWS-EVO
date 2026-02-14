@@ -143,11 +143,19 @@ export async function handler(
 
     return success(transformedCredentials, 200, origin);
   } catch (err: any) {
+    const errorDetails = {
+      message: err?.message || 'Unknown error',
+      name: err?.name || 'Error',
+      code: err?.code,
+      stack: err?.stack?.split('\n').slice(0, 5).join(' | '),
+    };
     logger.error('Error listing Azure credentials', err, {
       organizationId,
       userId,
       requestId: context.awsRequestId,
+      errorDetails,
     });
-    return error('Failed to list Azure credentials', 500, undefined, origin);
+    // Include error details in response for debugging (sanitized by response.ts in production)
+    return error(`Failed to list Azure credentials: ${errorDetails.name}: ${errorDetails.message}`, 500, undefined, origin);
   }
 }
