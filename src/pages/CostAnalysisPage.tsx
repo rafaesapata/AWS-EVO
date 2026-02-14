@@ -148,7 +148,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const lambdaData = lambdaResponse.data;
  
  // Extract costs array from Lambda response (works for both providers)
- let costs: any[] = lambdaData?.costs || lambdaData?.data?.dailyCosts || [];
+ // apiClient.invoke unwraps responseData.data, so lambdaData = responseData.data
+ // Backend returns: { success, data: { dailyCosts }, costs, summary }
+ // After unwrap: lambdaData = { dailyCosts: [...] }
+ let costs: any[] = lambdaData?.costs || lambdaData?.dailyCosts || lambdaData?.data?.dailyCosts || [];
  
  // Fallback: if Lambda returned empty for Azure, query DB directly
  if ((!costs || costs.length === 0) && selectedProvider === 'AZURE') {
@@ -332,9 +335,11 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }
  
  const data = result.data;
+ // apiClient unwraps responseData.data, so data = { dailyCosts: [...] }
+ // Check for success at unwrapped level or treat as raw data
  return data?.success ? data : {
  success: true,
- data: { dailyCosts: data?.costs || [] },
+ data: { dailyCosts: data?.dailyCosts || data?.costs || [] },
  summary: data?.summary || { totalRecords: 0, newRecords: 0 },
  };
  } else {
@@ -450,7 +455,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const data = result.data;
  return data?.success ? data : {
  success: true,
- data: { dailyCosts: data?.costs || [] },
+ data: { dailyCosts: data?.dailyCosts || data?.costs || [] },
  summary: data?.summary || { totalRecords: 0, newRecords: 0 },
  };
  } else {
