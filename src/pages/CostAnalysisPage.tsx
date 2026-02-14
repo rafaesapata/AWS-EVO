@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -58,6 +58,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const { getAccountFilter } = useAccountFilter();
  const { data: organizationId } = useOrganization();
  const { shouldEnableAccountQuery } = useDemoAwareQuery();
+
+ // Guard: prevent duplicate azure-fetch-costs calls (causes 429 rate limit)
+ const azureSyncInProgress = useRef(false);
+ const [isAzureSyncing, setIsAzureSyncing] = useState(false);
 
  // Get available tags from organization - filtered by selected account
  const { data: availableTags } = useQuery({
@@ -300,22 +304,21 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const endDate = new Date().toISOString().split('T')[0];
  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
  
- // Fire-and-forget: trigger Azure cost sync (don't await)
+ // Fire-and-forget: trigger Azure cost sync with guard (prevents 429)
+ if (!azureSyncInProgress.current) {
+ azureSyncInProgress.current = true;
+ setIsAzureSyncing(true);
  apiClient.invoke('azure-fetch-costs', {
- body: { 
- credentialId: accountId, 
- startDate,
- endDate,
- granularity: 'DAILY'
- },
+ body: { credentialId: accountId, startDate, endDate, granularity: 'DAILY' },
  timeoutMs: 120000,
  }).then((res) => {
  if (!res.error) {
- // Refresh UI after background sync completes
  queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
  queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
+ toast({ title: t('costAnalysis.azureSyncComplete', 'Azure sync complete'), description: t('costAnalysis.azureSyncCompleteDesc', 'Cost data updated from Azure.') });
  }
- }).catch(() => { /* silent - background sync */ });
+ }).catch(() => {}).finally(() => { azureSyncInProgress.current = false; setIsAzureSyncing(false); });
+ }
  
  // Return existing data from database immediately
  const result = await apiClient.invoke<any>('fetch-daily-costs', {
@@ -410,22 +413,21 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const endDate = new Date().toISOString().split('T')[0];
  const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Azure API max 1 year
  
- // Fire-and-forget: trigger Azure cost sync (don't await)
+ // Fire-and-forget: trigger Azure cost sync with guard (prevents 429)
+ if (!azureSyncInProgress.current) {
+ azureSyncInProgress.current = true;
+ setIsAzureSyncing(true);
  apiClient.invoke('azure-fetch-costs', {
- body: { 
- credentialId: accountId, 
- startDate,
- endDate,
- granularity: 'DAILY'
- },
+ body: { credentialId: accountId, startDate, endDate, granularity: 'DAILY' },
  timeoutMs: 120000,
  }).then((res) => {
  if (!res.error) {
- // Refresh UI after background sync completes
  queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
  queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
+ toast({ title: t('costAnalysis.azureSyncComplete', 'Azure sync complete'), description: t('costAnalysis.azureSyncCompleteDesc', 'Cost data updated from Azure.') });
  }
- }).catch(() => { /* silent - background sync */ });
+ }).catch(() => {}).finally(() => { azureSyncInProgress.current = false; setIsAzureSyncing(false); });
+ }
  
  // Return existing data from database immediately
  const result = await apiClient.invoke<any>('fetch-daily-costs', {
@@ -801,6 +803,12 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  accounts={allAccounts || []} 
  selectedAccountId={selectedAccountId} 
  />
+ {isAzureSyncing && (
+ <Badge variant="outline" className="gap-1 text-blue-600 border-blue-300 animate-pulse">
+ <RefreshCw className="h-3 w-3 animate-spin" />
+ {t('costAnalysis.azureSyncing', 'Syncing Azure...')}
+ </Badge>
+ )}
  </div>
  </div>
  </CardHeader>

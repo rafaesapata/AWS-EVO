@@ -52,7 +52,7 @@ const METRIC_DEFINITIONS: Record<string, { metrics: string[]; aggregation: strin
     aggregation: 'Average',
   },
   'Microsoft.ContainerService/managedClusters': {
-    metrics: ['node_cpu_usage_percentage', 'node_memory_rss_percentage', 'kube_pod_status_ready'],
+    metrics: ['node_cpu_usage_percentage', 'node_memory_rss_percentage', 'node_disk_usage_percentage'],
     aggregation: 'Average',
   },
   'Microsoft.DocumentDB/databaseAccounts': {
@@ -65,7 +65,7 @@ const METRIC_DEFINITIONS: Record<string, { metrics: string[]; aggregation: strin
   },
   'Microsoft.Cache/redis': {
     metrics: ['percentProcessorTime', 'usedmemorypercentage', 'connectedclients', 'totalcommandsprocessed', 'cachehits', 'cachemisses'],
-    aggregation: 'Average',
+    aggregation: 'Maximum',
   },
   'Microsoft.DBforPostgreSQL/flexibleServers': {
     metrics: ['cpu_percent', 'memory_percent', 'active_connections', 'storage_percent', 'network_bytes_ingress', 'network_bytes_egress'],
@@ -363,11 +363,19 @@ async function processResource(
   }
 
   // Fetch metrics from Azure Monitor
-  const metrics = await fetchResourceMetrics(
-    accessToken, resource.id, resource.type,
-    metricDef.metrics, metricDef.aggregation,
-    startTime, endTime, interval
-  );
+  let metrics: MetricPoint[];
+  try {
+    metrics = await fetchResourceMetrics(
+      accessToken, resource.id, resource.type,
+      metricDef.metrics, metricDef.aggregation,
+      startTime, endTime, interval
+    );
+  } catch (fetchErr: any) {
+    logger.warn('Failed to fetch metrics for resource', {
+      name: resource.name, type: resource.type, error: fetchErr.message,
+    });
+    return 0;
+  }
 
   if (metrics.length === 0) return 0;
 

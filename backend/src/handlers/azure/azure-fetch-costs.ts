@@ -163,9 +163,9 @@ async function queryCostManagementApi(
       },
       body: JSON.stringify(requestBody),
     }, {
-      maxRetries: 2,
-      baseDelayMs: 1000,
-      maxDelayMs: 10000,
+      maxRetries: 3,
+      baseDelayMs: 2000,
+      maxDelayMs: 60000,
       jitterFactor: 0.2,
       requestTimeoutMs: 25000,
       retryAfterHeaders: ['x-ms-ratelimit-microsoft.costmanagement-retry-after'],

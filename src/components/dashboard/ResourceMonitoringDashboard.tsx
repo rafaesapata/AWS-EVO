@@ -228,7 +228,7 @@ const COUNT_METRICS = new Set([
   'active_connections', 'PacketCount', 'SnatConnectionCount',
   'FailedRequests', 'HealthyHostCount', 'UnhealthyHostCount', 'ResponseStatus',
   'TotalPullCount', 'TotalPushCount', 'SuccessfulPullCount', 'SuccessfulPushCount',
-  'Replicas', 'RestartCount', 'kube_pod_status_ready',
+  'Replicas', 'RestartCount',
 ]);
 
 // Função para obter variante do badge baseada no status
@@ -314,7 +314,7 @@ const formatMetricValue = (metricName: string, value: number): string => {
   if (metricName === 'Duration' || metricName === 'Latency' || metricName === 'IntegrationLatency' || metricName === 'AverageResponseTime' || metricName === 'SuccessE2ELatency') {
     return `${value.toFixed(2)} ms`;
   }
-  if (metricName === 'CPUUtilization' || metricName === 'MemoryUtilization' || metricName === 'Percentage CPU' || metricName === 'cpu_percent' || metricName === 'physical_data_read_percent' || metricName === 'log_write_percent' || metricName === 'dtu_consumption_percent' || metricName === 'storage_percent' || metricName === 'node_cpu_usage_percentage' || metricName === 'node_memory_rss_percentage' || metricName === 'memory_percent' || metricName === 'percentProcessorTime' || metricName === 'usedmemorypercentage' || metricName === 'Availability' || metricName === 'VipAvailability' || metricName === 'DipAvailability') {
+  if (metricName === 'CPUUtilization' || metricName === 'MemoryUtilization' || metricName === 'Percentage CPU' || metricName === 'cpu_percent' || metricName === 'physical_data_read_percent' || metricName === 'log_write_percent' || metricName === 'dtu_consumption_percent' || metricName === 'storage_percent' || metricName === 'node_cpu_usage_percentage' || metricName === 'node_memory_rss_percentage' || metricName === 'node_disk_usage_percentage' || metricName === 'memory_percent' || metricName === 'percentProcessorTime' || metricName === 'usedmemorypercentage' || metricName === 'Availability' || metricName === 'VipAvailability' || metricName === 'DipAvailability' || metricName === 'CpuPercentage' || metricName === 'MemoryPercentage') {
     return `${value.toFixed(1)}%`;
   }
   if (metricName === 'Available Memory Bytes' || metricName === 'MemoryWorkingSet' || metricName === 'UsedCapacity' || metricName === 'Ingress' || metricName === 'Egress' || metricName === 'Disk Read Bytes' || metricName === 'Disk Write Bytes' || metricName === 'Network In Total' || metricName === 'Network Out Total' || metricName === 'DataUsage' || metricName === 'StorageUsed' || metricName === 'RxBytes' || metricName === 'TxBytes' || metricName === 'ByteCount' || metricName === 'Throughput' || metricName === 'network_bytes_ingress' || metricName === 'network_bytes_egress') {

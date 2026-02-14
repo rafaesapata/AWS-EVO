@@ -54,6 +54,13 @@ export interface ValidationResult {
   brokenImports: BrokenImport[];
   cycles: Cycle[];
   unsafeHandlers: UnsafeHandler[];
+  awsSdkHandlers: AwsSdkHandler[];
+}
+
+interface AwsSdkHandler {
+  filePath: string;
+  line: number;
+  importPath: string;
 }
 
 interface UnsafeHandler {
@@ -524,6 +531,52 @@ function detectUnsafeHandlers(handlers: string[]): UnsafeHandler[] {
 }
 
 // ---------------------------------------------------------------------------
+// @aws-sdk Import Detection (handlers that import @aws-sdk MUST use FULL_SAM)
+// ---------------------------------------------------------------------------
+
+const AWS_SDK_IMPORT_REGEX = /^\s*(?:import|const\s+\w+\s*=\s*require\s*\().*['"]@aws-sdk\//;
+
+/**
+ * Detect handlers that directly import @aws-sdk/* packages.
+ * These handlers CANNOT be deployed via INCREMENTAL — they require FULL_SAM
+ * because @aws-sdk is NOT in the Lambda Layer and must be bundled by esbuild.
+ * 
+ * This is an informational warning (not blocking) to flag handlers that will
+ * force FULL_SAM deploy and take ~10min instead of ~1-2min.
+ */
+function detectAwsSdkHandlers(handlers: string[]): AwsSdkHandler[] {
+  const results: AwsSdkHandler[] = [];
+
+  for (const handlerPath of handlers) {
+    let content: string;
+    try {
+      content = readFileSync(handlerPath, 'utf-8');
+    } catch {
+      continue;
+    }
+
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Skip comments
+      if (/^\s*(\/\/|\/\*|\*)/.test(line)) continue;
+      
+      if (AWS_SDK_IMPORT_REGEX.test(line)) {
+        // Extract the @aws-sdk/... package name
+        const match = line.match(/@aws-sdk\/[a-z0-9-]+/);
+        results.push({
+          filePath: handlerPath,
+          line: i + 1,
+          importPath: match ? match[0] : '@aws-sdk/*',
+        });
+      }
+    }
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Reporting
 // ---------------------------------------------------------------------------
 
@@ -583,7 +636,28 @@ export function reportResults(result: ValidationResult): void {
   console.log(`  Broken imports: ${result.brokenImports.length}`);
   console.log(`  Circular dependencies: ${result.cycles.length}`);
   console.log(`  Unsafe handlers: ${result.unsafeHandlers.length}`);
-}
+  console.log(`  @aws-sdk handlers (FULL_SAM required): ${result.awsSdkHandlers.length}`);
+
+  // @aws-sdk handlers section
+  if (result.awsSdkHandlers.length > 0) {
+    console.log('\n📦 HANDLERS WITH @aws-sdk IMPORTS (require FULL_SAM deploy):\n');
+
+    const byFile = new Map<string, AwsSdkHandler[]>();
+    for (const h of result.awsSdkHandlers) {
+      const existing = byFile.get(h.filePath) || [];
+      existing.push(h);
+      byFile.set(h.filePath, existing);
+    }
+
+    for (const [filePath, imports] of byFile) {
+      const relPath = relative(cwd, filePath);
+      const pkgs = imports.map(i => i.importPath).join(', ');
+      console.log(`  ${relPath} → ${pkgs}`);
+    }
+
+    console.log(`\n  Total: ${byFile.size} handler(s) importing @aws-sdk — these CANNOT use INCREMENTAL deploy`);
+    console.log('  CI/CD auto-detects this and forces FULL_SAM (~10min instead of ~1-2min)\n');
+  }
 
 export function writeGraphJson(
   graph: DependencyGraph,
@@ -864,6 +938,9 @@ async function main(): Promise<void> {
   // 4. Detect unsafe handlers (auth code outside try/catch)
   const unsafeHandlers = detectUnsafeHandlers(handlers);
 
+  // 4b. Detect handlers importing @aws-sdk (require FULL_SAM deploy)
+  const awsSdkHandlers = detectAwsSdkHandlers(handlers);
+
   // 5. Compute unique libs count from adjacencyMap (all non-handler files)
   const allLibs = new Set<string>();
   for (const deps of Object.values(graph)) {
@@ -879,6 +956,7 @@ async function main(): Promise<void> {
     brokenImports,
     cycles,
     unsafeHandlers,
+    awsSdkHandlers,
   };
 
   // 7. Report results
