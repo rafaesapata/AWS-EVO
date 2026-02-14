@@ -22,6 +22,12 @@ import { getPrismaClient } from '../../lib/database.js';
 import { edgeCache } from '../../lib/redis-cache.js';
 import { randomUUID } from 'crypto';
 import { isOrganizationInDemoMode, generateDemoAzureEdgeServices } from '../../lib/demo-data-service.js';
+import { FrontDoorManagementClient } from '@azure/arm-frontdoor';
+import { NetworkManagementClient } from '@azure/arm-network';
+import { ApiManagementClient } from '@azure/arm-apimanagement';
+import { MonitorClient } from '@azure/arm-monitor';
+import { ClientSecretCredential, ClientCertificateCredential } from '@azure/identity';
+import { getAzureCredentialWithToken, createStaticTokenCredential, resolveClientSecret, resolveCertificatePem, isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } from '../../lib/azure-helpers.js';
 
 interface FetchAzureEdgeServicesRequest {
   accountId: string; // Azure credential ID
@@ -229,8 +235,6 @@ export async function handler(
 async function getAzureTokenCredential(credential: any): Promise<any> {
   try {
     if (credential.auth_type === 'oauth') {
-      // OAuth flow: use getAzureCredentialWithToken to properly refresh the token
-      const { getAzureCredentialWithToken } = await import('../../lib/azure-helpers.js');
       const prisma = getPrismaClient();
       const tokenResult = await getAzureCredentialWithToken(prisma, credential.id, credential.organization_id);
       
@@ -238,26 +242,20 @@ async function getAzureTokenCredential(credential: any): Promise<any> {
         throw new Error(tokenResult.error || 'OAuth token expired. Please reconnect your Azure account.');
       }
       
-      // Return a credential-like object that Azure SDK clients can use
-      const { createStaticTokenCredential } = await import('../../lib/azure-helpers.js');
       return createStaticTokenCredential(tokenResult.accessToken);
     }
     
     if (credential.auth_type === 'certificate') {
-      const { resolveCertificatePem } = await import('../../lib/azure-helpers.js');
       const pem = await resolveCertificatePem(credential);
       if (credential.client_id && pem && credential.tenant_id) {
-        const { ClientCertificateCredential } = await import('@azure/identity');
         return new ClientCertificateCredential(credential.tenant_id, credential.client_id, { certificate: pem });
       }
       throw new Error('Incomplete certificate credentials');
     }
     
     // Service Principal authentication
-    const { resolveClientSecret } = await import('../../lib/azure-helpers.js');
     const resolvedSecret = await resolveClientSecret(credential);
     if (credential.client_id && resolvedSecret && credential.tenant_id) {
-      const { ClientSecretCredential } = await import('@azure/identity');
       return new ClientSecretCredential(
         credential.tenant_id,
         credential.client_id,
@@ -267,10 +265,6 @@ async function getAzureTokenCredential(credential: any): Promise<any> {
     
     throw new Error('Invalid Azure credentials configuration');
   } catch (err: any) {
-    if (err.code === 'ERR_MODULE_NOT_FOUND' || err.code === 'MODULE_NOT_FOUND') {
-      throw new Error('Azure SDK not installed');
-    }
-    const { isInvalidClientSecretError, INVALID_CLIENT_SECRET_MESSAGE } = await import('../../lib/azure-helpers.js');
     if (isInvalidClientSecretError(err.message || '')) {
       throw new Error(INVALID_CLIENT_SECRET_MESSAGE);
     }
@@ -285,7 +279,6 @@ async function discoverFrontDoor(
   permissionErrors: any[]
 ): Promise<AzureEdgeServiceInfo[]> {
   try {
-    const { FrontDoorManagementClient } = await import('@azure/arm-frontdoor');
     const client = new FrontDoorManagementClient(credential, subscriptionId);
     
     const services: AzureEdgeServiceInfo[] = [];
@@ -350,7 +343,6 @@ async function discoverApplicationGateways(
   permissionErrors: any[]
 ): Promise<AzureEdgeServiceInfo[]> {
   try {
-    const { NetworkManagementClient } = await import('@azure/arm-network');
     const client = new NetworkManagementClient(credential, subscriptionId);
     
     const services: AzureEdgeServiceInfo[] = [];
@@ -420,7 +412,6 @@ async function discoverLoadBalancers(
   permissionErrors: any[]
 ): Promise<AzureEdgeServiceInfo[]> {
   try {
-    const { NetworkManagementClient } = await import('@azure/arm-network');
     const client = new NetworkManagementClient(credential, subscriptionId);
     
     const services: AzureEdgeServiceInfo[] = [];
@@ -472,7 +463,6 @@ async function discoverNatGateways(
   permissionErrors: any[]
 ): Promise<AzureEdgeServiceInfo[]> {
   try {
-    const { NetworkManagementClient } = await import('@azure/arm-network');
     const client = new NetworkManagementClient(credential, subscriptionId);
     
     const services: AzureEdgeServiceInfo[] = [];
@@ -516,7 +506,6 @@ async function discoverApiManagement(
   permissionErrors: any[]
 ): Promise<AzureEdgeServiceInfo[]> {
   try {
-    const { ApiManagementClient } = await import('@azure/arm-apimanagement');
     const client = new ApiManagementClient(credential, subscriptionId);
     
     const services: AzureEdgeServiceInfo[] = [];
@@ -579,7 +568,6 @@ async function collectAzureMetrics(
   service: AzureEdgeServiceInfo
 ): Promise<AzureEdgeMetricsData | null> {
   try {
-    const { MonitorClient } = await import('@azure/arm-monitor');
     const client = new MonitorClient(credential, subscriptionId);
     
     const endTime = new Date();
