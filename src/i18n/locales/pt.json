@@ -4366,6 +4366,7 @@
     "evoRequiredFields": "Client ID e Secret são obrigatórios",
     "evoTestBtn": "Testar Credenciais",
     "evoTestSuccess": "Credenciais válidas",
+    "evoTestPartial": "Credenciais autenticadas (acesso restrito)",
     "evoTestFailed": "Credenciais inválidas",
     "evoTestError": "Falha no teste",
     "evoTenantId": "Tenant ID (Diretório)",

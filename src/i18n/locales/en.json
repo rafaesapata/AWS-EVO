@@ -4221,6 +4221,7 @@
     "evoRequiredFields": "Client ID and Secret are required",
     "evoTestBtn": "Test Credentials",
     "evoTestSuccess": "Credentials are valid",
+    "evoTestPartial": "Credentials authenticated (access restricted)",
     "evoTestFailed": "Credentials are invalid",
     "evoTestError": "Test failed",
     "evoTenantId": "Tenant ID (Directory)",

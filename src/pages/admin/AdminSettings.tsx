@@ -205,20 +205,29 @@ export default function AdminSettings() {
   // EVO App test credentials mutation
   const evoTestMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.invoke<{ valid: boolean; error?: string; source?: string; clientId?: string; note?: string }>('admin-evo-app-credentials', {
+      const res = await apiClient.invoke<{ valid: boolean; conditionalAccess?: boolean; error?: string; source?: string; clientId?: string; note?: string; azureErrorCode?: string }>('admin-evo-app-credentials', {
         body: { action: 'test' },
       });
       if (res.error) throw new Error(res.error.message || 'Request failed');
       return res.data;
     },
     onSuccess: (data) => {
-      toast({
-        title: data.valid
-          ? t('adminSettings.evoTestSuccess', 'Credentials are valid')
-          : t('adminSettings.evoTestFailed', 'Credentials are invalid'),
-        description: data.note || data.error || (data.clientId ? `Client ID: ${data.clientId}` : undefined),
-        variant: data.valid ? 'default' : 'destructive',
-      });
+      if (data.valid && data.conditionalAccess) {
+        // Credentials authenticated but Conditional Access blocked — show as warning
+        toast({
+          title: t('adminSettings.evoTestPartial', 'Credentials authenticated (access restricted)'),
+          description: data.note + (data.azureErrorCode ? ` [${data.azureErrorCode}]` : ''),
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: data.valid
+            ? t('adminSettings.evoTestSuccess', 'Credentials are valid')
+            : t('adminSettings.evoTestFailed', 'Credentials are invalid'),
+          description: data.note || data.error || (data.clientId ? `Client ID: ${data.clientId}` : undefined),
+          variant: data.valid ? 'default' : 'destructive',
+        });
+      }
     },
     onError: (err: Error) => {
       toast({ title: t('adminSettings.evoTestError', 'Test failed'), description: err.message, variant: 'destructive' });

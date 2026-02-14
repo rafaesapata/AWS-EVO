@@ -31,7 +31,7 @@ const ssmClient = new SSMClient({ region: REGION });
 const lambdaClient = new LambdaClient({ region: REGION });
 
 interface ActionBody {
-  action: 'get' | 'update' | 'sync' | 'test';
+  action: 'get' | 'update' | 'sync' | 'test' | 'test-preview';
   clientId?: string;
   clientSecret?: string;
   redirectUri?: string;
@@ -322,9 +322,35 @@ async function handleSync(
  */
 async function handleTest(origin: string): Promise<APIGatewayProxyResultV2> {
   const creds = await getAzureOAuthCredentials();
+  return testCredentialsAgainstAzureAD(creds.clientId, creds.clientSecret, 'ssm', origin);
+}
 
-  if (!creds.clientId || !creds.clientSecret) {
-    return success({ valid: false, error: 'Azure OAuth credentials not configured', source: 'none' }, 200, origin);
+/**
+ * Test credentials provided in the request body BEFORE saving.
+ * Allows admin to validate new credentials without affecting the running system.
+ */
+async function handleTestPreview(body: ActionBody, origin: string): Promise<APIGatewayProxyResultV2> {
+  const clientId = body.clientId;
+  const clientSecret = body.clientSecret;
+
+  if (!clientId || !clientSecret) {
+    return success({ valid: false, error: 'clientId and clientSecret are required for testing', source: 'preview' }, 200, origin);
+  }
+
+  return testCredentialsAgainstAzureAD(clientId, clientSecret, 'preview', origin);
+}
+
+/**
+ * Shared logic: test credentials against Azure AD token endpoint.
+ */
+async function testCredentialsAgainstAzureAD(
+  clientId: string,
+  clientSecret: string,
+  source: string,
+  origin: string
+): Promise<APIGatewayProxyResultV2> {
+  if (!clientId || !clientSecret) {
+    return success({ valid: false, error: 'Azure OAuth credentials not configured', source }, 200, origin);
   }
 
   // We need a tenant to test against — use 'common' for multi-tenant apps
@@ -345,11 +371,27 @@ async function handleTest(origin: string): Promise<APIGatewayProxyResultV2> {
 
     if (!response.ok) {
       const errorText = await response.text();
+      
+      // Try to parse the Azure AD error response for structured details
+      let azureErrorCode = '';
+      let azureCorrelationId = '';
+      try {
+        const errorJson = JSON.parse(errorText);
+        azureErrorCode = errorJson.error_codes?.[0]?.toString() || errorJson.error || '';
+        azureCorrelationId = errorJson.correlation_id || '';
+      } catch {
+        // errorText is not JSON, extract error code from text
+        const codeMatch = errorText.match(/AADSTS\d+/);
+        if (codeMatch) azureErrorCode = codeMatch[0];
+      }
+
       logger.warn('EVO App credential test failed', {
         status: response.status,
         clientId: creds.clientId,
         secretLength: creds.clientSecret.length,
         secretPrefix: creds.clientSecret.substring(0, 4) + '***',
+        azureErrorCode,
+        azureCorrelationId,
         error: errorText.substring(0, 500),
       });
 
@@ -358,8 +400,9 @@ async function handleTest(origin: string): Promise<APIGatewayProxyResultV2> {
       let credentialsValid = false;
       if (errorText.includes('AADSTS53003')) {
         // Conditional Access policy blocked the request — but the secret itself IS valid
+        // Azure AD authenticates client_id + client_secret BEFORE evaluating CA policies
         credentialsValid = true;
-        userError = 'Credentials are valid (blocked by Conditional Access policy — expected from non-whitelisted IPs).';
+        userError = 'Client ID and Secret are valid. Access blocked by Conditional Access policy (expected from non-whitelisted IPs).';
       } else if (errorText.includes('AADSTS7000215') || errorText.includes('invalid_client')) {
         userError = 'Invalid client secret. Ensure you are using the secret Value, not the secret ID.';
       } else if (errorText.includes('AADSTS700016')) {
@@ -371,11 +414,18 @@ async function handleTest(origin: string): Promise<APIGatewayProxyResultV2> {
       }
 
       if (credentialsValid) {
-        logger.info('EVO App credential test: secret valid but Conditional Access blocked', { clientId: creds.clientId });
-        return success({ valid: true, source: 'ssm', clientId: creds.clientId, note: userError }, 200, origin);
+        logger.info('EVO App credential test: secret valid but Conditional Access blocked', { clientId: creds.clientId, azureErrorCode });
+        return success({
+          valid: true,
+          conditionalAccess: true,
+          source: 'ssm',
+          clientId: creds.clientId,
+          note: userError,
+          azureErrorCode,
+        }, 200, origin);
       }
 
-      return success({ valid: false, error: userError, source: 'ssm' }, 200, origin);
+      return success({ valid: false, error: userError, source: 'ssm', azureErrorCode }, 200, origin);
     }
 
     logger.info('EVO App credential test passed', { clientId: creds.clientId });
