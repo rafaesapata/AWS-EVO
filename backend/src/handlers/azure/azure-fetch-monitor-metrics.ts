@@ -157,7 +157,7 @@ function getAzureTypeMapping(resourceType: string): string {
 
 export async function handler(
   event: AuthorizedEvent,
-  _context: LambdaContext
+  context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   if (getHttpMethod(event) === 'OPTIONS') {
     return corsOptions();
@@ -244,6 +244,15 @@ export async function handler(
     const permissionErrors: Array<{ resourceType: string; region: string; error: string; missingPermissions: string[] }> = [];
 
     for (let i = 0; i < resources.length; i += RESOURCE_BATCH_SIZE) {
+      // Check remaining Lambda execution time — stop early if < 15s left
+      const remainingMs = context.getRemainingTimeInMillis();
+      if (remainingMs < 15000) {
+        logger.warn('Lambda timeout approaching, stopping metric collection early', {
+          organizationId, remainingMs, resourcesProcessed, totalResources: resources.length,
+        });
+        break;
+      }
+
       const batch = resources.slice(i, i + RESOURCE_BATCH_SIZE);
 
       const results = await Promise.allSettled(
@@ -326,51 +335,60 @@ async function processResource(
 
   const mappedType = getAzureTypeMapping(resource.type);
   const resourceId = resource.id; // Full Azure resource path
+  const resourceName = resource.name || resourceId.split('/').pop() || 'unknown';
+  const resourceRegion = resource.location || 'unknown';
 
   // Upsert monitored resource using findFirst + create/update
   // (safe for Azure since we filter by azure_credential_id)
-  const existing = await prisma.monitoredResource.findFirst({
-    where: {
-      organization_id: organizationId,
-      azure_credential_id: credentialId,
-      resource_id: resourceId,
-      resource_type: mappedType,
-    },
-    select: { id: true },
-  });
-
-  if (existing) {
-    await prisma.monitoredResource.update({
-      where: { id: existing.id },
-      data: {
-        resource_name: resource.name,
-        region: resource.location,
-        status: 'active',
-        cloud_provider: 'AZURE',
+  try {
+    const existing = await prisma.monitoredResource.findFirst({
+      where: {
+        organization_id: organizationId,
+        azure_credential_id: credentialId,
+        resource_id: resourceId,
+        resource_type: mappedType,
       },
+      select: { id: true },
     });
-  } else {
-    try {
-      await prisma.monitoredResource.create({
+
+    if (existing) {
+      await prisma.monitoredResource.update({
+        where: { id: existing.id },
         data: {
-          organization_id: organizationId,
-          azure_credential_id: credentialId,
-          cloud_provider: 'AZURE',
-          resource_id: resourceId,
-          resource_name: resource.name,
-          resource_type: mappedType,
-          region: resource.location,
+          resource_name: resourceName,
+          region: resourceRegion,
           status: 'active',
+          cloud_provider: 'AZURE',
         },
       });
-    } catch (createErr: any) {
-      // Handle unique constraint violation (P2002) — resource may exist from another credential
-      if (createErr.code === 'P2002') {
-        logger.warn('Duplicate monitored resource, skipping create', { resourceId, type: mappedType });
-      } else {
-        throw createErr;
+    } else {
+      try {
+        await prisma.monitoredResource.create({
+          data: {
+            organization_id: organizationId,
+            azure_credential_id: credentialId,
+            cloud_provider: 'AZURE',
+            resource_id: resourceId,
+            resource_name: resourceName,
+            resource_type: mappedType,
+            region: resourceRegion,
+            status: 'active',
+          },
+        });
+      } catch (createErr: any) {
+        // Handle unique constraint violation (P2002) — resource may exist from another credential
+        if (createErr.code === 'P2002') {
+          logger.warn('Duplicate monitored resource, skipping create', { resourceId, type: mappedType });
+        } else {
+          throw createErr;
+        }
       }
     }
+  } catch (upsertErr: any) {
+    // Don't fail the entire resource processing if upsert fails — still try to fetch metrics
+    logger.warn('Failed to upsert monitored resource, continuing with metrics', {
+      resourceId, type: mappedType, error: upsertErr.message,
+    });
   }
 
   // Fetch metrics from Azure Monitor
@@ -402,12 +420,14 @@ async function processResource(
   });
 
   // Batch insert using createMany (much faster than individual creates)
-  const metricsData = metrics.map(m => ({
+  const metricsData = metrics
+    .filter(m => isFinite(m.value) && !isNaN(m.value))
+    .map(m => ({
     organization_id: organizationId,
     azure_credential_id: credentialId,
     cloud_provider: 'AZURE' as const,
     resource_id: resourceId,
-    resource_name: resource.name,
+    resource_name: resourceName,
     resource_type: mappedType,
     metric_name: m.name,
     metric_value: m.value,
@@ -464,7 +484,7 @@ async function listAzureResources(
       totalRawResources++;
       allResourceTypes.add(r.type || 'unknown');
       if (supportedTypes.has((r.type || '').toLowerCase())) {
-        resources.push({ id: r.id, name: r.name, type: r.type, location: r.location });
+        resources.push({ id: r.id, name: r.name || '', type: r.type, location: r.location || '' });
       }
     }
 
@@ -552,7 +572,7 @@ async function discoverSqlDatabases(
             if (db.name === 'master') continue;
             if (!existingIds.has(db.id)) {
               existingIds.add(db.id);
-              resources.push({ id: db.id, name: db.name, type: db.type || 'Microsoft.Sql/servers/databases', location: db.location });
+              resources.push({ id: db.id, name: db.name || '', type: db.type || 'Microsoft.Sql/servers/databases', location: db.location || '' });
             }
           }
           dbsUrl = dbData.nextLink || null;
@@ -620,6 +640,9 @@ async function fetchResourceMetrics(
   const aggLower = aggregation.toLowerCase();
 
   for (const metric of data.value || []) {
+    const metricName = metric.name?.value;
+    if (!metricName) continue;
+
     const timeseries = metric.timeseries?.[0];
     if (!timeseries?.data) continue;
 
@@ -636,7 +659,7 @@ async function fetchResourceMetrics(
       if (value === undefined || value === null) continue;
 
       metrics.push({
-        name: metric.name.value,
+        name: metricName,
         value,
         unit: metric.unit || 'Count',
         timestamp: new Date(dp.timeStamp),

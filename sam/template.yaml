@@ -1471,9 +1471,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-${Environment}-azure-fetch-monitor-metrics'
+      Description: 'Azure Monitor metrics collector v2 - timeout 120s'
       CodeUri: ../backend/src/handlers/azure/
       Handler: azure-fetch-monitor-metrics.handler
-      Timeout: 60
+      Timeout: 120
       Events:
         Api:
           Type: Api
