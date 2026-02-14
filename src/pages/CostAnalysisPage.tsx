@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -496,15 +496,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  : t('costAnalysis.fullFetchNoNewData'),
  });
  
- // Invalidate and refetch after a short delay to allow DB writes to complete
- setTimeout(() => {
+ // Invalidate and refetch immediately
  queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
  queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
  queryClient.invalidateQueries({ queryKey: ['daily-costs-history'], exact: false });
- 
- // Force refetch
- queryClient.refetchQueries({ queryKey: ['cost-analysis-raw'], exact: false });
- }, 2000);
  },
  onError: (error: any) => {
  console.error('Error in full fetch costs:', error);
@@ -519,21 +514,16 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  },
  });
 
- // Auto-refresh on component mount (background)
+ // Auto-refresh on component mount (background) - only when no cached data
  useEffect(() => {
  const accountId = selectedAccountId === 'all' ? allAccounts?.[0]?.id : selectedAccountId;
  
- if (accountId && allCosts && allCosts.length === 0) {
- // If no data, refresh immediately
+ if (accountId && (!allCosts || allCosts.length === 0)) {
+ // If no data at all, refresh immediately
  refreshCostsMutation.mutate();
- } else if (accountId) {
- // If has data, refresh in background after 2 seconds
- const timer = setTimeout(() => {
- refreshCostsMutation.mutate();
- }, 2000);
- 
- return () => clearTimeout(timer);
  }
+ // If has cached data, skip auto-refresh - user can manually refresh
+ // This eliminates the 2s delay that caused perceived slowness
  }, [selectedAccountId, allAccounts]);
 
  const toggleExpanded = (date: string) => {
@@ -1276,6 +1266,8 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  </Button>
  </div>
  </div>
+ )}
+ </>
  )}
  </CardContent>
  </Card>
