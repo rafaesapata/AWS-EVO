@@ -131,7 +131,10 @@ function buildCostQueryRequest(startDate: string, endDate: string, granularity: 
   return {
     type: 'ActualCost',
     timeframe: 'Custom',
-    timePeriod: { from: startDate, to: endDate },
+    timePeriod: { 
+      from: `${startDate}T00:00:00+00:00`, 
+      to: `${endDate}T23:59:59+00:00` 
+    },
     dataset: {
       granularity: granularity === 'MONTHLY' ? 'Monthly' : 'Daily',
       aggregation: {
@@ -143,7 +146,7 @@ function buildCostQueryRequest(startDate: string, endDate: string, granularity: 
 }
 
 /**
- * Query Azure Cost Management API directly
+ * Query Azure Cost Management API directly (with pagination support)
  */
 async function queryCostManagementApi(
   subscriptionId: string,
@@ -151,64 +154,126 @@ async function queryCostManagementApi(
   requestBody: object
 ): Promise<{ success: true; rows: unknown[][]; columns: ColumnDefinition[] } | { success: false; error: string; status?: number }> {
   const scope = `/subscriptions/${subscriptionId}`;
-  const apiUrl = `https://management.azure.com${scope}/providers/Microsoft.CostManagement/query?api-version=${COST_MANAGEMENT_API_VERSION}`;
+  const initialUrl = `https://management.azure.com${scope}/providers/Microsoft.CostManagement/query?api-version=${COST_MANAGEMENT_API_VERSION}`;
+
+  const allRows: unknown[][] = [];
+  let columns: ColumnDefinition[] = [];
+  let currentUrl: string | null = initialUrl;
+  let isFirstRequest = true;
+  let pageCount = 0;
+  const MAX_PAGES = 20; // Safety limit
+
+  // Log the full request body for debugging
+  logger.info('Cost Management API request', {
+    url: initialUrl,
+    requestBody: JSON.stringify(requestBody).substring(0, 1000),
+    subscriptionId,
+  });
 
   try {
-    const response = await fetchWithRetry(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    }, {
-      maxRetries: 3,
-      baseDelayMs: 2000,
-      maxDelayMs: 60000,
-      jitterFactor: 0.2,
-      requestTimeoutMs: 25000,
-      retryAfterHeaders: ['x-ms-ratelimit-microsoft.costmanagement-retry-after'],
-    });
+    while (currentUrl && pageCount < MAX_PAGES) {
+      pageCount++;
 
-    const responseText = await response.text();
+      const fetchOptions: RequestInit = {
+        method: isFirstRequest ? 'POST' : 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        ...(isFirstRequest ? { body: JSON.stringify(requestBody) } : {}),
+      };
 
-    logger.info('Cost Management API response', {
-      status: response.status,
-      statusText: response.statusText,
-      responseLength: responseText.length,
-    });
+      const response = await fetchWithRetry(currentUrl, fetchOptions, {
+        maxRetries: 3,
+        baseDelayMs: 2000,
+        maxDelayMs: 60000,
+        jitterFactor: 0.2,
+        requestTimeoutMs: 25000,
+        retryAfterHeaders: ['x-ms-ratelimit-microsoft.costmanagement-retry-after'],
+      });
 
-    let responseData: { properties?: { rows?: unknown[][]; columns?: ColumnDefinition[] }; error?: { code?: string; message?: string }; rawText?: string };
-    try {
-      responseData = JSON.parse(responseText);
-    } catch {
-      responseData = { rawText: responseText.substring(0, 1000) };
-    }
+      const responseText = await response.text();
 
-    if (!response.ok) {
-      const azureErrorMsg = responseData.error?.message || responseData.error?.code || '';
-      logger.error('Cost Management API error', {
+      logger.info('Cost Management API response', {
+        page: pageCount,
         status: response.status,
         statusText: response.statusText,
-        error: responseData,
+        responseLength: responseText.length,
+        isFirstRequest,
       });
-      return {
-        success: false,
-        error: azureErrorMsg
-          ? `Azure Cost Management error: ${azureErrorMsg}`
-          : `Azure Cost Management API error: ${response.status} ${response.statusText}`,
-        status: response.status,
+
+      let responseData: {
+        properties?: { rows?: unknown[][]; columns?: ColumnDefinition[]; nextLink?: string };
+        error?: { code?: string; message?: string };
+        rawText?: string;
       };
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = { rawText: responseText.substring(0, 1000) };
+      }
+
+      if (!response.ok) {
+        const azureErrorMsg = responseData.error?.message || responseData.error?.code || '';
+        logger.error('Cost Management API error', {
+          page: pageCount,
+          status: response.status,
+          statusText: response.statusText,
+          errorCode: responseData.error?.code,
+          errorMessage: responseData.error?.message,
+          responsePreview: responseText.substring(0, 500),
+        });
+        return {
+          success: false,
+          error: azureErrorMsg
+            ? `Azure Cost Management error: ${azureErrorMsg}`
+            : `Azure Cost Management API error: ${response.status} ${response.statusText}`,
+          status: response.status,
+        };
+      }
+
+      const pageRows = responseData.properties?.rows || [];
+      if (isFirstRequest) {
+        columns = responseData.properties?.columns || [];
+      }
+
+      allRows.push(...pageRows);
+
+      // Log diagnostic info when 0 rows on first page
+      if (isFirstRequest && pageRows.length === 0) {
+        logger.warn('Azure Cost Management returned 0 rows', {
+          responsePreview: responseText.substring(0, 500),
+          hasProperties: !!responseData.properties,
+          columnCount: columns.length,
+          columns: columns.map(c => c.name),
+          nextLink: responseData.properties?.nextLink ? 'present' : 'absent',
+        });
+      }
+
+      logger.info('Page fetched', {
+        page: pageCount,
+        pageRows: pageRows.length,
+        totalRowsSoFar: allRows.length,
+        hasNextLink: !!responseData.properties?.nextLink,
+      });
+
+      // Follow pagination via nextLink
+      currentUrl = responseData.properties?.nextLink || null;
+      isFirstRequest = false;
+    }
+
+    if (pageCount >= MAX_PAGES) {
+      logger.warn('Pagination limit reached', { maxPages: MAX_PAGES, totalRows: allRows.length });
     }
 
     return {
       success: true,
-      rows: responseData.properties?.rows || [],
-      columns: responseData.properties?.columns || [],
+      rows: allRows,
+      columns,
     };
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    logger.error('Cost Management API request failed', { error: errorMessage });
+    logger.error('Cost Management API request failed', { error: errorMessage, page: pageCount });
     return { success: false, error: `API request failed: ${errorMessage}` };
   }
 }
