@@ -4,8 +4,9 @@
  * Initiates an asynchronous security scan on an Azure subscription.
  * Creates a background job and invokes azure-security-scan Lambda asynchronously.
  * 
- * Includes stuck job detection: if a pending/running job is older than 10 minutes,
- * it's marked as failed and a new scan is allowed.
+ * Includes stuck job detection: pending jobs older than 5 minutes or running jobs
+ * older than 10 minutes are marked as failed. Also detects orphaned scans
+ * (scan exists but background job was already cleaned up).
  */
 
 // Ensure crypto is available globally for Azure SDK
@@ -26,6 +27,7 @@ import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 
 const TEN_MINUTES = 10 * 60 * 1000;
+const FIVE_MINUTES = 5 * 60 * 1000;
 
 const startScanSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
@@ -80,19 +82,24 @@ export async function handler(
 
     if (existingJob) {
       const jobAge = Date.now() - new Date(existingJob.created_at).getTime();
+      // Pending jobs that never transitioned to running → likely Lambda never started (5min threshold)
+      // Running jobs → give more time (10min threshold)
+      const stuckThreshold = existingJob.status === 'pending' ? FIVE_MINUTES : TEN_MINUTES;
 
-      if (jobAge > TEN_MINUTES) {
+      if (jobAge > stuckThreshold) {
         // Mark stuck job as failed
         logger.info('Marking stuck Azure scan job as failed', {
           jobId: existingJob.id,
+          jobStatus: existingJob.status,
           ageMinutes: Math.round(jobAge / 60000),
+          thresholdMinutes: Math.round(stuckThreshold / 60000),
         });
         await prisma.backgroundJob.update({
           where: { id: existingJob.id },
           data: {
             status: 'failed',
             completed_at: new Date(),
-            error: 'Job timed out after 10 minutes',
+            error: `Job stuck in '${existingJob.status}' for ${Math.round(jobAge / 60000)} minutes`,
             result: { progress: 0, error: 'Job timed out', timed_out: true },
           },
         });
@@ -112,6 +119,36 @@ export async function handler(
           already_running: true,
         });
       }
+    }
+
+    // Also check for orphaned scans (scan exists but background job was already cleaned up)
+    const orphanedScan = await prisma.securityScan.findFirst({
+      where: {
+        organization_id: organizationId,
+        cloud_provider: 'AZURE',
+        azure_credential_id: credentialId,
+        status: { in: ['pending', 'running'] },
+        created_at: { lt: new Date(Date.now() - FIVE_MINUTES) },
+      },
+    });
+
+    if (orphanedScan) {
+      logger.info('Cleaning up orphaned Azure security scan', {
+        scanId: orphanedScan.id,
+        status: orphanedScan.status,
+        createdAt: orphanedScan.created_at,
+      });
+      await prisma.securityScan.update({
+        where: { id: orphanedScan.id },
+        data: {
+          status: 'failed',
+          completed_at: new Date(),
+          results: {
+            error: 'Scan was orphaned (no active background job)',
+            cleanup_type: 'orphan_detection',
+          },
+        },
+      }).catch(() => {});
     }
 
     // Create scan record
