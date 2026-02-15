@@ -2913,7 +2913,7 @@ async function handleGetTimeline(
     });
   } catch (err) {
     logger.error('Failed to get WAF timeline', err as Error, { organizationId });
-    return error('Failed to load timeline data');
+    return success({ timeline: [], period: '24h', error: 'Failed to load timeline data' });
   }
 }
 
@@ -3111,11 +3111,12 @@ async function handleEvaluateRules(
 
     logger.info('Evaluating WAF rules with AI', { organizationId, accountId });
 
-    // Get AWS credentials
+    // Get AWS credentials (accountId is the UUID primary key of aws_credentials)
     const credential = await prisma.awsCredential.findFirst({
       where: {
+        id: accountId,
         organization_id: organizationId,
-        account_id: accountId,
+        is_active: true,
       },
     });
 
@@ -3127,7 +3128,7 @@ async function handleEvaluateRules(
     const configs = await prisma.wafMonitoringConfig.findMany({
       where: {
         organization_id: organizationId,
-        account_id: accountId,
+        aws_account_id: accountId,
         is_active: true,
       },
     });
@@ -3136,14 +3137,18 @@ async function handleEvaluateRules(
       return error('No active WAF monitoring configured for this account', 404);
     }
 
+    // Extract region from Web ACL ARN (arn:aws:wafv2:REGION:ACCOUNT:regional/webacl/NAME/ID)
+    const configArnParts = configs[0].web_acl_arn.split(':');
+    const configRegion = configArnParts[3] || 'us-east-1';
+
     // Now resolve credentials with the correct region
-    const resolvedCreds = await resolveAwsCredentials(credential, configs[0].region);
+    const resolvedCreds = await resolveAwsCredentials(credential, configRegion);
     const awsCredentials = toAwsCredentials(resolvedCreds);
 
     // Fetch WAF rules from AWS
     const wafClient = new WAFV2Client({
       credentials: awsCredentials,
-      region: configs[0].region,
+      region: configRegion,
     });
 
     const allRules: any[] = [];
@@ -3151,18 +3156,28 @@ async function handleEvaluateRules(
     for (const config of configs) {
       try {
         const { GetWebACLCommand } = await import('@aws-sdk/client-wafv2');
+        
+        // Extract Web ACL ID and scope from ARN
+        // ARN format: arn:aws:wafv2:REGION:ACCOUNT:SCOPE/webacl/NAME/ID
+        const webAclArnParts = config.web_acl_arn.split(':');
+        const resourcePart = webAclArnParts.slice(5).join(':'); // e.g. "regional/webacl/NAME/ID"
+        const resourceSegments = resourcePart.split('/');
+        const scope = resourceSegments[0] === 'global' ? 'CLOUDFRONT' : 'REGIONAL';
+        const webAclName = resourceSegments[2] || config.web_acl_name;
+        const webAclId = resourceSegments[3] || '';
+        
         const webAclResponse = await wafClient.send(new GetWebACLCommand({
-          Name: config.web_acl_name,
-          Scope: config.scope as 'REGIONAL' | 'CLOUDFRONT',
-          Id: config.web_acl_id,
+          Name: webAclName,
+          Scope: scope as 'REGIONAL' | 'CLOUDFRONT',
+          Id: webAclId,
         }));
 
         if (webAclResponse.WebACL?.Rules) {
           allRules.push(...webAclResponse.WebACL.Rules.map(rule => ({
             ...rule,
             webAclName: config.web_acl_name,
-            webAclId: config.web_acl_id,
-            scope: config.scope,
+            webAclArn: config.web_acl_arn,
+            scope: scope,
           })));
         }
       } catch (err) {
