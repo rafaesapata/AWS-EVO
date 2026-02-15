@@ -354,6 +354,9 @@ export async function handler(
     logger.info('Cost data retrieved', {
       rowCount: rows.length,
       columns: columns.map((c) => c.name),
+      sampleRow: rows.length > 0 ? rows[0] : null,
+      effectiveStartDate,
+      endDate,
     });
 
     // Map column indices

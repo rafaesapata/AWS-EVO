@@ -62,6 +62,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  // Guard: prevent duplicate azure-fetch-costs calls (causes 429 rate limit)
  const azureSyncInProgress = useRef(false);
  const [isAzureSyncing, setIsAzureSyncing] = useState(false);
+ const [isAzureFirstLoad, setIsAzureFirstLoad] = useState(false);
 
  // Get available tags from organization - filtered by selected account
  const { data: availableTags } = useQuery({
@@ -147,17 +148,29 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  
  // Azure: if DB is empty, sync from Azure Cost Management API first, then re-read
  if ((!costs || costs.length === 0) && isAzure && !azureSyncInProgress.current) {
-   console.log('CostAnalysisPage: No Azure costs in DB, triggering sync...');
+   console.log('CostAnalysisPage: No Azure costs in DB, triggering first-time sync...');
    azureSyncInProgress.current = true;
    setIsAzureSyncing(true);
+   setIsAzureFirstLoad(true);
+   toast({
+     title: t('costAnalysis.azureFirstLoad'),
+     description: t('costAnalysis.azureFirstLoadDesc'),
+   });
    try {
-     const syncResult = await apiClient.invoke('azure-fetch-costs', {
+     const syncResult = await apiClient.invoke<any>('azure-fetch-costs', {
        body: { credentialId: selectedAccountId, startDate: startDateStr, endDate: endDateStr, granularity: 'DAILY' },
        timeoutMs: 120000,
      });
-     console.log('CostAnalysisPage: Azure sync result:', syncResult.error ? 'error' : 'success');
+     const syncData = syncResult.data;
+     const savedCount = syncData?.summary?.savedCount || 0;
+     const rowCount = syncData?.summary?.recordCount || 0;
+     console.log('CostAnalysisPage: Azure sync result:', syncResult.error ? 'error' : 'success', 'savedCount:', savedCount, 'rowCount:', rowCount);
      
-     if (!syncResult.error) {
+     if (!syncResult.error && savedCount > 0) {
+       toast({
+         title: t('costAnalysis.azureSyncComplete'),
+         description: t('costAnalysis.azureSyncSavedCount', { count: savedCount }),
+       });
        // Re-read from DB after sync
        const retryResponse = await apiClient.invoke<any>('fetch-daily-costs', {
          body: bodyParams
@@ -167,12 +180,20 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
          costs = retryData?.costs || retryData?.dailyCosts || retryData?.data?.dailyCosts || [];
          console.log('CostAnalysisPage: After Azure sync, got', costs.length, 'records');
        }
+     } else if (!syncResult.error && savedCount === 0) {
+       console.log('CostAnalysisPage: Azure API returned 0 cost rows');
+       toast({
+         title: t('costAnalysis.azureSyncNoData'),
+         description: t('costAnalysis.azureSyncNoDataDesc'),
+         variant: 'destructive',
+       });
      }
    } catch (err) {
      console.warn('CostAnalysisPage: Azure sync failed:', err);
    } finally {
      azureSyncInProgress.current = false;
      setIsAzureSyncing(false);
+     setIsAzureFirstLoad(false);
    }
  }
  
@@ -766,6 +787,19 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
 
  const content = (
  <div className="space-y-4">
+ {/* Azure first-load banner */}
+ {isAzureFirstLoad && (
+ <Card className="glass border-blue-300 bg-blue-50/50 dark:bg-blue-950/20">
+ <CardContent className="flex items-center gap-4 py-4">
+ <RefreshCw className="h-6 w-6 text-blue-500 animate-spin flex-shrink-0" />
+ <div>
+ <p className="font-medium text-blue-700 dark:text-blue-300">{t('costAnalysis.azureFirstLoad')}</p>
+ <p className="text-sm text-blue-600/80 dark:text-blue-400/80">{t('costAnalysis.azureFirstLoadDesc')}</p>
+ </div>
+ </CardContent>
+ </Card>
+ )}
+
  {/* Reserved Instances & Savings Plans - renders independently with own loading */}
  <RiSpAnalysis />
  
@@ -812,7 +846,9 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  {isAzureSyncing && (
  <Badge variant="outline" className="gap-1 text-blue-600 border-blue-300 animate-pulse">
  <RefreshCw className="h-3 w-3 animate-spin" />
- {t('costAnalysis.azureSyncing', 'Syncing Azure...')}
+ {isAzureFirstLoad 
+   ? t('costAnalysis.azureFirstLoadShort')
+   : t('costAnalysis.azureSyncing', 'Syncing Azure...')}
  </Badge>
  )}
  </div>

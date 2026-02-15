@@ -107,11 +107,13 @@ export function CostForecast({ accountId }: Props) {
       if (rawData.length === 0 && selectedProvider === 'AZURE') {
         console.log('CostForecast: No Azure costs, triggering sync...');
         try {
-          const syncResult = await apiClient.invoke('azure-fetch-costs', {
+          const syncResult = await apiClient.invoke<any>('azure-fetch-costs', {
             body: { credentialId: effectiveAccountId, startDate: startDateStr, endDate: endDateStr, granularity: 'DAILY' },
             timeoutMs: 120000,
           });
-          if (!syncResult.error) {
+          const savedCount = syncResult.data?.summary?.savedCount || 0;
+          console.log('CostForecast: Azure sync savedCount:', savedCount);
+          if (!syncResult.error && savedCount > 0) {
             // Re-read from DB after sync
             const retryResponse = await apiClient.invoke<any>('fetch-daily-costs', {
               body: { accountId: effectiveAccountId, startDate: startDateStr, endDate: endDateStr, granularity: 'DAILY', incremental: true }
