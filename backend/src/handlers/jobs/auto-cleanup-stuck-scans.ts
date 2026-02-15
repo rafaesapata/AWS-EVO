@@ -76,11 +76,17 @@ export async function handler(
     const stuckThreshold = new Date(Date.now() - thresholdMinutes * 60 * 1000);
 
     // 1. Clean up stuck security scans
+    // Use OR to catch both: scans with started_at older than threshold,
+    // AND scans stuck in pending with null started_at (use created_at as fallback)
+    const scanWhereClause: any = {
+      status: { in: ['running', 'pending', 'starting'] },
+      OR: [
+        { started_at: { lt: stuckThreshold } },
+        { started_at: null, created_at: { lt: stuckThreshold } },
+      ],
+    };
     const stuckScans = await prisma.securityScan.findMany({
-      where: {
-        status: { in: ['running', 'pending', 'starting'] },
-        started_at: { lt: stuckThreshold }
-      },
+      where: scanWhereClause,
       select: {
         id: true,
         organization_id: true,
@@ -89,7 +95,7 @@ export async function handler(
         started_at: true,
         created_at: true
       },
-      orderBy: { started_at: 'asc' },
+      orderBy: { created_at: 'asc' },
       take: maxScansToCleanup
     });
 
@@ -100,8 +106,9 @@ export async function handler(
 
     for (const scan of stuckScans) {
       try {
+        const referenceTime = scan.started_at || scan.created_at;
         const durationMinutes = Math.floor(
-          (Date.now() - new Date(scan.started_at!).getTime()) / (1000 * 60)
+          (Date.now() - new Date(referenceTime).getTime()) / (1000 * 60)
         );
         
         await prisma.securityScan.update({
@@ -136,16 +143,22 @@ export async function handler(
     }
 
     // 2. Clean up stuck background jobs
+    // Same fix: catch pending jobs with null started_at using created_at
+    const jobWhereClause: any = {
+      status: { in: ['running', 'pending'] },
+      OR: [
+        { started_at: { lt: stuckThreshold } },
+        { started_at: null, created_at: { lt: stuckThreshold } },
+      ],
+    };
     const stuckJobs = await prisma.backgroundJob.findMany({
-      where: {
-        status: { in: ['running', 'pending'] },
-        started_at: { lt: stuckThreshold }
-      },
+      where: jobWhereClause,
       select: {
         id: true,
         organization_id: true,
         job_type: true,
-        started_at: true
+        started_at: true,
+        created_at: true
       },
       take: maxScansToCleanup
     });
@@ -154,8 +167,9 @@ export async function handler(
 
     for (const job of stuckJobs) {
       try {
+        const jobReferenceTime = job.started_at || job.created_at;
         const durationMinutes = Math.floor(
-          (Date.now() - new Date(job.started_at!).getTime()) / (1000 * 60)
+          (Date.now() - new Date(jobReferenceTime).getTime()) / (1000 * 60)
         );
         
         await prisma.backgroundJob.update({

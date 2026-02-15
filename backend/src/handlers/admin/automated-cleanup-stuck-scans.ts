@@ -82,7 +82,7 @@ export async function handler(
         id: s.id,
         organizationId: s.organization_id,
         scanType: s.scan_type,
-        durationMinutes: Math.floor((Date.now() - new Date(s.started_at).getTime()) / (1000 * 60))
+        durationMinutes: Math.floor((Date.now() - new Date(s.started_at || s.created_at).getTime()) / (1000 * 60))
       }))
     });
 

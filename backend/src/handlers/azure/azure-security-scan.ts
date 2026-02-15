@@ -83,18 +83,30 @@ export async function handler(
       }
     };
 
-    // Update background job to running
+    // Update background job to running (only if not already finalized)
     if (backgroundJobId) {
       try {
-        await prisma.backgroundJob.update({
+        const existingJob = await prisma.backgroundJob.findUnique({
           where: { id: backgroundJobId },
-          data: {
-            status: 'running',
-            started_at: new Date(),
-            result: { progress: 0, message: 'Initializing Azure security scan...' },
-          },
+          select: { status: true },
         });
-        logger.info('Background job updated to running', { backgroundJobId });
+
+        if (existingJob && (existingJob.status === 'failed' || existingJob.status === 'completed')) {
+          logger.info('Background job already finalized, skipping update', {
+            backgroundJobId,
+            status: existingJob.status,
+          });
+        } else {
+          await prisma.backgroundJob.update({
+            where: { id: backgroundJobId },
+            data: {
+              status: 'running',
+              started_at: new Date(),
+              result: { progress: 0, message: 'Initializing Azure security scan...' },
+            },
+          });
+          logger.info('Background job updated to running', { backgroundJobId });
+        }
       } catch (jobErr: any) {
         logger.warn('Failed to update background job to running', { backgroundJobId, error: jobErr.message });
       }
@@ -153,6 +165,32 @@ export async function handler(
     let scan: any;
     
     if (existingScanId) {
+      // Check if scan was already completed or failed (e.g., by cleanup or a previous retry)
+      // If so, do NOT reset to running — abort gracefully
+      const existingScan = await prisma.securityScan.findUnique({
+        where: { id: existingScanId },
+        select: { id: true, status: true },
+      });
+
+      if (!existingScan) {
+        await failBackgroundJob('Scan record not found');
+        return error('Scan record not found', 404);
+      }
+
+      if (existingScan.status === 'failed' || existingScan.status === 'completed') {
+        logger.info('Azure security scan already finalized, skipping retry', {
+          scanId: existingScanId,
+          status: existingScan.status,
+          backgroundJobId,
+        });
+        return success({
+          scanId: existingScanId,
+          status: existingScan.status,
+          message: `Scan already ${existingScan.status}, not re-executing`,
+          skipped: true,
+        });
+      }
+
       // Update existing scan to running status
       scan = await prisma.securityScan.update({
         where: { id: existingScanId },

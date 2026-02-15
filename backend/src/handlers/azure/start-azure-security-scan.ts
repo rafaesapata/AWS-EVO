@@ -169,7 +169,9 @@ export async function handler(
       },
     });
 
-    // Create background job
+    // Create background job — mark as 'running' immediately since we invoke
+    // the Lambda directly below. This prevents process-background-jobs from
+    // picking up this job and invoking a duplicate Lambda execution.
     const job = await prisma.backgroundJob.create({
       data: {
         organization_id: organizationId,
@@ -181,7 +183,8 @@ export async function handler(
           scanLevel,
           regions: regions || credential.regions,
         },
-        status: 'pending',
+        status: 'running',
+        started_at: new Date(),
       },
     });
 
