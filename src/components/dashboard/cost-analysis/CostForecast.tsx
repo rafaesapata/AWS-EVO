@@ -103,17 +103,28 @@ export function CostForecast({ accountId }: Props) {
         rawData = data?.costs || data?.dailyCosts || data?.data?.dailyCosts || [];
       }
       
-      // If still empty for Azure, try direct DB query as last resort
+      // Azure: if DB is empty, trigger sync and re-read
       if (rawData.length === 0 && selectedProvider === 'AZURE') {
-        const accountFilter = getAccountFilter();
-        const dbResponse = await apiClient.select('daily_costs', {
-          select: '*',
-          eq: { organization_id: organizationId, ...accountFilter },
-          gte: { date: startDateStr },
-          order: { column: 'date', ascending: true },
-          limit: 10000
-        });
-        rawData = dbResponse.data || [];
+        console.log('CostForecast: No Azure costs, triggering sync...');
+        try {
+          const syncResult = await apiClient.invoke('azure-fetch-costs', {
+            body: { credentialId: effectiveAccountId, startDate: startDateStr, endDate: endDateStr, granularity: 'DAILY' },
+            timeoutMs: 120000,
+          });
+          if (!syncResult.error) {
+            // Re-read from DB after sync
+            const retryResponse = await apiClient.invoke<any>('fetch-daily-costs', {
+              body: { accountId: effectiveAccountId, startDate: startDateStr, endDate: endDateStr, granularity: 'DAILY', incremental: true }
+            });
+            if (!retryResponse.error) {
+              const retryData = retryResponse.data;
+              rawData = retryData?.costs || retryData?.dailyCosts || retryData?.data?.dailyCosts || [];
+              console.log('CostForecast: After Azure sync, got', rawData.length, 'records');
+            }
+          }
+        } catch (err) {
+          console.warn('CostForecast: Azure sync failed:', err);
+        }
       }
       
       console.log('CostForecast: Raw data received:', rawData.length, 'records');

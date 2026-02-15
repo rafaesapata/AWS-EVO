@@ -115,9 +115,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const startDateStr = startDate.toISOString().split('T')[0];
  const endDateStr = endDate.toISOString().split('T')[0];
  
- // Multi-cloud support: Always use fetch-daily-costs for initial data load (reads from DB)
- // azure-fetch-costs is only called via fire-and-forget in refresh mutations
- const lambdaName = 'fetch-daily-costs';
+ const isAzure = selectedProvider === 'AZURE';
+ 
+ // For Azure: first read from DB, if empty trigger sync and re-read
+ // For AWS: fetch-daily-costs both fetches from API and reads from DB
  const bodyParams = {
        accountId: selectedAccountId,
        startDate: startDateStr,
@@ -126,42 +127,53 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
        incremental: true
      };
  
- // IMPORTANT: Parameters must be inside 'body' for the Lambda to receive them correctly
- const lambdaResponse = await apiClient.invoke<any>(lambdaName, {
+ const lambdaResponse = await apiClient.invoke<any>('fetch-daily-costs', {
    body: bodyParams
  });
  
  if (lambdaResponse.error) {
    console.error('CostAnalysisPage: Lambda error:', lambdaResponse.error);
-   // Fallback to direct DB query if Lambda fails
    const response = await apiClient.select('daily_costs', { 
      eq: { organization_id: organizationId, ...getAccountFilter() },
      gte: { date: startDateStr },
      lte: { date: endDateStr },
      order: { column: 'date', ascending: false }
    });
-   
    return response.data || [];
  }
  
- // fetch-daily-costs handles both AWS and Azure, returns costs array
  const lambdaData = lambdaResponse.data;
- 
- // Extract costs array from Lambda response (works for both providers)
- // apiClient.invoke unwraps responseData.data, so lambdaData = responseData.data
- // Backend returns: { success, data: { dailyCosts }, costs, summary }
- // After unwrap: lambdaData = { dailyCosts: [...] }
  let costs: any[] = lambdaData?.costs || lambdaData?.dailyCosts || lambdaData?.data?.dailyCosts || [];
  
- // Fallback: if Lambda returned empty for Azure, query DB directly
- if ((!costs || costs.length === 0) && selectedProvider === 'AZURE') {
-   const dbResponse = await apiClient.select('daily_costs', { 
-     eq: { organization_id: organizationId, ...getAccountFilter() },
-     gte: { date: startDateStr },
-     lte: { date: endDateStr },
-     order: { column: 'date', ascending: false }
-   });
-   costs = dbResponse.data || [];
+ // Azure: if DB is empty, sync from Azure Cost Management API first, then re-read
+ if ((!costs || costs.length === 0) && isAzure && !azureSyncInProgress.current) {
+   console.log('CostAnalysisPage: No Azure costs in DB, triggering sync...');
+   azureSyncInProgress.current = true;
+   setIsAzureSyncing(true);
+   try {
+     const syncResult = await apiClient.invoke('azure-fetch-costs', {
+       body: { credentialId: selectedAccountId, startDate: startDateStr, endDate: endDateStr, granularity: 'DAILY' },
+       timeoutMs: 120000,
+     });
+     console.log('CostAnalysisPage: Azure sync result:', syncResult.error ? 'error' : 'success');
+     
+     if (!syncResult.error) {
+       // Re-read from DB after sync
+       const retryResponse = await apiClient.invoke<any>('fetch-daily-costs', {
+         body: bodyParams
+       });
+       if (!retryResponse.error) {
+         const retryData = retryResponse.data;
+         costs = retryData?.costs || retryData?.dailyCosts || retryData?.data?.dailyCosts || [];
+         console.log('CostAnalysisPage: After Azure sync, got', costs.length, 'records');
+       }
+     }
+   } catch (err) {
+     console.warn('CostAnalysisPage: Azure sync failed:', err);
+   } finally {
+     azureSyncInProgress.current = false;
+     setIsAzureSyncing(false);
+   }
  }
  
  if (!costs || costs.length === 0) {
@@ -302,32 +314,31 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const isAzure = selectedProvider === 'AZURE';
 
  if (isAzure) {
- // Azure: First trigger azure-fetch-costs in background (fire-and-forget)
- // Then immediately return data from database via fetch-daily-costs
+ // Azure: Sync costs from Azure API first, then read from DB
  const endDate = new Date().toISOString().split('T')[0];
  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
  
- // Fire-and-forget: trigger Azure cost sync with guard (prevents 429)
+ // Await Azure sync to ensure data is in DB before reading
  if (!azureSyncInProgress.current) {
  azureSyncInProgress.current = true;
  setIsAzureSyncing(true);
- apiClient.invoke('azure-fetch-costs', {
+ try {
+ const syncRes = await apiClient.invoke('azure-fetch-costs', {
  body: { credentialId: accountId, startDate, endDate, granularity: 'DAILY' },
  timeoutMs: 120000,
- }).then((res) => {
- if (!res.error) {
- queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
- queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
- queryClient.invalidateQueries({ queryKey: ['daily-costs-history'], exact: false });
- queryClient.invalidateQueries({ queryKey: ['cost-forecast'], exact: false });
- toast({ title: t('costAnalysis.azureSyncComplete', 'Azure sync complete'), description: t('costAnalysis.azureSyncCompleteDesc', 'Cost data updated from Azure.') });
+ });
+ if (syncRes.error) {
+ console.warn('Azure sync error:', syncRes.error);
  }
- }).catch(() => {}).finally(() => { azureSyncInProgress.current = false; setIsAzureSyncing(false); });
+ } finally {
+ azureSyncInProgress.current = false;
+ setIsAzureSyncing(false);
+ }
  }
  
- // Return existing data from database immediately
+ // Now read synced data from database
  const result = await apiClient.invoke<any>('fetch-daily-costs', {
- body: { accountId, days: 90, incremental: true }
+ body: { accountId, startDate, endDate, incremental: false }
  });
  
  if (result.error) {
@@ -335,8 +346,6 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }
  
  const data = result.data;
- // apiClient unwraps responseData.data, so data = { dailyCosts: [...] }
- // Check for success at unwrapped level or treat as raw data
  return data?.success ? data : {
  success: true,
  data: { dailyCosts: data?.dailyCosts || data?.costs || [] },
@@ -412,37 +421,31 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const isAzure = selectedProvider === 'AZURE';
 
  if (isAzure) {
- // Azure: First trigger azure-fetch-costs in background (fire-and-forget)
- // Then immediately return data from database via fetch-daily-costs
+ // Azure: Sync costs from Azure API first (full year), then read from DB
  const endDate = new Date().toISOString().split('T')[0];
- const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Azure API max 1 year
+ const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
  
- // Fire-and-forget: trigger Azure cost sync with guard (prevents 429)
+ // Await Azure sync to ensure data is in DB before reading
  if (!azureSyncInProgress.current) {
  azureSyncInProgress.current = true;
  setIsAzureSyncing(true);
- apiClient.invoke('azure-fetch-costs', {
+ try {
+ const syncRes = await apiClient.invoke('azure-fetch-costs', {
  body: { credentialId: accountId, startDate, endDate, granularity: 'DAILY' },
  timeoutMs: 120000,
- }).then((res) => {
- if (!res.error) {
- queryClient.invalidateQueries({ queryKey: ['cost-analysis-raw'], exact: false });
- queryClient.invalidateQueries({ queryKey: ['daily-costs'], exact: false });
- queryClient.invalidateQueries({ queryKey: ['daily-costs-history'], exact: false });
- queryClient.invalidateQueries({ queryKey: ['cost-forecast'], exact: false });
- toast({ title: t('costAnalysis.azureSyncComplete', 'Azure sync complete'), description: t('costAnalysis.azureSyncCompleteDesc', 'Cost data updated from Azure.') });
+ });
+ if (syncRes.error) {
+ console.warn('Azure full sync error:', syncRes.error);
  }
- }).catch(() => {}).finally(() => { azureSyncInProgress.current = false; setIsAzureSyncing(false); });
+ } finally {
+ azureSyncInProgress.current = false;
+ setIsAzureSyncing(false);
+ }
  }
  
- // Return existing data from database immediately
+ // Now read synced data from database
  const result = await apiClient.invoke<any>('fetch-daily-costs', {
- body: { 
- accountId,
- incremental: false,
- granularity: 'DAILY',
- startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
- }
+ body: { accountId, incremental: false, granularity: 'DAILY', startDate }
  });
  
  if (result.error) {

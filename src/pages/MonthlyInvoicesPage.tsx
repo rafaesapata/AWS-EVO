@@ -233,7 +233,41 @@ export const MonthlyInvoicesPage = () => {
         costs = lambdaData?.costs || lambdaData?.dailyCosts || lambdaData?.data?.dailyCosts || [];
       }
 
-      // Fallback: if Lambda returned empty or failed, query DB directly
+      // Azure: if DB is empty, sync from Azure Cost Management API first, then re-read
+      if ((!costs || costs.length === 0) && selectedProvider === 'AZURE') {
+        console.log('MonthlyInvoicesPage: No Azure costs in DB, triggering sync...');
+        try {
+          const syncResult = await apiClient.invoke('azure-fetch-costs', {
+            body: {
+              credentialId: selectedAccountId,
+              startDate: startDate.toISOString().split('T')[0],
+              endDate: endDate.toISOString().split('T')[0],
+              granularity: 'DAILY',
+            },
+            timeoutMs: 120000,
+          });
+          if (!syncResult.error) {
+            const retryResponse = await apiClient.invoke<any>('fetch-daily-costs', {
+              body: {
+                accountId: selectedAccountId,
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+                granularity: 'DAILY',
+                incremental: false,
+              }
+            });
+            if (!retryResponse.error) {
+              const retryData = retryResponse.data;
+              costs = retryData?.costs || retryData?.dailyCosts || retryData?.data?.dailyCosts || [];
+              console.log('MonthlyInvoicesPage: After Azure sync, got', costs.length, 'records');
+            }
+          }
+        } catch (err) {
+          console.warn('MonthlyInvoicesPage: Azure sync failed:', err);
+        }
+      }
+
+      // Fallback: if still empty, query DB directly
       if (!costs || costs.length === 0) {
         const response = await apiClient.select<DailyCostRecord>('daily_costs', {
           select: '*',
