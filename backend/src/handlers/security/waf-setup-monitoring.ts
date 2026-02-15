@@ -435,7 +435,11 @@ exports.handler = async (event) => {
 
   } catch (err: any) {
     logger.error('Failed to auto-provision WAF destination', err, { region, errorName: err.name, errorMessage: err.message });
-    return false;
+    // Re-throw with context so callers can show meaningful error details
+    const wrappedErr = new Error(`Auto-provision failed in ${region}: ${err.name || 'Unknown'} - ${err.message || 'No details'}`);
+    (wrappedErr as any).name = err.name || 'AutoProvisionError';
+    (wrappedErr as any).originalError = err;
+    throw wrappedErr;
   }
 }
 
@@ -1421,7 +1425,19 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   
   // IMPORTANT: Ensure the destination infrastructure exists in this region
   // Auto-provisions Lambda forwarder + IAM roles + CW Logs Destination if missing
-  const destinationReady = await ensureDestinationExists(region);
+  let destinationReady = false;
+  try {
+    destinationReady = await ensureDestinationExists(region);
+  } catch (provisionErr: any) {
+    logger.error('Failed to ensure WAF logs destination in region', { region, destinationArn, organizationId, error: provisionErr.message });
+    throw createPermissionError(
+      `Failed to auto-provision WAF monitoring infrastructure in region ${region}. ` +
+      `Error: ${provisionErr.message}. ` +
+      `The EVO Lambda execution role may lack permissions to create IAM roles, Lambda functions, or CW Logs destinations. ` +
+      `Destination: ${destinationArn}`,
+      'WAFPermissionPreFlightError'
+    );
+  }
   if (!destinationReady) {
     logger.error('Failed to ensure WAF logs destination in region', { region, destinationArn, organizationId });
     throw createPermissionError(
@@ -1770,11 +1786,28 @@ async function handleTestSetup(
   
   if (!destinationExists) {
     // Try to auto-provision the destination infrastructure
-    steps.push({ step: 'destination-auto-provision', status: 'ok', detail: `Destination not found in ${wafRegion}, auto-provisioning...` });
-    destinationExists = await ensureDestinationExists(wafRegion);
+    try {
+      destinationExists = await ensureDestinationExists(wafRegion);
+      steps.push({ 
+        step: 'destination-auto-provision', 
+        status: destinationExists ? 'ok' : 'fail', 
+        detail: destinationExists 
+          ? `Auto-provisioned in ${wafRegion}` 
+          : `Failed to auto-provision in ${wafRegion}. Check Lambda execution role permissions (iam:CreateRole, iam:PutRolePolicy, iam:AttachRolePolicy, lambda:CreateFunction, lambda:AddPermission, logs:PutDestination, logs:PutDestinationPolicy).`
+      });
+    } catch (provisionErr: any) {
+      destinationExists = false;
+      steps.push({ 
+        step: 'destination-auto-provision', 
+        status: 'fail', 
+        detail: `Error: ${provisionErr.name || 'Unknown'}: ${provisionErr.message || 'Auto-provision failed'}. Region: ${wafRegion}`
+      });
+    }
+  } else {
+    steps.push({ step: 'destination-auto-provision', status: 'skip', detail: 'Destination already exists' });
   }
   
-  steps.push({ step: 'destination-exists', status: destinationExists ? 'ok' : 'fail', detail: `${destinationArn} (region=${wafRegion})` });
+  steps.push({ step: 'destination-exists', status: destinationExists ? 'ok' : 'fail', detail: destinationExists ? `${destinationArn} (region=${wafRegion})` : `NOT FOUND: ${destinationArn} (region=${wafRegion})` });
 
   // Test CloudWatch Logs role
   let cloudWatchLogsRoleArn = '';
