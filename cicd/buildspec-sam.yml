@@ -22,7 +22,7 @@ phases:
     commands:
       - echo "=== Validating Lambda imports ==="
       - npx --prefix backend tsx scripts/validate-lambda-imports.ts
-      - echo "=== Fetching git history for incremental detection ==="
+      - echo "=== Fetching git history for change detection ==="
       - |
         # Determine the branch we're on
         CURRENT_BRANCH="${CODEBUILD_WEBHOOK_HEAD_REF:-}"
@@ -36,14 +36,12 @@ phases:
         GIT_DIFF_OK="false"
         if [ -d ".git" ]; then
           echo "Git repo detected (CODEBUILD_CLONE_REF mode)"
-          # Try to deepen the clone to get at least 2 commits for diff
           git fetch --deepen=2 2>/dev/null || \
             git fetch --unshallow 2>/dev/null || \
             git fetch --depth=5 origin "$CURRENT_BRANCH" 2>/dev/null || \
             git fetch --depth=5 2>/dev/null || \
             echo "WARNING: All git fetch attempts failed"
 
-          # Verify we can do HEAD~1
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             GIT_DIFF_OK="true"
             echo "Git history OK - can diff HEAD~1..HEAD"
@@ -54,14 +52,12 @@ phases:
           echo "No .git directory - will do full deploy"
         fi
 
-        # Get changed files
         if [ "$GIT_DIFF_OK" = "true" ]; then
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FULL_DEPLOY")
         else
           CHANGED_FILES="FULL_DEPLOY"
         fi
 
-        # Persist to env file for subsequent commands
         echo "$CHANGED_FILES" > /tmp/changed_files.txt
         echo "Changed files:"
         cat /tmp/changed_files.txt
@@ -144,17 +140,14 @@ phases:
           echo "WEBAUTHN_RP_NAME loaded from SSM: $WEBAUTHN_RP_NAME"
         fi
 
-      - echo "=== Analyzing deploy strategy ==="
+      - echo "=== Analyzing deploy strategy (ALWAYS FULL_SAM for backend) ==="
       - |
         CHANGED_FILES=$(cat /tmp/changed_files.txt)
 
         DEPLOY_FRONTEND="false"
         DEPLOY_FULL_SAM="false"
-        DEPLOY_HANDLERS="false"
-        DEPLOY_ALL_HANDLERS="false"
         DEPLOY_BACKEND_BUILD="false"
         DEPLOY_FRONTEND_BUILD="false"
-        CHANGED_HANDLERS=""
 
         # 1. No git history → full deploy
         if echo "$CHANGED_FILES" | grep -q "FULL_DEPLOY"; then
@@ -165,88 +158,38 @@ phases:
           DEPLOY_FRONTEND_BUILD="true"
         fi
 
-        # 2. SAM template or Prisma schema changed → full SAM
-        if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^(sam/template\.yaml|sam/production-lambdas-only\.yaml|backend/prisma/schema\.prisma)$"; then
-          echo ">>> FULL SAM DEPLOY (SAM template or Prisma schema changed)"
+        # 2. Any backend change (handlers, lib, types, SAM, prisma) → FULL SAM always
+        if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^(backend/|sam/)"; then
+          echo ">>> FULL SAM DEPLOY (backend or SAM changes detected)"
           DEPLOY_FULL_SAM="true"
-          DEPLOY_FRONTEND="true"
           DEPLOY_BACKEND_BUILD="true"
-          DEPLOY_FRONTEND_BUILD="true"
         fi
 
         # 3. Frontend files changed
-        if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^(src/|public/|index\.html|vite\.config|tailwind|postcss)"; then
+        if echo "$CHANGED_FILES" | grep -qE "^(src/|public/|index\.html|vite\.config|tailwind|postcss)"; then
           echo ">>> Frontend changed"
           DEPLOY_FRONTEND="true"
           DEPLOY_FRONTEND_BUILD="true"
         fi
 
-        # 4. Shared backend lib/types changed → FULL SAM (incremental breaks @aws-sdk imports)
-        if [ "$DEPLOY_FULL_SAM" = "false" ] && echo "$CHANGED_FILES" | grep -qE "^backend/src/(lib|types)/"; then
-          echo ">>> Shared lib/types changed - FULL SAM DEPLOY (incremental would break @aws-sdk bundling)"
-          DEPLOY_FULL_SAM="true"
-          DEPLOY_BACKEND_BUILD="true"
-          DEPLOY_FRONTEND="true"
-          DEPLOY_FRONTEND_BUILD="true"
-        fi
-
-        # 5. Specific handlers changed → check if they use @aws-sdk (need FULL_SAM) or can do incremental
-        if [ "$DEPLOY_FULL_SAM" = "false" ]; then
-          HANDLER_CHANGES=$(echo "$CHANGED_FILES" | grep "^backend/src/handlers/" | sed "s|backend/src/handlers/||" || true)
-          if [ -n "$HANDLER_CHANGES" ]; then
-            echo ">>> Handlers changed: $HANDLER_CHANGES"
-            # Check if any changed handler imports @aws-sdk (incremental would break it)
-            NEEDS_FULL_SAM="false"
-            for handler_file in $HANDLER_CHANGES; do
-              handler_path="backend/src/handlers/${handler_file}"
-              # Check .ts source for real @aws-sdk imports (not comments or type-only)
-              if [ -f "$handler_path" ] && grep -qE "^\s*(import|require).*@aws-sdk/" "$handler_path"; then
-                echo ">>> SAFETY: $handler_file imports @aws-sdk/* - forcing FULL_SAM"
-                NEEDS_FULL_SAM="true"
-                break
-              fi
-              # Check for dynamic imports of lib/ (e.g. await import('../../lib/xxx.js'))
-              # These compile to require('../../lib/...') with single quotes which sed may miss
-              if [ -f "$handler_path" ] && grep -qE "import\s*\(\s*['\"]\.\.\/\.\.\/lib\/" "$handler_path"; then
-                echo ">>> SAFETY: $handler_file has dynamic import() of lib/ - forcing FULL_SAM"
-                NEEDS_FULL_SAM="true"
-                break
-              fi
-            done
-            if [ "$NEEDS_FULL_SAM" = "true" ]; then
-              DEPLOY_FULL_SAM="true"
-              DEPLOY_BACKEND_BUILD="true"
-              DEPLOY_FRONTEND="true"
-              DEPLOY_FRONTEND_BUILD="true"
-            else
-              DEPLOY_HANDLERS="true"
-              DEPLOY_BACKEND_BUILD="true"
-              CHANGED_HANDLERS="$HANDLER_CHANGES"
-            fi
-          fi
-        fi
-
-        # 6. Backend package.json or tsconfig changed → need backend build
+        # 4. Backend package.json or tsconfig changed → need backend build
         if echo "$CHANGED_FILES" | grep -qE "^backend/(package\.json|tsconfig\.json)"; then
           DEPLOY_BACKEND_BUILD="true"
         fi
 
-        # Determine if we need any build at all
-        if [ "$DEPLOY_FULL_SAM" = "false" ] && [ "$DEPLOY_HANDLERS" = "false" ] && [ "$DEPLOY_FRONTEND" = "false" ]; then
+        # If nothing needs deploy
+        if [ "$DEPLOY_FULL_SAM" = "false" ] && [ "$DEPLOY_FRONTEND" = "false" ]; then
           echo ">>> NO DEPLOY NEEDED (docs/scripts/cicd only changes)"
         fi
 
-        echo "Deploy strategy: FRONTEND=$DEPLOY_FRONTEND FULL_SAM=$DEPLOY_FULL_SAM HANDLERS=$DEPLOY_HANDLERS ALL_HANDLERS=$DEPLOY_ALL_HANDLERS"
+        echo "Deploy strategy: FRONTEND=$DEPLOY_FRONTEND FULL_SAM=$DEPLOY_FULL_SAM"
         echo "Build needed: BACKEND=$DEPLOY_BACKEND_BUILD FRONTEND=$DEPLOY_FRONTEND_BUILD"
 
-        # Persist strategy to files for use in build phase
+        # Persist strategy
         echo "$DEPLOY_FRONTEND" > /tmp/deploy_frontend.txt
         echo "$DEPLOY_FULL_SAM" > /tmp/deploy_full_sam.txt
-        echo "$DEPLOY_HANDLERS" > /tmp/deploy_handlers.txt
-        echo "$DEPLOY_ALL_HANDLERS" > /tmp/deploy_all_handlers.txt
         echo "$DEPLOY_BACKEND_BUILD" > /tmp/deploy_backend_build.txt
         echo "$DEPLOY_FRONTEND_BUILD" > /tmp/deploy_frontend_build.txt
-        echo "$CHANGED_HANDLERS" > /tmp/changed_handlers.txt
 
   build:
     commands:
@@ -254,9 +197,6 @@ phases:
         DEPLOY_BACKEND_BUILD=$(cat /tmp/deploy_backend_build.txt)
         DEPLOY_FRONTEND_BUILD=$(cat /tmp/deploy_frontend_build.txt)
         DEPLOY_FULL_SAM=$(cat /tmp/deploy_full_sam.txt)
-        DEPLOY_HANDLERS=$(cat /tmp/deploy_handlers.txt)
-        DEPLOY_ALL_HANDLERS=$(cat /tmp/deploy_all_handlers.txt)
-        CHANGED_HANDLERS=$(cat /tmp/changed_handlers.txt)
 
         # === Build only what's needed ===
         if [ "$DEPLOY_BACKEND_BUILD" = "true" ]; then
@@ -268,8 +208,6 @@ phases:
 
         if [ "$DEPLOY_FRONTEND_BUILD" = "true" ]; then
           echo "=== Building Frontend ==="
-          # Vite picks up VITE_* env vars from process.env automatically
-          # .env.production is gitignored, so we export vars from CodeBuild context
           export VITE_AWS_REGION=us-east-1
           export VITE_AWS_USER_POOL_ID="$COGNITO_USER_POOL_ID"
           export VITE_AWS_USER_POOL_CLIENT_ID="$COGNITO_CLIENT_ID"
@@ -294,7 +232,7 @@ phases:
           echo "=== Skipping Frontend Build (no frontend changes) ==="
         fi
 
-        # === Execute deploy strategy ===
+        # === Execute deploy strategy — ALWAYS FULL SAM (no incremental) ===
         if [ "$DEPLOY_FULL_SAM" = "true" ]; then
           echo "=== FULL SAM DEPLOY ==="
           # Prepare layer
@@ -310,7 +248,6 @@ phases:
           sam build --template-file sam/production-lambdas-only.yaml --build-dir .aws-sam/build --parallel --cached
 
           echo "SAM Deploy..."
-          # Build parameter overrides (SAM CLI rejects empty values and spaces break Key=Value format)
           PARAM_OVERRIDES="Environment=$ENV"
           PARAM_OVERRIDES="$PARAM_OVERRIDES ProjectName=evo-uds-v3"
           PARAM_OVERRIDES="$PARAM_OVERRIDES DatabaseUrl=$DATABASE_URL"
@@ -324,12 +261,9 @@ phases:
           PARAM_OVERRIDES="$PARAM_OVERRIDES AzureOAuthRedirectUri=$AZURE_OAUTH_REDIRECT_URI"
           PARAM_OVERRIDES="$PARAM_OVERRIDES AppDomain=$APP_DOMAIN"
           PARAM_OVERRIDES="$PARAM_OVERRIDES ApiDomain=$API_DOMAIN"
-          # Optional params - only include if they have values (SAM template defaults will be used otherwise)
           if [ -n "$WEBAUTHN_RP_ID" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES WebAuthnRpId=$WEBAUTHN_RP_ID"
           fi
-          # NOTE: WebAuthnRpName may contain spaces - skip it and let SAM template default handle it
-          # If SSM param exists with no spaces, it will be passed; otherwise SAM default 'EVO Platform' is used
           if [ -n "$WEBAUTHN_RP_NAME" ] && ! echo "$WEBAUTHN_RP_NAME" | grep -q ' '; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES WebAuthnRpName=$WEBAUTHN_RP_NAME"
           fi
@@ -351,17 +285,6 @@ phases:
             --no-fail-on-empty-changeset \
             --parameter-overrides $PARAM_OVERRIDES
 
-        elif [ "$DEPLOY_HANDLERS" = "true" ]; then
-          echo "=== INCREMENTAL LAMBDA DEPLOY ==="
-          chmod +x cicd/scripts/deploy-changed-lambdas.sh
-          if [ "$DEPLOY_ALL_HANDLERS" = "true" ]; then
-            echo ">>> Deploying ALL handlers (shared lib/types changed)"
-            DEPLOY_ALL=true LAMBDA_PREFIX="$LAMBDA_PREFIX" REGION=us-east-1 bash cicd/scripts/deploy-changed-lambdas.sh
-          else
-            echo ">>> Deploying only changed handlers: $CHANGED_HANDLERS"
-            CHANGED_HANDLERS="$CHANGED_HANDLERS" LAMBDA_PREFIX="$LAMBDA_PREFIX" REGION=us-east-1 bash cicd/scripts/deploy-changed-lambdas.sh
-          fi
-
         else
           echo "=== NO LAMBDA DEPLOY NEEDED ==="
         fi
@@ -378,8 +301,6 @@ phases:
           echo "=== Invalidating CloudFront ==="
           aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*" || true
 
-          # Sync CloudFormation template to public S3 bucket (used by Quick Create links)
-          # Only production pipeline has access to the public templates bucket
           if [ "$ENVIRONMENT" = "production" ]; then
             echo "=== Syncing CloudFormation template to public bucket ==="
             aws s3 cp dist/cloudformation/evo-platform-role.yaml \
@@ -410,9 +331,9 @@ phases:
         fi
 
         echo "=== DEPLOYMENT COMPLETE ==="
-        echo "Strategy used: FRONTEND=$DEPLOY_FRONTEND FULL_SAM=$DEPLOY_FULL_SAM HANDLERS=$(cat /tmp/deploy_handlers.txt)"
+        echo "Strategy used: FRONTEND=$DEPLOY_FRONTEND FULL_SAM=$DEPLOY_FULL_SAM"
 
-        # Ensure dist/ exists for artifacts (even when no frontend build)
+        # Ensure dist/ exists for artifacts
         mkdir -p dist
         echo '{"deploy":"ok"}' > dist/deploy-status.json
 
