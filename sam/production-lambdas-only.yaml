@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: |
-  EVO Platform - Lambda Functions Only (194 total) - v22 fix azure-security-scan aws-sdk dependency
+  EVO Platform - Lambda Functions Only (194 total) - v23 fix webauthn-register 500 error
   Uses existing VPC, RDS, Cognito infrastructure
   All functions use ARM64 + esbuild for fast builds
-  Updated: 2026-02-14 - Force FULL_SAM rebuild for validate-azure-permissions (fix 500 from INCREMENTAL deploy)
+  Updated: 2026-02-16 - WebAuthn handlers use raw SQL for challenges, auto-create table if missing
 Globals:
   Function:
     Runtime: nodejs20.x
