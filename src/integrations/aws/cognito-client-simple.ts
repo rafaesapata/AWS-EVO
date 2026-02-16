@@ -467,10 +467,11 @@ class CognitoAuthService {
         accessTokenStart: session.accessToken?.substring(0, 30)
       });
       
-      // Check if session is still valid
-      if (this.isTokenExpired(session.accessToken)) {
+      // Check if session is still valid - use idToken as fallback since accessToken 
+      // may be opaque (non-JWT) after storage encryption/decryption
+      const tokenToCheck = session.accessToken?.includes('.') ? session.accessToken : session.idToken;
+      if (!tokenToCheck || this.isTokenExpired(tokenToCheck)) {
         console.log('🔐 CognitoAuth: Token expired, signing out');
-        console.log('🔐 CognitoAuth: accessToken length:', session.accessToken?.length, 'starts with:', session.accessToken?.substring(0, 20));
         await this.signOut();
         return null;
       }
@@ -507,8 +508,10 @@ class CognitoAuthService {
 
       const session: AuthSession = JSON.parse(stored);
       
-      // Check if session is still valid
-      if (this.isTokenExpired(session.accessToken)) {
+      // Check if session is still valid - use idToken as fallback since accessToken
+      // may be opaque (non-JWT) after storage encryption/decryption
+      const tokenToCheck = session.accessToken?.includes('.') ? session.accessToken : session.idToken;
+      if (!tokenToCheck || this.isTokenExpired(tokenToCheck)) {
         // Try to refresh the session before signing out
         if (session.refreshToken) {
           try {
