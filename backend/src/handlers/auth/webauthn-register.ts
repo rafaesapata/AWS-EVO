@@ -103,14 +103,11 @@ async function generateChallenge(
     const challenge = crypto.randomBytes(32).toString('base64url');
     const challengeExpiry = new Date(Date.now() + WEBAUTHN_CHALLENGE_EXPIRY_MS);
 
-    // Salvar challenge
-    await prisma.webauthnChallenge.create({
-      data: {
-        challenge,
-        user_id: user.user_id,
-        expires_at: challengeExpiry
-      }
-    });
+    // Salvar challenge via raw SQL (evita dependência do model gerado no Prisma client da layer)
+    await prisma.$executeRaw`
+      INSERT INTO webauthn_challenges (id, user_id, challenge, expires_at, created_at)
+      VALUES (gen_random_uuid(), ${user.user_id}::text, ${challenge}, ${challengeExpiry}, NOW())
+    `;
 
     // Gerar opções de registro
     const rpId = getWebAuthnRpId();
@@ -163,23 +160,25 @@ async function verifyRegistration(
       return errorResponse('User not found', 404, undefined, origin);
     }
 
-    // Verificar challenge
-    const storedChallenge = await prisma.webauthnChallenge.findFirst({
-      where: {
-        challenge: challengeId,
-        user_id: user.user_id,
-        expires_at: { gt: new Date() }
-      }
-    });
+    // Verificar challenge via raw SQL
+    const challenges: any[] = await prisma.$queryRaw`
+      SELECT id, user_id, challenge, expires_at 
+      FROM webauthn_challenges 
+      WHERE challenge = ${challengeId} 
+        AND user_id = ${user.user_id}::text 
+        AND expires_at > NOW()
+      LIMIT 1
+    `;
+    const storedChallenge = challenges[0];
 
     if (!storedChallenge) {
       return badRequest('Invalid or expired challenge', undefined, origin);
     }
 
     // Deletar challenge usado
-    await prisma.webauthnChallenge.delete({ 
-      where: { id: storedChallenge.id } 
-    });
+    await prisma.$executeRaw`
+      DELETE FROM webauthn_challenges WHERE id = ${storedChallenge.id}::uuid
+    `;
 
     // Salvar credencial WebAuthn - extract real public key from attestationObject
     let publicKeyBase64 = credential.publicKey;

@@ -299,6 +299,8 @@ phases:
           echo "=== FULL SAM DEPLOY ==="
           # Prepare layer
           mkdir -p backend/layers/dependencies/nodejs/node_modules
+          echo "Generating Prisma client..."
+          cd backend && npx prisma generate && cd ..
           cp -r backend/node_modules/@prisma backend/layers/dependencies/nodejs/node_modules/
           cp -r backend/node_modules/.prisma backend/layers/dependencies/nodejs/node_modules/
           cp -r backend/node_modules/zod backend/layers/dependencies/nodejs/node_modules/
