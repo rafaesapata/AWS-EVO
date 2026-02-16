@@ -21,6 +21,8 @@ import { ptBR, enUS, es } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import type { MLImplementationStep } from "@/types/database";
+import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 
 const dateLocales: Record<string, any> = { pt: ptBR, en: enUS, es: es };
 
@@ -123,9 +125,10 @@ export default function MLWasteDetection() {
  const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
  const [activeTab, setActiveTab] = useState<'recommendations' | 'history'>('recommendations');
  const { data: organizationId } = useOrganization();
- const { selectedAccountId, selectedProvider } = useCloudAccount();
- const { getAccountFilter } = useAccountFilter();
- const { isInDemoMode } = useDemoAwareQuery();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
+  const { getAccountFilter } = useAccountFilter();
+  const { isInDemoMode } = useDemoAwareQuery();
+  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
  
  // Filters and sorting state
  const [sortField, setSortField] = useState<SortField>('savings');
@@ -456,9 +459,9 @@ export default function MLWasteDetection() {
 
  toast({
  title: t('mlWaste.analysisCompleted', 'ML Analysis completed'),
- description: t('mlWaste.analysisResults', 'Analyzed {{count}} resources. Potential savings: ${{amount}}/month', {
+ description: t('mlWaste.analysisResults', 'Analyzed {{count}} resources. Potential savings: {{currency}}{{amount}}/month', {
  count: data.analyzed_resources || 0,
- amount: data.total_monthly_savings?.toFixed(2) || '0.00'
+ amount: data.total_monthly_savings?.toFixed(2) || '0.00', currency: sym
  }),
  });
 
@@ -669,11 +672,11 @@ export default function MLWasteDetection() {
  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
  <Card>
  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
- <CardTitle className="text-sm font-medium">{t('mlWaste.potentialSavings', 'Potential Savings')}</CardTitle>
+ <CardTitle className="text-sm font-medium flex items-center gap-1.5">{t('mlWaste.potentialSavings', 'Potential Savings')} <CurrencyIndicator /></CardTitle>
  <TrendingDown className="h-4 w-4 text-success" />
  </CardHeader>
  <CardContent>
- <div className="text-2xl font-semibold">${totalSavings.toFixed(2)}</div>
+ <div className="text-2xl font-semibold">{sym}{totalSavings.toFixed(2)}</div>
  <p className="text-xs text-muted-foreground">{t('mlWaste.perMonth', 'Per month')}</p>
  </CardContent>
  </Card>
@@ -949,11 +952,11 @@ export default function MLWasteDetection() {
  )}
  <div>
  <span className="text-muted-foreground">{t('mlWaste.monthlySavings', 'Monthly Savings')}:</span>
- <p className="font-medium text-success">${rec.potential_monthly_savings?.toFixed(2)}</p>
+ <p className="font-medium text-success">{sym}{rec.potential_monthly_savings?.toFixed(2)}</p>
  </div>
  <div>
  <span className="text-muted-foreground">{t('mlWaste.annualSavings', 'Annual Savings')}:</span>
- <p className="font-medium text-success">${rec.potential_annual_savings?.toFixed(2) || (rec.potential_monthly_savings ? (rec.potential_monthly_savings * 12).toFixed(2) : '0.00')}</p>
+ <p className="font-medium text-success">{sym}{rec.potential_annual_savings?.toFixed(2) || (rec.potential_monthly_savings ? (rec.potential_monthly_savings * 12).toFixed(2) : '0.00')}</p>
  </div>
  <div>
  <span className="text-muted-foreground">{t('mlWaste.mlConfidence', 'ML Confidence')}:</span>
@@ -962,7 +965,7 @@ export default function MLWasteDetection() {
  {rec.current_hourly_cost !== undefined && rec.current_hourly_cost > 0 && (
  <div>
  <span className="text-muted-foreground">{t('mlWaste.hourlyCost', 'Hourly Cost')}:</span>
- <p className="font-medium">${rec.current_hourly_cost?.toFixed(4)}</p>
+ <p className="font-medium">{sym}{rec.current_hourly_cost?.toFixed(4)}</p>
  </div>
  )}
  </div>
@@ -1203,11 +1206,11 @@ export default function MLWasteDetection() {
  </div>
  <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded">
  <span className="text-muted-foreground text-xs">{t('mlWaste.monthlySavings', 'Monthly Savings')}</span>
- <p className="font-semibold text-lg text-green-600">${history.total_monthly_savings.toFixed(2)}</p>
+ <p className="font-semibold text-lg text-green-600">{sym}{history.total_monthly_savings.toFixed(2)}</p>
  </div>
  <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded">
  <span className="text-muted-foreground text-xs">{t('mlWaste.annualSavings', 'Annual Savings')}</span>
- <p className="font-semibold text-lg text-green-600">${history.total_annual_savings.toFixed(2)}</p>
+ <p className="font-semibold text-lg text-green-600">{sym}{history.total_annual_savings.toFixed(2)}</p>
  </div>
  <div className="bg-secondary/50 p-2 rounded">
  <span className="text-muted-foreground text-xs">{t('mlWaste.byType', 'By Type')}</span>
