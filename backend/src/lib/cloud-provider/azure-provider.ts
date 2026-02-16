@@ -183,10 +183,11 @@ export class AzureProvider implements ICloudProvider {
 
       const credential = await this.getTokenCredential();
       
-      // For OAuth credentials, we already have the token
+      // For OAuth credentials, use the OAuthTokenCredential which handles proactive refresh
       if (isOAuthCredentials(this.credentials)) {
-        logger.debug('Using OAuth access token');
-        return this.credentials.accessToken;
+        logger.debug('Getting token via OAuthTokenCredential (supports refresh)');
+        const tokenResult = await credential.getToken('https://management.azure.com/.default');
+        return tokenResult?.token || null;
       }
       
       // For Service Principal, get a token from the credential

@@ -181,8 +181,7 @@ async function handleTest(prisma: any, credentialId: string, origin: string): Pr
     credentialId,
     clientId: credential.client_id,
     tenantId,
-    secretLength: clientSecret.length,
-    secretPrefix: clientSecret.substring(0, 4) + '***',
+    hasSecret: true,
     secretSource: credential.client_id === (await getAzureOAuthCredentials()).clientId ? 'ssm' : 'database',
   });
 

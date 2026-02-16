@@ -89,8 +89,7 @@ export async function getAzureOAuthCredentials(): Promise<AzureOAuthCreds> {
         logger.info('Azure OAuth creds loaded from SSM', {
           clientId,
           tenantId,
-          secretLength: clientSecret.length,
-          secretPrefix: clientSecret.substring(0, 4) + '***',
+          hasSecret: true,
         });
         return _cachedCreds;
       }
@@ -124,8 +123,7 @@ export async function getAzureOAuthCredentials(): Promise<AzureOAuthCreds> {
     logger.info('Azure OAuth creds loaded from env vars (fallback)', {
       clientId: fallback.clientId,
       tenantId: fallback.tenantId,
-      secretLength: fallback.clientSecret.length,
-      secretPrefix: fallback.clientSecret.substring(0, 4) + '***',
+      hasSecret: true,
     });
   } else {
     logger.warn('Azure OAuth env vars are empty — will retry SSM on next call');
@@ -287,8 +285,7 @@ export async function resolveClientSecret(credential: Pick<AzureCredentialRecord
   if (creds.clientId && creds.clientSecret && credential.client_id === creds.clientId) {
     logger.info('resolveClientSecret: using SSM/env credential', {
       clientId: credential.client_id,
-      secretLength: creds.clientSecret.length,
-      secretPrefix: creds.clientSecret.substring(0, 4) + '***',
+      hasSecret: true,
     });
     return creds.clientSecret;
   }
@@ -307,16 +304,14 @@ export async function resolveClientSecret(credential: Pick<AzureCredentialRecord
       secret = decryptToken(parsed);
       logger.info('resolveClientSecret: decrypted from DB', {
         clientId: credential.client_id,
-        secretLength: secret.length,
-        secretPrefix: secret.substring(0, 4) + '***',
+        hasSecret: true,
       });
     }
   } catch {
     // Not JSON — use as-is (legacy plaintext)
     logger.info('resolveClientSecret: using plaintext from DB', {
       clientId: credential.client_id,
-      secretLength: secret.length,
-      secretPrefix: secret.substring(0, 4) + '***',
+      hasSecret: true,
     });
   }
   return secret;

@@ -71,58 +71,63 @@ export async function handler(
     }
 
     // Check for existing running/pending scan for this credential and handle stuck jobs
-    const existingJob = await prisma.backgroundJob.findFirst({
-      where: {
-        organization_id: organizationId,
-        job_type: 'azure-security-scan',
-        status: { in: ['pending', 'running'] },
-        payload: { path: ['credentialId'], equals: credentialId },
-      },
+    // Use transaction to prevent race condition where two requests both pass the check
+    const existingJobCheck = await prisma.$transaction(async (tx) => {
+      const existingJob = await tx.backgroundJob.findFirst({
+        where: {
+          organization_id: organizationId,
+          job_type: 'azure-security-scan',
+          status: { in: ['pending', 'running'] },
+          payload: { path: ['credentialId'], equals: credentialId },
+        },
+      });
+
+      if (existingJob) {
+        const jobAge = Date.now() - new Date(existingJob.created_at).getTime();
+        const stuckThreshold = existingJob.status === 'pending' ? FIVE_MINUTES : TEN_MINUTES;
+
+        if (jobAge > stuckThreshold) {
+          logger.info('Marking stuck Azure scan job as failed', {
+            jobId: existingJob.id,
+            jobStatus: existingJob.status,
+            ageMinutes: Math.round(jobAge / 60000),
+          });
+          await tx.backgroundJob.update({
+            where: { id: existingJob.id },
+            data: {
+              status: 'failed',
+              completed_at: new Date(),
+              error: `Job stuck in '${existingJob.status}' for ${Math.round(jobAge / 60000)} minutes`,
+              result: { progress: 0, error: 'Job timed out', timed_out: true },
+            },
+          });
+          const stuckPayload = existingJob.payload as any;
+          if (stuckPayload?.scanId) {
+            await tx.securityScan.update({
+              where: { id: stuckPayload.scanId },
+              data: { status: 'failed', completed_at: new Date() },
+            }).catch((e: any) => logger.warn('Failed to mark stuck scan as failed', { error: e.message }));
+          }
+          return { alreadyRunning: false };
+        } else {
+          return { alreadyRunning: true, job: existingJob };
+        }
+      }
+
+      return { alreadyRunning: false };
     });
 
-    if (existingJob) {
-      const jobAge = Date.now() - new Date(existingJob.created_at).getTime();
-      // Pending jobs that never transitioned to running → likely Lambda never started (5min threshold)
-      // Running jobs → give more time (10min threshold)
-      const stuckThreshold = existingJob.status === 'pending' ? FIVE_MINUTES : TEN_MINUTES;
-
-      if (jobAge > stuckThreshold) {
-        // Mark stuck job as failed
-        logger.info('Marking stuck Azure scan job as failed', {
-          jobId: existingJob.id,
-          jobStatus: existingJob.status,
-          ageMinutes: Math.round(jobAge / 60000),
-          thresholdMinutes: Math.round(stuckThreshold / 60000),
-        });
-        await prisma.backgroundJob.update({
-          where: { id: existingJob.id },
-          data: {
-            status: 'failed',
-            completed_at: new Date(),
-            error: `Job stuck in '${existingJob.status}' for ${Math.round(jobAge / 60000)} minutes`,
-            result: { progress: 0, error: 'Job timed out', timed_out: true },
-          },
-        });
-        // Also mark the associated scan as failed
-        const stuckPayload = existingJob.payload as any;
-        if (stuckPayload?.scanId) {
-          await prisma.securityScan.update({
-            where: { id: stuckPayload.scanId },
-            data: { status: 'failed', completed_at: new Date() },
-          }).catch(() => {}); // Ignore if scan doesn't exist
-        }
-      } else {
-        return success({
-          job_id: existingJob.id,
-          status: existingJob.status,
-          message: 'An Azure security scan is already in progress',
-          already_running: true,
-        });
-      }
+    if (existingJobCheck.alreadyRunning && existingJobCheck.job) {
+      return success({
+        job_id: existingJobCheck.job.id,
+        status: existingJobCheck.job.status,
+        message: 'An Azure security scan is already in progress',
+        already_running: true,
+      });
     }
 
-    // Also check for orphaned scans (scan exists but background job was already cleaned up)
-    const orphanedScan = await prisma.securityScan.findFirst({
+    // Clean up ALL orphaned scans (not just the first one)
+    const orphanedScans = await prisma.securityScan.findMany({
       where: {
         organization_id: organizationId,
         cloud_provider: 'AZURE',
@@ -130,25 +135,21 @@ export async function handler(
         status: { in: ['pending', 'running'] },
         created_at: { lt: new Date(Date.now() - FIVE_MINUTES) },
       },
+      select: { id: true, status: true },
     });
 
-    if (orphanedScan) {
-      logger.info('Cleaning up orphaned Azure security scan', {
-        scanId: orphanedScan.id,
-        status: orphanedScan.status,
-        createdAt: orphanedScan.created_at,
+    if (orphanedScans.length > 0) {
+      logger.info('Cleaning up orphaned Azure security scans', {
+        count: orphanedScans.length,
+        scanIds: orphanedScans.map(s => s.id),
       });
-      await prisma.securityScan.update({
-        where: { id: orphanedScan.id },
+      await prisma.securityScan.updateMany({
+        where: { id: { in: orphanedScans.map(s => s.id) } },
         data: {
           status: 'failed',
           completed_at: new Date(),
-          results: {
-            error: 'Scan was orphaned (no active background job)',
-            cleanup_type: 'orphan_detection',
-          },
         },
-      }).catch(() => {});
+      }).catch((e: any) => logger.warn('Failed to clean orphaned scans', { error: e.message }));
     }
 
     // Create scan record

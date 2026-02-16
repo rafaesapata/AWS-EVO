@@ -80,13 +80,13 @@ export async function handler(
         await prisma.backgroundJob.update({
           where: { id: backgroundJobId },
           data: { status: 'failed', completed_at: new Date(), error: errorMsg },
-        }).catch(() => {});
+        }).catch((e: any) => logger.warn('Failed to mark background job as failed', { error: e.message }));
       }
       if (scanRef) {
         await prisma.securityScan.update({
           where: { id: scanRef },
           data: { status: 'failed', completed_at: new Date() },
-        }).catch(() => {});
+        }).catch((e: any) => logger.warn('Failed to mark scan as failed', { error: e.message }));
       }
     };
 
@@ -131,19 +131,9 @@ export async function handler(
     });
 
     if (!credential) {
-      // Debug: check if credential exists at all (without org filter)
-      const credentialAny = await prisma.azureCredential.findUnique({
-        where: { id: credentialId },
-        select: { id: true, organization_id: true, is_active: true },
-      });
+      logger.error('Azure credential not found', { credentialId, organizationId });
       
-      const debugMsg = credentialAny
-        ? `Credential exists but mismatch: org=${credentialAny.organization_id}, active=${credentialAny.is_active}, expected_org=${organizationId}`
-        : `Credential ${credentialId} does not exist in database`;
-      
-      logger.error('Azure credential lookup failed', { credentialId, organizationId, debug: debugMsg });
-      
-      await failBackgroundJob(`Azure credential not found or inactive. ${debugMsg}`);
+      await failBackgroundJob('Azure credential not found or inactive');
       return error('Azure credential not found or inactive', 404);
     }
 
@@ -256,13 +246,23 @@ export async function handler(
     let azureProvider: AzureProvider;
     
     if (spCredentials.isOAuth) {
+      // Build refreshFn for long-running scans (token may expire during deep scan)
+      const refreshFn = credential.encrypted_refresh_token
+        ? async () => {
+            const innerResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
+            if (!innerResult.success) throw new Error(innerResult.error);
+            return { accessToken: innerResult.accessToken, expiresIn: 3600 };
+          }
+        : undefined;
+
       azureProvider = AzureProvider.withOAuthToken(
         organizationId,
         spCredentials.subscriptionId,
         spCredentials.subscriptionName,
         spCredentials.tenantId,
         spCredentials.accessToken,
-        new Date(Date.now() + ONE_HOUR_MS)
+        new Date(Date.now() + ONE_HOUR_MS),
+        refreshFn
       );
     } else {
       azureProvider = new AzureProvider(organizationId, spCredentials);
@@ -329,32 +329,71 @@ export async function handler(
         // Try to acquire a Microsoft Graph API token for Entra ID scanner
         // Graph API requires a different scope (graph.microsoft.com) than management API
         let graphAccessToken: string | undefined;
-        if (!spCredentials.isOAuth && spCredentials.tenantId && spCredentials.clientId && spCredentials.clientSecret) {
-          try {
-            const graphTokenUrl = getAzureTokenUrl(spCredentials.tenantId);
-            const graphParams = new URLSearchParams({
-              client_id: spCredentials.clientId,
-              client_secret: spCredentials.clientSecret,
-              grant_type: 'client_credentials',
-              scope: 'https://graph.microsoft.com/.default',
-            });
-            const graphResp = await fetch(graphTokenUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: graphParams.toString(),
-            });
-            if (graphResp.ok) {
-              const graphData = await graphResp.json() as { access_token: string };
-              graphAccessToken = graphData.access_token;
-              logger.info('Graph API token acquired for Entra ID scanner');
-            } else {
-              logger.warn('Failed to acquire Graph API token, Entra ID scanner will be skipped', {
-                status: graphResp.status,
+        const scanTenantId = resolveAzureTenantId(credential);
+
+        // Only attempt Graph token if we have a specific tenant (not 'common')
+        if (scanTenantId !== 'common') {
+          // For Service Principal: use client_credentials directly
+          if (!spCredentials.isOAuth && spCredentials.tenantId && spCredentials.clientId && spCredentials.clientSecret) {
+            try {
+              const graphTokenUrl = getAzureTokenUrl(spCredentials.tenantId);
+              const graphParams = new URLSearchParams({
+                client_id: spCredentials.clientId,
+                client_secret: spCredentials.clientSecret,
+                grant_type: 'client_credentials',
+                scope: 'https://graph.microsoft.com/.default',
               });
+              const graphResp = await fetch(graphTokenUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: graphParams.toString(),
+              });
+              if (graphResp.ok) {
+                const graphData = await graphResp.json() as { access_token: string };
+                graphAccessToken = graphData.access_token;
+                logger.info('Graph API token acquired for Entra ID scanner (SP)');
+              } else {
+                logger.warn('Failed to acquire Graph API token (SP), Entra ID scanner will be skipped', {
+                  status: graphResp.status,
+                });
+              }
+            } catch (graphErr: any) {
+              logger.warn('Error acquiring Graph API token (SP)', { error: graphErr.message });
             }
-          } catch (graphErr: any) {
-            logger.warn('Error acquiring Graph API token', { error: graphErr.message });
           }
+          // For OAuth: try using the EVO app credentials (client_credentials flow)
+          else if (spCredentials.isOAuth) {
+            try {
+              const oauthCreds = await import('../../lib/azure-helpers.js').then(m => m.getAzureOAuthCredentials());
+              if (oauthCreds.clientId && oauthCreds.clientSecret && scanTenantId) {
+                const graphTokenUrl = getAzureTokenUrl(scanTenantId);
+                const graphParams = new URLSearchParams({
+                  client_id: oauthCreds.clientId,
+                  client_secret: oauthCreds.clientSecret,
+                  grant_type: 'client_credentials',
+                  scope: 'https://graph.microsoft.com/.default',
+                });
+                const graphResp = await fetch(graphTokenUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: graphParams.toString(),
+                });
+                if (graphResp.ok) {
+                  const graphData = await graphResp.json() as { access_token: string };
+                  graphAccessToken = graphData.access_token;
+                  logger.info('Graph API token acquired for Entra ID scanner (OAuth app)');
+                } else {
+                  logger.warn('Failed to acquire Graph API token (OAuth app), Entra ID scanner will be skipped', {
+                    status: graphResp.status,
+                  });
+                }
+              }
+            } catch (graphErr: any) {
+              logger.warn('Error acquiring Graph API token (OAuth)', { error: graphErr.message });
+            }
+          }
+        } else {
+          logger.info('Skipping Graph API token acquisition: tenant is "common" (multi-tenant)');
         }
 
         const scanContext: AzureScanContext = {
@@ -423,8 +462,9 @@ export async function handler(
     const now = new Date();
     
     const azureFindings: NewScanFinding[] = result.findings.map(finding => {
-      const resourceArn = finding.resourceUri || finding.resourceId || '';
+      const resourceArn = (finding.resourceUri || finding.resourceId || '').toLowerCase().replace(/\/+$/, '');
       const title = finding.title || finding.description?.substring(0, 200) || 'Azure Security Finding';
+      const normalizedSeverity = (finding.severity || 'medium').toLowerCase();
       const fp = resourceArn
         ? computeFingerprint(resourceArn, scanType, title)
         : computeFallbackFingerprint(scanType, title, finding.resourceId || '');
@@ -432,7 +472,7 @@ export async function handler(
       return {
         fingerprint: fp,
         title,
-        severity: finding.severity,
+        severity: normalizedSeverity,
         description: finding.description,
         resource_id: finding.resourceId,
         resource_arn: finding.resourceUri || '',
@@ -460,8 +500,9 @@ export async function handler(
 
     // Add findings from module scanners
     const moduleFindings: NewScanFinding[] = moduleScannerFindings.map(finding => {
-      const resourceId = finding.resourceId || '';
+      const resourceId = (finding.resourceId || '').toLowerCase().replace(/\/+$/, '');
       const title = finding.title || finding.description?.substring(0, 200) || 'Azure Module Finding';
+      const normalizedSeverity = (finding.severity || 'medium').toLowerCase();
       const fp = resourceId
         ? computeFingerprint(resourceId, scanType, title)
         : computeFallbackFingerprint(scanType, title, resourceId);
@@ -469,7 +510,7 @@ export async function handler(
       return {
         fingerprint: fp,
         title,
-        severity: finding.severity,
+        severity: normalizedSeverity,
         description: finding.description,
         resource_id: resourceId,
         resource_arn: resourceId,
@@ -604,7 +645,7 @@ export async function handler(
               },
             });
           }
-        });
+        }, { timeout: 30000, maxWait: 10000 });
 
         logger.info('Azure delta sync completed', {
           created: delta.toCreate.length,
@@ -612,52 +653,92 @@ export async function handler(
           resolved: delta.toResolve.length,
         });
       } catch (deltaSyncError) {
-        // Fallback to legacy delete+create
-        logger.error('Azure delta sync failed, falling back to legacy mode', deltaSyncError as Error);
+        // Fallback: upsert individual findings to preserve history (first_seen, occurrence_count)
+        logger.error('Azure delta sync failed, falling back to individual upserts', deltaSyncError as Error);
 
-        await prisma.finding.deleteMany({
-          where: {
-            organization_id: organizationId,
-            azure_credential_id: credentialId,
-            source: { in: [...AZURE_SCAN_SOURCES] },
-            status: { in: ['pending', 'new'] },
-          },
-        });
-
-        await prisma.finding.createMany({
-          data: allNewFindings.map(f => ({
-            organization_id: organizationId,
-            cloud_provider: 'AZURE' as const,
-            azure_credential_id: credentialId,
-            scan_id: scan.id,
-            fingerprint: f.fingerprint,
-            title: f.title,
-            severity: f.severity,
-            description: f.description,
-            details: f.details,
-            resource_id: f.resource_id,
-            resource_arn: f.resource_arn,
-            service: f.service,
-            category: f.category,
-            scan_type: f.scan_type,
-            compliance: f.compliance,
-            remediation: f.remediation,
-            evidence: f.evidence,
-            risk_vector: f.risk_vector,
-            source: f.source,
-            status: 'new',
-            first_seen: now,
-            last_seen: now,
-            occurrence_count: 1,
-            suppressed: false,
-          })),
-          skipDuplicates: true,
-        });
+        for (const f of allNewFindings) {
+          try {
+            await prisma.finding.upsert({
+              where: {
+                uq_finding_fingerprint: {
+                  organization_id: organizationId,
+                  aws_account_id: null as any,
+                  fingerprint: f.fingerprint,
+                },
+              },
+              create: {
+                organization_id: organizationId,
+                cloud_provider: 'AZURE' as const,
+                azure_credential_id: credentialId,
+                scan_id: scan.id,
+                fingerprint: f.fingerprint,
+                title: f.title,
+                severity: f.severity,
+                description: f.description,
+                details: f.details,
+                resource_id: f.resource_id,
+                resource_arn: f.resource_arn,
+                service: f.service,
+                category: f.category,
+                scan_type: f.scan_type,
+                compliance: f.compliance,
+                remediation: f.remediation,
+                evidence: f.evidence,
+                risk_vector: f.risk_vector,
+                source: f.source,
+                status: 'new',
+                first_seen: now,
+                last_seen: now,
+                occurrence_count: 1,
+                suppressed: false,
+              },
+              update: {
+                scan_id: scan.id,
+                last_seen: now,
+                severity: f.severity,
+                description: f.description,
+                details: f.details,
+              },
+            });
+          } catch (upsertErr: any) {
+            // Individual upsert failed — try simple create as last resort
+            await prisma.finding.create({
+              data: {
+                organization_id: organizationId,
+                cloud_provider: 'AZURE' as const,
+                azure_credential_id: credentialId,
+                scan_id: scan.id,
+                fingerprint: f.fingerprint,
+                title: f.title,
+                severity: f.severity,
+                description: f.description,
+                details: f.details,
+                resource_id: f.resource_id,
+                resource_arn: f.resource_arn,
+                service: f.service,
+                category: f.category,
+                scan_type: f.scan_type,
+                compliance: f.compliance,
+                remediation: f.remediation,
+                evidence: f.evidence,
+                risk_vector: f.risk_vector,
+                source: f.source,
+                status: 'new',
+                first_seen: now,
+                last_seen: now,
+                occurrence_count: 1,
+                suppressed: false,
+              },
+            }).catch((createErr: any) => {
+              logger.warn('Fallback finding create failed', { fingerprint: f.fingerprint, error: createErr.message });
+            });
+          }
+        }
       }
     }
 
     // Calculate combined summary (single pass over module findings)
-    const moduleSeverityCounts = { critical: 0, high: 0, medium: 0, low: 0 };
+    const moduleSeverityCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
     for (const f of moduleScannerFindings) {
       const key = f.severity?.toLowerCase() as keyof typeof moduleSeverityCounts;
       if (key in moduleSeverityCounts) moduleSeverityCounts[key]++;
@@ -668,6 +749,7 @@ export async function handler(
       high: result.summary.high + moduleSeverityCounts.high,
       medium: result.summary.medium + moduleSeverityCounts.medium,
       low: result.summary.low + moduleSeverityCounts.low,
+      info: (result.summary.info || 0) + moduleSeverityCounts.info,
       resourcesScanned: ((result.summary as any).resourcesScanned || 0) + moduleScannerResourcesScanned,
     };
 
@@ -777,13 +859,13 @@ export async function handler(
             error: err.message || 'Unknown error',
             result: { progress: 0, error: err.message },
           },
-        }).catch(() => {});
+        }).catch((e: any) => logger.warn('Cleanup: failed to update background job', { error: e.message }));
       }
       if (scanRef) {
         await db.securityScan.update({
           where: { id: scanRef },
           data: { status: 'failed', completed_at: new Date() },
-        }).catch(() => {});
+        }).catch((e: any) => logger.warn('Cleanup: failed to update scan', { error: e.message }));
       }
     } catch (cleanupErr) {
       logger.error('Failed to update job/scan status on error', { error: (cleanupErr as Error).message });

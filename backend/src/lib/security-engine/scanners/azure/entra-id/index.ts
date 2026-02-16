@@ -404,19 +404,22 @@ export const entraIdScanner: AzureScanner = {
       const pimAssignments = await fetchPIMEligibleAssignments(graphToken, tenantId);
       const pimUserIds = new Set(pimAssignments.map(a => a.principalId));
 
-      for (const role of directoryRoles) {
-        if (PRIVILEGED_ROLES.includes(role.roleTemplateId)) {
-          const members = await fetchRoleMembers(graphToken, role.id);
+      // Fetch all privileged role members in parallel (avoid N+1 sequential API calls)
+      const privilegedRoles = directoryRoles.filter(r => PRIVILEGED_ROLES.includes(r.roleTemplateId));
+      const roleMemberResults = await Promise.all(
+        privilegedRoles.map(role =>
+          fetchRoleMembers(graphToken, role.id).then(members => ({ role, members }))
+        )
+      );
+
+      for (const { role, members } of roleMemberResults) {
+        for (const member of members) {
+          if (role.roleTemplateId === '62e90394-69f5-4237-9190-012177145e10') {
+            globalAdminCount++;
+          }
           
-          for (const member of members) {
-            if (role.roleTemplateId === '62e90394-69f5-4237-9190-012177145e10') {
-              globalAdminCount++;
-            }
-            
-            // Check if privileged user has PIM (eligible assignment)
-            if (!pimUserIds.has(member.id)) {
-              privilegedUsersWithoutPIM.push(`${member.displayName} (${role.displayName})`);
-            }
+          if (!pimUserIds.has(member.id)) {
+            privilegedUsersWithoutPIM.push(`${member.displayName} (${role.displayName})`);
           }
         }
       }
