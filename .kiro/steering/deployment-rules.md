@@ -10,8 +10,8 @@ inclusion: always
 
 | Mudança | Estratégia | Tempo |
 |---------|-----------|-------|
-| Handler(s) sem `@aws-sdk` em `backend/src/handlers/` | INCREMENTAL | ~1-2min |
-| Handler(s) com `@aws-sdk` em `backend/src/handlers/` | FULL_SAM (auto-detectado) | ~10min |
+| Handler(s) sem `@aws-sdk` e sem `dynamic import()` de `lib/` | INCREMENTAL | ~1-2min |
+| Handler(s) com `@aws-sdk` OU `dynamic import()` de `lib/` | FULL_SAM (auto-detectado) | ~10min |
 | `backend/src/lib/` ou `types/` | FULL_SAM | ~10min |
 | `sam/*.yaml` ou `prisma/schema.prisma` | FULL_SAM | ~10min |
 | `src/`, `public/`, `index.html` | FRONTEND_ONLY | ~2min |
@@ -43,10 +43,12 @@ Metadata:
 - Diagnóstico: CodeSize ~40KB = incremental (quebrado) | ~1-2MB = SAM (correto)
 - Fix: alterar `sam/production-lambdas-only.yaml` (bump Description) para forçar FULL_SAM
 
-### Proteções implementadas (3 camadas)
+### Proteções implementadas (5 camadas)
 1. **CI/CD buildspec**: `lib/types` mudanças → FULL_SAM (nunca mais INCREMENTAL_ALL)
 2. **CI/CD buildspec**: Handlers com `@aws-sdk/*` → auto-detecta e força FULL_SAM
-3. **Deploy script**: `deploy-changed-lambdas.sh` bloqueia deploy de handler que importa `@aws-sdk/*`
+3. **CI/CD buildspec**: Handlers com `dynamic import()` de `lib/` → auto-detecta e força FULL_SAM
+4. **Deploy script**: `deploy-changed-lambdas.sh` bloqueia deploy de handler que importa `@aws-sdk/*`
+5. **Deploy script**: `deploy-changed-lambdas.sh` bloqueia deploy de handler com `dynamic import()` de `lib/` ou `require('../../lib/')` não-reescrito no .js compilado
 
 ## Azure SDK — Crypto Polyfill (PRIMEIRO import em handlers Azure)
 ```typescript

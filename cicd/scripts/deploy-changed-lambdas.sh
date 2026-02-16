@@ -322,16 +322,33 @@ deploy_lambda() {
     return 1
   fi
   # ==========================================================================
+  # SAFETY CHECK: Block incremental deploy for handlers with dynamic import() of lib/
+  # Dynamic imports compile to require('../../lib/...') with single quotes
+  # which may not be rewritten correctly by sed path substitution
+  # ==========================================================================
+  if [ -f "$handler_ts" ] && grep -qE "import\s*\(\s*['\"]\.\.\/\.\.\/lib\/" "$handler_ts"; then
+    log_error "BLOCKED: $full_name has dynamic import() of lib/ — incremental deploy is unreliable. Use FULL_SAM."
+    return 1
+  fi
+  # Fallback: check compiled .js for dynamic require of lib/ with single quotes
+  if grep -qE "require\('\.\.\/\.\.\/lib\/" "$handler_source" 2>/dev/null; then
+    log_error "BLOCKED: $full_name compiled output has unrewritten lib/ require paths. Use FULL_SAM."
+    return 1
+  fi
+  # ==========================================================================
   
   # Criar diretório temporário
   local temp_dir
   temp_dir=$(mktemp -d)
   trap "rm -rf '$temp_dir'" RETURN
   
-  # Copiar handler e ajustar imports
+  # Copiar handler e ajustar imports (both single and double quotes from tsc output)
   sed 's|require("../../lib/|require("./lib/|g' "$handler_source" | \
+  sed "s|require('../../lib/|require('./lib/|g" | \
   sed 's|require("../lib/|require("./lib/|g' | \
-  sed 's|require("../../types/|require("./types/|g' > "${temp_dir}/${handler_file}.js"
+  sed "s|require('../lib/|require('./lib/|g" | \
+  sed 's|require("../../types/|require("./types/|g' | \
+  sed "s|require('../../types/|require('./types/|g" > "${temp_dir}/${handler_file}.js"
   
   # Copiar lib e types
   cp -r backend/dist/lib "${temp_dir}/"

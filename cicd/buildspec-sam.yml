@@ -205,6 +205,13 @@ phases:
                 NEEDS_FULL_SAM="true"
                 break
               fi
+              # Check for dynamic imports of lib/ (e.g. await import('../../lib/xxx.js'))
+              # These compile to require('../../lib/...') with single quotes which sed may miss
+              if [ -f "$handler_path" ] && grep -qE "import\s*\(\s*['\"]\.\.\/\.\.\/lib\/" "$handler_path"; then
+                echo ">>> SAFETY: $handler_file has dynamic import() of lib/ - forcing FULL_SAM"
+                NEEDS_FULL_SAM="true"
+                break
+              fi
             done
             if [ "$NEEDS_FULL_SAM" = "true" ]; then
               DEPLOY_FULL_SAM="true"
