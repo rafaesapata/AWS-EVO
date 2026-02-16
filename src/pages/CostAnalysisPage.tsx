@@ -183,6 +183,27 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
          costs = retryData?.costs || retryData?.dailyCosts || retryData?.data?.dailyCosts || [];
          console.log('CostAnalysisPage: After Azure sync, got', costs.length, 'records');
        }
+     } else if (!syncResult.error && savedCount === 0 && rowCount > 0) {
+       // API returned data but DB save failed - use costs directly from response
+       console.log('CostAnalysisPage: DB save failed but API returned data, using direct costs. Debug:', JSON.stringify(syncData?.debug, null, 2));
+       const directCosts = syncData?.costs || [];
+       if (directCosts.length > 0) {
+         // Transform direct costs to match expected format
+         costs = directCosts.map((c: any) => ({
+           id: `azure-${c.date}-${c.service}`,
+           organization_id: '',
+           date: c.date,
+           service: c.service,
+           cost: c.cost,
+           currency: c.currency || 'BRL',
+           cloud_provider: 'AZURE',
+         }));
+         console.log('CostAnalysisPage: Using', costs.length, 'direct costs from API response');
+         toast({
+           title: t('costAnalysis.azureSyncComplete'),
+           description: t('costAnalysis.azureSyncSavedCount', { count: costs.length }),
+         });
+       }
      } else if (!syncResult.error && savedCount === 0) {
        console.log('CostAnalysisPage: Azure API returned 0 cost rows');
        toast({

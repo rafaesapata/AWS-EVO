@@ -112,7 +112,11 @@ export function CostForecast({ accountId }: Props) {
             timeoutMs: 120000,
           });
           const savedCount = syncResult.data?.summary?.savedCount || 0;
-          console.log('CostForecast: Azure sync savedCount:', savedCount);
+          const rowCount = syncResult.data?.summary?.recordCount || 0;
+          console.log('CostForecast: Azure sync savedCount:', savedCount, 'rowCount:', rowCount);
+          if (syncResult.data?.debug) {
+            console.log('CostForecast: Azure debug:', JSON.stringify(syncResult.data.debug, null, 2));
+          }
           if (!syncResult.error && savedCount > 0) {
             // Re-read from DB after sync
             const retryResponse = await apiClient.invoke<any>('fetch-daily-costs', {
@@ -122,6 +126,20 @@ export function CostForecast({ accountId }: Props) {
               const retryData = retryResponse.data;
               rawData = retryData?.costs || retryData?.dailyCosts || retryData?.data?.dailyCosts || [];
               console.log('CostForecast: After Azure sync, got', rawData.length, 'records');
+            }
+          } else if (!syncResult.error && savedCount === 0 && rowCount > 0) {
+            // DB save failed but API returned data - use direct costs
+            const directCosts = syncResult.data?.costs || [];
+            if (directCosts.length > 0) {
+              rawData = directCosts.map((c: any) => ({
+                id: `azure-${c.date}-${c.service}`,
+                date: c.date,
+                service: c.service,
+                cost: c.cost,
+                currency: c.currency || 'BRL',
+                cloud_provider: 'AZURE',
+              }));
+              console.log('CostForecast: Using', rawData.length, 'direct costs from API');
             }
           }
         } catch (err) {

@@ -495,6 +495,7 @@ export async function handler(
     // Store costs in database using batch transaction
     let savedCount = 0;
     let skippedCount = 0;
+    let firstSaveError = '';
 
     // Batch upsert: findFirst + create/update in a single transaction
     const BATCH_SIZE = 50;
@@ -540,10 +541,15 @@ export async function handler(
         });
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        if (!firstSaveError) {
+          firstSaveError = errorMessage;
+        }
         logger.warn('Failed to save cost batch', { 
           error: errorMessage,
           batchStart: i,
           batchSize: batch.length,
+          sampleCost: batch[0] ? { date: batch[0].date, service: batch[0].service, cost: batch[0].cost, currency: batch[0].currency } : null,
+          stack: err instanceof Error ? err.stack?.split('\n').slice(0, 3).join('\n') : undefined,
         });
         skippedCount += batch.length;
       }
@@ -579,6 +585,9 @@ export async function handler(
         skippedCount,
       },
       byService,
+      // Include costs data directly so frontend can use it even if DB save failed
+      costs: costs.slice(0, 500),
+      ...(firstSaveError ? { debug: { saveError: firstSaveError, sampleCost: costs[0] } } : {}),
     });
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Failed to fetch Azure costs';
