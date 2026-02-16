@@ -113,6 +113,8 @@ export async function handler(
     }
 
     // Fetch Azure credential
+    logger.info('Fetching Azure credential', { credentialId, organizationId });
+    
     const credential = await prisma.azureCredential.findFirst({
       where: {
         id: credentialId,
@@ -122,7 +124,19 @@ export async function handler(
     });
 
     if (!credential) {
-      await failBackgroundJob('Azure credential not found or inactive');
+      // Debug: check if credential exists at all (without org filter)
+      const credentialAny = await prisma.azureCredential.findUnique({
+        where: { id: credentialId },
+        select: { id: true, organization_id: true, is_active: true },
+      });
+      
+      const debugMsg = credentialAny
+        ? `Credential exists but mismatch: org=${credentialAny.organization_id}, active=${credentialAny.is_active}, expected_org=${organizationId}`
+        : `Credential ${credentialId} does not exist in database`;
+      
+      logger.error('Azure credential lookup failed', { credentialId, organizationId, debug: debugMsg });
+      
+      await failBackgroundJob(`Azure credential not found or inactive. ${debugMsg}`);
       return error('Azure credential not found or inactive', 404);
     }
 
