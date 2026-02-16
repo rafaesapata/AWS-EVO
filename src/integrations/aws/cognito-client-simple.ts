@@ -210,9 +210,10 @@ class CognitoAuthService {
 
   private storeSession(session: AuthSession): void {
     try {
-      secureStorage.setItem('evo-auth', JSON.stringify(session));
+      // Use sessionStorage directly — CryptoJS AES corrupts long JWT tokens during decrypt
+      sessionStorage.setItem('evo-auth', JSON.stringify(session));
     } catch (error) {
-      console.error('Failed to store session securely:', error);
+      console.error('Failed to store session:', error);
       throw new Error('Failed to store authentication session');
     }
   }
@@ -439,39 +440,25 @@ class CognitoAuthService {
   }
 
   async signOut(): Promise<void> {
-    // Clear stored session data securely
-    secureStorage.removeItem('evo-auth');
+    // Clear stored session data
+    sessionStorage.removeItem('evo-auth');
     secureStorage.clear();
   }
 
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
-      console.log('🔐 CognitoAuth: getCurrentUser called');
-      const stored = secureStorage.getItem('evo-auth');
-      console.log('🔐 CognitoAuth: stored session exists:', !!stored);
+      const stored = sessionStorage.getItem('evo-auth');
       
       if (!stored) {
-        console.log('🔐 CognitoAuth: No stored session found');
         return null;
       }
 
       const session: AuthSession = JSON.parse(stored);
-      console.log('🔐 CognitoAuth: Parsed session user:', {
-        id: session.user?.id,
-        email: session.user?.email,
-        organizationId: session.user?.organizationId,
-        roles: session.user?.attributes?.['custom:roles'],
-        hasAttributes: !!session.user?.attributes,
-        hasAccessToken: !!session.accessToken,
-        accessTokenLength: session.accessToken?.length,
-        accessTokenStart: session.accessToken?.substring(0, 30)
-      });
       
       // Check if session is still valid - use idToken as fallback since accessToken 
       // may be opaque (non-JWT) after storage encryption/decryption
       const tokenToCheck = session.accessToken?.includes('.') ? session.accessToken : session.idToken;
       if (!tokenToCheck || this.isTokenExpired(tokenToCheck)) {
-        console.log('🔐 CognitoAuth: Token expired, signing out');
         await this.signOut();
         return null;
       }
@@ -492,7 +479,7 @@ class CognitoAuthService {
         }
       }
 
-      console.log('🔐 CognitoAuth: Returning user with org:', session.user?.organizationId, 'roles:', session.user?.attributes?.['custom:roles']);
+      console.log('🔐 CognitoAuth: Returning user:', session.user?.organizationId);
       return session.user;
     } catch (error) {
       console.error('🔐 CognitoAuth: Error in getCurrentUser:', error);
@@ -503,7 +490,7 @@ class CognitoAuthService {
 
   async getCurrentSession(): Promise<AuthSession | null> {
     try {
-      const stored = secureStorage.getItem('evo-auth');
+      const stored = sessionStorage.getItem('evo-auth');
       if (!stored) return null;
 
       const session: AuthSession = JSON.parse(stored);
@@ -813,8 +800,8 @@ class CognitoAuthService {
 
   async refreshSession(): Promise<AuthSession | null> {
     try {
-      // Read directly from storage to avoid infinite recursion with getCurrentSession
-      const stored = secureStorage.getItem('evo-auth');
+      // Read directly from sessionStorage to avoid infinite recursion with getCurrentSession
+      const stored = sessionStorage.getItem('evo-auth');
       if (!stored) {
         await this.signOut();
         return null;
@@ -854,7 +841,7 @@ class CognitoAuthService {
         refreshToken: response.AuthenticationResult.RefreshToken || currentSession.refreshToken,
       };
 
-      secureStorage.setItem('evo-auth', JSON.stringify(newSession));
+      sessionStorage.setItem('evo-auth', JSON.stringify(newSession));
       return newSession;
     } catch (error) {
       console.error('Token refresh failed:', error);
@@ -914,11 +901,7 @@ class CognitoAuthService {
       const isExpired = now >= expMs;
       
       if (isExpired) {
-        console.log('🔐 CognitoAuth: Token IS expired:', {
-          exp,
-          now: Math.floor(now / 1000),
-          diffSeconds: Math.round((expMs - now) / 1000)
-        });
+        console.log('🔐 Token expired, diff:', Math.round((expMs - now) / 1000), 's');
       }
 
       return isExpired;
