@@ -213,9 +213,9 @@ async function verifyRegistration(
       return badRequest('Invalid or expired challenge', undefined, origin);
     }
 
-    // Deletar challenge usado
+    // Deletar challenge usado (cast para text pois id retornado do queryRaw é string)
     await prisma.$executeRaw`
-      DELETE FROM webauthn_challenges WHERE id = ${storedChallenge.id}
+      DELETE FROM webauthn_challenges WHERE id::text = ${String(storedChallenge.id)}
     `;
 
     // Salvar credencial WebAuthn - extract real public key from attestationObject

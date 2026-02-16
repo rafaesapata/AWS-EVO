@@ -228,7 +228,7 @@ async function finishAuthentication(
 
   // Delete used challenge immediately
   await prisma.$executeRaw`
-    DELETE FROM webauthn_challenges WHERE id = ${storedChallenge.id}
+    DELETE FROM webauthn_challenges WHERE id::text = ${String(storedChallenge.id)}
   `;
 
   // Find credential by credential_id
