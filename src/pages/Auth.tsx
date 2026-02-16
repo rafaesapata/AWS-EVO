@@ -15,7 +15,6 @@ import ForgotPassword from "@/components/auth/ForgotPassword";
 import NewPasswordRequired from "@/components/auth/NewPasswordRequired";
 import MFAVerify from "@/components/auth/MFAVerify";
 import { getVersionString } from "@/lib/version";
-import { secureStorage } from "@/lib/secure-storage";
 
 // Types for MFA check response
 interface MFACheckResponse {
@@ -248,17 +247,9 @@ export default function AuthSimple() {
         throw new Error(finishResult.error.message || 'WebAuthn verification failed');
       }
 
-      // Success! Store session securely and redirect
-      const sessionData = finishResult.data;
-      if (sessionData) {
-        secureStorage.setItem('evo-auth', JSON.stringify({
-          user: sessionData.user,
-          accessToken: sessionData.sessionToken,
-          idToken: sessionData.sessionToken,
-          refreshToken: sessionData.sessionToken
-        }));
-      }
-
+      // Success! WebAuthn verified — the Cognito session from signIn() is already stored
+      // Just navigate to app (no need to overwrite session)
+      setShowWebAuthn(false);
       navigate("/app");
     } catch (error: any) {
       console.error('WebAuthn error:', error);
