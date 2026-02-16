@@ -82,7 +82,7 @@ export default function UserSettings() {
       const result = await apiClient.update('profiles', {
         language, 
         timezone
-      }, { eq: { user_id: user.username } });
+      }, { user_id: user.username });
 
       if (result.error) {
         throw new Error(result.error.message || 'Erro ao salvar configurações');
