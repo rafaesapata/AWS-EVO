@@ -457,6 +457,14 @@ export async function handler(
         debug: {
           columnsReturned: columns.map(c => c.name),
           message: 'Azure Cost Management API returned 0 rows for this period',
+          rawApiResponse: costResult.rawPreview || 'N/A',
+          requestInfo: {
+            subscriptionId: credential.subscription_id,
+            effectiveStartDate,
+            endDate,
+            granularity,
+            authType: credential.auth_type,
+          },
         },
       });
     }

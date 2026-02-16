@@ -165,6 +165,9 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
      const savedCount = syncData?.summary?.savedCount || 0;
      const rowCount = syncData?.summary?.recordCount || 0;
      console.log('CostAnalysisPage: Azure sync result:', syncResult.error ? 'error' : 'success', 'savedCount:', savedCount, 'rowCount:', rowCount);
+     if (syncData?.debug) {
+       console.log('CostAnalysisPage: Azure API debug info:', JSON.stringify(syncData.debug, null, 2));
+     }
      
      if (!syncResult.error && savedCount > 0) {
        toast({
