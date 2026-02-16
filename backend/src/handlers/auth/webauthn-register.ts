@@ -74,9 +74,9 @@ export async function handler(
     }
 
     return badRequest('Invalid action. Use "generate-challenge" or "verify-registration"', undefined, origin);
-  } catch (err) {
+  } catch (err: any) {
     logger.error('WebAuthn registration error:', err);
-    return errorResponse('Internal server error', 500, undefined, origin);
+    return errorResponse(`Internal server error: ${err?.message || 'unknown'}`, 500, undefined, origin);
   }
 }
 
@@ -156,7 +156,8 @@ async function generateChallenge(
       meta: err?.meta,
       stack: err?.stack?.substring(0, 500)
     });
-    return errorResponse('Failed to generate challenge', 500, undefined, origin);
+    // Retornar detalhes do erro para diagnóstico (temporário)
+    return errorResponse(`Failed to generate challenge: ${err?.message || 'unknown'} [code=${err?.code || 'none'}] [meta=${JSON.stringify(err?.meta || {})}]`, 500, undefined, origin);
   }
 }
 

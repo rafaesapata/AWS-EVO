@@ -167,6 +167,11 @@ export async function handler(
   try {
     const body = parseEventBody<MutateRequest>(event, {} as MutateRequest, 'mutate-table');
     
+    // Normalize where clause: frontend sometimes sends { eq: { ... } } wrapper
+    if (body.where && typeof body.where === 'object' && 'eq' in body.where && Object.keys(body.where).length === 1) {
+      body.where = body.where.eq as Record<string, any>;
+    }
+    
     if (!body.table) {
       return badRequest('Missing required field: table', undefined, origin);
     }

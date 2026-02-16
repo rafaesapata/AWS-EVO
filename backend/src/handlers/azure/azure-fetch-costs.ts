@@ -152,7 +152,7 @@ async function queryCostManagementApi(
   subscriptionId: string,
   accessToken: string,
   requestBody: object
-): Promise<{ success: true; rows: unknown[][]; columns: ColumnDefinition[] } | { success: false; error: string; status?: number }> {
+): Promise<{ success: true; rows: unknown[][]; columns: ColumnDefinition[]; rawPreview?: string } | { success: false; error: string; status?: number }> {
   const scope = `/subscriptions/${subscriptionId}`;
   const initialUrl = `https://management.azure.com${scope}/providers/Microsoft.CostManagement/query?api-version=${COST_MANAGEMENT_API_VERSION}`;
 
@@ -161,6 +161,7 @@ async function queryCostManagementApi(
   let currentUrl: string | null = initialUrl;
   let isFirstRequest = true;
   let pageCount = 0;
+  let firstResponsePreview = '';
   const MAX_PAGES = 20; // Safety limit
 
   // Log the full request body for debugging
@@ -241,8 +242,9 @@ async function queryCostManagementApi(
 
       // Log diagnostic info when 0 rows on first page
       if (isFirstRequest && pageRows.length === 0) {
+        firstResponsePreview = responseText.substring(0, 1000);
         logger.warn('Azure Cost Management returned 0 rows', {
-          responsePreview: responseText.substring(0, 500),
+          responsePreview: firstResponsePreview,
           hasProperties: !!responseData.properties,
           columnCount: columns.length,
           columns: columns.map(c => c.name),
@@ -270,6 +272,7 @@ async function queryCostManagementApi(
       success: true,
       rows: allRows,
       columns,
+      rawPreview: allRows.length === 0 ? firstResponsePreview : undefined,
     };
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
