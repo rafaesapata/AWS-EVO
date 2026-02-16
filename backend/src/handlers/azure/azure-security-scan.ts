@@ -253,6 +253,32 @@ export async function handler(
     // Run the original provider scan
     const providerResult = await azureProvider.runSecurityScan(scanConfig);
 
+    // If provider scan failed, propagate the error properly
+    if (providerResult.status === 'failed') {
+      const failMsg = (providerResult as any).error || 'Azure provider security scan failed';
+      logger.error('Azure provider scan returned failed status', {
+        scanId: scan.id,
+        error: failMsg,
+        duration: providerResult.duration,
+      });
+
+      await prisma.securityScan.update({
+        where: { id: scan.id },
+        data: {
+          status: 'failed',
+          completed_at: new Date(),
+          results: JSON.parse(JSON.stringify({
+            error: failMsg,
+            duration: providerResult.duration,
+          })),
+        },
+      });
+
+      await failBackgroundJob(failMsg);
+
+      return error(`Azure security scan failed: ${failMsg}`, 500);
+    }
+
     // Also run the new modular scanners if we have an access token
     let moduleScannerFindings: any[] = [];
     let moduleScannerResourcesScanned = 0;
