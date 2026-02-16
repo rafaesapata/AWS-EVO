@@ -132,7 +132,13 @@ export default function AuthSimple() {
           body: {}
         });
         
+        // apiClient.invoke returns { data, error } — check error first
+        if (mfaCheckResult.error) {
+          console.warn('MFA check API error:', mfaCheckResult.error);
+        }
+        
         const mfaData = mfaCheckResult.data;
+        console.log('🔐 MFA check result:', { requiresMFA: mfaData?.requiresMFA, hasMFA: mfaData?.hasMFA, hasWebAuthn: mfaData?.hasWebAuthn, error: mfaCheckResult.error });
         
         // Check if user has MFA enabled and needs to verify
         if (mfaData?.requiresMFA) {
@@ -157,7 +163,7 @@ export default function AuthSimple() {
       } catch (error) {
         // If MFA check fails, log but continue with normal login
         // This ensures users can still login if MFA service has issues
-        console.warn('MFA check failed, continuing with normal login:', error);
+        console.warn('MFA check exception, continuing with normal login:', error);
       }
       
       // No MFA required or MFA check failed - proceed to app
