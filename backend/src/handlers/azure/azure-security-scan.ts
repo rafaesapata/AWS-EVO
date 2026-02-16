@@ -264,42 +264,57 @@ export async function handler(
       regions: regions || credential.regions,
     };
 
-    // Run the original provider scan
-    const providerResult = await azureProvider.runSecurityScan(scanConfig);
-
-    // If provider scan failed, propagate the error properly
-    if (providerResult.status === 'failed') {
-      const failMsg = (providerResult as any).error || 'Azure provider security scan failed';
-      logger.error('Azure provider scan returned failed status', {
-        scanId: scan.id,
-        error: failMsg,
-        duration: providerResult.duration,
-      });
-
-      await prisma.securityScan.update({
-        where: { id: scan.id },
-        data: {
-          status: 'failed',
-          completed_at: new Date(),
-          results: JSON.parse(JSON.stringify({
-            error: failMsg,
-            duration: providerResult.duration,
-          })),
-        },
-      });
-
-      await failBackgroundJob(failMsg);
-
-      return error(`Azure security scan failed: ${failMsg}`, 500);
-    }
-
-    // Also run the new modular scanners if we have an access token
-    let moduleScannerFindings: any[] = [];
-    let moduleScannerResourcesScanned = 0;
+    // Run the original provider scan (legacy - uses Azure SDK dynamic imports)
+    // This is non-fatal: if it fails, we still run the modular scanners
+    let providerResult: Awaited<ReturnType<AzureProvider['runSecurityScan']>>;
+    let providerScanFailed = false;
     
     try {
-      // Get access token for Azure Management API
-      const accessToken = await azureProvider.getAccessToken();
+      providerResult = await azureProvider.runSecurityScan(scanConfig);
+      
+      if (providerResult.status === 'failed') {
+        const failMsg = providerResult.error || 'Azure provider security scan failed';
+        logger.warn('Azure provider scan returned failed status, continuing with modular scanners', {
+          scanId: scan.id,
+          error: failMsg,
+          duration: providerResult.duration,
+        });
+        providerScanFailed = true;
+      }
+    } catch (providerErr: any) {
+      logger.warn('Azure provider scan threw exception, continuing with modular scanners', {
+        scanId: scan.id,
+        error: providerErr.message,
+      });
+      providerResult = {
+        scanId: `azure-scan-${Date.now()}`,
+        provider: 'AZURE',
+        status: 'failed',
+        findings: [],
+        summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+        duration: 0,
+        startedAt: new Date(),
+        completedAt: new Date(),
+        error: providerErr.message,
+      };
+      providerScanFailed = true;
+    }
+
+    // Run the modular scanners (REST API based - more reliable than SDK dynamic imports)
+    // These run regardless of provider scan result
+    let moduleScannerFindings: any[] = [];
+    let moduleScannerResourcesScanned = 0;
+    let moduleScannerError: string | null = null;
+    
+    try {
+      // Get access token - for OAuth we already have it, for SP we need to fetch
+      let accessToken: string | null = null;
+      
+      if (spCredentials.isOAuth) {
+        accessToken = spCredentials.accessToken;
+      } else {
+        accessToken = await azureProvider.getAccessToken();
+      }
       
       if (accessToken && credential.subscription_id) {
         const scanContext: AzureScanContext = {
@@ -318,15 +333,48 @@ export async function handler(
           findingsCount: moduleScannerFindings.length,
           resourcesScanned: moduleScannerResourcesScanned,
           durationMs: moduleScanResult.totalDurationMs,
+          scannersSucceeded: moduleScanResult.scannersSucceeded,
+          scannersFailed: moduleScanResult.scannersFailed,
         });
+      } else {
+        moduleScannerError = !accessToken 
+          ? 'Could not obtain Azure access token for modular scanners'
+          : 'Missing subscription_id for modular scanners';
+        logger.warn(moduleScannerError, { scanId: scan.id });
       }
     } catch (moduleScanErr: any) {
-      logger.warn('Module scanners failed, continuing with provider scan only', {
+      moduleScannerError = moduleScanErr.message;
+      logger.error('Module scanners failed', {
+        scanId: scan.id,
         error: moduleScanErr.message,
+        stack: moduleScanErr.stack?.split('\n').slice(0, 3).join('\n'),
       });
     }
 
-    // Combine findings from both sources
+    // If BOTH provider scan and modular scanners failed, mark scan as failed
+    if (providerScanFailed && moduleScannerFindings.length === 0 && moduleScannerError) {
+      const combinedError = `Provider: ${providerResult.error || 'failed'}; Modules: ${moduleScannerError}`;
+      logger.error('Both scan engines failed', { scanId: scan.id, error: combinedError });
+
+      await prisma.securityScan.update({
+        where: { id: scan.id },
+        data: {
+          status: 'failed',
+          completed_at: new Date(),
+          results: JSON.parse(JSON.stringify({
+            error: combinedError,
+            providerError: providerResult.error,
+            moduleScannerError,
+            duration: providerResult.duration,
+          })),
+        },
+      });
+
+      await failBackgroundJob(combinedError);
+      return error(`Azure security scan failed: ${combinedError}`, 500);
+    }
+
+    // Combine findings from both sources (provider scan may have failed)
     const result = providerResult;
 
     // Store findings - convert to plain JSON objects for Prisma
@@ -583,14 +631,17 @@ export async function handler(
     };
 
     // Update scan record - convert to plain JSON for Prisma
+    const finalStatus = providerScanFailed ? 'completed' : result.status;
     await prisma.securityScan.update({
       where: { id: scan.id },
       data: {
-        status: result.status,
+        status: finalStatus,
         results: JSON.parse(JSON.stringify({
           summary: combinedSummary,
           duration: result.duration,
           scannersUsed: azureScannerMetadata.map(s => s.name),
+          providerScanFailed,
+          providerError: providerScanFailed ? (providerResult.error || 'Provider scan failed') : undefined,
         })),
         findings_count: combinedSummary.total,
         critical_count: combinedSummary.critical,
@@ -611,12 +662,15 @@ export async function handler(
             completed_at: new Date(),
             result: {
               progress: 100,
-              message: 'Azure security scan completed',
+              message: providerScanFailed 
+                ? 'Azure security scan completed (modular scanners only, provider scan failed)'
+                : 'Azure security scan completed',
               scanId: scan.id,
               findings_count: combinedSummary.total,
               critical_count: combinedSummary.critical,
               high_count: combinedSummary.high,
               duration: result.duration,
+              providerScanFailed,
             },
           },
         });
@@ -654,15 +708,21 @@ export async function handler(
 
     return success({
       scanId: scan.id,
-      status: result.status,
+      status: finalStatus,
       summary: combinedSummary,
       duration: result.duration,
       subscriptionId: credential.subscription_id,
       subscriptionName: credential.subscription_name,
       scannersUsed: azureScannerMetadata,
+      providerScanFailed,
     });
   } catch (err: any) {
-    logger.error('Error running Azure security scan', { error: err.message, stack: err.stack });
+    logger.error('Error running Azure security scan', { 
+      error: err.message, 
+      stack: err.stack?.split('\n').slice(0, 5).join('\n'),
+      name: err.name,
+      code: err.code,
+    });
 
     // Try to mark background job and scan as failed
     // Variables from the try block may not be defined if error occurred early
