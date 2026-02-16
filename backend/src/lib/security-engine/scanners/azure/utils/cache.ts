@@ -10,6 +10,9 @@ import { logger } from '../../../../logging.js';
 /** Default cache TTL: 5 minutes */
 const DEFAULT_CACHE_TTL_MS = 300_000;
 
+/** Maximum cache entries to prevent unbounded memory growth */
+const MAX_CACHE_ENTRIES = 500;
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -59,9 +62,18 @@ export class AzureScannerCache {
   }
 
   /**
-   * Set cached data with optional TTL override
+   * Set cached data with optional TTL override.
+   * Evicts oldest entries if cache exceeds MAX_CACHE_ENTRIES.
    */
   set<T>(key: string, data: T, ttlMs = this.defaultTtlMs): void {
+    // Evict oldest entries if at capacity
+    if (this.cache.size >= MAX_CACHE_ENTRIES && !this.cache.has(key)) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
+    }
+    
     this.cache.set(key, {
       data,
       timestamp: Date.now(),

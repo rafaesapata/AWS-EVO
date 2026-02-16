@@ -28,6 +28,9 @@ import { useTVDashboard } from '@/contexts/TVDashboardContext';
 import { useOrganization } from '@/hooks/useOrganization';
 import DashboardAlerts from '../DashboardAlerts';
 
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
+import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
+
 // Components
 import ExecutiveSummaryBar from './components/ExecutiveSummaryBar';
 import FinancialHealthCard from './components/FinancialHealthCard';
@@ -321,6 +324,8 @@ function QuickActionsSummary({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { selectedProvider } = useCloudAccount();
+  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
   
   const actions = [];
   
@@ -346,7 +351,7 @@ function QuickActionsSummary({
     actions.push({
       priority: 'high',
       title: t('executiveDashboard.actions.optimizeCosts', 'Otimizar Custos'),
-      description: `$${(data.financial?.savings?.potential || 0).toLocaleString()} ${t('executiveDashboard.potentialSavings', 'em economia potencial')}`,
+      description: `${sym}${(data.financial?.savings?.potential || 0).toLocaleString()} ${t('executiveDashboard.potentialSavings', 'em economia potencial')}`,
       href: '/cost-optimization'
     });
   }

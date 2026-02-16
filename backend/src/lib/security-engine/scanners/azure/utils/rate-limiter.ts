@@ -182,25 +182,54 @@ export function resetGlobalRateLimiter(): void {
 }
 
 /**
- * Convenience function for rate-limited fetch
+ * Convenience function for rate-limited fetch.
+ * Handles 429 (rate limit) and 5xx (server errors) with automatic retry.
+ * Includes per-request timeout to prevent hanging connections.
  */
 export async function rateLimitedFetch(
   url: string,
   options: RequestInit,
-  operationName?: string
+  operationName?: string,
+  timeoutMs = 30_000
 ): Promise<Response> {
   const limiter = getGlobalRateLimiter();
   
   return limiter.execute(async () => {
-    const response = await fetch(url, options);
+    // AbortController for per-request timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
-    if (response.status === 429) {
-      const error: any = new Error('Rate limited');
-      error.status = 429;
-      error.response = response;
-      throw error;
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      
+      if (response.status === 429) {
+        const error: any = new Error('Rate limited');
+        error.status = 429;
+        error.response = response;
+        throw error;
+      }
+      
+      // Retry on server errors (5xx)
+      if (response.status >= 500) {
+        const error: any = new Error(`Server error: ${response.status} ${response.statusText}`);
+        error.status = response.status;
+        error.response = response;
+        throw error;
+      }
+      
+      return response;
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        const timeoutError: any = new Error(`Request timed out after ${timeoutMs}ms: ${operationName || url}`);
+        timeoutError.code = 'ETIMEDOUT';
+        throw timeoutError;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    
-    return response;
   }, operationName);
 }

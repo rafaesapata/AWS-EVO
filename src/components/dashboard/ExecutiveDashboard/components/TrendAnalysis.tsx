@@ -26,6 +26,9 @@ import {
   Cell
 } from 'recharts';
 import type { TrendData } from '../types';
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
+import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
+import { CurrencyIndicator } from '@/components/ui/currency-indicator';
 
 interface Props {
   data: TrendData;
@@ -55,6 +58,8 @@ const getCostColor = (cost: number, minCost: number, maxCost: number): string =>
 
 export default function TrendAnalysis({ data, period, onPeriodChange, isLoading }: Props) {
   const { t } = useTranslation();
+  const { selectedProvider } = useCloudAccount();
+  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
 
   const periodLabels = {
     '7d': t('executiveDashboard.period7d', '7 dias'),
@@ -123,8 +128,9 @@ export default function TrendAnalysis({ data, period, onPeriodChange, isLoading 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Cost Trend - Bar Chart with dynamic colors */}
           <div className="space-y-4">
-            <p className="text-base font-light text-[#5F5F5F]">
+            <p className="text-base font-light text-[#5F5F5F] flex items-center gap-1.5">
               {t('executiveDashboard.costTrend', 'Cost Trend')}
+              <CurrencyIndicator />
             </p>
             {costChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -142,7 +148,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange, isLoading 
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(value) => `${value}`}
+                    tickFormatter={(value) => `${sym}${value}`}
                   />
                   <Tooltip 
                     contentStyle={{ 
@@ -153,7 +159,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange, isLoading 
                       color: '#393939',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
-                    formatter={(value: number | undefined) => value !== undefined ? [`${value.toFixed(2)}`, 'Cost'] : ['N/A', 'Cost']}
+                    formatter={(value: number | undefined) => value !== undefined ? [`${sym}${value.toFixed(2)}`, 'Cost'] : ['N/A', 'Cost']}
                     labelStyle={{ color: '#5F5F5F', fontWeight: 300 }}
                   />
                   <Bar 
@@ -254,7 +260,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange, isLoading 
                 <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.periodActivity', 'Period Activity')}</span>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-[#00B2FF] tabular-nums" style={{ fontSize: '48px', lineHeight: '1', fontWeight: '300' }}>
-                    ${Math.round(data.cost.reduce((sum, d) => sum + d.cost, 0)).toLocaleString('en-US')}
+                    {sym}{Math.round(data.cost.reduce((sum, d) => sum + d.cost, 0)).toLocaleString('en-US')}
                   </span>
                   <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.totalPeriodCost', 'total in period')}</span>
                 </div>

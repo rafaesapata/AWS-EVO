@@ -550,11 +550,12 @@ export const storageAccountsScanner: AzureScanner = {
         findingsCount: findings.length,
       });
 
-    } catch (err: any) {
-      logger.error('Error scanning Azure Storage Accounts', { error: err.message });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('Error scanning Azure Storage Accounts', { error: errorMessage });
       errors.push({
         scanner: 'azure-storage-accounts',
-        message: err.message,
+        message: errorMessage,
         recoverable: true,
         resourceType: 'Microsoft.Storage/storageAccounts',
       });

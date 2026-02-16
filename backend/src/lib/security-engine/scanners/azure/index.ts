@@ -114,9 +114,11 @@ export async function runAllAzureScanners(context: AzureScanContext): Promise<{
   let scannersSucceeded = 0;
   let scannersFailed = 0;
 
-  // Reset cache at the start of each scan to avoid stale data
+  // Reset cache and rate limiter at the start of each scan to avoid stale data
   const { resetGlobalCache: resetCache } = await import('./utils/cache.js');
+  const { resetGlobalRateLimiter } = await import('./utils/rate-limiter.js');
   resetCache();
+  resetGlobalRateLimiter();
 
   // Run scanners in parallel for better performance
   // Each scanner is isolated - failures don't affect others
@@ -125,7 +127,8 @@ export async function runAllAzureScanners(context: AzureScanContext): Promise<{
       try {
         const result = await scanner.scan(context);
         return { name: scanner.name, result, success: true };
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
         return { 
           name: scanner.name, 
           result: {
@@ -133,7 +136,7 @@ export async function runAllAzureScanners(context: AzureScanContext): Promise<{
             resourcesScanned: 0,
             errors: [{
               scanner: scanner.name,
-              message: err.message,
+              message: errorMessage,
               recoverable: true,
             }],
             scanDurationMs: 0,

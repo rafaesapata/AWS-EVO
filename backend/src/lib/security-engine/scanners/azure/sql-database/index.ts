@@ -719,11 +719,12 @@ export const sqlDatabaseScanner: AzureScanner = {
         findingsCount: findings.length,
       });
 
-    } catch (err: any) {
-      logger.error('Error scanning Azure SQL Databases', { error: err.message });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('Error scanning Azure SQL Databases', { error: errorMessage });
       errors.push({
         scanner: 'azure-sql-database',
-        message: err.message,
+        message: errorMessage,
         recoverable: true,
         resourceType: 'Microsoft.Sql/servers',
       });

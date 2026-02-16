@@ -560,11 +560,12 @@ export const virtualMachinesScanner: AzureScanner = {
         findingsCount: findings.length,
       });
 
-    } catch (err: any) {
-      logger.error('Error scanning Azure VMs', { error: err.message });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('Error scanning Azure VMs', { error: errorMessage });
       errors.push({
         scanner: 'azure-virtual-machines',
-        message: err.message,
+        message: errorMessage,
         recoverable: true,
         resourceType: 'Microsoft.Compute/virtualMachines',
       });

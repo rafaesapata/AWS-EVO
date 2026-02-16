@@ -18,7 +18,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
-import { validateServicePrincipalCredentials, validateCertificateCredentials, getAzureCredentialWithToken, ONE_HOUR_MS, resolveAzureTenantId, getAzureTokenUrl } from '../../lib/azure-helpers.js';
+import { validateServicePrincipalCredentials, validateCertificateCredentials, getAzureCredentialWithToken, ONE_HOUR_MS, resolveAzureTenantId, getAzureTokenUrl, getAzureOAuthCredentials } from '../../lib/azure-helpers.js';
 import { runAllAzureScanners, azureScannerMetadata } from '../../lib/security-engine/scanners/azure/index.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import type { AzureScanContext } from '../../lib/security-engine/scanners/azure/types.js';
@@ -55,7 +55,27 @@ export async function handler(
   let backgroundJobId: string | undefined;
 
   try {
-    const user = getUserFromEvent(event);
+    // This handler is invoked asynchronously by start-azure-security-scan Lambda.
+    // The auth token was already validated by API Gateway in the start handler.
+    // We extract user claims but skip exp validation since the token may have
+    // expired between the start handler and this async invocation.
+    let user: ReturnType<typeof getUserFromEvent>;
+    try {
+      user = getUserFromEvent(event);
+    } catch (authErr: any) {
+      // If getUserFromEvent fails (e.g., expired token in async invocation),
+      // try to extract claims directly without strict validation
+      const claims = event.requestContext?.authorizer?.claims || 
+                     event.requestContext?.authorizer?.jwt?.claims;
+      if (!claims?.sub || !claims?.['custom:organization_id']) {
+        logger.error('Cannot extract user from async event', { error: authErr.message });
+        throw authErr;
+      }
+      logger.warn('Auth validation failed in async handler (likely expired token), using raw claims', {
+        error: authErr.message,
+      });
+      user = claims;
+    }
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const prisma = getPrismaClient();
@@ -140,36 +160,51 @@ export async function handler(
     // Handle both OAuth and Service Principal credentials
     let spCredentials: any;
     
-    if (credential.auth_type === 'oauth') {
-      const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
-      
-      if (!tokenResult.success) {
-        await failBackgroundJob(tokenResult.error);
-        return error(tokenResult.error, 400);
+    try {
+      if (credential.auth_type === 'oauth') {
+        logger.info('Resolving OAuth credentials', { credentialId, authType: 'oauth' });
+        const tokenResult = await getAzureCredentialWithToken(prisma, credentialId, organizationId);
+        
+        if (!tokenResult.success) {
+          await failBackgroundJob(tokenResult.error);
+          return error(tokenResult.error, 400);
+        }
+        
+        // For OAuth, create credentials object with access token
+        spCredentials = {
+          tenantId: resolveAzureTenantId(credential),
+          subscriptionId: credential.subscription_id,
+          subscriptionName: credential.subscription_name || undefined,
+          accessToken: tokenResult.accessToken,
+          isOAuth: true,
+        };
+      } else if (credential.auth_type === 'certificate') {
+        logger.info('Resolving certificate credentials', { credentialId, authType: 'certificate' });
+        const certValidation = await validateCertificateCredentials(credential);
+        if (!certValidation.valid) {
+          await failBackgroundJob(certValidation.error);
+          return error(certValidation.error, 400);
+        }
+        spCredentials = certValidation.credentials;
+      } else {
+        logger.info('Resolving service principal credentials', { credentialId, authType: credential.auth_type });
+        const spValidation = await validateServicePrincipalCredentials(credential);
+        if (!spValidation.valid) {
+          await failBackgroundJob(spValidation.error);
+          return error(spValidation.error, 400);
+        }
+        spCredentials = spValidation.credentials;
       }
-      
-      // For OAuth, create credentials object with access token
-      spCredentials = {
-        tenantId: resolveAzureTenantId(credential),
-        subscriptionId: credential.subscription_id,
-        subscriptionName: credential.subscription_name || undefined,
-        accessToken: tokenResult.accessToken,
-        isOAuth: true,
-      };
-    } else if (credential.auth_type === 'certificate') {
-      const certValidation = await validateCertificateCredentials(credential);
-      if (!certValidation.valid) {
-        await failBackgroundJob(certValidation.error);
-        return error(certValidation.error, 400);
-      }
-      spCredentials = certValidation.credentials;
-    } else {
-      const spValidation = await validateServicePrincipalCredentials(credential);
-      if (!spValidation.valid) {
-        await failBackgroundJob(spValidation.error);
-        return error(spValidation.error, 400);
-      }
-      spCredentials = spValidation.credentials;
+      logger.info('Credentials resolved successfully', { authType: credential.auth_type });
+    } catch (credErr: any) {
+      logger.error('Failed to resolve Azure credentials', {
+        credentialId,
+        authType: credential.auth_type,
+        error: credErr.message,
+        stack: credErr.stack?.split('\n').slice(0, 3).join('\n'),
+      });
+      await failBackgroundJob(`Credential resolution failed: ${credErr.message}`);
+      return error(`Failed to resolve Azure credentials: ${credErr.message}`, 500);
     }
 
     // Use existing scan if this is a background job, otherwise create new
@@ -364,7 +399,7 @@ export async function handler(
           // For OAuth: try using the EVO app credentials (client_credentials flow)
           else if (spCredentials.isOAuth) {
             try {
-              const oauthCreds = await import('../../lib/azure-helpers.js').then(m => m.getAzureOAuthCredentials());
+              const oauthCreds = await getAzureOAuthCredentials();
               if (oauthCreds.clientId && oauthCreds.clientSecret && scanTenantId) {
                 const graphTokenUrl = getAzureTokenUrl(scanTenantId);
                 const graphParams = new URLSearchParams({
@@ -652,87 +687,79 @@ export async function handler(
           updated: delta.toUpdate.length,
           resolved: delta.toResolve.length,
         });
-      } catch (deltaSyncError) {
-        // Fallback: upsert individual findings to preserve history (first_seen, occurrence_count)
-        logger.error('Azure delta sync failed, falling back to individual upserts', deltaSyncError as Error);
+      } catch (deltaSyncError: any) {
+        // Fallback: bulk createMany with skipDuplicates
+        // NOTE: Cannot use upsert on uq_finding_fingerprint for Azure findings because
+        // aws_account_id is NULL and PostgreSQL treats NULLs as distinct in unique constraints.
+        // Instead, update existing findings by fingerprint first, then createMany for new ones.
+        logger.error('Azure delta sync failed, falling back to bulk createMany', {
+          error: deltaSyncError.message,
+          findingsCount: allNewFindings.length,
+        });
 
-        for (const f of allNewFindings) {
-          try {
-            await prisma.finding.upsert({
-              where: {
-                uq_finding_fingerprint: {
-                  organization_id: organizationId,
-                  aws_account_id: null as any,
-                  fingerprint: f.fingerprint,
-                },
-              },
-              create: {
-                organization_id: organizationId,
-                cloud_provider: 'AZURE' as const,
-                azure_credential_id: credentialId,
-                scan_id: scan.id,
-                fingerprint: f.fingerprint,
-                title: f.title,
-                severity: f.severity,
-                description: f.description,
-                details: f.details,
-                resource_id: f.resource_id,
-                resource_arn: f.resource_arn,
-                service: f.service,
-                category: f.category,
-                scan_type: f.scan_type,
-                compliance: f.compliance,
-                remediation: f.remediation,
-                evidence: f.evidence,
-                risk_vector: f.risk_vector,
-                source: f.source,
-                status: 'new',
-                first_seen: now,
-                last_seen: now,
-                occurrence_count: 1,
-                suppressed: false,
-              },
-              update: {
-                scan_id: scan.id,
-                last_seen: now,
-                severity: f.severity,
-                description: f.description,
-                details: f.details,
-              },
-            });
-          } catch (upsertErr: any) {
-            // Individual upsert failed — try simple create as last resort
-            await prisma.finding.create({
-              data: {
-                organization_id: organizationId,
-                cloud_provider: 'AZURE' as const,
-                azure_credential_id: credentialId,
-                scan_id: scan.id,
-                fingerprint: f.fingerprint,
-                title: f.title,
-                severity: f.severity,
-                description: f.description,
-                details: f.details,
-                resource_id: f.resource_id,
-                resource_arn: f.resource_arn,
-                service: f.service,
-                category: f.category,
-                scan_type: f.scan_type,
-                compliance: f.compliance,
-                remediation: f.remediation,
-                evidence: f.evidence,
-                risk_vector: f.risk_vector,
-                source: f.source,
-                status: 'new',
-                first_seen: now,
-                last_seen: now,
-                occurrence_count: 1,
-                suppressed: false,
-              },
-            }).catch((createErr: any) => {
-              logger.warn('Fallback finding create failed', { fingerprint: f.fingerprint, error: createErr.message });
+        try {
+          // First, update last_seen for any existing findings (by fingerprint + org + azure_credential)
+          const existingFps = await prisma.finding.findMany({
+            where: {
+              organization_id: organizationId,
+              azure_credential_id: credentialId,
+              fingerprint: { in: allNewFindings.map(f => f.fingerprint) },
+            },
+            select: { id: true, fingerprint: true },
+          });
+
+          const existingFpSet = new Set(existingFps.map((f: any) => f.fingerprint));
+
+          if (existingFps.length > 0) {
+            await prisma.finding.updateMany({
+              where: { id: { in: existingFps.map((f: any) => f.id) } },
+              data: { scan_id: scan.id, last_seen: now },
             });
           }
+
+          // Then create only truly new findings
+          const newFindings = allNewFindings.filter(f => !existingFpSet.has(f.fingerprint));
+          if (newFindings.length > 0) {
+            await prisma.finding.createMany({
+              data: newFindings.map(f => ({
+                organization_id: organizationId,
+                cloud_provider: 'AZURE' as const,
+                azure_credential_id: credentialId,
+                scan_id: scan.id,
+                fingerprint: f.fingerprint,
+                title: f.title,
+                severity: f.severity,
+                description: f.description,
+                details: f.details,
+                resource_id: f.resource_id,
+                resource_arn: f.resource_arn,
+                service: f.service,
+                category: f.category,
+                scan_type: f.scan_type,
+                compliance: f.compliance,
+                remediation: f.remediation,
+                evidence: f.evidence,
+                risk_vector: f.risk_vector,
+                source: f.source,
+                status: 'new',
+                first_seen: now,
+                last_seen: now,
+                occurrence_count: 1,
+                suppressed: false,
+              })),
+              skipDuplicates: true,
+            });
+          }
+
+          logger.info('Azure fallback sync completed', {
+            updated: existingFps.length,
+            created: newFindings.length,
+          });
+        } catch (fallbackErr: any) {
+          logger.error('Azure fallback sync also failed', {
+            error: fallbackErr.message,
+            findingsCount: allNewFindings.length,
+          });
         }
       }
     }
@@ -754,7 +781,12 @@ export async function handler(
     };
 
     // Update scan record - convert to plain JSON for Prisma
-    const finalStatus = providerScanFailed ? 'completed' : result.status;
+    // If provider scan failed but modular scanners produced findings, mark as completed
+    // If provider scan succeeded, use its status (should be 'completed')
+    // The "both failed" case is already handled above with early return
+    const finalStatus = (providerScanFailed && moduleScannerFindings.length > 0) 
+      ? 'completed' 
+      : (providerScanFailed ? 'completed' : result.status);
     await prisma.securityScan.update({
       where: { id: scan.id },
       data: {
@@ -845,6 +877,8 @@ export async function handler(
       stack: err.stack?.split('\n').slice(0, 5).join('\n'),
       name: err.name,
       code: err.code,
+      scanRef,
+      backgroundJobId,
     });
 
     // Try to mark background job and scan as failed using closure variables
