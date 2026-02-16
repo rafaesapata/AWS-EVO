@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Minus, AlertCircle, DollarSign, Activity } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { calculatePercentageChange } from "@/lib/utils";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
 
 interface Props {
   accountId: string;
@@ -13,6 +15,9 @@ interface Props {
 }
 
 export function CostTrends({ accountId, costs }: Props) {
+  const { selectedProvider } = useCloudAccount();
+  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
+
   // Análise inteligente de tendências
   const analyzeServiceTrends = () => {
     if (!costs || costs.length < 14) return null; // Precisa de pelo menos 2 semanas
@@ -186,10 +191,10 @@ export function CostTrends({ accountId, costs }: Props) {
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-semibold">
-                        ${item.current.toFixed(2)}/sem
+                        {sym}{item.current.toFixed(2)}/sem
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        ${item.avgDailyCost.toFixed(2)}/dia
+                        {sym}{item.avgDailyCost.toFixed(2)}/dia
                       </div>
                     </div>
                   </div>
