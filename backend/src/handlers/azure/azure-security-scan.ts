@@ -18,7 +18,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { AzureProvider } from '../../lib/cloud-provider/azure-provider.js';
-import { validateServicePrincipalCredentials, validateCertificateCredentials, getAzureCredentialWithToken, ONE_HOUR_MS, resolveAzureTenantId } from '../../lib/azure-helpers.js';
+import { validateServicePrincipalCredentials, validateCertificateCredentials, getAzureCredentialWithToken, ONE_HOUR_MS, resolveAzureTenantId, getAzureTokenUrl } from '../../lib/azure-helpers.js';
 import { runAllAzureScanners, azureScannerMetadata } from '../../lib/security-engine/scanners/azure/index.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import type { AzureScanContext } from '../../lib/security-engine/scanners/azure/types.js';
@@ -50,6 +50,10 @@ export async function handler(
     return corsOptions();
   }
 
+  // These are hoisted so the outer catch block can reference them for cleanup
+  let scanRef: string | undefined;
+  let backgroundJobId: string | undefined;
+
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
@@ -64,10 +68,13 @@ export async function handler(
       return validation.error;
     }
 
-    const { credentialId, scanLevel = 'standard', regions, scanId: existingScanId, backgroundJobId } = validation.data;
+    const { credentialId, scanLevel = 'standard', regions, scanId: existingScanId, backgroundJobId: bjId } = validation.data;
+    backgroundJobId = bjId;
+    scanRef = existingScanId;
     const scanType = `azure-security-${scanLevel}`;
 
     // Helper to mark background job and scan as failed on early exit
+    // scanRef is updated after scan creation to also cover locally-created scans
     const failBackgroundJob = async (errorMsg: string) => {
       if (backgroundJobId) {
         await prisma.backgroundJob.update({
@@ -75,9 +82,9 @@ export async function handler(
           data: { status: 'failed', completed_at: new Date(), error: errorMsg },
         }).catch(() => {});
       }
-      if (existingScanId) {
+      if (scanRef) {
         await prisma.securityScan.update({
-          where: { id: existingScanId },
+          where: { id: scanRef },
           data: { status: 'failed', completed_at: new Date() },
         }).catch(() => {});
       }
@@ -219,6 +226,7 @@ export async function handler(
         credentialId,
         backgroundJobId,
       });
+      scanRef = scan.id;
     } else {
       // Create new scan record
       scan = await prisma.securityScan.create({
@@ -241,6 +249,7 @@ export async function handler(
         credentialId,
         subscriptionId: credential.subscription_id,
       });
+      scanRef = scan.id;
     }
 
     // Create Azure provider and run scan
@@ -317,12 +326,44 @@ export async function handler(
       }
       
       if (accessToken && credential.subscription_id) {
+        // Try to acquire a Microsoft Graph API token for Entra ID scanner
+        // Graph API requires a different scope (graph.microsoft.com) than management API
+        let graphAccessToken: string | undefined;
+        if (!spCredentials.isOAuth && spCredentials.tenantId && spCredentials.clientId && spCredentials.clientSecret) {
+          try {
+            const graphTokenUrl = getAzureTokenUrl(spCredentials.tenantId);
+            const graphParams = new URLSearchParams({
+              client_id: spCredentials.clientId,
+              client_secret: spCredentials.clientSecret,
+              grant_type: 'client_credentials',
+              scope: 'https://graph.microsoft.com/.default',
+            });
+            const graphResp = await fetch(graphTokenUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: graphParams.toString(),
+            });
+            if (graphResp.ok) {
+              const graphData = await graphResp.json() as { access_token: string };
+              graphAccessToken = graphData.access_token;
+              logger.info('Graph API token acquired for Entra ID scanner');
+            } else {
+              logger.warn('Failed to acquire Graph API token, Entra ID scanner will be skipped', {
+                status: graphResp.status,
+              });
+            }
+          } catch (graphErr: any) {
+            logger.warn('Error acquiring Graph API token', { error: graphErr.message });
+          }
+        }
+
         const scanContext: AzureScanContext = {
           subscriptionId: credential.subscription_id,
           tenantId: resolveAzureTenantId(credential),
           accessToken,
           organizationId,
           credentialId,
+          graphAccessToken,
         };
 
         const moduleScanResult = await runAllAzureScanners(scanContext);
@@ -724,31 +765,25 @@ export async function handler(
       code: err.code,
     });
 
-    // Try to mark background job and scan as failed
-    // Variables from the try block may not be defined if error occurred early
+    // Try to mark background job and scan as failed using closure variables
     try {
-      const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
-      const bjId = body?.backgroundJobId;
-      const sId = body?.scanId;
-      if (bjId || sId) {
-        const db = getPrismaClient();
-        if (bjId) {
-          await db.backgroundJob.update({
-            where: { id: bjId },
-            data: {
-              status: 'failed',
-              completed_at: new Date(),
-              error: err.message || 'Unknown error',
-              result: { progress: 0, error: err.message },
-            },
-          }).catch(() => {});
-        }
-        if (sId) {
-          await db.securityScan.update({
-            where: { id: sId },
-            data: { status: 'failed', completed_at: new Date() },
-          }).catch(() => {});
-        }
+      const db = getPrismaClient();
+      if (backgroundJobId) {
+        await db.backgroundJob.update({
+          where: { id: backgroundJobId },
+          data: {
+            status: 'failed',
+            completed_at: new Date(),
+            error: err.message || 'Unknown error',
+            result: { progress: 0, error: err.message },
+          },
+        }).catch(() => {});
+      }
+      if (scanRef) {
+        await db.securityScan.update({
+          where: { id: scanRef },
+          data: { status: 'failed', completed_at: new Date() },
+        }).catch(() => {});
       }
     } catch (cleanupErr) {
       logger.error('Failed to update job/scan status on error', { error: (cleanupErr as Error).message });

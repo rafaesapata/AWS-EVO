@@ -8,6 +8,8 @@ export interface AzureScanContext {
   accessToken: string;
   organizationId: string;
   credentialId: string;
+  /** Optional Microsoft Graph API token (scope: https://graph.microsoft.com/.default). Used by Entra ID scanner. */
+  graphAccessToken?: string;
 }
 
 export interface AzureScanResult {

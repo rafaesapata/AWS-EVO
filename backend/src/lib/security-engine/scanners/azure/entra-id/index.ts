@@ -256,11 +256,30 @@ export const entraIdScanner: AzureScanner = {
     let resourcesScanned = 0;
     const tenantId = context.tenantId || 'unknown';
 
+    // Entra ID scanner requires Microsoft Graph API token (graph.microsoft.com scope).
+    // The standard accessToken is scoped for management.azure.com and will get 401/403 on Graph API.
+    // If graphAccessToken is not provided, skip this scanner gracefully.
+    const graphToken = context.graphAccessToken;
+    if (!graphToken) {
+      logger.info('Entra ID scanner skipped: no Graph API token provided (accessToken is scoped for management.azure.com)', { tenantId });
+      return {
+        findings: [],
+        resourcesScanned: 0,
+        errors: [{
+          scanner: 'azure-entra-id',
+          message: 'Skipped: no Microsoft Graph API token available. Entra ID scanning requires a token with https://graph.microsoft.com/.default scope.',
+          recoverable: true,
+          resourceType: 'Microsoft.Directory',
+        }],
+        scanDurationMs: Date.now() - startTime,
+      };
+    }
+
     try {
       logger.info('Starting Entra ID security scan', { tenantId });
 
       // 1. Check Security Defaults
-      const securityDefaults = await fetchSecurityDefaults(context.accessToken, tenantId);
+      const securityDefaults = await fetchSecurityDefaults(graphToken, tenantId);
       resourcesScanned++;
       
       if (securityDefaults && !securityDefaults.isEnabled) {
@@ -277,7 +296,7 @@ export const entraIdScanner: AzureScanner = {
       }
 
       // 2. Fetch and analyze Conditional Access Policies
-      const caPolicies = await fetchConditionalAccessPolicies(context.accessToken, tenantId);
+      const caPolicies = await fetchConditionalAccessPolicies(graphToken, tenantId);
       resourcesScanned += caPolicies.length;
 
       if (caPolicies.length === 0 && securityDefaults && !securityDefaults.isEnabled) {
@@ -352,7 +371,7 @@ export const entraIdScanner: AzureScanner = {
       }
 
       // 3. Analyze Users
-      const users = await fetchUsers(context.accessToken, tenantId);
+      const users = await fetchUsers(graphToken, tenantId);
       resourcesScanned += users.length;
 
       // Count guest users
@@ -375,19 +394,19 @@ export const entraIdScanner: AzureScanner = {
       }
 
       // 4. Analyze Privileged Roles and PIM
-      const directoryRoles = await fetchDirectoryRoles(context.accessToken, tenantId);
+      const directoryRoles = await fetchDirectoryRoles(graphToken, tenantId);
       resourcesScanned += directoryRoles.length;
 
       let globalAdminCount = 0;
       let privilegedUsersWithoutPIM: string[] = [];
 
       // Fetch PIM eligible assignments
-      const pimAssignments = await fetchPIMEligibleAssignments(context.accessToken, tenantId);
+      const pimAssignments = await fetchPIMEligibleAssignments(graphToken, tenantId);
       const pimUserIds = new Set(pimAssignments.map(a => a.principalId));
 
       for (const role of directoryRoles) {
         if (PRIVILEGED_ROLES.includes(role.roleTemplateId)) {
-          const members = await fetchRoleMembers(context.accessToken, role.id);
+          const members = await fetchRoleMembers(graphToken, role.id);
           
           for (const member of members) {
             if (role.roleTemplateId === '62e90394-69f5-4237-9190-012177145e10') {
@@ -450,8 +469,8 @@ export const entraIdScanner: AzureScanner = {
       }
 
       // 5. Analyze Service Principals and App Permissions
-      const servicePrincipals = await fetchServicePrincipals(context.accessToken, tenantId);
-      const oauth2Grants = await fetchOAuth2Grants(context.accessToken, tenantId);
+      const servicePrincipals = await fetchServicePrincipals(graphToken, tenantId);
+      const oauth2Grants = await fetchOAuth2Grants(graphToken, tenantId);
       resourcesScanned += servicePrincipals.length;
 
       // Check for overly permissive OAuth grants
