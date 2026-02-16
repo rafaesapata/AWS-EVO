@@ -20,6 +20,7 @@ import { RiSpAnalysis } from "@/components/cost/RiSpAnalysis";
 import { formatDateBR, compareDates, calculatePercentageChange } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
 import { formatCost, getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -1009,7 +1010,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  </CardHeader>
  <CardContent>
  <div className="text-2xl font-semibold tabular-nums">
- {sym}{costs.reduce((sum, c) => {
+ <CurrencyIndicator className="mr-1" />{sym}{costs.reduce((sum, c) => {
  const val = Number(c.total_cost);
  return sum + (isNaN(val) ? 0 : val);
  }, 0).toFixed(2)}

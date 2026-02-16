@@ -13,6 +13,7 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
   RefreshCw, 
@@ -647,7 +648,7 @@ export const RiSpAnalysis = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold text-green-600">
-              {sym}{((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
+              <CurrencyIndicator className="mr-1" />{sym}{((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Economia atual

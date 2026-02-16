@@ -24,6 +24,7 @@ import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { compareDates, getDayOfMonth, calculatePercentageChange } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
 import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 
 // Define type for daily cost records
 interface DailyCostRecord {
@@ -700,7 +701,7 @@ export const MonthlyInvoicesPage = () => {
               <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.totalCost', 'Total Cost')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold">{sym}{selectedMonthData.totalCost.toFixed(2)}</div>
+              <div className="text-2xl font-semibold"><CurrencyIndicator className="mr-1" />{sym}{selectedMonthData.totalCost.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">{selectedMonthData.days} {t('monthlyInvoices.days', 'days')}</p>
             </CardContent>
           </Card>

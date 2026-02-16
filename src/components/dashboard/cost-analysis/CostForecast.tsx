@@ -12,6 +12,7 @@ import { TrendingUp, AlertTriangle, Info } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDateBR } from "@/lib/utils";
 import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 
 // Constants
 const HISTORY_DAYS = 90;
@@ -360,7 +361,7 @@ export function CostForecast({ accountId }: Props) {
             </CardDescription>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-semibold">{sym}{predictedMonthlyCost.toFixed(2)}</div>
+            <div className="text-2xl font-semibold"><CurrencyIndicator className="mr-1" />{sym}{predictedMonthlyCost.toFixed(2)}</div>
             <Badge variant={growthRate > 10 ? "destructive" : "default"}>
               {growthRate > 0 ? '+' : ''}{growthRate.toFixed(1)}% vs atual
             </Badge>

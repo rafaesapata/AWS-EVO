@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useTranslation } from "react-i18next";
 import AWSRoleConfigError from "./AWSRoleConfigError";
 import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 
 const CostOverview = () => {
   const { t, i18n } = useTranslation();
@@ -343,7 +344,7 @@ const CostOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              {sym}{monthToDateTotal.toFixed(2)}
+              <CurrencyIndicator className="mr-1" />{sym}{monthToDateTotal.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {t('costs.upTo', { date: formatDate(new Date()) })}
