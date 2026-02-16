@@ -252,13 +252,13 @@ async function verifyRegistration(
       logger.warn('Could not extract public key from attestation, storing raw');
     }
 
-    // Save credential via raw SQL with auto-fix for user_id type mismatch
+    // Save credential via raw SQL
     const deviceName = body.deviceName || 'Security Key';
     let webauthnCredential: any;
     try {
       const inserted: any[] = await prisma.$queryRaw`
-        INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, counter, device_name, created_at, updated_at)
-        VALUES (gen_random_uuid(), ${user.user_id}, ${credential.id}, ${publicKeyBase64}, 0, ${deviceName}, NOW(), NOW())
+        INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, counter, device_name, created_at)
+        VALUES (gen_random_uuid(), ${user.user_id}, ${credential.id}, ${publicKeyBase64}, 0, ${deviceName}, NOW())
         RETURNING id, device_name, created_at
       `;
       webauthnCredential = inserted[0];
@@ -268,8 +268,8 @@ async function verifyRegistration(
         logger.warn('webauthn_credentials user_id type mismatch, fixing to TEXT...');
         await prisma.$executeRaw`ALTER TABLE webauthn_credentials ALTER COLUMN user_id TYPE TEXT USING user_id::TEXT`;
         const inserted: any[] = await prisma.$queryRaw`
-          INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, counter, device_name, created_at, updated_at)
-          VALUES (gen_random_uuid(), ${user.user_id}, ${credential.id}, ${publicKeyBase64}, 0, ${deviceName}, NOW(), NOW())
+          INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, counter, device_name, created_at)
+          VALUES (gen_random_uuid(), ${user.user_id}, ${credential.id}, ${publicKeyBase64}, 0, ${deviceName}, NOW())
           RETURNING id, device_name, created_at
         `;
         webauthnCredential = inserted[0];
@@ -278,20 +278,19 @@ async function verifyRegistration(
       }
     }
 
-    // Registrar evento de segurança
-    await prisma.securityEvent.create({
-      data: {
-        organization_id: organizationId,
-        event_type: 'WEBAUTHN_REGISTERED',
-        severity: 'INFO',
-        description: `WebAuthn credential registered for device: ${webauthnCredential.device_name}`,
-        metadata: {
-          userId: user.user_id,
-          credentialId: webauthnCredential.id,
-          deviceName: webauthnCredential.device_name
-        } as any
-      }
-    });
+    // Registrar evento de segurança via raw SQL
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO security_events (id, organization_id, event_type, severity, description, metadata, created_at)
+        VALUES (gen_random_uuid(), ${organizationId}::uuid, 'WEBAUTHN_REGISTERED', 'INFO', 
+          ${`WebAuthn credential registered for device: ${webauthnCredential.device_name}`},
+          ${JSON.stringify({ userId: user.user_id, credentialId: webauthnCredential.id, deviceName: webauthnCredential.device_name })}::jsonb,
+          NOW())
+      `;
+    } catch (secErr: any) {
+      // Non-critical — log but don't fail
+      logger.warn('Failed to log security event:', secErr?.message);
+    }
 
     logger.info('WebAuthn credential registered successfully:', { 
       userId, 
@@ -327,7 +326,7 @@ async function verifyRegistration(
       meta: err?.meta,
       stack: err?.stack?.substring(0, 500)
     });
-    return errorResponse('Failed to verify registration', 500, undefined, origin);
+    return errorResponse(`Failed to verify registration: ${err?.message || 'unknown'} [code=${err?.code || 'none'}]`, 500, undefined, origin);
   }
 }
 
