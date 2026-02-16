@@ -14,6 +14,9 @@ import type { ExecutiveSummary } from '../types';
 import DonutChart from './DonutChart';
 import InfoIcon from './InfoIcon';
 import CardCTA from './CardCTA';
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
+import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
+import { CurrencyIndicator } from '@/components/ui/currency-indicator';
 
 interface Props {
   data: ExecutiveSummary;
@@ -21,6 +24,8 @@ interface Props {
 
 export default function ExecutiveSummaryBar({ data }: Props) {
   const { t } = useTranslation();
+  const { selectedProvider } = useCloudAccount();
+  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
 
   const budgetPercentage = Math.min(100, data.budgetUtilization);
 
@@ -101,8 +106,9 @@ export default function ExecutiveSummaryBar({ data }: Props) {
           {/* Card: Gasto MTD */}
           <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-base font-light text-[#5F5F5F]">
+              <p className="text-base font-light text-[#5F5F5F] flex items-center gap-1.5">
                 {t('executiveDashboard.mtdSpend', 'Gasto MTD')}
+                <CurrencyIndicator />
               </p>
               <InfoIcon tooltip={t('executiveDashboard.mtdSpendTooltip')} />
             </div>
@@ -111,7 +117,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
               className="text-[#393939] tabular-nums mb-3" 
               style={{ fontSize: '42px', lineHeight: '1', fontWeight: '300' }}
             >
-              ${data.mtdSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              {sym}{data.mtdSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </p>
             
             {/* Budget bar with label and percentage on same line */}
@@ -208,13 +214,13 @@ export default function ExecutiveSummaryBar({ data }: Props) {
                 className="text-[#393939] tabular-nums" 
                 style={{ fontSize: '42px', lineHeight: '1', fontWeight: '300' }}
               >
-                ${(data.potentialSavings * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                {sym}{(data.potentialSavings * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-xl font-light text-[#393939]">/ano</span>
             </div>
             
             <p className="text-base font-light text-[#5F5F5F] mb-4">
-              ${data.potentialSavings.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mês
+              {sym}{data.potentialSavings.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mês
             </p>
             
             <div className="text-right">

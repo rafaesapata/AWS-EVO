@@ -14,6 +14,9 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import InfoIcon from './InfoIcon';
 import type { FinancialHealth } from '../types';
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
+import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
+import { CurrencyIndicator } from '@/components/ui/currency-indicator';
 
 interface Props {
   data: FinancialHealth;
@@ -22,6 +25,8 @@ interface Props {
 export default function FinancialHealthCard({ data }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { selectedProvider } = useCloudAccount();
+  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
 
   const hasNoCostData = data.mtdCost === 0 && data.ytdCost === 0 && data.budget === 0;
 
@@ -42,8 +47,9 @@ export default function FinancialHealthCard({ data }: Props) {
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between">
-          <p className="text-base font-light text-[#5F5F5F]">
+          <p className="text-base font-light text-[#5F5F5F] flex items-center gap-1.5">
             {t('executiveDashboard.financialHealth', 'Financial Health')}
+            <CurrencyIndicator />
           </p>
           <InfoIcon tooltip={t('executiveDashboard.financialHealthTooltip', 'Overview of your cloud spending and savings opportunities. Data is updated daily via AWS Cost Explorer.')} />
         </div>
@@ -71,11 +77,11 @@ export default function FinancialHealthCard({ data }: Props) {
               {t('executiveDashboard.mtdCost', 'MTD Cost')}
             </span>
             <div className="text-[#393939] tabular-nums mt-1" style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
-              ${data.mtdCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {sym}{data.mtdCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             {data.credits > 0 && (
               <span className="text-sm font-light text-[#00B2FF] mt-1 block">
-                -${data.credits.toFixed(2)} {t('executiveDashboard.credits', 'credits')}
+                -{sym}{data.credits.toFixed(2)} {t('executiveDashboard.credits', 'credits')}
               </span>
             )}
           </div>
@@ -84,7 +90,7 @@ export default function FinancialHealthCard({ data }: Props) {
               {t('executiveDashboard.ytdCost', 'YTD Cost')}
             </span>
             <div className="text-[#393939] tabular-nums mt-1" style={{ fontSize: '32px', lineHeight: '1', fontWeight: '300' }}>
-              ${data.ytdCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              {sym}{data.ytdCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </div>
           </div>
         </div>
@@ -106,8 +112,8 @@ export default function FinancialHealthCard({ data }: Props) {
             />
           </div>
           <div className="flex justify-between text-sm font-light text-[#5F5F5F]">
-            <span>${data.mtdCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-            <span>${data.budget.toLocaleString('en-US', { maximumFractionDigits: 0 })} {t('executiveDashboard.budget', 'budget')}</span>
+            <span>{sym}{data.mtdCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            <span>{sym}{data.budget.toLocaleString('en-US', { maximumFractionDigits: 0 })} {t('executiveDashboard.budget', 'budget')}</span>
           </div>
         </div>
 
@@ -123,7 +129,7 @@ export default function FinancialHealthCard({ data }: Props) {
                   <div className="flex justify-between text-sm">
                     <span className="font-light text-[#5F5F5F] truncate">{service.service}</span>
                     <span className="font-light text-[#393939] tabular-nums">
-                      ${service.cost.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      {sym}{service.cost.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                   <div className="h-2 bg-[#E5E5E5] rounded-full overflow-hidden">
@@ -150,7 +156,7 @@ export default function FinancialHealthCard({ data }: Props) {
               className="p-3 rounded-xl bg-white border border-gray-200 text-left transition-all duration-200 hover:border-[#00B2FF]/40 hover:shadow-md hover:bg-[#00B2FF]/5 cursor-pointer group"
             >
               <div className="text-xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">
-                ${data.savings.costRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                {sym}{data.savings.costRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
               <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">
                 {t('executiveDashboard.costOptimizations', 'Cost Optimizations')}
@@ -161,7 +167,7 @@ export default function FinancialHealthCard({ data }: Props) {
               className="p-3 rounded-xl bg-white border border-gray-200 text-left transition-all duration-200 hover:border-[#00B2FF]/40 hover:shadow-md hover:bg-[#00B2FF]/5 cursor-pointer group"
             >
               <div className="text-xl font-light text-[#393939] tabular-nums group-hover:text-[#00B2FF] transition-colors duration-200">
-                ${data.savings.riSpRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                {sym}{data.savings.riSpRecommendations.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
               <span className="text-xs font-light text-[#5F5F5F] group-hover:text-[#00B2FF]/70 transition-colors duration-200">
                 {t('executiveDashboard.riSavingsPlans', 'RI/Savings Plans')}
@@ -175,10 +181,10 @@ export default function FinancialHealthCard({ data }: Props) {
             </span>
             <div className="text-right">
               <div className="text-[#00B2FF] tabular-nums" style={{ fontSize: '28px', lineHeight: '1', fontWeight: '300' }}>
-                ${data.savings.potential.toLocaleString('en-US', { maximumFractionDigits: 0 })}{t('executiveDashboard.perMonth', '/mo')}
+                {sym}{data.savings.potential.toLocaleString('en-US', { maximumFractionDigits: 0 })}{t('executiveDashboard.perMonth', '/mo')}
               </div>
               <span className="text-sm font-light text-[#5F5F5F] tabular-nums">
-                ${(data.savings.potential * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}{t('executiveDashboard.perYear', '/year')}
+                {sym}{(data.savings.potential * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}{t('executiveDashboard.perYear', '/year')}
               </span>
             </div>
           </div>
