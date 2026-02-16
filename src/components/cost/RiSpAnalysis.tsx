@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
+import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
   RefreshCw, 
@@ -139,6 +140,7 @@ export const RiSpAnalysis = () => {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider, selectedAccount } = useCloudAccount();
   const { data: organizationId } = useOrganization();
+  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
   const [selectedRecommendation, setSelectedRecommendation] = useState<any>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
@@ -645,7 +647,7 @@ export const RiSpAnalysis = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold text-green-600">
-              ${((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
+              {sym}{((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Economia atual
@@ -661,7 +663,7 @@ export const RiSpAnalysis = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold text-blue-600">
-              ${(totalPotentialAnnualSavings / 12).toFixed(2)}
+              {sym}{(totalPotentialAnnualSavings / 12).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {recommendationsCount} recomendações
@@ -799,10 +801,10 @@ export const RiSpAnalysis = () => {
                         </div>
                         <div className="text-right shrink-0 ml-3">
                           <div className="font-semibold text-green-600">
-                            ${formatCurrency(annualSavings)}/ano
+                            {sym}{formatCurrency(annualSavings)}/ano
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            ${formatCurrency(monthlySavings)}/mês
+                            {sym}{formatCurrency(monthlySavings)}/mês
                           </div>
                           <Badge variant={rec.priority === 1 || rec.priority === 'critical' || rec.priority === 'high' ? 'default' : 'secondary'} className="text-xs mt-1">
                             {typeof rec.priority === 'string' ? rec.priority.toUpperCase() : `P${rec.priority}`}
@@ -839,7 +841,7 @@ export const RiSpAnalysis = () => {
                     <Card className="bg-green-50 border-green-200">
                       <CardContent className="p-4 text-center">
                         <div className="text-2xl font-bold text-green-600">
-                          ${formatCurrency(selectedRecommendation?.potentialSavings?.annual || selectedRecommendation?.annualSavings || 0)}
+                          {sym}{formatCurrency(selectedRecommendation?.potentialSavings?.annual || selectedRecommendation?.annualSavings || 0)}
                         </div>
                         <div className="text-xs text-green-700">Economia Anual</div>
                       </CardContent>
@@ -847,7 +849,7 @@ export const RiSpAnalysis = () => {
                     <Card className="bg-blue-50 border-blue-200">
                       <CardContent className="p-4 text-center">
                         <div className="text-2xl font-bold text-blue-600">
-                          ${formatCurrency(selectedRecommendation?.potentialSavings?.monthly || (selectedRecommendation?.annualSavings || 0) / 12)}
+                          {sym}{formatCurrency(selectedRecommendation?.potentialSavings?.monthly || (selectedRecommendation?.annualSavings || 0) / 12)}
                         </div>
                         <div className="text-xs text-blue-700">Economia Mensal</div>
                       </CardContent>
@@ -913,7 +915,7 @@ export const RiSpAnalysis = () => {
                                     </div>
                                   </TableCell>
                                   <TableCell className="text-xs text-right py-2">
-                                    ${(instance.monthlyCost || 0).toFixed(2)}
+                                    {sym}{(instance.monthlyCost || 0).toFixed(2)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -933,7 +935,7 @@ export const RiSpAnalysis = () => {
                                     </div>
                                   </TableCell>
                                   <TableCell className="text-xs text-right py-2">
-                                    ${(db.monthlyCost || 0).toFixed(2)}
+                                    {sym}{(db.monthlyCost || 0).toFixed(2)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -1226,7 +1228,7 @@ export const RiSpAnalysis = () => {
                           </div>
                           <div className="text-right">
                             <div className="text-2xl font-semibold text-green-600">
-                              ${(rec.potentialSavings?.annual || rec.annualSavings || 0).toFixed(2)}
+                              {sym}{(rec.potentialSavings?.annual || rec.annualSavings || 0).toFixed(2)}
                             </div>
                             <p className="text-xs text-muted-foreground">economia anual</p>
                           </div>
@@ -1347,7 +1349,7 @@ export const RiSpAnalysis = () => {
                                 <div>
                                   <div className="text-xs text-muted-foreground">Economia Total</div>
                                   <div className="text-lg font-semibold text-green-600 flex items-center gap-1">
-                                    ${(entry.totalSavings / 12).toFixed(2)}/mês
+                                    {sym}{(entry.totalSavings / 12).toFixed(2)}/mês
                                     {savingsChange !== 0 && (
                                       savingsChange > 0 ? (
                                         <TrendingUp className="h-4 w-4 text-green-500" />
@@ -1358,7 +1360,7 @@ export const RiSpAnalysis = () => {
                                   </div>
                                   {savingsChange !== 0 && (
                                     <div className={`text-xs ${savingsChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      {savingsChange > 0 ? '+' : ''}${(savingsChange / 12).toFixed(2)}/mês
+                                      {savingsChange > 0 ? '+' : ''}{sym}{(savingsChange / 12).toFixed(2)}/mês
                                     </div>
                                   )}
                                 </div>
@@ -1371,7 +1373,7 @@ export const RiSpAnalysis = () => {
                                       {entry.recommendationsCount} recomendações ativas
                                     </div>
                                     <div className="text-sm font-semibold text-blue-600">
-                                      Potencial: ${(entry.potentialSavings / 12).toFixed(2)}/mês
+                                      Potencial: {sym}{(entry.potentialSavings / 12).toFixed(2)}/mês
                                     </div>
                                   </div>
                                 </div>

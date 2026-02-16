@@ -17,6 +17,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTranslation } from "react-i18next";
 import AWSRoleConfigError from "./AWSRoleConfigError";
+import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
 
 const CostOverview = () => {
   const { t, i18n } = useTranslation();
@@ -28,6 +29,7 @@ const CostOverview = () => {
   // Use global account context
   const { selectedAccountId, selectedAccount, selectedProvider, isLoading: accountLoading } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
+  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
   const { data: organizationId } = useOrganization();
   
   // Multi-cloud support
@@ -341,7 +343,7 @@ const CostOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              ${monthToDateTotal.toFixed(2)}
+              {sym}{monthToDateTotal.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {t('costs.upTo', { date: formatDate(new Date()) })}
@@ -362,7 +364,7 @@ const CostOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              ${today ? today.total.toFixed(2) : '0.00'}
+              {sym}{today ? today.total.toFixed(2) : '0.00'}
             </div>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant={dailyChange >= 0 ? "destructive" : "default"} className="text-xs">
@@ -382,7 +384,7 @@ const CostOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              ${averageDailyCost.toFixed(2)}
+              {sym}{averageDailyCost.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {t('costs.last7days')}
@@ -433,7 +435,7 @@ const CostOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              ${projectedMonthEnd.toFixed(2)}
+              {sym}{projectedMonthEnd.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {t('costs.estimateForDays', { days: daysInMonth })}
@@ -480,7 +482,7 @@ const CostOverview = () => {
               <YAxis 
                 className="text-xs"
                 tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value) => `${sym}${value}`}
               />
               <Tooltip 
                 contentStyle={{
@@ -488,7 +490,7 @@ const CostOverview = () => {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={(value: number) => [`$${value.toFixed(2)}`, t('costs.cost')]}
+                formatter={(value: number) => [`${sym}${value.toFixed(2)}`, t('costs.cost')]}
               />
               <Area 
                 type="monotone" 

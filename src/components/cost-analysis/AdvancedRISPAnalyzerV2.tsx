@@ -22,6 +22,7 @@ import {
   Percent
 } from 'lucide-react';
 import { awsService } from '@/services/aws-service';
+import { useCloudAccount } from '@/contexts/CloudAccountContext';
 
 interface AdvancedRISPAnalyzerV2Props {
   accountId: string;
@@ -80,6 +81,7 @@ interface AnalysisData {
 }
 
 export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedRISPAnalyzerV2Props) {
+  const { selectedProvider } = useCloudAccount();
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -156,9 +158,10 @@ export function AdvancedRISPAnalyzerV2({ accountId, region, regions }: AdvancedR
   };
 
   const formatCurrency = (amount: number) => {
+    const currencyCode = selectedProvider === 'AZURE' ? 'BRL' : 'USD';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'USD',
+      currency: currencyCode,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount || 0);

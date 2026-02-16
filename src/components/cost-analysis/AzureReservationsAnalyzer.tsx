@@ -136,7 +136,7 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'BRL',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount || 0);

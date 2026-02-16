@@ -11,6 +11,7 @@ import { Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 import { TrendingUp, AlertTriangle, Info } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDateBR } from "@/lib/utils";
+import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
 
 // Constants
 const HISTORY_DAYS = 90;
@@ -31,6 +32,7 @@ export function CostForecast({ accountId }: Props) {
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { shouldEnableAccountQuery } = useDemoAwareQuery();
+  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
   
   // Use context account instead of prop for consistency
   const effectiveAccountId = selectedAccountId || accountId;
@@ -339,7 +341,7 @@ export function CostForecast({ accountId }: Props) {
                       Média + (Tendência × Dias futuros)
                     </div>
                     <ul className="text-xs text-muted-foreground space-y-1">
-                      <li>• Média diária: ${avgDailyCost?.toFixed(2) || '0.00'}</li>
+                      <li>• Média diária: {sym}{avgDailyCost?.toFixed(2) || '0.00'}</li>
                       <li>• Dados analisados: {historicalCosts?.length || 0} dias</li>
                       <li>• Previsão: Soma de 30 dias futuros</li>
                     </ul>
@@ -358,7 +360,7 @@ export function CostForecast({ accountId }: Props) {
             </CardDescription>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-semibold">${predictedMonthlyCost.toFixed(2)}</div>
+            <div className="text-2xl font-semibold">{sym}{predictedMonthlyCost.toFixed(2)}</div>
             <Badge variant={growthRate > 10 ? "destructive" : "default"}>
               {growthRate > 0 ? '+' : ''}{growthRate.toFixed(1)}% vs atual
             </Badge>
@@ -379,10 +381,10 @@ export function CostForecast({ accountId }: Props) {
               />
               <YAxis 
                 tick={{ fontSize: 11 }}
-                tickFormatter={(value) => `$${value.toFixed(0)}`}
+                tickFormatter={(value) => `${sym}${value.toFixed(0)}`}
               />
               <Tooltip 
-                formatter={(value: any) => `$${Number(value).toFixed(2)}`}
+                formatter={(value: any) => `${sym}${Number(value).toFixed(2)}`}
                 labelStyle={{ color: '#000' }}
               />
               <Legend />
@@ -437,7 +439,7 @@ export function CostForecast({ accountId }: Props) {
             <p className="text-xs mt-2">Encontrados: {historicalCosts?.length || 0} dias</p>
             {historicalCosts && historicalCosts.length > 0 && (
               <p className="text-xs mt-1">
-                Total acumulado: ${historicalCosts.reduce((s, c) => s + (c.total_cost || 0), 0).toFixed(2)}
+                Total acumulado: {sym}{historicalCosts.reduce((s, c) => s + (c.total_cost || 0), 0).toFixed(2)}
               </p>
             )}
           </div>
@@ -447,8 +449,8 @@ export function CostForecast({ accountId }: Props) {
           <div className="mt-4 p-4 bg-muted/50 rounded-lg">
             <h4 className="font-semibold mb-2">Insights da Previsão</h4>
             <ul className="text-sm space-y-1 text-muted-foreground">
-              <li>• Próximos 7 dias: ${forecasts.slice(0, 7).reduce((s, f) => s + f.predicted_cost, 0).toFixed(2)}</li>
-              <li>• Próximos 30 dias: ${predictedMonthlyCost.toFixed(2)}</li>
+              <li>• Próximos 7 dias: {sym}{forecasts.slice(0, 7).reduce((s, f) => s + f.predicted_cost, 0).toFixed(2)}</li>
+              <li>• Próximos 30 dias: {sym}{predictedMonthlyCost.toFixed(2)}</li>
               <li>• Tendência: {growthRate > 5 ? 'Crescimento' : growthRate < -5 ? 'Redução' : 'Estável'}</li>
             </ul>
           </div>
