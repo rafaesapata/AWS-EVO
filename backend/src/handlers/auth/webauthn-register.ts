@@ -110,8 +110,12 @@ async function generateChallenge(
         VALUES (gen_random_uuid(), ${user.user_id}, ${challenge}, ${challengeExpiry}, NOW())
       `;
     } catch (insertErr: any) {
-      // Se a tabela não existir, criar e tentar novamente
-      if (insertErr?.code === 'P2010' || insertErr?.message?.includes('does not exist') || insertErr?.meta?.code === '42P01') {
+      const errMsg = insertErr?.message || '';
+      const metaMsg = insertErr?.meta?.message || '';
+      const combinedMsg = `${errMsg} ${metaMsg}`.toLowerCase();
+      
+      if (insertErr?.code === 'P2010' || combinedMsg.includes('does not exist') || insertErr?.meta?.code === '42P01') {
+        // Tabela não existe — criar e tentar novamente
         logger.warn('webauthn_challenges table not found, creating...');
         await prisma.$executeRaw`
           CREATE TABLE IF NOT EXISTS webauthn_challenges (
@@ -124,6 +128,14 @@ async function generateChallenge(
         `;
         await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS webauthn_challenges_user_id_idx ON webauthn_challenges(user_id)`;
         await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS webauthn_challenges_challenge_idx ON webauthn_challenges(challenge)`;
+        await prisma.$executeRaw`
+          INSERT INTO webauthn_challenges (id, user_id, challenge, expires_at, created_at)
+          VALUES (gen_random_uuid(), ${user.user_id}, ${challenge}, ${challengeExpiry}, NOW())
+        `;
+      } else if (combinedMsg.includes('uuid') || combinedMsg.includes('invalid input syntax') || combinedMsg.includes('type')) {
+        // Coluna user_id é UUID mas deveria ser TEXT — corrigir e tentar novamente
+        logger.warn('webauthn_challenges user_id type mismatch, fixing to TEXT...');
+        await prisma.$executeRaw`ALTER TABLE webauthn_challenges ALTER COLUMN user_id TYPE TEXT USING user_id::TEXT`;
         await prisma.$executeRaw`
           INSERT INTO webauthn_challenges (id, user_id, challenge, expires_at, created_at)
           VALUES (gen_random_uuid(), ${user.user_id}, ${challenge}, ${challengeExpiry}, NOW())
