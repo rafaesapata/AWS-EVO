@@ -252,15 +252,31 @@ async function verifyRegistration(
       logger.warn('Could not extract public key from attestation, storing raw');
     }
 
-    const webauthnCredential = await prisma.webAuthnCredential.create({
-      data: {
-        user_id: user.user_id,
-        credential_id: credential.id,
-        public_key: publicKeyBase64,
-        counter: 0,
-        device_name: body.deviceName || 'Security Key'
+    // Save credential via raw SQL with auto-fix for user_id type mismatch
+    const deviceName = body.deviceName || 'Security Key';
+    let webauthnCredential: any;
+    try {
+      const inserted: any[] = await prisma.$queryRaw`
+        INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, counter, device_name, created_at, updated_at)
+        VALUES (gen_random_uuid(), ${user.user_id}, ${credential.id}, ${publicKeyBase64}, 0, ${deviceName}, NOW(), NOW())
+        RETURNING id, device_name, created_at
+      `;
+      webauthnCredential = inserted[0];
+    } catch (credErr: any) {
+      const errMsg = `${credErr?.message || ''} ${credErr?.meta?.message || ''}`.toLowerCase();
+      if (errMsg.includes('uuid') || errMsg.includes('invalid input syntax') || errMsg.includes('type')) {
+        logger.warn('webauthn_credentials user_id type mismatch, fixing to TEXT...');
+        await prisma.$executeRaw`ALTER TABLE webauthn_credentials ALTER COLUMN user_id TYPE TEXT USING user_id::TEXT`;
+        const inserted: any[] = await prisma.$queryRaw`
+          INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, counter, device_name, created_at, updated_at)
+          VALUES (gen_random_uuid(), ${user.user_id}, ${credential.id}, ${publicKeyBase64}, 0, ${deviceName}, NOW(), NOW())
+          RETURNING id, device_name, created_at
+        `;
+        webauthnCredential = inserted[0];
+      } else {
+        throw credErr;
       }
-    });
+    }
 
     // Registrar evento de segurança
     await prisma.securityEvent.create({
