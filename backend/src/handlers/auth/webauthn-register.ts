@@ -104,10 +104,34 @@ async function generateChallenge(
     const challengeExpiry = new Date(Date.now() + WEBAUTHN_CHALLENGE_EXPIRY_MS);
 
     // Salvar challenge via raw SQL (evita dependência do model gerado no Prisma client da layer)
-    await prisma.$executeRaw`
-      INSERT INTO webauthn_challenges (id, user_id, challenge, expires_at, created_at)
-      VALUES (gen_random_uuid(), ${user.user_id}::text, ${challenge}, ${challengeExpiry}, NOW())
-    `;
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO webauthn_challenges (id, user_id, challenge, expires_at, created_at)
+        VALUES (gen_random_uuid(), ${user.user_id}, ${challenge}, ${challengeExpiry}, NOW())
+      `;
+    } catch (insertErr: any) {
+      // Se a tabela não existir, criar e tentar novamente
+      if (insertErr?.code === 'P2010' || insertErr?.message?.includes('does not exist') || insertErr?.meta?.code === '42P01') {
+        logger.warn('webauthn_challenges table not found, creating...');
+        await prisma.$executeRaw`
+          CREATE TABLE IF NOT EXISTS webauthn_challenges (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id TEXT NOT NULL,
+            challenge TEXT NOT NULL,
+            expires_at TIMESTAMPTZ(6) NOT NULL,
+            created_at TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        `;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS webauthn_challenges_user_id_idx ON webauthn_challenges(user_id)`;
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS webauthn_challenges_challenge_idx ON webauthn_challenges(challenge)`;
+        await prisma.$executeRaw`
+          INSERT INTO webauthn_challenges (id, user_id, challenge, expires_at, created_at)
+          VALUES (gen_random_uuid(), ${user.user_id}, ${challenge}, ${challengeExpiry}, NOW())
+        `;
+      } else {
+        throw insertErr;
+      }
+    }
 
     // Gerar opções de registro
     const rpId = getWebAuthnRpId();
@@ -165,7 +189,7 @@ async function verifyRegistration(
       SELECT id, user_id, challenge, expires_at 
       FROM webauthn_challenges 
       WHERE challenge = ${challengeId} 
-        AND user_id = ${user.user_id}::text 
+        AND user_id = ${user.user_id} 
         AND expires_at > NOW()
       LIMIT 1
     `;
@@ -177,7 +201,7 @@ async function verifyRegistration(
 
     // Deletar challenge usado
     await prisma.$executeRaw`
-      DELETE FROM webauthn_challenges WHERE id = ${storedChallenge.id}::uuid
+      DELETE FROM webauthn_challenges WHERE id = ${storedChallenge.id}
     `;
 
     // Salvar credencial WebAuthn - extract real public key from attestationObject
