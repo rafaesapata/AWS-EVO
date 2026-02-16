@@ -477,7 +477,8 @@ export async function handler(
     logger.info('[STEP-3] Evaluating scan results', {
       scanId: scan.id,
       providerScanFailed,
-      moduleScannerFindings: moduleScannerFindings.length,
+      providerFindingsCount: providerResult.findings.length,
+      moduleScannerFindingsCount: moduleScannerFindings.length,
       moduleScannerError,
     });
     if (providerScanFailed && moduleScannerFindings.length === 0 && moduleScannerError) {
@@ -502,12 +503,26 @@ export async function handler(
       return error(`Azure security scan failed: ${combinedError}`, 500);
     }
 
+    // If provider failed and modular scanners produced 0 findings (no error but empty results),
+    // still mark as completed but with a warning — this is likely a permissions issue
+    if (providerScanFailed && moduleScannerFindings.length === 0 && !moduleScannerError) {
+      logger.warn('[STEP-3] Both engines produced 0 findings (possible permissions issue)', {
+        scanId: scan.id,
+        moduleScannerResourcesScanned,
+      });
+    }
+
     // Combine findings from both sources (provider scan may have failed)
     const result = providerResult;
 
     // Store findings - convert to plain JSON objects for Prisma
     // Build NewScanFinding[] for delta sync
     const now = new Date();
+    logger.info('[STEP-4] Processing findings', {
+      scanId: scan.id,
+      providerFindings: result.findings.length,
+      moduleFindings: moduleScannerFindings.length,
+    });
     
     const azureFindings: NewScanFinding[] = result.findings.map(finding => {
       const resourceArn = (finding.resourceUri || finding.resourceId || '').toLowerCase().replace(/\/+$/, '');
@@ -800,6 +815,7 @@ export async function handler(
     const finalStatus = (providerScanFailed && moduleScannerFindings.length > 0) 
       ? 'completed' 
       : (providerScanFailed ? 'completed' : result.status);
+    logger.info('[STEP-5] Updating scan record to final status', { scanId: scan.id, finalStatus, findingsCount: combinedSummary.total });
     await prisma.securityScan.update({
       where: { id: scan.id },
       data: {
