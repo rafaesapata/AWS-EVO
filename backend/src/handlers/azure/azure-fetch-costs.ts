@@ -132,8 +132,8 @@ function buildCostQueryRequest(startDate: string, endDate: string, granularity: 
     type: 'ActualCost',
     timeframe: 'Custom',
     timePeriod: { 
-      from: `${startDate}T00:00:00+00:00`, 
-      to: `${endDate}T23:59:59+00:00` 
+      from: startDate, 
+      to: endDate 
     },
     dataset: {
       granularity: granularity === 'MONTHLY' ? 'Monthly' : 'Daily',
@@ -422,7 +422,41 @@ export async function handler(
       sampleRow: rows.length > 0 ? rows[0] : null,
       effectiveStartDate,
       endDate,
+      subscriptionId: credential.subscription_id,
+      authType: credential.auth_type,
     });
+
+    // If no rows, return early with diagnostic info
+    if (rows.length === 0) {
+      logger.warn('Azure Cost Management returned 0 rows - possible causes: no costs in period, wrong subscription, or API date format issue', {
+        subscriptionId: credential.subscription_id,
+        effectiveStartDate,
+        endDate,
+        granularity,
+        columnsReturned: columns.map(c => c.name),
+      });
+      return success({
+        subscriptionId: credential.subscription_id,
+        subscriptionName: credential.subscription_name,
+        period: {
+          startDate: effectiveStartDate,
+          endDate,
+          granularity,
+        },
+        summary: {
+          totalCost: 0,
+          currency: 'BRL',
+          recordCount: 0,
+          savedCount: 0,
+          skippedCount: 0,
+        },
+        byService: {},
+        debug: {
+          columnsReturned: columns.map(c => c.name),
+          message: 'Azure Cost Management API returned 0 rows for this period',
+        },
+      });
+    }
 
     // Map column indices
     const columnIndices = { cost: 0, date: 1, service: 2, currency: 3 };
