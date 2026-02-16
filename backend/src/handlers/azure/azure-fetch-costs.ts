@@ -405,19 +405,81 @@ export async function handler(
       return error('Azure credential is missing subscription_id', 400);
     }
 
-    // Build and execute cost query
-    const requestBody = buildCostQueryRequest(effectiveStartDate, endDate, granularity ?? 'DAILY');
-    const costResult = await queryCostManagementApi(
-      credential.subscription_id,
-      tokenResult.token,
-      requestBody
-    );
-
-    if (!costResult.success) {
-      return error(costResult.error, costResult.status || 500);
+    // Azure Cost Management API limits Daily granularity queries to ~90 days with grouping.
+    // Split long periods into chunks to avoid "Invalid query definition" 400 errors.
+    const MAX_DAYS_PER_CHUNK = 89; // Safe limit under Azure's ~90 day cap
+    const effectiveGranularity = granularity ?? 'DAILY';
+    
+    const startMs = new Date(effectiveStartDate).getTime();
+    const endMs = new Date(endDate).getTime();
+    const totalDays = Math.ceil((endMs - startMs) / (24 * 60 * 60 * 1000));
+    
+    let allRows: unknown[][] = [];
+    let columns: ColumnDefinition[] = [];
+    
+    if (effectiveGranularity === 'DAILY' && totalDays > MAX_DAYS_PER_CHUNK) {
+      // Split into chunks
+      const chunks: { start: string; end: string }[] = [];
+      let chunkStart = new Date(effectiveStartDate);
+      const finalEnd = new Date(endDate);
+      
+      while (chunkStart < finalEnd) {
+        const chunkEnd = new Date(Math.min(
+          chunkStart.getTime() + MAX_DAYS_PER_CHUNK * 24 * 60 * 60 * 1000,
+          finalEnd.getTime()
+        ));
+        chunks.push({
+          start: chunkStart.toISOString().split('T')[0],
+          end: chunkEnd.toISOString().split('T')[0],
+        });
+        chunkStart = new Date(chunkEnd.getTime() + 24 * 60 * 60 * 1000); // next day
+      }
+      
+      logger.info('Splitting cost query into chunks', {
+        totalDays,
+        chunkCount: chunks.length,
+        chunks: chunks.map(c => `${c.start} → ${c.end}`),
+      });
+      
+      for (const chunk of chunks) {
+        const requestBody = buildCostQueryRequest(chunk.start, chunk.end, effectiveGranularity);
+        const costResult = await queryCostManagementApi(
+          credential.subscription_id,
+          tokenResult.token,
+          requestBody
+        );
+        
+        if (!costResult.success) {
+          logger.warn('Chunk query failed, skipping', {
+            chunk: `${chunk.start} → ${chunk.end}`,
+            error: costResult.error,
+          });
+          continue; // Skip failed chunks instead of failing entire request
+        }
+        
+        if (costResult.columns.length > 0 && columns.length === 0) {
+          columns = costResult.columns;
+        }
+        allRows.push(...costResult.rows);
+      }
+    } else {
+      // Single query (short period or Monthly granularity)
+      const requestBody = buildCostQueryRequest(effectiveStartDate, endDate, effectiveGranularity);
+      const costResult = await queryCostManagementApi(
+        credential.subscription_id,
+        tokenResult.token,
+        requestBody
+      );
+      
+      if (!costResult.success) {
+        return error(costResult.error, costResult.status || 500);
+      }
+      
+      allRows = costResult.rows;
+      columns = costResult.columns;
     }
-
-    const { rows, columns } = costResult;
+    
+    const rows = allRows;
 
     logger.info('Cost data retrieved', {
       rowCount: rows.length,
@@ -457,7 +519,7 @@ export async function handler(
         debug: {
           columnsReturned: columns.map(c => c.name),
           message: 'Azure Cost Management API returned 0 rows for this period',
-          rawApiResponse: costResult.rawPreview || 'N/A',
+          rawApiResponse: 'N/A',
           requestInfo: {
             subscriptionId: credential.subscription_id,
             effectiveStartDate,
