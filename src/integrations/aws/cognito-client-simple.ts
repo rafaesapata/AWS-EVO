@@ -461,12 +461,16 @@ class CognitoAuthService {
         email: session.user?.email,
         organizationId: session.user?.organizationId,
         roles: session.user?.attributes?.['custom:roles'],
-        hasAttributes: !!session.user?.attributes
+        hasAttributes: !!session.user?.attributes,
+        hasAccessToken: !!session.accessToken,
+        accessTokenLength: session.accessToken?.length,
+        accessTokenStart: session.accessToken?.substring(0, 30)
       });
       
       // Check if session is still valid
       if (this.isTokenExpired(session.accessToken)) {
         console.log('🔐 CognitoAuth: Token expired, signing out');
+        console.log('🔐 CognitoAuth: accessToken length:', session.accessToken?.length, 'starts with:', session.accessToken?.substring(0, 20));
         await this.signOut();
         return null;
       }
@@ -897,12 +901,26 @@ class CognitoAuthService {
    */
   private isTokenExpired(token: string): boolean {
     try {
-      // SECURITY: Use Base64URL decoder
-      const payload = parseJwtPayload(token);
+      // Use same decoding as scheduleTokenRefresh for consistency
+      const parts = token.split('.');
+      if (parts.length !== 3) return true;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
       const exp = payload.exp;
+      const now = Date.now();
+      const expMs = exp * 1000;
+      const isExpired = now >= expMs;
+      
+      if (isExpired) {
+        console.log('🔐 CognitoAuth: Token IS expired:', {
+          exp,
+          now: Math.floor(now / 1000),
+          diffSeconds: Math.round((expMs - now) / 1000)
+        });
+      }
 
-      return Date.now() >= exp * 1000;
-    } catch {
+      return isExpired;
+    } catch (e) {
+      console.error('🔐 CognitoAuth: isTokenExpired parse error:', e);
       return true;
     }
   }
