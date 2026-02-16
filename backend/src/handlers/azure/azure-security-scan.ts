@@ -313,20 +313,23 @@ export async function handler(
     let providerResult: Awaited<ReturnType<AzureProvider['runSecurityScan']>>;
     let providerScanFailed = false;
     
+    logger.info('[STEP-1] Starting provider scan (legacy)', { scanId: scan.id });
     try {
       providerResult = await azureProvider.runSecurityScan(scanConfig);
       
       if (providerResult.status === 'failed') {
         const failMsg = providerResult.error || 'Azure provider security scan failed';
-        logger.warn('Azure provider scan returned failed status, continuing with modular scanners', {
+        logger.warn('[STEP-1] Provider scan returned failed status, continuing with modular scanners', {
           scanId: scan.id,
           error: failMsg,
           duration: providerResult.duration,
         });
         providerScanFailed = true;
+      } else {
+        logger.info('[STEP-1] Provider scan completed', { scanId: scan.id, findings: providerResult.findings.length, duration: providerResult.duration });
       }
     } catch (providerErr: any) {
-      logger.warn('Azure provider scan threw exception, continuing with modular scanners', {
+      logger.warn('[STEP-1] Provider scan threw exception, continuing with modular scanners', {
         scanId: scan.id,
         error: providerErr.message,
       });
@@ -350,17 +353,21 @@ export async function handler(
     let moduleScannerResourcesScanned = 0;
     let moduleScannerError: string | null = null;
     
+    logger.info('[STEP-2] Starting modular scanners', { scanId: scan.id, isOAuth: !!spCredentials.isOAuth });
     try {
       // Get access token - for OAuth we already have it, for SP we need to fetch
       let accessToken: string | null = null;
       
       if (spCredentials.isOAuth) {
         accessToken = spCredentials.accessToken;
+        logger.info('[STEP-2] Using OAuth access token', { tokenLength: accessToken?.length });
       } else {
+        logger.info('[STEP-2] Fetching SP access token');
         accessToken = await azureProvider.getAccessToken();
       }
       
       if (accessToken && credential.subscription_id) {
+        logger.info('[STEP-2] Access token obtained, starting scanners', { subscriptionId: credential.subscription_id });
         // Try to acquire a Microsoft Graph API token for Entra ID scanner
         // Graph API requires a different scope (graph.microsoft.com) than management API
         let graphAccessToken: string | undefined;
@@ -467,6 +474,12 @@ export async function handler(
     }
 
     // If BOTH provider scan and modular scanners failed, mark scan as failed
+    logger.info('[STEP-3] Evaluating scan results', {
+      scanId: scan.id,
+      providerScanFailed,
+      moduleScannerFindings: moduleScannerFindings.length,
+      moduleScannerError,
+    });
     if (providerScanFailed && moduleScannerFindings.length === 0 && moduleScannerError) {
       const combinedError = `Provider: ${providerResult.error || 'failed'}; Modules: ${moduleScannerError}`;
       logger.error('Both scan engines failed', { scanId: scan.id, error: combinedError });

@@ -8,6 +8,7 @@
  * - Right column: 2x2 grid with SLA, Gasto MTD, Alertas, Economia
  */
 
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import type { ExecutiveSummary } from '../types';
@@ -17,6 +18,7 @@ import CardCTA from './CardCTA';
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
 import { CurrencyIndicator } from '@/components/ui/currency-indicator';
+import { useCountUp } from '@/hooks/useCountUp';
 
 interface Props {
   data: ExecutiveSummary;
@@ -28,6 +30,18 @@ export default function ExecutiveSummaryBar({ data }: Props) {
   const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
 
   const budgetPercentage = Math.min(100, data.budgetUtilization);
+
+  // Animated values
+  const animatedMtdSpend = useCountUp(data.mtdSpend, 1200, 0);
+  const animatedSavings = useCountUp(data.potentialSavings, 1200, 0);
+  const animatedBudget = useCountUp(budgetPercentage, 1200, 0);
+
+  // Animate budget bar width
+  const [barWidth, setBarWidth] = useState(0);
+  useEffect(() => {
+    const timer = requestAnimationFrame(() => setBarWidth(budgetPercentage));
+    return () => cancelAnimationFrame(timer);
+  }, [budgetPercentage]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
@@ -117,7 +131,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
               className="text-[#393939] tabular-nums mb-3" 
               style={{ fontSize: '42px', lineHeight: '1', fontWeight: '300' }}
             >
-              {sym}{data.mtdSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              {sym}{animatedMtdSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </p>
             
             {/* Budget bar with label and percentage on same line */}
@@ -131,16 +145,17 @@ export default function ExecutiveSummaryBar({ data }: Props) {
                   budgetPercentage >= 90 ? 'text-red-500' : 
                   budgetPercentage >= 75 ? 'text-amber-500' : 'text-[#00B2FF]'
                 )}>
-                  {budgetPercentage.toFixed(0)}%
+                  {animatedBudget.toFixed(0)}%
                 </span>
               </div>
               <div className="h-2 bg-[#E5E5E5] rounded-full overflow-hidden">
                 <div 
-                  className="h-full rounded-full transition-all duration-500"
+                  className="h-full rounded-full"
                   style={{ 
-                    width: `${budgetPercentage}%`,
+                    width: `${barWidth}%`,
                     backgroundColor: budgetPercentage >= 90 ? '#EF4444' : 
-                                   budgetPercentage >= 75 ? '#F59E0B' : '#00B2FF'
+                                   budgetPercentage >= 75 ? '#F59E0B' : '#00B2FF',
+                    transition: 'width 1.2s cubic-bezier(0.16, 1, 0.3, 1)'
                   }}
                 />
               </div>
@@ -214,13 +229,13 @@ export default function ExecutiveSummaryBar({ data }: Props) {
                 className="text-[#393939] tabular-nums" 
                 style={{ fontSize: '42px', lineHeight: '1', fontWeight: '300' }}
               >
-                {sym}{(data.potentialSavings * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                {sym}{(animatedSavings * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-xl font-light text-[#393939]">/ano</span>
             </div>
             
             <p className="text-base font-light text-[#5F5F5F] mb-4">
-              {sym}{data.potentialSavings.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mês
+              {sym}{animatedSavings.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mês
             </p>
             
             <div className="text-right">

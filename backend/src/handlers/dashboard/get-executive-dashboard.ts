@@ -788,6 +788,7 @@ async function getInsightsData(
 ): Promise<AIInsight[]> {
   const insights: AIInsight[] = [];
   const now = new Date();
+  const currencySymbol = provider === 'AZURE' ? 'R$' : '$';
   
   // Base filter - by organization and optionally by account (AWS or Azure)
   const baseFilter: any = { organization_id: organizationId };
@@ -917,8 +918,8 @@ async function getInsightsData(
         id: `insight-savings-${now.getTime()}`,
         type: 'optimization',
         severity: 'info',
-        title: `$${totalSavings.toFixed(2)}/mês em economia potencial`,
-        description: `Identificamos ${savingsCount} recomendações de otimização que podem economizar até $${totalSavings.toFixed(2)} por mês.`,
+        title: `${currencySymbol} ${totalSavings.toFixed(2)}/mês em economia potencial`,
+        description: `Identificamos ${savingsCount} recomendações de otimização que podem economizar até ${currencySymbol} ${totalSavings.toFixed(2)} por mês.`,
         recommendation: 'Revise as recomendações de Reserved Instances e Savings Plans.',
         confidence: 0.92,
         generatedAt: now
