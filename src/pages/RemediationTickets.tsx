@@ -23,6 +23,8 @@ import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Layout } from "@/components/Layout";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SlaConfigPanel } from "@/components/tickets/SlaConfigPanel";
 import { 
   Ticket, Plus, RefreshCw, Clock, CheckCircle, XCircle, User, Calendar,
   MessageSquare, AlertTriangle, Paperclip, ListChecks, Timer, AlertCircle,
@@ -519,6 +521,7 @@ export default function RemediationTickets() {
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('tickets');
   
   // Fetch tickets
   const { data: ticketsData, isLoading, refetch } = useQuery({
@@ -577,8 +580,21 @@ export default function RemediationTickets() {
     <Layout
       title={t('tickets.title', 'Tickets de Remediação')}
       description={t('tickets.description', 'Gerencie e acompanhe tickets de remediação de segurança e compliance')}
-      icon={<Ticket className="h-4 w-4 text-white" />}
+      icon={<Ticket className="h-4 w-4" />}
     >
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="glass">
+          <TabsTrigger value="tickets">
+            <Ticket className="h-4 w-4 mr-2" />
+            {t('tickets.tabTickets', 'Tickets')}
+          </TabsTrigger>
+          <TabsTrigger value="sla">
+            <Timer className="h-4 w-4 mr-2" />
+            {t('tickets.tabSla', 'Configuração SLA')}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tickets" className="space-y-6">
       <div className="space-y-6">
         {/* Stats Cards */}
         {!isLoading && tickets.length > 0 && <StatsCards tickets={tickets} />}
@@ -750,6 +766,12 @@ export default function RemediationTickets() {
           </p>
         )}
       </div>
+        </TabsContent>
+
+        <TabsContent value="sla" className="space-y-6">
+          <SlaConfigPanel />
+        </TabsContent>
+      </Tabs>
       
       {/* Create Ticket Dialog */}
       <CreateTicketDialog 
