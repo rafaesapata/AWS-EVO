@@ -39,6 +39,8 @@ const azureSecurityScanSchema = z.object({
   scanId: z.string().uuid().optional(),
   backgroundJobId: z.string().uuid().optional(),
   scheduledExecution: z.boolean().optional(),
+  // Passed directly by start handler to avoid org mismatch in async invocation
+  organizationId: z.string().uuid().optional(),
 });
 
 export async function handler(
@@ -76,7 +78,7 @@ export async function handler(
       });
       user = claims;
     }
-    const organizationId = getOrganizationIdWithImpersonation(event, user);
+    let organizationId = getOrganizationIdWithImpersonation(event, user);
     
     const prisma = getPrismaClient();
 
@@ -88,10 +90,22 @@ export async function handler(
       return validation.error;
     }
 
-    const { credentialId, scanLevel = 'standard', regions, scanId: existingScanId, backgroundJobId: bjId } = validation.data;
+    const { credentialId, scanLevel = 'standard', regions, scanId: existingScanId, backgroundJobId: bjId, organizationId: bodyOrgId } = validation.data;
     backgroundJobId = bjId;
     scanRef = existingScanId;
     const scanType = `azure-security-${scanLevel}`;
+
+    // If the start handler passed organizationId in the body, prefer it over the one
+    // derived from auth claims. This handles the case where a super_admin uses impersonation:
+    // the start handler resolves the correct org, but the async invocation may lose the
+    // impersonation header or the token may have expired, causing org mismatch.
+    if (bodyOrgId && bodyOrgId !== organizationId) {
+      logger.warn('Organization ID mismatch: using body organizationId from start handler', {
+        fromAuth: organizationId,
+        fromBody: bodyOrgId,
+      });
+      organizationId = bodyOrgId;
+    }
 
     // Helper to mark background job and scan as failed on early exit
     // scanRef is updated after scan creation to also cover locally-created scans
