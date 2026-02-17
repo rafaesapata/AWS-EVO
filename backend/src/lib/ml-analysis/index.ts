@@ -24,3 +24,12 @@ export {
   getServiceFromResourceType,
   type ArnComponents,
 } from './arn-builder.js';
+
+export {
+  analyzeAzureUtilization,
+  classifyAzureVMWaste,
+  generateAzureUtilizationPatterns,
+  type AzureMetricDatapoint,
+  type AzureUtilizationMetrics,
+  type AzureMLRecommendation,
+} from './azure-waste-analyzer.js';

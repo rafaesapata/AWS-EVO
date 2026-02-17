@@ -2287,6 +2287,31 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+  ManageCloudBudgetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-cloud-budget'
+      CodeUri: ../backend/src/handlers/cost/
+      Handler: manage-cloud-budget.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/manage-cloud-budget
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - manage-cloud-budget.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
   # ==========================================================================
   # DATA FUNCTIONS (5)
   # ==========================================================================

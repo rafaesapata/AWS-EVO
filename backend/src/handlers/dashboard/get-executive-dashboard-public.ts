@@ -155,7 +155,23 @@ async function getFinancialData(prisma: any, organizationId: string, startOfMont
   } catch { /* table might not exist */ }
 
   const mtdTotal = Number(mtdCosts._sum.cost || 0);
-  const budgetAmount = mtdTotal > 0 ? mtdTotal * 1.2 : 10000;
+
+  // Buscar budget real da tabela cloud_budgets
+  const now = new Date();
+  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  let budgetAmount = mtdTotal > 0 ? mtdTotal * 1.2 : 10000;
+  try {
+    const budget = await prisma.cloudBudget.findUnique({
+      where: {
+        organization_id_cloud_provider_year_month: {
+          organization_id: organizationId,
+          cloud_provider: 'AWS',
+          year_month: currentYearMonth,
+        },
+      },
+    });
+    if (budget) budgetAmount = budget.amount;
+  } catch { /* table might not exist yet */ }
 
   const costRecommendationsValue = Number(costOptimizations._sum?.potential_savings || 0);
   const riSpRecommendationsValue = Number(riSpRecommendations._sum?.estimated_monthly_savings || 0);

@@ -449,7 +449,55 @@ async function getFinancialData(
   }
 
   const mtdTotal = Number(mtdCosts._sum.cost || 0);
-  const budgetAmount = mtdTotal > 0 ? mtdTotal * 1.2 : 10000; // Default budget
+
+  // Buscar budget real da tabela cloud_budgets
+  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  let budgetAmount = 0;
+  try {
+    const budget = await prisma.cloudBudget.findUnique({
+      where: {
+        organization_id_cloud_provider_year_month: {
+          organization_id: organizationId,
+          cloud_provider: provider || 'AWS',
+          year_month: currentYearMonth,
+        },
+      },
+    });
+    if (budget) {
+      budgetAmount = budget.amount;
+    } else {
+      // Fallback: auto-fill com 85% do mês anterior se não existe budget
+      const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
+      const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const prevYearMonth = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+      const prevStart = new Date(prevYear, prevMonth - 1, 1);
+      const prevEnd = new Date(prevYear, prevMonth, 0);
+      const prevCosts = await prisma.dailyCost.aggregate({
+        where: { ...baseFilter, date: { gte: prevStart, lte: prevEnd } },
+        _sum: { cost: true },
+      });
+      const prevTotal = Number(prevCosts._sum?.cost || 0);
+      if (prevTotal > 0) {
+        budgetAmount = Math.round(prevTotal * 0.85 * 100) / 100;
+        // Salvar auto-fill para próximas consultas
+        try {
+          await prisma.cloudBudget.create({
+            data: {
+              organization_id: organizationId,
+              cloud_provider: provider || 'AWS',
+              year_month: currentYearMonth,
+              amount: budgetAmount,
+              source: 'auto',
+            },
+          });
+        } catch { /* unique constraint - já existe */ }
+      } else {
+        budgetAmount = mtdTotal > 0 ? mtdTotal * 1.2 : 10000;
+      }
+    }
+  } catch {
+    budgetAmount = mtdTotal > 0 ? mtdTotal * 1.2 : 10000;
+  }
 
   const sortedServices = topServices.map((item: any, index: number) => ({
     service: item.service || 'Unknown',

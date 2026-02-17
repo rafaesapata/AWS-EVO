@@ -1356,6 +1356,34 @@ Resources:
           - '.prisma/client'
           - '@aws-sdk/*'
 
+  AzureMLWasteDetectionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-ml-waste-detection'
+      CodeUri: ../backend/src/handlers/azure/
+      Handler: azure-ml-waste-detection.handler
+      Timeout: 120
+      MemorySize: 512
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/functions/azure-ml-waste-detection
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - azure-ml-waste-detection.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+          - '@aws-sdk/*'
+
   AzureDefenderScanFunction:
     Type: AWS::Serverless::Function
     Properties:

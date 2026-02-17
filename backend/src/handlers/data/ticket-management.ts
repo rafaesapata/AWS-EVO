@@ -868,6 +868,41 @@ export async function handler(
       });
     }
 
+    // ==================== SEARCH TICKETS ====================
+
+    if (action === 'search-tickets') {
+      const { query, excludeTicketId, limit } = body;
+      if (!query || typeof query !== 'string' || query.trim().length < 2) {
+        return error('query must be at least 2 characters', 400, undefined, origin);
+      }
+
+      const searchTerm = query.trim();
+      const take = Math.min(limit || 10, 20);
+
+      // Search by title (contains) or by UUID prefix
+      const isUuidSearch = /^[0-9a-f-]{4,}$/i.test(searchTerm);
+
+      const where: any = {
+        organization_id: organizationId,
+        ...(excludeTicketId ? { id: { not: excludeTicketId } } : {}),
+      };
+
+      if (isUuidSearch) {
+        where.id = { ...(where.id || {}), startsWith: searchTerm };
+      } else {
+        where.title = { contains: searchTerm, mode: 'insensitive' };
+      }
+
+      const tickets = await prisma.remediationTicket.findMany({
+        where,
+        select: { id: true, title: true, status: true, severity: true, priority: true },
+        take,
+        orderBy: { updated_at: 'desc' },
+      });
+
+      return success({ tickets });
+    }
+
     return error(`Unknown action: ${action}`, 400, undefined, origin);
 
   } catch (err) {

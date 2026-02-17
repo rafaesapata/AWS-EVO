@@ -1284,8 +1284,10 @@ model ResourceMetric {
 model ResourceUtilizationML {
   id                        String   @id @default(uuid()) @db.Uuid
   organization_id           String   @db.Uuid
-  aws_account_id            String   @db.Uuid
+  aws_account_id            String?  @db.Uuid
   aws_account_number        String?  // 12-digit AWS account ID
+  azure_credential_id       String?  @db.Uuid
+  cloud_provider            String   @default("AWS") @db.VarChar(10)
   resource_id               String
   resource_arn              String?  // Full ARN - NEW in v3.0
   resource_name             String?
@@ -1329,6 +1331,8 @@ model ResourceUtilizationML {
   @@unique([organization_id, aws_account_id, resource_arn])
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
+  @@index([cloud_provider])
   @@index([resource_arn])
   @@index([recommendation_type])
   @@index([recommendation_priority])
@@ -1339,8 +1343,10 @@ model ResourceUtilizationML {
 model MLAnalysisHistory {
   id                      String   @id @default(uuid()) @db.Uuid
   organization_id         String   @db.Uuid
-  aws_account_id          String   @db.Uuid
+  aws_account_id          String?  @db.Uuid
   aws_account_number      String?
+  azure_credential_id     String?  @db.Uuid
+  cloud_provider          String   @default("AWS") @db.VarChar(10)
   
   // Scan metadata
   scan_type               String   @default("ml-waste-detection") // 'ml-waste-detection', 'cost-optimization', etc.
@@ -1375,6 +1381,8 @@ model MLAnalysisHistory {
   
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
+  @@index([cloud_provider])
   @@index([scan_type])
   @@index([status])
   @@index([started_at])
@@ -2546,4 +2554,24 @@ model EvoAppCredential {
 
   @@unique([provider, client_id])
   @@map("evo_app_credentials")
+}
+
+// ==================== CLOUD BUDGETS ====================
+
+model CloudBudget {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  cloud_provider  String   @default("AWS")
+  year_month      String   // formato: '2026-02'
+  amount          Float    @default(0)
+  currency        String   @default("USD")
+  source          String   @default("auto") // 'auto' ou 'manual'
+  created_by      String?  // user_id
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@unique([organization_id, cloud_provider, year_month])
+  @@index([organization_id])
+  @@index([year_month])
+  @@map("cloud_budgets")
 }

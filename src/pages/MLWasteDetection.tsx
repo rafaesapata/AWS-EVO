@@ -307,53 +307,22 @@ export default function MLWasteDetection() {
 
  if (!selectedAccountId) throw new Error('No account');
 
- // For Azure, call azure-cost-optimization endpoint directly to get full data
+ // For Azure, call azure-ml-waste-detection endpoint OR read from DB
  if (selectedProvider === 'AZURE') {
- const result = await apiClient.invoke('azure-cost-optimization', {
- body: { credentialId: selectedAccountId, categories: ['Cost'] }
+ // First try to read existing ML results from database
+ const dbResult = await apiClient.select('resource_utilization_ml', {
+ select: '*',
+ eq: { organization_id: organizationId, azure_credential_id: selectedAccountId, cloud_provider: 'AZURE' },
+ order: { column: 'potential_monthly_savings', ascending: false },
+ limit: 100
  });
  
- if (result.error) throw result.error;
- 
- const azureData = result.data as { recommendations?: any[]; summary?: { message?: string } };
- const recommendations = azureData.recommendations || [];
- 
- // If no recommendations, return empty array (real data - no simulations)
- if (recommendations.length === 0) {
- return [];
+ if (!dbResult.error && dbResult.data && dbResult.data.length > 0) {
+ return (dbResult.data || []) as MLRecommendation[];
  }
  
- // Transform Azure recommendations to ML recommendation format
- return recommendations.map((rec: any) => ({
- id: rec.id,
- organization_id: organizationId,
- azure_credential_id: selectedAccountId, // Use azure_credential_id for Azure
- resource_id: rec.resourceId || rec.id,
- resource_arn: rec.resourceId, // Azure resource ID as ARN equivalent
- resource_name: rec.resourceName || 'Azure Resource',
- resource_type: rec.resourceType || 'Azure Resource',
- resource_subtype: rec.impact,
- region: 'Azure',
- current_size: rec.currentSize,
- current_monthly_cost: rec.currentMonthlyCost,
- // Use actionType from backend (correctly mapped based on recommendation content)
- // NOT based on impact level - "High Impact" means high savings, not terminate!
- recommendation_type: rec.actionType || 'optimize',
- recommendation_priority: rec.impact === 'High' ? 5 : rec.impact === 'Medium' ? 4 : 3,
- recommended_size: rec.recommendedSize,
- potential_monthly_savings: rec.potentialSavings || 0,
- potential_annual_savings: (rec.potentialSavings || 0) * 12,
- ml_confidence: 0.95, // Real Azure Advisor data
- utilization_patterns: rec.utilizationPatterns,
- implementation_complexity: rec.implementationComplexity || 'medium',
- risk_assessment: rec.riskAssessment || 'low',
- analyzed_at: rec.lastUpdated || new Date().toISOString(),
- // Azure-specific fields for display - THE EXPLANATION
- _azure_description: rec.shortDescription,
- _azure_solution: rec.solution,
- _azure_reason: rec.reason, // The explanation/reason for the recommendation
- _azure_extended: rec.extendedProperties,
- })) as MLRecommendation[];
+ // No cached results — return empty (user needs to run analysis)
+ return [];
  }
 
  // For AWS, fetch from resource_utilization_ml table
@@ -384,9 +353,17 @@ export default function MLWasteDetection() {
 
  if (!selectedAccountId) throw new Error('No account');
 
- // For Azure, we don't have ML analysis history yet - return empty
+ // For Azure, fetch ML analysis history from database
  if (selectedProvider === 'AZURE') {
- return [] as MLAnalysisHistoryItem[];
+ const result = await apiClient.select('ml_analysis_history', {
+ select: '*',
+ eq: { organization_id: organizationId, azure_credential_id: selectedAccountId, cloud_provider: 'AZURE' },
+ order: { column: 'started_at', ascending: false },
+ limit: 20
+ });
+ 
+ if (result.error) throw result.error;
+ return (result.data || []) as MLAnalysisHistoryItem[];
  }
 
  const result = await apiClient.select('ml_analysis_history', {
@@ -431,19 +408,13 @@ export default function MLWasteDetection() {
  let data: { analyzed_resources?: number; total_monthly_savings?: number; recommendations?: any[]; totalPotentialSavings?: number };
  
  if (selectedProvider === 'AZURE') {
- // For Azure, call azure-cost-optimization endpoint
- result = await apiClient.invoke('azure-cost-optimization', {
- body: { credentialId: selectedAccountId, categories: ['Cost'] }
+ // For Azure, call azure-ml-waste-detection endpoint with real ML analysis
+ result = await apiClient.invoke('azure-ml-waste-detection', {
+ body: { credentialId: selectedAccountId, analysisDepth: 'deep' }
  });
  
  if (result.error) throw result.error;
- const azureData = result.data as { recommendations?: any[]; summary?: { totalPotentialSavings?: number; totalRecommendations?: number } };
- 
- data = {
- analyzed_resources: azureData.summary?.totalRecommendations || azureData.recommendations?.length || 0,
- total_monthly_savings: azureData.summary?.totalPotentialSavings || 
- azureData.recommendations?.reduce((sum: number, r: any) => sum + (r.potentialSavings || 0), 0) || 0,
- };
+ data = result.data as { analyzed_resources?: number; total_monthly_savings?: number; recommendations?: any[] };
  } else {
  // For AWS, call ml-waste-detection endpoint
  result = await apiClient.invoke('ml-waste-detection', {
