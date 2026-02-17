@@ -132,22 +132,50 @@ export async function handler(
              rec.shortDescription?.problem?.toLowerCase().includes('reservation') ||
              rec.recommendationTypeId?.toLowerCase().includes('reserved'))) {
           
-          const savingsAmount = rec.extendedProperties?.savingsAmount 
-            ? parseFloat(rec.extendedProperties.savingsAmount) 
-            : rec.extendedProperties?.annualSavingsAmount
-              ? parseFloat(rec.extendedProperties.annualSavingsAmount) / 12
+          const ext = rec.extendedProperties || {};
+          
+          const savingsAmount = ext.savingsAmount 
+            ? parseFloat(ext.savingsAmount) 
+            : ext.annualSavingsAmount
+              ? parseFloat(ext.annualSavingsAmount) / 12
               : 0;
+
+          const annualSavings = ext.annualSavingsAmount 
+            ? parseFloat(ext.annualSavingsAmount) 
+            : savingsAmount * 12;
 
           recommendations.push({
             type: 'NEW_PURCHASE',
             recommendation: rec.shortDescription?.solution || rec.shortDescription?.problem || 'Consider purchasing reserved capacity',
+            description: rec.shortDescription?.problem || '',
+            solution: rec.shortDescription?.solution || '',
             estimatedSavings: savingsAmount,
-            term: rec.extendedProperties?.term || '1 Year',
-            quantity: rec.extendedProperties?.recommendedQuantity ? parseInt(rec.extendedProperties.recommendedQuantity) : 1,
+            annualSavings,
+            term: ext.term || '1 Year',
+            quantity: ext.recommendedQuantity ? parseInt(ext.recommendedQuantity) : 1,
             priority: rec.impact === 'High' ? 'high' : rec.impact === 'Medium' ? 'medium' : 'low',
+            impact: rec.impact || 'Unknown',
             resourceType: rec.impactedField || 'Virtual Machine',
-            skuName: rec.extendedProperties?.targetSku || rec.extendedProperties?.vmSize || 'Unknown',
-            location: rec.extendedProperties?.region || 'Unknown',
+            impactedValue: rec.impactedValue || '',
+            skuName: ext.targetSku || ext.vmSize || 'Unknown',
+            location: ext.region || ext.location || 'Unknown',
+            // Extended details from Azure Advisor
+            currentSku: ext.currentSku || ext.vmSize || '',
+            targetSku: ext.targetSku || '',
+            scope: ext.scope || ext.subscriptionId || '',
+            lookbackPeriod: ext.lookbackPeriod || ext.lookBackPeriod || '30 days',
+            currentOnDemandCost: ext.costWithNoReservedInstances ? parseFloat(ext.costWithNoReservedInstances) : undefined,
+            costWithRI: ext.totalCostWithReservedInstances ? parseFloat(ext.totalCostWithReservedInstances) : undefined,
+            savingsPercentage: ext.savingsPercentage ? parseFloat(ext.savingsPercentage) : 
+              (ext.costWithNoReservedInstances && ext.totalCostWithReservedInstances) 
+                ? Math.round((1 - parseFloat(ext.totalCostWithReservedInstances) / parseFloat(ext.costWithNoReservedInstances)) * 100)
+                : undefined,
+            normalizedSize: ext.normalizedSize || '',
+            reservedResourceType: ext.reservedResourceType || ext.subCategory || 'VirtualMachines',
+            recommendationId: rec.name || '',
+            lastUpdated: rec.lastUpdated?.toISOString() || new Date().toISOString(),
+            // All extended properties for transparency
+            allExtendedProperties: ext,
           });
           
           totalSavings += savingsAmount;

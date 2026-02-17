@@ -16,7 +16,14 @@ import {
   Info,
   Loader2,
   Clock,
-  RefreshCw
+  RefreshCw,
+  ChevronRight,
+  ArrowLeft,
+  Server,
+  MapPin,
+  TrendingDown,
+  Layers,
+  FileText
 } from 'lucide-react';
 import { apiClient } from '@/integrations/aws/api-client';
 import { useTranslation } from 'react-i18next';
@@ -46,13 +53,33 @@ interface Recommendation {
   reservationName?: string;
   currentUtilization?: number;
   recommendation: string;
+  description?: string;
+  solution?: string;
   potentialSavings?: number;
   estimatedSavings?: number;
+  annualSavings?: number;
   priority: string;
+  impact?: string;
   expiryDate?: string;
   daysToExpiry?: number;
   term?: string;
   quantity?: number;
+  resourceType?: string;
+  impactedValue?: string;
+  skuName?: string;
+  location?: string;
+  currentSku?: string;
+  targetSku?: string;
+  scope?: string;
+  lookbackPeriod?: string;
+  currentOnDemandCost?: number;
+  costWithRI?: number;
+  savingsPercentage?: number;
+  normalizedSize?: string;
+  reservedResourceType?: string;
+  recommendationId?: string;
+  lastUpdated?: string;
+  allExtendedProperties?: Record<string, string>;
 }
 
 interface Summary {
@@ -85,6 +112,7 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
 
   // Auto-load on mount
   useEffect(() => {
@@ -404,64 +432,326 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
 
           {/* Recommendations Tab */}
           <TabsContent value="recommendations" className="space-y-4">
-            {analysis.recommendations.length === 0 ? (
-              <Card className="glass border-green-200 bg-green-50/50 dark:bg-green-900/10">
-                <CardContent className="py-8 text-center">
-                  <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-green-800 dark:text-green-200 mb-2">
-                    {t('azureReservations.noRecommendations', 'Nenhuma Recomendação')}
-                  </h3>
-                  <p className="text-green-700 dark:text-green-300">
-                    {t('azureReservations.wellOptimized', 'Suas reservas Azure estão bem otimizadas!')}
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              analysis.recommendations.map((rec, index) => (
-                <Card key={index} className="glass border-l-4 border-l-blue-500">
+            {selectedRecommendation ? (
+              /* Detail View */
+              <div className="space-y-6">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setSelectedRecommendation(null)}
+                  className="mb-2"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  {t('common.back', 'Voltar')}
+                </Button>
+
+                {/* Detail Header */}
+                <Card className="glass border-primary/20">
                   <CardHeader>
                     <div className="flex items-start justify-between">
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <CardTitle className="text-lg">
-                            {rec.type === 'OPTIMIZE_UTILIZATION' && t('azureReservations.optimizeUtil', 'Otimizar Utilização')}
-                            {rec.type === 'RENEWAL_NEEDED' && t('azureReservations.renewalNeeded', 'Renovação Necessária')}
-                            {rec.type === 'NEW_PURCHASE' && t('azureReservations.newPurchase', 'Nova Compra Recomendada')}
+                          <CardTitle className="text-xl">
+                            {selectedRecommendation.type === 'OPTIMIZE_UTILIZATION' && t('azureReservations.optimizeUtil', 'Otimizar Utilização')}
+                            {selectedRecommendation.type === 'RENEWAL_NEEDED' && t('azureReservations.renewalNeeded', 'Renovação Necessária')}
+                            {selectedRecommendation.type === 'NEW_PURCHASE' && t('azureReservations.newPurchase', 'Nova Compra Recomendada')}
                           </CardTitle>
-                          <Badge variant={getPriorityColor(rec.priority) as any}>
-                            {rec.priority === 'high' ? t('common.high', 'Alta') : 
-                             rec.priority === 'medium' ? t('common.medium', 'Média') : t('common.low', 'Baixa')}
+                          <Badge variant={getPriorityColor(selectedRecommendation.priority) as any}>
+                            {selectedRecommendation.priority === 'high' ? t('common.high', 'Alta') : 
+                             selectedRecommendation.priority === 'medium' ? t('common.medium', 'Média') : t('common.low', 'Baixa')}
                           </Badge>
                         </div>
-                        {rec.reservationName && (
-                          <CardDescription>{rec.reservationName}</CardDescription>
+                        {selectedRecommendation.reservationName && (
+                          <CardDescription className="text-base">{selectedRecommendation.reservationName}</CardDescription>
                         )}
                       </div>
-                      {(rec.potentialSavings || rec.estimatedSavings) && (
+                      {(selectedRecommendation.estimatedSavings || selectedRecommendation.potentialSavings) ? (
                         <div className="text-right">
-                          <div className="text-xl font-semibold text-green-600">
-                            {formatCurrency(rec.potentialSavings || rec.estimatedSavings || 0)}
+                          <div className="text-2xl font-semibold text-green-600">
+                            {formatCurrency(selectedRecommendation.estimatedSavings || selectedRecommendation.potentialSavings || 0)}
+                            <span className="text-sm text-muted-foreground font-normal">/mês</span>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {t('azureReservations.potentialSavings', 'economia potencial')}
-                          </div>
+                          {selectedRecommendation.annualSavings ? (
+                            <div className="text-sm text-muted-foreground">
+                              {formatCurrency(selectedRecommendation.annualSavings)}/ano
+                            </div>
+                          ) : null}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">{rec.recommendation}</p>
-                    {rec.daysToExpiry && (
-                      <div className="mt-3 flex items-center gap-2 text-sm">
-                        <Clock className="h-4 w-4 text-orange-500" />
-                        <span className="text-orange-600">
-                          {t('azureReservations.expiresIn', 'Expira em')} {rec.daysToExpiry} {t('common.days', 'dias')}
-                        </span>
+                    <p className="text-muted-foreground">{selectedRecommendation.recommendation}</p>
+                    {selectedRecommendation.description && selectedRecommendation.description !== selectedRecommendation.recommendation && (
+                      <p className="text-sm text-muted-foreground mt-2">{selectedRecommendation.description}</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Resource Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="glass border-primary/20">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Server className="h-4 w-4" />
+                        {t('azureReservations.resourceDetails', 'Detalhes do Recurso')}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {selectedRecommendation.resourceType && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.resourceType', 'Tipo de Recurso')}</span>
+                          <span className="font-medium">{selectedRecommendation.resourceType}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.reservedResourceType && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.reservedType', 'Tipo de Reserva')}</span>
+                          <span className="font-medium">{selectedRecommendation.reservedResourceType}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.skuName && selectedRecommendation.skuName !== 'Unknown' && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">SKU</span>
+                          <span className="font-medium">{selectedRecommendation.skuName}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.currentSku && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.currentSku', 'SKU Atual')}</span>
+                          <span className="font-medium">{selectedRecommendation.currentSku}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.targetSku && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.targetSku', 'SKU Recomendado')}</span>
+                          <span className="font-medium">{selectedRecommendation.targetSku}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.normalizedSize && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.normalizedSize', 'Tamanho Normalizado')}</span>
+                          <span className="font-medium">{selectedRecommendation.normalizedSize}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.impactedValue && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.impactedResource', 'Recurso Impactado')}</span>
+                          <span className="font-medium text-xs break-all">{selectedRecommendation.impactedValue}</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="glass border-primary/20">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <TrendingDown className="h-4 w-4" />
+                        {t('azureReservations.savingsDetails', 'Detalhes de Economia')}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {selectedRecommendation.quantity && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.recommendedQty', 'Quantidade Recomendada')}</span>
+                          <span className="font-medium">{selectedRecommendation.quantity}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.term && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.term', 'Termo')}</span>
+                          <span className="font-medium">{selectedRecommendation.term}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.currentOnDemandCost !== undefined && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.onDemandCost', 'Custo On-Demand')}</span>
+                          <span className="font-medium">{formatCurrency(selectedRecommendation.currentOnDemandCost)}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.costWithRI !== undefined && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.costWithRI', 'Custo com RI')}</span>
+                          <span className="font-medium text-green-600">{formatCurrency(selectedRecommendation.costWithRI)}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.savingsPercentage !== undefined && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.savingsPct', '% de Economia')}</span>
+                          <span className="font-medium text-green-600">{selectedRecommendation.savingsPercentage}%</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.currentUtilization !== undefined && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{t('azureReservations.currentUtil', 'Utilização Atual')}</span>
+                          <span className={`font-medium ${getUtilizationColor(selectedRecommendation.currentUtilization)}`}>
+                            {selectedRecommendation.currentUtilization}%
+                          </span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Location & Metadata */}
+                <Card className="glass border-primary/20">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      {t('azureReservations.metadata', 'Informações Adicionais')}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {selectedRecommendation.location && selectedRecommendation.location !== 'Unknown' && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">{t('azureReservations.location', 'Localização')}:</span>
+                          <span className="font-medium">{selectedRecommendation.location}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.lookbackPeriod && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">{t('azureReservations.lookback', 'Período de Análise')}:</span>
+                          <span className="font-medium">{selectedRecommendation.lookbackPeriod}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.lastUpdated && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">{t('azureReservations.lastUpdated', 'Atualizado')}:</span>
+                          <span className="font-medium">{new Date(selectedRecommendation.lastUpdated).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.daysToExpiry && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <AlertTriangle className="h-4 w-4 text-orange-500" />
+                          <span className="text-muted-foreground">{t('azureReservations.expiresIn', 'Expira em')}:</span>
+                          <span className="font-medium text-orange-600">{selectedRecommendation.daysToExpiry} {t('common.days', 'dias')}</span>
+                        </div>
+                      )}
+                      {selectedRecommendation.scope && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Layers className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">{t('azureReservations.scope', 'Escopo')}:</span>
+                          <span className="font-medium text-xs">{selectedRecommendation.scope}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Extended Properties (raw data for transparency) */}
+                    {selectedRecommendation.allExtendedProperties && Object.keys(selectedRecommendation.allExtendedProperties).length > 0 && (
+                      <div className="mt-6">
+                        <p className="text-sm font-medium mb-3">{t('azureReservations.rawData', 'Dados do Azure Advisor')}</p>
+                        <div className="bg-muted/30 rounded-lg p-4 max-h-60 overflow-y-auto">
+                          <div className="grid grid-cols-1 gap-2">
+                            {Object.entries(selectedRecommendation.allExtendedProperties).map(([key, value]) => (
+                              <div key={key} className="flex gap-2 text-xs">
+                                <span className="text-muted-foreground font-mono min-w-[180px]">{key}:</span>
+                                <span className="font-mono break-all">{String(value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </CardContent>
                 </Card>
-              ))
+              </div>
+            ) : (
+              /* List View */
+              <>
+                {analysis.recommendations.length === 0 ? (
+                  <Card className="glass border-green-200 bg-green-50/50 dark:bg-green-900/10">
+                    <CardContent className="py-8 text-center">
+                      <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-green-800 dark:text-green-200 mb-2">
+                        {t('azureReservations.noRecommendations', 'Nenhuma Recomendação')}
+                      </h3>
+                      <p className="text-green-700 dark:text-green-300">
+                        {t('azureReservations.wellOptimized', 'Suas reservas Azure estão bem otimizadas!')}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  analysis.recommendations.map((rec, index) => (
+                    <Card 
+                      key={index} 
+                      className="glass border-l-4 border-l-blue-500 cursor-pointer transition-all hover:shadow-md hover:border-l-blue-400"
+                      onClick={() => setSelectedRecommendation(rec)}
+                    >
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2">
+                              <CardTitle className="text-lg">
+                                {rec.type === 'OPTIMIZE_UTILIZATION' && t('azureReservations.optimizeUtil', 'Otimizar Utilização')}
+                                {rec.type === 'RENEWAL_NEEDED' && t('azureReservations.renewalNeeded', 'Renovação Necessária')}
+                                {rec.type === 'NEW_PURCHASE' && t('azureReservations.newPurchase', 'Nova Compra Recomendada')}
+                              </CardTitle>
+                              <Badge variant={getPriorityColor(rec.priority) as any}>
+                                {rec.priority === 'high' ? t('common.high', 'Alta') : 
+                                 rec.priority === 'medium' ? t('common.medium', 'Média') : t('common.low', 'Baixa')}
+                              </Badge>
+                            </div>
+                            {rec.reservationName && (
+                              <CardDescription>{rec.reservationName}</CardDescription>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {(rec.potentialSavings || rec.estimatedSavings) && (
+                              <div className="text-right">
+                                <div className="text-xl font-semibold text-green-600">
+                                  {formatCurrency(rec.potentialSavings || rec.estimatedSavings || 0)}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {t('azureReservations.potentialSavings', 'economia potencial')}
+                                </div>
+                              </div>
+                            )}
+                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground">{rec.recommendation}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                          {rec.skuName && rec.skuName !== 'Unknown' && (
+                            <div className="flex items-center gap-1">
+                              <Server className="h-3 w-3" />
+                              <span>{rec.skuName}</span>
+                            </div>
+                          )}
+                          {rec.location && rec.location !== 'Unknown' && (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              <span>{rec.location}</span>
+                            </div>
+                          )}
+                          {rec.term && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              <span>{rec.term}</span>
+                            </div>
+                          )}
+                          {rec.quantity && rec.quantity > 1 && (
+                            <div className="flex items-center gap-1">
+                              <Layers className="h-3 w-3" />
+                              <span>{rec.quantity}x</span>
+                            </div>
+                          )}
+                          {rec.daysToExpiry && (
+                            <div className="flex items-center gap-1 text-orange-600">
+                              <Clock className="h-3 w-3" />
+                              <span>{rec.daysToExpiry} {t('common.days', 'dias')}</span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </>
             )}
           </TabsContent>
         </Tabs>
