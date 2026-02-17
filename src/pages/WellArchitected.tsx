@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrganizationQuery } from "@/hooks/useOrganizationQuery";
+import { useOrganization } from "@/hooks/useOrganization";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
 import { toast } from "sonner";
@@ -62,6 +63,7 @@ const WellArchitected = () => {
   const [selectedRec, setSelectedRec] = useState<{ rec: any; pillarId: string; pillarName: string } | null>(null);
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { isInDemoMode } = useDemoAwareQuery();
+  const { data: resolvedOrgId } = useOrganization();
   const queryClient = useQueryClient();
 
   const togglePillarExpansion = (pillarId: string) => {
@@ -723,9 +725,9 @@ const WellArchitected = () => {
           </TabsContent>
 
           <TabsContent value="history" className="space-y-6">
-            {userProfile?.organization_id && (
+            {(resolvedOrgId || userProfile?.organization_id) && (
               <WellArchitectedHistory
-                organizationId={userProfile.organization_id}
+                organizationId={(resolvedOrgId || userProfile?.organization_id)!}
                 onViewScan={(scanId: string) => {
                   setViewingHistoricalScan(scanId);
                   setMainTab("analysis");
