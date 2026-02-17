@@ -144,6 +144,11 @@ export async function handler(
             ? parseFloat(ext.annualSavingsAmount) 
             : savingsAmount * 12;
 
+          const skuKey = ext.targetSku || ext.vmSize || 'Unknown';
+          const locationKey = ext.region || ext.location || 'Unknown';
+          const termKey = ext.term || '1 Year';
+          const qtyKey = ext.recommendedQuantity ? parseInt(ext.recommendedQuantity) : 1;
+
           recommendations.push({
             type: 'NEW_PURCHASE',
             recommendation: rec.shortDescription?.solution || rec.shortDescription?.problem || 'Consider purchasing reserved capacity',
@@ -151,15 +156,14 @@ export async function handler(
             solution: rec.shortDescription?.solution || '',
             estimatedSavings: savingsAmount,
             annualSavings,
-            term: ext.term || '1 Year',
-            quantity: ext.recommendedQuantity ? parseInt(ext.recommendedQuantity) : 1,
+            term: termKey,
+            quantity: qtyKey,
             priority: rec.impact === 'High' ? 'high' : rec.impact === 'Medium' ? 'medium' : 'low',
             impact: rec.impact || 'Unknown',
             resourceType: rec.impactedField || 'Virtual Machine',
             impactedValue: rec.impactedValue || '',
-            skuName: ext.targetSku || ext.vmSize || 'Unknown',
-            location: ext.region || ext.location || 'Unknown',
-            // Extended details from Azure Advisor
+            skuName: skuKey,
+            location: locationKey,
             currentSku: ext.currentSku || ext.vmSize || '',
             targetSku: ext.targetSku || '',
             scope: ext.scope || ext.subscriptionId || '',
@@ -174,17 +178,30 @@ export async function handler(
             reservedResourceType: ext.reservedResourceType || ext.subCategory || 'VirtualMachines',
             recommendationId: rec.name || '',
             lastUpdated: rec.lastUpdated?.toISOString() || new Date().toISOString(),
-            // All extended properties for transparency
+            // Group key for frontend to identify alternatives for same resource
+            groupKey: `${skuKey}__${locationKey}`,
             allExtendedProperties: ext,
           });
-          
-          totalSavings += savingsAmount;
         }
       }
       
       logger.info('Azure Advisor reservation recommendations fetched', { 
         recommendationsCount: recommendations.length 
       });
+
+      // Calculate totalSavings correctly: for grouped recommendations (same SKU+location),
+      // only count the best option (highest savings), not sum all alternatives
+      const groupedSavings = new Map<string, number>();
+      for (const rec of recommendations) {
+        const key = rec.groupKey || `${rec.skuName}__${rec.location}`;
+        const current = groupedSavings.get(key) || 0;
+        if (rec.estimatedSavings > current) {
+          groupedSavings.set(key, rec.estimatedSavings);
+        }
+      }
+      for (const savings of groupedSavings.values()) {
+        totalSavings += savings;
+      }
     } catch (err: any) {
       logger.warn('Error fetching from Azure Advisor', { error: err.message });
     }

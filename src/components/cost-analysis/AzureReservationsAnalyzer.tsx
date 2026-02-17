@@ -79,7 +79,18 @@ interface Recommendation {
   reservedResourceType?: string;
   recommendationId?: string;
   lastUpdated?: string;
+  groupKey?: string;
   allExtendedProperties?: Record<string, string>;
+}
+
+interface RecommendationGroup {
+  groupKey: string;
+  skuName: string;
+  location: string;
+  resourceType: string;
+  bestSavings: number;
+  priority: string;
+  options: Recommendation[];
 }
 
 interface Summary {
@@ -112,7 +123,39 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<RecommendationGroup | null>(null);
+
+  // Group recommendations by resource (SKU + location)
+  const groupedRecommendations: RecommendationGroup[] = (() => {
+    if (!analysis?.recommendations?.length) return [];
+    const groups = new Map<string, RecommendationGroup>();
+    for (const rec of analysis.recommendations) {
+      const key = rec.groupKey || `${rec.skuName || 'unknown'}__${rec.location || 'unknown'}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          groupKey: key,
+          skuName: rec.skuName || 'Unknown',
+          location: rec.location || 'Unknown',
+          resourceType: rec.resourceType || 'Virtual Machine',
+          bestSavings: 0,
+          priority: rec.priority,
+          options: [],
+        });
+      }
+      const group = groups.get(key)!;
+      group.options.push(rec);
+      const savings = rec.estimatedSavings || rec.potentialSavings || 0;
+      if (savings > group.bestSavings) {
+        group.bestSavings = savings;
+        group.priority = rec.priority;
+      }
+    }
+    // Sort options within each group by term (P3Y first = more savings usually)
+    for (const group of groups.values()) {
+      group.options.sort((a, b) => (b.estimatedSavings || 0) - (a.estimatedSavings || 0));
+    }
+    return Array.from(groups.values()).sort((a, b) => b.bestSavings - a.bestSavings);
+  })();
 
   // Auto-load on mount
   useEffect(() => {
@@ -432,236 +475,164 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
 
           {/* Recommendations Tab */}
           <TabsContent value="recommendations" className="space-y-4">
-            {selectedRecommendation ? (
-              /* Detail View */
+            {selectedGroup ? (
+              /* Group Detail View - shows all options for a resource */
               <div className="space-y-6">
                 <Button 
                   variant="ghost" 
-                  onClick={() => setSelectedRecommendation(null)}
+                  onClick={() => setSelectedGroup(null)}
                   className="mb-2"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   {t('common.back', 'Voltar')}
                 </Button>
 
-                {/* Detail Header */}
+                {/* Group Header */}
                 <Card className="glass border-primary/20">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <CardTitle className="text-xl">
-                            {selectedRecommendation.type === 'OPTIMIZE_UTILIZATION' && t('azureReservations.optimizeUtil', 'Otimizar Utilização')}
-                            {selectedRecommendation.type === 'RENEWAL_NEEDED' && t('azureReservations.renewalNeeded', 'Renovação Necessária')}
-                            {selectedRecommendation.type === 'NEW_PURCHASE' && t('azureReservations.newPurchase', 'Nova Compra Recomendada')}
-                          </CardTitle>
-                          <Badge variant={getPriorityColor(selectedRecommendation.priority) as any}>
-                            {selectedRecommendation.priority === 'high' ? t('common.high', 'Alta') : 
-                             selectedRecommendation.priority === 'medium' ? t('common.medium', 'Média') : t('common.low', 'Baixa')}
-                          </Badge>
-                        </div>
-                        {selectedRecommendation.reservationName && (
-                          <CardDescription className="text-base">{selectedRecommendation.reservationName}</CardDescription>
-                        )}
-                      </div>
-                      {(selectedRecommendation.estimatedSavings || selectedRecommendation.potentialSavings) ? (
-                        <div className="text-right">
-                          <div className="text-2xl font-semibold text-green-600">
-                            {formatCurrency(selectedRecommendation.estimatedSavings || selectedRecommendation.potentialSavings || 0)}
-                            <span className="text-sm text-muted-foreground font-normal">/mês</span>
-                          </div>
-                          {selectedRecommendation.annualSavings ? (
-                            <div className="text-sm text-muted-foreground">
-                              {formatCurrency(selectedRecommendation.annualSavings)}/ano
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">{selectedRecommendation.recommendation}</p>
-                    {selectedRecommendation.description && selectedRecommendation.description !== selectedRecommendation.recommendation && (
-                      <p className="text-sm text-muted-foreground mt-2">{selectedRecommendation.description}</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Resource Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="glass border-primary/20">
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Server className="h-4 w-4" />
-                        {t('azureReservations.resourceDetails', 'Detalhes do Recurso')}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {selectedRecommendation.resourceType && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.resourceType', 'Tipo de Recurso')}</span>
-                          <span className="font-medium">{selectedRecommendation.resourceType}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.reservedResourceType && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.reservedType', 'Tipo de Reserva')}</span>
-                          <span className="font-medium">{selectedRecommendation.reservedResourceType}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.skuName && selectedRecommendation.skuName !== 'Unknown' && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">SKU</span>
-                          <span className="font-medium">{selectedRecommendation.skuName}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.currentSku && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.currentSku', 'SKU Atual')}</span>
-                          <span className="font-medium">{selectedRecommendation.currentSku}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.targetSku && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.targetSku', 'SKU Recomendado')}</span>
-                          <span className="font-medium">{selectedRecommendation.targetSku}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.normalizedSize && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.normalizedSize', 'Tamanho Normalizado')}</span>
-                          <span className="font-medium">{selectedRecommendation.normalizedSize}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.impactedValue && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.impactedResource', 'Recurso Impactado')}</span>
-                          <span className="font-medium text-xs break-all">{selectedRecommendation.impactedValue}</span>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="glass border-primary/20">
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <TrendingDown className="h-4 w-4" />
-                        {t('azureReservations.savingsDetails', 'Detalhes de Economia')}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {selectedRecommendation.quantity && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.recommendedQty', 'Quantidade Recomendada')}</span>
-                          <span className="font-medium">{selectedRecommendation.quantity}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.term && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.term', 'Termo')}</span>
-                          <span className="font-medium">{selectedRecommendation.term}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.currentOnDemandCost !== undefined && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.onDemandCost', 'Custo On-Demand')}</span>
-                          <span className="font-medium">{formatCurrency(selectedRecommendation.currentOnDemandCost)}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.costWithRI !== undefined && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.costWithRI', 'Custo com RI')}</span>
-                          <span className="font-medium text-green-600">{formatCurrency(selectedRecommendation.costWithRI)}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.savingsPercentage !== undefined && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.savingsPct', '% de Economia')}</span>
-                          <span className="font-medium text-green-600">{selectedRecommendation.savingsPercentage}%</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.currentUtilization !== undefined && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{t('azureReservations.currentUtil', 'Utilização Atual')}</span>
-                          <span className={`font-medium ${getUtilizationColor(selectedRecommendation.currentUtilization)}`}>
-                            {selectedRecommendation.currentUtilization}%
+                        <CardTitle className="text-xl">{selectedGroup.skuName}</CardTitle>
+                        <CardDescription className="flex items-center gap-3 text-base">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-4 w-4" />
+                            {selectedGroup.location}
                           </span>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Location & Metadata */}
-                <Card className="glass border-primary/20">
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      {t('azureReservations.metadata', 'Informações Adicionais')}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {selectedRecommendation.location && selectedRecommendation.location !== 'Unknown' && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">{t('azureReservations.location', 'Localização')}:</span>
-                          <span className="font-medium">{selectedRecommendation.location}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.lookbackPeriod && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">{t('azureReservations.lookback', 'Período de Análise')}:</span>
-                          <span className="font-medium">{selectedRecommendation.lookbackPeriod}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.lastUpdated && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">{t('azureReservations.lastUpdated', 'Atualizado')}:</span>
-                          <span className="font-medium">{new Date(selectedRecommendation.lastUpdated).toLocaleDateString('pt-BR')}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.daysToExpiry && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <AlertTriangle className="h-4 w-4 text-orange-500" />
-                          <span className="text-muted-foreground">{t('azureReservations.expiresIn', 'Expira em')}:</span>
-                          <span className="font-medium text-orange-600">{selectedRecommendation.daysToExpiry} {t('common.days', 'dias')}</span>
-                        </div>
-                      )}
-                      {selectedRecommendation.scope && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Layers className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">{t('azureReservations.scope', 'Escopo')}:</span>
-                          <span className="font-medium text-xs">{selectedRecommendation.scope}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Extended Properties (raw data for transparency) */}
-                    {selectedRecommendation.allExtendedProperties && Object.keys(selectedRecommendation.allExtendedProperties).length > 0 && (
-                      <div className="mt-6">
-                        <p className="text-sm font-medium mb-3">{t('azureReservations.rawData', 'Dados do Azure Advisor')}</p>
-                        <div className="bg-muted/30 rounded-lg p-4 max-h-60 overflow-y-auto">
-                          <div className="grid grid-cols-1 gap-2">
-                            {Object.entries(selectedRecommendation.allExtendedProperties).map(([key, value]) => (
-                              <div key={key} className="flex gap-2 text-xs">
-                                <span className="text-muted-foreground font-mono min-w-[180px]">{key}:</span>
-                                <span className="font-mono break-all">{String(value)}</span>
-                              </div>
-                            ))}
-                          </div>
+                          <span className="flex items-center gap-1">
+                            <Server className="h-4 w-4" />
+                            {selectedGroup.resourceType}
+                          </span>
+                        </CardDescription>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-muted-foreground">{t('azureReservations.bestOption', 'Melhor opção')}</div>
+                        <div className="text-2xl font-semibold text-green-600">
+                          {formatCurrency(selectedGroup.bestSavings)}
+                          <span className="text-sm text-muted-foreground font-normal">/mês</span>
                         </div>
                       </div>
-                    )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        {t('azureReservations.optionsExplanation', 'O Azure Advisor sugere diferentes opções de reserva para este recurso. Cada opção varia em termo (1 ou 3 anos) e quantidade. Escolha a que melhor se adequa ao seu planejamento. Os valores não devem ser somados — você escolhe apenas uma opção.')}
+                      </AlertDescription>
+                    </Alert>
                   </CardContent>
                 </Card>
+
+                {/* Options comparison */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">
+                    {t('azureReservations.availableOptions', 'Opções Disponíveis')} ({selectedGroup.options.length})
+                  </h3>
+                  {selectedGroup.options.map((option, idx) => (
+                    <Card 
+                      key={idx} 
+                      className={`glass border-l-4 ${idx === 0 ? 'border-l-green-500 ring-1 ring-green-200 dark:ring-green-800' : 'border-l-blue-500'}`}
+                    >
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <CardTitle className="text-base">
+                                {t('azureReservations.option', 'Opção')} {idx + 1}: {option.term || 'N/A'}
+                                {option.quantity && option.quantity > 1 ? ` · ${option.quantity}x` : ''}
+                              </CardTitle>
+                              {idx === 0 && (
+                                <Badge variant="default" className="bg-green-600">
+                                  {t('azureReservations.bestSavings', 'Maior economia')}
+                                </Badge>
+                              )}
+                              <Badge variant={getPriorityColor(option.priority) as any}>
+                                {option.priority === 'high' ? t('common.high', 'Alta') : 
+                                 option.priority === 'medium' ? t('common.medium', 'Média') : t('common.low', 'Baixa')}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl font-semibold text-green-600">
+                              {formatCurrency(option.estimatedSavings || option.potentialSavings || 0)}
+                              <span className="text-sm text-muted-foreground font-normal">/mês</span>
+                            </div>
+                            {option.annualSavings ? (
+                              <div className="text-xs text-muted-foreground">
+                                {formatCurrency(option.annualSavings)}/ano
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          {option.term && (
+                            <div>
+                              <span className="text-muted-foreground">{t('azureReservations.term', 'Termo')}:</span>
+                              <span className="ml-2 font-medium">{option.term}</span>
+                            </div>
+                          )}
+                          {option.quantity && (
+                            <div>
+                              <span className="text-muted-foreground">{t('azureReservations.quantity', 'Quantidade')}:</span>
+                              <span className="ml-2 font-medium">{option.quantity}</span>
+                            </div>
+                          )}
+                          {option.currentOnDemandCost !== undefined && (
+                            <div>
+                              <span className="text-muted-foreground">{t('azureReservations.onDemandCost', 'Custo On-Demand')}:</span>
+                              <span className="ml-2 font-medium">{formatCurrency(option.currentOnDemandCost)}</span>
+                            </div>
+                          )}
+                          {option.costWithRI !== undefined && (
+                            <div>
+                              <span className="text-muted-foreground">{t('azureReservations.costWithRI', 'Custo com RI')}:</span>
+                              <span className="ml-2 font-medium text-green-600">{formatCurrency(option.costWithRI)}</span>
+                            </div>
+                          )}
+                          {option.savingsPercentage !== undefined && (
+                            <div>
+                              <span className="text-muted-foreground">{t('azureReservations.savingsPct', '% Economia')}:</span>
+                              <span className="ml-2 font-medium text-green-600">{option.savingsPercentage}%</span>
+                            </div>
+                          )}
+                          {option.lookbackPeriod && (
+                            <div>
+                              <span className="text-muted-foreground">{t('azureReservations.lookback', 'Análise')}:</span>
+                              <span className="ml-2 font-medium">{option.lookbackPeriod}</span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-3">{option.recommendation}</p>
+
+                        {/* Raw data toggle */}
+                        {option.allExtendedProperties && Object.keys(option.allExtendedProperties).length > 0 && (
+                          <details className="mt-4">
+                            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                              {t('azureReservations.rawData', 'Dados do Azure Advisor')}
+                            </summary>
+                            <div className="bg-muted/30 rounded-lg p-3 mt-2 max-h-40 overflow-y-auto">
+                              <div className="grid grid-cols-1 gap-1">
+                                {Object.entries(option.allExtendedProperties).map(([key, value]) => (
+                                  <div key={key} className="flex gap-2 text-xs">
+                                    <span className="text-muted-foreground font-mono min-w-[160px]">{key}:</span>
+                                    <span className="font-mono break-all">{String(value)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </details>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
             ) : (
-              /* List View */
+              /* Grouped List View */
               <>
-                {analysis.recommendations.length === 0 ? (
+                {groupedRecommendations.length === 0 ? (
                   <Card className="glass border-green-200 bg-green-50/50 dark:bg-green-900/10">
                     <CardContent className="py-8 text-center">
                       <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
@@ -674,100 +645,74 @@ export function AzureReservationsAnalyzer({ credentialId }: AzureReservationsAna
                     </CardContent>
                   </Card>
                 ) : (
-                  analysis.recommendations.map((rec, index) => {
-                    // Build a descriptive title that differentiates each recommendation
-                    const skuLabel = rec.skuName && rec.skuName !== 'Unknown' ? rec.skuName : '';
-                    const locationLabel = rec.location && rec.location !== 'Unknown' ? rec.location : '';
-                    const termLabel = rec.term || '';
-                    const qtyLabel = rec.quantity && rec.quantity > 1 ? `${rec.quantity}x` : '';
-                    
-                    // Create a unique subtitle from available details
-                    const subtitleParts = [skuLabel, locationLabel, termLabel, qtyLabel].filter(Boolean);
-                    const subtitle = subtitleParts.join(' · ');
-
-                    return (
-                      <Card 
-                        key={index} 
-                        className="glass border-l-4 border-l-blue-500 cursor-pointer transition-all hover:shadow-md hover:border-l-blue-400"
-                        onClick={() => setSelectedRecommendation(rec)}
-                      >
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-1 flex-1">
-                              <div className="flex items-center gap-2">
-                                <CardTitle className="text-lg">
-                                  {skuLabel || (
-                                    <>
-                                      {rec.type === 'OPTIMIZE_UTILIZATION' && t('azureReservations.optimizeUtil', 'Otimizar Utilização')}
-                                      {rec.type === 'RENEWAL_NEEDED' && t('azureReservations.renewalNeeded', 'Renovação Necessária')}
-                                      {rec.type === 'NEW_PURCHASE' && t('azureReservations.newPurchase', 'Nova Compra Recomendada')}
-                                    </>
-                                  )}
-                                </CardTitle>
-                                <Badge variant={getPriorityColor(rec.priority) as any}>
-                                  {rec.priority === 'high' ? t('common.high', 'Alta') : 
-                                   rec.priority === 'medium' ? t('common.medium', 'Média') : t('common.low', 'Baixa')}
+                  groupedRecommendations.map((group) => (
+                    <Card 
+                      key={group.groupKey} 
+                      className="glass border-l-4 border-l-blue-500 cursor-pointer transition-all hover:shadow-md hover:border-l-blue-400"
+                      onClick={() => setSelectedGroup(group)}
+                    >
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2">
+                              <CardTitle className="text-lg">{group.skuName}</CardTitle>
+                              <Badge variant={getPriorityColor(group.priority) as any}>
+                                {group.priority === 'high' ? t('common.high', 'Alta') : 
+                                 group.priority === 'medium' ? t('common.medium', 'Média') : t('common.low', 'Baixa')}
+                              </Badge>
+                              {group.options.length > 1 && (
+                                <Badge variant="outline">
+                                  {group.options.length} {t('azureReservations.options', 'opções')}
                                 </Badge>
-                              </div>
-                              {subtitle && (
-                                <CardDescription className="flex items-center gap-2 flex-wrap">
-                                  {locationLabel && (
-                                    <span className="flex items-center gap-1">
-                                      <MapPin className="h-3 w-3" />
-                                      {locationLabel}
-                                    </span>
-                                  )}
-                                  {termLabel && (
-                                    <span className="flex items-center gap-1">
-                                      <Calendar className="h-3 w-3" />
-                                      {termLabel}
-                                    </span>
-                                  )}
-                                  {qtyLabel && (
-                                    <span className="flex items-center gap-1">
-                                      <Layers className="h-3 w-3" />
-                                      {qtyLabel}
-                                    </span>
-                                  )}
-                                  {rec.resourceType && (
-                                    <span className="flex items-center gap-1">
-                                      <Server className="h-3 w-3" />
-                                      {rec.resourceType}
-                                    </span>
-                                  )}
-                                </CardDescription>
-                              )}
-                              {rec.reservationName && (
-                                <CardDescription>{rec.reservationName}</CardDescription>
                               )}
                             </div>
-                            <div className="flex items-center gap-3">
-                              {(rec.potentialSavings || rec.estimatedSavings) && (
-                                <div className="text-right">
-                                  <div className="text-xl font-semibold text-green-600">
-                                    {formatCurrency(rec.potentialSavings || rec.estimatedSavings || 0)}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {rec.savingsPercentage ? `${rec.savingsPercentage}% ${t('azureReservations.potentialSavings', 'economia potencial')}` : t('azureReservations.potentialSavings', 'economia potencial')}
-                                  </div>
-                                </div>
+                            <CardDescription className="flex items-center gap-3 flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {group.location}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Server className="h-3 w-3" />
+                                {group.resourceType}
+                              </span>
+                              {group.options.length > 1 && (
+                                <span className="flex items-center gap-1 text-blue-600">
+                                  <Info className="h-3 w-3" />
+                                  {t('azureReservations.clickToCompare', 'Clique para comparar opções')}
+                                </span>
                               )}
-                              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                            </div>
+                            </CardDescription>
                           </div>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-sm text-muted-foreground">{rec.recommendation}</p>
-                          {rec.daysToExpiry && (
-                            <div className="mt-3 flex items-center gap-1 text-xs text-orange-600">
-                              <Clock className="h-3 w-3" />
-                              <span>{rec.daysToExpiry} {t('common.days', 'dias')}</span>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <div className="text-xl font-semibold text-green-600">
+                                {formatCurrency(group.bestSavings)}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {group.options.length > 1 
+                                  ? t('azureReservations.bestOfOptions', 'melhor das {{count}} opções', { count: group.options.length })
+                                  : t('azureReservations.potentialSavings', 'economia potencial')
+                                }
+                              </div>
                             </div>
-                          )}
+                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        </div>
+                      </CardHeader>
+                      {group.options.length > 1 && (
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2">
+                            {group.options.map((opt, idx) => (
+                              <div key={idx} className="text-xs bg-muted/50 rounded-md px-2 py-1 flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {opt.term}{opt.quantity && opt.quantity > 1 ? ` · ${opt.quantity}x` : ''} — {formatCurrency(opt.estimatedSavings || 0)}/mês
+                              </div>
+                            ))}
+                          </div>
                         </CardContent>
-                      </Card>
-                    );
-                  })
+                      )}
+                    </Card>
+                  ))
                 )}
               </>
             )}
