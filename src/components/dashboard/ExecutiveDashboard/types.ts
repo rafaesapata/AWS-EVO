@@ -8,6 +8,7 @@ export interface ExecutiveSummary {
   mtdSpend: number;
   budget: number;
   budgetUtilization: number;
+  budgetSource?: 'auto' | 'manual';
   potentialSavings: number;
   uptimeSLA: number;
   activeAlerts: {

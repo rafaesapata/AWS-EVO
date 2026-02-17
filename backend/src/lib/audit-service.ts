@@ -63,7 +63,8 @@ export type AuditAction =
   | 'EVO_APP_CREDENTIALS_UPDATE'
   | 'EVO_APP_CREDENTIALS_SYNC'
   | 'WEBAUTHN_CREDENTIAL_DELETED'
-  | 'WEBAUTHN_ALL_CREDENTIALS_DELETED';
+  | 'WEBAUTHN_ALL_CREDENTIALS_DELETED'
+  | 'BUDGET_UPDATE';
 
 export type AuditResourceType =
   | 'user'
@@ -89,7 +90,8 @@ export type AuditResourceType =
   | 'organization_license_config'
   | 'license_seat_assignment'
   | 'data'
-  | 'webauthn_credential';
+  | 'webauthn_credential'
+  | 'cloud_budget';
 
 export interface AuditLogParams {
   organizationId: string;

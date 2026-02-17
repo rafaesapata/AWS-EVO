@@ -26,6 +26,7 @@ interface ExecutiveSummary {
   mtdSpend: number;
   budget: number;
   budgetUtilization: number;
+  budgetSource?: string;
   potentialSavings: number;
   uptimeSLA: number;
   activeAlerts: {
@@ -42,6 +43,7 @@ interface FinancialHealth {
   netCost: number;
   budget: number;
   budgetUtilization: number;
+  budgetSource?: string;
   topServices: Array<{
     service: string;
     cost: number;
@@ -333,6 +335,7 @@ async function getFinancialData(
   startOfYear: Date,
   provider?: string
 ): Promise<FinancialHealth> {
+  const now = new Date();
   
   // Base filter for tables WITH azure_credential_id (DailyCost, etc.)
   const baseFilter: any = { organization_id: organizationId };
@@ -453,6 +456,7 @@ async function getFinancialData(
   // Buscar budget real da tabela cloud_budgets
   const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   let budgetAmount = 0;
+  let budgetSource: string = 'fallback';
   try {
     const budget = await prisma.cloudBudget.findUnique({
       where: {
@@ -465,6 +469,7 @@ async function getFinancialData(
     });
     if (budget) {
       budgetAmount = budget.amount;
+      budgetSource = budget.source;
     } else {
       // Fallback: auto-fill com 85% do mês anterior se não existe budget
       const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
@@ -479,6 +484,7 @@ async function getFinancialData(
       const prevTotal = Number(prevCosts._sum?.cost || 0);
       if (prevTotal > 0) {
         budgetAmount = Math.round(prevTotal * 0.85 * 100) / 100;
+        budgetSource = 'auto';
         // Salvar auto-fill para próximas consultas
         try {
           await prisma.cloudBudget.create({
@@ -516,6 +522,7 @@ async function getFinancialData(
     netCost: mtdTotal,
     budget: budgetAmount,
     budgetUtilization: budgetAmount > 0 ? (mtdTotal / budgetAmount) * 100 : 0,
+    budgetSource,
     topServices: sortedServices,
     savings: {
       potential: costOptimizationsSum + riSpRecommendationsSum,
@@ -1265,6 +1272,7 @@ function calculateExecutiveSummary(
     mtdSpend: financial.mtdCost,
     budget: financial.budget,
     budgetUtilization: financial.budgetUtilization,
+    budgetSource: financial.budgetSource,
     potentialSavings: financial.savings.potential,
     uptimeSLA: operations.uptime.current,
     activeAlerts: {

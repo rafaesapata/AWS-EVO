@@ -137,6 +137,7 @@ export const COST_LAMBDAS: LambdaDefinition[] = [
   { name: 'generate-cost-forecast', type: 'http', auth: 'cognito', safe: true, domain: 'cost', description: 'Generate cost forecast' },
   { name: 'finops-copilot', type: 'http', auth: 'cognito', safe: true, domain: 'cost', description: 'FinOps copilot' },
   { name: 'ml-waste-detection', type: 'http', auth: 'cognito', safe: true, domain: 'cost', description: 'ML waste detection' },
+  { name: 'manage-cloud-budget', type: 'http', auth: 'cognito', safe: false, domain: 'cost', description: 'Manage cloud budget' },
 ];
 
 // ============================================================================

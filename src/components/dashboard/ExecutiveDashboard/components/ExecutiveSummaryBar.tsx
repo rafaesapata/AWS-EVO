@@ -8,7 +8,7 @@
  * - Right column: 2x2 grid with SLA, Gasto MTD, Alertas, Economia
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import type { ExecutiveSummary } from '../types';
@@ -19,6 +19,9 @@ import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
 import { CurrencyIndicator } from '@/components/ui/currency-indicator';
 import { useCountUp } from '@/hooks/useCountUp';
+import { apiClient } from '@/integrations/aws/api-client';
+import { Pencil, Check, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Props {
   data: ExecutiveSummary;
@@ -42,6 +45,48 @@ export default function ExecutiveSummaryBar({ data }: Props) {
     const timer = requestAnimationFrame(() => setBarWidth(budgetPercentage));
     return () => cancelAnimationFrame(timer);
   }, [budgetPercentage]);
+
+  // Budget inline editing
+  const [isEditingBudget, setIsEditingBudget] = useState(false);
+  const [budgetInput, setBudgetInput] = useState('');
+  const [savingBudget, setSavingBudget] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditingBudget && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingBudget]);
+
+  const handleEditBudget = () => {
+    setBudgetInput(String(Math.round(data.budget)));
+    setIsEditingBudget(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingBudget(false);
+    setBudgetInput('');
+  };
+
+  const handleSaveBudget = async () => {
+    const amount = parseFloat(budgetInput);
+    if (isNaN(amount) || amount < 0) return;
+    setSavingBudget(true);
+    try {
+      await apiClient.lambda('manage-cloud-budget', {
+        action: 'save',
+        provider: selectedProvider || 'AWS',
+        amount,
+      });
+      toast.success(t('executiveDashboard.budgetSaved', 'Orçamento salvo'));
+      setIsEditingBudget(false);
+    } catch {
+      toast.error('Failed to save budget');
+    } finally {
+      setSavingBudget(false);
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
@@ -137,16 +182,61 @@ export default function ExecutiveSummaryBar({ data }: Props) {
             {/* Budget bar with label and percentage on same line */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-light text-[#00B2FF]">
-                  {t('executiveDashboard.budget', 'Orçamento')}
-                </span>
-                <span className={cn(
-                  'font-light tabular-nums',
-                  budgetPercentage >= 90 ? 'text-red-500' : 
-                  budgetPercentage >= 75 ? 'text-amber-500' : 'text-[#00B2FF]'
-                )}>
-                  {animatedBudget.toFixed(0)}%
-                </span>
+                {isEditingBudget ? (
+                  <div className="flex items-center gap-1.5 w-full">
+                    <span className="font-light text-[#00B2FF] shrink-0">{sym}</span>
+                    <input
+                      ref={inputRef}
+                      type="number"
+                      min="0"
+                      step="100"
+                      value={budgetInput}
+                      onChange={(e) => setBudgetInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveBudget();
+                        if (e.key === 'Escape') handleCancelEdit();
+                      }}
+                      disabled={savingBudget}
+                      className="w-24 px-1.5 py-0.5 text-sm border border-[#00B2FF]/40 rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#00B2FF] tabular-nums"
+                    />
+                    <button
+                      onClick={handleSaveBudget}
+                      disabled={savingBudget}
+                      className="p-0.5 text-green-600 hover:text-green-700 transition-colors"
+                      aria-label={t('executiveDashboard.budgetSave', 'Salvar')}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+                      aria-label={t('executiveDashboard.budgetCancel', 'Cancelar')}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleEditBudget}
+                      className="font-light text-[#00B2FF] hover:underline flex items-center gap-1 cursor-pointer group"
+                      title={t('executiveDashboard.budgetEdit', 'Clique para editar orçamento')}
+                    >
+                      {t('executiveDashboard.budget', 'Orçamento')}: {sym}{data.budget.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {data.budgetSource === 'auto' && (
+                        <span className="text-[10px] text-gray-400 ml-1">({t('executiveDashboard.budgetAutoFilled', 'auto')})</span>
+                      )}
+                    </button>
+                    <span className={cn(
+                      'font-light tabular-nums',
+                      budgetPercentage >= 90 ? 'text-red-500' : 
+                      budgetPercentage >= 75 ? 'text-amber-500' : 'text-[#00B2FF]'
+                    )}>
+                      {animatedBudget.toFixed(0)}%
+                    </span>
+                  </>
+                )}
               </div>
               <div className="h-2 bg-[#E5E5E5] rounded-full overflow-hidden">
                 <div 

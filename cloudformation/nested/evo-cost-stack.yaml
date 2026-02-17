@@ -866,6 +866,80 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/ri-sp-analyzer'
+  ManageCloudBudgetFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-cloud-budget'
+      Runtime: nodejs18.x
+      Handler: manage-cloud-budget.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/manage-cloud-budget.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 30
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  ManageCloudBudgetResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref FunctionsResourceId
+      PathPart: manage-cloud-budget
+
+  ManageCloudBudgetOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ManageCloudBudgetResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,X-API-Key,X-Request-ID,X-CSRF-Token,X-Correlation-ID,X-Amz-Date,X-Amz-Security-Token,X-Impersonate-Organization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ManageCloudBudgetPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ManageCloudBudgetResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ManageCloudBudgetFunction.Arn}/invocations'
+
+  ManageCloudBudgetPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ManageCloudBudgetFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/api/functions/manage-cloud-budget'
 
 Outputs:
   AnalyzeRiSpFunctionArn:
@@ -916,3 +990,7 @@ Outputs:
     Value: !GetAtt SaveRiSpAnalysisFunction.Arn
     Export:
       Name: !Sub '${ProjectName}-${Environment}-save-ri-sp-analysis-arn'
+  ManageCloudBudgetFunctionArn:
+    Value: !GetAtt ManageCloudBudgetFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-manage-cloud-budget-arn'
