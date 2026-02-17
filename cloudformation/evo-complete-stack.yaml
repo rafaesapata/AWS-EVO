@@ -2725,6 +2725,31 @@ Resources:
               Host: !Ref DatabaseEndpoint
           NODE_PATH: /opt/nodejs/node_modules
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+  CheckSlaEscalationsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-check-sla-escalations'
+      Runtime: nodejs18.x
+      Handler: check-sla-escalations.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: handlers/jobs/check-sla-escalations.zip
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 120
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: [!Ref LambdaSecurityGroupId]
+        SubnetIds: [!Ref PrivateSubnet1Id, !Ref PrivateSubnet2Id]
+      Layers: [!Ref LambdaLayerArn]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 
+            - 'postgresql://${Username}:${Password}@${Host}:5432/evouds?schema=public&sslmode=require'
+            - Username: !Sub '{{resolve:secretsmanager:${DatabaseSecretArn}:SecretString:username}}'
+              Password: !Sub '{{resolve:secretsmanager:${DatabaseSecretArn}:SecretString:password}}'
+              Host: !Ref DatabaseEndpoint
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
   SendScheduledEmailsFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -13806,6 +13831,11 @@ Outputs:
     Value: !GetAtt SendScheduledEmailsFunction.Arn
     Export:
       Name: !Sub '${ProjectName}-${Environment}-send-scheduled-emails-arn'
+  CheckSlaEscalationsFunctionArn:
+    Description: ARN of check-sla-escalations Lambda function
+    Value: !GetAtt CheckSlaEscalationsFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-check-sla-escalations-arn'
   SyncResourceInventoryFunctionArn:
     Description: ARN of sync-resource-inventory Lambda function
     Value: !GetAtt SyncResourceInventoryFunction.Arn

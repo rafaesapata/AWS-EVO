@@ -282,6 +282,29 @@ Resources:
           NODE_PATH: /opt/nodejs/node_modules
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
           AWS_ACCOUNT_ID: !Ref AWS::AccountId
+  CheckSlaEscalationsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-check-sla-escalations'
+      Runtime: nodejs18.x
+      Handler: check-sla-escalations.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub 'lambdas/check-sla-escalations.zip'
+      Role: !Ref LambdaExecutionRoleArn
+      Timeout: 120
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+        SubnetIds: !Ref PrivateSubnetIds
+      Layers:
+        - !Ref LambdaLayerArn
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          NODE_PATH: /opt/nodejs/node_modules
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
   SendScheduledEmailsFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -582,6 +605,10 @@ Outputs:
     Value: !GetAtt SendScheduledEmailsFunction.Arn
     Export:
       Name: !Sub '${ProjectName}-${Environment}-send-scheduled-emails-arn'
+  CheckSlaEscalationsFunctionArn:
+    Value: !GetAtt CheckSlaEscalationsFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-check-sla-escalations-arn'
   SyncResourceInventoryFunctionArn:
     Value: !GetAtt SyncResourceInventoryFunction.Arn
     Export:

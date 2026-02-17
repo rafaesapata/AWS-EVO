@@ -2825,6 +2825,32 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+  CheckSlaEscalationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-check-sla-escalations'
+      CodeUri: ../backend/src/handlers/jobs/
+      Handler: check-sla-escalations.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 120
+      Events:
+        ScheduleSlaCheck:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Description: Check SLA breaches and escalations every 15 minutes
+            Enabled: true
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - check-sla-escalations.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
   SendScheduledEmailsFunction:
     Type: AWS::Serverless::Function
     Properties:
