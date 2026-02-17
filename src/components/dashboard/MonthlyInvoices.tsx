@@ -600,7 +600,18 @@ export const MonthlyInvoices = () => {
               
               const prevMonth = sortedMonths[index + 1];
               const prevData = prevMonth ? monthlyData[prevMonth] : null;
-              const change = prevData ? calculatePercentageChange(data.netCost, prevData.netCost) : 0;
+              // Proportional comparison: if current month is partial (fewer days than previous),
+              // scale previous month's cost to the same number of days for a fair comparison
+              let change = 0;
+              if (prevData && prevData.netCost > 0) {
+                const [prevYear, prevMonthNum] = prevMonth!.split('-');
+                const daysInPrevMonth = new Date(parseInt(prevYear), parseInt(prevMonthNum), 0).getDate();
+                const prevDaysWithData = prevData.days || daysInPrevMonth;
+                const currentDays = data.days || 1;
+                // Scale previous cost proportionally: (prevCost / prevDays) * currentDays
+                const prevCostProportional = (prevData.netCost / prevDaysWithData) * currentDays;
+                change = calculatePercentageChange(data.netCost, prevCostProportional);
+              }
 
               return (
                 <div 

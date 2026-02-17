@@ -200,6 +200,9 @@ export async function handler(
         regions: regions || credential.regions,
         scanId: scan.id,
         backgroundJobId: job.id,
+        // Pass organizationId directly so the scan handler doesn't need to re-derive it
+        // from auth claims (which may differ if impersonation header is lost)
+        organizationId,
       }),
       requestContext: {
         http: { method: 'POST' },
@@ -208,6 +211,8 @@ export async function handler(
       headers: {
         authorization: event.headers?.authorization || event.headers?.Authorization || '',
         'content-type': 'application/json',
+        // Forward impersonation header so the scan handler resolves the same org
+        'x-impersonate-organization': event.headers?.['x-impersonate-organization'] || '',
       },
     };
 
