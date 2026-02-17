@@ -559,7 +559,7 @@ export async function handler(
         region: '',
         compliance: finding.compliance.map(c => `${c.framework}:${c.controlId}`),
         remediation: finding.remediation.description,
-        evidence: {},
+        evidence: finding.evidence || {},
         risk_vector: '',
         details: JSON.parse(JSON.stringify({
           title: finding.title,
@@ -597,7 +597,12 @@ export async function handler(
         region: finding.region || '',
         compliance: finding.complianceFrameworks || [],
         remediation: finding.remediation || '',
-        evidence: {},
+        evidence: finding.metadata ? JSON.parse(JSON.stringify({
+          resourceName: finding.resourceName,
+          resourceGroup: finding.resourceGroup,
+          region: finding.region,
+          ...finding.metadata,
+        })) : {},
         risk_vector: '',
         details: JSON.parse(JSON.stringify({
           title: finding.title,
