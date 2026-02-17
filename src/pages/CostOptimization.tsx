@@ -995,7 +995,7 @@ export default function CostOptimization() {
         organization_id: organizationId,
         ...accountFilter,
         title: `[${t('costOptimization.title', 'Cost Optimization')}] ${rec.resource_name}`,
-        description: `${rec.description}\n\n${t('costOptimization.recommendation', 'Recommendation')}: ${rec.recommendation}\n\n${t('costOptimization.potentialSavings', 'Potential Savings')}: $${rec.potential_savings.toFixed(2)}/mês (${rec.savings_percentage.toFixed(1)}%)`,
+        description: `${rec.description}\n\n${t('costOptimization.recommendation', 'Recommendation')}: ${rec.recommendation}\n\n${t('costOptimization.potentialSavings', 'Potential Savings')}: ${sym}${rec.potential_savings.toFixed(2)}/mês (${rec.savings_percentage.toFixed(1)}%)`,
         severity: rec.confidence === 'high' ? 'high' : rec.confidence === 'medium' ? 'medium' : 'low',
         priority: rec.impact === 'high' ? 'high' : rec.impact === 'medium' ? 'medium' : 'low',
         status: 'open',
@@ -1243,7 +1243,7 @@ export default function CostOptimization() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('costOptimization.monthlyCost', 'Monthly Cost')}</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('costOptimization.monthlyCost', 'Monthly Cost')} <CurrencyIndicator /></CardTitle>
           </CardHeader>
           <CardContent>
             {metricsLoading ? (
@@ -1754,7 +1754,7 @@ export default function CostOptimization() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number | undefined) => `$${(value ?? 0).toFixed(2)}`} />
+                      <Tooltip formatter={(value: number | undefined) => `${sym}${(value ?? 0).toFixed(2)}`} />
                       <Legend 
                         layout="vertical" 
                         align="right" 
@@ -1762,7 +1762,7 @@ export default function CostOptimization() {
                         wrapperStyle={{ paddingLeft: '10px', fontSize: '11px' }}
                         formatter={(value) => {
                           const item = chartData.find(d => d.type === value);
-                          return `${value}: $${item?.savings?.toFixed(0) || 0}`;
+                          return `${value}: ${sym}${item?.savings?.toFixed(0) || 0}`;
                         }}
                       />
                     </PieChart>
@@ -1949,11 +1949,11 @@ export default function CostOptimization() {
                   </Card>
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">{t('costOptimization.optimizedCost', 'Optimized Cost')}</p>
-                    <p className="text-xl font-semibold text-green-500">${selectedRecommendation.optimized_cost.toFixed(2)}</p>
+                    <p className="text-xl font-semibold text-green-500">{sym}{selectedRecommendation.optimized_cost.toFixed(2)}</p>
                   </Card>
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">{t('costOptimization.savings', 'Savings')}</p>
-                    <p className="text-xl font-semibold text-primary">${selectedRecommendation.potential_savings.toFixed(2)}</p>
+                    <p className="text-xl font-semibold text-primary">{sym}{selectedRecommendation.potential_savings.toFixed(2)}</p>
                     <p className="text-xs text-muted-foreground">{selectedRecommendation.savings_percentage.toFixed(1)}%</p>
                   </Card>
                 </div>
