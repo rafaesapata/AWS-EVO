@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
-import { Shield, FileCheck, AlertTriangle, CheckCircle2, RefreshCw, Play, Award, TrendingUp, Zap, DollarSign, Ticket, History, ChevronDown, ChevronUp, Leaf } from "lucide-react";
-import { useState } from "react";
+import { Shield, FileCheck, AlertTriangle, CheckCircle2, RefreshCw, Play, Award, TrendingUp, Zap, DollarSign, Ticket, History, ChevronDown, ChevronUp, Leaf, ExternalLink, X, Info } from "lucide-react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrganizationQuery } from "@/hooks/useOrganizationQuery";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
@@ -17,6 +17,7 @@ import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const PILLAR_CONFIG: Record<string, { icon: typeof Shield; color: string; bgColor: string }> = {
   operational_excellence: { icon: Award, color: 'text-blue-500', bgColor: 'bg-blue-500/10' },
@@ -58,8 +59,10 @@ const WellArchitected = () => {
   const [viewingHistoricalScan, setViewingHistoricalScan] = useState<string | null>(null);
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null);
   const [expandedPillars, setExpandedPillars] = useState<Set<string>>(new Set());
+  const [selectedRec, setSelectedRec] = useState<{ rec: any; pillarId: string; pillarName: string } | null>(null);
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { isInDemoMode } = useDemoAwareQuery();
+  const queryClient = useQueryClient();
 
   const togglePillarExpansion = (pillarId: string) => {
     setExpandedPillars(prev => {
@@ -67,6 +70,12 @@ const WellArchitected = () => {
       next.has(pillarId) ? next.delete(pillarId) : next.add(pillarId);
       return next;
     });
+  };
+
+  /** Generate a unique key for a recommendation to link with tickets */
+  const getRecKey = (pillarId: string, rec: any) => {
+    const name = rec.check_name || rec.checkName || rec.checkId || '';
+    return `wa:${pillarId}:${name}`;
   };
 
   const { data: userProfile } = useQuery({
@@ -89,7 +98,31 @@ const WellArchitected = () => {
 
   const userRole = userProfile?.roles?.[0] || 'org_user';
 
-  const { data: scanHistory } = useOrganizationQuery(
+  // Fetch existing WA tickets to check which recommendations already have tickets
+  const { data: waTickets, refetch: refetchTickets } = useQuery({
+    queryKey: ['wa-tickets', userProfile?.organization_id],
+    queryFn: async () => {
+      if (!userProfile?.organization_id) return [];
+      const result = await apiClient.select('remediation_tickets', {
+        select: 'id, title, status, metadata, created_at',
+        eq: { organization_id: userProfile.organization_id, category: 'well_architected' },
+      });
+      return result.data || [];
+    },
+    enabled: !!userProfile?.organization_id,
+    staleTime: 30_000,
+  });
+
+  // Build a map of recommendation key -> ticket for quick lookup
+  const ticketsByRecKey = useMemo(() => {
+    const map = new Map<string, any>();
+    if (!waTickets) return map;
+    for (const ticket of waTickets) {
+      const key = (ticket.metadata as any)?.wa_recommendation_key;
+      if (key) map.set(key, ticket);
+    }
+    return map;
+  }, [waTickets]);  const { data: scanHistory } = useOrganizationQuery(
     ['well-architected-history'],
     async (organizationId: string) => {
       const result = await apiClient.select('security_scans', {
@@ -187,23 +220,41 @@ const WellArchitected = () => {
     }
   };
 
-  const createTicket = async (recommendation: any, pillarName: string) => {
-    const ticketKey = `${pillarName}-${recommendation.check_name}`;
+  const createTicket = async (recommendation: any, pillarName: string, pillarId?: string) => {
+    const recName = recommendation.check_name || recommendation.checkName || '';
+    const recKey = pillarId ? getRecKey(pillarId, recommendation) : `wa:unknown:${recName}`;
+    
+    // Check if ticket already exists
+    if (ticketsByRecKey.has(recKey)) {
+      toast.info(t('wellArchitected.ticketExists', 'A ticket already exists for this recommendation'));
+      return;
+    }
+    
+    const ticketKey = `${pillarName}-${recName}`;
     if (creatingTicketId === ticketKey) return;
     setCreatingTicketId(ticketKey);
     try {
       const ticket = await apiClient.insert('remediation_tickets', {
         organization_id: userProfile?.organization_id,
-        title: `[Well-Architected] ${recommendation.check_name || recommendation.checkName || ''}`,
+        title: `[Well-Architected] ${recName}`,
         description: `**${t('wellArchitected.pillar', 'Pillar')}:** ${pillarName}\n\n**${t('wellArchitected.issue', 'Issue')}:**\n${recommendation.description || ''}\n\n**${t('wellArchitected.recommendation', 'Recommendation')}:**\n${recommendation.recommendation || ''}`,
-        status: 'pending',
+        status: 'open',
         priority: recommendation.severity === 'critical' ? 'critical' : recommendation.severity === 'high' ? 'high' : recommendation.severity === 'medium' ? 'medium' : 'low',
-        category: 'configuration',
+        category: 'well_architected',
         severity: recommendation.severity || 'medium',
         created_by: userProfile?.id,
+        metadata: {
+          wa_recommendation_key: recKey,
+          wa_pillar: pillarId || pillarName,
+          wa_check_name: recName,
+          wa_severity: recommendation.severity,
+          wa_description: recommendation.description || '',
+          wa_recommendation: recommendation.recommendation || '',
+        },
       });
       if (ticket.error) throw ticket.error;
       toast.success(t('wellArchitected.ticketCreated', 'Ticket created successfully!'));
+      refetchTickets();
       refetch();
     } catch {
       toast.error(t('wellArchitected.ticketError', 'Error creating ticket'));
@@ -212,25 +263,45 @@ const WellArchitected = () => {
     }
   };
 
-  const createBulkTickets = async (recommendations: any[], pillarName: string) => {
+  const createBulkTickets = async (recommendations: any[], pillarName: string, pillarId?: string) => {
     if (!userProfile?.organization_id) {
       toast.error(t('wellArchitected.orgNotFound', 'Organization not found'));
       return;
     }
+    // Filter out recommendations that already have tickets
+    const newRecs = recommendations.filter(rec => {
+      const key = pillarId ? getRecKey(pillarId, rec) : '';
+      return !ticketsByRecKey.has(key);
+    });
+    if (newRecs.length === 0) {
+      toast.info(t('wellArchitected.allTicketsExist', 'All recommendations already have tickets'));
+      return;
+    }
     try {
-      const tickets = recommendations.map(rec => ({
-        organization_id: userProfile.organization_id,
-        title: `[Well-Architected] ${rec.check_name || rec.checkName || ''}`,
-        description: `**${t('wellArchitected.pillar', 'Pillar')}:** ${pillarName}\n\n**${t('wellArchitected.issue', 'Issue')}:**\n${rec.description || ''}\n\n**${t('wellArchitected.recommendation', 'Recommendation')}:**\n${rec.recommendation || ''}`,
-        status: 'pending',
-        priority: rec.severity === 'critical' ? 'critical' : rec.severity === 'high' ? 'high' : rec.severity === 'medium' ? 'medium' : 'low',
-        category: 'configuration',
-        severity: rec.severity || 'medium',
-        created_by: userProfile.id,
-      }));
+      const tickets = newRecs.map(rec => {
+        const recName = rec.check_name || rec.checkName || '';
+        const recKey = pillarId ? getRecKey(pillarId, rec) : `wa:unknown:${recName}`;
+        return {
+          organization_id: userProfile.organization_id,
+          title: `[Well-Architected] ${recName}`,
+          description: `**${t('wellArchitected.pillar', 'Pillar')}:** ${pillarName}\n\n**${t('wellArchitected.issue', 'Issue')}:**\n${rec.description || ''}\n\n**${t('wellArchitected.recommendation', 'Recommendation')}:**\n${rec.recommendation || ''}`,
+          status: 'open',
+          priority: rec.severity === 'critical' ? 'critical' : rec.severity === 'high' ? 'high' : rec.severity === 'medium' ? 'medium' : 'low',
+          category: 'well_architected',
+          severity: rec.severity || 'medium',
+          created_by: userProfile.id,
+          metadata: {
+            wa_recommendation_key: recKey,
+            wa_pillar: pillarId || pillarName,
+            wa_check_name: recName,
+            wa_severity: rec.severity,
+          },
+        };
+      });
       const result = await apiClient.insert('remediation_tickets', tickets);
       if (result.error) throw result.error;
       toast.success(t('wellArchitected.bulkTicketsCreated', '{{count}} tickets created successfully!', { count: tickets.length }));
+      refetchTickets();
       refetch();
     } catch {
       toast.error(t('wellArchitected.bulkTicketError', 'Error creating bulk tickets'));
@@ -547,7 +618,7 @@ const WellArchitected = () => {
                                         variant="outline"
                                         onClick={(e: React.MouseEvent) => {
                                           e.stopPropagation();
-                                          createBulkTickets(recommendations, t(`wellArchitected.pillars.${pillarId}`, pillarId));
+                                          createBulkTickets(recommendations, t(`wellArchitected.pillars.${pillarId}`, pillarId), pillarId);
                                         }}
                                         className="h-7 text-xs gap-1.5 glass"
                                       >
@@ -555,8 +626,19 @@ const WellArchitected = () => {
                                         {t('wellArchitected.createTickets', 'Create Tickets')}
                                       </Button>
                                     </div>
-                                    {recommendations.slice(0, 3).map((rec: any, idx: number) => (
-                                      <div key={idx} className="p-3 bg-muted/30 rounded-lg text-sm border border-border hover:border-primary/20 transition-all">
+                                    {recommendations.slice(0, 3).map((rec: any, idx: number) => {
+                                      const recKey = getRecKey(pillarId, rec);
+                                      const existingTicket = ticketsByRecKey.get(recKey);
+                                      const recName = rec.check_name || rec.checkName || '';
+                                      return (
+                                      <div
+                                        key={idx}
+                                        className="p-3 bg-muted/30 rounded-lg text-sm border border-border hover:border-primary/20 transition-all cursor-pointer"
+                                        onClick={() => setSelectedRec({ rec, pillarId, pillarName: t(`wellArchitected.pillars.${pillarId}`, pillarId.replace(/_/g, ' ')) })}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => e.key === 'Enter' && setSelectedRec({ rec, pillarId, pillarName: t(`wellArchitected.pillars.${pillarId}`, pillarId.replace(/_/g, ' ')) })}
+                                      >
                                         <div className="flex items-start gap-2">
                                           <Badge
                                             variant={rec.severity === 'critical' || rec.severity === 'high' ? 'destructive' : 'secondary'}
@@ -565,30 +647,44 @@ const WellArchitected = () => {
                                             {rec.severity}
                                           </Badge>
                                           <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-foreground text-xs truncate">{rec.check_name || rec.checkName || ''}</p>
+                                            <p className="font-medium text-foreground text-xs truncate">{recName}</p>
                                             <p className="text-muted-foreground text-xs mt-0.5 line-clamp-2">{rec.description || ''}</p>
                                           </div>
-                                          {!rec.ticket && (
+                                          {existingTicket ? (
+                                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 shrink-0 border-success/50 text-success gap-1">
+                                              <Ticket className="h-2.5 w-2.5" />
+                                              {existingTicket.status}
+                                            </Badge>
+                                          ) : (
                                             <Button
                                               size="sm"
                                               variant="ghost"
                                               onClick={(e: React.MouseEvent) => {
                                                 e.stopPropagation();
-                                                createTicket(rec, t(`wellArchitected.pillars.${pillarId}`, pillarId));
+                                                createTicket(rec, t(`wellArchitected.pillars.${pillarId}`, pillarId), pillarId);
                                               }}
-                                              disabled={creatingTicketId === `${pillarId}-${rec.check_name || rec.checkName}`}
+                                              disabled={creatingTicketId === `${t(`wellArchitected.pillars.${pillarId}`, pillarId)}-${recName}`}
                                               className="h-6 w-6 p-0 shrink-0"
+                                              title={t('wellArchitected.createTicketTooltip', 'Create ticket')}
                                             >
                                               <Ticket className="h-3 w-3" />
                                             </Button>
                                           )}
                                         </div>
                                       </div>
-                                    ))}
+                                      );
+                                    })}
                                     {recommendations.length > 3 && (
-                                      <p className="text-xs text-center text-muted-foreground pt-1">
+                                      <button
+                                        className="text-xs text-center text-primary pt-1 w-full hover:underline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Expand to show all - open first rec as detail
+                                          setSelectedRec({ rec: recommendations[3], pillarId, pillarName: t(`wellArchitected.pillars.${pillarId}`, pillarId.replace(/_/g, ' ')) });
+                                        }}
+                                      >
                                         +{recommendations.length - 3} {t('wellArchitected.moreRecommendations', 'more recommendations')}
-                                      </p>
+                                      </button>
                                     )}
                                   </div>
                                 ) : (
@@ -623,6 +719,108 @@ const WellArchitected = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Recommendation Detail Modal */}
+      <Dialog open={!!selectedRec} onOpenChange={(open) => !open && setSelectedRec(null)}>
+        <DialogContent className="glass max-w-lg">
+          {selectedRec && (() => {
+            const { rec, pillarId, pillarName } = selectedRec;
+            const recName = rec.check_name || rec.checkName || '';
+            const recKey = getRecKey(pillarId, rec);
+            const existingTicket = ticketsByRecKey.get(recKey);
+            const config = PILLAR_CONFIG[pillarId];
+            const PillarIcon = config?.icon || Shield;
+
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={`p-1.5 ${config?.bgColor || 'bg-primary/10'} rounded-lg`}>
+                      <PillarIcon className={`h-4 w-4 ${config?.color || 'text-primary'}`} />
+                    </div>
+                    <span className="text-xs text-muted-foreground">{pillarName}</span>
+                    <Badge
+                      variant={rec.severity === 'critical' || rec.severity === 'high' ? 'destructive' : 'secondary'}
+                      className="text-[10px] py-0 px-1.5"
+                    >
+                      {rec.severity}
+                    </Badge>
+                  </div>
+                  <DialogTitle className="text-base">{recName}</DialogTitle>
+                  {rec.checkId && (
+                    <DialogDescription className="text-xs">ID: {rec.checkId}</DialogDescription>
+                  )}
+                </DialogHeader>
+
+                <div className="space-y-4 mt-2">
+                  {/* Issue Description */}
+                  <div>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {t('wellArchitected.detailIssue', 'Issue')}
+                    </h4>
+                    <p className="text-sm text-foreground leading-relaxed">{rec.description || t('wellArchitected.noDescription', 'No description available')}</p>
+                  </div>
+
+                  {/* Recommendation */}
+                  {rec.recommendation && (
+                    <div>
+                      <h4 className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                        <Info className="h-3.5 w-3.5" />
+                        {t('wellArchitected.detailRecommendation', 'Recommendation')}
+                      </h4>
+                      <p className="text-sm text-foreground leading-relaxed bg-primary/5 p-3 rounded-lg border border-primary/10">
+                        {rec.recommendation}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Impact */}
+                  {rec.impact && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{t('wellArchitected.detailImpact', 'Impact')}:</span>
+                      <Progress value={rec.impact * 10} className="h-2 flex-1 max-w-32" />
+                      <span className="text-xs font-medium tabular-nums">{rec.impact}/10</span>
+                    </div>
+                  )}
+
+                  {/* Ticket Status */}
+                  {existingTicket ? (
+                    <div className="p-3 rounded-lg border border-success/30 bg-success/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Ticket className="h-4 w-4 text-success" />
+                          <div>
+                            <p className="text-xs font-medium text-foreground">{t('wellArchitected.ticketLinked', 'Ticket linked')}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {t('wellArchitected.ticketCreatedAt', 'Created')} {new Date(existingTicket.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-xs border-success/50 text-success">
+                          {existingTicket.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        createTicket(rec, pillarName, pillarId);
+                        setSelectedRec(null);
+                      }}
+                      disabled={!!creatingTicketId}
+                      className="w-full glass hover-glow gap-2"
+                    >
+                      <Ticket className="h-4 w-4" />
+                      {t('wellArchitected.createTicketForRec', 'Create Ticket for this Recommendation')}
+                    </Button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };
