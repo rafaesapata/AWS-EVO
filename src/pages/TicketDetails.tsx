@@ -4,7 +4,7 @@
  * Design: Light theme matching Executive Dashboard (#003C7D accent, #F9FAFB background)
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -30,7 +30,7 @@ import {
   MessageSquare, AlertTriangle, Link2, Paperclip, History, ListChecks, Send, 
   Trash2, Edit2, Upload, Download, FileText, Image, Timer, AlertCircle,
   Plus, ChevronDown, ChevronUp, Eye, Shield, DollarSign, Settings, Zap,
-  MoreVertical, ExternalLink, Check, X
+  MoreVertical, ExternalLink, Check, X, Search, Loader2
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -312,7 +312,7 @@ function CommentsSection({
           className="mb-3"
         />
         <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 text-sm text-gray-500">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <Checkbox checked={isInternal} onCheckedChange={(c) => setIsInternal(!!c)} />
             {t('ticketDetails.internalComment', 'Internal comment (not visible to all)')}
           </label>
@@ -320,7 +320,7 @@ function CommentsSection({
             size="sm"
             onClick={() => addCommentMutation.mutate()}
             disabled={!newComment.trim() || addCommentMutation.isPending}
-            className="bg-[#003C7D] hover:bg-[#002d5c]"
+            className="glass hover-glow bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Send className="h-4 w-4 mr-2" />
             {t('ticketDetails.send', 'Send')}
@@ -331,7 +331,7 @@ function CommentsSection({
       {/* Comments List */}
       <div className="space-y-3">
         {comments.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
+          <div className="text-center py-8 text-muted-foreground">
             <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p>{t('ticketDetails.noComments', 'No comments yet')}</p>
           </div>
@@ -339,16 +339,16 @@ function CommentsSection({
           comments.map(comment => (
             <div 
               key={comment.id} 
-              className={`bg-white rounded-xl border p-4 ${comment.is_internal ? 'border-yellow-200 bg-yellow-50/50' : 'border-gray-100'}`}
+              className={`glass rounded-xl border p-4 ${comment.is_internal ? 'border-yellow-200/50' : 'border-primary/20'}`}
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-[#003C7D]/10 flex items-center justify-center">
-                    <User className="h-4 w-4 text-[#003C7D]" />
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-4 w-4 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-[#1F2937]">{comment.user_name || t('ticketDetails.user', 'User')}</p>
-                    <p className="text-xs text-gray-400">{formatRelativeTime(comment.created_at)}</p>
+                    <p className="text-sm font-medium">{comment.user_name || t('ticketDetails.user', 'User')}</p>
+                    <p className="text-xs text-muted-foreground">{formatRelativeTime(comment.created_at)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ function CommentsSection({
                   )}
                 </div>
               </div>
-              <p className="text-sm text-gray-600 whitespace-pre-wrap">{comment.content}</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{comment.content}</p>
               {comment.edited && (
                 <p className="text-xs text-gray-400 mt-2">({t('ticketDetails.edited', 'edited')})</p>
               )}
@@ -455,10 +455,10 @@ function ChecklistSection({
     <div className="space-y-4">
       {/* Progress */}
       {items.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="glass border-primary/20 rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-[#1F2937]">{t('ticketDetails.progress', 'Progress')}</span>
-            <span className="text-sm text-gray-500">{completedCount}/{items.length} {t('ticketDetails.completed', 'completed')}</span>
+            <span className="text-sm font-medium">{t('ticketDetails.progress', 'Progress')}</span>
+            <span className="text-sm text-muted-foreground">{completedCount}/{items.length} {t('ticketDetails.completed', 'completed')}</span>
           </div>
           <Progress value={progress} className="h-2" />
           {requiredCount > 0 && (
@@ -470,7 +470,7 @@ function ChecklistSection({
       )}
       
       {/* Add Item */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4">
+      <div className="glass border-primary/20 rounded-xl p-4">
         <div className="flex items-center gap-3">
           <Input
             placeholder={t('ticketDetails.addChecklistItem', 'Add checklist item...')}
@@ -479,7 +479,7 @@ function ChecklistSection({
             onKeyDown={(e) => e.key === 'Enter' && newItemTitle.trim() && addItemMutation.mutate()}
             className="flex-1"
           />
-          <label className="flex items-center gap-2 text-sm text-gray-500 whitespace-nowrap">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap">
             <Checkbox checked={newItemRequired} onCheckedChange={(c) => setNewItemRequired(!!c)} />
             {t('ticketDetails.required', 'Required')}
           </label>
@@ -487,7 +487,7 @@ function ChecklistSection({
             size="sm"
             onClick={() => addItemMutation.mutate()}
             disabled={!newItemTitle.trim() || addItemMutation.isPending}
-            className="bg-[#003C7D] hover:bg-[#002d5c]"
+            className="glass hover-glow bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -497,7 +497,7 @@ function ChecklistSection({
       {/* Items List */}
       <div className="space-y-2">
         {items.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
+          <div className="text-center py-8 text-muted-foreground">
             <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p>{t('ticketDetails.noChecklistItems', 'No checklist items')}</p>
           </div>
@@ -505,8 +505,8 @@ function ChecklistSection({
           items.map(item => (
             <div 
               key={item.id} 
-              className={`bg-white rounded-xl border p-3 flex items-center gap-3 group ${
-                item.is_completed ? 'border-green-200 bg-green-50/30' : 'border-gray-100'
+              className={`glass rounded-xl border p-3 flex items-center gap-3 group ${
+                item.is_completed ? 'border-green-200/50' : 'border-primary/20'
               }`}
             >
               <Checkbox
@@ -514,7 +514,7 @@ function ChecklistSection({
                 onCheckedChange={(checked) => toggleItemMutation.mutate({ itemId: item.id, isCompleted: !!checked })}
               />
               <div className="flex-1 min-w-0">
-                <p className={`text-sm ${item.is_completed ? 'text-gray-400 line-through' : 'text-[#1F2937]'}`}>
+                <p className={`text-sm ${item.is_completed ? 'text-muted-foreground line-through' : ''}`}>
                   {item.title}
                 </p>
                 {item.description && (
@@ -567,6 +567,57 @@ function RelationsSection({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [targetTicketId, setTargetTicketId] = useState('');
   const [relationType, setRelationType] = useState('related_to');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{ id: string; title: string; status: string; severity: string }>>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search
+  useEffect(() => {
+    if (searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const response = await apiClient.post('/api/functions/ticket-management', {
+          action: 'search-tickets',
+          query: searchQuery.trim(),
+          excludeTicketId: ticketId,
+          limit: 8,
+        });
+        setSearchResults(response.data?.tickets || []);
+        setShowResults(true);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+    return () => { if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current); };
+  }, [searchQuery, ticketId]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowResults(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const selectTicket = (ticket: { id: string; title: string }) => {
+    setTargetTicketId(ticket.id);
+    setSearchQuery(ticket.title);
+    setShowResults(false);
+  };
   
   const addRelationMutation = useMutation({
     mutationFn: async () => {
@@ -582,6 +633,8 @@ function RelationsSection({
       toast({ title: t('ticketDetails.relationAdded', 'Relation added') });
       setShowAddDialog(false);
       setTargetTicketId('');
+      setSearchQuery('');
+      setSearchResults([]);
       onRefresh();
     },
     onError: (err) => {
@@ -606,7 +659,6 @@ function RelationsSection({
     },
   });
   
-  // Group relations by type
   const groupedRelations = relations.reduce((acc, rel) => {
     if (!acc[rel.relation_type]) acc[rel.relation_type] = [];
     acc[rel.relation_type].push(rel);
@@ -615,31 +667,29 @@ function RelationsSection({
   
   return (
     <div className="space-y-4">
-      {/* Add Relation Button */}
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setShowAddDialog(true)}
-        className="w-full"
+        onClick={() => { setShowAddDialog(true); setTargetTicketId(''); setSearchQuery(''); setSearchResults([]); }}
+        className="w-full glass hover-glow"
       >
         <Plus className="h-4 w-4 mr-2" />
         {t('ticketDetails.addRelation', 'Add Relation')}
       </Button>
       
-      {/* Relations List */}
       {Object.keys(groupedRelations).length === 0 ? (
-        <div className="text-center py-8 text-gray-400">
+        <div className="text-center py-8 text-muted-foreground">
           <Link2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
           <p>{t('ticketDetails.noRelations', 'No relations with other tickets')}</p>
         </div>
       ) : (
         Object.entries(groupedRelations).map(([type, rels]) => (
           <div key={type} className="space-y-2">
-            <h4 className="text-sm font-medium text-gray-500">{t(RELATION_LABEL_KEYS[type], type)}</h4>
+            <h4 className="text-sm font-medium text-muted-foreground">{t(RELATION_LABEL_KEYS[type], type)}</h4>
             {rels.map(rel => (
               <div 
                 key={rel.id} 
-                className="bg-white rounded-xl border border-gray-100 p-3 flex items-center justify-between group"
+                className="glass border-primary/20 rounded-xl p-3 flex items-center justify-between group"
               >
                 <div 
                   className="flex items-center gap-3 cursor-pointer flex-1"
@@ -647,16 +697,16 @@ function RelationsSection({
                 >
                   <div className={`w-2 h-2 rounded-full ${SEVERITY_CONFIG[rel.target_ticket.severity]?.color || 'bg-gray-400'}`} />
                   <div>
-                    <p className="text-sm font-medium text-[#1F2937] hover:text-[#003C7D]">
+                    <p className="text-sm font-medium hover:text-primary">
                       {rel.target_ticket.title}
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-muted-foreground">
                       {t(STATUS_CONFIG[rel.target_ticket.status]?.labelKey, rel.target_ticket.status)}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <ExternalLink className="h-4 w-4 text-gray-300" />
+                  <ExternalLink className="h-4 w-4 text-muted-foreground/50" />
                   <Button
                     variant="ghost"
                     size="sm"
@@ -664,7 +714,7 @@ function RelationsSection({
                       e.stopPropagation();
                       deleteRelationMutation.mutate(rel.id);
                     }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -675,9 +725,8 @@ function RelationsSection({
         ))
       )}
       
-      {/* Add Relation Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
+        <DialogContent className="glass">
           <DialogHeader>
             <DialogTitle>{t('ticketDetails.addRelation', 'Add Relation')}</DialogTitle>
             <DialogDescription>
@@ -686,12 +735,52 @@ function RelationsSection({
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>{t('ticketDetails.ticketId', 'Ticket ID')}</Label>
-              <Input
-                placeholder={t('ticketDetails.pasteTicketId', 'Paste the ticket ID (UUID)')}
-                value={targetTicketId}
-                onChange={(e) => setTargetTicketId(e.target.value)}
-              />
+              <Label>{t('ticketDetails.searchTicket', 'Search Ticket')}</Label>
+              <div ref={searchContainerRef} className="relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={t('ticketDetails.searchTicketPlaceholder', 'Search by title or UUID...')}
+                    value={searchQuery}
+                    onChange={(e) => { setSearchQuery(e.target.value); setTargetTicketId(''); }}
+                    onFocus={() => searchResults.length > 0 && setShowResults(true)}
+                    className="pl-10"
+                  />
+                  {isSearching && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+                {showResults && searchResults.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 glass border-primary/20 rounded-lg shadow-elegant max-h-60 overflow-y-auto">
+                    {searchResults.map(ticket => (
+                      <div
+                        key={ticket.id}
+                        className="px-3 py-2 cursor-pointer hover:bg-primary/5 flex items-center gap-2 transition-colors"
+                        onClick={() => selectTicket(ticket)}
+                      >
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${SEVERITY_CONFIG[ticket.severity]?.color || 'bg-gray-400'}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{ticket.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {t(STATUS_CONFIG[ticket.status]?.labelKey, ticket.status)} • #{ticket.id.slice(0, 8)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {showResults && searchQuery.trim().length >= 2 && searchResults.length === 0 && !isSearching && (
+                  <div className="absolute z-50 w-full mt-1 glass border-primary/20 rounded-lg shadow-elegant p-3 text-center text-sm text-muted-foreground">
+                    {t('ticketDetails.noTicketsFound', 'No tickets found')}
+                  </div>
+                )}
+              </div>
+              {targetTicketId && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Check className="h-3 w-3 text-green-500" />
+                  {t('ticketDetails.ticketSelected', 'Ticket selected')}: #{targetTicketId.slice(0, 8)}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>{t('ticketDetails.relationType', 'Relation Type')}</Label>
@@ -718,7 +807,7 @@ function RelationsSection({
             <Button 
               onClick={() => addRelationMutation.mutate()}
               disabled={!targetTicketId || addRelationMutation.isPending}
-              className="bg-[#003C7D] hover:bg-[#002d5c]"
+              className="glass hover-glow bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {t('ticketDetails.add', 'Add')}
             </Button>
@@ -857,7 +946,7 @@ function AttachmentsSection({
     <div className="space-y-4">
       {/* Upload Area */}
       <div 
-        className="bg-white rounded-xl border-2 border-dashed border-gray-200 p-6 text-center hover:border-[#003C7D]/50 transition-colors cursor-pointer"
+        className="glass border-primary/20 rounded-xl border-2 border-dashed p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
         onClick={() => fileInputRef.current?.click()}
       >
         <input
@@ -870,7 +959,7 @@ function AttachmentsSection({
         {uploading ? (
           <div className="space-y-3">
             <div className="animate-pulse">
-              <Upload className="h-8 w-8 mx-auto text-[#003C7D]" />
+              <Upload className="h-8 w-8 mx-auto text-primary" />
             </div>
             <Progress value={uploadProgress} className="h-2 max-w-xs mx-auto" />
             <p className="text-sm text-gray-500">{t('ticketDetails.uploadingFile', 'Uploading file...')}</p>
@@ -903,13 +992,13 @@ function AttachmentsSection({
             return (
               <div 
                 key={attachment.id} 
-                className="bg-white rounded-xl border border-gray-100 p-3 flex items-center gap-3 group"
+                className="glass border-primary/20 rounded-xl p-3 flex items-center gap-3 group"
               >
                 <div className="p-2 bg-gray-50 rounded-lg">
                   <FileIcon className="h-5 w-5 text-gray-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#1F2937] truncate">{attachment.original_name}</p>
+                  <p className="text-sm font-medium truncate">{attachment.original_name}</p>
                   <p className="text-xs text-gray-400">
                     {formatFileSize(attachment.file_size)} • {attachment.uploaded_by_name} • {formatRelativeTime(attachment.created_at)}
                   </p>
@@ -919,7 +1008,7 @@ function AttachmentsSection({
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDownload(attachment.id)}
-                    className="text-gray-400 hover:text-[#003C7D]"
+                    className="text-muted-foreground hover:text-primary"
                   >
                     <Download className="h-4 w-4" />
                   </Button>
@@ -955,7 +1044,7 @@ function HistorySection({ history }: { history: TicketHistory[] }) {
   return (
     <div className="space-y-4">
       {history.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">
+        <div className="text-center py-8 text-muted-foreground">
           <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
           <p>{t('ticketDetails.noHistory', 'No history available')}</p>
         </div>
@@ -968,19 +1057,19 @@ function HistorySection({ history }: { history: TicketHistory[] }) {
             {history.map((entry, index) => (
               <div key={entry.id} className="relative flex gap-4 pl-10">
                 {/* Timeline dot */}
-                <div className="absolute left-2.5 w-3 h-3 rounded-full bg-white border-2 border-[#003C7D]" />
+                <div className="absolute left-2.5 w-3 h-3 rounded-full bg-background border-2 border-primary" />
                 
-                <div className="flex-1 bg-white rounded-xl border border-gray-100 p-3">
+                <div className="flex-1 glass border-primary/20 rounded-xl p-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-[#1F2937]">
+                      <p className="text-sm font-medium">
                         {t(ACTION_LABEL_KEYS[entry.action], entry.action)}
                       </p>
                       {entry.field_changed && entry.old_value && entry.new_value && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          <span className="line-through text-gray-400">{entry.old_value}</span>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          <span className="line-through text-muted-foreground/60">{entry.old_value}</span>
                           {' → '}
-                          <span className="text-[#003C7D]">{entry.new_value}</span>
+                          <span className="text-primary">{entry.new_value}</span>
                         </p>
                       )}
                       {entry.comment && (
@@ -1103,7 +1192,7 @@ function StatusUpdateDialog({
           <Button 
             onClick={() => updateStatusMutation.mutate()}
             disabled={newStatus === currentStatus || updateStatusMutation.isPending}
-            className="bg-[#003C7D] hover:bg-[#002d5c]"
+            className="glass hover-glow bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             {t('ticketDetails.updateStatus', 'Update Status')}
           </Button>
@@ -1169,9 +1258,9 @@ export default function TicketDetailsPage() {
         <Card className="glass border-primary/20">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <AlertTriangle className="h-12 w-12 text-orange-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">{t('ticketDetails.notFound', 'Ticket not found')}</h3>
-            <p className="text-sm text-gray-400 mb-4">{t('ticketDetails.notFoundMessage', 'The ticket may have been removed or you do not have permission to access it.')}</p>
-            <Button onClick={() => navigate('/remediation-tickets')} className="bg-[#003C7D] hover:bg-[#002d5c]">
+            <h3 className="text-lg font-medium text-muted-foreground mb-2">{t('ticketDetails.notFound', 'Ticket not found')}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{t('ticketDetails.notFoundMessage', 'The ticket may have been removed or you do not have permission to access it.')}</p>
+            <Button onClick={() => navigate('/remediation-tickets')} className="glass hover-glow bg-primary hover:bg-primary/90 text-primary-foreground">
               <ArrowLeft className="h-4 w-4 mr-2" />
               {t('ticketDetails.backToTickets', 'Back to Tickets')}
             </Button>
@@ -1196,14 +1285,14 @@ export default function TicketDetailsPage() {
           variant="ghost"
           size="sm"
           onClick={() => navigate('/remediation-tickets')}
-          className="text-gray-500 hover:text-[#003C7D] -ml-2"
+          className="text-muted-foreground hover:text-primary -ml-2"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           {t('ticketDetails.backToTickets', 'Back to Tickets')}
         </Button>
         
         {/* Header Card */}
-        <div className="bg-white rounded-xl border border-gray-100 p-6">
+        <div className="glass border-primary/20 rounded-xl p-6">
           <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
             {/* Left: Main Info */}
             <div className="flex-1">
@@ -1213,17 +1302,17 @@ export default function TicketDetailsPage() {
                   <CategoryIcon className="h-3 w-3 mr-1" />
                   {t(CATEGORY_CONFIG[ticket.category]?.labelKey, ticket.category)}
                 </Badge>
-                <span className="text-sm text-gray-400">#{ticket.id.slice(0, 8)}</span>
+                <span className="text-sm text-muted-foreground">#{ticket.id.slice(0, 8)}</span>
               </div>
               
-              <h1 className="text-2xl font-semibold text-[#1F2937] mb-2">{ticket.title}</h1>
+              <h1 className="text-2xl font-semibold mb-2">{ticket.title}</h1>
               
               {ticket.description && (
-                <p className="text-gray-600 mb-4">{ticket.description}</p>
+                <p className="text-muted-foreground mb-4">{ticket.description}</p>
               )}
               
               {/* Meta Info */}
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
                   {t('ticketDetails.createdOn', 'Created on')} {formatDateTime(ticket.created_at)}
@@ -1276,7 +1365,7 @@ export default function TicketDetailsPage() {
                 <Button
                   size="sm"
                   onClick={() => setStatusDialogOpen(true)}
-                  className="bg-[#003C7D] hover:bg-[#002d5c]"
+                  className="glass hover-glow bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   {t('ticketDetails.changeStatus', 'Change Status')}
                 </Button>
@@ -1329,8 +1418,8 @@ export default function TicketDetailsPage() {
           <TabsContent value="details" className="mt-6">
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Ticket Info */}
-              <div className="bg-white rounded-xl border border-gray-100 p-6">
-                <h3 className="text-lg font-medium text-[#1F2937] mb-4">{t('ticketDetails.ticketInfo', 'Ticket Information')}</h3>
+              <div className="glass border-primary/20 rounded-xl p-6">
+                <h3 className="text-lg font-medium mb-4">{t('ticketDetails.ticketInfo', 'Ticket Information')}</h3>
                 <div className="space-y-4">
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">{t('ticketDetails.severity', 'Severity')}</span>
@@ -1379,8 +1468,8 @@ export default function TicketDetailsPage() {
               </div>
               
               {/* SLA Info */}
-              <div className="bg-white rounded-xl border border-gray-100 p-6">
-                <h3 className="text-lg font-medium text-[#1F2937] mb-4">{t('ticketDetails.slaMetrics', 'SLA & Metrics')}</h3>
+              <div className="glass border-primary/20 rounded-xl p-6">
+                <h3 className="text-lg font-medium mb-4">{t('ticketDetails.slaMetrics', 'SLA & Metrics')}</h3>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-500">{t('ticketDetails.slaStatus', 'SLA Status')}</span>
@@ -1450,7 +1539,7 @@ export default function TicketDetailsPage() {
               
               {/* Resolution Notes */}
               {ticket.resolution_notes && (
-                <div className="bg-white rounded-xl border border-green-200 p-6 lg:col-span-2">
+                <div className="glass border-green-200/50 rounded-xl p-6 lg:col-span-2">
                   <h3 className="text-lg font-medium text-green-700 mb-2 flex items-center gap-2">
                     <CheckCircle className="h-5 w-5" />
                     {t('ticketDetails.resolutionNotes', 'Resolution Notes')}

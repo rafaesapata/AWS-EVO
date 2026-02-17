@@ -15,6 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
+import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuthSafe } from "@/hooks/useAuthSafe";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
@@ -536,6 +538,8 @@ export default function CostOptimization() {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
+  const currency = getProviderCurrency(selectedProvider);
+  const sym = getCurrencySymbol(currency);
   const { data: organizationId } = useOrganization();
   const { user } = useAuthSafe();
   const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
@@ -1246,7 +1250,7 @@ export default function CostOptimization() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-2xl font-semibold">
-                ${(metrics?.total_monthly_cost ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {sym}{(metrics?.total_monthly_cost ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             )}
           </CardContent>
@@ -1262,7 +1266,7 @@ export default function CostOptimization() {
             ) : (
               <div className="space-y-1">
                 <div className="text-2xl font-semibold text-green-500">
-                  ${(metrics?.total_potential_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {sym}{(metrics?.total_potential_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {metrics?.total_monthly_cost && metrics.total_monthly_cost > 0 && metrics?.total_potential_savings 
@@ -1330,7 +1334,7 @@ export default function CostOptimization() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-2xl font-semibold text-blue-500">
-                ${(metrics?.implemented_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {sym}{(metrics?.implemented_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             )}
           </CardContent>
@@ -1525,13 +1529,13 @@ export default function CostOptimization() {
                             </Button>
                             <div className="text-right space-y-1">
                               <div className="text-2xl font-semibold text-green-500">
-                                ${rec.potential_savings.toFixed(2)}
+                                {sym}{rec.potential_savings.toFixed(2)}
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 {rec.savings_percentage.toFixed(1)}% {t('costOptimization.savings', 'savings')}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                ${rec.current_cost.toFixed(2)} → ${rec.optimized_cost.toFixed(2)}
+                                {sym}{rec.current_cost.toFixed(2)} → {sym}{rec.optimized_cost.toFixed(2)}
                               </div>
                             </div>
                           </div>
@@ -1794,7 +1798,7 @@ export default function CostOptimization() {
                           <div className="flex justify-between items-center">
                             <span className="font-medium capitalize">{t(`costOptimization.confidence${confidence.charAt(0).toUpperCase() + confidence.slice(1)}`, confidence)} {t('costOptimization.confidence', 'Confidence')}</span>
                             <span className="text-sm text-muted-foreground">
-                              {count} {t('costOptimization.recommendations', 'recommendations')} • ${savings.toFixed(2)}
+                              {count} {t('costOptimization.recommendations', 'recommendations')} • {sym}{savings.toFixed(2)}
                             </span>
                           </div>
                           <Progress value={percentage} className="h-2" />
@@ -1844,7 +1848,7 @@ export default function CostOptimization() {
                       <div>
                         <p className="text-sm font-medium text-green-800 dark:text-green-200">{t('costOptimization.totalRealizedSavings', 'Total Realized Savings')}</p>
                         <p className="text-2xl font-semibold text-green-700 dark:text-green-300">
-                          ${recommendations?.filter(rec => rec.status === 'implemented').reduce((sum, rec) => sum + rec.potential_savings, 0).toFixed(2)}/mês
+                          {sym}{recommendations?.filter(rec => rec.status === 'implemented').reduce((sum, rec) => sum + rec.potential_savings, 0).toFixed(2)}/mês
                         </p>
                       </div>
                       <div className="text-right">
@@ -1879,7 +1883,7 @@ export default function CostOptimization() {
                                 {t('costOptimization.implemented', 'Implemented')}
                               </Badge>
                               <p className="text-lg font-semibold text-green-600 dark:text-green-400 mt-2">
-                                ${rec.potential_savings.toFixed(2)}/mês
+                                {sym}{rec.potential_savings.toFixed(2)}/mês
                               </p>
                               <p className="text-xs text-muted-foreground">{t('costOptimization.realizedSavings', 'realized savings')}</p>
                             </div>
@@ -1941,7 +1945,7 @@ export default function CostOptimization() {
                 <div className="grid grid-cols-3 gap-4">
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">{t('costOptimization.currentCost', 'Current Cost')}</p>
-                    <p className="text-xl font-semibold">${selectedRecommendation.current_cost.toFixed(2)}</p>
+                    <p className="text-xl font-semibold">{sym}{selectedRecommendation.current_cost.toFixed(2)}</p>
                   </Card>
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">{t('costOptimization.optimizedCost', 'Optimized Cost')}</p>
