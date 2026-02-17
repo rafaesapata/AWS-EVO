@@ -4218,6 +4218,7 @@
     "timeToFirstResponse": "Tempo até Primeira Resposta",
     "timeToResolution": "Tempo até Resolução",
     "escalationLevel": "Nível de Escalação",
+    "configureSla": "Configurar Políticas de SLA",
     "resolutionNotes": "Notas de Resolução",
     "commentAdded": "Comentário adicionado",
     "errorAddingComment": "Erro ao adicionar comentário",

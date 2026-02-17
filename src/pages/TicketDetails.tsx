@@ -1148,7 +1148,7 @@ export default function TicketDetailsPage() {
       <Layout
         title={t('ticketDetails.loading', 'Loading...')}
         description={t('ticketDetails.loadingDetails', 'Loading ticket details')}
-        icon={<Ticket className="h-4 w-4 text-white" />}
+        icon={<Ticket className="h-4 w-4" />}
       >
         <div className="space-y-6">
           <Skeleton className="h-10 w-32" />
@@ -1164,14 +1164,14 @@ export default function TicketDetailsPage() {
       <Layout
         title={t('ticketDetails.notFound', 'Ticket not found')}
         description={t('ticketDetails.notFoundDesc', 'The requested ticket was not found')}
-        icon={<Ticket className="h-4 w-4 text-white" />}
+        icon={<Ticket className="h-4 w-4" />}
       >
         <Card className="glass border-primary/20">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <AlertTriangle className="h-12 w-12 text-orange-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-600 mb-2">{t('ticketDetails.notFound', 'Ticket not found')}</h3>
             <p className="text-sm text-gray-400 mb-4">{t('ticketDetails.notFoundMessage', 'The ticket may have been removed or you do not have permission to access it.')}</p>
-            <Button onClick={() => navigate('/tickets')} className="bg-[#003C7D] hover:bg-[#002d5c]">
+            <Button onClick={() => navigate('/remediation-tickets')} className="bg-[#003C7D] hover:bg-[#002d5c]">
               <ArrowLeft className="h-4 w-4 mr-2" />
               {t('ticketDetails.backToTickets', 'Back to Tickets')}
             </Button>
@@ -1188,14 +1188,14 @@ export default function TicketDetailsPage() {
     <Layout
       title={ticket.title}
       description={`Ticket ${ticket.id.slice(0, 8)} • ${t(CATEGORY_CONFIG[ticket.category]?.labelKey, ticket.category)}`}
-      icon={<Ticket className="h-4 w-4 text-white" />}
+      icon={<Ticket className="h-4 w-4" />}
     >
       <div className="space-y-6">
         {/* Back Button */}
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/tickets')}
+          onClick={() => navigate('/remediation-tickets')}
           className="text-gray-500 hover:text-[#003C7D] -ml-2"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -1431,6 +1431,20 @@ export default function TicketDetailsPage() {
                     <span className="text-sm text-gray-500">{t('ticketDetails.escalationLevel', 'Escalation Level')}</span>
                     <span className="text-sm font-medium">{ticket.escalation_level}</span>
                   </div>
+                  {!ticket.sla_due_at && (
+                    <>
+                      <Separator />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs glass hover-glow"
+                        onClick={() => navigate('/remediation-tickets?tab=sla')}
+                      >
+                        <Settings className="h-3 w-3 mr-2" />
+                        {t('ticketDetails.configureSla', 'Configurar Políticas de SLA')}
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
               

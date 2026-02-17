@@ -4073,6 +4073,7 @@
     "timeToFirstResponse": "Time to First Response",
     "timeToResolution": "Time to Resolution",
     "escalationLevel": "Escalation Level",
+    "configureSla": "Configure SLA Policies",
     "resolutionNotes": "Resolution Notes",
     "commentAdded": "Comment added",
     "errorAddingComment": "Error adding comment",

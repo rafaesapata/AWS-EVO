@@ -7,7 +7,7 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -511,6 +511,7 @@ function CreateTicketDialog({
 export default function RemediationTickets() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedAccount } = useCloudAccount();
@@ -521,7 +522,7 @@ export default function RemediationTickets() {
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('tickets');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'tickets');
   
   // Fetch tickets
   const { data: ticketsData, isLoading, refetch } = useQuery({
