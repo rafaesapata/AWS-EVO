@@ -194,8 +194,8 @@ const WellArchitected = () => {
     try {
       const ticket = await apiClient.insert('remediation_tickets', {
         organization_id: userProfile?.organization_id,
-        title: `[Well-Architected] ${recommendation.check_name}`,
-        description: `**${t('wellArchitected.pillar', 'Pillar')}:** ${pillarName}\n\n**${t('wellArchitected.issue', 'Issue')}:**\n${recommendation.description}\n\n**${t('wellArchitected.recommendation', 'Recommendation')}:**\n${recommendation.recommendation}`,
+        title: `[Well-Architected] ${recommendation.check_name || recommendation.checkName || ''}`,
+        description: `**${t('wellArchitected.pillar', 'Pillar')}:** ${pillarName}\n\n**${t('wellArchitected.issue', 'Issue')}:**\n${recommendation.description || ''}\n\n**${t('wellArchitected.recommendation', 'Recommendation')}:**\n${recommendation.recommendation || ''}`,
         status: 'pending',
         priority: recommendation.severity === 'critical' ? 'critical' : recommendation.severity === 'high' ? 'high' : recommendation.severity === 'medium' ? 'medium' : 'low',
         category: 'configuration',
@@ -220,8 +220,8 @@ const WellArchitected = () => {
     try {
       const tickets = recommendations.map(rec => ({
         organization_id: userProfile.organization_id,
-        title: `[Well-Architected] ${rec.check_name}`,
-        description: `**${t('wellArchitected.pillar', 'Pillar')}:** ${pillarName}\n\n**${t('wellArchitected.issue', 'Issue')}:**\n${rec.description}\n\n**${t('wellArchitected.recommendation', 'Recommendation')}:**\n${rec.recommendation}`,
+        title: `[Well-Architected] ${rec.check_name || rec.checkName || ''}`,
+        description: `**${t('wellArchitected.pillar', 'Pillar')}:** ${pillarName}\n\n**${t('wellArchitected.issue', 'Issue')}:**\n${rec.description || ''}\n\n**${t('wellArchitected.recommendation', 'Recommendation')}:**\n${rec.recommendation || ''}`,
         status: 'pending',
         priority: rec.severity === 'critical' ? 'critical' : rec.severity === 'high' ? 'high' : rec.severity === 'medium' ? 'medium' : 'low',
         category: 'configuration',
@@ -565,8 +565,8 @@ const WellArchitected = () => {
                                             {rec.severity}
                                           </Badge>
                                           <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-foreground text-xs truncate">{rec.check_name}</p>
-                                            <p className="text-muted-foreground text-xs mt-0.5 line-clamp-2">{rec.description}</p>
+                                            <p className="font-medium text-foreground text-xs truncate">{rec.check_name || rec.checkName || ''}</p>
+                                            <p className="text-muted-foreground text-xs mt-0.5 line-clamp-2">{rec.description || ''}</p>
                                           </div>
                                           {!rec.ticket && (
                                             <Button
@@ -576,7 +576,7 @@ const WellArchitected = () => {
                                                 e.stopPropagation();
                                                 createTicket(rec, t(`wellArchitected.pillars.${pillarId}`, pillarId));
                                               }}
-                                              disabled={creatingTicketId === `${pillarId}-${rec.check_name}`}
+                                              disabled={creatingTicketId === `${pillarId}-${rec.check_name || rec.checkName}`}
                                               className="h-6 w-6 p-0 shrink-0"
                                             >
                                               <Ticket className="h-3 w-3" />

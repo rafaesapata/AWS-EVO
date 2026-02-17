@@ -70,9 +70,9 @@ export const PillarCard = ({ pillar, icon: Icon, name, isExpanded, onToggle }: P
  <div className="flex items-start gap-2">
  <AlertTriangle className={`h-4 w-4 text-warning mt-0.5 flex-shrink-0 ${rec.severity === 'critical' ? '' : ''}`} />
  <div className="flex-1">
- <p className="font-medium">{rec.check_name}</p>
- <p className="text-muted-foreground mt-1">{rec.description}</p>
- {rec.recommendation && (
+ <p className="font-medium">{rec.check_name || rec.checkName || ''}</p>
+ <p className="text-muted-foreground mt-1">{rec.description || ''}</p>
+ {(rec.recommendation) && (
  <p className="text-xs mt-2 text-primary">
  💡 {rec.recommendation}
  </p>
