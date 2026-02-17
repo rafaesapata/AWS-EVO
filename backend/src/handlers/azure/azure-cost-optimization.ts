@@ -285,10 +285,46 @@ export async function handler(
         totalPotentialSavings += savingsAmount;
       }
 
-      logger.info('Azure Advisor recommendations fetched', { 
+      logger.info('Azure Advisor recommendations fetched (raw)', { 
         count: recommendations.length,
         totalSavings: totalPotentialSavings 
       });
+
+      // Deduplicate recommendations by resourceId + actionType, keeping highest savings
+      const seenRecs = new Map<string, number>();
+      const uniqueRecommendations: typeof recommendations = [];
+      let deduplicatedSavings = 0;
+
+      for (const rec of recommendations) {
+        const key = `${rec.resourceId}::${rec.actionType}`;
+        const existingIdx = seenRecs.get(key);
+        if (existingIdx !== undefined) {
+          // Keep the one with higher savings
+          if (rec.potentialSavings > uniqueRecommendations[existingIdx].potentialSavings) {
+            deduplicatedSavings -= uniqueRecommendations[existingIdx].potentialSavings;
+            uniqueRecommendations[existingIdx] = rec;
+            deduplicatedSavings += rec.potentialSavings;
+          }
+        } else {
+          seenRecs.set(key, uniqueRecommendations.length);
+          uniqueRecommendations.push(rec);
+          deduplicatedSavings += rec.potentialSavings;
+        }
+      }
+
+      if (uniqueRecommendations.length < recommendations.length) {
+        logger.info('Deduplicated Azure Advisor recommendations', {
+          original: recommendations.length,
+          deduplicated: uniqueRecommendations.length,
+          originalSavings: totalPotentialSavings,
+          deduplicatedSavings,
+        });
+      }
+
+      // Replace with deduplicated data
+      recommendations.length = 0;
+      recommendations.push(...uniqueRecommendations);
+      totalPotentialSavings = deduplicatedSavings;
 
     } catch (err: any) {
       logger.error('Error fetching Azure Advisor recommendations', { error: err.message, stack: err.stack });
@@ -338,7 +374,7 @@ export async function handler(
         }
       });
 
-      // Save new recommendations
+      // Save new recommendations (deduplicated by resource_id + optimization_type)
       if (recommendations.length > 0) {
         const optimizationsToSave = recommendations.map(rec => ({
           organization_id: organizationId,
@@ -362,7 +398,25 @@ export async function handler(
           status: 'pending'
         }));
 
-        await (prisma as any).costOptimization.createMany({ data: optimizationsToSave });
+        // Deduplicate: keep only the entry with highest potential_savings per resource_id + optimization_type
+        const deduped = new Map<string, typeof optimizationsToSave[0]>();
+        for (const opt of optimizationsToSave) {
+          const key = `${opt.resource_id}::${opt.optimization_type}`;
+          const existing = deduped.get(key);
+          if (!existing || opt.potential_savings > existing.potential_savings) {
+            deduped.set(key, opt);
+          }
+        }
+        const uniqueOptimizations = Array.from(deduped.values());
+
+        if (uniqueOptimizations.length < optimizationsToSave.length) {
+          logger.info('Deduplicated Azure cost optimizations', { 
+            original: optimizationsToSave.length, 
+            deduplicated: uniqueOptimizations.length 
+          });
+        }
+
+        await (prisma as any).costOptimization.createMany({ data: uniqueOptimizations });
         logger.info('Saved Azure cost optimizations to database', { count: optimizationsToSave.length });
       }
     } catch (saveErr: any) {

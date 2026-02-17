@@ -763,23 +763,32 @@ async function collectLoadBalancerMetrics(
       aggregation: 'Total,Average',
     });
     
+    let snatConnections = 0;
+    
     for (const metric of response.value || []) {
-      const timeseries = metric.timeseries?.[0];
-      const data = timeseries?.data || [];
+      const data = metric.timeseries?.reduce((acc: number, ts: any) => {
+        return acc + (ts.data || []).reduce((sum: number, d: any) => sum + (d.total || 0), 0);
+      }, 0) || 0;
       
       switch (metric.name?.value) {
         case 'SnatConnectionCount':
-          // Use SNAT connections as the "request" count for LBs (actual connections, not packets)
-          metrics.requests = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
+          snatConnections = data;
           break;
         case 'ByteCount':
-          const totalBytes = data.reduce((sum: number, d: any) => sum + (d.total || 0), 0);
-          metrics.bandwidthGb = totalBytes / (1024 * 1024 * 1024);
+          metrics.bandwidthGb = data / (1024 * 1024 * 1024);
           break;
         // Load Balancers don't have cache - cacheHits stays 0
         // Load Balancers don't block requests - blockedRequests stays 0
       }
     }
+    
+    // SnatConnectionCount includes multiple connection states (Attempted, Failed, Current).
+    // The total can be very high for Kubernetes clusters with many pods.
+    // Log a warning if the value seems unreasonably high (>10M connections/hour).
+    if (snatConnections > 10_000_000) {
+      logger.warn(`High SnatConnectionCount for LB ${resourceId}: ${snatConnections}/hour. This may include all connection states.`);
+    }
+    metrics.requests = snatConnections;
   } catch (err) {
     logger.warn(`Failed to collect Load Balancer metrics: ${err}`);
   }

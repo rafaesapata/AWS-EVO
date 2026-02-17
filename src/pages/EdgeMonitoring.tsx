@@ -97,6 +97,13 @@ interface EdgeMetrics {
   bandwidth_gb: number;
 }
 
+function formatMetricNumber(value: number): string {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value.toLocaleString();
+}
+
 export default function EdgeMonitoring() {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -364,12 +371,31 @@ export default function EdgeMonitoring() {
 
   // Calculate summary metrics
   const totalRequests = edgeServices?.reduce((sum, service) => sum + service.requests_per_minute, 0) || 0;
-  const avgCacheHitRate = edgeServices?.length > 0 
-    ? edgeServices.reduce((sum, service) => sum + service.cache_hit_rate, 0) / edgeServices.length 
+  
+  // Cache hit rate: weighted average only from services that have cache (cloudfront, front_door)
+  const cacheableServices = edgeServices?.filter(s => 
+    ['cloudfront', 'front_door'].includes(s.service_type)
+  ) || [];
+  const avgCacheHitRate = cacheableServices.length > 0
+    ? (() => {
+        const totalReqs = cacheableServices.reduce((sum, s) => sum + s.requests_per_minute, 0);
+        if (totalReqs === 0) return 0;
+        return cacheableServices.reduce((sum, s) => sum + (s.cache_hit_rate * s.requests_per_minute), 0) / totalReqs;
+      })()
     : 0;
+  
   const totalBlockedRequests = edgeServices?.reduce((sum, service) => sum + service.blocked_requests, 0) || 0;
-  const avgErrorRate = edgeServices?.length > 0 
-    ? edgeServices.reduce((sum, service) => sum + service.error_rate, 0) / edgeServices.length 
+  
+  // Error rate: weighted average excluding WAF services (they don't have error rates)
+  const errorTrackingServices = edgeServices?.filter(s => 
+    !['waf', 'azure_waf'].includes(s.service_type)
+  ) || [];
+  const avgErrorRate = errorTrackingServices.length > 0
+    ? (() => {
+        const totalReqs = errorTrackingServices.reduce((sum, s) => sum + s.requests_per_minute, 0);
+        if (totalReqs === 0) return 0;
+        return errorTrackingServices.reduce((sum, s) => sum + (s.error_rate * s.requests_per_minute), 0) / totalReqs;
+      })()
     : 0;
 
   // Prepare chart data - aggregate by timestamp
@@ -486,7 +512,7 @@ export default function EdgeMonitoring() {
             {isLoading ? (
               <Skeleton className="h-8 w-20" />
             ) : (
-              <div className="text-2xl font-semibold">{totalRequests.toLocaleString()}</div>
+              <div className="text-2xl font-semibold">{formatMetricNumber(totalRequests)}</div>
             )}
           </CardContent>
         </Card>
@@ -786,7 +812,7 @@ export default function EdgeMonitoring() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <div>
                           <span className="text-muted-foreground">Requests/min:</span>
-                          <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                          <div className="font-medium">{formatMetricNumber(service.requests_per_minute)}</div>
                         </div>
                         {service.service_type !== 'waf' && (
                           <div>
@@ -971,7 +997,7 @@ export default function EdgeMonitoring() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Requests/min:</span>
-                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                            <div className="font-medium">{formatMetricNumber(service.requests_per_minute)}</div>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Cache Hit Rate:</span>
@@ -1046,7 +1072,7 @@ export default function EdgeMonitoring() {
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Total Requests:</span>
-                            <div className="font-medium">{Math.round(service.requests_per_minute * 60).toLocaleString()}</div>
+                            <div className="font-medium">{formatMetricNumber(Math.round(service.requests_per_minute * 60))}</div>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Bloqueados:</span>
@@ -1119,7 +1145,7 @@ export default function EdgeMonitoring() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Requests/min:</span>
-                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                            <div className="font-medium">{formatMetricNumber(service.requests_per_minute)}</div>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Response Time:</span>
@@ -1192,7 +1218,7 @@ export default function EdgeMonitoring() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Requests/min:</span>
-                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                            <div className="font-medium">{formatMetricNumber(service.requests_per_minute)}</div>
                           </div>
                           <div>
                             <span className="text-muted-foreground">{t('edgeMonitoring.blocked', 'Bloqueados')}:</span>
@@ -1264,7 +1290,7 @@ export default function EdgeMonitoring() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Requests/min:</span>
-                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                            <div className="font-medium">{formatMetricNumber(service.requests_per_minute)}</div>
                           </div>
                           <div>
                             <span className="text-muted-foreground">{t('edgeMonitoring.blocked', 'Bloqueados')}:</span>
@@ -1340,7 +1366,7 @@ export default function EdgeMonitoring() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">{t('edgeMonitoring.packets', 'Pacotes')}:</span>
-                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                            <div className="font-medium">{formatMetricNumber(service.requests_per_minute)}</div>
                           </div>
                           <div>
                             <span className="text-muted-foreground">{t('edgeMonitoring.bandwidth', 'Bandwidth')}:</span>
@@ -1412,7 +1438,7 @@ export default function EdgeMonitoring() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">{t('edgeMonitoring.connections', 'Conexões')}:</span>
-                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                            <div className="font-medium">{formatMetricNumber(service.requests_per_minute)}</div>
                           </div>
                           <div>
                             <span className="text-muted-foreground">{t('edgeMonitoring.bandwidth', 'Bandwidth')}:</span>
@@ -1485,7 +1511,7 @@ export default function EdgeMonitoring() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Requests/min:</span>
-                            <div className="font-medium">{service.requests_per_minute.toLocaleString()}</div>
+                            <div className="font-medium">{formatMetricNumber(service.requests_per_minute)}</div>
                           </div>
                           <div>
                             <span className="text-muted-foreground">{t('edgeMonitoring.successRate', 'Taxa de Sucesso')}:</span>

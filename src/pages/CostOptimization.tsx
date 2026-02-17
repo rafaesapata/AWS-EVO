@@ -668,7 +668,17 @@ export default function CostOptimization() {
           };
         });
 
-      return transformedData;
+      // Deduplicate by resource_id + type, keeping highest potential_savings
+      const seen = new Map<string, typeof transformedData[0]>();
+      for (const rec of transformedData) {
+        const key = `${rec.resource_id}::${rec.type}`;
+        const existing = seen.get(key);
+        if (!existing || rec.potential_savings > existing.potential_savings) {
+          seen.set(key, rec);
+        }
+      }
+
+      return Array.from(seen.values());
     },
   });
 

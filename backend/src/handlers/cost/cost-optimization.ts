@@ -147,7 +147,7 @@ export const handler = safeHandler(async (
     // Sort by savings (highest first)
     optimizations.sort((a, b) => b.savings - a.savings);
     
-    // Save to database with all fields
+    // Save to database with all fields (deduplicated by resource_id + optimization_type)
     const prismaOptimizations = optimizations.map(opt => ({
       organization_id: organizationId,
       aws_account_id: credential.id,
@@ -167,12 +167,23 @@ export const handler = safeHandler(async (
       status: 'pending'
     }));
 
+    // Deduplicate: keep only the entry with highest potential_savings per resource_id + optimization_type
+    const deduped = new Map<string, typeof prismaOptimizations[0]>();
+    for (const opt of prismaOptimizations) {
+      const key = `${opt.resource_id}::${opt.optimization_type}`;
+      const existing = deduped.get(key);
+      if (!existing || opt.potential_savings > existing.potential_savings) {
+        deduped.set(key, opt);
+      }
+    }
+    const uniqueOptimizations = Array.from(deduped.values());
+
     await prisma.costOptimization.deleteMany({
       where: { organization_id: organizationId, aws_account_id: credential.id }
     });
 
-    if (prismaOptimizations.length > 0) {
-      await prisma.costOptimization.createMany({ data: prismaOptimizations });
+    if (uniqueOptimizations.length > 0) {
+      await prisma.costOptimization.createMany({ data: uniqueOptimizations });
     }
     
     const totalSavings = optimizations.reduce((sum, opt) => sum + opt.savings, 0);
