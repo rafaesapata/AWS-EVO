@@ -78,6 +78,17 @@ const WellArchitected = () => {
     return `wa:${pillarId}:${name}`;
   };
 
+  /** Check if a recommendation already has a ticket */
+  const getExistingTicket = (pillarId: string, rec: any) => {
+    const recKey = getRecKey(pillarId, rec);
+    const byKey = ticketsByRecKey.get(recKey);
+    if (byKey) return byKey;
+    // Fallback: match by title
+    const recName = rec.check_name || rec.checkName || '';
+    if (recName) return ticketsByRecKey.get(`title:${recName}`);
+    return undefined;
+  };
+
   const { data: userProfile } = useQuery({
     queryKey: ['user-profile'],
     queryFn: async () => {
@@ -103,11 +114,18 @@ const WellArchitected = () => {
     queryKey: ['wa-tickets', userProfile?.organization_id],
     queryFn: async () => {
       if (!userProfile?.organization_id) return [];
+      // Fetch tickets with both old and new category to cover legacy data
       const result = await apiClient.select('remediation_tickets', {
-        select: 'id, title, status, metadata, created_at',
-        eq: { organization_id: userProfile.organization_id, category: 'well_architected' },
+        select: 'id, title, status, metadata, created_at, category',
+        eq: { organization_id: userProfile.organization_id },
       });
-      return result.data || [];
+      // Filter client-side for WA-related tickets (well_architected or those with wa_ metadata)
+      const all = result.data || [];
+      return all.filter((t: any) => {
+        if (t.category === 'well_architected') return true;
+        const meta = typeof t.metadata === 'string' ? (() => { try { return JSON.parse(t.metadata); } catch { return null; } })() : t.metadata;
+        return meta?.wa_recommendation_key;
+      });
     },
     enabled: !!userProfile?.organization_id,
     staleTime: 30_000,
@@ -118,8 +136,18 @@ const WellArchitected = () => {
     const map = new Map<string, any>();
     if (!waTickets) return map;
     for (const ticket of waTickets) {
-      const key = (ticket.metadata as any)?.wa_recommendation_key;
+      // Handle metadata as string (from DB) or object
+      let meta = ticket.metadata;
+      if (typeof meta === 'string') {
+        try { meta = JSON.parse(meta); } catch { meta = null; }
+      }
+      const key = (meta as any)?.wa_recommendation_key;
       if (key) map.set(key, ticket);
+      // Also index by title for fallback matching
+      if (ticket.title) {
+        const titleKey = ticket.title.replace('[Well-Architected] ', '');
+        if (titleKey) map.set(`title:${titleKey}`, ticket);
+      }
     }
     return map;
   }, [waTickets]);  const { data: scanHistory } = useOrganizationQuery(
@@ -128,7 +156,7 @@ const WellArchitected = () => {
       const result = await apiClient.select('security_scans', {
         select: 'id, status, created_at, completed_at',
         eq: { organization_id: organizationId, scan_type: 'well_architected' },
-        order: { created_at: 'desc' },
+        order: { column: 'created_at', ascending: false },
         limit: 10
       });
       if (result.error) throw result.error;
@@ -156,7 +184,7 @@ const WellArchitected = () => {
         const pillars = await apiClient.select('well_architected_scores', {
           select: '*, recommendations:recommendations',
           eq: { scan_id: historicalData.data[0].scan_id },
-          order: { created_at: 'desc' }
+          order: { column: 'created_at', ascending: false }
         });
         if (pillars.error) throw pillars.error;
         return pillars.data;
@@ -165,7 +193,7 @@ const WellArchitected = () => {
       const scans = await apiClient.select('security_scans', {
         select: 'id, created_at',
         eq: { organization_id: organizationId, scan_type: 'well_architected', status: 'completed' },
-        order: { created_at: 'desc' }, limit: 1
+        order: { column: 'created_at', ascending: false }, limit: 1
       });
       if (scans.error) throw scans.error;
       if (!scans.data?.length) return null;
@@ -173,7 +201,7 @@ const WellArchitected = () => {
       const pillars = await apiClient.select('well_architected_scores', {
         select: '*, recommendations:recommendations',
         eq: { scan_id: scans.data[0].id },
-        order: { created_at: 'desc' }
+        order: { column: 'created_at', ascending: false }
       });
       if (pillars.error) throw pillars.error;
       return pillars.data;
@@ -224,8 +252,9 @@ const WellArchitected = () => {
     const recName = recommendation.check_name || recommendation.checkName || '';
     const recKey = pillarId ? getRecKey(pillarId, recommendation) : `wa:unknown:${recName}`;
     
-    // Check if ticket already exists
-    if (ticketsByRecKey.has(recKey)) {
+    // Check if ticket already exists (by key or title fallback)
+    const existing = pillarId ? getExistingTicket(pillarId, recommendation) : ticketsByRecKey.get(recKey);
+    if (existing) {
       toast.info(t('wellArchitected.ticketExists', 'A ticket already exists for this recommendation'));
       return;
     }
@@ -270,7 +299,8 @@ const WellArchitected = () => {
     }
     // Filter out recommendations that already have tickets
     const newRecs = recommendations.filter(rec => {
-      const key = pillarId ? getRecKey(pillarId, rec) : '';
+      if (pillarId) return !getExistingTicket(pillarId, rec);
+      const key = getRecKey('unknown', rec);
       return !ticketsByRecKey.has(key);
     });
     if (newRecs.length === 0) {
@@ -626,14 +656,13 @@ const WellArchitected = () => {
                                         {t('wellArchitected.createTickets', 'Create Tickets')}
                                       </Button>
                                     </div>
-                                    {recommendations.slice(0, 3).map((rec: any, idx: number) => {
-                                      const recKey = getRecKey(pillarId, rec);
-                                      const existingTicket = ticketsByRecKey.get(recKey);
+                                    {recommendations.map((rec: any, idx: number) => {
+                                      const existingTicket = getExistingTicket(pillarId, rec);
                                       const recName = rec.check_name || rec.checkName || '';
                                       return (
                                       <div
                                         key={idx}
-                                        className="p-3 bg-muted/30 rounded-lg text-sm border border-border hover:border-primary/20 transition-all cursor-pointer"
+                                        className={`p-3 bg-muted/30 rounded-lg text-sm border transition-all cursor-pointer ${existingTicket ? 'border-success/30 bg-success/5' : 'border-border hover:border-primary/20'}`}
                                         onClick={() => setSelectedRec({ rec, pillarId, pillarName: t(`wellArchitected.pillars.${pillarId}`, pillarId.replace(/_/g, ' ')) })}
                                         role="button"
                                         tabIndex={0}
@@ -674,18 +703,6 @@ const WellArchitected = () => {
                                       </div>
                                       );
                                     })}
-                                    {recommendations.length > 3 && (
-                                      <button
-                                        className="text-xs text-center text-primary pt-1 w-full hover:underline"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          // Expand to show all - open first rec as detail
-                                          setSelectedRec({ rec: recommendations[3], pillarId, pillarName: t(`wellArchitected.pillars.${pillarId}`, pillarId.replace(/_/g, ' ')) });
-                                        }}
-                                      >
-                                        +{recommendations.length - 3} {t('wellArchitected.moreRecommendations', 'more recommendations')}
-                                      </button>
-                                    )}
                                   </div>
                                 ) : (
                                   <div className="text-center py-4">
@@ -726,8 +743,7 @@ const WellArchitected = () => {
           {selectedRec && (() => {
             const { rec, pillarId, pillarName } = selectedRec;
             const recName = rec.check_name || rec.checkName || '';
-            const recKey = getRecKey(pillarId, rec);
-            const existingTicket = ticketsByRecKey.get(recKey);
+            const existingTicket = getExistingTicket(pillarId, rec);
             const config = PILLAR_CONFIG[pillarId];
             const PillarIcon = config?.icon || Shield;
 

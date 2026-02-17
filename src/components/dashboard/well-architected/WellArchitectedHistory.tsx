@@ -27,7 +27,7 @@ export const WellArchitectedHistory = ({ organizationId, onViewScan }: WellArchi
       const scansResponse = await apiClient.select('security_scans', {
         select: 'id, organization_id, status, created_at, completed_at, scan_type',
         eq: { organization_id: organizationId, scan_type: 'well_architected', status: 'completed' },
-        order: { created_at: 'desc' },
+        order: { column: 'created_at', ascending: false },
         limit: 50
       });
       if (scansResponse.error) throw scansResponse.error;
