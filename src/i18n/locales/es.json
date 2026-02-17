@@ -2562,5 +2562,20 @@
     "noHistoryAvailable": "Sin historial disponible",
     "noAlerts": "Sin alertas",
     "allEndpointsNormal": "Todos los endpoints están funcionando normalmente."
+  },
+  "budgetManagement": {
+    "title": "Gestión de Presupuesto",
+    "description": "Configure el presupuesto mensual por proveedor cloud",
+    "info": "El presupuesto se completa automáticamente con el 85% del gasto del mes anterior cuando no existe un valor definido. Puede editar el valor de cualquier mes a continuación.",
+    "monthlyBudgets": "Presupuestos Mensuales",
+    "refresh": "Actualizar",
+    "month": "Mes",
+    "actualSpend": "Gasto Real",
+    "budgetAmount": "Presupuesto",
+    "source": "Origen",
+    "usage": "Uso",
+    "actions": "Acciones",
+    "loadError": "Error al cargar presupuestos",
+    "saveError": "Error al guardar presupuesto"
   }
 }

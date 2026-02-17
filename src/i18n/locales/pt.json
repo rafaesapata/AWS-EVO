@@ -4495,5 +4495,20 @@
     "noHistoryAvailable": "Nenhum histórico disponível",
     "noAlerts": "Nenhum alerta",
     "allEndpointsNormal": "Todos os endpoints estão funcionando normalmente."
+  },
+  "budgetManagement": {
+    "title": "Gestão de Orçamento",
+    "description": "Configure o orçamento mensal por provedor cloud",
+    "info": "O orçamento é preenchido automaticamente com 85% do gasto do mês anterior quando não existe valor definido. Você pode editar o valor de qualquer mês abaixo.",
+    "monthlyBudgets": "Orçamentos Mensais",
+    "refresh": "Atualizar",
+    "month": "Mês",
+    "actualSpend": "Gasto Real",
+    "budgetAmount": "Orçamento",
+    "source": "Origem",
+    "usage": "Uso",
+    "actions": "Ações",
+    "loadError": "Erro ao carregar orçamentos",
+    "saveError": "Erro ao salvar orçamento"
   }
 }

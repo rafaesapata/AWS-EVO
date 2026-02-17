@@ -41,6 +41,7 @@ import IntelligentAlerts from "./pages/IntelligentAlerts";
 import RemediationTickets from "./pages/RemediationTickets";
 import TicketDetails from "./pages/TicketDetails";
 import CostOptimization from "./pages/CostOptimization";
+import BudgetManagement from "./pages/BudgetManagement";
 import RISavingsPlans from "./pages/RISavingsPlans";
 import SecurityScans from "./pages/SecurityScans";
 import SecurityScanDetails from "./pages/SecurityScanDetails";
@@ -319,6 +320,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <CostOptimization />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/budget-management" 
+                element={
+                  <ProtectedRoute>
+                    <BudgetManagement />
                   </ProtectedRoute>
                 } 
               />

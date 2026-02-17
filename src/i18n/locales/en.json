@@ -4350,5 +4350,20 @@
     "noHistoryAvailable": "No history available",
     "noAlerts": "No alerts",
     "allEndpointsNormal": "All endpoints are working normally."
+  },
+  "budgetManagement": {
+    "title": "Budget Management",
+    "description": "Configure monthly budget per cloud provider",
+    "info": "The budget is automatically filled with 85% of the previous month's spend when no value is set. You can edit the value for any month below.",
+    "monthlyBudgets": "Monthly Budgets",
+    "refresh": "Refresh",
+    "month": "Month",
+    "actualSpend": "Actual Spend",
+    "budgetAmount": "Budget",
+    "source": "Source",
+    "usage": "Usage",
+    "actions": "Actions",
+    "loadError": "Failed to load budgets",
+    "saveError": "Failed to save budget"
   }
 }
