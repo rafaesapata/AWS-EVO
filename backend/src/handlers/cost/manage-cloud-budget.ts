@@ -15,6 +15,10 @@ import { parseEventBody } from '../../lib/request-parser.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 
+/** Auto-budget ratio: suggest 85% of previous month's spend */
+const AUTO_BUDGET_RATIO = 0.85;
+const MAX_BUDGET_MONTHS = 12;
+
 interface BudgetRequest {
   action?: 'get' | 'save' | 'list';
   provider?: string;
@@ -33,8 +37,43 @@ function getPreviousYearMonth(yearMonth: string): string {
   return `${year}-${String(month - 1).padStart(2, '0')}`;
 }
 
+/** Returns Prisma where clause for filtering DailyCost by cloud provider */
+function getProviderFilter(provider: string) {
+  return provider === 'AZURE'
+    ? { cloud_provider: 'AZURE' as const }
+    : { OR: [{ cloud_provider: 'AWS' as const }, { cloud_provider: null }] };
+}
+
+/** Returns date range (first day, last day) for a given year-month string */
+function getMonthDateRange(yearMonth: string): { startDate: Date; endDate: Date } {
+  const [year, month] = yearMonth.split('-').map(Number);
+  return {
+    startDate: new Date(year, month - 1, 1),
+    endDate: new Date(year, month, 0),
+  };
+}
+
+/** Aggregates total spend for a given org/provider/month */
+async function getMonthlySpend(
+  prisma: any,
+  organizationId: string,
+  provider: string,
+  yearMonth: string
+): Promise<number> {
+  const { startDate, endDate } = getMonthDateRange(yearMonth);
+  const result = await prisma.dailyCost.aggregate({
+    where: {
+      organization_id: organizationId,
+      date: { gte: startDate, lte: endDate },
+      ...getProviderFilter(provider),
+    },
+    _sum: { cost: true },
+  });
+  return Number(result._sum?.cost || 0);
+}
+
 /**
- * Calcula o budget automático: 85% do gasto do mês anterior
+ * Calcula o budget automático baseado no gasto do mês anterior
  */
 async function calculateAutoBudget(
   prisma: any,
@@ -43,28 +82,9 @@ async function calculateAutoBudget(
   yearMonth: string
 ): Promise<number | null> {
   const prevMonth = getPreviousYearMonth(yearMonth);
-  const [year, month] = prevMonth.split('-').map(Number);
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0); // último dia do mês
-
-  const providerWhere = provider === 'AZURE'
-    ? { cloud_provider: 'AZURE' as const }
-    : { OR: [{ cloud_provider: 'AWS' as const }, { cloud_provider: null }] };
-
-  const result = await prisma.dailyCost.aggregate({
-    where: {
-      organization_id: organizationId,
-      date: { gte: startDate, lte: endDate },
-      ...providerWhere,
-    },
-    _sum: { cost: true },
-  });
-
-  const prevTotal = Number(result._sum?.cost || 0);
+  const prevTotal = await getMonthlySpend(prisma, organizationId, provider, prevMonth);
   if (prevTotal <= 0) return null;
-
-  // 85% do gasto do mês anterior como sugestão de budget
-  return Math.round(prevTotal * 0.85 * 100) / 100;
+  return Math.round(prevTotal * AUTO_BUDGET_RATIO * 100) / 100;
 }
 
 export async function handler(
@@ -84,44 +104,26 @@ export async function handler(
     const yearMonth = body.year_month || getCurrentYearMonth();
 
     if (action === 'list') {
-      // Listar budgets dos últimos 12 meses
       const budgets = await prisma.cloudBudget.findMany({
         where: {
           organization_id: organizationId,
           cloud_provider: provider,
         },
         orderBy: { year_month: 'desc' },
-        take: 12,
+        take: MAX_BUDGET_MONTHS,
       });
 
-      // Buscar gastos reais para cada mês
       const budgetsWithSpend = await Promise.all(
-        budgets.map(async (b: any) => {
-          const [y, m] = b.year_month.split('-').map(Number);
-          const startDate = new Date(y, m - 1, 1);
-          const endDate = new Date(y, m, 0);
-          const provFilter = provider === 'AZURE'
-            ? { cloud_provider: 'AZURE' as const }
-            : { OR: [{ cloud_provider: 'AWS' as const }, { cloud_provider: null }] };
-          const spend = await prisma.dailyCost.aggregate({
-            where: {
-              organization_id: organizationId,
-              date: { gte: startDate, lte: endDate },
-              ...provFilter,
-            },
-            _sum: { cost: true },
-          });
-          return {
-            id: b.id,
-            year_month: b.year_month,
-            cloud_provider: b.cloud_provider,
-            amount: b.amount,
-            currency: b.currency,
-            source: b.source,
-            actual_spend: Number(spend._sum?.cost || 0),
-            updated_at: b.updated_at,
-          };
-        })
+        budgets.map(async (b: any) => ({
+          id: b.id,
+          year_month: b.year_month,
+          cloud_provider: b.cloud_provider,
+          amount: b.amount,
+          currency: b.currency,
+          source: b.source,
+          actual_spend: await getMonthlySpend(prisma, organizationId, provider, b.year_month),
+          updated_at: b.updated_at,
+        }))
       );
 
       return success({ budgets: budgetsWithSpend, provider });

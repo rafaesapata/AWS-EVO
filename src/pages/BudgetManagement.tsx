@@ -48,6 +48,8 @@ export default function BudgetManagement() {
   const provider = selectedProvider || 'AWS';
   const sym = getCurrencySymbol(getProviderCurrency(provider));
 
+  const DEBOUNCE_MS = 1200;
+  const SAVED_FEEDBACK_MS = 2000;
   const [budgets, setBudgets] = useState<Map<string, BudgetRow>>(new Map());
   const [editValues, setEditValues] = useState<Map<string, string>>(new Map());
   const [saving, setSaving] = useState<Set<string>>(new Set());
@@ -106,7 +108,7 @@ export default function BudgetManagement() {
         return next;
       });
       setSavedMonths(prev => new Set(prev).add(yearMonth));
-      setTimeout(() => setSavedMonths(prev => { const n = new Set(prev); n.delete(yearMonth); return n; }), 2000);
+      setTimeout(() => setSavedMonths(prev => { const n = new Set(prev); n.delete(yearMonth); return n; }), SAVED_FEEDBACK_MS);
     } catch {
       toast.error(t('budgetManagement.saveError', 'Erro ao salvar orçamento'));
     } finally {
@@ -121,7 +123,7 @@ export default function BudgetManagement() {
     const existing = debounceTimers.current.get(yearMonth);
     if (existing) clearTimeout(existing);
 
-    // Auto-save after 1.2s of inactivity
+    // Auto-save after debounce period of inactivity
     const amount = parseFloat(value);
     if (value === '' || isNaN(amount) || amount < 0) return;
 
@@ -130,8 +132,9 @@ export default function BudgetManagement() {
       const original = b ? Math.round(b.amount) : 0;
       if (Math.round(amount) !== original) {
         saveBudget(yearMonth, amount);
+      debounceTimers.current.delete(yearMonth);
       }
-    }, 1200);
+    }, DEBOUNCE_MS);
     debounceTimers.current.set(yearMonth, timer);
   }, [budgets, saveBudget]);
 
