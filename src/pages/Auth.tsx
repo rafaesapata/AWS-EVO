@@ -381,42 +381,49 @@ export default function AuthSimple() {
           </div>
 
           {/* WebAuthn Card */}
-          <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+          <Card className="glass border-primary/20 shadow-elegant">
             <CardHeader className="space-y-1 pb-4">
               <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-primary" />
-                <CardTitle className="text-2xl font-semibold text-gray-800">{t('loginPage.secureAuth', 'Autenticação Segura')}</CardTitle>
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Shield className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-semibold">{t('loginPage.secureAuth', 'Autenticação Segura')}</CardTitle>
+                  <CardDescription>
+                    {t('loginPage.useSecurityKeyToContinue', 'Use sua chave de segurança para continuar')}
+                  </CardDescription>
+                </div>
               </div>
-              <CardDescription className="text-gray-500">
-                {t('loginPage.useSecurityKeyToContinue', 'Use sua chave de segurança para continuar')}
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              <Alert className="border-blue-500/50 bg-blue-500/10">
-                <Key className="h-4 w-4 text-blue-500" />
-                <AlertDescription className="text-blue-600">
+              <Alert className="glass border-blue-500/20">
+                <Key className="h-4 w-4 text-blue-400" />
+                <AlertDescription className="text-blue-300">
                   <strong>{t('loginPage.requiredAuth', 'Autenticação obrigatória:')}</strong> {t('loginPage.webauthnRequired', 'Você possui uma chave de segurança WebAuthn registrada. Por motivos de segurança, é obrigatório usá-la para fazer login.')}
                 </AlertDescription>
               </Alert>
 
               {webAuthnError && (
-                <Alert className="border-red-500/50 bg-red-500/10">
-                  <AlertCircle className="h-4 w-4 text-red-500" />
-                  <AlertDescription className="text-red-500">
+                <Alert className="glass border-red-500/20">
+                  <AlertCircle className="h-4 w-4 text-red-400" />
+                  <AlertDescription className="text-red-400">
                     {webAuthnError}
                   </AlertDescription>
                 </Alert>
               )}
 
               <div className="text-center space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  {t('loginPage.user', 'Usuário')}: <strong>{email}</strong>
-                </p>
+                <div className="glass rounded-lg p-3 border-primary/10">
+                  <p className="text-sm text-muted-foreground">
+                    {t('loginPage.user', 'Usuário')}
+                  </p>
+                  <p className="font-medium text-foreground">{email}</p>
+                </div>
                 
                 <Button 
                   onClick={handleWebAuthnLogin}
                   disabled={webAuthnLoading}
-                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 transform hover:scale-[1.02]"
+                  className="w-full h-11 glass hover-glow bg-gradient-primary text-white font-medium shadow-glow transition-all duration-300"
                 >
                   {webAuthnLoading ? (
                     <span className="flex items-center gap-2">
@@ -438,7 +445,7 @@ export default function AuthSimple() {
                   variant="outline" 
                   onClick={handleBackToLogin}
                   disabled={webAuthnLoading}
-                  className="w-full"
+                  className="w-full glass border-primary/20 hover:bg-primary/5"
                 >
                   {t('loginPage.backAndChangeUser', 'Voltar e Trocar Usuário')}
                 </Button>
