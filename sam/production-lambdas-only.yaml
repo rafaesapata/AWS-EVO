@@ -1283,7 +1283,7 @@ Resources:
           - '@prisma/client'
           - '.prisma/client'
   # ==========================================================================
-  # AZURE FUNCTIONS (22)
+  # AZURE FUNCTIONS (23)
   # ==========================================================================
   AzureActivityLogsFunction:
     Type: AWS::Serverless::Function
@@ -1362,6 +1362,33 @@ Resources:
         Sourcemap: false
         EntryPoints:
           - azure-cost-optimization.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+  AzureMLWasteDetectionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-azure-ml-waste-detection'
+      CodeUri: ../backend/src/handlers/azure/
+      Handler: azure-ml-waste-detection.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 120
+      MemorySize: 512
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/azure-ml-waste-detection
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - azure-ml-waste-detection.ts
         External:
           - '@prisma/client'
           - '.prisma/client'
