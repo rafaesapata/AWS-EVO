@@ -4504,6 +4504,7 @@
     "title": "Gestão de Orçamento",
     "description": "Configure o orçamento mensal por provedor cloud",
     "info": "O orçamento é preenchido automaticamente com 85% do gasto do mês anterior quando não existe valor definido. Você pode editar o valor de qualquer mês abaixo.",
+    "infoAutoSave": "O orçamento é salvo automaticamente ao digitar. Preenchido com 85% do gasto do mês anterior quando não existe valor definido.",
     "monthlyBudgets": "Orçamentos Mensais",
     "refresh": "Atualizar",
     "month": "Mês",

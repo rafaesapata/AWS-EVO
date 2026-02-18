@@ -4359,6 +4359,7 @@
     "title": "Budget Management",
     "description": "Configure monthly budget per cloud provider",
     "info": "The budget is automatically filled with 85% of the previous month's spend when no value is set. You can edit the value for any month below.",
+    "infoAutoSave": "Budget is auto-saved as you type. Auto-filled with 85% of previous month's spend when no value is set.",
     "monthlyBudgets": "Monthly Budgets",
     "refresh": "Refresh",
     "month": "Month",
