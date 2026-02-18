@@ -4368,6 +4368,15 @@
     "usage": "Usage",
     "actions": "Actions",
     "loadError": "Failed to load budgets",
-    "saveError": "Failed to save budget"
+    "saveError": "Failed to save budget",
+    "currentBudget": "Current Budget",
+    "currentSpend": "Current Spend",
+    "ofBudget": "of budget",
+    "overBudget": "Over Budget",
+    "allOnTrack": "All within budget",
+    "monthsOverBudget": "months over limit",
+    "current": "current",
+    "autoTooltip": "85% of previous month's spend",
+    "manualTooltip": "Manually defined"
   }
 }

@@ -4513,6 +4513,15 @@
     "usage": "Uso",
     "actions": "Ações",
     "loadError": "Erro ao carregar orçamentos",
-    "saveError": "Erro ao salvar orçamento"
+    "saveError": "Erro ao salvar orçamento",
+    "currentBudget": "Orçamento Atual",
+    "currentSpend": "Gasto Atual",
+    "ofBudget": "do orçamento",
+    "overBudget": "Acima do Orçamento",
+    "allOnTrack": "Todos dentro do orçamento",
+    "monthsOverBudget": "meses acima do limite",
+    "current": "atual",
+    "autoTooltip": "85% do gasto do mês anterior",
+    "manualTooltip": "Definido manualmente"
   }
 }

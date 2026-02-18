@@ -47,15 +47,15 @@ async function calculateAutoBudget(
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0); // último dia do mês
 
-  const providerFilter = provider === 'AZURE'
+  const providerWhere = provider === 'AZURE'
     ? { cloud_provider: 'AZURE' as const }
-    : { cloud_provider: { in: ['AWS', null] as any } };
+    : { OR: [{ cloud_provider: 'AWS' as const }, { cloud_provider: null }] };
 
   const result = await prisma.dailyCost.aggregate({
     where: {
       organization_id: organizationId,
       date: { gte: startDate, lte: endDate },
-      ...providerFilter,
+      ...providerWhere,
     },
     _sum: { cost: true },
   });
@@ -102,7 +102,7 @@ export async function handler(
           const endDate = new Date(y, m, 0);
           const provFilter = provider === 'AZURE'
             ? { cloud_provider: 'AZURE' as const }
-            : { cloud_provider: { in: ['AWS', null] as any } };
+            : { OR: [{ cloud_provider: 'AWS' as const }, { cloud_provider: null }] };
           const spend = await prisma.dailyCost.aggregate({
             where: {
               organization_id: organizationId,
