@@ -115,6 +115,7 @@ describe('Property 2: Multi-Tenancy Isolation', () => {
         cloud_provider: 'AZURE',
         azure_credential_id: azureCred1Id,
         severity: 'high',
+        title: 'Test finding for org 1',
         description: 'Test finding for org 1',
         details: { test: true },
       },
@@ -126,6 +127,7 @@ describe('Property 2: Multi-Tenancy Isolation', () => {
         cloud_provider: 'AZURE',
         azure_credential_id: azureCred2Id,
         severity: 'medium',
+        title: 'Test finding for org 2',
         description: 'Test finding for org 2',
         details: { test: true },
       },
@@ -167,7 +169,6 @@ describe('Property 2: Multi-Tenancy Isolation', () => {
     const cost1 = await prisma.dailyCost.create({
       data: {
         organization_id: org1Id,
-        aws_account_id: azureCred1Id, // Reusing field for Azure credential ID
         cloud_provider: 'AZURE',
         azure_credential_id: azureCred1Id,
         date: today,
@@ -180,7 +181,6 @@ describe('Property 2: Multi-Tenancy Isolation', () => {
     const cost2 = await prisma.dailyCost.create({
       data: {
         organization_id: org2Id,
-        aws_account_id: azureCred2Id,
         cloud_provider: 'AZURE',
         azure_credential_id: azureCred2Id,
         date: today,
@@ -223,7 +223,6 @@ describe('Property 2: Multi-Tenancy Isolation', () => {
     const resource1 = await prisma.resourceInventory.create({
       data: {
         organization_id: org1Id,
-        aws_account_id: azureCred1Id,
         cloud_provider: 'AZURE',
         azure_credential_id: azureCred1Id,
         resource_id: `/subscriptions/${randomUUID()}/resourceGroups/test-rg/providers/Microsoft.Compute/virtualMachines/vm1`,
@@ -237,7 +236,6 @@ describe('Property 2: Multi-Tenancy Isolation', () => {
     const resource2 = await prisma.resourceInventory.create({
       data: {
         organization_id: org2Id,
-        aws_account_id: azureCred2Id,
         cloud_provider: 'AZURE',
         azure_credential_id: azureCred2Id,
         resource_id: `/subscriptions/${randomUUID()}/resourceGroups/test-rg/providers/Microsoft.Compute/virtualMachines/vm2`,

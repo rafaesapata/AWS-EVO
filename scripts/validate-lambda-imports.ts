@@ -582,6 +582,8 @@ function detectAwsSdkHandlers(handlers: string[]): AwsSdkHandler[] {
 
 export function reportResults(result: ValidationResult): void {
   const cwd = process.cwd();
+  const unsafeHandlers = result.unsafeHandlers ?? [];
+  const awsSdkHandlers = result.awsSdkHandlers ?? [];
 
   // Broken imports section
   if (result.brokenImports.length > 0) {
@@ -615,16 +617,16 @@ export function reportResults(result: ValidationResult): void {
   }
 
   // Unsafe handlers section (auth code outside try/catch → unhandled 500s)
-  if (result.unsafeHandlers.length > 0) {
+  if (unsafeHandlers.length > 0) {
     console.log('\n⚠️  UNSAFE HANDLERS (auth code outside try/catch → potential 500 errors):\n');
 
-    for (const uh of result.unsafeHandlers) {
+    for (const uh of unsafeHandlers) {
       const relPath = relative(cwd, uh.filePath);
       console.log(`  ${relPath}:${uh.line}`);
       console.log(`    ${uh.code}`);
     }
 
-    const uniqueFiles = new Set(result.unsafeHandlers.map(u => u.filePath));
+    const uniqueFiles = new Set(unsafeHandlers.map(u => u.filePath));
     console.log(`\n  Total: ${uniqueFiles.size} handler(s) with unprotected auth calls\n`);
     console.log('  Fix: Move getUserFromEvent/getOrganizationId inside the try/catch block\n');
   }
@@ -635,15 +637,15 @@ export function reportResults(result: ValidationResult): void {
   console.log(`  Unique libs referenced: ${result.uniqueLibs}`);
   console.log(`  Broken imports: ${result.brokenImports.length}`);
   console.log(`  Circular dependencies: ${result.cycles.length}`);
-  console.log(`  Unsafe handlers: ${result.unsafeHandlers.length}`);
-  console.log(`  @aws-sdk handlers (FULL_SAM required): ${result.awsSdkHandlers.length}`);
+  console.log(`  Unsafe handlers: ${unsafeHandlers.length}`);
+  console.log(`  @aws-sdk handlers (FULL_SAM required): ${awsSdkHandlers.length}`);
 
   // @aws-sdk handlers section
-  if (result.awsSdkHandlers.length > 0) {
+  if (awsSdkHandlers.length > 0) {
     console.log('\n📦 HANDLERS WITH @aws-sdk IMPORTS (require FULL_SAM deploy):\n');
 
     const byFile = new Map<string, AwsSdkHandler[]>();
-    for (const h of result.awsSdkHandlers) {
+    for (const h of awsSdkHandlers) {
       const existing = byFile.get(h.filePath) || [];
       existing.push(h);
       byFile.set(h.filePath, existing);
