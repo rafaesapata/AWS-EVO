@@ -29,12 +29,19 @@ export function BudgetInput({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<number>(value);
 
+  // Track a stable slider max that only updates on save or external changes
+  const [sliderMax, setSliderMax] = useState(() => Math.max(value * 2, 50000));
+
   // Sync inputText when external value changes (e.g. AI suggestion)
   useEffect(() => {
     setInputText(String(value));
+    // Recalculate slider max only on external value changes (not during drag)
+    setSliderMax(prev => {
+      const ideal = Math.max(value * 2, 50000);
+      // Only grow, never shrink while interacting
+      return Math.max(prev, ideal);
+    });
   }, [value]);
-
-  const sliderMax = Math.max(value * 2, 50000);
 
   const scheduleSave = useCallback(
     (newValue: number) => {
@@ -43,6 +50,8 @@ export function BudgetInput({
         if (newValue !== lastSavedRef.current) {
           lastSavedRef.current = newValue;
           onSave(newValue);
+          // Recalculate slider max after save stabilizes
+          setSliderMax(Math.max(newValue * 2, 50000));
         }
       }, 800);
     },
