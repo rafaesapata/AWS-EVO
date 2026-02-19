@@ -94,7 +94,7 @@ export async function handler(
   context: LambdaContext
 ): Promise<APIGatewayProxyResultV2> {
   if (event.requestContext?.http?.method === 'OPTIONS') return corsOptions();
-
+  
   const user = getUserFromEvent(event);
   const organizationId = getOrganizationIdWithImpersonation(event, user);
   const prisma = getPrismaClient();
