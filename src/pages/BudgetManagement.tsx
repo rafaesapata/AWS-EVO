@@ -52,13 +52,17 @@ export default function BudgetManagement() {
   const fetchBudget = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiClient.lambda('manage-cloud-budget', {
+      const res = await apiClient.lambda<BudgetCurrentResponse>('manage-cloud-budget', {
         action: 'get_current',
         provider,
       });
-      const data = res as BudgetCurrentResponse;
+      if ('error' in res && res.error) {
+        toast.error(t('budgetManagement.loadError', 'Erro ao carregar orçamentos'));
+        return;
+      }
+      const data = (res as { data: BudgetCurrentResponse }).data;
       setBudgetData(data);
-      setBudgetValue(data.budget?.amount ?? 0);
+      setBudgetValue(data?.budget?.amount ?? 0);
     } catch {
       toast.error(t('budgetManagement.loadError', 'Erro ao carregar orçamentos'));
     } finally {
