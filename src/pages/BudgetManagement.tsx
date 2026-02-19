@@ -42,6 +42,11 @@ function formatMonth(ym: string, locale: string): string {
   });
 }
 
+const DEBOUNCE_MS = 1200;
+const SAVED_FEEDBACK_MS = 2000;
+const AZURE_SYNC_MONTHS = 11;
+const AZURE_SYNC_TIMEOUT_MS = 120000;
+
 export default function BudgetManagement() {
   const { t, i18n } = useTranslation();
   const { selectedAccountId, selectedProvider } = useCloudAccount();
@@ -49,13 +54,12 @@ export default function BudgetManagement() {
   const sym = getCurrencySymbol(getProviderCurrency(provider));
   const isAzure = provider === 'AZURE';
 
-  const DEBOUNCE_MS = 1200;
-  const SAVED_FEEDBACK_MS = 2000;
   const [budgets, setBudgets] = useState<Map<string, BudgetRow>>(new Map());
   const [editValues, setEditValues] = useState<Map<string, string>>(new Map());
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const syncingRef = useRef(false);
   const [savedMonths, setSavedMonths] = useState<Set<string>>(new Set());
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -75,11 +79,12 @@ export default function BudgetManagement() {
 
       // Azure auto-sync: if all months have 0 actual_spend, trigger cost sync
       const hasAnySpend = rows.some((b: BudgetRow) => b.actual_spend > 0);
-      if (isAzure && selectedAccountId && !hasAnySpend && !syncing) {
+      if (isAzure && selectedAccountId && !hasAnySpend && !syncingRef.current) {
+        syncingRef.current = true;
         setSyncing(true);
         try {
           const now = new Date();
-          const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+          const startDate = new Date(now.getFullYear(), now.getMonth() - AZURE_SYNC_MONTHS, 1);
           await apiClient.invoke('azure-fetch-costs', {
             body: {
               credentialId: selectedAccountId,
@@ -87,7 +92,7 @@ export default function BudgetManagement() {
               endDate: now.toISOString().split('T')[0],
               granularity: 'DAILY',
             },
-            timeoutMs: 120000,
+            timeoutMs: AZURE_SYNC_TIMEOUT_MS,
           });
           // Re-fetch budgets after sync
           const retryRes = await apiClient.lambda('manage-cloud-budget', {
@@ -100,6 +105,7 @@ export default function BudgetManagement() {
         } catch {
           // Sync failed silently — data will show as 0
         } finally {
+          syncingRef.current = false;
           setSyncing(false);
         }
       }
@@ -108,7 +114,7 @@ export default function BudgetManagement() {
     } finally {
       setLoading(false);
     }
-  }, [provider, isAzure, selectedAccountId, syncing, t]);
+  }, [provider, isAzure, selectedAccountId, t]);
 
   useEffect(() => { fetchBudgets(); }, [fetchBudgets]);
 
