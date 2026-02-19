@@ -8,7 +8,7 @@ inclusion: manual
 
 | Ambiente | Account | Branch | Prefix | Profile |
 |----------|---------|--------|--------|---------|
-| Sandbox | `971354623291` | `main` / `sandbox` | `evo-uds-v3-sandbox-*` | `EVO_SANDBOX` |
+| Sandbox | `971354623291` | `sandbox` | `evo-uds-v3-sandbox-*` | `EVO_SANDBOX` |
 | Production | `523115032346` | `production` | `evo-uds-v3-prod-*` | `EVO_PRODUCTION` |
 
 ## Domínios

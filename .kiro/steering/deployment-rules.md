@@ -14,9 +14,11 @@ inclusion: always
 | `src/`, `public/`, `index.html` | FRONTEND_ONLY | ~2min |
 | `docs/`, `scripts/`, `cicd/`, `.md` | SKIP | ~1min |
 
-Branches: `main` → Sandbox | `production` → Production
+Branches: `sandbox` → Sandbox | `production` → Production
 
 **NÃO existe deploy incremental.** Todo backend change passa por `sam build` + `sam deploy` com esbuild bundling completo. Isso garante que `@aws-sdk/*` e todas as dependências são corretamente bundled.
+
+**IMPORTANTE:** O CI/CD usa `sam/production-lambdas-only.yaml` (NÃO `sam/template.yaml`). Novas Lambdas DEVEM ser adicionadas em `production-lambdas-only.yaml`.
 
 ## Lambda — ARM64 + esbuild (OBRIGATÓRIO)
 

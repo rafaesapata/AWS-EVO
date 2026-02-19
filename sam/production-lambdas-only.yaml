@@ -2339,6 +2339,35 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+
+  AiBudgetSuggestionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-budget-suggestion'
+      CodeUri: ../backend/src/handlers/cost/
+      Handler: ai-budget-suggestion.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/ai-budget-suggestion
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - ai-budget-suggestion.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
   # ==========================================================================
   # DATA FUNCTIONS (5)
   # ==========================================================================
