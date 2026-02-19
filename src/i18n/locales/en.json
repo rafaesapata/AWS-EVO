@@ -4381,6 +4381,27 @@
     "autoTooltip": "85% of previous month's spend",
     "manualTooltip": "Manually defined",
     "syncing": "Syncing...",
-    "syncError": "Error syncing Azure costs. Please try again."
+    "syncError": "Error syncing Azure costs. Please try again.",
+    "mtdSpend": "MTD Spend",
+    "utilization": "Utilization",
+    "budgetUsage": "Budget usage",
+    "overBudgetWarning": "Over budget!",
+    "setBudget": "Set Budget",
+    "budgetInputLabel": "Budget amount in USD",
+    "budgetSliderLabel": "Adjust budget",
+    "aiSuggestion": "AI Suggestion",
+    "aiSuggestionLabel": "Get AI budget suggestion",
+    "aiSuggestionApplied": "AI suggestion applied: ${{amount}}",
+    "aiSuggestionError": "Failed to get AI suggestion",
+    "aiNoData": "Insufficient data to calculate suggestion. Wait for previous month data.",
+    "aiDetailsTitle": "AI Suggestion Details",
+    "aiPrevSpend": "Previous month spend",
+    "aiTotalSavings": "Proposed savings",
+    "aiCostOpt": "Cost Optimization",
+    "aiWaste": "Waste Detection",
+    "aiRiSp": "RI/SP Optimization",
+    "aiRealizationFactor": "Realization factor",
+    "aiFormula": "Formula",
+    "aiSuggestedAmount": "Suggested amount"
   }
 }

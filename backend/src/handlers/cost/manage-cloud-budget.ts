@@ -21,10 +21,11 @@ const AUTO_BUDGET_RATIO = 0.85;
 const MAX_BUDGET_MONTHS = 12;
 
 interface BudgetRequest {
-  action?: 'get' | 'save' | 'list';
+  action?: 'get' | 'get_current' | 'save' | 'list';
   provider?: string;
   year_month?: string;
   amount?: number;
+  source?: string;
 }
 
 function getCurrentYearMonth(): string {
@@ -170,6 +171,43 @@ export async function handler(
       return success({ budgets: budgetsWithSpend, provider });
     }
 
+    if (action === 'get_current') {
+      // Buscar orçamento vigente: registro mais recente por org+provider
+      const currentBudget = await prisma.cloudBudget.findFirst({
+        where: {
+          organization_id: organizationId,
+          cloud_provider: provider,
+        },
+        orderBy: { year_month: 'desc' },
+      });
+
+      // MTD spend do mês corrente
+      const currentYearMonth = getCurrentYearMonth();
+      const mtdSpend = await getMonthlySpend(prisma, organizationId, provider, currentYearMonth);
+
+      // Calcular utilização e over-budget
+      const budgetAmount = currentBudget?.amount ?? 0;
+      const utilizationPercentage = budgetAmount > 0
+        ? Math.round((mtdSpend / budgetAmount) * 100 * 100) / 100
+        : 0;
+      const isOverBudget = currentBudget !== null && mtdSpend > budgetAmount;
+
+      return success({
+        budget: currentBudget ? {
+          id: currentBudget.id,
+          amount: currentBudget.amount,
+          currency: currentBudget.currency,
+          source: currentBudget.source,
+          year_month: currentBudget.year_month,
+          cloud_provider: currentBudget.cloud_provider,
+          updated_at: currentBudget.updated_at,
+        } : null,
+        mtd_spend: mtdSpend,
+        utilization_percentage: utilizationPercentage,
+        is_over_budget: isOverBudget,
+      });
+    }
+
     if (action === 'get') {
       // Buscar budget existente
       let budget = await prisma.cloudBudget.findUnique({
@@ -229,26 +267,30 @@ export async function handler(
         return error('Amount is required and must be >= 0', 400);
       }
 
+      // Sempre usar mês corrente — frontend não controla year_month
+      const saveYearMonth = getCurrentYearMonth();
+      const source = body.source === 'ai_suggestion' ? 'ai_suggestion' : 'manual';
+
       const budget = await prisma.cloudBudget.upsert({
         where: {
           organization_id_cloud_provider_year_month: {
             organization_id: organizationId,
             cloud_provider: provider,
-            year_month: yearMonth,
+            year_month: saveYearMonth,
           },
         },
         create: {
           organization_id: organizationId,
           cloud_provider: provider,
-          year_month: yearMonth,
+          year_month: saveYearMonth,
           amount: body.amount,
           currency: 'USD',
-          source: 'manual',
+          source,
           created_by: user.sub,
         },
         update: {
           amount: body.amount,
-          source: 'manual',
+          source,
           created_by: user.sub,
         },
       });
@@ -259,14 +301,14 @@ export async function handler(
         action: 'BUDGET_UPDATE',
         resourceType: 'cloud_budget',
         resourceId: budget.id,
-        details: { provider, yearMonth, amount: body.amount },
+        details: { provider, yearMonth: saveYearMonth, amount: body.amount, source },
         ipAddress: getIpFromEvent(event),
         userAgent: getUserAgentFromEvent(event),
       });
 
-      logger.info('Budget saved', { organizationId, provider, yearMonth, amount: body.amount });
+      logger.info('Budget saved', { organizationId, provider, yearMonth: saveYearMonth, amount: body.amount, source });
 
-      const actualSpend = await getMonthlySpend(prisma, organizationId, provider, yearMonth);
+      const actualSpend = await getMonthlySpend(prisma, organizationId, provider, saveYearMonth);
 
       return success({
         budget: {
@@ -281,7 +323,7 @@ export async function handler(
       });
     }
 
-    return error('Invalid action. Use "get", "save" or "list"', 400);
+    return error('Invalid action. Use "get", "get_current", "save" or "list"', 400);
   } catch (err: any) {
     logger.error('manage-cloud-budget error', err, { organizationId });
     return error('Failed to manage budget', 500);

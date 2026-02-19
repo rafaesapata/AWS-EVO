@@ -253,7 +253,7 @@ export default function AINotificationsAdmin() {
       });
 
       if (response.error) {
-        throw new Error(response.error);
+        throw new Error(response.error.message || 'Unknown error');
       }
 
       return response.data;

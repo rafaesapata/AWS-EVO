@@ -81,7 +81,7 @@ export default function DriftDetection() {
         limit: 50
       });
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
       setDrifts(response.data || []);
       // Removed auto-scan to prevent infinite loop - user must click Scan button
     } catch (error: any) {
@@ -205,7 +205,7 @@ export default function DriftDetection() {
         limit: 10
       });
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
       return response.data || [];
     },
     enabled: !!organizationId,

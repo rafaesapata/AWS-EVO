@@ -104,7 +104,7 @@ export const ScheduledScans = () => {
           next_run_at: calculateNextRun(newSchedule.schedule_type, newSchedule.schedule_config)
         }
       });
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
       return response.data;
     },
     onSuccess: () => {
@@ -136,7 +136,7 @@ export const ScheduledScans = () => {
         id,
         data: { is_active }
       });
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
       return response.data;
     },
     onSuccess: (_, variables) => {
@@ -157,7 +157,7 @@ export const ScheduledScans = () => {
         operation: 'delete',
         id
       });
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scan-schedules'] });

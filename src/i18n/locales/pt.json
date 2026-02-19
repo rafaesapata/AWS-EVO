@@ -4526,6 +4526,27 @@
     "autoTooltip": "85% do gasto do mês anterior",
     "manualTooltip": "Definido manualmente",
     "syncing": "Sincronizando...",
-    "syncError": "Erro ao sincronizar custos Azure. Tente novamente."
+    "syncError": "Erro ao sincronizar custos Azure. Tente novamente.",
+    "mtdSpend": "Gasto MTD",
+    "utilization": "Utilização",
+    "budgetUsage": "Uso do orçamento",
+    "overBudgetWarning": "Acima do orçamento!",
+    "setBudget": "Definir Orçamento",
+    "budgetInputLabel": "Valor do orçamento em USD",
+    "budgetSliderLabel": "Ajustar orçamento",
+    "aiSuggestion": "Sugestão IA",
+    "aiSuggestionLabel": "Obter sugestão de orçamento por IA",
+    "aiSuggestionApplied": "Sugestão IA aplicada: ${{amount}}",
+    "aiSuggestionError": "Erro ao obter sugestão IA",
+    "aiNoData": "Dados insuficientes para calcular sugestão. Aguarde dados do mês anterior.",
+    "aiDetailsTitle": "Detalhes da Sugestão IA",
+    "aiPrevSpend": "Gasto mês anterior",
+    "aiTotalSavings": "Savings propostos",
+    "aiCostOpt": "Cost Optimization",
+    "aiWaste": "Waste Detection",
+    "aiRiSp": "RI/SP Optimization",
+    "aiRealizationFactor": "Fator de realização",
+    "aiFormula": "Fórmula",
+    "aiSuggestedAmount": "Valor sugerido"
   }
 }

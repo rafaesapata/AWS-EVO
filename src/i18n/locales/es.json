@@ -2576,6 +2576,16 @@
     "usage": "Uso",
     "actions": "Acciones",
     "loadError": "Error al cargar presupuestos",
-    "saveError": "Error al guardar presupuesto"
+    "saveError": "Error al guardar presupuesto",
+    "currentBudget": "Presupuesto Actual",
+    "currentSpend": "Gasto Actual",
+    "ofBudget": "del presupuesto",
+    "mtdSpend": "Gasto MTD",
+    "utilization": "Utilización",
+    "budgetUsage": "Uso del presupuesto",
+    "overBudgetWarning": "¡Por encima del presupuesto!",
+    "setBudget": "Definir Presupuesto",
+    "budgetInputLabel": "Monto del presupuesto en USD",
+    "budgetSliderLabel": "Ajustar presupuesto"
   }
 }

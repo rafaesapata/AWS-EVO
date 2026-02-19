@@ -41,7 +41,7 @@ const FindingsTable = ({ findings, onUpdate }: FindingsTableProps) => {
         { eq: { id, organization_id: organizationId } }
       );
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
 
       toast({
         title: "✅ Status atualizado",

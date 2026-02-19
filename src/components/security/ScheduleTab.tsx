@@ -206,7 +206,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
           next_run_at: calculateNextRun(newSchedule.schedule_type, newSchedule.schedule_config)
         }
       });
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
       return response.data;
     },
     onSuccess: () => {
@@ -234,7 +234,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
           next_run_at: is_active ? calculateNextRun('daily', { hour: 2 }) : null
         }
       });
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
       return response.data;
     },
     onSuccess: (_, variables) => {
@@ -260,7 +260,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
         operation: 'delete',
         where: { id }
       });
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scan-schedules'] });
@@ -290,7 +290,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
         }
       });
 
-      if (response.error) throw new Error(response.error);
+      if (response.error) throw new Error(response.error.message || 'Unknown error');
 
       // Update last_run_at and next_run_at
       await apiClient.lambda('mutate-table', {
