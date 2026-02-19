@@ -1,5 +1,5 @@
 {
-  "enabled": true,
+  "enabled": false,
   "name": "Feature Code Review",
   "description": "After completing a feature, performs a comprehensive code review checking for code smells, design patterns, best practices, readability, maintainability, performance, and ensures no mocked data is used in production code. Executes specific improvements while maintaining existing functionality.",
   "version": "1",

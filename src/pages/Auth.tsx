@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,6 +71,14 @@ export default function AuthSimple() {
   const [mfaFactors, setMfaFactors] = useState<any[]>([]);
   const [mfaError, setMfaError] = useState("");
   const { user, isLoading, error, challengeSession, challengeName, signIn, signOut, confirmNewPassword, clearError } = useAuthSafe();
+  const queryClient = useQueryClient();
+
+  // Invalidate cloud account caches before navigating to app
+  const invalidateAndNavigate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['cloud-accounts'] });
+    queryClient.invalidateQueries({ queryKey: ['aws-accounts'] });
+    navigate("/app");
+  }, [queryClient, navigate]);
 
   // Animation on mount
   useEffect(() => {
@@ -167,7 +176,7 @@ export default function AuthSimple() {
       
       // No MFA required or MFA check failed - proceed to app
       setMfaPending(false);
-      navigate("/app");
+      invalidateAndNavigate();
     } else {
       setMfaPending(false);
     }
@@ -250,7 +259,7 @@ export default function AuthSimple() {
       // Success! WebAuthn verified — the Cognito session from signIn() is already stored
       // Just navigate to app (no need to overwrite session)
       setShowWebAuthn(false);
-      navigate("/app");
+      invalidateAndNavigate();
     } catch (error: any) {
       console.error('WebAuthn error:', error);
       let errorMessage = 'Falha na autenticação WebAuthn';
@@ -292,13 +301,13 @@ export default function AuthSimple() {
   };
 
   const handleMFAVerified = () => {
-    navigate("/app");
+    invalidateAndNavigate();
   };
 
   const handleNewPasswordSet = async (session: string, newPassword: string): Promise<boolean> => {
     const success = await confirmNewPassword(session, newPassword);
     if (success) {
-      navigate("/app");
+      invalidateAndNavigate();
     }
     return success;
   };

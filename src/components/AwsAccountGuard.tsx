@@ -28,7 +28,7 @@ interface AwsAccountGuardProps {
 export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { accounts, isLoading: accountsLoading, error } = useCloudAccount();
+  const { accounts, isLoading: accountsLoading, orgLoading, error } = useCloudAccount();
   const { data: licenseStatus, isLoading: licenseLoading } = useLicenseValidation();
   const { isDemoMode, isLoading: demoLoading, isVerified: demoVerified } = useDemoMode();
   
@@ -74,7 +74,7 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     if (isExemptPath) return;
     
     // Wait for all async checks to complete
-    if (licenseLoading || accountsLoading || demoLoading || error) return;
+    if (orgLoading || licenseLoading || accountsLoading || demoLoading || error) return;
 
     // Se não tem licença válida, o ProtectedRoute já cuida disso
     if (!licenseStatus?.isValid) return;
@@ -104,6 +104,7 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     }
   }, [
     isExemptPath, 
+    orgLoading,
     licenseLoading, 
     accountsLoading, 
     demoLoading,
@@ -122,13 +123,14 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
   }
 
   // Show loading while verifying license, accounts and demo mode
-  if (licenseLoading || accountsLoading || demoLoading || !effectiveDemoVerified) {
+  if (licenseLoading || orgLoading || accountsLoading || demoLoading || !effectiveDemoVerified) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
         <div className="text-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="text-slate-300">
             {licenseLoading ? 'Verificando licença...' : 
+             orgLoading ? 'Carregando organização...' :
              demoLoading || !effectiveDemoVerified ? 'Verificando modo de demonstração...' :
              'Verificando contas cloud...'}
           </p>

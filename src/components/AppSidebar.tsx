@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import evoLogo from "@/assets/evo-logo.png";
 import { 
   LayoutDashboard, 
   DollarSign, 
@@ -239,6 +240,12 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
     <Sidebar collapsible="icon" className="select-none h-screen [&_[data-sidebar=sidebar]]:h-screen">
       <SidebarContent className="h-screen flex flex-col bg-sidebar overflow-hidden">
         <SidebarGroup className="flex-shrink-0 p-1.5">
+          <div className="flex items-center gap-2 px-1 mb-1">
+            <img src={evoLogo} alt="EVO" className="h-6 w-6 rounded-md object-contain" />
+            {!isCollapsed && (
+              <span className="text-sm font-semibold text-foreground">EVO Platform</span>
+            )}
+          </div>
           <SidebarGroupLabel className="text-xs font-semibold select-none px-1">{t('sidebar.navigation')}</SidebarGroupLabel>
         </SidebarGroup>
         

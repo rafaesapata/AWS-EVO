@@ -78,38 +78,49 @@ export default function BudgetManagement() {
       setBudgets(map);
       setEditValues(new Map());
 
-      // Azure auto-sync: if all months have 0 actual_spend, trigger cost sync
+      // Azure auto-sync: if all months have 0 actual_spend, trigger cost sync in background
       const hasAnySpend = rows.some((b: BudgetRow) => b.actual_spend > 0);
       if (isAzure && selectedAccountId && !hasAnySpend && !syncingRef.current) {
         syncingRef.current = true;
         setSyncing(true);
-        try {
-          const now = new Date();
-          const startDate = new Date(now.getFullYear(), now.getMonth() - AZURE_SYNC_MONTHS, 1);
-          await apiClient.invoke('azure-fetch-costs', {
-            body: {
-              credentialId: selectedAccountId,
-              startDate: startDate.toISOString().split('T')[0],
-              endDate: now.toISOString().split('T')[0],
-              granularity: 'DAILY',
-            },
-            timeoutMs: AZURE_SYNC_TIMEOUT_MS,
-          });
-          // Re-fetch budgets after sync
-          const retryRes = await apiClient.lambda('manage-cloud-budget', {
-            action: 'list',
-            provider,
-          });
-          const retryMap = new Map<string, BudgetRow>();
-          (retryRes.budgets || []).forEach((b: BudgetRow) => retryMap.set(b.year_month, b));
-          setBudgets(retryMap);
-          setEditValues(new Map());
-        } catch {
-          // Sync failed silently — data will show as 0
-        } finally {
-          syncingRef.current = false;
-          setSyncing(false);
-        }
+        // Run sync in background - don't block the page
+        (async () => {
+          try {
+            const now = new Date();
+            const startDate = new Date(now.getFullYear(), now.getMonth() - AZURE_SYNC_MONTHS, 1);
+            const syncRes = await apiClient.invoke('azure-fetch-costs', {
+              body: {
+                credentialId: selectedAccountId,
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: now.toISOString().split('T')[0],
+                granularity: 'DAILY',
+              },
+              timeoutMs: AZURE_SYNC_TIMEOUT_MS,
+            });
+            // Check if sync returned an error
+            if (syncRes && 'error' in syncRes && syncRes.error) {
+              console.warn('Azure cost sync error:', syncRes.error);
+              toast.error(t('budgetManagement.syncError', 'Erro ao sincronizar custos Azure. Tente novamente.'));
+              return;
+            }
+            // Re-fetch budgets after successful sync
+            const retryRes = await apiClient.lambda('manage-cloud-budget', {
+              action: 'list',
+              provider,
+            });
+            if (retryRes && !('error' in retryRes && retryRes.error)) {
+              const retryMap = new Map<string, BudgetRow>();
+              ((retryRes as any).budgets || []).forEach((b: BudgetRow) => retryMap.set(b.year_month, b));
+              setBudgets(retryMap);
+              setEditValues(new Map());
+            }
+          } catch {
+            toast.error(t('budgetManagement.syncError', 'Erro ao sincronizar custos Azure. Tente novamente.'));
+          } finally {
+            syncingRef.current = false;
+            setSyncing(false);
+          }
+        })();
       }
     } catch {
       toast.error(t('budgetManagement.loadError', 'Erro ao carregar orçamentos'));

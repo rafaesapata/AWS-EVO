@@ -4525,6 +4525,7 @@
     "current": "atual",
     "autoTooltip": "85% do gasto do mês anterior",
     "manualTooltip": "Definido manualmente",
-    "syncing": "Sincronizando..."
+    "syncing": "Sincronizando...",
+    "syncError": "Erro ao sincronizar custos Azure. Tente novamente."
   }
 }

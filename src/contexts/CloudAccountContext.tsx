@@ -5,7 +5,7 @@
  * Extends the existing AwsAccountContext pattern to support multi-cloud.
  */
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { apiClient } from '@/integrations/aws/api-client';
@@ -51,6 +51,7 @@ interface CloudAccountContextType {
   
   // State
   isLoading: boolean;
+  orgLoading: boolean;
   error: Error | null;
   hasMultipleAccounts: boolean;
   hasMultipleProviders: boolean;
@@ -72,6 +73,7 @@ const defaultContext: CloudAccountContextType = {
   setProviderFilter: () => {},
   filteredAccounts: [],
   isLoading: false,
+  orgLoading: false,
   error: null,
   hasMultipleAccounts: false,
   hasMultipleProviders: false,
@@ -205,6 +207,17 @@ export function CloudAccountProvider({ children }: { children: React.ReactNode }
       return failureCount < 2;
     },
   });
+
+  // Force refetch when organizationId transitions from null to a valid value
+  const prevOrgIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const prevVal = prevOrgIdRef.current;
+    prevOrgIdRef.current = organizationId;
+    
+    if (!prevVal && organizationId && !isPublicPage) {
+      refetch();
+    }
+  }, [organizationId, isPublicPage, refetch]);
 
   // Fetch credentials from separate endpoints (fallback)
   async function fetchSeparateCredentials(): Promise<CloudAccount[]> {
@@ -354,6 +367,7 @@ export function CloudAccountProvider({ children }: { children: React.ReactNode }
     setProviderFilter,
     filteredAccounts,
     isLoading: orgLoading || accountsLoading,
+    orgLoading,
     error: error as Error | null,
     hasMultipleAccounts,
     hasMultipleProviders,

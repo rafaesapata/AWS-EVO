@@ -1,5 +1,5 @@
 {
-  "enabled": true,
+  "enabled": false,
   "name": "Code Quality Analyzer",
   "description": "Analyzes modified source code files for potential improvements including code smells, design patterns, best practices, readability, maintainability, and performance optimizations",
   "version": "1",

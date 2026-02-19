@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/integrations/aws/api-client';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -162,6 +162,17 @@ export function AwsAccountProvider({ children }: { children: React.ReactNode }) 
       return failureCount < 2; // Reduced retry count
     },
   });
+
+  // Force refetch when organizationId transitions from null to a valid value
+  const prevOrgIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const prevVal = prevOrgIdRef.current;
+    prevOrgIdRef.current = organizationId;
+    
+    if (!prevVal && organizationId) {
+      refetch();
+    }
+  }, [organizationId, refetch]);
 
   // Auto-select first account if none selected or selected is invalid
   useEffect(() => {
