@@ -596,7 +596,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const exportToCSV = () => {
  if (!costs) return;
 
- const headers = ['Data', 'Conta AWS', 'Custo Total', 'Créditos', 'Custo Líquido', 'Principais Serviços'];
+ const headers = ['Data', 'Conta', 'Custo Total', 'Créditos', 'Custo Líquido', 'Principais Serviços'];
  const rows = costs.map(cost => {
  const topServices = cost.service_breakdown 
  ? Object.entries(cost.service_breakdown)
@@ -1112,7 +1112,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  <TableRow>
  <TableHead className="w-12"></TableHead>
  <TableHead>Data</TableHead>
- <TableHead>Conta AWS</TableHead>
+ <TableHead>Conta</TableHead>
  <TableHead className="text-right">Custo Total</TableHead>
  <TableHead className="text-right">Créditos</TableHead>
  <TableHead className="text-right">Custo Líquido</TableHead>
