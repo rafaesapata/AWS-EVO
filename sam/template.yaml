@@ -1930,6 +1930,64 @@ Resources:
           - '@aws-sdk/*'
 
   # ============================================================================
+  # COST FUNCTIONS (2)
+  # ============================================================================
+  ManageCloudBudgetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-cloud-budget'
+      CodeUri: ../backend/src/handlers/cost/
+      Handler: manage-cloud-budget.handler
+      Timeout: 30
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/functions/manage-cloud-budget
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - manage-cloud-budget.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+          - '@aws-sdk/*'
+
+  AiBudgetSuggestionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ai-budget-suggestion'
+      CodeUri: ../backend/src/handlers/cost/
+      Handler: ai-budget-suggestion.handler
+      Timeout: 60
+      MemorySize: 512
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/functions/ai-budget-suggestion
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - ai-budget-suggestion.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+          - '@aws-sdk/*'
+
+  # ============================================================================
   # JOBS FUNCTIONS (15)
   # ============================================================================
   AutoCleanupStuckScansFunction:
