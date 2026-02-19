@@ -184,7 +184,7 @@ async function listSchedules(
   const { accountId, azureCredentialId, cloudProvider } = params;
   const prisma = getPrismaClient();
 
-  const where: any = { organization_id: organizationId };
+  const where: Record<string, string> = { organization_id: organizationId };
 
   if (accountId) where.aws_account_id = accountId;
   if (azureCredentialId) where.azure_credential_id = azureCredentialId;
@@ -229,7 +229,7 @@ async function updateSchedule(
     return notFound('Schedule not found');
   }
 
-  const updateData: any = {};
+  const updateData: Record<string, unknown> = {};
 
   if (data.scheduleType !== undefined) {
     updateData.schedule_type = data.scheduleType;
@@ -337,7 +337,23 @@ async function deleteSchedule(
 // Helpers
 // ============================================================================
 
-function formatScheduleResponse(schedule: any) {
+interface ScheduleRecord {
+  id: string;
+  organization_id: string;
+  aws_account_id?: string | null;
+  azure_credential_id?: string | null;
+  cloud_provider: string;
+  scan_type: string;
+  schedule_type: string;
+  schedule_config: unknown;
+  is_active: boolean;
+  last_run_at?: Date | null;
+  next_run_at?: Date | null;
+  created_at?: Date | null;
+  updated_at?: Date | null;
+}
+
+function formatScheduleResponse(schedule: ScheduleRecord) {
   return {
     id: schedule.id,
     organizationId: schedule.organization_id,

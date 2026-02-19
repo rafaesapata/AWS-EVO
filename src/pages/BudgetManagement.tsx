@@ -44,9 +44,10 @@ function formatMonth(ym: string, locale: string): string {
 
 export default function BudgetManagement() {
   const { t, i18n } = useTranslation();
-  const { selectedProvider } = useCloudAccount();
+  const { selectedAccountId, selectedProvider } = useCloudAccount();
   const provider = selectedProvider || 'AWS';
   const sym = getCurrencySymbol(getProviderCurrency(provider));
+  const isAzure = provider === 'AZURE';
 
   const DEBOUNCE_MS = 1200;
   const SAVED_FEEDBACK_MS = 2000;
@@ -54,6 +55,7 @@ export default function BudgetManagement() {
   const [editValues, setEditValues] = useState<Map<string, string>>(new Map());
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [savedMonths, setSavedMonths] = useState<Set<string>>(new Set());
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -66,15 +68,47 @@ export default function BudgetManagement() {
         action: 'list',
         provider,
       });
+      const rows: BudgetRow[] = res.budgets || [];
       const map = new Map<string, BudgetRow>();
-      (res.budgets || []).forEach((b: BudgetRow) => map.set(b.year_month, b));
+      rows.forEach((b: BudgetRow) => map.set(b.year_month, b));
       setBudgets(map);
+
+      // Azure auto-sync: if all months have 0 actual_spend, trigger cost sync
+      const hasAnySpend = rows.some((b: BudgetRow) => b.actual_spend > 0);
+      if (isAzure && selectedAccountId && !hasAnySpend && !syncing) {
+        setSyncing(true);
+        try {
+          const now = new Date();
+          const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+          await apiClient.invoke('azure-fetch-costs', {
+            body: {
+              credentialId: selectedAccountId,
+              startDate: startDate.toISOString().split('T')[0],
+              endDate: now.toISOString().split('T')[0],
+              granularity: 'DAILY',
+            },
+            timeoutMs: 120000,
+          });
+          // Re-fetch budgets after sync
+          const retryRes = await apiClient.lambda('manage-cloud-budget', {
+            action: 'list',
+            provider,
+          });
+          const retryMap = new Map<string, BudgetRow>();
+          (retryRes.budgets || []).forEach((b: BudgetRow) => retryMap.set(b.year_month, b));
+          setBudgets(retryMap);
+        } catch {
+          // Sync failed silently — data will show as 0
+        } finally {
+          setSyncing(false);
+        }
+      }
     } catch {
       toast.error(t('budgetManagement.loadError', 'Erro ao carregar orçamentos'));
     } finally {
       setLoading(false);
     }
-  }, [provider, t]);
+  }, [provider, isAzure, selectedAccountId, syncing, t]);
 
   useEffect(() => { fetchBudgets(); }, [fetchBudgets]);
 
@@ -286,9 +320,11 @@ export default function BudgetManagement() {
                 {t('budgetManagement.monthlyBudgets', 'Orçamentos Mensais')}
                 <Badge variant="outline" className="text-xs font-normal">{provider}</Badge>
               </CardTitle>
-              <Button variant="outline" size="sm" className="glass hover-glow" onClick={fetchBudgets} disabled={loading}>
-                <RefreshCw className={cn('h-4 w-4 mr-1', loading && 'animate-spin')} />
-                {t('budgetManagement.refresh', 'Atualizar')}
+              <Button variant="outline" size="sm" className="glass hover-glow" onClick={fetchBudgets} disabled={loading || syncing}>
+                <RefreshCw className={cn('h-4 w-4 mr-1', (loading || syncing) && 'animate-spin')} />
+                {syncing
+                  ? t('budgetManagement.syncing', 'Sincronizando...')
+                  : t('budgetManagement.refresh', 'Atualizar')}
               </Button>
             </div>
           </CardHeader>
@@ -353,9 +389,11 @@ export default function BudgetManagement() {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-right tabular-nums">
-                            {spend > 0
-                              ? <span className="font-medium">{sym}{spend.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                              : <span className="text-muted-foreground">—</span>}
+                            {syncing
+                              ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground inline-block" />
+                              : spend > 0
+                                ? <span className="font-medium">{sym}{spend.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                                : <span className="text-muted-foreground">—</span>}
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">

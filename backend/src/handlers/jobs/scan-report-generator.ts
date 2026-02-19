@@ -30,18 +30,13 @@ interface ReportGeneratorPayload {
 }
 
 const PLATFORM_BASE_URL = process.env.PLATFORM_BASE_URL || 'https://evo.nuevacore.com';
-const NOTIFICATION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const NOTIFICATION_EXPIRY_DAYS = 7;
+const NOTIFICATION_EXPIRY_MS = NOTIFICATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
-const ALARM_TITLES: Record<string, string> = {
-  new_critical: 'Novos Findings Críticos',
-  degradation: 'Degradação da Postura de Segurança',
-  improvement: 'Melhoria na Postura de Segurança',
-};
-
-const ALARM_ACTIONS: Record<string, string> = {
-  new_critical: 'Revise os findings críticos imediatamente',
-  degradation: 'Investigue o aumento de findings',
-  improvement: 'Continue monitorando',
+const ALARM_CONFIG: Record<string, { title: string; action: string }> = {
+  new_critical: { title: 'Novos Findings Críticos', action: 'Revise os findings críticos imediatamente' },
+  degradation: { title: 'Degradação da Postura de Segurança', action: 'Investigue o aumento de findings' },
+  improvement: { title: 'Melhoria na Postura de Segurança', action: 'Continue monitorando' },
 };
 
 interface DbFinding {
@@ -74,6 +69,118 @@ function findingInputToSummary(f: FindingInput) {
     resourceType: f.resourceType,
     category: f.category,
   };
+}
+
+interface RecipientProfile {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+}
+
+/**
+ * Envia emails de relatório para todos os destinatários e registra na CommunicationLog.
+ */
+async function sendReportEmails(
+  prisma: ReturnType<typeof getPrismaClient>,
+  profiles: RecipientProfile[],
+  report: ScanReport,
+  payload: ReportGeneratorPayload
+): Promise<void> {
+  const emailService = createEmailService();
+  const emailSubject = generateReportSubject(report);
+  const emailHtml = generateSecurityReportHtml({
+    report,
+    platformUrl: `${PLATFORM_BASE_URL}/security-scans`,
+  });
+
+  for (const profile of profiles) {
+    let messageId: string | undefined;
+    let emailStatus = 'sent';
+    let errorMsg: string | undefined;
+
+    try {
+      const result = await emailService.sendEmail({
+        to: { email: profile.email, name: profile.full_name || undefined },
+        subject: emailSubject,
+        htmlBody: emailHtml,
+        tags: { type: 'scan_report', scan_id: payload.scanId },
+      });
+      messageId = result.messageId;
+    } catch (err) {
+      emailStatus = 'failed';
+      errorMsg = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to send report email', err as Error, {
+        recipient: profile.email,
+        scanId: payload.scanId,
+      });
+    }
+
+    try {
+      await prisma.communicationLog.create({
+        data: {
+          organization_id: payload.organizationId,
+          channel: 'email',
+          recipient: profile.email,
+          subject: emailSubject,
+          message: `Relatório de scan de segurança: ${payload.scanId}`,
+          status: emailStatus,
+          metadata: {
+            scan_id: payload.scanId,
+            scan_type: payload.scanType,
+            cloud_provider: payload.cloudProvider,
+            template_type: 'scan_report',
+            is_automated: true,
+            ...(messageId ? { messageId } : {}),
+            ...(errorMsg ? { error: errorMsg } : {}),
+          },
+        },
+      });
+    } catch (logErr) {
+      logger.error('Failed to create CommunicationLog entry', logErr as Error, {
+        recipient: profile.email,
+        scanId: payload.scanId,
+      });
+    }
+  }
+}
+
+/**
+ * Avalia condições de alarme e cria AiNotifications.
+ */
+async function createAlarmNotifications(
+  prisma: ReturnType<typeof getPrismaClient>,
+  report: ScanReport,
+  payload: ReportGeneratorPayload
+): Promise<void> {
+  const alarmConditions = evaluateAlarmConditions(report);
+
+  for (const condition of alarmConditions) {
+    const config = ALARM_CONFIG[condition.type];
+    await prisma.aiNotification.create({
+      data: {
+        organization_id: payload.organizationId,
+        user_id: null,
+        type: `scan_report_${condition.type}`,
+        priority: condition.priority,
+        title: config?.title || condition.type,
+        message: condition.message,
+        suggested_action: config?.action || null,
+        action_type: 'navigate',
+        action_params: { path: '/security-scans' },
+        context: { scan_id: payload.scanId, cloud_provider: payload.cloudProvider },
+        status: 'pending',
+        expires_at: new Date(Date.now() + NOTIFICATION_EXPIRY_MS),
+      },
+    });
+  }
+
+  if (alarmConditions.length > 0) {
+    logger.info('Alarm conditions created', {
+      scanId: payload.scanId,
+      conditionCount: alarmConditions.length,
+      types: alarmConditions.map((c) => c.type),
+    });
+  }
 }
 
 export async function handler(event: any, _context: LambdaContext): Promise<{ statusCode: number; body: string }> {
@@ -170,7 +277,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       comparison,
     };
 
-    // 8. Fetch recipients: org profiles first, then check notification preferences
+    // 8. Fetch recipients with email notifications enabled
     const orgProfiles = await prisma.profile.findMany({
       where: { organization_id: organizationId },
       select: { user_id: true, email: true, full_name: true },
@@ -192,104 +299,17 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
     const enabledUserIds = new Set(enabledSettings.map((ns) => ns.userId));
     const profiles = orgProfiles.filter((p) => enabledUserIds.has(p.user_id));
 
-    // 9. Send emails
+    // 9. Send emails via CommunicationLog
     if (profiles.length === 0) {
       logger.warn('No recipients with email enabled for organization', { organizationId });
     } else {
-      const emailService = createEmailService();
-      const emailSubject = generateReportSubject(report);
-      const emailHtml = generateSecurityReportHtml({
-        report,
-        platformUrl: `${PLATFORM_BASE_URL}/security-scans`,
-      });
-
-      for (const profile of profiles) {
-        let messageId: string | undefined;
-        let emailStatus = 'sent';
-        let errorMsg: string | undefined;
-
-        try {
-          const result = await emailService.sendEmail({
-            to: { email: profile.email, name: profile.full_name || undefined },
-            subject: emailSubject,
-            htmlBody: emailHtml,
-            tags: { type: 'scan_report', scan_id: scanId },
-          });
-          messageId = result.messageId;
-        } catch (err) {
-          emailStatus = 'failed';
-          errorMsg = err instanceof Error ? err.message : String(err);
-          logger.error('Failed to send report email', err as Error, {
-            recipient: profile.email,
-            scanId,
-          });
-        }
-
-        // Register in CommunicationLog
-        try {
-          await prisma.communicationLog.create({
-            data: {
-              organization_id: organizationId,
-              channel: 'email',
-              recipient: profile.email,
-              subject: emailSubject,
-              message: `Relatório de scan de segurança: ${scanId}`,
-              status: emailStatus,
-              metadata: {
-                scan_id: scanId,
-                scan_type: scanType,
-                cloud_provider: cloudProvider,
-                template_type: 'scan_report',
-                is_automated: true,
-                ...(messageId ? { messageId } : {}),
-                ...(errorMsg ? { error: errorMsg } : {}),
-              },
-            },
-          });
-        } catch (logErr) {
-          logger.error('Failed to create CommunicationLog entry', logErr as Error, {
-            recipient: profile.email,
-            scanId,
-          });
-        }
-      }
-
-      logger.info('Report emails processed', {
-        scanId,
-        recipientCount: profiles.length,
-      });
+      await sendReportEmails(prisma, profiles, report, payload);
+      logger.info('Report emails processed', { scanId, recipientCount: profiles.length });
     }
 
     // 10. Evaluate alarm conditions and create AiNotifications
     try {
-      const alarmConditions = evaluateAlarmConditions(report);
-
-      for (const condition of alarmConditions) {
-        await prisma.aiNotification.create({
-          data: {
-            organization_id: organizationId,
-            user_id: null,
-            type: `scan_report_${condition.type}`,
-            priority: condition.priority,
-            title: ALARM_TITLES[condition.type] || condition.type,
-            message: condition.message,
-            suggested_action: ALARM_ACTIONS[condition.type] || null,
-            action_type: 'navigate',
-            action_params: { path: '/security-scans' },
-            context: { scan_id: scanId, cloud_provider: cloudProvider },
-            status: 'pending',
-            expires_at: new Date(Date.now() + NOTIFICATION_EXPIRY_MS),
-          },
-        });
-      }
-
-      if (alarmConditions.length > 0) {
-        logger.info('Alarm conditions created', {
-          scanId,
-          conditionCount: alarmConditions.length,
-          types: alarmConditions.map((c) => c.type),
-        });
-      }
+      await createAlarmNotifications(prisma, report, payload);
     } catch (alarmErr) {
       logger.error('Failed to evaluate alarm conditions', alarmErr as Error, { scanId });
     }

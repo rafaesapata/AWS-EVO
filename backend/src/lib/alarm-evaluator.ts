@@ -60,9 +60,10 @@ export function evaluateAlarmConditions(report: ScanReport): AlarmCondition[] {
     (f) => f.severity === 'critical'
   );
   if (resolvedCriticalFindings.length > 0) {
-    // Verificar se não restam findings críticos persistentes
-    const persistentCriticalCount = report.summary.critical - newCriticalFindings.length;
-    if (persistentCriticalCount <= 0 && newCriticalFindings.length === 0) {
+    // summary.critical = all current criticals (new + persistent)
+    // Subtract new criticals to get only persistent ones from previous scan
+    const currentPersistentCriticalCount = report.summary.critical - newCriticalFindings.length;
+    if (currentPersistentCriticalCount <= 0 && newCriticalFindings.length === 0) {
       conditions.push({
         type: 'improvement',
         priority: 'low',

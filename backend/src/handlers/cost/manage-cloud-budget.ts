@@ -104,6 +104,15 @@ export async function handler(
     const yearMonth = body.year_month || getCurrentYearMonth();
 
     if (action === 'list') {
+      // Generate last 12 months list
+      const now = new Date();
+      const allMonths: string[] = [];
+      for (let i = 0; i < MAX_BUDGET_MONTHS; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        allMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+
+      // Fetch existing budgets
       const budgets = await prisma.cloudBudget.findMany({
         where: {
           organization_id: organizationId,
@@ -113,17 +122,27 @@ export async function handler(
         take: MAX_BUDGET_MONTHS,
       });
 
+      const budgetMap = new Map<string, any>();
+      for (const b of budgets) {
+        budgetMap.set(b.year_month, b);
+      }
+
+      // Return all 12 months with actual_spend, even if no budget exists
       const budgetsWithSpend = await Promise.all(
-        budgets.map(async (b: any) => ({
-          id: b.id,
-          year_month: b.year_month,
-          cloud_provider: b.cloud_provider,
-          amount: b.amount,
-          currency: b.currency,
-          source: b.source,
-          actual_spend: await getMonthlySpend(prisma, organizationId, provider, b.year_month),
-          updated_at: b.updated_at,
-        }))
+        allMonths.map(async (ym) => {
+          const b = budgetMap.get(ym);
+          const spend = await getMonthlySpend(prisma, organizationId, provider, ym);
+          return {
+            id: b?.id || null,
+            year_month: ym,
+            cloud_provider: provider,
+            amount: b?.amount || 0,
+            currency: b?.currency || 'USD',
+            source: b?.source || null,
+            actual_spend: spend,
+            updated_at: b?.updated_at || null,
+          };
+        })
       );
 
       return success({ budgets: budgetsWithSpend, provider });
@@ -161,6 +180,9 @@ export async function handler(
         }
       }
 
+      // Always include actual_spend so the frontend can display real costs
+      const actualSpend = await getMonthlySpend(prisma, organizationId, provider, yearMonth);
+
       return success({
         budget: budget ? {
           id: budget.id,
@@ -170,6 +192,7 @@ export async function handler(
           year_month: budget.year_month,
           cloud_provider: budget.cloud_provider,
         } : null,
+        actual_spend: actualSpend,
         year_month: yearMonth,
         provider,
       });
@@ -221,6 +244,8 @@ export async function handler(
 
       logger.info('Budget saved', { organizationId, provider, yearMonth, amount: body.amount });
 
+      const actualSpend = await getMonthlySpend(prisma, organizationId, provider, yearMonth);
+
       return success({
         budget: {
           id: budget.id,
@@ -230,6 +255,7 @@ export async function handler(
           year_month: budget.year_month,
           cloud_provider: budget.cloud_provider,
         },
+        actual_spend: actualSpend,
       });
     }
 

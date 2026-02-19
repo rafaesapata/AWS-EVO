@@ -4523,6 +4523,7 @@
     "monthsOverBudget": "meses acima do limite",
     "current": "atual",
     "autoTooltip": "85% do gasto do mês anterior",
-    "manualTooltip": "Definido manualmente"
+    "manualTooltip": "Definido manualmente",
+    "syncing": "Sincronizando..."
   }
 }

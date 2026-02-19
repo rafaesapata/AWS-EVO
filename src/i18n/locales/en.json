@@ -4378,6 +4378,7 @@
     "monthsOverBudget": "months over limit",
     "current": "current",
     "autoTooltip": "85% of previous month's spend",
-    "manualTooltip": "Manually defined"
+    "manualTooltip": "Manually defined",
+    "syncing": "Syncing..."
   }
 }

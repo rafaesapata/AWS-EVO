@@ -1,6 +1,5 @@
 /**
- * Lambda handler for Scheduled Scan Executor
- * AWS Lambda Handler for scheduled-scan-executor
+ * Scheduled Scan Executor
  * 
  * Executa scans agendados automaticamente baseado na tabela scan_schedules.
  * Triggered by EventBridge every hour.
@@ -37,6 +36,16 @@ interface ScanScheduleResult {
   error?: string;
 }
 
+const MAX_SCHEDULES_PER_BATCH = 50;
+
+function skipResult(schedule: { id: string; organization_id: string; scan_type: string }, message: string): ScanScheduleResult {
+  return { scheduleId: schedule.id, organizationId: schedule.organization_id, scanType: schedule.scan_type, status: 'skipped', message };
+}
+
+function failResult(schedule: { id: string; organization_id: string; scan_type: string }, errorMessage: string): ScanScheduleResult {
+  return { scheduleId: schedule.id, organizationId: schedule.organization_id, scanType: schedule.scan_type, status: 'failed', error: errorMessage };
+}
+
 export async function handler(
   event: ScheduledEvent,
   context: LambdaContext
@@ -71,7 +80,7 @@ export async function handler(
         aws_credential: { select: { id: true, account_name: true, is_active: true } },
         azure_credential: { select: { id: true, subscription_name: true, is_active: true } }
       },
-      take: 50,
+      take: MAX_SCHEDULES_PER_BATCH,
     });
     
     logger.info('Found scan schedules to execute', { schedulesCount: schedules.length });
@@ -92,13 +101,7 @@ export async function handler(
       try {
         // Daily limit: skip if already ran today (UTC)
         if (schedule.last_run_at && isSameDayUTC(schedule.last_run_at, now)) {
-          results.push({
-            scheduleId: schedule.id,
-            organizationId: schedule.organization_id,
-            scanType: schedule.scan_type,
-            status: 'skipped',
-            message: 'Daily limit reached - already executed today'
-          });
+          results.push(skipResult(schedule, 'Daily limit reached - already executed today'));
           continue;
         }
 
@@ -106,40 +109,16 @@ export async function handler(
         const isAzure = schedule.cloud_provider === 'AZURE' || !!schedule.azure_credential_id;
         
         // Verify credential is active
-        if (isAzure) {
-          if (!schedule.azure_credential?.is_active) {
-            results.push({
-              scheduleId: schedule.id,
-              organizationId: schedule.organization_id,
-              scanType: schedule.scan_type,
-              status: 'skipped',
-              message: 'Azure credential is inactive'
-            });
-            continue;
-          }
-        } else {
-          if (!schedule.aws_credential?.is_active) {
-            results.push({
-              scheduleId: schedule.id,
-              organizationId: schedule.organization_id,
-              scanType: schedule.scan_type,
-              status: 'skipped',
-              message: 'AWS credential is inactive'
-            });
-            continue;
-          }
+        const credential = isAzure ? schedule.azure_credential : schedule.aws_credential;
+        if (!credential?.is_active) {
+          results.push(skipResult(schedule, `${isAzure ? 'Azure' : 'AWS'} credential is inactive`));
+          continue;
         }
         
         // Mapear tipo de scan para Lambda
         const lambdaName = getScanLambdaName(schedule.scan_type);
         if (!lambdaName) {
-          results.push({
-            scheduleId: schedule.id,
-            organizationId: schedule.organization_id,
-            scanType: schedule.scan_type,
-            status: 'skipped',
-            message: `Unknown scan type: ${schedule.scan_type}`
-          });
+          results.push(skipResult(schedule, `Unknown scan type: ${schedule.scan_type}`));
           continue;
         }
         
@@ -214,14 +193,7 @@ export async function handler(
         // and we don't have the scanId yet at this point.
         
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        results.push({
-          scheduleId: schedule.id,
-          organizationId: schedule.organization_id,
-          scanType: schedule.scan_type,
-          status: 'failed',
-          error: errorMessage
-        });
+        results.push(failResult(schedule, err instanceof Error ? err.message : 'Unknown error'));
         logger.error('Failed to execute scheduled scan', err as Error, {
           scheduleId: schedule.id,
           scanType: schedule.scan_type

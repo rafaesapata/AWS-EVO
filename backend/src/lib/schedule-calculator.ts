@@ -52,7 +52,9 @@ export function calculateNextRun(scheduleType: string, scheduleConfig: unknown):
         now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
         weeklyHour, 0, 0, 0
       ));
-      const daysUntilNext = (weeklyDay - now.getUTCDay() + 7) % 7 || 7;
+      const dayDiff = (weeklyDay - now.getUTCDay() + 7) % 7;
+      // If today is the target day but time already passed, schedule next week
+      const daysUntilNext = dayDiff === 0 && nextWeekly <= now ? 7 : dayDiff || 7;
       nextWeekly.setUTCDate(nextWeekly.getUTCDate() + daysUntilNext);
       return nextWeekly;
     }
