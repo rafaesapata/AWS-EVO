@@ -20,8 +20,9 @@ function getLabelColor(pct: number): string {
 
 export function BudgetProgressBar({ utilizationPercentage }: BudgetProgressBarProps) {
   const { t } = useTranslation();
-  const capped = Math.min(100, utilizationPercentage);
-  const rounded = Math.round(utilizationPercentage);
+  const safePct = isNaN(utilizationPercentage) || !isFinite(utilizationPercentage) ? 0 : utilizationPercentage;
+  const capped = Math.min(100, safePct);
+  const rounded = Math.round(safePct);
 
   return (
     <div className="space-y-2">
@@ -29,13 +30,13 @@ export function BudgetProgressBar({ utilizationPercentage }: BudgetProgressBarPr
         <span className="text-muted-foreground">
           {t('budgetManagement.budgetUsage', 'Uso do orçamento')}
         </span>
-        <span className={cn('font-semibold tabular-nums', getLabelColor(utilizationPercentage))}>
+        <span className={cn('font-semibold tabular-nums', getLabelColor(safePct))}>
           {rounded}%
         </span>
       </div>
       <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
         <div
-          className={cn('h-full rounded-full transition-all duration-700', getBarColor(utilizationPercentage))}
+          className={cn('h-full rounded-full transition-all duration-700', getBarColor(safePct))}
           style={{ width: `${capped}%` }}
           role="progressbar"
           aria-valuenow={rounded}
@@ -44,7 +45,7 @@ export function BudgetProgressBar({ utilizationPercentage }: BudgetProgressBarPr
           aria-label={t('budgetManagement.budgetUsage', 'Uso do orçamento')}
         />
       </div>
-      {utilizationPercentage > 100 && (
+      {safePct > 100 && (
         <p className="text-xs text-red-500 font-medium">
           {t('budgetManagement.overBudgetWarning', 'Acima do orçamento!')}
         </p>

@@ -12,6 +12,8 @@ export interface BudgetInputProps {
   onSave: (value: number) => void;
   loading?: boolean;
   disabled?: boolean;
+  /** Maximum allowed budget (e.g. 2x previous month spend) */
+  maxBudget?: number;
   /** Slot for the AI suggestion button rendered next to the input */
   actionSlot?: React.ReactNode;
 }
@@ -22,6 +24,7 @@ export function BudgetInput({
   onSave,
   loading = false,
   disabled = false,
+  maxBudget,
   actionSlot,
 }: BudgetInputProps) {
   const { t } = useTranslation();
@@ -29,19 +32,21 @@ export function BudgetInput({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<number>(value);
 
-  // Track a stable slider max that only updates on save or external changes
-  const [sliderMax, setSliderMax] = useState(() => Math.max(value * 2, 50000));
+  // Track a stable slider max based on maxBudget prop or fallback
+  const [sliderMax, setSliderMax] = useState(() => maxBudget || Math.max(value * 2, 50000));
 
-  // Sync inputText when external value changes (e.g. AI suggestion)
+  // Sync inputText and slider max when external value/maxBudget changes
   useEffect(() => {
     setInputText(String(value));
-    // Recalculate slider max only on external value changes (not during drag)
-    setSliderMax(prev => {
-      const ideal = Math.max(value * 2, 50000);
-      // Only grow, never shrink while interacting
-      return Math.max(prev, ideal);
-    });
-  }, [value]);
+    if (maxBudget) {
+      setSliderMax(maxBudget);
+    } else {
+      setSliderMax(prev => {
+        const ideal = Math.max(value * 2, 50000);
+        return Math.max(prev, ideal);
+      });
+    }
+  }, [value, maxBudget]);
 
   const scheduleSave = useCallback(
     (newValue: number) => {
@@ -50,8 +55,6 @@ export function BudgetInput({
         if (newValue !== lastSavedRef.current) {
           lastSavedRef.current = newValue;
           onSave(newValue);
-          // Recalculate slider max after save stabilizes
-          setSliderMax(Math.max(newValue * 2, 50000));
         }
       }, 800);
     },
@@ -72,8 +75,8 @@ export function BudgetInput({
     const parsed = parseFloat(raw);
     if (isNaN(parsed)) return;
 
-    // Reject negatives — clamp to 0
-    const clamped = Math.max(0, parsed);
+    // Reject negatives — clamp to 0 and maxBudget
+    const clamped = Math.min(maxBudget || Infinity, Math.max(0, parsed));
     onChange(clamped);
     scheduleSave(clamped);
   };
@@ -85,7 +88,7 @@ export function BudgetInput({
       setInputText(String(value));
       return;
     }
-    const clamped = Math.max(0, parsed);
+    const clamped = Math.min(maxBudget || Infinity, Math.max(0, parsed));
     if (clamped !== value) {
       onChange(clamped);
       scheduleSave(clamped);

@@ -123,7 +123,7 @@ export default function BudgetManagement() {
   };
 
   const mtdSpend = budgetData?.mtd_spend ?? 0;
-  const utilization = budgetData?.utilization_percentage ?? 0;
+  const utilization = budgetValue > 0 ? Math.round((mtdSpend / budgetValue) * 100 * 100) / 100 : 0;
 
   return (
     <Layout
@@ -171,6 +171,7 @@ export default function BudgetManagement() {
           onSave={handleBudgetSave}
           loading={loading}
           disabled={isInDemoMode}
+          maxBudget={suggestionData?.previous_month_spend ? Math.round(suggestionData.previous_month_spend * 2) : undefined}
           actionSlot={
             <AISuggestionButton
               provider={provider}

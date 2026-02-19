@@ -26,7 +26,8 @@ export function BudgetSummaryCards({
   loading = false,
 }: BudgetSummaryCardsProps) {
   const { t } = useTranslation();
-  const isOverBudget = utilizationPercentage > 100;
+  const safePct = isNaN(utilizationPercentage) || !isFinite(utilizationPercentage) ? 0 : utilizationPercentage;
+  const isOverBudget = safePct > 100;
 
   return (
     <div className="grid gap-6 md:grid-cols-3">
@@ -73,8 +74,8 @@ export function BudgetSummaryCards({
                 ) : (
                   <TrendingDown className="h-3 w-3 text-green-500" />
                 )}
-                <span className={getUtilizationColor(utilizationPercentage)}>
-                  {Math.round(utilizationPercentage)}% {t('budgetManagement.ofBudget', 'do orçamento')}
+                <span className={getUtilizationColor(safePct)}>
+                  {Math.round(safePct)}% {t('budgetManagement.ofBudget', 'do orçamento')}
                 </span>
               </div>
             </div>
@@ -94,8 +95,8 @@ export function BudgetSummaryCards({
           {loading ? (
             <Skeleton className="h-8 w-24" />
           ) : (
-            <div className={cn('text-2xl font-semibold tabular-nums', getUtilizationColor(utilizationPercentage))}>
-              {Math.round(utilizationPercentage)}%
+            <div className={cn('text-2xl font-semibold tabular-nums', getUtilizationColor(safePct))}>
+              {Math.round(safePct)}%
             </div>
           )}
         </CardContent>

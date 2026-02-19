@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, Brain, TrendingDown, Recycle, Server } from 'lucide-react';
@@ -17,6 +17,15 @@ export function AISuggestionDetails({
 }: AISuggestionDetailsProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const prevSuggestionRef = useRef<AISuggestionResponse | null>(null);
+
+  // Auto-expand when a new suggestion arrives
+  useEffect(() => {
+    if (suggestion && suggestion.data_available && suggestion !== prevSuggestionRef.current) {
+      setOpen(true);
+      prevSuggestionRef.current = suggestion;
+    }
+  }, [suggestion]);
 
   if (!suggestion || !suggestion.data_available) return null;
 
