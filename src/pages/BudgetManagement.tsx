@@ -76,6 +76,7 @@ export default function BudgetManagement() {
       const map = new Map<string, BudgetRow>();
       rows.forEach((b: BudgetRow) => map.set(b.year_month, b));
       setBudgets(map);
+      setEditValues(new Map());
 
       // Azure auto-sync: if all months have 0 actual_spend, trigger cost sync
       const hasAnySpend = rows.some((b: BudgetRow) => b.actual_spend > 0);
@@ -102,6 +103,7 @@ export default function BudgetManagement() {
           const retryMap = new Map<string, BudgetRow>();
           (retryRes.budgets || []).forEach((b: BudgetRow) => retryMap.set(b.year_month, b));
           setBudgets(retryMap);
+          setEditValues(new Map());
         } catch {
           // Sync failed silently — data will show as 0
         } finally {
@@ -148,6 +150,7 @@ export default function BudgetManagement() {
         return next;
       });
       setSavedMonths(prev => new Set(prev).add(yearMonth));
+      setEditValues(prev => { const n = new Map(prev); n.delete(yearMonth); return n; });
       setTimeout(() => setSavedMonths(prev => { const n = new Set(prev); n.delete(yearMonth); return n; }), SAVED_FEEDBACK_MS);
     } catch {
       toast.error(t('budgetManagement.saveError', 'Erro ao salvar orçamento'));
@@ -172,8 +175,8 @@ export default function BudgetManagement() {
       const original = b ? Math.round(b.amount) : 0;
       if (Math.round(amount) !== original) {
         saveBudget(yearMonth, amount);
-      debounceTimers.current.delete(yearMonth);
       }
+      debounceTimers.current.delete(yearMonth);
     }, DEBOUNCE_MS);
     debounceTimers.current.set(yearMonth, timer);
   }, [budgets, saveBudget]);

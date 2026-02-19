@@ -10,6 +10,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
+import type { PrismaClient } from '@prisma/client';
 import { logger } from '../../lib/logger.js';
 import { parseEventBody } from '../../lib/request-parser.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
@@ -55,7 +56,7 @@ function getMonthDateRange(yearMonth: string): { startDate: Date; endDate: Date 
 
 /** Aggregates total spend for a given org/provider/month */
 async function getMonthlySpend(
-  prisma: any,
+  prisma: PrismaClient,
   organizationId: string,
   provider: string,
   yearMonth: string
@@ -76,7 +77,7 @@ async function getMonthlySpend(
  * Calcula o budget automático baseado no gasto do mês anterior
  */
 async function calculateAutoBudget(
-  prisma: any,
+  prisma: PrismaClient,
   organizationId: string,
   provider: string,
   yearMonth: string
@@ -122,7 +123,7 @@ export async function handler(
         take: MAX_BUDGET_MONTHS,
       });
 
-      const budgetMap = new Map<string, any>();
+      const budgetMap = new Map<string, typeof budgets[number]>();
       for (const b of budgets) {
         budgetMap.set(b.year_month, b);
       }
