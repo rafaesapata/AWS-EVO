@@ -91,15 +91,15 @@ phases:
           export LAMBDA_SG="sg-0f14fd661fc5c41ba"
           export PRIVATE_SUBNET_1="subnet-0edbe4968ff3a5a9e"
           export PRIVATE_SUBNET_2="subnet-01931c820b0b0e864"
-          export DATABASE_URL="postgresql://evoadmin:password@evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
+          export DATABASE_URL="postgresql://evoadmin:SandboxEvo2026Safe@evo-uds-v3-sandbox-postgres.csno4kowwmc9.us-east-1.rds.amazonaws.com:5432/evouds?schema=public"
           export FRONTEND_BUCKET="evo-uds-v3-sandbox-frontend-971354623291"
           export CF_DIST_ID="E93EL7AJZ6QAQ"
           export S3_BUCKET="evo-sam-artifacts-971354623291"
           export LAMBDA_PREFIX="evo-uds-v3-sandbox"
           export AZURE_OAUTH_CLIENT_ID="cb8027cd-877e-458a-8f46-b090312f79aa"
-          export AZURE_OAUTH_REDIRECT_URI="https://evo.nuevacore.com/azure/callback"
-          export APP_DOMAIN="evo.nuevacore.com"
-          export API_DOMAIN="api.evo.nuevacore.com"
+          export AZURE_OAUTH_REDIRECT_URI="https://evo.sandbox.nuevacore.com/azure/callback"
+          export APP_DOMAIN="evo.sandbox.nuevacore.com"
+          export API_DOMAIN="api.evo.sandbox.nuevacore.com"
         fi
       - echo "Environment $ENV | Stack $STACK_NAME"
       # Fetch secrets from SSM Parameter Store (secrets not stored in code)
@@ -223,7 +223,7 @@ phases:
             export VITE_STORAGE_ENCRYPTION_KEY="evo-uds-v3-production-secure-key-2024"
           else
             export VITE_AWS_ACCOUNT_ID=971354623291
-            export VITE_API_BASE_URL=https://igyifo56v7.execute-api.us-east-1.amazonaws.com/prod
+            export VITE_API_BASE_URL=https://api.evo.sandbox.nuevacore.com
             export VITE_CLOUDFRONT_DOMAIN=evo.sandbox.nuevacore.com
             export VITE_STORAGE_ENCRYPTION_KEY="evo-uds-v3-sandbox-secure-key-2024-local"
           fi
@@ -311,21 +311,29 @@ phases:
           echo "=== Skipping Frontend Deploy (no changes) ==="
         fi
 
-        # Update API Gateway custom domain mapping if full SAM deploy in production
-        if [ "$DEPLOY_FULL_SAM" = "true" ] && [ "$ENVIRONMENT" = "production" ]; then
-          echo "=== Updating API Gateway Custom Domain Mapping ==="
+        # Update API Gateway custom domain mapping if full SAM deploy
+        if [ "$DEPLOY_FULL_SAM" = "true" ]; then
+          CUSTOM_DOMAIN="$API_DOMAIN"
+          echo "=== Updating API Gateway Custom Domain Mapping ($CUSTOM_DOMAIN) ==="
           API_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 \
             --query "Stacks[0].Outputs[?OutputKey==\`HttpApiId\`].OutputValue" --output text 2>/dev/null || echo "")
           if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
-            MAPPING_ID=$(aws apigatewayv2 get-api-mappings --domain-name api.evo.nuevacore.com --region us-east-1 \
+            MAPPING_ID=$(aws apigatewayv2 get-api-mappings --domain-name $CUSTOM_DOMAIN --region us-east-1 \
               --query "Items[0].ApiMappingId" --output text 2>/dev/null || echo "")
             if [ -n "$MAPPING_ID" ] && [ "$MAPPING_ID" != "None" ]; then
               aws apigatewayv2 update-api-mapping \
-                --domain-name api.evo.nuevacore.com \
+                --domain-name $CUSTOM_DOMAIN \
                 --api-mapping-id $MAPPING_ID \
                 --api-id $API_ID \
                 --stage prod \
-                --region us-east-1 || echo "Warning: Could not update API mapping"
+                --region us-east-1 || echo "Warning: Could not update API mapping for $CUSTOM_DOMAIN"
+            else
+              echo "No existing API mapping found for $CUSTOM_DOMAIN - creating new mapping"
+              aws apigatewayv2 create-api-mapping \
+                --domain-name $CUSTOM_DOMAIN \
+                --api-id $API_ID \
+                --stage prod \
+                --region us-east-1 || echo "Warning: Could not create API mapping for $CUSTOM_DOMAIN"
             fi
           fi
         fi

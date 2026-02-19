@@ -95,15 +95,15 @@ Parameters:
   AzureOAuthRedirectUri:
     Type: String
     Description: Azure OAuth redirect URI
-    Default: 'https://evo.nuevacore.com/azure/callback'
+    Default: ''
   AppDomain:
     Type: String
     Description: Base application domain (e.g., evo.nuevacore.com)
-    Default: 'evo.nuevacore.com'
+    Default: ''
   ApiDomain:
     Type: String
     Description: API domain (e.g., api.evo.nuevacore.com)
-    Default: 'api.evo.nuevacore.com'
+    Default: ''
   WebAuthnRpId:
     Type: String
     Description: WebAuthn Relying Party ID (registrable domain)
