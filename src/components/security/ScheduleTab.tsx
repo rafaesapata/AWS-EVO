@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
+import { getErrorMessage } from "@/lib/error-utils";
 import { 
   Calendar, 
   Plus, 
@@ -216,7 +217,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
     },
     onError: (error) => {
       toast.error(t('schedule.createError', 'Erro ao criar agendamento'), {
-        description: error instanceof Error ? error.message : 'Erro desconhecido'
+        description: getErrorMessage(error)
       });
     }
   });
@@ -246,7 +247,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
     },
     onError: (error) => {
       toast.error(t('schedule.toggleError', 'Erro ao alterar status'), {
-        description: error instanceof Error ? error.message : 'Erro desconhecido'
+        description: getErrorMessage(error)
       });
     }
   });
@@ -267,7 +268,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
     },
     onError: (error) => {
       toast.error(t('schedule.deleteError', 'Erro ao remover agendamento'), {
-        description: error instanceof Error ? error.message : 'Erro desconhecido'
+        description: getErrorMessage(error)
       });
     }
   });
@@ -311,7 +312,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
     },
     onError: (error) => {
       toast.error(t('schedule.executeError', 'Erro ao executar scan'), {
-        description: error instanceof Error ? error.message : 'Erro desconhecido'
+        description: getErrorMessage(error)
       });
     }
   });

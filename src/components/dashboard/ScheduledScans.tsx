@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useTranslation } from "react-i18next";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
+import { getErrorMessage } from "@/lib/error-utils";
 
 interface ScanSchedule {
   id: string;
@@ -122,7 +123,7 @@ export const ScheduledScans = () => {
     },
     onError: (error) => {
       toast.error(t('scheduledScans.createError', 'Erro ao criar agendamento'), {
-        description: error instanceof Error ? error.message : 'Erro desconhecido'
+        description: getErrorMessage(error)
       });
     }
   });
@@ -144,7 +145,7 @@ export const ScheduledScans = () => {
     },
     onError: (error) => {
       toast.error(t('scheduledScans.toggleError', 'Erro ao alterar status'), {
-        description: error instanceof Error ? error.message : 'Erro desconhecido'
+        description: getErrorMessage(error)
       });
     }
   });
@@ -164,7 +165,7 @@ export const ScheduledScans = () => {
     },
     onError: (error) => {
       toast.error(t('scheduledScans.deleteError', 'Erro ao remover agendamento'), {
-        description: error instanceof Error ? error.message : 'Erro desconhecido'
+        description: getErrorMessage(error)
       });
     }
   });
@@ -208,7 +209,7 @@ export const ScheduledScans = () => {
     },
     onError: (error) => {
       toast.error(t('scheduledScans.executeError', 'Erro ao executar scan'), {
-        description: error instanceof Error ? error.message : 'Erro desconhecido'
+        description: getErrorMessage(error)
       });
     }
   });
