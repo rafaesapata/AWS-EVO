@@ -3,7 +3,7 @@
 
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x", "linux-arm64-openssl-1.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {
@@ -26,6 +26,7 @@ model Organization {
   name              String
   slug              String   @unique
   status            String   @default("active") // active, suspended, inactive
+  contact_email     String?  // Primary contact email (set during self-registration)
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   updated_at        DateTime @updatedAt @db.Timestamptz(6)
   
@@ -56,17 +57,23 @@ model Organization {
 
 model Profile {
   id                String   @id @default(uuid()) @db.Uuid
-  user_id           String   @db.Uuid
+  user_id           String   // Cognito user ID (text, not uuid)
+  email             String
+  name              String?  // Legacy column - use full_name instead
   organization_id   String   @db.Uuid
-  full_name         String?
-  avatar_url        String?
-  role              String?  @default("user")
+  role              String   @default("user")
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  full_name         String?
+  avatar_url        String?
+  language          String?  @default("pt")
+  timezone          String?  @default("America/Sao_Paulo")
   
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   
   @@unique([user_id, organization_id])
+  @@index([organization_id])
+  @@index([email])
   @@map("profiles")
 }
 
@@ -75,13 +82,14 @@ model Profile {
 model AwsCredential {
   id                    String   @id @default(uuid()) @db.Uuid
   organization_id       String   @db.Uuid
-  account_id            String?  @map("account_id") // 12-digit AWS account number
+  account_id            String   @map("account_id") // 12-digit AWS account number
   account_name          String?
   access_key_id         String?
   secret_access_key     String?
   role_arn              String?
   external_id           String?
   session_token         String?
+  region                String   @default("us-east-1")
   regions               String[]
   is_active             Boolean  @default(true)
   created_at            DateTime @default(now()) @db.Timestamptz(6)
@@ -92,6 +100,7 @@ model AwsCredential {
   scan_schedules        ScanSchedule[]
   guardduty_findings    GuardDutyFinding[]
   
+  @@index([organization_id])
   @@map("aws_credentials")
 }
 
@@ -127,6 +136,11 @@ model AzureCredential {
   client_id             String?  // Service Principal App ID (optional for OAuth)
   client_secret         String?  // Service Principal Secret (encrypted, optional for OAuth)
   
+  // Certificate fields (used when auth_type = 'certificate')
+  certificate_pem           String?  // Encrypted combined PEM (cert+key)
+  certificate_thumbprint    String?  // SHA-1 thumbprint
+  certificate_expires_at    DateTime? @db.Timestamptz(6) // Certificate expiration date
+  
   // OAuth fields (used when auth_type = 'oauth')
   encrypted_refresh_token String? // Encrypted OAuth refresh token
   token_expires_at      DateTime? @db.Timestamptz(6) // When current access token expires
@@ -143,6 +157,7 @@ model AzureCredential {
   
   organization          Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   security_scans        SecurityScan[] @relation("AzureSecurityScans")
+  scan_schedules        ScanSchedule[] @relation("AzureScanSchedules")
   activity_events       AzureActivityEvent[]
   defender_findings     AzureDefenderFinding[]
   reservations          AzureReservation[]
@@ -178,41 +193,64 @@ model OAuthState {
 
 model Finding {
   id                String   @id @default(uuid()) @db.Uuid
-  organization_id   String?  @db.Uuid
+  scan_id           String?  @db.Uuid  // Reference to security_scans.id
+  organization_id   String   @db.Uuid
   aws_account_id    String?  @db.Uuid
-  cloud_provider    CloudProvider @default(AWS)
+  cloud_provider    CloudProvider? @default(AWS)
   azure_credential_id String? @db.Uuid
   event_id          String?
   event_name        String?
   event_time        DateTime? @db.Timestamptz(6)
   user_identity     Json?
   severity          String
-  description       String
-  details           Json
-  ai_analysis       String?
-  status            String   @default("pending")
-  source            String?
+  title             String
+  description       String?
   resource_id       String?
+  resource_type     String?
+  region            String?
+  details           Json?    @default("{}")
+  ai_analysis       String?
+  status            String   @default("open")
+  source            String?  @db.VarChar
   resource_arn      String?
   scan_type         String?
   service           String?
   category          String?
-  compliance        String[]
+  compliance        String[] @default([])
   remediation       String?
   risk_vector       String?
   evidence          Json?
   remediation_ticket_id String? @db.Uuid
   created_at        DateTime @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  updated_at        DateTime? @default(now()) @db.Timestamptz(6)
   
-  organization      Organization? @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  // Finding fingerprinting & lifecycle
+  fingerprint           String?   @db.VarChar(64)
+  first_seen            DateTime? @db.Timestamptz(6)
+  last_seen             DateTime? @db.Timestamptz(6)
+  resolved_at           DateTime? @db.Timestamptz(6)
+  occurrence_count      Int       @default(1)
   
+  // False positive suppression
+  suppressed            Boolean   @default(false)
+  suppressed_by         String?   @db.VarChar(255)
+  suppressed_at         DateTime? @db.Timestamptz(6)
+  suppression_reason    String?
+  suppression_expires_at DateTime? @db.Timestamptz(6)
+  
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  
+  @@unique([organization_id, aws_account_id, fingerprint], name: "uq_finding_fingerprint")
   @@index([status])
   @@index([severity])
   @@index([event_time])
   @@index([organization_id])
   @@index([aws_account_id])
   @@index([cloud_provider])
+  @@index([fingerprint])
+  @@index([suppressed])
+  @@index([first_seen])
+  @@index([last_seen])
   @@map("findings")
 }
 
@@ -249,24 +287,29 @@ model SecurityScan {
 }
 
 model ScanSchedule {
-  id                String   @id @default(uuid()) @db.Uuid
-  organization_id   String   @db.Uuid
-  aws_account_id    String   @db.Uuid
-  scan_type         String
-  schedule_type     String   // daily, weekly, monthly
-  schedule_config   Json?
-  is_active         Boolean  @default(true)
-  last_run_at       DateTime? @db.Timestamptz(6)
-  next_run_at       DateTime? @db.Timestamptz(6)
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  id                  String        @id @default(uuid()) @db.Uuid
+  organization_id     String        @db.Uuid
+  aws_account_id      String?       @db.Uuid  // Optional - null for Azure scans
+  cloud_provider      CloudProvider @default(AWS)
+  azure_credential_id String?       @db.Uuid  // For Azure multi-cloud support
+  scan_type           String
+  schedule_type       String        // daily, weekly, monthly
+  schedule_config     Json?
+  is_active           Boolean       @default(true)
+  last_run_at         DateTime?     @db.Timestamptz(6)
+  next_run_at         DateTime?     @db.Timestamptz(6)
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime      @updatedAt @db.Timestamptz(6)
   
-  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  aws_credential    AwsCredential @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)
+  organization        Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  aws_credential      AwsCredential? @relation(fields: [aws_account_id], references: [id], onDelete: Cascade)
+  azure_credential    AzureCredential? @relation("AzureScanSchedules", fields: [azure_credential_id], references: [id], onDelete: Cascade)
   
   @@index([organization_id])
   @@index([is_active])
   @@index([next_run_at])
+  @@index([cloud_provider])
+  @@index([azure_credential_id])
   @@map("scan_schedules")
 }
 
@@ -353,6 +396,8 @@ model SecurityPosture {
   compliance_score      Float?
   risk_level            String
   calculated_at         DateTime @default(now()) @db.Timestamptz(6)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @default(now()) @db.Timestamptz(6)
   
   @@index([organization_id])
   @@index([calculated_at])
@@ -365,10 +410,8 @@ model BackgroundJob {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
   job_type          String
-  job_name          String
-  schedule          String?
-  parameters        Json?
   status            String   @default("pending")
+  payload           Json?
   result            Json?
   error             String?
   started_at        DateTime? @db.Timestamptz(6)
@@ -448,25 +491,25 @@ model KnowledgeBaseComment {
 model License {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
-  license_key       String   @unique
   customer_id       String?
-  plan_type         String
+  license_key       String   @unique
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+  plan_type         String?
   product_type      String?  // pilotone, enterprise, etc.
-  max_accounts      Int
-  max_users         Int      // total_seats from external API
-  used_seats        Int      @default(0)
-  available_seats   Int      @default(0)
+  max_accounts      Int?
+  max_users         Int?     // total_seats from external API
+  used_seats        Int?     @default(0)
+  available_seats   Int?     @default(0)
   features          String[]
-  valid_from        DateTime @db.Timestamptz(6)
-  valid_until       DateTime @db.Timestamptz(6)
+  valid_from        DateTime? @db.Timestamptz(6)
+  valid_until       DateTime? @db.Timestamptz(6)
   is_active         Boolean  @default(true)
   is_trial          Boolean  @default(false)
   is_expired        Boolean  @default(false)
   days_remaining    Int?
   last_sync_at      DateTime? @db.Timestamptz(6)
   sync_error        String?
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime @updatedAt @db.Timestamptz(6)
   
   organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   seat_assignments  LicenseSeatAssignment[]
@@ -511,7 +554,7 @@ model OrganizationLicenseConfig {
 
 model WebAuthnCredential {
   id                String   @id @default(uuid()) @db.Uuid
-  user_id           String   @db.Uuid
+  user_id           String   // Cognito user ID (text, matches profiles.user_id)
   credential_id     String   @unique
   public_key        String
   counter           Int      @default(0)
@@ -547,15 +590,16 @@ model CommunicationLog {
 model DailyCost {
   id              String   @id @default(uuid()) @db.Uuid
   organization_id String   @db.Uuid
-  aws_account_id  String   @db.Uuid
-  cloud_provider  CloudProvider @default(AWS)
-  azure_credential_id String? @db.Uuid
+  aws_account_id  String?  @db.Uuid  // Optional - null for Azure costs
   date            DateTime @db.Date
-  service         String?
+  service         String
   cost            Float    @default(0)
-  usage           Float?   @default(0)
-  currency        String?  @default("USD")
+  region          String?
   created_at      DateTime @default(now()) @db.Timestamptz(6)
+  cloud_provider  CloudProvider? @default(AWS)
+  azure_credential_id String? @db.Uuid
+  usage           Float?   @default(0)
+  currency        String?  @default("USD") @db.VarChar
   
   @@unique([organization_id, aws_account_id, date, service])
   @@index([organization_id])
@@ -563,6 +607,7 @@ model DailyCost {
   @@index([organization_id, date])
   @@index([aws_account_id])
   @@index([cloud_provider])
+  @@index([azure_credential_id])
   @@map("daily_costs")
 }
 
@@ -633,7 +678,7 @@ model DriftDetectionHistory {
 model ResourceInventory {
   id                String   @id @default(uuid()) @db.Uuid
   organization_id   String   @db.Uuid
-  aws_account_id    String
+  aws_account_id    String?  // Optional - null for Azure resources
   cloud_provider    CloudProvider @default(AWS)
   azure_credential_id String? @db.Uuid
   resource_id       String
@@ -648,6 +693,7 @@ model ResourceInventory {
   @@index([organization_id])
   @@index([resource_type])
   @@index([cloud_provider])
+  @@index([azure_credential_id])
   @@map("resource_inventory")
 }
 
@@ -702,14 +748,16 @@ model AlertRule {
   organization_id         String   @db.Uuid
   name                    String
   description             String?
-  rule_type               String
-  condition               Json
+  rule_type               String?
+  condition_type          String
+  condition               Json?    @default("{}")
+  condition_config        Json?
   threshold               Float?
-  severity                String
+  severity                String?  @default("medium")
   is_active               Boolean  @default(true)
-  notification_channels   String[]
-  created_at              DateTime @default(now()) @db.Timestamptz(6)
-  updated_at              DateTime @updatedAt @db.Timestamptz(6)
+  notification_channels   Json?
+  created_at              DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime? @default(now()) @db.Timestamptz(6)
   
   alerts                  Alert[]
   
@@ -954,20 +1002,6 @@ model CloudTrailAnalysis {
   @@map("cloudtrail_analyses")
 }
 
-// ==================== USER MANAGEMENT ====================
-
-model User {
-  id                String   @id @default(uuid()) @db.Uuid
-  email             String   @unique
-  full_name         String?
-  avatar_url        String?
-  is_active         Boolean  @default(true)
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime @updatedAt @db.Timestamptz(6)
-  
-  @@map("users")
-}
-
 // ==================== AUDIT LOGGING ====================
 
 model AuditLog {
@@ -1078,7 +1112,7 @@ model Dashboard {
 
 model WebauthnChallenge {
   id                String   @id @default(uuid()) @db.Uuid
-  user_id           String   @db.Uuid
+  user_id           String   // Cognito user ID (text, matches profiles.user_id)
   challenge         String
   expires_at        DateTime @db.Timestamptz(6)
   created_at        DateTime @default(now()) @db.Timestamptz(6)
@@ -1106,12 +1140,14 @@ model Session {
 
 model SystemEvent {
   id                String   @id @default(uuid()) @db.Uuid
+  organization_id   String   @db.Uuid
   event_type        String
   payload           Json?
   processed         Boolean  @default(false)
   processed_at      DateTime? @db.Timestamptz(6)
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   
+  @@index([organization_id])
   @@index([processed])
   @@index([event_type])
   @@index([created_at])
@@ -1172,17 +1208,21 @@ model CopilotInteraction {
 // ==================== COMPLIANCE SCANS ====================
 
 model ComplianceScan {
-  id                String   @id @default(uuid()) @db.Uuid
-  organization_id   String   @db.Uuid
-  aws_account_id    String
-  framework         String
-  status            String   @default("pending")
-  results           Json?
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
-  completed_at      DateTime? @db.Timestamptz(6)
+  id                  String        @id @default(uuid()) @db.Uuid
+  organization_id     String        @db.Uuid
+  aws_account_id      String?       // Optional - null for Azure scans
+  cloud_provider      CloudProvider @default(AWS)
+  azure_credential_id String?       @db.Uuid  // For Azure multi-cloud support
+  framework           String
+  status              String        @default("pending")
+  results             Json?
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  completed_at        DateTime?     @db.Timestamptz(6)
   
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([cloud_provider])
+  @@index([azure_credential_id])
   @@map("compliance_scans")
 }
 
@@ -1244,8 +1284,10 @@ model ResourceMetric {
 model ResourceUtilizationML {
   id                        String   @id @default(uuid()) @db.Uuid
   organization_id           String   @db.Uuid
-  aws_account_id            String   @db.Uuid
+  aws_account_id            String?  @db.Uuid
   aws_account_number        String?  // 12-digit AWS account ID
+  azure_credential_id       String?  @db.Uuid
+  cloud_provider            String   @default("AWS") @db.VarChar(10)
   resource_id               String
   resource_arn              String?  // Full ARN - NEW in v3.0
   resource_name             String?
@@ -1289,6 +1331,8 @@ model ResourceUtilizationML {
   @@unique([organization_id, aws_account_id, resource_arn])
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
+  @@index([cloud_provider])
   @@index([resource_arn])
   @@index([recommendation_type])
   @@index([recommendation_priority])
@@ -1299,8 +1343,10 @@ model ResourceUtilizationML {
 model MLAnalysisHistory {
   id                      String   @id @default(uuid()) @db.Uuid
   organization_id         String   @db.Uuid
-  aws_account_id          String   @db.Uuid
+  aws_account_id          String?  @db.Uuid
   aws_account_number      String?
+  azure_credential_id     String?  @db.Uuid
+  cloud_provider          String   @default("AWS") @db.VarChar(10)
   
   // Scan metadata
   scan_type               String   @default("ml-waste-detection") // 'ml-waste-detection', 'cost-optimization', etc.
@@ -1335,6 +1381,8 @@ model MLAnalysisHistory {
   
   @@index([organization_id])
   @@index([aws_account_id])
+  @@index([azure_credential_id])
+  @@index([cloud_provider])
   @@index([scan_type])
   @@index([status])
   @@index([started_at])
@@ -1346,16 +1394,16 @@ model MLAnalysisHistory {
 
 model MfaFactor {
   id                String   @id @default(uuid()) @db.Uuid
-  user_id           String   @db.Uuid
+  user_id           String   // Cognito user ID (text, not uuid)
   factor_type       String   // 'totp', 'sms', 'email'
-  friendly_name     String?
-  secret            String?
-  status            String   @default("pending") // 'pending', 'verified', 'disabled'
+  secret            String
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  friendly_name     String?  @db.VarChar
+  status            String?  @db.VarChar // 'pending', 'verified', 'disabled'
   is_active         Boolean  @default(true)
   verified_at       DateTime? @db.Timestamptz(6)
   deactivated_at    DateTime? @db.Timestamptz(6)
   last_used_at      DateTime? @db.Timestamptz(6)
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
   
   @@index([user_id])
   @@index([is_active])
@@ -2445,4 +2493,85 @@ model OrganizationEmailSettings {
   @@index([is_enabled])
   @@index([next_scheduled_at])
   @@map("organization_email_settings")
+}
+
+// ==================== RESOURCE COMMENTS ====================
+// Comentários em recursos (findings, tickets, etc.)
+
+model ResourceComment {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  resource_type   String
+  resource_id     String
+  user_id         String   @db.Uuid
+  content         String
+  parent_id       String?  @db.Uuid
+  mentions        Json?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+  
+  mention_notifications MentionNotification[]
+  
+  @@index([organization_id])
+  @@index([resource_type, resource_id])
+  @@map("resource_comments")
+}
+
+// ==================== MENTION NOTIFICATIONS ====================
+// Notificações de menções em comentários
+
+model MentionNotification {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  user_id         String   @db.Uuid
+  comment_id      String   @db.Uuid
+  is_read         Boolean  @default(false)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  
+  comment         ResourceComment @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@index([is_read])
+  @@map("mention_notifications")
+}
+
+// ==================== EVO APP CREDENTIALS (Platform-level) ====================
+
+model EvoAppCredential {
+  id                    String    @id @default(uuid())
+  provider              String    @default("azure")
+  client_id             String
+  client_secret_masked  String?
+  secret_expires_at     DateTime?
+  redirect_uri          String?
+  ssm_synced_at         DateTime?
+  lambdas_synced_at     DateTime?
+  lambdas_synced_count  Int?      @default(0)
+  notes                 String?
+  updated_by            String?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @default(now()) @updatedAt
+
+  @@unique([provider, client_id])
+  @@map("evo_app_credentials")
+}
+
+// ==================== CLOUD BUDGETS ====================
+
+model CloudBudget {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  cloud_provider  String   @default("AWS")
+  year_month      String   // formato: '2026-02'
+  amount          Float    @default(0)
+  currency        String   @default("USD")
+  source          String   @default("auto") // 'auto' ou 'manual'
+  created_by      String?  // user_id
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@unique([organization_id, cloud_provider, year_month])
+  @@index([organization_id])
+  @@index([year_month])
+  @@map("cloud_budgets")
 }

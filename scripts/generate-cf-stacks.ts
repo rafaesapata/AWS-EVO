@@ -118,6 +118,7 @@ const HANDLERS: HandlerConfig[] = [
   { name: 'get-executive-dashboard', path: 'dashboard', handler: 'get-executive-dashboard', timeout: 60, memory: 512 },
   { name: 'get-executive-dashboard-public', path: 'dashboard', handler: 'get-executive-dashboard-public', timeout: 60, memory: 512, auth: 'NONE' },
   { name: 'manage-tv-tokens', path: 'dashboard', handler: 'manage-tv-tokens' },
+  { name: 'manage-cloud-budget', path: 'cost', handler: 'manage-cloud-budget' },
   // DATA
   { name: 'cleanup-cost-data', path: 'data', handler: 'cleanup-cost-data', timeout: 300, scheduled: true },
   { name: 'mutate-table', path: 'data', handler: 'mutate-table' },
