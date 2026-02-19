@@ -13,6 +13,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { calculateNextRun, isSameDayUTC } from '../../lib/schedule-calculator.js';
 
 // EventBridge scheduled event type
 interface ScheduledEvent {
@@ -89,6 +90,18 @@ export async function handler(
     
     for (const schedule of schedules) {
       try {
+        // Daily limit: skip if already ran today (UTC)
+        if (schedule.last_run_at && isSameDayUTC(schedule.last_run_at, now)) {
+          results.push({
+            scheduleId: schedule.id,
+            organizationId: schedule.organization_id,
+            scanType: schedule.scan_type,
+            status: 'skipped',
+            message: 'Daily limit reached - already executed today'
+          });
+          continue;
+        }
+
         // Determine if this is an AWS or Azure schedule
         const isAzure = schedule.cloud_provider === 'AZURE' || !!schedule.azure_credential_id;
         
@@ -195,6 +208,10 @@ export async function handler(
           scanType: schedule.scan_type,
           nextRunAt: nextRunAt?.toISOString()
         });
+
+        // NOTE: The scan-report-generator is invoked by the scan Lambda itself
+        // when the scan completes (not from here), since the scan runs asynchronously
+        // and we don't have the scanId yet at this point.
         
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -264,51 +281,4 @@ function getScanLambdaName(scanType: string): string | null {
   return mapping[scanType.toLowerCase()] || null;
 }
 
-/**
- * Calcula a próxima execução baseado no tipo de schedule
- */
-function calculateNextRun(scheduleType: string, scheduleConfig: unknown): Date | null {
-  const config = scheduleConfig as Record<string, number> | null;
-  const now = new Date();
-  
-  switch (scheduleType.toLowerCase()) {
-    case 'hourly':
-      return new Date(now.getTime() + 60 * 60 * 1000);
-      
-    case 'daily': {
-      const dailyHour = config?.hour ?? 2;
-      const nextDaily = new Date(now);
-      nextDaily.setHours(dailyHour, 0, 0, 0);
-      if (nextDaily <= now) nextDaily.setDate(nextDaily.getDate() + 1);
-      return nextDaily;
-    }
-    
-    case 'weekly': {
-      const weeklyDay = config?.dayOfWeek ?? 1; // Monday
-      const weeklyHour = config?.hour ?? 2;
-      const nextWeekly = new Date(now);
-      nextWeekly.setHours(weeklyHour, 0, 0, 0);
-      const daysUntilNext = (weeklyDay - now.getDay() + 7) % 7 || 7;
-      nextWeekly.setDate(now.getDate() + daysUntilNext);
-      return nextWeekly;
-    }
-    
-    case 'monthly': {
-      const monthlyDay = config?.dayOfMonth ?? 1;
-      const monthlyHour = config?.hour ?? 2;
-      const nextMonthly = new Date(now);
-      nextMonthly.setDate(monthlyDay);
-      nextMonthly.setHours(monthlyHour, 0, 0, 0);
-      if (nextMonthly <= now) nextMonthly.setMonth(nextMonthly.getMonth() + 1);
-      return nextMonthly;
-    }
-    
-    default: {
-      // Default: próximo dia às 2h
-      const defaultNext = new Date(now);
-      defaultNext.setDate(defaultNext.getDate() + 1);
-      defaultNext.setHours(2, 0, 0, 0);
-      return defaultNext;
-    }
-  }
-}
+

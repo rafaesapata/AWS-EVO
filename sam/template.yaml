@@ -2228,6 +2228,52 @@ Resources:
           - '.prisma/client'
           - '@aws-sdk/*'
 
+  ScanReportGeneratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-scan-report-generator'
+      CodeUri: ../backend/src/handlers/jobs/
+      Handler: scan-report-generator.handler
+      Timeout: 120
+      MemorySize: 512
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - scan-report-generator.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  ManageScanSchedulesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-scan-schedules'
+      CodeUri: ../backend/src/handlers/jobs/
+      Handler: manage-scan-schedules.handler
+      Timeout: 30
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/functions/manage-scan-schedules
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - manage-scan-schedules.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
   ScheduledViewRefreshFunction:
     Type: AWS::Serverless::Function
     Properties:
