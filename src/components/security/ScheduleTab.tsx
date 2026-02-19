@@ -16,8 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { apiClient } from "@/integrations/aws/api-client";
+import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { 
   Calendar, 
   Plus, 
@@ -30,13 +30,16 @@ import {
   Zap,
   Activity,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Cloud
 } from "lucide-react";
 
 interface ScanSchedule {
   id: string;
   organization_id: string;
-  aws_account_id: string;
+  aws_account_id?: string;
+  azure_credential_id?: string;
+  cloud_provider?: 'AWS' | 'AZURE';
   scan_type: string;
   schedule_type: string;
   schedule_config?: Record<string, any>;
@@ -45,13 +48,6 @@ interface ScanSchedule {
   next_run_at?: string;
   created_at: string;
   updated_at: string;
-}
-
-interface AwsAccount {
-  id: string;
-  account_id: string;
-  account_name: string;
-  is_active: boolean;
 }
 
 interface ScheduleConfig {
@@ -68,8 +64,9 @@ interface ScheduleTabProps {
 export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { accounts } = useCloudAccount();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedAwsAccount, setSelectedAwsAccount] = useState<string>('');
+  const [selectedCloudAccount, setSelectedCloudAccount] = useState<string>('');
   const [newSchedule, setNewSchedule] = useState<{
     scan_type: string;
     schedule_type: string;
@@ -124,15 +121,8 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
     { value: 6, label: t('schedule.saturday', 'Sábado') }
   ];
 
-  // Fetch AWS accounts
-  const { data: awsAccounts, isLoading: accountsLoading } = useQuery({
-    queryKey: ['aws-credentials', organizationId],
-    enabled: !!organizationId,
-    queryFn: async () => {
-      const response = await apiClient.lambda<AwsAccount[]>('list-aws-credentials');
-      return response.data || [];
-    }
-  });
+  // Cloud accounts come from CloudAccountContext (supports AWS + Azure)
+  const activeAccounts = accounts.filter(a => a.isActive);
 
   // Fetch scan schedules
   const { data: schedules, isLoading: schedulesLoading, refetch } = useQuery({
@@ -192,13 +182,22 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!organizationId) throw new Error(t('schedule.errorNoOrg', 'Organização não encontrada'));
-      if (!selectedAwsAccount) throw new Error(t('schedule.errorNoAccount', 'Selecione uma conta AWS'));
+      if (!selectedCloudAccount) throw new Error(t('schedule.errorNoAccount', 'Selecione uma conta'));
+      
+      const account = accounts.find(a => a.id === selectedCloudAccount);
+      if (!account) throw new Error('Conta não encontrada');
+      
+      const isAzure = account.provider === 'AZURE';
       
       const response = await apiClient.lambda('mutate-table', {
         table: 'scan_schedules',
         operation: 'insert',
         data: {
-          aws_account_id: selectedAwsAccount,
+          ...(isAzure 
+            ? { azure_credential_id: selectedCloudAccount }
+            : { aws_account_id: selectedCloudAccount }
+          ),
+          cloud_provider: account.provider,
           scan_type: newSchedule.scan_type,
           schedule_type: newSchedule.schedule_type,
           schedule_config: newSchedule.schedule_config,
@@ -276,10 +275,16 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
   // Run scan now
   const runNowMutation = useMutation({
     mutationFn: async (schedule: ScanSchedule) => {
-      // Call start-security-scan Lambda
-      const response = await apiClient.invoke('start-security-scan', {
+      const isAzure = schedule.cloud_provider === 'AZURE' || !!schedule.azure_credential_id;
+      
+      // Call appropriate scan Lambda
+      const lambdaName = isAzure ? 'start-azure-security-scan' : 'start-security-scan';
+      const response = await apiClient.invoke(lambdaName, {
         body: {
-          accountId: schedule.aws_account_id,
+          ...(isAzure
+            ? { credentialId: schedule.azure_credential_id }
+            : { accountId: schedule.aws_account_id }
+          ),
           scanLevel: schedule.scan_type
         }
       });
@@ -312,7 +317,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
   });
 
   const resetForm = () => {
-    setSelectedAwsAccount('');
+    setSelectedCloudAccount('');
     setNewSchedule({
       scan_type: 'standard',
       schedule_type: 'daily',
@@ -341,9 +346,10 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
     return scanTypeOptions.find(s => s.value === scanType) || scanTypeOptions[1];
   };
 
-  const getAccountName = (accountId: string): string => {
-    const account = awsAccounts?.find(a => a.id === accountId);
-    return account?.account_name || account?.account_id || accountId.substring(0, 8);
+  const getAccountName = (accountId: string | undefined): string => {
+    if (!accountId) return 'N/A';
+    const account = accounts?.find(a => a.id === accountId);
+    return account?.accountName || account?.accountId || accountId.substring(0, 8);
   };
 
   const handleScheduleTypeChange = (value: string) => {
@@ -416,17 +422,23 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
                   </DialogHeader>
                   
                   <div className="space-y-4 py-4">
-                    {/* AWS Account Selection */}
+                    {/* Cloud Account Selection */}
                     <div className="space-y-2">
-                      <Label>{t('schedule.awsAccount', 'Conta AWS')}</Label>
-                      <Select value={selectedAwsAccount} onValueChange={setSelectedAwsAccount}>
+                      <Label>{t('schedule.cloudAccount', 'Conta Cloud')}</Label>
+                      <Select value={selectedCloudAccount} onValueChange={setSelectedCloudAccount}>
                         <SelectTrigger>
                           <SelectValue placeholder={t('schedule.selectAccount', 'Selecione uma conta')} />
                         </SelectTrigger>
                         <SelectContent>
-                          {awsAccounts?.filter(a => a.is_active).map((account) => (
+                          {activeAccounts.map((account) => (
                             <SelectItem key={account.id} value={account.id}>
-                              {account.account_name || account.account_id}
+                              <span className="flex items-center gap-2">
+                                <Cloud className="h-3 w-3" />
+                                <Badge variant="outline" className="text-xs px-1 py-0">
+                                  {account.provider}
+                                </Badge>
+                                {account.accountName || account.accountId}
+                              </span>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -563,7 +575,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
                     </Button>
                     <Button 
                       onClick={() => createMutation.mutate()}
-                      disabled={!selectedAwsAccount || createMutation.isPending}
+                      disabled={!selectedCloudAccount || createMutation.isPending}
                       className="glass hover-glow"
                     >
                       {createMutation.isPending ? (
@@ -691,7 +703,12 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {getAccountName(schedule.aws_account_id)}
+                            {getAccountName(schedule.aws_account_id || schedule.azure_credential_id)}
+                            {schedule.cloud_provider && (
+                              <Badge variant="outline" className="ml-2 text-xs px-1 py-0">
+                                {schedule.cloud_provider}
+                              </Badge>
+                            )}
                           </p>
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -789,7 +806,7 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
               <h4 className="font-semibold">{t('schedule.howItWorks', 'Como funciona')}</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
                 <li>• {t('schedule.info1', 'Os scans agendados são executados automaticamente pelo sistema')}</li>
-                <li>• {t('schedule.info2', 'O Security Engine V3 analisa 23 serviços AWS com 170+ verificações')}</li>
+                <li>• {t('schedule.info2', 'O Security Engine analisa serviços AWS e Azure com 170+ verificações')}</li>
                 <li>• {t('schedule.info3', 'Os resultados ficam disponíveis na aba "Histórico de Scans"')}</li>
                 <li>• {t('schedule.info4', 'Você pode pausar ou executar manualmente a qualquer momento')}</li>
                 <li>• {t('schedule.info5', 'Recomendamos scans diários para monitoramento contínuo')}</li>

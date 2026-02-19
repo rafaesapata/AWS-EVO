@@ -3351,6 +3351,7 @@
     "createTitle": "Create Scan Schedule",
     "createDescription": "Configure a recurring automatic security scan",
     "awsAccount": "AWS Account",
+    "cloudAccount": "Cloud Account",
     "selectAccount": "Select an account",
     "scanType": "Scan Type",
     "quickScan": "Quick Scan",

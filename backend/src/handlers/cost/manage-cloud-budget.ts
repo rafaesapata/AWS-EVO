@@ -127,23 +127,44 @@ export async function handler(
         budgetMap.set(b.year_month, b);
       }
 
-      // Return all 12 months with actual_spend, even if no budget exists
-      const budgetsWithSpend = await Promise.all(
-        allMonths.map(async (ym) => {
-          const b = budgetMap.get(ym);
-          const spend = await getMonthlySpend(prisma, organizationId, provider, ym);
-          return {
-            id: b?.id || null,
-            year_month: ym,
-            cloud_provider: provider,
-            amount: b?.amount || 0,
-            currency: b?.currency || 'USD',
-            source: b?.source || null,
-            actual_spend: spend,
-            updated_at: b?.updated_at || null,
-          };
-        })
-      );
+      // Return all 12 months with actual_spend using a single aggregated query
+      const { startDate: rangeStart } = getMonthDateRange(allMonths[allMonths.length - 1]);
+      const { endDate: rangeEnd } = getMonthDateRange(allMonths[0]);
+
+      const monthlySpends = provider === 'AZURE'
+        ? await prisma.$queryRaw<Array<{ ym: string; total: number }>>`
+            SELECT to_char(date, 'YYYY-MM') as ym, COALESCE(SUM(cost), 0)::float as total
+            FROM daily_costs
+            WHERE organization_id = ${organizationId}::uuid
+              AND date >= ${rangeStart} AND date <= ${rangeEnd}
+              AND cloud_provider = 'AZURE'
+            GROUP BY ym`
+        : await prisma.$queryRaw<Array<{ ym: string; total: number }>>`
+            SELECT to_char(date, 'YYYY-MM') as ym, COALESCE(SUM(cost), 0)::float as total
+            FROM daily_costs
+            WHERE organization_id = ${organizationId}::uuid
+              AND date >= ${rangeStart} AND date <= ${rangeEnd}
+              AND (cloud_provider = 'AWS' OR cloud_provider IS NULL)
+            GROUP BY ym`;
+
+      const spendMap = new Map<string, number>();
+      for (const row of monthlySpends) {
+        spendMap.set(row.ym, row.total);
+      }
+
+      const budgetsWithSpend = allMonths.map((ym) => {
+        const b = budgetMap.get(ym);
+        return {
+          id: b?.id || null,
+          year_month: ym,
+          cloud_provider: provider,
+          amount: b?.amount || 0,
+          currency: b?.currency || 'USD',
+          source: b?.source || null,
+          actual_spend: spendMap.get(ym) || 0,
+          updated_at: b?.updated_at || null,
+        };
+      });
 
       return success({ budgets: budgetsWithSpend, provider });
     }

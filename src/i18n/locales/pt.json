@@ -3629,6 +3629,7 @@
     "createTitle": "Criar Agendamento de Scan",
     "createDescription": "Configure um scan de segurança automático recorrente",
     "awsAccount": "Conta AWS",
+    "cloudAccount": "Conta Cloud",
     "selectAccount": "Selecione uma conta",
     "scanType": "Tipo de Scan",
     "quickScan": "Quick Scan",
