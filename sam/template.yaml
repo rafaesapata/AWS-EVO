@@ -1932,6 +1932,7 @@ Resources:
   # ============================================================================
   # COST FUNCTIONS (2)
   # ============================================================================
+  # Budget Management Functions (2)
   ManageCloudBudgetFunction:
     Type: AWS::Serverless::Function
     Properties:
