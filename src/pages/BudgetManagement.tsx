@@ -14,6 +14,7 @@ import { BudgetProgressBar } from './budget/BudgetProgressBar';
 import { BudgetInput } from './budget/BudgetInput';
 import { AISuggestionButton } from './budget/AISuggestionButton';
 import { AISuggestionDetails } from './budget/AISuggestionDetails';
+import { BudgetCostTrend } from './budget/BudgetCostTrend';
 import type { AISuggestionResponse } from './budget/AISuggestionButton';
 
 interface BudgetCurrentResponse {
@@ -187,6 +188,9 @@ export default function BudgetManagement() {
 
         {/* AI Suggestion Details (expandable) */}
         <AISuggestionDetails suggestion={suggestionData} currencySymbol={sym} />
+
+        {/* Cost Trend Chart */}
+        <BudgetCostTrend currencySymbol={sym} budgetAmount={budgetValue} />
       </div>
     </Layout>
   );

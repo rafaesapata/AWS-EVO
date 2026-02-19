@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Brain, TrendingDown, Recycle, Server } from 'lucide-react';
+import { ChevronDown, Brain, TrendingDown, Recycle, Server, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import type { AISuggestionResponse } from './AISuggestionButton';
@@ -134,6 +135,49 @@ export function AISuggestionDetails({
                 {fmt(suggestion.suggested_amount)}
               </span>
             </div>
+
+            {/* Recommendations for zero-value analyses */}
+            {(suggestion.savings_breakdown.cost_optimization === 0 ||
+              suggestion.savings_breakdown.waste_detection === 0 ||
+              suggestion.savings_breakdown.ri_sp_optimization === 0) && (
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/20 px-4 py-3 space-y-2">
+                <p className="text-xs font-medium text-amber-600">
+                  {t('budgetManagement.aiRecommendationTitle', 'Para uma sugestão mais precisa, execute as análises pendentes:')}
+                </p>
+                <div className="space-y-1.5">
+                  {suggestion.savings_breakdown.cost_optimization === 0 && (
+                    <Link
+                      to="/cost-optimization"
+                      className="flex items-center gap-2 text-xs text-primary hover:underline"
+                    >
+                      <TrendingDown className="h-3 w-3" />
+                      {t('budgetManagement.aiRunCostOpt', 'Executar Cost Optimization')}
+                      <ArrowRight className="h-3 w-3 ml-auto" />
+                    </Link>
+                  )}
+                  {suggestion.savings_breakdown.waste_detection === 0 && (
+                    <Link
+                      to="/ml-waste-detection"
+                      className="flex items-center gap-2 text-xs text-primary hover:underline"
+                    >
+                      <Recycle className="h-3 w-3" />
+                      {t('budgetManagement.aiRunWaste', 'Executar Waste Detection')}
+                      <ArrowRight className="h-3 w-3 ml-auto" />
+                    </Link>
+                  )}
+                  {suggestion.savings_breakdown.ri_sp_optimization === 0 && (
+                    <Link
+                      to="/ri-savings-plans"
+                      className="flex items-center gap-2 text-xs text-primary hover:underline"
+                    >
+                      <Server className="h-3 w-3" />
+                      {t('budgetManagement.aiRunRiSp', 'Executar RI/SP Optimization')}
+                      <ArrowRight className="h-3 w-3 ml-auto" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
