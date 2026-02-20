@@ -103,14 +103,9 @@ export function MultiViewChart({
 }: MultiViewChartProps) {
   const { t } = useTranslation();
   const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  // Reset animation on view change
   const [animKey, setAnimKey] = useState(0);
+
+  // Animate on mount and view change
   useEffect(() => {
     setMounted(false);
     const raf = requestAnimationFrame(() => {
@@ -120,11 +115,11 @@ export function MultiViewChart({
     return () => cancelAnimationFrame(raf);
   }, [view]);
 
-  const defaultFormat = (v: number) =>
-    formatValue ? formatValue(v) : `${currencySymbol}${v.toFixed(2)}`;
+  const defaultFormat = (v: number | undefined) =>
+    formatValue ? formatValue(v ?? 0) : `${currencySymbol}${(v ?? 0).toFixed(2)}`;
 
-  const defaultTooltipFormat = (value: number, name: string): [string, string] =>
-    formatTooltip ? formatTooltip(value, name) : [defaultFormat(value), name];
+  const defaultTooltipFormat = (value: number | undefined, name: string | undefined): [string, string] =>
+    formatTooltip ? formatTooltip(value ?? 0, name ?? '') : [defaultFormat(value), name ?? ''];
 
   const defaultTooltipStyle: React.CSSProperties = tooltipStyle ?? {
     backgroundColor: 'hsl(var(--card))',
@@ -271,7 +266,7 @@ export function MultiViewChart({
               animationBegin={0}
               animationDuration={800}
               animationEasing="ease-out"
-              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
             >
               {pieData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
@@ -279,7 +274,7 @@ export function MultiViewChart({
             </Pie>
             <Tooltip
               contentStyle={defaultTooltipStyle}
-              formatter={(value: number) => [defaultFormat(value), '']}
+              formatter={(value: number | undefined) => [defaultFormat(value), '']}
             />
             <Legend />
           </PieChart>
