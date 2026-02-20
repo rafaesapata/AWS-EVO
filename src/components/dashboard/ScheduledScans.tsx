@@ -91,12 +91,15 @@ export const ScheduledScans = () => {
       if (!selectedAccountId) throw new Error('Please select an AWS account');
       
       // Use mutate-table Lambda to insert into scan_schedules
+      const accountFilter = getAccountFilter();
+      const cloudProvider = 'azure_credential_id' in accountFilter ? 'AZURE' : 'AWS';
       const response = await apiClient.lambda('mutate-table', {
         table: 'scan_schedules',
         operation: 'insert',
         data: {
           organization_id: organizationId,
-          ...getAccountFilter(), // Multi-cloud compatible
+          ...accountFilter,
+          cloud_provider: cloudProvider,
           scan_type: newSchedule.scan_type,
           schedule_type: newSchedule.schedule_type,
           schedule_config: newSchedule.schedule_config,

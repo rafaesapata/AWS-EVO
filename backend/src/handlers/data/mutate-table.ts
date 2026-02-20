@@ -424,16 +424,34 @@ export async function handler(
       organizationId,
       userId,
       requestId: context.awsRequestId,
+      table: body?.table,
+      operation: body?.operation,
+      prismaCode: err.code,
+      prismaMessage: err.message,
+      prismaMeta: err.meta,
     });
     
     // Handle Prisma errors
     if (err.code === 'P2002') {
       return badRequest('Record already exists (unique constraint violation)', undefined, origin);
     }
+    if (err.code === 'P2003') {
+      return badRequest('Referenced record not found (foreign key constraint)', undefined, origin);
+    }
     if (err.code === 'P2025') {
       return badRequest('Record not found', undefined, origin);
     }
+    if (err.code === 'P2012') {
+      return badRequest(`Missing required field: ${err.meta?.column || 'unknown'}`, undefined, origin);
+    }
+    if (err.code === 'P2009' || err.code === 'P2019') {
+      return badRequest('Invalid input data', undefined, origin);
+    }
     
-    return error('Failed to perform operation. Please try again.', 500, undefined, origin);
+    // Return error message in non-production for debugging
+    const errorMessage = process.env.IS_LOCAL === 'true' 
+      ? `Failed: ${err.message}` 
+      : 'Failed to perform operation. Please try again.';
+    return error(errorMessage, 500, undefined, origin);
   }
 }
