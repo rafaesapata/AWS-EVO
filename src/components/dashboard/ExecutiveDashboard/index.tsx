@@ -15,7 +15,7 @@
  *   - Suspense-like boundaries for each card
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, TrendingDown, Shield, Zap, BarChart3, Tags } from 'lucide-react';
@@ -59,6 +59,8 @@ import { SectionLoader, CardLoader } from './components/SectionLoader';
 // Hook for tracking section loading states
 import { useExecutiveDashboardSections } from '@/hooks/useExecutiveDashboardSections';
 import { useTagCoverage } from '@/hooks/useTags';
+import { generateDemoCoverage } from '@/lib/demo/tag-demo-data';
+import { useDemoModeOptional } from '@/contexts/DemoModeContext';
 
 // Section Header Component - Clean Light Design
 function SectionHeader({ 
@@ -111,7 +113,10 @@ export default function ExecutiveDashboardV2() {
 
   // Track which sections have valid data for progressive loading
   const sectionStates = useExecutiveDashboardSections(data, isLoading);
-  const { data: tagCoverage } = useTagCoverage();
+  const { isDemoMode, isLoading: demoLoading, isVerified } = useDemoModeOptional();
+  const isInDemoMode = isDemoMode && isVerified && !demoLoading;
+  const { data: tagCoverageReal } = useTagCoverage({ enabled: !isInDemoMode });
+  const tagCoverage = useMemo(() => isInDemoMode ? generateDemoCoverage() : tagCoverageReal, [isInDemoMode, tagCoverageReal]);
 
   // Loading state - Now uses granular skeletons
   if (isLoading) {

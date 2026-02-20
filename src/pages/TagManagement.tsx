@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { Tags, Trash2, Pencil, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,11 @@ import {
   useTagList, useTagCoverage, useDeleteTag, useTagCostReport,
   useTagSecurityFindings, type Tag,
 } from '@/hooks/useTags';
+import { useDemoAwareQuery } from '@/hooks/useDemoAwareQuery';
+import {
+  filterDemoTags, generateDemoCoverage, generateDemoCostReport,
+  generateDemoSecurityFindings,
+} from '@/lib/demo/tag-demo-data';
 
 export default function TagManagement() {
   const { t } = useTranslation();
@@ -29,28 +34,45 @@ export default function TagManagement() {
   const [showQuickstart, setShowQuickstart] = useState(false);
   const [selectedCostTag, setSelectedCostTag] = useState<string | null>(null);
   const [selectedSecTags, setSelectedSecTags] = useState<string[]>([]);
+  const { isInDemoMode } = useDemoAwareQuery();
 
-  const { data: tagData, isLoading } = useTagList({
+  // Real queries — disabled in demo mode
+  const { data: tagData, isLoading: _isLoadingQuery } = useTagList({
     search: search || undefined,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,
     limit: 100,
+    enabled: !isInDemoMode,
   });
-  const { data: coverage } = useTagCoverage();
+  const { data: coverageReal } = useTagCoverage({ enabled: !isInDemoMode });
   const deleteTag = useDeleteTag();
-  const { data: costReport } = useTagCostReport(selectedCostTag);
-  const { data: secFindings } = useTagSecurityFindings(selectedSecTags);
+  const { data: costReportReal } = useTagCostReport(isInDemoMode ? null : selectedCostTag);
+  const { data: secFindingsReal } = useTagSecurityFindings(isInDemoMode ? [] : selectedSecTags);
 
-  const tags = tagData?.tags || [];
-  const total = tagData?.total || 0;
+  // Demo data — memoized, only generated when isInDemoMode is true
+  const demoTagData = useMemo(() => isInDemoMode ? filterDemoTags({
+    category: categoryFilter !== 'all' ? categoryFilter : undefined,
+    search: search || undefined,
+  }) : null, [isInDemoMode, categoryFilter, search]);
+  const demoCoverage = useMemo(() => isInDemoMode ? generateDemoCoverage() : null, [isInDemoMode]);
+  const demoCostReport = useMemo(() => isInDemoMode && selectedCostTag ? generateDemoCostReport(selectedCostTag) : null, [isInDemoMode, selectedCostTag]);
+  const demoSecFindings = useMemo(() => isInDemoMode && selectedSecTags.length > 0 ? generateDemoSecurityFindings(selectedSecTags) : null, [isInDemoMode, selectedSecTags]);
 
-  // Show quickstart if no tags
-  const shouldShowQuickstart = !isLoading && total === 0 && !showQuickstart;
+  // Resolve: demo data takes precedence when in demo mode
+  const isLoading = isInDemoMode ? false : _isLoadingQuery;
+  const tags = isInDemoMode ? (demoTagData?.tags || []) : (tagData?.tags || []);
+  const total = isInDemoMode ? (demoTagData?.total || 0) : (tagData?.total || 0);
+  const coverage = isInDemoMode ? demoCoverage : coverageReal;
+  const costReport = isInDemoMode ? demoCostReport : costReportReal;
+  const secFindings = isInDemoMode ? demoSecFindings : secFindingsReal;
+
+  // Show quickstart if no tags (never in demo mode — demo always has tags)
+  const shouldShowQuickstart = !isLoading && total === 0 && !showQuickstart && !isInDemoMode;
 
   const handleDelete = useCallback(async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || isInDemoMode) return;
     await deleteTag.mutateAsync(deleteTarget.id);
     setDeleteTarget(null);
-  }, [deleteTarget, deleteTag]);
+  }, [deleteTarget, deleteTag, isInDemoMode]);
 
   const coverageColor = (coverage?.coverage_percentage ?? 0) >= 80 ? 'text-green-500' :
     (coverage?.coverage_percentage ?? 0) >= 50 ? 'text-yellow-500' : 'text-red-500';
@@ -175,7 +197,7 @@ export default function TagManagement() {
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => setDeleteTarget(tag)}>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => !isInDemoMode && setDeleteTarget(tag)} disabled={isInDemoMode}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>

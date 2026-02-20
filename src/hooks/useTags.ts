@@ -37,7 +37,7 @@ export interface CostReportResult {
   disclaimer: string;
 }
 
-export function useTagList(params?: { category?: string; search?: string; sortBy?: string; limit?: number; cursor?: string }) {
+export function useTagList(params?: { category?: string; search?: string; sortBy?: string; limit?: number; cursor?: string; enabled?: boolean }) {
   return useQuery({
     queryKey: ['tags', 'list', params],
     queryFn: async () => {
@@ -49,6 +49,7 @@ export function useTagList(params?: { category?: string; search?: string; sortBy
       return (res as any).data;
     },
     retry: false,
+    enabled: params?.enabled !== false,
   });
 }
 
@@ -174,7 +175,7 @@ export function useApplyTemplates() {
   });
 }
 
-export function useTagCoverage() {
+export function useTagCoverage(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['tags', 'coverage'],
     queryFn: async () => {
@@ -183,6 +184,7 @@ export function useTagCoverage() {
       return (res as any).data as CoverageMetrics;
     },
     retry: false,
+    enabled: options?.enabled !== false,
   });
 }
 
