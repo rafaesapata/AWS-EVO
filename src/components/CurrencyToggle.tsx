@@ -15,7 +15,7 @@ import { getProviderCurrency } from '@/lib/format-cost';
  * Shows the current display currency flag and allows switching.
  * AWS users see 🇺🇸→🇧🇷, Azure users see 🇧🇷→🇺🇸.
  */
-export default function CurrencyToggle() {
+function CurrencyToggle() {
   const { t } = useTranslation();
   const { isConverted, toggleCurrency, exchangeRate } = useCurrencyStore();
   const { selectedProvider } = useCloudAccount();
@@ -25,8 +25,7 @@ export default function CurrencyToggle() {
     ? (nativeCurrency === 'USD' ? 'BRL' : 'USD')
     : nativeCurrency;
 
-  const flag = displayCurrency === 'BRL' ? '🇧🇷' : '🇺🇸';
-  const label = displayCurrency === 'BRL' ? 'R$' : '$';
+  const isBRL = displayCurrency === 'BRL';
 
   const rateText = exchangeRate
     ? `1 USD = R$${exchangeRate.usdToBrl.toFixed(2)}`
@@ -40,14 +39,15 @@ export default function CurrencyToggle() {
             variant="ghost"
             size="icon"
             onClick={toggleCurrency}
-            className="relative group overflow-hidden hover:scale-110 transition-transform"
+            className="relative group overflow-hidden hover:scale-105 transition-all h-8 w-8"
             aria-label={t('currency.toggle', 'Toggle currency')}
           >
-            <span className="text-base leading-none">{flag}</span>
-            <span className="absolute bottom-0.5 right-0.5 text-[8px] font-bold opacity-80">
-              {label}
+            <span className={`font-semibold tracking-tight transition-all ${isBRL ? 'text-emerald-600 dark:text-emerald-400 text-sm' : 'text-blue-600 dark:text-blue-400 text-base'}`}>
+              {isBRL ? 'R$' : '$'}
             </span>
-            <div className="absolute inset-0 bg-gradient-primary opacity-0 group-hover:opacity-10 transition-opacity" />
+            {isConverted && (
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-400 ring-1 ring-background" />
+            )}
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[220px] text-center">
@@ -67,3 +67,5 @@ export default function CurrencyToggle() {
     </TooltipProvider>
   );
 }
+
+export default CurrencyToggle;
