@@ -3,6 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, Percent } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 
 export interface BudgetSummaryCardsProps {
   budgetAmount: number;
@@ -26,6 +27,7 @@ export function BudgetSummaryCards({
   loading = false,
 }: BudgetSummaryCardsProps) {
   const { t } = useTranslation();
+  const { convert } = useCurrency();
   const safePct = isNaN(utilizationPercentage) || !isFinite(utilizationPercentage) ? 0 : utilizationPercentage;
   const isOverBudget = safePct > 100;
 
@@ -45,7 +47,7 @@ export function BudgetSummaryCards({
           ) : (
             <div className="text-2xl font-semibold tabular-nums">
               {currencySymbol}
-              {budgetAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              {convert(budgetAmount).toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </div>
           )}
         </CardContent>
@@ -66,7 +68,7 @@ export function BudgetSummaryCards({
             <div className="space-y-1">
               <div className="text-2xl font-semibold tabular-nums">
                 {currencySymbol}
-                {mtdSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                {convert(mtdSpend).toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
               <div className="flex items-center gap-1 text-xs">
                 {isOverBudget ? (

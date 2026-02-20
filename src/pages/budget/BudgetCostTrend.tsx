@@ -19,6 +19,7 @@ import { useExecutiveTrends } from '@/hooks/useExecutiveTrends';
 import { ChartViewSwitcher } from '@/components/ui/chart-view-switcher';
 import { MultiViewChart } from '@/components/ui/multi-view-chart';
 import { useChartView } from '@/hooks/useChartView';
+import { useCurrency } from '@/hooks/useCurrency';
 
 export interface BudgetCostTrendProps {
   currencySymbol?: string;
@@ -39,6 +40,7 @@ export function BudgetCostTrend({
   budgetAmount,
 }: BudgetCostTrendProps) {
   const { t } = useTranslation();
+  const { convert } = useCurrency();
   const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('30d');
   const { view, changeView, availableViews } = useChartView({
     defaultView: 'bar',
@@ -143,7 +145,7 @@ export function BudgetCostTrend({
             barRadius={[4, 4, 0, 0]}
             referenceLine={dailyBudget ? {
               y: dailyBudget,
-              label: `${t('budgetManagement.dailyBudgetLine', 'Orçamento/dia')}: ${currencySymbol}${dailyBudget.toFixed(0)}`,
+              label: `${t('budgetManagement.dailyBudgetLine', 'Orçamento/dia')}: ${currencySymbol}${convert(dailyBudget).toFixed(0)}`,
               color: 'hsl(var(--destructive))',
             } : undefined}
           />

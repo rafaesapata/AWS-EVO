@@ -648,7 +648,7 @@ export const RiSpAnalysis = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold text-green-600">
-              <CurrencyIndicator className="mr-1" />{sym}{((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
+              <CurrencyIndicator className="mr-1" />{sym}{convert((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Economia atual
@@ -664,7 +664,7 @@ export const RiSpAnalysis = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold text-blue-600">
-              {sym}{(totalPotentialAnnualSavings / 12).toFixed(2)}
+              {sym}{convert(totalPotentialAnnualSavings / 12).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {recommendationsCount} recomendações
@@ -802,10 +802,10 @@ export const RiSpAnalysis = () => {
                         </div>
                         <div className="text-right shrink-0 ml-3">
                           <div className="font-semibold text-green-600">
-                            {sym}{formatCurrency(annualSavings)}/ano
+                            {sym}{formatCurrency(convert(annualSavings))}/ano
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {sym}{formatCurrency(monthlySavings)}/mês
+                            {sym}{formatCurrency(convert(monthlySavings))}/mês
                           </div>
                           <Badge variant={rec.priority === 1 || rec.priority === 'critical' || rec.priority === 'high' ? 'default' : 'secondary'} className="text-xs mt-1">
                             {typeof rec.priority === 'string' ? rec.priority.toUpperCase() : `P${rec.priority}`}
@@ -842,7 +842,7 @@ export const RiSpAnalysis = () => {
                     <Card className="bg-green-50 border-green-200">
                       <CardContent className="p-4 text-center">
                         <div className="text-2xl font-bold text-green-600">
-                          {sym}{formatCurrency(selectedRecommendation?.potentialSavings?.annual || selectedRecommendation?.annualSavings || 0)}
+                          {sym}{formatCurrency(convert(selectedRecommendation?.potentialSavings?.annual || selectedRecommendation?.annualSavings || 0))}
                         </div>
                         <div className="text-xs text-green-700">Economia Anual</div>
                       </CardContent>
@@ -850,7 +850,7 @@ export const RiSpAnalysis = () => {
                     <Card className="bg-blue-50 border-blue-200">
                       <CardContent className="p-4 text-center">
                         <div className="text-2xl font-bold text-blue-600">
-                          {sym}{formatCurrency(selectedRecommendation?.potentialSavings?.monthly || (selectedRecommendation?.annualSavings || 0) / 12)}
+                          {sym}{formatCurrency(convert(selectedRecommendation?.potentialSavings?.monthly || (selectedRecommendation?.annualSavings || 0) / 12))}
                         </div>
                         <div className="text-xs text-blue-700">Economia Mensal</div>
                       </CardContent>
@@ -916,7 +916,7 @@ export const RiSpAnalysis = () => {
                                     </div>
                                   </TableCell>
                                   <TableCell className="text-xs text-right py-2">
-                                    {sym}{(instance.monthlyCost || 0).toFixed(2)}
+                                    {sym}{convert(instance.monthlyCost || 0).toFixed(2)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -936,7 +936,7 @@ export const RiSpAnalysis = () => {
                                     </div>
                                   </TableCell>
                                   <TableCell className="text-xs text-right py-2">
-                                    {sym}{(db.monthlyCost || 0).toFixed(2)}
+                                    {sym}{convert(db.monthlyCost || 0).toFixed(2)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -1229,7 +1229,7 @@ export const RiSpAnalysis = () => {
                           </div>
                           <div className="text-right">
                             <div className="text-2xl font-semibold text-green-600">
-                              {sym}{(rec.potentialSavings?.annual || rec.annualSavings || 0).toFixed(2)}
+                              {sym}{convert(rec.potentialSavings?.annual || rec.annualSavings || 0).toFixed(2)}
                             </div>
                             <p className="text-xs text-muted-foreground">economia anual</p>
                           </div>
@@ -1350,7 +1350,7 @@ export const RiSpAnalysis = () => {
                                 <div>
                                   <div className="text-xs text-muted-foreground">Economia Total</div>
                                   <div className="text-lg font-semibold text-green-600 flex items-center gap-1">
-                                    {sym}{(entry.totalSavings / 12).toFixed(2)}/mês
+                                    {sym}{convert(entry.totalSavings / 12).toFixed(2)}/mês
                                     {savingsChange !== 0 && (
                                       savingsChange > 0 ? (
                                         <TrendingUp className="h-4 w-4 text-green-500" />
@@ -1361,7 +1361,7 @@ export const RiSpAnalysis = () => {
                                   </div>
                                   {savingsChange !== 0 && (
                                     <div className={`text-xs ${savingsChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      {savingsChange > 0 ? '+' : ''}{sym}{(savingsChange / 12).toFixed(2)}/mês
+                                      {savingsChange > 0 ? '+' : ''}{sym}{convert(savingsChange / 12).toFixed(2)}/mês
                                     </div>
                                   )}
                                 </div>
@@ -1374,7 +1374,7 @@ export const RiSpAnalysis = () => {
                                       {entry.recommendationsCount} recomendações ativas
                                     </div>
                                     <div className="text-sm font-semibold text-blue-600">
-                                      Potencial: {sym}{(entry.potentialSavings / 12).toFixed(2)}/mês
+                                      Potencial: {sym}{convert(entry.potentialSavings / 12).toFixed(2)}/mês
                                     </div>
                                   </div>
                                 </div>

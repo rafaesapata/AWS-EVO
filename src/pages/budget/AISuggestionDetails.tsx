@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDown, Brain, TrendingDown, Recycle, Server, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 import type { AISuggestionResponse } from './AISuggestionButton';
 
 export interface AISuggestionDetailsProps {
@@ -17,6 +18,7 @@ export function AISuggestionDetails({
   currencySymbol = '$',
 }: AISuggestionDetailsProps) {
   const { t } = useTranslation();
+  const { convert } = useCurrency();
   const [open, setOpen] = useState(false);
   const prevSuggestionRef = useRef<AISuggestionResponse | null>(null);
 
@@ -31,7 +33,7 @@ export function AISuggestionDetails({
   if (!suggestion || !suggestion.data_available) return null;
 
   const fmt = (v: number) =>
-    `${currencySymbol}${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+    `${currencySymbol}${convert(v).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
   const pct = (v: number) => `${Math.round(v * 100)}%`;
 
