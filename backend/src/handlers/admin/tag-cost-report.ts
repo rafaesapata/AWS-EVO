@@ -28,13 +28,18 @@ export async function handler(
     const body = JSON.parse(event.body || '{}');
 
     if (!body.tagId) return error('tagId is required', 400, undefined, origin);
-    if (!body.startDate || !body.endDate) {
-      return error('startDate and endDate are required', 422, undefined, origin);
-    }
+
+    // Default to last 30 days if no dates provided
+    const endDate = body.endDate || new Date().toISOString().split('T')[0];
+    const startDate = body.startDate || (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      return d.toISOString().split('T')[0];
+    })();
 
     const result = await getCostReport(organizationId, body.tagId, {
-      startDate: body.startDate,
-      endDate: body.endDate,
+      startDate,
+      endDate,
       cloudProvider: body.cloudProvider,
       accountId: body.accountId,
     });

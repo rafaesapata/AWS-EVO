@@ -33,7 +33,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
   const { data: tagData } = useTagList({ limit: 100, enabled: true });
   const bulkAssign = useBulkAssign();
 
-  const resources = untaggedData?.resources || [];
+  const resources = untaggedData?.data || [];
   const tags = tagData?.tags || [];
 
   const filteredResources = resources.filter((r: any) =>

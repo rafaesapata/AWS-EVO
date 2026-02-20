@@ -371,8 +371,6 @@ export async function getUntaggedResources(
   // Fallback: derive "resources" from daily_costs distinct services
   try {
     const offset = params.cursor ? parseInt(params.cursor, 10) || 0 : 0;
-    const providerFilter = params.cloudProvider ? `AND cloud_provider = '${params.cloudProvider}'` : '';
-    const accountFilter = params.accountId ? `AND (aws_account_id::text = '${params.accountId}' OR azure_credential_id::text = '${params.accountId}')` : '';
 
     const resources: any[] = await prisma.$queryRaw`
       SELECT 

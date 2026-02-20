@@ -87,7 +87,15 @@ export function useCreateTag() {
       toast.success('Tag criada com sucesso');
     },
     onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao criar tag');
+      const msg = err.message || 'Erro ao criar tag';
+      // Translate common backend messages to user-friendly Portuguese
+      if (msg.includes('already exists')) {
+        toast.error('Esta tag já existe. Use uma combinação diferente de chave e valor.', { duration: 5000 });
+      } else if (msg.includes('tag limit')) {
+        toast.error('Limite de tags da organização atingido.', { duration: 5000 });
+      } else {
+        toast.error(msg, { duration: 5000 });
+      }
     },
   });
 }
