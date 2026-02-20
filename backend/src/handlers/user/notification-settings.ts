@@ -16,12 +16,12 @@ import { z } from 'zod';
 const notificationSettingsSchema = z.object({
   email_enabled: z.boolean().default(true),
   webhook_enabled: z.boolean().default(false),
-  webhook_url: z.string().url().optional().nullable(),
+  webhook_url: z.preprocess((v) => (v === '' ? null : v), z.string().url().optional().nullable()),
   slack_enabled: z.boolean().default(false),
-  slack_webhook_url: z.string().url().refine(
+  slack_webhook_url: z.preprocess((v) => (v === '' ? null : v), z.string().url().refine(
     (url) => !url || url.startsWith('https://hooks.slack.com/'),
     { message: 'Invalid Slack webhook URL format' }
-  ).optional().nullable(),
+  ).optional().nullable()),
   security_alerts: z.boolean().default(true),
   cost_alerts: z.boolean().default(true),
   compliance_alerts: z.boolean().default(true),

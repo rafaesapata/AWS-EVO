@@ -881,7 +881,7 @@ model ExternalId {
 
 model NotificationSettings {
   id                    String   @id @default(uuid()) @db.Uuid
-  userId                String   @unique @db.Uuid
+  userId                String   @unique @map("userid") @db.Uuid
   email_enabled         Boolean  @default(true)
   webhook_enabled       Boolean  @default(false)
   slack_enabled         Boolean  @default(false)
