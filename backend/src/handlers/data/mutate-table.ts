@@ -289,7 +289,7 @@ export async function handler(
             
             await prisma.$executeRawUnsafe(
               `INSERT INTO scan_schedules (id, organization_id, aws_account_id, scan_type, schedule_type, schedule_config, is_active, next_run_at, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8::timestamptz, $9::timestamptz, $10::timestamptz)`,
+               VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::jsonb, $7, $8::timestamptz, $9::timestamptz, $10::timestamptz)`,
               id,
               dataWithOrg.organization_id,
               awsAccountId,
