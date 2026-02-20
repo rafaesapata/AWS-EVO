@@ -31,7 +31,7 @@ export default function TagManagement() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [deleteTarget, setDeleteTarget] = useState<Tag | null>(null);
-  const [showQuickstart, setShowQuickstart] = useState(false);
+  const [quickstartDismissed, setQuickstartDismissed] = useState(false);
   const [selectedCostTag, setSelectedCostTag] = useState<string | null>(null);
   const [selectedSecTags, setSelectedSecTags] = useState<string[]>([]);
   const { isInDemoMode } = useDemoAwareQuery();
@@ -65,8 +65,8 @@ export default function TagManagement() {
   const costReport = isInDemoMode ? demoCostReport : costReportReal;
   const secFindings = isInDemoMode ? demoSecFindings : secFindingsReal;
 
-  // Show quickstart if no tags (never in demo mode — demo always has tags)
-  const shouldShowQuickstart = !isLoading && total === 0 && !showQuickstart && !isInDemoMode;
+  // Show quickstart if no tags and user hasn't dismissed it (never in demo mode)
+  const shouldShowQuickstart = !isLoading && total === 0 && !quickstartDismissed && !isInDemoMode;
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget || isInDemoMode) return;
@@ -84,7 +84,7 @@ export default function TagManagement() {
         description={t('tags.managementDesc', 'Organize and classify your cloud resources with tags')}
         icon={<Tags className="h-4 w-4 text-white" />}
       >
-        <QuickstartWizard onComplete={() => setShowQuickstart(false)} onSkip={() => setShowQuickstart(false)} />
+        <QuickstartWizard onComplete={() => setQuickstartDismissed(true)} onSkip={() => setQuickstartDismissed(true)} />
       </Layout>
     );
   }
