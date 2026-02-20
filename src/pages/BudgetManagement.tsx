@@ -34,7 +34,7 @@ interface BudgetCurrentResponse {
 
 export default function BudgetManagement() {
   const { t } = useTranslation();
-  const { selectedProvider } = useCloudAccount();
+  const { selectedProvider, selectedAccountId } = useCloudAccount();
   const { isInDemoMode } = useDemoAwareQuery();
 
   const [provider, setProvider] = useState<string>(selectedProvider || 'AWS');
@@ -56,6 +56,7 @@ export default function BudgetManagement() {
       const res = await apiClient.lambda<BudgetCurrentResponse>('manage-cloud-budget', {
         action: 'get_current',
         provider,
+        accountId: selectedAccountId,
       });
       if ('error' in res && res.error) {
         toast.error(t('budgetManagement.loadError', 'Erro ao carregar orçamentos'));
@@ -69,7 +70,7 @@ export default function BudgetManagement() {
     } finally {
       setLoading(false);
     }
-  }, [provider, t]);
+  }, [provider, selectedAccountId, t]);
 
   useEffect(() => {
     fetchBudget();
@@ -81,6 +82,7 @@ export default function BudgetManagement() {
       await apiClient.lambda('manage-cloud-budget', {
         action: 'save',
         provider,
+        accountId: selectedAccountId,
         amount,
         source,
       });
@@ -106,7 +108,7 @@ export default function BudgetManagement() {
     } catch {
       toast.error(t('budgetManagement.saveError', 'Erro ao salvar orçamento'));
     }
-  }, [provider, isInDemoMode, t]);
+  }, [provider, selectedAccountId, isInDemoMode, t]);
 
   const handleBudgetChange = (value: number) => {
     setBudgetValue(value);
@@ -126,6 +128,11 @@ export default function BudgetManagement() {
     setProvider(value);
     setSuggestionData(null);
   };
+
+  // Reset suggestion when account changes
+  useEffect(() => {
+    setSuggestionData(null);
+  }, [selectedAccountId]);
 
   const mtdSpend = budgetData?.mtd_spend ?? 0;
   const utilization = budgetValue > 0 ? Math.round((mtdSpend / budgetValue) * 100 * 100) / 100 : 0;
@@ -180,6 +187,7 @@ export default function BudgetManagement() {
           actionSlot={
             <AISuggestionButton
               provider={provider}
+              accountId={selectedAccountId}
               onSuggestionApplied={handleSuggestionApplied}
               disabled={isInDemoMode || loading}
             />

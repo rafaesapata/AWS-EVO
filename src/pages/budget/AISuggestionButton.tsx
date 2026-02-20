@@ -21,12 +21,14 @@ export interface AISuggestionResponse {
 
 export interface AISuggestionButtonProps {
   provider: string;
+  accountId?: string | null;
   onSuggestionApplied: (suggestedAmount: number, suggestionData: AISuggestionResponse) => void;
   disabled?: boolean;
 }
 
 export function AISuggestionButton({
   provider,
+  accountId,
   onSuggestionApplied,
   disabled = false,
 }: AISuggestionButtonProps) {
@@ -37,7 +39,7 @@ export function AISuggestionButton({
     setLoading(true);
     try {
       const res = await apiClient.invoke<AISuggestionResponse>('ai-budget-suggestion', {
-        body: { provider },
+        body: { provider, accountId },
       });
 
       if (res.error) {

@@ -2562,6 +2562,7 @@ model CloudBudget {
   id              String   @id @default(uuid()) @db.Uuid
   organization_id String   @db.Uuid
   cloud_provider  String   @default("AWS")
+  account_id      String?  // UUID da conta (aws_credentials.id ou azure_credentials.id)
   year_month      String   // formato: '2026-02'
   amount          Float    @default(0)
   currency        String   @default("USD")
@@ -2570,8 +2571,9 @@ model CloudBudget {
   created_at      DateTime @default(now()) @db.Timestamptz(6)
   updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
-  @@unique([organization_id, cloud_provider, year_month])
+  @@unique([organization_id, cloud_provider, account_id, year_month])
   @@index([organization_id])
   @@index([year_month])
+  @@index([account_id])
   @@map("cloud_budgets")
 }

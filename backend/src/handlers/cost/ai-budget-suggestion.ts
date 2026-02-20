@@ -20,6 +20,7 @@ const SAVINGS_LOOKBACK_DAYS = 30;
 
 interface AISuggestionRequest {
   provider?: string; // 'AWS' | 'AZURE', default 'AWS'
+  accountId?: string; // UUID da conta selecionada
 }
 
 interface AISuggestionResponse {
@@ -73,15 +74,22 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const body = parseEventBody<AISuggestionRequest>(event, {} as AISuggestionRequest, 'ai-budget-suggestion');
     const provider = (body.provider || 'AWS').toUpperCase();
+    const accountId = body.accountId || undefined;
 
     // 1. Gasto total do mês anterior fechado
     const { yearMonth, startDate, endDate } = getPreviousClosedMonth();
+
+    // Account filter for daily_costs
+    const accountCostFilter = accountId
+      ? (provider === 'AZURE' ? { azure_credential_id: accountId } : { aws_account_id: accountId })
+      : {};
 
     const spendResult = await prisma.dailyCost.aggregate({
       where: {
         organization_id: organizationId,
         date: { gte: startDate, lte: endDate },
         ...getProviderFilter(provider),
+        ...accountCostFilter,
       },
       _sum: { cost: true },
     });
@@ -109,11 +117,19 @@ export async function handler(
     const lookbackDate = new Date();
     lookbackDate.setDate(lookbackDate.getDate() - SAVINGS_LOOKBACK_DAYS);
 
+    // Account filter for savings tables
+    const accountSavingsFilter = accountId
+      ? (provider === 'AZURE'
+          ? { azure_credential_id: accountId }
+          : { aws_account_id: accountId })
+      : {};
+
     // 2a. Cost optimizations: SUM(potential_savings)
     const costOptResult = await prisma.costOptimization.aggregate({
       where: {
         organization_id: organizationId,
         created_at: { gte: lookbackDate },
+        ...accountSavingsFilter,
       },
       _sum: { potential_savings: true },
     });
@@ -124,6 +140,7 @@ export async function handler(
       where: {
         organization_id: organizationId,
         detected_at: { gte: lookbackDate },
+        ...(accountId ? { aws_account_id: accountId } : {}),
       },
       _sum: { estimated_savings: true },
     });
@@ -134,6 +151,7 @@ export async function handler(
       where: {
         organization_id: organizationId,
         created_at: { gte: lookbackDate },
+        ...(accountId ? { aws_account_id: accountId } : {}),
       },
       _sum: { estimated_monthly_savings: true },
     });
