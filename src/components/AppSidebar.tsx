@@ -58,6 +58,16 @@ const menuItems: MenuItem[] = [
       { titleKey: "sidebar.monthlyInvoices", value: "invoices" },
     ]
   },
+  { 
+    titleKey: "sidebar.optimization", 
+    value: "optimization", 
+    icon: Zap,
+    subItems: [
+      { titleKey: "sidebar.costOptimization", value: "advanced" },
+      { titleKey: "sidebar.riSavingsPlans", value: "risp" },
+      { titleKey: "sidebar.wasteDetection", value: "waste" },
+    ]
+  },
   { titleKey: "sidebar.copilotAI", value: "copilot", icon: Bot },
   { 
     titleKey: "sidebar.mlPredictions", 
@@ -88,16 +98,6 @@ const menuItems: MenuItem[] = [
       { titleKey: "sidebar.cloudtrailAudit", value: "cloudtrail-audit" },
       { titleKey: "sidebar.compliance", value: "compliance" },
       { titleKey: "sidebar.wellArchitected", value: "well-architected" },
-    ]
-  },
-  { 
-    titleKey: "sidebar.optimization", 
-    value: "optimization", 
-    icon: Zap,
-    subItems: [
-      { titleKey: "sidebar.costOptimization", value: "advanced" },
-      { titleKey: "sidebar.riSavingsPlans", value: "risp" },
-      { titleKey: "sidebar.wasteDetection", value: "waste" },
     ]
   },
   { titleKey: "sidebar.intelligentAlerts", value: "alerts", icon: Bell },
