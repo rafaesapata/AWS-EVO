@@ -110,7 +110,7 @@ export function validateTagColor(color: string): TagValidationResult {
 
   if (!color) {
     errors.push({ field: 'color', message: 'Color is required', code: 'REQUIRED' });
-  } else if (!(PREDEFINED_COLORS as readonly string[]).includes(color.toUpperCase())) {
+  } else if (!(PREDEFINED_COLORS as readonly string[]).includes(color)) {
     errors.push({
       field: 'color',
       message: `Color must be one of: ${PREDEFINED_COLORS.join(', ')}`,

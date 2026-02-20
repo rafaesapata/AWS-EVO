@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TagBadge } from './TagBadge';
 import { useTagList, useCreateTag, type Tag } from '@/hooks/useTags';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 const PREDEFINED_COLORS = [
   '#EF4444', '#F97316', '#F59E0B', '#84CC16',
@@ -31,7 +31,7 @@ export function TagSelector({ assignedTags, onAssign, onUnassign, onCreateAndAss
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const debouncedSearch = useDebounce(search, 150);
+  const debouncedSearch = useDebouncedValue(search, 150);
 
   const { data: tagData } = useTagList({ search: debouncedSearch || undefined, limit: 50 });
   const createTag = useCreateTag();

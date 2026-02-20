@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { TagBadge } from './TagBadge';
 import { useTagList, type Tag } from '@/hooks/useTags';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 interface TagFilterBarProps {
   onFilterChange: (tagIds: string[]) => void;
@@ -22,7 +22,7 @@ export function TagFilterBar({ onFilterChange, syncWithUrl = true, showCloudFilt
   const [searchParams, setSearchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 150);
+  const debouncedSearch = useDebouncedValue(search, 150);
 
   const [selectedTags, setSelectedTags] = useState<Tag[]>(() => {
     // Will be populated from URL on mount if syncWithUrl

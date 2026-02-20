@@ -75,7 +75,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
   }, []);
 
   return (
-    <Sheet open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
+    <Sheet open={open} onOpenChange={(v: boolean) => { setOpen(v); if (!v) reset(); }}>
       <SheetTrigger asChild>
         {trigger || (
           <Button variant="outline" size="sm" className="glass hover-glow gap-1">
@@ -110,7 +110,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
             <Input
               placeholder={t('tags.searchResources', 'Search resources...')}
               value={resourceSearch}
-              onChange={(e) => setResourceSearch(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setResourceSearch(e.target.value)}
               className="h-8 text-sm"
             />
             <div className="flex items-center justify-between text-xs text-muted-foreground">

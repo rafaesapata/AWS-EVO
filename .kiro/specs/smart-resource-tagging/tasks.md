@@ -311,12 +311,12 @@ Implementação incremental do sistema de tagging local para a plataforma EVO. C
 
 - [x] 14. Integração com páginas existentes
   - [x] 14.1 Integrar `TagFilterBar` nas 6 páginas existentes
-    - CostOverviewPage (`/cost-overview`)
     - CostAnalysisPage (`/cost-analysis`)
     - MonthlyInvoicesPage (`/monthly-invoices`)
     - SecurityPosturePage (`/security-posture`)
     - SecurityScansPage (`/security-scans`)
-    - ExecutiveDashboardPage (`/dashboard`)
+    - CostOptimizationPage (`/cost-optimization`)
+    - Dashboard (`/dashboard`)
     - Passar `tag_ids` como query param nos API calls quando filtros ativos
     - _Requirements: R24.1, R24.2, R24.6_
 
