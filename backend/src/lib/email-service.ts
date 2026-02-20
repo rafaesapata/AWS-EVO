@@ -9,9 +9,9 @@ import { logger } from './logger.js';
 // SES Configuration from environment variables
 const SES_CONFIG = {
   region: process.env.AWS_SES_REGION || process.env.AWS_REGION || 'us-east-1',
-  fromEmail: process.env.AWS_SES_FROM_EMAIL || 'evo@udstec.io',
+  fromEmail: process.env.AWS_SES_FROM_EMAIL || 'evo@nuevacore.com',
   fromName: process.env.AWS_SES_FROM_NAME || 'EVO Platform',
-  domain: process.env.AWS_SES_DOMAIN || 'udstec.io',
+  domain: process.env.AWS_SES_DOMAIN || 'nuevacore.com',
   // Optional dedicated credentials for SES
   accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY,

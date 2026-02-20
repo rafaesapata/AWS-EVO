@@ -93,18 +93,20 @@ export default function NotificationSettingsPage() {
     mutationFn: async () => {
       const user = await cognitoAuth.getCurrentUser();
       if (!user?.email) throw new Error('Email não encontrado');
+      const recipients = [user.email, ...settings.additional_emails].filter(Boolean);
       return await emailClient.sendNotification(
-        user.email,
+        recipients.length === 1 ? recipients[0] : recipients,
         'Teste de Notificação - EVO',
-        'Este é um email de teste para verificar se as notificações estão funcionando corretamente.',
+        'Este é um email de teste para verificar se as notificações estão funcionando corretamente. Se você recebeu este email, sua configuração está funcionando!',
         'info'
       );
     },
     onSuccess: () => {
       toast.success(t('notificationSettings.testSent', 'Email de teste enviado! Verifique sua caixa de entrada.'));
     },
-    onError: () => {
-      toast.error(t('notificationSettings.testError', 'Erro ao enviar email de teste'));
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error || err?.message || 'Erro desconhecido';
+      toast.error(t('notificationSettings.testError', 'Erro ao enviar email de teste') + `: ${msg}`);
     },
   });
 

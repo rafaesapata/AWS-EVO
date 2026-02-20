@@ -85,7 +85,7 @@ export class EmailClient {
    * Send a single email
    */
   async sendEmail(request: SendEmailRequest): Promise<{ messageId: string }> {
-    const response = await apiClient.post('/email', request);
+    const response = await apiClient.post('/api/functions/send-email', request);
     return response.result;
   }
 
@@ -198,7 +198,7 @@ export class EmailClient {
    * Send bulk emails
    */
   async sendBulkEmail(request: BulkEmailRequest): Promise<{ messageIds: string[] }> {
-    const response = await apiClient.post('/email/bulk', request);
+    const response = await apiClient.post('/api/functions/send-email', request);
     return response.result;
   }
 

@@ -39,6 +39,10 @@ Globals:
         WEBAUTHN_RP_ID: !Ref WebAuthnRpId
         WEBAUTHN_ORIGIN: !Sub 'https://${AppDomain}'
         WEBAUTHN_RP_NAME: !Ref WebAuthnRpName
+        AWS_SES_REGION: us-east-1
+        AWS_SES_FROM_EMAIL: evo@nuevacore.com
+        AWS_SES_FROM_NAME: EVO Platform
+        AWS_SES_DOMAIN: nuevacore.com
     Layers:
       - !Ref DependenciesLayer
 Parameters:
