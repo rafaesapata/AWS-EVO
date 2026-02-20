@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
-import { Tags, Trash2, Pencil, Loader2 } from 'lucide-react';
+import { Tags, Trash2, Pencil, Loader2, Shield, AlertTriangle, Bell, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,10 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 import { TagBadge } from '@/components/tags/TagBadge';
 import { TagSelector } from '@/components/tags/TagSelector';
 import { BulkTaggingDrawer } from '@/components/tags/BulkTaggingDrawer';
@@ -34,6 +38,22 @@ export default function TagManagement() {
   const [quickstartDismissed, setQuickstartDismissed] = useState(false);
   const [selectedCostTag, setSelectedCostTag] = useState<string | null>(null);
   const [selectedSecTags, setSelectedSecTags] = useState<string[]>([]);
+  const [newRequiredKey, setNewRequiredKey] = useState('');
+  const [tagSettings, setTagSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tag-settings-org');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      enforceNaming: true,
+      preventDuplicates: true,
+      requireCategory: false,
+      alertLowCoverage: true,
+      coverageThreshold: 80,
+      alertUntaggedNew: false,
+      requiredKeys: ['environment', 'cost-center', 'team'],
+    };
+  });
   const { isInDemoMode } = useDemoAwareQuery();
 
   // Real queries — disabled in demo mode, explicitly enabled otherwise
@@ -286,12 +306,188 @@ export default function TagManagement() {
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
+            {/* Naming Policies */}
             <Card className="glass border-primary/20">
-              <CardHeader><CardTitle className="text-sm">{t('tags.settingsPlaceholder', 'Settings')}</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{t('tags.settingsComingSoon', 'Tag settings and policies coming soon.')}</p>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  {t('tags.namingPolicies', 'Naming Policies')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm">{t('tags.enforceNamingConvention', 'Enforce naming convention')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('tags.enforceNamingDesc', 'Tag keys must follow lowercase-with-hyphens format (e.g. cost-center)')}</p>
+                  </div>
+                  <Switch checked={tagSettings.enforceNaming} onCheckedChange={(v) => setTagSettings(s => ({ ...s, enforceNaming: v }))} disabled={isInDemoMode} />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm">{t('tags.preventDuplicates', 'Prevent duplicate tags')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('tags.preventDuplicatesDesc', 'Block creation of tags with same key:value pair (case-insensitive)')}</p>
+                  </div>
+                  <Switch checked={tagSettings.preventDuplicates} onCheckedChange={(v) => setTagSettings(s => ({ ...s, preventDuplicates: v }))} disabled={isInDemoMode} />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm">{t('tags.requireCategory', 'Require category')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('tags.requireCategoryDesc', 'All tags must have a category assigned (not CUSTOM)')}</p>
+                  </div>
+                  <Switch checked={tagSettings.requireCategory} onCheckedChange={(v) => setTagSettings(s => ({ ...s, requireCategory: v }))} disabled={isInDemoMode} />
+                </div>
               </CardContent>
             </Card>
+
+            {/* Coverage Alerts */}
+            <Card className="glass border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  {t('tags.coverageAlerts', 'Coverage Alerts')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm">{t('tags.alertLowCoverage', 'Alert on low coverage')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('tags.alertLowCoverageDesc', 'Show warning when tag coverage drops below threshold')}</p>
+                  </div>
+                  <Switch checked={tagSettings.alertLowCoverage} onCheckedChange={(v) => setTagSettings(s => ({ ...s, alertLowCoverage: v }))} disabled={isInDemoMode} />
+                </div>
+                {tagSettings.alertLowCoverage && (
+                  <>
+                    <Separator />
+                    <div className="flex items-center gap-4">
+                      <Label className="text-sm whitespace-nowrap">{t('tags.coverageThreshold', 'Minimum coverage')}</Label>
+                      <Select value={String(tagSettings.coverageThreshold)} onValueChange={(v) => setTagSettings(s => ({ ...s, coverageThreshold: parseInt(v) }))} disabled={isInDemoMode}>
+                        <SelectTrigger className="w-[120px] h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[50, 60, 70, 80, 90, 95].map(v => (
+                            <SelectItem key={v} value={String(v)}>{v}%</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm">{t('tags.alertUntaggedNew', 'Alert on new untagged resources')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('tags.alertUntaggedNewDesc', 'Notify when newly discovered resources have no tags')}</p>
+                  </div>
+                  <Switch checked={tagSettings.alertUntaggedNew} onCheckedChange={(v) => setTagSettings(s => ({ ...s, alertUntaggedNew: v }))} disabled={isInDemoMode} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Default Categories */}
+            <Card className="glass border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Tags className="h-4 w-4" />
+                  {t('tags.defaultCategories', 'Required Tag Keys')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-muted-foreground">{t('tags.requiredKeysDesc', 'Define tag keys that should be present on all resources. Resources missing these keys will be flagged.')}</p>
+                <div className="flex flex-wrap gap-2">
+                  {tagSettings.requiredKeys.map((key) => (
+                    <Badge key={key} variant="outline" className="text-xs gap-1">
+                      {key}
+                      {!isInDemoMode && (
+                        <button onClick={() => setTagSettings(s => ({ ...s, requiredKeys: s.requiredKeys.filter(k => k !== key) }))} className="ml-1 hover:text-destructive">×</button>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+                {!isInDemoMode && (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder={t('tags.addRequiredKey', 'Add required key (e.g. environment)...')}
+                      className="h-8 text-sm max-w-xs"
+                      value={newRequiredKey}
+                      onChange={(e) => setNewRequiredKey(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newRequiredKey.trim()) {
+                          const key = newRequiredKey.trim().toLowerCase();
+                          if (!tagSettings.requiredKeys.includes(key)) {
+                            setTagSettings(s => ({ ...s, requiredKeys: [...s.requiredKeys, key] }));
+                          }
+                          setNewRequiredKey('');
+                        }
+                      }}
+                    />
+                    <Button variant="outline" size="sm" className="h-8 glass hover-glow" onClick={() => {
+                      if (newRequiredKey.trim()) {
+                        const key = newRequiredKey.trim().toLowerCase();
+                        if (!tagSettings.requiredKeys.includes(key)) {
+                          setTagSettings(s => ({ ...s, requiredKeys: [...s.requiredKeys, key] }));
+                        }
+                        setNewRequiredKey('');
+                      }
+                    }}>
+                      {t('common.add', 'Add')}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Export & Actions */}
+            <Card className="glass border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  {t('tags.exportData', 'Export & Data')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex gap-3">
+                  <Button variant="outline" size="sm" className="glass hover-glow" disabled={isInDemoMode} onClick={() => {
+                    const data = JSON.stringify({ tags, coverage, settings: tagSettings }, null, 2);
+                    const blob = new Blob([data], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `tags-export-${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click(); URL.revokeObjectURL(url);
+                    toast.success(t('tags.exportSuccess', 'Tags exported successfully'));
+                  }}>
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    {t('tags.exportJson', 'Export as JSON')}
+                  </Button>
+                  <Button variant="outline" size="sm" className="glass hover-glow" disabled={isInDemoMode} onClick={() => {
+                    const rows = [['Key', 'Value', 'Color', 'Category', 'Usage Count', 'Created At']];
+                    tags.forEach(tag => rows.push([tag.key, tag.value, tag.color, tag.category || 'CUSTOM', String(tag.usage_count || 0), tag.created_at]));
+                    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `tags-export-${new Date().toISOString().slice(0, 10)}.csv`;
+                    a.click(); URL.revokeObjectURL(url);
+                    toast.success(t('tags.exportSuccess', 'Tags exported successfully'));
+                  }}>
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    {t('tags.exportCsv', 'Export as CSV')}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Save Button */}
+            <div className="flex justify-end">
+              <Button className="glass hover-glow" disabled={isInDemoMode} onClick={() => {
+                localStorage.setItem(`tag-settings-${isInDemoMode ? 'demo' : 'org'}`, JSON.stringify(tagSettings));
+                toast.success(t('tags.settingsSaved', 'Tag settings saved'));
+              }}>
+                {t('common.save', 'Save Settings')}
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
 
