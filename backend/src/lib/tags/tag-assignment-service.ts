@@ -329,43 +329,92 @@ export async function getUntaggedResources(
   const prisma = getPrismaClient();
   const limit = Math.min(Math.max(params.limit || 50, 1), 100);
 
+  // Get already-tagged resource IDs
+  const taggedResourceIds = (await prisma.resourceTagAssignment.findMany({
+    where: { organization_id: organizationId },
+    select: { resource_id: true },
+    distinct: ['resource_id'],
+  })).map((a: any) => a.resource_id);
+
+  // Try ResourceInventory first
   try {
-    // Build WHERE clause for ResourceInventory
-    const where: any = {
-      organization_id: organizationId,
-      NOT: {
-        resource_id: {
-          in: (await prisma.resourceTagAssignment.findMany({
-            where: { organization_id: organizationId },
-            select: { resource_id: true },
-            distinct: ['resource_id'],
-          })).map((a: any) => a.resource_id),
-        },
-      },
-    };
-
-    if (params.resourceType) where.resource_type = params.resourceType;
-    if (params.cloudProvider) where.cloud_provider = params.cloudProvider;
-    if (params.region) where.region = params.region;
-
-    const cursorObj = params.cursor ? { id: params.cursor } : undefined;
-
-    const resources = await prisma.resourceInventory.findMany({
-      where,
-      take: limit + 1,
-      orderBy: { updated_at: 'desc' },
-      ...(cursorObj ? { cursor: cursorObj, skip: 1 } : {}),
+    const riCount = await prisma.resourceInventory.count({
+      where: { organization_id: organizationId },
     });
 
-    const hasMore = resources.length > limit;
-    const data = hasMore ? resources.slice(0, limit) : resources;
+    if (riCount > 0) {
+      const where: any = {
+        organization_id: organizationId,
+        ...(taggedResourceIds.length > 0 ? { NOT: { resource_id: { in: taggedResourceIds } } } : {}),
+      };
+      if (params.resourceType) where.resource_type = params.resourceType;
+      if (params.cloudProvider) where.cloud_provider = params.cloudProvider;
+      if (params.region) where.region = params.region;
+
+      const cursorObj = params.cursor ? { id: params.cursor } : undefined;
+
+      const resources = await prisma.resourceInventory.findMany({
+        where,
+        take: limit + 1,
+        orderBy: { updated_at: 'desc' },
+        ...(cursorObj ? { cursor: cursorObj, skip: 1 } : {}),
+      });
+
+      const hasMore = resources.length > limit;
+      const data = hasMore ? resources.slice(0, limit) : resources;
+      return { data, nextCursor: hasMore ? data[data.length - 1].id : null };
+    }
+  } catch {
+    // ResourceInventory may not exist
+  }
+
+  // Fallback: derive "resources" from daily_costs distinct services
+  try {
+    const offset = params.cursor ? parseInt(params.cursor, 10) || 0 : 0;
+    const providerFilter = params.cloudProvider ? `AND cloud_provider = '${params.cloudProvider}'` : '';
+    const accountFilter = params.accountId ? `AND (aws_account_id::text = '${params.accountId}' OR azure_credential_id::text = '${params.accountId}')` : '';
+
+    const resources: any[] = await prisma.$queryRaw`
+      SELECT 
+        service || '::' || COALESCE(aws_account_id::text, COALESCE(azure_credential_id::text, 'unknown')) as id,
+        service as resource_name,
+        service as resource_type,
+        COALESCE(cloud_provider, 'AWS') as cloud_provider,
+        COALESCE(aws_account_id::text, azure_credential_id::text) as account_id,
+        '' as region,
+        SUM(cost) as total_cost,
+        MAX(date) as last_seen
+      FROM daily_costs
+      WHERE organization_id = ${organizationId}::uuid
+      GROUP BY service, cloud_provider, aws_account_id, azure_credential_id
+      ORDER BY SUM(cost) DESC
+      LIMIT ${limit + 1}
+      OFFSET ${offset}
+    `;
+
+    // Filter out already-tagged
+    const filtered = resources.filter((r: any) => !taggedResourceIds.includes(r.id));
+    const hasMore = filtered.length > limit;
+    const data = hasMore ? filtered.slice(0, limit) : filtered;
+    const nextOffset = offset + limit;
 
     return {
-      data,
-      nextCursor: hasMore ? data[data.length - 1].id : null,
+      data: data.map((r: any) => ({
+        id: r.id,
+        resource_id: r.id,
+        resource_name: r.resource_name,
+        resource_type: r.resource_type,
+        cloud_provider: r.cloud_provider,
+        region: r.region || '',
+        aws_account_id: r.account_id,
+        total_cost: Number(r.total_cost || 0),
+        last_seen: r.last_seen,
+        source: 'daily_costs',
+      })),
+      nextCursor: hasMore ? String(nextOffset) : null,
     };
   } catch (err: any) {
-    logger.warn('getUntaggedResources error (ResourceInventory may not exist)', { error: err.message });
+    logger.warn('getUntaggedResources daily_costs fallback error', { error: err.message });
     return { data: [], nextCursor: null };
   }
 }

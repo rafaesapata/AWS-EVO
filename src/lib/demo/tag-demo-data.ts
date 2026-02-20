@@ -45,14 +45,15 @@ export function filterDemoTags(params?: { category?: string; search?: string }):
 
 export function generateDemoCoverage(): CoverageMetrics {
   return {
-    total_resources: 487,
-    tagged_resources: 342,
-    untagged_resources: 145,
-    coverage_percentage: 70.2,
-    breakdown_by_provider: {
-      AWS: { total: 356, tagged: 267 },
-      AZURE: { total: 131, tagged: 75 },
+    totalResources: 487,
+    taggedResources: 342,
+    untaggedResources: 145,
+    coveragePercentage: 70.2,
+    breakdownByProvider: {
+      AWS: 356,
+      AZURE: 131,
     },
+    resourceSource: 'demo',
   };
 }
 

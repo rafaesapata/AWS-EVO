@@ -32,12 +32,6 @@ interface ListTagsParams {
   cursor?: string;
 }
 
-interface PaginatedResult<T> {
-  data: T[];
-  nextCursor: string | null;
-  total?: number;
-}
-
 // ============================================================================
 // CREATE TAG
 // ============================================================================
@@ -102,7 +96,7 @@ export async function createTag(
 // LIST TAGS
 // ============================================================================
 
-export async function listTags(params: ListTagsParams): Promise<PaginatedResult<any>> {
+export async function listTags(params: ListTagsParams) {
   const prisma = getPrismaClient();
   const limit = Math.min(Math.max(params.limit || 50, 1), 100);
 
@@ -119,17 +113,20 @@ export async function listTags(params: ListTagsParams): Promise<PaginatedResult<
   const orderBy: any = params.sortBy === 'key'
     ? { key: 'asc' }
     : params.sortBy === 'usage_count'
-      ? { created_at: 'desc' } // usage_count sorted in-memory after cache lookup
+      ? { created_at: 'desc' }
       : { created_at: 'desc' };
 
   const cursorObj = params.cursor ? { id: params.cursor } : undefined;
 
-  const tags = await prisma.tag.findMany({
-    where,
-    orderBy,
-    take: limit + 1,
-    ...(cursorObj ? { cursor: cursorObj, skip: 1 } : {}),
-  });
+  const [totalCount, tags] = await Promise.all([
+    prisma.tag.count({ where }),
+    prisma.tag.findMany({
+      where,
+      orderBy,
+      take: limit + 1,
+      ...(cursorObj ? { cursor: cursorObj, skip: 1 } : {}),
+    }),
+  ]);
 
   const hasMore = tags.length > limit;
   const data = hasMore ? tags.slice(0, limit) : tags;
@@ -148,13 +145,13 @@ export async function listTags(params: ListTagsParams): Promise<PaginatedResult<
     })
   );
 
-  // Sort by usage_count if requested
   if (params.sortBy === 'usage_count') {
     enriched.sort((a: any, b: any) => b.usage_count - a.usage_count);
   }
 
   return {
-    data: enriched,
+    tags: enriched,
+    total: totalCount,
     nextCursor: hasMore ? data[data.length - 1].id : null,
   };
 }
@@ -475,15 +472,31 @@ export async function getCoverage(organizationId: string) {
 
   const prisma = getPrismaClient();
 
-  // Total resources (from ResourceInventory if it exists, otherwise from assignments)
+  // Try ResourceInventory first, fallback to daily_costs distinct services
   let totalResources = 0;
+  let resourceSource = 'resource_inventory';
   try {
     totalResources = await prisma.resourceInventory.count({
       where: { organization_id: organizationId },
     });
   } catch {
-    // ResourceInventory may not exist in all environments
     totalResources = 0;
+  }
+
+  if (totalResources === 0) {
+    // Fallback: count distinct services from daily_costs as "resources"
+    resourceSource = 'daily_costs';
+    try {
+      const distinctServices: any[] = await prisma.$queryRaw`
+        SELECT COUNT(DISTINCT service || '::' || COALESCE(aws_account_id::text, COALESCE(azure_credential_id::text, ''))) as cnt
+        FROM daily_costs
+        WHERE organization_id = ${organizationId}::uuid
+      `;
+      totalResources = Number(distinctServices[0]?.cnt || 0);
+    } catch (err: any) {
+      logger.warn('getCoverage daily_costs fallback error', { error: err.message });
+      totalResources = 0;
+    }
   }
 
   // Tagged resources (distinct resource_ids with at least one assignment)
@@ -499,16 +512,35 @@ export async function getCoverage(organizationId: string) {
     : 0;
 
   // Breakdown by provider
-  const providerBreakdown = await prisma.resourceTagAssignment.groupBy({
-    by: ['cloud_provider'],
-    where: { organization_id: organizationId },
-    _count: { _all: true },
-  });
+  let breakdownByProvider: Record<string, number> = {};
 
-  const breakdownByProvider = providerBreakdown.reduce((acc: any, p: any) => {
-    acc[p.cloud_provider] = p._count._all;
-    return acc;
-  }, {} as Record<string, number>);
+  if (resourceSource === 'daily_costs') {
+    // Get provider breakdown from daily_costs
+    try {
+      const providerCounts: any[] = await prisma.$queryRaw`
+        SELECT cloud_provider, COUNT(DISTINCT service || '::' || COALESCE(aws_account_id::text, COALESCE(azure_credential_id::text, ''))) as cnt
+        FROM daily_costs
+        WHERE organization_id = ${organizationId}::uuid
+        GROUP BY cloud_provider
+      `;
+      breakdownByProvider = providerCounts.reduce((acc: any, p: any) => {
+        acc[p.cloud_provider || 'AWS'] = Number(p.cnt || 0);
+        return acc;
+      }, {} as Record<string, number>);
+    } catch {
+      // ignore
+    }
+  } else {
+    const providerBreakdown = await prisma.resourceTagAssignment.groupBy({
+      by: ['cloud_provider'],
+      where: { organization_id: organizationId },
+      _count: { _all: true },
+    });
+    breakdownByProvider = providerBreakdown.reduce((acc: any, p: any) => {
+      acc[p.cloud_provider] = p._count._all;
+      return acc;
+    }, {} as Record<string, number>);
+  }
 
   const coverage = {
     totalResources,
@@ -516,6 +548,7 @@ export async function getCoverage(organizationId: string) {
     untaggedResources,
     coveragePercentage,
     breakdownByProvider,
+    resourceSource,
   };
 
   await setCachedCoverage(organizationId, coverage);

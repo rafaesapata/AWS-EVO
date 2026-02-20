@@ -94,8 +94,8 @@ export default function TagManagement() {
     setDeleteTarget(null);
   }, [deleteTarget, deleteTag, isInDemoMode]);
 
-  const coverageColor = (coverage?.coverage_percentage ?? 0) >= 80 ? 'text-green-500' :
-    (coverage?.coverage_percentage ?? 0) >= 50 ? 'text-yellow-500' : 'text-red-500';
+  const coverageColor = (coverage?.coveragePercentage ?? 0) >= 80 ? 'text-green-500' :
+    (coverage?.coveragePercentage ?? 0) >= 50 ? 'text-yellow-500' : 'text-red-500';
 
   if (shouldShowQuickstart) {
     return (
@@ -134,17 +134,17 @@ export default function TagManagement() {
               </Card>
               <Card className="glass border-primary/20">
                 <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.totalAssignments', 'Total Assignments')}</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{coverage?.tagged_resources || 0}</p></CardContent>
+                <CardContent><p className="text-2xl font-bold">{coverage?.taggedResources || 0}</p></CardContent>
               </Card>
               <Card className="glass border-primary/20">
                 <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.untaggedResources', 'Untagged Resources')}</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{coverage?.untagged_resources || 0}</p></CardContent>
+                <CardContent><p className="text-2xl font-bold">{coverage?.untaggedResources || 0}</p></CardContent>
               </Card>
               <Card className="glass border-primary/20">
                 <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.coverage', 'Coverage')}</CardTitle></CardHeader>
                 <CardContent>
-                  <p className={`text-2xl font-bold ${coverageColor}`}>{coverage?.coverage_percentage?.toFixed(1) || 0}%</p>
-                  <Progress value={coverage?.coverage_percentage || 0} className="h-2 mt-2" />
+                  <p className={`text-2xl font-bold ${coverageColor}`}>{coverage?.coveragePercentage?.toFixed(1) || 0}%</p>
+                  <Progress value={coverage?.coveragePercentage || 0} className="h-2 mt-2" />
                 </CardContent>
               </Card>
             </div>

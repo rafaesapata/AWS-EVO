@@ -321,16 +321,16 @@ export default function ExecutiveDashboardV2() {
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
                     <span className={`text-2xl font-bold ${
-                      (tagCoverage.coverage_percentage ?? 0) >= 80 ? 'text-green-600' :
-                      (tagCoverage.coverage_percentage ?? 0) >= 50 ? 'text-yellow-600' : 'text-red-600'
+                      (tagCoverage.coveragePercentage ?? 0) >= 80 ? 'text-green-600' :
+                      (tagCoverage.coveragePercentage ?? 0) >= 50 ? 'text-yellow-600' : 'text-red-600'
                     }`}>
-                      {tagCoverage.coverage_percentage?.toFixed(1) ?? 0}%
+                      {tagCoverage.coveragePercentage?.toFixed(1) ?? 0}%
                     </span>
                     <span className="text-xs text-gray-500">
-                      {tagCoverage.tagged_resources ?? 0} / {tagCoverage.total_resources ?? 0} {t('tags.resources', 'resources')}
+                      {tagCoverage.taggedResources ?? 0} / {tagCoverage.totalResources ?? 0} {t('tags.resources', 'resources')}
                     </span>
                   </div>
-                  <Progress value={tagCoverage.coverage_percentage ?? 0} className="h-2" />
+                  <Progress value={tagCoverage.coveragePercentage ?? 0} className="h-2" />
                 </div>
                 <Button
                   variant="outline"
