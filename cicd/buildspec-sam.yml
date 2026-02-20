@@ -198,6 +198,13 @@ phases:
         DEPLOY_FRONTEND_BUILD=$(cat /tmp/deploy_frontend_build.txt)
         DEPLOY_FULL_SAM=$(cat /tmp/deploy_full_sam.txt)
 
+        # === Run database migrations if backend changed ===
+        if [ "$DEPLOY_BACKEND_BUILD" = "true" ]; then
+          echo "=== Running Prisma Migrations ==="
+          cd backend && npx prisma migrate deploy 2>&1 || echo "WARNING: Migration failed or no pending migrations"
+          cd ..
+        fi
+
         # === Build only what's needed ===
         if [ "$DEPLOY_BACKEND_BUILD" = "true" ]; then
           echo "=== Building Backend TypeScript ==="

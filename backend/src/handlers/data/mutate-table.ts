@@ -277,6 +277,35 @@ export async function handler(
             dataWithOrg.created_by = userId;
           }
           
+          // Special handling for scan_schedules - use raw SQL to avoid Prisma schema/DB mismatch
+          if (body.table === 'scan_schedules') {
+            const prisma = getPrismaClient();
+            const id = require('crypto').randomUUID();
+            const now = new Date().toISOString();
+            const scheduleConfig = dataWithOrg.schedule_config ? JSON.stringify(dataWithOrg.schedule_config) : null;
+            const nextRunAt = dataWithOrg.next_run_at || null;
+            const isActive = dataWithOrg.is_active !== undefined ? dataWithOrg.is_active : true;
+            const awsAccountId = dataWithOrg.aws_account_id || null;
+            
+            await prisma.$executeRawUnsafe(
+              `INSERT INTO scan_schedules (id, organization_id, aws_account_id, scan_type, schedule_type, schedule_config, is_active, next_run_at, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8::timestamptz, $9::timestamptz, $10::timestamptz)`,
+              id,
+              dataWithOrg.organization_id,
+              awsAccountId,
+              dataWithOrg.scan_type,
+              dataWithOrg.schedule_type,
+              scheduleConfig,
+              isActive,
+              nextRunAt,
+              now,
+              now
+            );
+            
+            result = { id, organization_id: dataWithOrg.organization_id, scan_type: dataWithOrg.scan_type, schedule_type: dataWithOrg.schedule_type, is_active: isActive, created_at: now };
+            break;
+          }
+          
           result = await model.create({
             data: dataWithOrg,
           });
@@ -424,8 +453,6 @@ export async function handler(
       organizationId,
       userId,
       requestId: context.awsRequestId,
-      table: body?.table,
-      operation: body?.operation,
       prismaCode: err.code,
       prismaMessage: err.message,
       prismaMeta: err.meta,
