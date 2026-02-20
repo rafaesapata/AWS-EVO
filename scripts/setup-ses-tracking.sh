@@ -80,7 +80,9 @@ fi
 echo ""
 echo "=== Step 4: Allow SES to publish to SNS topic ==="
 # Set SNS topic policy to allow SES to publish
-ACCOUNT_ID=$(aws sts get-caller-identity --profile "$PROFILE" --region "$REGION" --query 'Account' --output text)
+# IMPORTANT: SES is in account 563366818355, not the infra account
+INFRA_ACCOUNT_ID=$(aws sts get-caller-identity --profile "$PROFILE" --region "$REGION" --query 'Account' --output text)
+SES_ACCOUNT_ID="563366818355"
 POLICY='{
   "Version": "2012-10-17",
   "Statement": [
@@ -91,8 +93,15 @@ POLICY='{
       "Action": "SNS:Publish",
       "Resource": "'"$TOPIC_ARN"'",
       "Condition": {
-        "StringEquals": {"AWS:SourceAccount": "'"$ACCOUNT_ID"'"}
+        "StringEquals": {"AWS:SourceAccount": "'"$SES_ACCOUNT_ID"'"}
       }
+    },
+    {
+      "Sid": "AllowOwnerAccount",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::'"$INFRA_ACCOUNT_ID"':root"},
+      "Action": ["SNS:Publish", "SNS:Subscribe", "SNS:GetTopicAttributes", "SNS:SetTopicAttributes"],
+      "Resource": "'"$TOPIC_ARN"'"
     }
   ]
 }'

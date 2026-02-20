@@ -70,6 +70,41 @@ interface SESEventRecord {
   };
 }
 
+// Auto-create email_events table if it doesn't exist
+async function ensureEmailEventsTable(prisma: any): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "email_events" (
+        "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+        "organization_id" UUID,
+        "message_id" TEXT NOT NULL,
+        "event_type" TEXT NOT NULL,
+        "recipient" TEXT NOT NULL,
+        "sender" TEXT,
+        "subject" TEXT,
+        "bounce_type" TEXT,
+        "bounce_sub_type" TEXT,
+        "complaint_type" TEXT,
+        "diagnostic" TEXT,
+        "timestamp" TIMESTAMPTZ(6) NOT NULL,
+        "raw_event" JSONB,
+        "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "email_events_pkey" PRIMARY KEY ("id")
+      );
+      CREATE INDEX IF NOT EXISTS "email_events_message_id_idx" ON "email_events"("message_id");
+      CREATE INDEX IF NOT EXISTS "email_events_organization_id_idx" ON "email_events"("organization_id");
+      CREATE INDEX IF NOT EXISTS "email_events_recipient_idx" ON "email_events"("recipient");
+      CREATE INDEX IF NOT EXISTS "email_events_event_type_idx" ON "email_events"("event_type");
+      CREATE INDEX IF NOT EXISTS "email_events_timestamp_idx" ON "email_events"("timestamp");
+    `);
+    logger.info('email_events table ensured');
+  } catch (err) {
+    logger.warn('Failed to ensure email_events table (may already exist)', { error: (err as Error).message });
+  }
+}
+
+let tableEnsured = false;
+
 export async function handler(event: any): Promise<APIGatewayProxyResultV2> {
   try {
     let snsMessage: SNSMessage;
@@ -114,6 +149,13 @@ export async function handler(event: any): Promise<APIGatewayProxyResultV2> {
     // Parse the SES event
     const sesEvent: SESEventRecord = JSON.parse(snsMessage.Message);
     const prisma = getPrismaClient();
+
+    // Ensure table exists on first invocation
+    if (!tableEnsured) {
+      await ensureEmailEventsTable(prisma);
+      tableEnsured = true;
+    }
+
     const orgId = sesEvent.mail.tags?.['organization_id']?.[0] || null;
 
     logger.info('SES event received', {
