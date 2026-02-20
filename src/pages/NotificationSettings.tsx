@@ -25,8 +25,10 @@ interface NotificationSettingsData {
   cost_alerts: boolean;
   compliance_alerts: boolean;
   drift_alerts: boolean;
+  daily_reports: boolean;
   weekly_reports: boolean;
   monthly_reports: boolean;
+  on_demand_reports: boolean;
   additional_emails: string[];
 }
 
@@ -40,8 +42,10 @@ const defaultSettings: NotificationSettingsData = {
   cost_alerts: true,
   compliance_alerts: true,
   drift_alerts: true,
+  daily_reports: false,
   weekly_reports: true,
   monthly_reports: true,
+  on_demand_reports: true,
   additional_emails: [],
 };
 
@@ -58,8 +62,11 @@ export default function NotificationSettingsPage() {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
       try {
-        const data = await apiClient.get('/user/notification-settings');
-        if (data) setSettings({ ...defaultSettings, ...(data as any) });
+        const response = await apiClient.get('/user/notification-settings') as any;
+        const data = response?.data ?? response;
+        if (data && typeof data === 'object' && !data.error) {
+          setSettings({ ...defaultSettings, ...data });
+        }
         return data;
       } catch {
         return null;
@@ -317,6 +324,17 @@ export default function NotificationSettingsPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
                   <div className="flex items-center gap-3">
+                    <CalendarDays className="h-4 w-4 text-orange-500" />
+                    <div>
+                      <Label className="text-sm font-medium">{t('notificationSettings.dailyReports', 'Relatório Diário')}</Label>
+                      <p className="text-xs text-muted-foreground">{t('notificationSettings.dailyReportsDesc', 'Resumo diário de segurança, custos e alertas')}</p>
+                    </div>
+                  </div>
+                  <Switch checked={settings.daily_reports} onCheckedChange={(v) => update('daily_reports', v)} />
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-3">
                     <CalendarDays className="h-4 w-4 text-primary" />
                     <div>
                       <Label className="text-sm font-medium">{t('notificationSettings.weeklyReports', 'Relatório Semanal')}</Label>
@@ -335,6 +353,17 @@ export default function NotificationSettingsPage() {
                     </div>
                   </div>
                   <Switch checked={settings.monthly_reports} onCheckedChange={(v) => update('monthly_reports', v)} />
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-4 w-4 text-green-500" />
+                    <div>
+                      <Label className="text-sm font-medium">{t('notificationSettings.onDemandReports', 'Relatório Sob Demanda')}</Label>
+                      <p className="text-xs text-muted-foreground">{t('notificationSettings.onDemandReportsDesc', 'Receber email após cada scan executado manualmente')}</p>
+                    </div>
+                  </div>
+                  <Switch checked={settings.on_demand_reports} onCheckedChange={(v) => update('on_demand_reports', v)} />
                 </div>
               </CardContent>
             </Card>

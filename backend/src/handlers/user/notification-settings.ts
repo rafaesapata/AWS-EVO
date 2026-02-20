@@ -26,8 +26,10 @@ const notificationSettingsSchema = z.object({
   cost_alerts: z.boolean().default(true),
   compliance_alerts: z.boolean().default(true),
   drift_alerts: z.boolean().default(true),
+  daily_reports: z.boolean().default(false),
   weekly_reports: z.boolean().default(true),
   monthly_reports: z.boolean().default(true),
+  on_demand_reports: z.boolean().default(true),
   additional_emails: z.array(z.string().email()).default([]),
 }).passthrough(); // Accept extra fields from frontend but only persist known ones
 
@@ -36,8 +38,8 @@ const PRISMA_FIELDS = [
   'email_enabled', 'webhook_enabled', 'webhook_url',
   'slack_enabled', 'slack_webhook_url',
   'security_alerts', 'cost_alerts', 'compliance_alerts',
-  'drift_alerts', 'weekly_reports', 'monthly_reports',
-  'additional_emails',
+  'drift_alerts', 'daily_reports', 'weekly_reports', 'monthly_reports',
+  'on_demand_reports', 'additional_emails',
 ] as const;
 
 /**

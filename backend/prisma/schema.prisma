@@ -889,8 +889,10 @@ model NotificationSettings {
   cost_alerts           Boolean  @default(true)
   compliance_alerts     Boolean  @default(true)
   drift_alerts          Boolean  @default(true)
+  daily_reports         Boolean  @default(false)
   weekly_reports        Boolean  @default(true)
   monthly_reports       Boolean  @default(true)
+  on_demand_reports     Boolean  @default(true)
   webhook_url           String?
   slack_webhook_url     String?
   additional_emails     String[] @default([])
