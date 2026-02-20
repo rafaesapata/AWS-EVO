@@ -148,7 +148,7 @@ export default function ExecutiveDashboardV2() {
   const formattedDate = currentDate.charAt(0).toUpperCase() + currentDate.slice(1);
 
   return (
-    <div data-executive-dashboard className="min-h-screen bg-[#F1F3F7] -m-6 p-6 space-y-6">
+    <div data-executive-dashboard className="bg-[#F1F3F7] dark:bg-transparent -m-3 p-3 space-y-6">
       {/* Greeting Header with Refresh Button */}
       <div className="flex items-start justify-between">
         <div className="space-y-0.5">
@@ -427,7 +427,7 @@ function DashboardSkeletonGranular() {
   const formattedDate = currentDate.charAt(0).toUpperCase() + currentDate.slice(1);
 
   return (
-    <div data-executive-dashboard className="min-h-screen bg-[#F1F3F7] -m-6 p-6 space-y-6">
+    <div data-executive-dashboard className="bg-[#F1F3F7] dark:bg-transparent -m-3 p-3 space-y-6">
       {/* Header - Shows immediately */}
       <div className="flex items-start justify-between">
         <div className="space-y-0.5">
@@ -478,7 +478,7 @@ function DashboardSkeletonGranular() {
 // Legacy Skeleton Loading - Kept for backwards compatibility
 function DashboardSkeleton() {
   return (
-    <div className="min-h-screen bg-[#F1F3F7] -m-6 p-6 space-y-8">
+    <div className="bg-[#F1F3F7] dark:bg-transparent -m-3 p-3 space-y-8">
       <section className="space-y-4">
         <div className="flex items-start gap-3 mb-4">
           <Skeleton className="h-10 w-10 rounded-xl" />
