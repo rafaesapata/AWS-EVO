@@ -19,8 +19,12 @@ import { ExportManager } from "@/components/dashboard/cost-analysis/ExportManage
 import { RiSpAnalysis } from "@/components/cost/RiSpAnalysis";
 import { formatDateBR, compareDates, calculatePercentageChange } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
-import { formatCost, getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { formatCost } from "@/lib/format-cost";
 import { CurrencyIndicator } from "@/components/ui/currency-indicator";
+import { useCurrency } from "@/hooks/useCurrency";
+import { ChartViewSwitcher } from "@/components/ui/chart-view-switcher";
+import { MultiViewChart } from "@/components/ui/multi-view-chart";
+import { useChartView } from "@/hooks/useChartView";
 
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -60,13 +64,17 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const { getAccountFilter } = useAccountFilter();
  const { data: organizationId } = useOrganization();
  const { shouldEnableAccountQuery } = useDemoAwareQuery();
- const currencyCode = getProviderCurrency(selectedProvider);
- const sym = getCurrencySymbol(currencyCode);
+ const { sym, convert } = useCurrency();
 
  // Guard: prevent duplicate azure-fetch-costs calls (causes 429 rate limit)
  const azureSyncInProgress = useRef(false);
  const [isAzureSyncing, setIsAzureSyncing] = useState(false);
  const [isAzureFirstLoad, setIsAzureFirstLoad] = useState(false);
+ const { view: costChartView, changeView: setCostChartView, availableViews: costChartViews } = useChartView({
+   defaultView: 'bar',
+   availableViews: ['bar', 'line', 'area', 'pie', 'table'],
+   storageKey: 'cost-analysis-distribution',
+ });
 
  // Get available tags from organization - filtered by selected account
  const { data: availableTags } = useQuery({
@@ -602,7 +610,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  ? Object.entries(cost.service_breakdown)
  .sort(([,a], [,b]) => (b as number) - (a as number))
  .slice(0, 3)
- .map(([service, value]) => `${service}: ${sym}${(value as number).toFixed(2)}`)
+ .map(([service, value]) => `${service}: ${sym}${convert(value as number).toFixed(2)}`)
  .join('; ')
  : '';
  
@@ -1010,10 +1018,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  </CardHeader>
  <CardContent>
  <div className="text-2xl font-semibold tabular-nums">
- <CurrencyIndicator className="mr-1" />{sym}{costs.reduce((sum, c) => {
+ <CurrencyIndicator className="mr-1" />{sym}{convert(costs.reduce((sum, c) => {
  const val = Number(c.total_cost);
  return sum + (isNaN(val) ? 0 : val);
- }, 0).toFixed(2)}
+ }, 0)).toFixed(2)}
  </div>
  </CardContent>
  </Card>
@@ -1023,10 +1031,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  </CardHeader>
  <CardContent>
  <div className="text-2xl font-semibold text-green-600 tabular-nums">
- {sym}{costs.reduce((sum, c) => {
+ {sym}{convert(costs.reduce((sum, c) => {
  const val = Number(c.credits_used || 0);
  return sum + (isNaN(val) ? 0 : val);
- }, 0).toFixed(2)}
+ }, 0)).toFixed(2)}
  </div>
  </CardContent>
  </Card>
@@ -1036,10 +1044,10 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  </CardHeader>
  <CardContent>
  <div className="text-2xl font-semibold tabular-nums">
- {sym}{costs.reduce((sum, c) => {
+ {sym}{convert(costs.reduce((sum, c) => {
  const val = Number(c.net_cost || c.total_cost);
  return sum + (isNaN(val) ? 0 : val);
- }, 0).toFixed(2)}
+ }, 0)).toFixed(2)}
  </div>
  </CardContent>
  </Card>
@@ -1058,48 +1066,28 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  {chartData.length > 0 && (
  <Card>
  <CardHeader>
+ <div className="flex items-center justify-between">
+ <div>
  <CardTitle>{t('costAnalysis.costDistribution')}</CardTitle>
  <CardDescription>{t('costAnalysis.costDistributionDesc')}</CardDescription>
+ </div>
+ <ChartViewSwitcher currentView={costChartView} availableViews={costChartViews} onViewChange={setCostChartView} />
+ </div>
  </CardHeader>
  <CardContent>
- <ResponsiveContainer width="100%" height={400}>
- <BarChart data={chartData}>
- <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
- <XAxis 
- dataKey="date" 
- className="text-xs"
- tick={{ fill: 'hsl(var(--muted-foreground))' }}
+ <MultiViewChart
+ data={chartData}
+ series={topServices.map((service, index) => ({
+   dataKey: service,
+   name: service,
+   color: getServiceColor(service, index),
+   stackId: 'a',
+ }))}
+ view={costChartView}
+ xAxisKey="date"
+ height={400}
+ currencySymbol={sym}
  />
- <YAxis 
- className="text-xs"
- tick={{ fill: 'hsl(var(--muted-foreground))' }}
- tickFormatter={(value) => `${sym}${value.toFixed(0)}`}
- />
- <Tooltip 
- contentStyle={{
- backgroundColor: 'hsl(var(--card))',
- border: '1px solid hsl(var(--border))',
- borderRadius: '8px',
- }}
- formatter={(value: number) => `${sym}${value.toFixed(2)}`}
- />
- <Legend 
- wrapperStyle={{
- paddingTop: '20px'
- }}
- iconType="square"
- />
- {topServices.map((service, index) => (
- <Bar 
- key={service}
- dataKey={service}
- stackId="a"
- fill={getServiceColor(service, index)}
- name={service}
- />
- ))}
- </BarChart>
- </ResponsiveContainer>
  </CardContent>
  </Card>
  )}
@@ -1182,13 +1170,13 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  )}
  </TableCell>
  <TableCell className="text-right font-mono font-semibold">
- {sym}{totalCost.toFixed(2)}
+ {sym}{convert(totalCost).toFixed(2)}
  </TableCell>
  <TableCell className="text-right font-mono text-green-600">
- {totalCredits > 0 ? `${sym}${totalCredits.toFixed(2)}` : '-'}
+ {totalCredits > 0 ? `${sym}${convert(totalCredits).toFixed(2)}` : '-'}
  </TableCell>
  <TableCell className="text-right font-mono font-semibold">
- {sym}{netCost.toFixed(2)}
+ {sym}{convert(netCost).toFixed(2)}
  </TableCell>
  <TableCell className="text-right">
  {change !== 0 && (
@@ -1206,7 +1194,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  .slice(0, 3)
  .map(([service, value]) => (
  <Badge key={service} variant="outline" className="text-xs">
- {service.replace('Amazon ', '').replace('AWS ', '')}: {sym}{(value as number).toFixed(2)}
+ {service.replace('Amazon ', '').replace('AWS ', '')}: {sym}{convert(value as number).toFixed(2)}
  </Badge>
  ))}
  </div>
@@ -1238,7 +1226,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  {topServices.map(([service, value]) => (
  <div key={service} className="flex items-center justify-between p-2 bg-background rounded border border-border">
  <span className="text-sm">{service}</span>
- <span className="font-mono font-semibold">{sym}{(value as number).toFixed(4)}</span>
+ <span className="font-mono font-semibold">{sym}{convert(value as number).toFixed(4)}</span>
  </div>
  ))}
  {otherServices.length > 0 && (
@@ -1258,14 +1246,14 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  )}
  <span className="text-sm font-medium">Other ({otherServices.length} serviços)</span>
  </div>
- <span className="font-mono font-semibold">{sym}{otherTotal.toFixed(4)}</span>
+ <span className="font-mono font-semibold">{sym}{convert(otherTotal).toFixed(4)}</span>
  </div>
  {isOtherExpanded && (
  <div className="ml-6 grid gap-1 mt-2">
  {otherServices.map(([service, value]) => (
  <div key={service} className="flex items-center justify-between p-2 bg-muted/30 rounded border border-border">
  <span className="text-sm text-muted-foreground">{service}</span>
- <span className="font-mono text-sm">{sym}{(value as number).toFixed(4)}</span>
+ <span className="font-mono text-sm">{sym}{convert(value as number).toFixed(4)}</span>
  </div>
  ))}
  </div>

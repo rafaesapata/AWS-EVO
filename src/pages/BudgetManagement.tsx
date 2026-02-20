@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { apiClient } from '@/integrations/aws/api-client';
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { useDemoAwareQuery } from '@/hooks/useDemoAwareQuery';
-import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
+import { useCurrency } from '@/hooks/useCurrency';
 import { BudgetSummaryCards } from './budget/BudgetSummaryCards';
 import { BudgetProgressBar } from './budget/BudgetProgressBar';
 import { BudgetInput } from './budget/BudgetInput';
@@ -38,7 +38,7 @@ export default function BudgetManagement() {
   const { isInDemoMode } = useDemoAwareQuery();
 
   const [provider, setProvider] = useState<string>(selectedProvider || 'AWS');
-  const sym = getCurrencySymbol(getProviderCurrency(provider));
+  const { sym, convert } = useCurrency();
 
   const [budgetData, setBudgetData] = useState<BudgetCurrentResponse | null>(null);
   const [loading, setLoading] = useState(true);

@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Layout } from "@/components/Layout";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
-import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { useCurrency } from "@/hooks/useCurrency";
 import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuthSafe } from "@/hooks/useAuthSafe";
@@ -51,6 +51,9 @@ import {
   ChevronsRight
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
+import { ChartViewSwitcher } from "@/components/ui/chart-view-switcher";
+import { MultiViewChart } from "@/components/ui/multi-view-chart";
+import { useChartView } from "@/hooks/useChartView";
 
 // Helper function to generate specific implementation steps and scripts based on optimization type
 const OPTIMIZATION_TYPE_MAP: Record<string, string> = {
@@ -538,14 +541,18 @@ export default function CostOptimization() {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
-  const currency = getProviderCurrency(selectedProvider);
-  const sym = getCurrencySymbol(currency);
+  const { sym, convert } = useCurrency();
   const { data: organizationId } = useOrganization();
   const { user } = useAuthSafe();
   const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [selectedRecommendation, setSelectedRecommendation] = useState<OptimizationRecommendation | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedConfidence, setSelectedConfidence] = useState<string>('all');
+  const { view: savingsView, changeView: setSavingsView, availableViews: savingsViews } = useChartView({
+    defaultView: 'pie',
+    availableViews: ['pie', 'bar', 'table'],
+    storageKey: 'cost-opt-savings',
+  });
   const [selectedEffort, setSelectedEffort] = useState<string>('all');
   
   // Search, selection and pagination state
@@ -1005,7 +1012,7 @@ export default function CostOptimization() {
         organization_id: organizationId,
         ...accountFilter,
         title: `[${t('costOptimization.title', 'Cost Optimization')}] ${rec.resource_name}`,
-        description: `${rec.description}\n\n${t('costOptimization.recommendation', 'Recommendation')}: ${rec.recommendation}\n\n${t('costOptimization.potentialSavings', 'Potential Savings')}: ${sym}${rec.potential_savings.toFixed(2)}/mês (${rec.savings_percentage.toFixed(1)}%)`,
+        description: `${rec.description}\n\n${t('costOptimization.recommendation', 'Recommendation')}: ${rec.recommendation}\n\n${t('costOptimization.potentialSavings', 'Potential Savings')}: ${sym}${convert(rec.potential_savings).toFixed(2)}/mês (${rec.savings_percentage.toFixed(1)}%)`,
         severity: rec.confidence === 'high' ? 'high' : rec.confidence === 'medium' ? 'medium' : 'low',
         priority: rec.impact === 'high' ? 'high' : rec.impact === 'medium' ? 'medium' : 'low',
         status: 'open',
@@ -1202,7 +1209,7 @@ export default function CostOptimization() {
 
   const chartData = Object.entries(typeDistribution).map(([type, savings]) => ({
     type: type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    savings: Math.round(savings as number),
+    savings: Math.round(convert(savings as number)),
     color: getTypeColor(type)
   }));
 
@@ -1260,7 +1267,7 @@ export default function CostOptimization() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-2xl font-semibold">
-                {sym}{(metrics?.total_monthly_cost ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {sym}{convert(metrics?.total_monthly_cost ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             )}
           </CardContent>
@@ -1276,7 +1283,7 @@ export default function CostOptimization() {
             ) : (
               <div className="space-y-1">
                 <div className="text-2xl font-semibold text-green-500">
-                  {sym}{(metrics?.total_potential_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {sym}{convert(metrics?.total_potential_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {metrics?.total_monthly_cost && metrics.total_monthly_cost > 0 && metrics?.total_potential_savings 
@@ -1344,7 +1351,7 @@ export default function CostOptimization() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-2xl font-semibold text-blue-500">
-                {sym}{(metrics?.implemented_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {sym}{convert(metrics?.implemented_savings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             )}
           </CardContent>
@@ -1539,13 +1546,13 @@ export default function CostOptimization() {
                             </Button>
                             <div className="text-right space-y-1">
                               <div className="text-2xl font-semibold text-green-500">
-                                {sym}{rec.potential_savings.toFixed(2)}
+                                {sym}{convert(rec.potential_savings).toFixed(2)}
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 {rec.savings_percentage.toFixed(1)}% {t('costOptimization.savings', 'savings')}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {sym}{rec.current_cost.toFixed(2)} → {sym}{rec.optimized_cost.toFixed(2)}
+                                {sym}{convert(rec.current_cost).toFixed(2)} → {sym}{convert(rec.optimized_cost).toFixed(2)}
                               </div>
                             </div>
                           </div>
@@ -1739,44 +1746,33 @@ export default function CostOptimization() {
             {/* Savings by Type */}
             <Card className="glass border-primary/20">
               <CardHeader>
-                <CardTitle>{t('costOptimization.savingsByType', 'Savings by Type')}</CardTitle>
-                <CardDescription>{t('costOptimization.savingsDistribution', 'Distribution of savings opportunities')}</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>{t('costOptimization.savingsByType', 'Savings by Type')}</CardTitle>
+                    <CardDescription>{t('costOptimization.savingsDistribution', 'Distribution of savings opportunities')}</CardDescription>
+                  </div>
+                  <ChartViewSwitcher currentView={savingsView} availableViews={savingsViews} onViewChange={setSavingsView} />
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
                   <Skeleton className="h-[300px] w-full" />
                 ) : chartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={chartData}
-                        cx="35%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={80}
-                        innerRadius={40}
-                        fill="#8884d8"
-                        dataKey="savings"
-                        nameKey="type"
-                        paddingAngle={2}
-                      >
-                        {chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: number | undefined) => `${sym}${(value ?? 0).toFixed(2)}`} />
-                      <Legend 
-                        layout="vertical" 
-                        align="right" 
-                        verticalAlign="middle"
-                        wrapperStyle={{ paddingLeft: '10px', fontSize: '11px' }}
-                        formatter={(value) => {
-                          const item = chartData.find(d => d.type === value);
-                          return `${value}: ${sym}${item?.savings?.toFixed(0) || 0}`;
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <MultiViewChart
+                    data={chartData}
+                    series={[{
+                      dataKey: 'savings',
+                      name: t('costOptimization.savings', 'Savings'),
+                      color: '#3b82f6',
+                    }]}
+                    view={savingsView}
+                    xAxisKey="type"
+                    height={300}
+                    currencySymbol={sym}
+                    pieInnerRadius={40}
+                    pieOuterRadius={80}
+                    piePaddingAngle={2}
+                  />
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">
                     {t('costOptimization.noDataAvailable', 'No data available')}
@@ -1808,7 +1804,7 @@ export default function CostOptimization() {
                           <div className="flex justify-between items-center">
                             <span className="font-medium capitalize">{t(`costOptimization.confidence${confidence.charAt(0).toUpperCase() + confidence.slice(1)}`, confidence)} {t('costOptimization.confidence', 'Confidence')}</span>
                             <span className="text-sm text-muted-foreground">
-                              {count} {t('costOptimization.recommendations', 'recommendations')} • {sym}{savings.toFixed(2)}
+                              {count} {t('costOptimization.recommendations', 'recommendations')} • {sym}{convert(savings).toFixed(2)}
                             </span>
                           </div>
                           <Progress value={percentage} className="h-2" />
@@ -1858,7 +1854,7 @@ export default function CostOptimization() {
                       <div>
                         <p className="text-sm font-medium text-green-800 dark:text-green-200">{t('costOptimization.totalRealizedSavings', 'Total Realized Savings')}</p>
                         <p className="text-2xl font-semibold text-green-700 dark:text-green-300">
-                          {sym}{recommendations?.filter(rec => rec.status === 'implemented').reduce((sum, rec) => sum + rec.potential_savings, 0).toFixed(2)}/mês
+                          {sym}{convert(recommendations?.filter(rec => rec.status === 'implemented').reduce((sum, rec) => sum + rec.potential_savings, 0) ?? 0).toFixed(2)}/mês
                         </p>
                       </div>
                       <div className="text-right">
@@ -1893,7 +1889,7 @@ export default function CostOptimization() {
                                 {t('costOptimization.implemented', 'Implemented')}
                               </Badge>
                               <p className="text-lg font-semibold text-green-600 dark:text-green-400 mt-2">
-                                {sym}{rec.potential_savings.toFixed(2)}/mês
+                                {sym}{convert(rec.potential_savings).toFixed(2)}/mês
                               </p>
                               <p className="text-xs text-muted-foreground">{t('costOptimization.realizedSavings', 'realized savings')}</p>
                             </div>
@@ -1955,15 +1951,15 @@ export default function CostOptimization() {
                 <div className="grid grid-cols-3 gap-4">
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">{t('costOptimization.currentCost', 'Current Cost')}</p>
-                    <p className="text-xl font-semibold">{sym}{selectedRecommendation.current_cost.toFixed(2)}</p>
+                    <p className="text-xl font-semibold">{sym}{convert(selectedRecommendation.current_cost).toFixed(2)}</p>
                   </Card>
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">{t('costOptimization.optimizedCost', 'Optimized Cost')}</p>
-                    <p className="text-xl font-semibold text-green-500">{sym}{selectedRecommendation.optimized_cost.toFixed(2)}</p>
+                    <p className="text-xl font-semibold text-green-500">{sym}{convert(selectedRecommendation.optimized_cost).toFixed(2)}</p>
                   </Card>
                   <Card className="p-4">
                     <p className="text-sm text-muted-foreground">{t('costOptimization.savings', 'Savings')}</p>
-                    <p className="text-xl font-semibold text-primary">{sym}{selectedRecommendation.potential_savings.toFixed(2)}</p>
+                    <p className="text-xl font-semibold text-primary">{sym}{convert(selectedRecommendation.potential_savings).toFixed(2)}</p>
                     <p className="text-xs text-muted-foreground">{selectedRecommendation.savings_percentage.toFixed(1)}%</p>
                   </Card>
                 </div>

@@ -17,8 +17,11 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTranslation } from "react-i18next";
 import AWSRoleConfigError from "./AWSRoleConfigError";
-import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { useCurrency } from "@/hooks/useCurrency";
 import { CurrencyIndicator } from "@/components/ui/currency-indicator";
+import { ChartViewSwitcher } from "@/components/ui/chart-view-switcher";
+import { MultiViewChart } from "@/components/ui/multi-view-chart";
+import { useChartView } from "@/hooks/useChartView";
 
 const CostOverview = () => {
   const { t, i18n } = useTranslation();
@@ -26,11 +29,16 @@ const CostOverview = () => {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [awsRoleError, setAwsRoleError] = useState<string | null>(null);
+  const { view: overviewView, changeView: setOverviewView, availableViews: overviewViews } = useChartView({
+    defaultView: 'area',
+    availableViews: ['area', 'line', 'bar', 'pie', 'table'],
+    storageKey: 'cost-overview',
+  });
   
   // Use global account context
   const { selectedAccountId, selectedAccount, selectedProvider, isLoading: accountLoading } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
-  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
+  const { sym, convert } = useCurrency();
   const { data: organizationId } = useOrganization();
   
   // Multi-cloud support
@@ -344,7 +352,7 @@ const CostOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              <CurrencyIndicator className="mr-1" />{sym}{monthToDateTotal.toFixed(2)}
+              <CurrencyIndicator className="mr-1" />{sym}{convert(monthToDateTotal).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {t('costs.upTo', { date: formatDate(new Date()) })}
@@ -365,7 +373,7 @@ const CostOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              {sym}{today ? today.total.toFixed(2) : '0.00'}
+              {sym}{today ? convert(today.total).toFixed(2) : '0.00'}
             </div>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant={dailyChange >= 0 ? "destructive" : "default"} className="text-xs">
@@ -385,7 +393,7 @@ const CostOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              {sym}{averageDailyCost.toFixed(2)}
+              {sym}{convert(averageDailyCost).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {t('costs.last7days')}
@@ -436,7 +444,7 @@ const CostOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              {sym}{projectedMonthEnd.toFixed(2)}
+              {sym}{convert(projectedMonthEnd).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {t('costs.estimateForDays', { days: daysInMonth })}
@@ -455,53 +463,36 @@ const CostOverview = () => {
                 {t('costs.realtimeMonitoring')}
               </CardDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-            >
-              {isRefreshing ? t('costs.refreshing') : t('costs.refreshButton')}
-            </Button>
+            <div className="flex items-center gap-2">
+              <ChartViewSwitcher currentView={overviewView} availableViews={overviewViews} onViewChange={setOverviewView} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? t('costs.refreshing') : t('costs.refreshButton')}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis 
-                dataKey="date" 
-                className="text-xs"
-                tick={{ fill: 'hsl(var(--muted-foreground))' }}
-              />
-              <YAxis 
-                className="text-xs"
-                tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                tickFormatter={(value) => `${sym}${value}`}
-              />
-              <Tooltip 
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                }}
-                formatter={(value: number) => [`${sym}${value.toFixed(2)}`, t('costs.cost')]}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="cost" 
-                stroke="hsl(var(--primary))" 
-                strokeWidth={2}
-                fill="url(#costGradient)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <MultiViewChart
+            data={chartData}
+            series={[{
+              dataKey: 'cost',
+              name: t('costs.cost'),
+              color: 'hsl(var(--primary))',
+            }]}
+            view={overviewView}
+            xAxisKey="date"
+            height={300}
+            currencySymbol={sym}
+            formatValue={(v) => `${sym}${convert(v).toFixed(2)}`}
+            gradients={{
+              costGrad: { from: 'hsl(var(--primary))', to: 'hsl(var(--primary))', fromOpacity: 0.3, toOpacity: 0 },
+            }}
+          />
         </CardContent>
       </Card>
     </div>

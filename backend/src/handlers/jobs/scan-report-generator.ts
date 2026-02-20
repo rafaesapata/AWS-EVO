@@ -212,8 +212,12 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
 
     // 3. Fetch account name based on cloud provider
     let accountName = 'Conta Cloud';
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (cloudProvider === 'AWS' && accountId) {
-      const awsCred = await prisma.awsCredential.findUnique({ where: { id: accountId } });
+      // accountId may be credential UUID or 12-digit AWS account number (legacy)
+      const awsCred = isUuid.test(accountId)
+        ? await prisma.awsCredential.findUnique({ where: { id: accountId } })
+        : await prisma.awsCredential.findFirst({ where: { account_id: accountId, organization_id: organizationId } });
       accountName = awsCred?.account_name || awsCred?.account_id || 'Conta AWS';
     } else if (cloudProvider === 'AZURE' && azureCredentialId) {
       const azureCred = await prisma.azureCredential.findUnique({ where: { id: azureCredentialId } });
@@ -225,11 +229,26 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       where: { scan_id: scanId, organization_id: organizationId },
     });
 
-    // 5. Fetch previous scan of same account/type
+    // 5. Resolve credential UUID for previous scan lookup
+    let credentialUuid: string | undefined;
+    if (cloudProvider === 'AWS' && accountId) {
+      if (isUuid.test(accountId)) {
+        credentialUuid = accountId;
+      } else {
+        // Legacy: accountId is 12-digit AWS account number, resolve to credential UUID
+        const cred = await prisma.awsCredential.findFirst({
+          where: { account_id: accountId, organization_id: organizationId },
+          select: { id: true },
+        });
+        credentialUuid = cred?.id;
+      }
+    }
+
+    // 6. Fetch previous scan of same account/type
     const previousScan = await prisma.securityScan.findFirst({
       where: {
         organization_id: organizationId,
-        ...(accountId ? { aws_account_id: accountId } : { azure_credential_id: azureCredentialId }),
+        ...(credentialUuid ? { aws_account_id: credentialUuid } : azureCredentialId ? { azure_credential_id: azureCredentialId } : {}),
         scan_type: currentScan.scan_type,
         status: 'completed',
         id: { not: scanId },
@@ -237,7 +256,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       orderBy: { created_at: 'desc' },
     });
 
-    // 6. Compare findings if previous scan exists
+    // 7. Compare findings if previous scan exists
     let comparison: ScanReport['comparison'] = null;
     const isFirstScan = !previousScan;
 
@@ -260,7 +279,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       };
     }
 
-    // 7. Build ScanReport
+    // 8. Build ScanReport
     const severitySummary = calculateSeveritySummary(
       currentFindings.map(dbFindingToInput)
     );
@@ -277,7 +296,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       comparison,
     };
 
-    // 8. Fetch recipients with email notifications enabled
+    // 9. Fetch recipients with email notifications enabled
     // If no notification_settings exist, default behavior is to send to all org profiles
     // (model defaults are email_enabled=true, security_alerts=true)
     const orgProfiles = await prisma.profile.findMany({
@@ -326,7 +345,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
 
     const allRecipients = [...profiles, ...additionalProfiles];
 
-    // 9. Send emails via CommunicationLog
+    // 10. Send emails via CommunicationLog
     if (allRecipients.length === 0) {
       logger.warn('No recipients with email enabled for organization', { organizationId });
     } else {
@@ -334,7 +353,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       logger.info('Report emails processed', { scanId, recipientCount: allRecipients.length, additionalCount: additionalProfiles.length });
     }
 
-    // 10. Evaluate alarm conditions and create AiNotifications
+    // 11. Evaluate alarm conditions and create AiNotifications
     try {
       await createAlarmNotifications(prisma, report, payload);
     } catch (alarmErr) {

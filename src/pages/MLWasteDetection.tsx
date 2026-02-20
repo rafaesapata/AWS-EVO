@@ -21,7 +21,7 @@ import { ptBR, enUS, es } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import type { MLImplementationStep } from "@/types/database";
-import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { useCurrency } from "@/hooks/useCurrency";
 import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 
 const dateLocales: Record<string, any> = { pt: ptBR, en: enUS, es: es };
@@ -128,7 +128,7 @@ export default function MLWasteDetection() {
   const { selectedAccountId, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { isInDemoMode } = useDemoAwareQuery();
-  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
+  const { sym, convert } = useCurrency();
  
  // Filters and sorting state
  const [sortField, setSortField] = useState<SortField>('savings');
@@ -647,7 +647,7 @@ export default function MLWasteDetection() {
  <TrendingDown className="h-4 w-4 text-success" />
  </CardHeader>
  <CardContent>
- <div className="text-2xl font-semibold">{sym}{totalSavings.toFixed(2)}</div>
+ <div className="text-2xl font-semibold">{sym}{convert(totalSavings).toFixed(2)}</div>
  <p className="text-xs text-muted-foreground">{t('mlWaste.perMonth', 'Per month')}</p>
  </CardContent>
  </Card>
@@ -923,11 +923,11 @@ export default function MLWasteDetection() {
  )}
  <div>
  <span className="text-muted-foreground">{t('mlWaste.monthlySavings', 'Monthly Savings')}:</span>
- <p className="font-medium text-success">{sym}{rec.potential_monthly_savings?.toFixed(2)}</p>
+ <p className="font-medium text-success">{sym}{convert(rec.potential_monthly_savings ?? 0).toFixed(2)}</p>
  </div>
  <div>
  <span className="text-muted-foreground">{t('mlWaste.annualSavings', 'Annual Savings')}:</span>
- <p className="font-medium text-success">{sym}{rec.potential_annual_savings?.toFixed(2) || (rec.potential_monthly_savings ? (rec.potential_monthly_savings * 12).toFixed(2) : '0.00')}</p>
+ <p className="font-medium text-success">{sym}{convert(rec.potential_annual_savings ?? (rec.potential_monthly_savings ? rec.potential_monthly_savings * 12 : 0)).toFixed(2)}</p>
  </div>
  <div>
  <span className="text-muted-foreground">{t('mlWaste.mlConfidence', 'ML Confidence')}:</span>
@@ -936,7 +936,7 @@ export default function MLWasteDetection() {
  {rec.current_hourly_cost !== undefined && rec.current_hourly_cost > 0 && (
  <div>
  <span className="text-muted-foreground">{t('mlWaste.hourlyCost', 'Hourly Cost')}:</span>
- <p className="font-medium">{sym}{rec.current_hourly_cost?.toFixed(4)}</p>
+ <p className="font-medium">{sym}{convert(rec.current_hourly_cost ?? 0).toFixed(4)}</p>
  </div>
  )}
  </div>
@@ -1177,11 +1177,11 @@ export default function MLWasteDetection() {
  </div>
  <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded">
  <span className="text-muted-foreground text-xs">{t('mlWaste.monthlySavings', 'Monthly Savings')}</span>
- <p className="font-semibold text-lg text-green-600">{sym}{history.total_monthly_savings.toFixed(2)}</p>
+ <p className="font-semibold text-lg text-green-600">{sym}{convert(history.total_monthly_savings).toFixed(2)}</p>
  </div>
  <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded">
  <span className="text-muted-foreground text-xs">{t('mlWaste.annualSavings', 'Annual Savings')}</span>
- <p className="font-semibold text-lg text-green-600">{sym}{history.total_annual_savings.toFixed(2)}</p>
+ <p className="font-semibold text-lg text-green-600">{sym}{convert(history.total_annual_savings).toFixed(2)}</p>
  </div>
  <div className="bg-secondary/50 p-2 rounded">
  <span className="text-muted-foreground text-xs">{t('mlWaste.byType', 'By Type')}</span>

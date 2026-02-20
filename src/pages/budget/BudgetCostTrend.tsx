@@ -16,6 +16,9 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { useExecutiveTrends } from '@/hooks/useExecutiveTrends';
+import { ChartViewSwitcher } from '@/components/ui/chart-view-switcher';
+import { MultiViewChart } from '@/components/ui/multi-view-chart';
+import { useChartView } from '@/hooks/useChartView';
 
 export interface BudgetCostTrendProps {
   currencySymbol?: string;
@@ -37,6 +40,11 @@ export function BudgetCostTrend({
 }: BudgetCostTrendProps) {
   const { t } = useTranslation();
   const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('30d');
+  const { view, changeView, availableViews } = useChartView({
+    defaultView: 'bar',
+    availableViews: ['bar', 'line', 'area', 'pie', 'table'],
+    storageKey: 'budget-cost-trend',
+  });
 
   const { data, isFetching } = useExecutiveTrends({ trendPeriod: period });
 
@@ -90,10 +98,13 @@ export function BudgetCostTrend({
     <Card className="glass border-primary/20">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            {t('budgetManagement.costTrend', 'Tendência de Custos')}
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              {t('budgetManagement.costTrend', 'Tendência de Custos')}
+            </CardTitle>
+            <ChartViewSwitcher currentView={view} availableViews={availableViews} onViewChange={changeView} />
+          </div>
           <div className="flex items-center gap-1 p-1 border border-border rounded-lg">
             <CalendarSearch className="h-4 w-4 text-muted-foreground mx-1" />
             {(['7d', '30d', '90d'] as const).map((p) => (
@@ -117,56 +128,25 @@ export function BudgetCostTrend({
         {isFetching && chartData.length === 0 ? (
           <Skeleton className="h-[250px] w-full" />
         ) : chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={chartData} barCategoryGap="20%">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis
-                dataKey="date"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                stroke="hsl(var(--muted-foreground))"
-              />
-              <YAxis
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                stroke="hsl(var(--muted-foreground))"
-                tickFormatter={(v) => `${currencySymbol}${v}`}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                }}
-                formatter={(value: number) => [
-                  `${currencySymbol}${value.toFixed(2)}`,
-                  t('budgetManagement.dailyCost', 'Custo diário'),
-                ]}
-              />
-              {dailyBudget && (
-                <ReferenceLine
-                  y={dailyBudget}
-                  stroke="hsl(var(--destructive))"
-                  strokeDasharray="5 5"
-                  strokeWidth={1.5}
-                  label={{
-                    value: `${t('budgetManagement.dailyBudgetLine', 'Orçamento/dia')}: ${currencySymbol}${dailyBudget.toFixed(0)}`,
-                    position: 'insideTopRight',
-                    fontSize: 10,
-                    fill: 'hsl(var(--destructive))',
-                  }}
-                />
-              )}
-              <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <MultiViewChart
+            data={chartData}
+            series={[{
+              dataKey: 'cost',
+              name: t('budgetManagement.dailyCost', 'Custo diário'),
+              color: '#00B2FF',
+              fillFn: (item) => (item.fill as string) || '#00B2FF',
+            }]}
+            view={view}
+            xAxisKey="date"
+            height={250}
+            currencySymbol={currencySymbol}
+            barRadius={[4, 4, 0, 0]}
+            referenceLine={dailyBudget ? {
+              y: dailyBudget,
+              label: `${t('budgetManagement.dailyBudgetLine', 'Orçamento/dia')}: ${currencySymbol}${dailyBudget.toFixed(0)}`,
+              color: 'hsl(var(--destructive))',
+            } : undefined}
+          />
         ) : (
           <div className="h-[250px] flex items-center justify-center text-muted-foreground text-sm">
             {t('budgetManagement.noCostData', 'Sem dados de custo disponíveis')}

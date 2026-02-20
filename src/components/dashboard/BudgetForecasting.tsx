@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cognitoAuth } from "@/integrations/aws/cognito-client-simple";
 import { apiClient } from "@/integrations/aws/api-client";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { TrendingUp, DollarSign, AlertCircle } from "lucide-react";
+import { useChartView } from "@/hooks/useChartView";
+import { ChartViewSwitcher } from "@/components/ui/chart-view-switcher";
+import { MultiViewChart } from "@/components/ui/multi-view-chart";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useTVDashboard } from "@/contexts/TVDashboardContext";
@@ -21,6 +23,7 @@ export function BudgetForecasting() {
   const { selectedAccountId } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { data: organizationId } = useOrganization();
+  const { view, changeView, availableViews } = useChartView({ defaultView: 'line', storageKey: 'budget-forecasting', availableViews: ['line', 'bar', 'area', 'table'] });
 
   // Load latest saved forecast from database - ISOLATED BY ACCOUNT
   const { data: savedForecast } = useQuery({
@@ -176,40 +179,23 @@ export function BudgetForecasting() {
             {/* Forecast Chart */}
             {chartData.length > 0 && (
               <div>
-                <h3 className="font-semibold mb-4">Projeção de Custos (3 Meses)</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value: number) => `$${value.toLocaleString()}`}
-                      labelFormatter={(label) => `Mês: ${label}`}
-                    />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="cost" 
-                      stroke="#0D96FF" 
-                      strokeWidth={3}
-                      name="Custo Projetado"
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="lower" 
-                      stroke="#82ca9d" 
-                      strokeDasharray="5 5"
-                      name="Limite Inferior"
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="upper" 
-                      stroke="#ff7c7c" 
-                      strokeDasharray="5 5"
-                      name="Limite Superior"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">Projeção de Custos (3 Meses)</h3>
+                  <ChartViewSwitcher currentView={view} availableViews={availableViews} onViewChange={changeView} />
+                </div>
+                <MultiViewChart
+                  data={chartData}
+                  series={[
+                    { dataKey: 'cost', name: 'Custo Projetado', color: '#0D96FF' },
+                    { dataKey: 'lower', name: 'Limite Inferior', color: '#82ca9d', strokeDasharray: '5 5' },
+                    { dataKey: 'upper', name: 'Limite Superior', color: '#ff7c7c', strokeDasharray: '5 5' },
+                  ]}
+                  view={view}
+                  xAxisKey="month"
+                  height={300}
+                  formatValue={(v) => `$${v.toLocaleString()}`}
+                  formatTooltip={(value, name) => [`$${value.toLocaleString()}`, name]}
+                />
               </div>
             )}
 

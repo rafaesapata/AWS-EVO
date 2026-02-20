@@ -545,7 +545,7 @@ async function securityScanHandler(
         Payload: Buffer.from(JSON.stringify({
           scanId: scan.id,
           organizationId,
-          accountId: awsAccountId,
+          accountId: credential.id,
           cloudProvider: 'AWS',
           scanType: scan.scan_type || scanLevel,
           scheduledExecution: false,

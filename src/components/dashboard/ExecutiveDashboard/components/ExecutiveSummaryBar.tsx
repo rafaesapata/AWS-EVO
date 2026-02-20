@@ -16,7 +16,7 @@ import DonutChart from './DonutChart';
 import InfoIcon from './InfoIcon';
 import CardCTA from './CardCTA';
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
-import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
+import { useCurrency } from '@/hooks/useCurrency';
 import { CurrencyIndicator } from '@/components/ui/currency-indicator';
 import { useCountUp } from '@/hooks/useCountUp';
 import { Settings2 } from 'lucide-react';
@@ -30,7 +30,7 @@ export default function ExecutiveSummaryBar({ data }: Props) {
   const { t } = useTranslation();
   const { selectedProvider } = useCloudAccount();
   const navigate = useNavigate();
-  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
+  const { sym, convert } = useCurrency();
 
   const budgetPercentage = Math.min(100, data.budgetUtilization);
 
@@ -143,14 +143,14 @@ export default function ExecutiveSummaryBar({ data }: Props) {
               className="text-[#393939] tabular-nums mb-3" 
               style={{ fontSize: '42px', lineHeight: '1', fontWeight: '300' }}
             >
-              {sym}{animatedMtdSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              {sym}{convert(animatedMtdSpend).toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </p>
             
             {/* Budget bar with label and percentage on same line */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-light text-[#00B2FF] flex items-center gap-1">
-                  {t('executiveDashboard.budget', 'Orçamento')}: {sym}{data.budget.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                  {t('executiveDashboard.budget', 'Orçamento')}: {sym}{convert(data.budget).toLocaleString('en-US', { maximumFractionDigits: 0 })}
                   {data.budgetSource === 'auto' && (
                     <span className="text-[10px] text-gray-400 ml-1">({t('executiveDashboard.budgetAutoFilled', 'auto')})</span>
                   )}
@@ -244,13 +244,13 @@ export default function ExecutiveSummaryBar({ data }: Props) {
                 className="text-[#393939] tabular-nums" 
                 style={{ fontSize: '42px', lineHeight: '1', fontWeight: '300' }}
               >
-                {sym}{(animatedSavings * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                {sym}{convert(animatedSavings * 12).toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </p>
               <span className="text-xl font-light text-[#393939]">/ano</span>
             </div>
             
             <p className="text-base font-light text-[#5F5F5F] mb-4">
-              {sym}{animatedSavings.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mês
+              {sym}{convert(animatedSavings).toLocaleString('en-US', { maximumFractionDigits: 0 })}/mês
             </p>
             
             <div className="text-right">

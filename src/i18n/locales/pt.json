@@ -2825,6 +2825,20 @@
     "ticketAlreadyExistsDesc": "Esta recomendação já possui um ticket de remediação vinculado",
     "allHaveTickets": "Todas as recomendações selecionadas já possuem tickets"
   },
+  "chartView": {
+    "switchLabel": "Tipo de gráfico",
+    "bar": "Barras",
+    "line": "Linhas",
+    "area": "Área",
+    "pie": "Pizza",
+    "table": "Tabela",
+    "noData": "Sem dados disponíveis",
+    "date": "Data",
+    "value": "Valor",
+    "service": "Serviço",
+    "cost": "Custo",
+    "total": "Total"
+  },
   "costAnalysis": {
     "title": "Análise Detalhada de Custos",
     "description": "Investigue custos diários e breakdown por serviço AWS",
@@ -4591,5 +4605,12 @@
     "aiRealizationFactor": "Fator de realização",
     "aiFormula": "Fórmula",
     "aiSuggestedAmount": "Valor sugerido"
+  },
+  "currency": {
+    "toggle": "Alternar moeda",
+    "showingConverted": "Exibindo valores convertidos",
+    "showingNative": "Exibindo valores na moeda original",
+    "disclaimer": "Valores estimados com base na cotação diária. Podem haver variações.",
+    "convertedBanner": "Valores convertidos com cotação de {{rate}} ({{source}}). Podem haver variações."
   }
 }

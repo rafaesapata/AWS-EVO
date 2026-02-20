@@ -7,7 +7,7 @@ import { TrendingUp, TrendingDown, Minus, AlertCircle, DollarSign, Activity } fr
 import { Progress } from "@/components/ui/progress";
 import { calculatePercentageChange } from "@/lib/utils";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
-import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface Props {
   accountId: string;
@@ -16,7 +16,7 @@ interface Props {
 
 export function CostTrends({ accountId, costs }: Props) {
   const { selectedProvider } = useCloudAccount();
-  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
+  const { sym, convert } = useCurrency();
 
   // Análise inteligente de tendências
   const analyzeServiceTrends = () => {
@@ -191,10 +191,10 @@ export function CostTrends({ accountId, costs }: Props) {
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-semibold">
-                        {sym}{item.current.toFixed(2)}/sem
+                        {sym}{convert(item.current).toFixed(2)}/sem
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {sym}{item.avgDailyCost.toFixed(2)}/dia
+                        {sym}{convert(item.avgDailyCost).toFixed(2)}/dia
                       </div>
                     </div>
                   </div>

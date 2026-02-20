@@ -1,6 +1,8 @@
 import { useMemo, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
+import { useChartView } from "@/hooks/useChartView";
+import { ChartViewSwitcher } from "@/components/ui/chart-view-switcher";
+import { MultiViewChart } from "@/components/ui/multi-view-chart";
 import { MetricsPeriod, PERIOD_CONFIG } from "./MetricsPeriodSelector";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -128,6 +130,11 @@ export const ResourceMetricsChart = ({
   resourceName,
   height = 300 
 }: ResourceMetricsChartProps) => {
+  const { view, changeView, availableViews } = useChartView({
+    defaultView: 'area',
+    storageKey: `resource-metrics-${metricName}`,
+    availableViews: ['area', 'line', 'bar', 'table'],
+  });
   // Filtrar todas as métricas disponíveis para esta métrica específica
   const allMetricsForName = useMemo(() => 
     metrics.filter(m => m.metric_name === metricName),
@@ -251,65 +258,36 @@ export const ResourceMetricsChart = ({
               {resourceName ? `${resourceName} • ` : ''}{PERIOD_CONFIG[period].label} • {dataPointCount} pontos
             </CardDescription>
           </div>
-          <div className="text-right">
-            <p className="text-2xl font-semibold">
-              {formatMetricValue(metricName, latestValue)}
-            </p>
-            <p className="text-xs text-muted-foreground">{unit}</p>
+          <div className="flex items-center gap-3">
+            <ChartViewSwitcher currentView={view} availableViews={availableViews} onViewChange={changeView} />
+            <div className="text-right">
+              <p className="text-2xl font-semibold">
+                {formatMetricValue(metricName, latestValue)}
+              </p>
+              <p className="text-xs text-muted-foreground">{unit}</p>
+            </div>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id={`gradient-${metricName}-${period}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis 
-              dataKey="displayTime" 
-              tick={{ fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-              interval="preserveStartEnd"
-              minTickGap={40}
-            />
-            <YAxis 
-              tick={{ fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(value) => isCountMetric ? Math.round(value).toString() : value.toFixed(1)}
-              width={50}
-              domain={['auto', 'auto']}
-            />
-            <Tooltip 
-              formatter={(value: number) => [
-                `${formatMetricValue(metricName, value)} ${unit}`, 
-                metricName
-              ]}
-              labelFormatter={(label) => `Hora: ${label}`}
-              contentStyle={{
-                backgroundColor: 'hsl(var(--popover))',
-                borderColor: 'hsl(var(--border))',
-                borderRadius: '8px'
-              }}
-              labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
-            />
-            <Area 
-              type="monotone" 
-              dataKey="value"
-              stroke="hsl(var(--primary))" 
-              strokeWidth={2}
-              fill={`url(#gradient-${metricName}-${period})`}
-              dot={dataPointCount < 50 ? { r: 2, fill: 'hsl(var(--primary))' } : false}
-              activeDot={{ r: 5, fill: 'hsl(var(--primary))' }}
-              isAnimationActive={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <MultiViewChart
+          data={chartData}
+          series={[{ dataKey: 'value', name: metricName, color: 'hsl(var(--primary))' }]}
+          view={view}
+          xAxisKey="displayTime"
+          height={height}
+          currencySymbol=""
+          formatValue={(v) => `${formatMetricValue(metricName, v)} ${unit}`}
+          formatTooltip={(value) => [`${formatMetricValue(metricName, value)} ${unit}`, metricName]}
+          gradients={{
+            'metric-gradient': {
+              from: 'hsl(var(--primary))',
+              to: 'hsl(var(--primary))',
+              fromOpacity: 0.3,
+              toOpacity: 0,
+            },
+          }}
+        />
       </CardContent>
     </Card>
   );

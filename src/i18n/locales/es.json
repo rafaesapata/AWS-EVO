@@ -2587,5 +2587,12 @@
     "setBudget": "Definir Presupuesto",
     "budgetInputLabel": "Monto del presupuesto en USD",
     "budgetSliderLabel": "Ajustar presupuesto"
+  },
+  "currency": {
+    "toggle": "Cambiar moneda",
+    "showingConverted": "Mostrando valores convertidos",
+    "showingNative": "Mostrando valores en moneda original",
+    "disclaimer": "Valores estimados basados en la cotización diaria. Pueden variar.",
+    "convertedBanner": "Valores convertidos a la tasa de {{rate}} ({{source}}). Pueden variar."
   }
 }

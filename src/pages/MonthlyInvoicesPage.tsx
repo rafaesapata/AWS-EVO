@@ -23,7 +23,7 @@ import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { compareDates, getDayOfMonth, calculatePercentageChange } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
-import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { useCurrency } from "@/hooks/useCurrency";
 import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 
 // Define type for daily cost records
@@ -63,7 +63,7 @@ export const MonthlyInvoicesPage = () => {
   const { data: organizationId } = useOrganization();
   const { selectedAccountId, selectedAccount, accounts: allAccounts, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
-  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
+  const { sym, convert } = useCurrency();
   const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -701,7 +701,7 @@ export const MonthlyInvoicesPage = () => {
               <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.totalCost', 'Total Cost')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold"><CurrencyIndicator className="mr-1" />{sym}{selectedMonthData.totalCost.toFixed(2)}</div>
+              <div className="text-2xl font-semibold"><CurrencyIndicator className="mr-1" />{sym}{convert(selectedMonthData.totalCost).toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">{selectedMonthData.days} {t('monthlyInvoices.days', 'days')}</p>
             </CardContent>
           </Card>
@@ -711,7 +711,7 @@ export const MonthlyInvoicesPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold text-success">
-                {sym}{selectedMonthData.totalCredits.toFixed(2)}
+                {sym}{convert(selectedMonthData.totalCredits).toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {((selectedMonthData.totalCredits / selectedMonthData.totalCost) * 100).toFixed(1)}% do total
@@ -723,7 +723,7 @@ export const MonthlyInvoicesPage = () => {
               <CardTitle className="text-sm font-medium text-muted-foreground">{t('monthlyInvoices.netCost', 'Net Cost')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold">{sym}{selectedMonthData.netCost.toFixed(2)}</div>
+              <div className="text-2xl font-semibold">{sym}{convert(selectedMonthData.netCost).toFixed(2)}</div>
               <p className="text-xs text-muted-foreground mt-1">{t('monthlyInvoices.amountDue', 'Amount due')}</p>
             </CardContent>
           </Card>
@@ -733,7 +733,7 @@ export const MonthlyInvoicesPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-semibold">
-                {sym}{(selectedMonthData.netCost / selectedMonthData.days).toFixed(2)}
+                {sym}{convert(selectedMonthData.netCost / selectedMonthData.days).toFixed(2)}
               </div>
               <Button
                 variant="outline"
@@ -777,7 +777,7 @@ export const MonthlyInvoicesPage = () => {
                   <YAxis 
                     className="text-xs"
                     tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                    tickFormatter={(value) => `${sym}${value.toFixed(0)}`}
+                    tickFormatter={(value) => `${sym}${convert(value).toFixed(0)}`}
                   />
                   <Tooltip 
                     contentStyle={{
@@ -785,7 +785,7 @@ export const MonthlyInvoicesPage = () => {
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
                     }}
-                    formatter={(value: number) => `${sym}${value.toFixed(2)}`}
+                    formatter={(value: number) => `${sym}${convert(value).toFixed(2)}`}
                   />
                   <Legend />
                   <Bar dataKey="total" fill="#3b82f6" name={t('monthlyInvoices.totalCostChart', 'Total Cost')} />
@@ -824,7 +824,7 @@ export const MonthlyInvoicesPage = () => {
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value: number) => `${sym}${value.toFixed(2)}`} />
+                        <Tooltip formatter={(value: number) => `${sym}${convert(value).toFixed(2)}`} />
                       </PieChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -858,7 +858,7 @@ export const MonthlyInvoicesPage = () => {
                                   {percentage.toFixed(1)}%
                                 </Badge>
                                 <span className="font-mono font-semibold min-w-[100px] text-right">
-                                  {sym}{value.toFixed(2)}
+                                  {sym}{convert(value).toFixed(2)}
                                 </span>
                               </div>
                             </div>
@@ -903,7 +903,7 @@ export const MonthlyInvoicesPage = () => {
                     <YAxis 
                       className="text-xs"
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      tickFormatter={(value) => `${sym}${value.toFixed(0)}`}
+                      tickFormatter={(value) => `${sym}${convert(value).toFixed(0)}`}
                     />
                     <Tooltip 
                       contentStyle={{
@@ -911,7 +911,7 @@ export const MonthlyInvoicesPage = () => {
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',
                       }}
-                      formatter={(value: number) => `${sym}${value.toFixed(2)}`}
+                      formatter={(value: number) => `${sym}${convert(value).toFixed(2)}`}
                     />
                     <Legend />
                     <Line 
@@ -1006,9 +1006,9 @@ export const MonthlyInvoicesPage = () => {
                       </Badge>
                     )}
                     <div className="text-right">
-                      <div className="font-mono font-semibold">{sym}{data.netCost.toFixed(2)}</div>
+                      <div className="font-mono font-semibold">{sym}{convert(data.netCost).toFixed(2)}</div>
                       {data.totalCredits > 0 && (
-                        <div className="text-sm text-success font-mono">-{sym}{data.totalCredits.toFixed(2)}</div>
+                        <div className="text-sm text-success font-mono">-{sym}{convert(data.totalCredits).toFixed(2)}</div>
                       )}
                     </div>
                     <Button

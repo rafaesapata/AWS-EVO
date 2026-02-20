@@ -1,29 +1,41 @@
-import { getCurrencyFlag, getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
+import { getCurrencyFlag } from '@/lib/format-cost';
+import { getProviderCurrency } from '@/lib/format-cost';
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
+import { useCurrencyStore } from '@/hooks/useCurrencyConversion';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Tiny inline flag indicator next to currency values.
- * Shows 🇧🇷 for BRL (Azure) and 🇺🇸 for USD (AWS).
+ * Reflects the current conversion state (native or converted).
  */
 export function CurrencyIndicator({ className }: { className?: string }) {
+  const { t } = useTranslation();
   const { selectedProvider } = useCloudAccount();
-  const currency = getProviderCurrency(selectedProvider);
-  const flag = getCurrencyFlag(currency);
+  const { isConverted } = useCurrencyStore();
+  const nativeCurrency = getProviderCurrency(selectedProvider);
+  const displayCurrency = isConverted
+    ? (nativeCurrency === 'USD' ? 'BRL' : 'USD')
+    : nativeCurrency;
+  const flag = getCurrencyFlag(displayCurrency);
 
   return (
     <span
       className={`inline-flex items-center text-[10px] leading-none opacity-70 ${className || ''}`}
-      title={currency === 'BRL' ? 'Real Brasileiro (R$)' : 'US Dollar ($)'}
-      aria-label={currency === 'BRL' ? 'Real Brasileiro' : 'US Dollar'}
+      title={displayCurrency === 'BRL' ? 'Real Brasileiro (R$)' : 'US Dollar ($)'}
+      aria-label={displayCurrency === 'BRL' ? 'Real Brasileiro' : 'US Dollar'}
     >
       {flag}
+      {isConverted && (
+        <span className="ml-0.5 text-[8px] text-amber-500" title={t('currency.disclaimer', 'Estimated values based on daily exchange rate')}>
+          ~
+        </span>
+      )}
     </span>
   );
 }
 
 /**
- * Standalone flag component that accepts currency directly (for components
- * that don't use useCloudAccount context).
+ * Standalone flag component that accepts currency directly.
  */
 export function CurrencyFlag({ currency = 'USD', className }: { currency?: string; className?: string }) {
   const flag = getCurrencyFlag(currency);

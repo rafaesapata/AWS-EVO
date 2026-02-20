@@ -27,8 +27,11 @@ import {
 } from 'recharts';
 import type { TrendData } from '../types';
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
-import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
+import { useCurrency } from '@/hooks/useCurrency';
 import { CurrencyIndicator } from '@/components/ui/currency-indicator';
+import { ChartViewSwitcher } from '@/components/ui/chart-view-switcher';
+import { MultiViewChart } from '@/components/ui/multi-view-chart';
+import { useChartView } from '@/hooks/useChartView';
 
 interface Props {
   data: TrendData;
@@ -59,7 +62,17 @@ const getCostColor = (cost: number, minCost: number, maxCost: number): string =>
 export default function TrendAnalysis({ data, period, onPeriodChange, isLoading }: Props) {
   const { t } = useTranslation();
   const { selectedProvider } = useCloudAccount();
-  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
+  const { sym, convert } = useCurrency();
+  const { view: costView, changeView: setCostView, availableViews: costViews } = useChartView({
+    defaultView: 'bar',
+    availableViews: ['bar', 'line', 'area', 'pie', 'table'],
+    storageKey: 'trend-cost',
+  });
+  const { view: secView, changeView: setSecView, availableViews: secViews } = useChartView({
+    defaultView: 'area',
+    availableViews: ['area', 'line', 'bar', 'table'],
+    storageKey: 'trend-security',
+  });
 
   const periodLabels = {
     '7d': t('executiveDashboard.period7d', '7 dias'),
@@ -126,53 +139,41 @@ export default function TrendAnalysis({ data, period, onPeriodChange, isLoading 
 
       <div className={`p-6 transition-opacity duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Cost Trend - Bar Chart with dynamic colors */}
+          {/* Cost Trend - Multi-view Chart */}
           <div className="space-y-4">
-            <p className="text-base font-light text-[#5F5F5F] flex items-center gap-1.5">
-              {t('executiveDashboard.costTrend', 'Cost Trend')}
-              <CurrencyIndicator />
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-base font-light text-[#5F5F5F] flex items-center gap-1.5">
+                {t('executiveDashboard.costTrend', 'Cost Trend')}
+                <CurrencyIndicator />
+              </p>
+              <ChartViewSwitcher currentView={costView} availableViews={costViews} onViewChange={setCostView} />
+            </div>
             {costChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={costChartData} barCategoryGap="20%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" vertical={false} />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#5F5F5F"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis 
-                    stroke="#5F5F5F"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `${sym}${value}`}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#FFFFFF',
-                      border: '1px solid #E5E5E5',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      color: '#393939',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                    }}
-                    formatter={(value: number | undefined) => value !== undefined ? [`${sym}${value.toFixed(2)}`, 'Cost'] : ['N/A', 'Cost']}
-                    labelStyle={{ color: '#5F5F5F', fontWeight: 300 }}
-                  />
-                  <Bar 
-                    dataKey="cost" 
-                    radius={[6, 6, 0, 0]}
-                    name="Total Cost"
-                  >
-                    {costChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <MultiViewChart
+                data={costChartData}
+                series={[{
+                  dataKey: 'cost',
+                  name: 'Total Cost',
+                  color: '#00B2FF',
+                  fillFn: (item) => (item.fill as string) || '#00B2FF',
+                }]}
+                view={costView}
+                xAxisKey="date"
+                height={220}
+                currencySymbol={sym}
+                barRadius={[6, 6, 0, 0]}
+                tooltipStyle={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E5E5E5',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  color: '#393939',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                }}
+                gradients={{
+                  costGrad: { from: '#00B2FF', to: '#00B2FF', fromOpacity: 0.2, toOpacity: 0 },
+                }}
+              />
             ) : (
               <div className="h-[220px] flex items-center justify-center text-[#5F5F5F] text-sm font-light bg-white border border-gray-200 rounded-xl">
                 {t('executiveDashboard.noCostData', 'No cost data available')}
@@ -180,70 +181,39 @@ export default function TrendAnalysis({ data, period, onPeriodChange, isLoading 
             )}
           </div>
 
-          {/* Security Trend - Line Chart */}
+          {/* Security Trend - Multi-view Chart */}
           <div className="space-y-4">
-            <p className="text-base font-light text-[#5F5F5F]">
-              {t('executiveDashboard.securityTrend', 'Security Score Trend')}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-base font-light text-[#5F5F5F]">
+                {t('executiveDashboard.securityTrend', 'Security Score Trend')}
+              </p>
+              <ChartViewSwitcher currentView={secView} availableViews={secViews} onViewChange={setSecView} />
+            </div>
             {securityChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={securityChartData}>
-                  <defs>
-                    <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#00B2FF" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#00B2FF" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="findingsGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" vertical={false} />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#5F5F5F"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis 
-                    stroke="#5F5F5F"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    domain={[0, 100]}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#FFFFFF',
-                      border: '1px solid #E5E5E5',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      color: '#393939',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                    }}
-                    labelStyle={{ color: '#5F5F5F', fontWeight: 300 }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="score" 
-                    stroke="#00B2FF" 
-                    fill="url(#scoreGradient)"
-                    strokeWidth={2}
-                    dot={{ fill: '#00B2FF', strokeWidth: 2, r: 4 }}
-                    name="Security Score"
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="findings" 
-                    stroke="#EF4444" 
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={{ fill: '#EF4444', strokeWidth: 2, r: 3 }}
-                    name="Critical+High Findings"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <MultiViewChart
+                data={securityChartData}
+                series={[
+                  { dataKey: 'score', name: 'Security Score', color: '#00B2FF' },
+                  { dataKey: 'findings', name: 'Critical+High Findings', color: '#EF4444', strokeDasharray: '5 5' },
+                ]}
+                view={secView}
+                xAxisKey="date"
+                height={220}
+                formatValue={(v) => String(v)}
+                yDomain={[0, 100]}
+                tooltipStyle={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E5E5E5',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  color: '#393939',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                }}
+                gradients={{
+                  scoreGrad: { from: '#00B2FF', to: '#00B2FF', fromOpacity: 0.2, toOpacity: 0 },
+                  findingsGrad: { from: '#EF4444', to: '#EF4444', fromOpacity: 0.2, toOpacity: 0 },
+                }}
+              />
             ) : (
               <div className="h-[220px] flex items-center justify-center text-[#5F5F5F] text-sm font-light bg-white border border-gray-200 rounded-xl">
                 {t('executiveDashboard.noSecurityTrendData', 'No security trend data available')}
@@ -260,7 +230,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange, isLoading 
                 <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.periodActivity', 'Period Activity')}</span>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-[#00B2FF] tabular-nums" style={{ fontSize: '48px', lineHeight: '1', fontWeight: '300' }}>
-                    {sym}{Math.round(data.cost.reduce((sum, d) => sum + d.cost, 0)).toLocaleString('en-US')}
+                    {sym}{Math.round(convert(data.cost.reduce((sum, d) => sum + d.cost, 0))).toLocaleString('en-US')}
                   </span>
                   <span className="text-sm font-light text-[#5F5F5F]">{t('executiveDashboard.totalPeriodCost', 'total in period')}</span>
                 </div>

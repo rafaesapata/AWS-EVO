@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useCloudAccount } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
-import { getCurrencySymbol, getProviderCurrency } from "@/lib/format-cost";
+import { useCurrency } from "@/hooks/useCurrency";
 import { CurrencyIndicator } from "@/components/ui/currency-indicator";
 import { useDemoAwareQuery } from "@/hooks/useDemoAwareQuery";
 import { 
@@ -141,7 +141,7 @@ export const RiSpAnalysis = () => {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedProvider, selectedAccount } = useCloudAccount();
   const { data: organizationId } = useOrganization();
-  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
+  const { sym, convert } = useCurrency();
   const [selectedRecommendation, setSelectedRecommendation] = useState<any>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 

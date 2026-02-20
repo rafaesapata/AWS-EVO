@@ -16,6 +16,8 @@ import { DemoBanner } from "@/components/demo/DemoBanner";
 import { TrialBanner } from "@/components/trial/TrialBanner";
 import { DemoWatermark } from "@/components/demo/DemoWatermark";
 import { useDemoMode } from "@/contexts/DemoModeContext";
+import CurrencyToggle from "@/components/CurrencyToggle";
+import { initExchangeRate } from "@/hooks/useCurrencyConversion";
 
 interface LayoutProps {
   children: ReactNode;
@@ -158,6 +160,11 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
     loadUserAndRoles();
   }, []);
 
+  // Initialize exchange rate for currency conversion
+  useEffect(() => {
+    initExchangeRate();
+  }, []);
+
   // Set document title when title or description changes
   useEffect(() => {
     if (title && description) {
@@ -234,6 +241,7 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <CloudAccountSelectorCompact />
+                  <CurrencyToggle />
                   <LanguageToggle />
                   <ThemeToggle />
                   <UserMenu />

@@ -37,6 +37,9 @@ import { apiClient } from '@/integrations/aws/api-client';
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
 import { useOrganization } from '@/hooks/useOrganization';
 import { cn } from '@/lib/utils';
+import { ChartViewSwitcher } from '@/components/ui/chart-view-switcher';
+import { MultiViewChart } from '@/components/ui/multi-view-chart';
+import { useChartView } from '@/hooks/useChartView';
 
 interface CostData {
  date: string;
@@ -67,6 +70,16 @@ export function UnifiedCostDashboard() {
  const { t } = useTranslation();
  const { awsAccounts, azureAccounts } = useCloudAccount();
  const { data: organizationId } = useOrganization();
+ const { view: dailyView, changeView: setDailyView, availableViews: dailyViews } = useChartView({
+   defaultView: 'bar',
+   availableViews: ['bar', 'line', 'area', 'pie', 'table'],
+   storageKey: 'unified-daily',
+ });
+ const { view: distView, changeView: setDistView, availableViews: distViews } = useChartView({
+   defaultView: 'pie',
+   availableViews: ['pie', 'bar', 'table'],
+   storageKey: 'unified-dist',
+ });
 
  // Calculate date range (last 30 days)
  const dateRange = useMemo(() => {
@@ -364,69 +377,66 @@ export function UnifiedCostDashboard() {
  </div>
 
  {/* Charts Row */}
+ {/* Charts Row */}
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
  {/* Daily Costs Chart */}
  <Card className=" lg:col-span-2">
  <CardHeader>
+ <div className="flex items-center justify-between">
+ <div>
  <CardTitle className="flex items-center gap-2">
  <TrendingUp className="h-5 w-5" />
  Custos Diários por Provider
  </CardTitle>
  <CardDescription>Comparação de custos AWS vs Azure nos últimos 30 dias</CardDescription>
+ </div>
+ <ChartViewSwitcher currentView={dailyView} availableViews={dailyViews} onViewChange={setDailyView} />
+ </div>
  </CardHeader>
  <CardContent>
- <ResponsiveContainer width="100%" height={300}>
- <BarChart data={dailyChartData}>
- <CartesianGrid strokeDasharray="3 3" />
- <XAxis dataKey="date" tick={{ fontSize: 11 }} />
- <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
- <Tooltip 
- formatter={(value: number) => [`$${value.toFixed(2)}`, '']}
- labelStyle={{ color: '#000' }}
+ <MultiViewChart
+ data={dailyChartData}
+ series={[
+   { dataKey: 'AWS', name: 'AWS', color: PROVIDER_COLORS.AWS, stackId: 'a' },
+   { dataKey: 'AZURE', name: 'Azure', color: PROVIDER_COLORS.AZURE, stackId: 'a' },
+ ]}
+ view={dailyView}
+ xAxisKey="date"
+ height={300}
+ currencySymbol="$"
  />
- <Legend />
- <Bar dataKey="AWS" stackId="a" fill={PROVIDER_COLORS.AWS} name="AWS" />
- <Bar dataKey="AZURE" stackId="a" fill={PROVIDER_COLORS.AZURE} name="Azure" />
- </BarChart>
- </ResponsiveContainer>
  </CardContent>
  </Card>
 
- {/* Distribution Pie Chart */}
+ {/* Distribution Chart */}
  <Card className="">
  <CardHeader>
+ <div className="flex items-center justify-between">
+ <div>
  <CardTitle className="flex items-center gap-2">
  <Cloud className="h-5 w-5" />
  Distribuição
  </CardTitle>
  <CardDescription>Proporção de custos por provider</CardDescription>
+ </div>
+ <ChartViewSwitcher currentView={distView} availableViews={distViews} onViewChange={setDistView} />
+ </div>
  </CardHeader>
  <CardContent>
- <ResponsiveContainer width="100%" height={300}>
- <PieChart>
- <Pie
+ <MultiViewChart
  data={providerDistribution}
- cx="50%"
- cy="50%"
- innerRadius={60}
- outerRadius={100}
- paddingAngle={5}
- dataKey="value"
- label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
- >
- {providerDistribution.map((entry, index) => (
- <Cell key={`cell-${index}`} fill={entry.color} />
- ))}
- </Pie>
- <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'Custo']} />
- </PieChart>
- </ResponsiveContainer>
+ series={[{ dataKey: 'value', name: 'Custo', color: PROVIDER_COLORS.AWS }]}
+ view={distView}
+ xAxisKey="name"
+ height={300}
+ currencySymbol="$"
+ pieInnerRadius={60}
+ pieOuterRadius={100}
+ piePaddingAngle={5}
+ />
  </CardContent>
  </Card>
  </div>
-
- {/* Top Services by Provider */}
- <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
  {summaries.map(summary => (
  <Card key={summary.provider} className="">
  <CardHeader>

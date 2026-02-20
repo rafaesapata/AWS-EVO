@@ -29,7 +29,7 @@ import { useOrganization } from '@/hooks/useOrganization';
 import DashboardAlerts from '../DashboardAlerts';
 
 import { useCloudAccount } from '@/contexts/CloudAccountContext';
-import { getCurrencySymbol, getProviderCurrency } from '@/lib/format-cost';
+import { useCurrency } from '@/hooks/useCurrency';
 
 // Components
 import ExecutiveSummaryBar from './components/ExecutiveSummaryBar';
@@ -325,7 +325,7 @@ function QuickActionsSummary({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { selectedProvider } = useCloudAccount();
-  const sym = getCurrencySymbol(getProviderCurrency(selectedProvider));
+  const { sym, convert } = useCurrency();
   
   const actions = [];
   
@@ -351,7 +351,7 @@ function QuickActionsSummary({
     actions.push({
       priority: 'high',
       title: t('executiveDashboard.actions.optimizeCosts', 'Otimizar Custos'),
-      description: `${sym}${(data.financial?.savings?.potential || 0).toLocaleString()} ${t('executiveDashboard.potentialSavings', 'em economia potencial')}`,
+      description: `${sym}${convert(data.financial?.savings?.potential || 0).toLocaleString()} ${t('executiveDashboard.potentialSavings', 'em economia potencial')}`,
       href: '/cost-optimization'
     });
   }
