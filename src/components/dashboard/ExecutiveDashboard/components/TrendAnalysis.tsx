@@ -83,6 +83,7 @@ export default function TrendAnalysis({ data, period, onPeriodChange, isLoading 
   // Format date for display (MON, TUE, WED style for 7d)
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
     if (period === '7d') {
       return date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
     }

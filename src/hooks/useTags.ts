@@ -48,6 +48,7 @@ export function useTagList(params?: { category?: string; search?: string; sortBy
       if ('error' in res && res.error) throw new Error(res.error);
       return (res as any).data;
     },
+    retry: false,
   });
 }
 
@@ -181,6 +182,7 @@ export function useTagCoverage() {
       if ('error' in res && res.error) throw new Error(res.error);
       return (res as any).data as CoverageMetrics;
     },
+    retry: false,
   });
 }
 
