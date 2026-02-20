@@ -55,14 +55,30 @@ export function BudgetCostTrend({
   };
 
   const costData = data?.cost ?? [];
-  const costValues = costData.map((d) => d.cost);
+
+  // Fill missing days with $0 to show the full period
+  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
+  const filledData = (() => {
+    const dataMap = new Map(costData.map((d) => [d.date, d]));
+    const result: typeof costData = [];
+    const today = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      result.push(dataMap.get(key) ?? { date: key, cost: 0, credits: 0, net: 0 });
+    }
+    return result;
+  })();
+
+  const costValues = filledData.map((d) => d.cost).filter((c) => c > 0);
   const minCost = costValues.length > 0 ? Math.min(...costValues) : 0;
   const maxCost = costValues.length > 0 ? Math.max(...costValues) : 0;
 
-  const chartData = costData.map((item) => ({
+  const chartData = filledData.map((item) => ({
     ...item,
     date: formatDate(item.date),
-    fill: getCostColor(item.cost, minCost, maxCost),
+    fill: item.cost === 0 ? '#E5E5E5' : getCostColor(item.cost, minCost, maxCost),
   }));
 
   // Daily budget line (monthly budget / days in current month)
