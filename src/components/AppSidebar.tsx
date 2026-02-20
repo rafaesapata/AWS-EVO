@@ -21,7 +21,8 @@ import {
   BookOpen,
   Mail,
   Settings,
-  AlertTriangle
+  AlertTriangle,
+  Tags
 } from "lucide-react";
 import {
   Sidebar,
@@ -69,6 +70,7 @@ const menuItems: MenuItem[] = [
     ]
   },
   { titleKey: "sidebar.copilotAI", value: "copilot", icon: Bot },
+  { titleKey: "sidebar.tagManagement", value: "tag-management", icon: Tags },
   { 
     titleKey: "sidebar.mlPredictions", 
     value: "ml", 
@@ -189,6 +191,8 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/well-architected');
     } else if (value === 'copilot') {
       navigate('/copilot-ai');
+    } else if (value === 'tag-management') {
+      navigate('/tag-management');
     } else if (value === 'attack-detection') {
       navigate('/attack-detection');
     } else if (value === 'alerts') {

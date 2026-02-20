@@ -18,8 +18,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, TrendingDown, Shield, Zap, BarChart3 } from 'lucide-react';
+import { RefreshCw, TrendingDown, Shield, Zap, BarChart3, Tags } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 import { useExecutiveDashboard } from '@/hooks/useExecutiveDashboard';
@@ -56,6 +58,7 @@ import { SectionLoader, CardLoader } from './components/SectionLoader';
 
 // Hook for tracking section loading states
 import { useExecutiveDashboardSections } from '@/hooks/useExecutiveDashboardSections';
+import { useTagCoverage } from '@/hooks/useTags';
 
 // Section Header Component - Clean Light Design
 function SectionHeader({ 
@@ -108,6 +111,7 @@ export default function ExecutiveDashboardV2() {
 
   // Track which sections have valid data for progressive loading
   const sectionStates = useExecutiveDashboardSections(data, isLoading);
+  const { data: tagCoverage } = useTagCoverage();
 
   // Loading state - Now uses granular skeletons
   if (isLoading) {
@@ -296,6 +300,46 @@ export default function ExecutiveDashboardV2() {
           hasOperationalIssues={hasOperationalIssues}
         />
       </section>
+
+      {/* SECTION 4: Tag Coverage */}
+      {tagCoverage && (
+        <section className="space-y-4">
+          <Card className="bg-white rounded-2xl shadow-sm border border-gray-100">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Tags className="h-4 w-4 text-primary" />
+                {t('tags.coverage', 'Tag Coverage')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-6">
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-2xl font-bold ${
+                      (tagCoverage.coverage_percentage ?? 0) >= 80 ? 'text-green-600' :
+                      (tagCoverage.coverage_percentage ?? 0) >= 50 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {tagCoverage.coverage_percentage?.toFixed(1) ?? 0}%
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {tagCoverage.tagged_resources ?? 0} / {tagCoverage.total_resources ?? 0} {t('tags.resources', 'resources')}
+                    </span>
+                  </div>
+                  <Progress value={tagCoverage.coverage_percentage ?? 0} className="h-2" />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => navigate('/tag-management')}
+                >
+                  {t('tags.viewUntagged', 'View Untagged')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {/* Metadata Footer */}
       <div className="text-xs text-gray-400 text-center pt-4 border-t border-gray-200">

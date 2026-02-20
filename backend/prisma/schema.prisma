@@ -49,6 +49,8 @@ model Organization {
   kb_articles       KnowledgeBaseArticle[]
   remediation_tickets RemediationTicket[]
   demo_mode_audits  DemoModeAudit[]
+  tags              Tag[]
+  resource_tag_assignments ResourceTagAssignment[]
   
   @@index([demo_mode])
   @@index([status])
@@ -2606,4 +2608,64 @@ model EmailEvent {
   @@index([event_type])
   @@index([timestamp])
   @@map("email_events")
+}
+
+// ==================== TAG SYSTEM ====================
+
+enum TagCategory {
+  COST_CENTER
+  ENVIRONMENT
+  TEAM
+  PROJECT
+  COMPLIANCE
+  CRITICALITY
+  CUSTOM
+
+  @@map("tag_category")
+}
+
+model Tag {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String      @db.Uuid
+  key             String      @db.VarChar(64)
+  value           String      @db.VarChar(128)
+  color           String      @db.VarChar(7)
+  category        TagCategory @default(CUSTOM)
+  description     String?     @db.VarChar(256)
+  created_by      String      @db.Uuid
+  created_at      DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime    @updatedAt @db.Timestamptz(6)
+
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  assignments     ResourceTagAssignment[]
+
+  @@unique([organization_id, key, value], name: "uq_tag_org_key_value")
+  @@index([organization_id, category])
+  @@index([organization_id, key])
+  @@map("tags")
+}
+
+model ResourceTagAssignment {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String   @db.Uuid
+  tag_id              String   @db.Uuid
+  resource_id         String   @db.VarChar(512)
+  resource_type       String   @db.VarChar(128)
+  cloud_provider      String   @db.VarChar(10)
+  resource_name       String?  @db.VarChar(256)
+  resource_region     String?  @db.VarChar(64)
+  aws_account_id      String?  @db.VarChar(12)
+  azure_credential_id String?  @db.Uuid
+  assigned_by         String   @db.Uuid
+  assigned_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  organization        Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  tag                 Tag          @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, tag_id, resource_id], name: "uq_assignment_org_tag_resource")
+  @@index([organization_id, resource_id])
+  @@index([organization_id, tag_id])
+  @@index([organization_id, resource_type, cloud_provider])
+  @@index([resource_id])
+  @@map("resource_tag_assignments")
 }

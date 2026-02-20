@@ -67,7 +67,13 @@ export type AuditAction =
   | 'BUDGET_UPDATE'
   | 'SCHEDULE_CREATED'
   | 'SCHEDULE_UPDATED'
-  | 'SCHEDULE_DELETED';
+  | 'SCHEDULE_DELETED'
+  | 'TAG_CREATED'
+  | 'TAG_UPDATED'
+  | 'TAG_DELETED'
+  | 'TAG_ASSIGNED'
+  | 'TAG_REMOVED'
+  | 'TAG_BULK_ASSIGNED';
 
 export type AuditResourceType =
   | 'user'
@@ -95,7 +101,8 @@ export type AuditResourceType =
   | 'data'
   | 'webauthn_credential'
   | 'cloud_budget'
-  | 'scan_schedule';
+  | 'scan_schedule'
+  | 'tag';
 
 export interface AuditLogParams {
   organizationId: string;

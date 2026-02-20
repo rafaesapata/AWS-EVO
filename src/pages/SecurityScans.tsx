@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Layout } from "@/components/Layout";
+import { TagFilterBar } from "@/components/tags/TagFilterBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
@@ -86,6 +87,8 @@ export default function SecurityScans() {
  const { data: organizationId } = useOrganization();
  const { user } = useAuthSafe();
  const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
+ const [tagFilterIds, setTagFilterIds] = useState<string[]>([]);
+ const handleTagFilterChange = useCallback((ids: string[]) => setTagFilterIds(ids), []);
  const [selectedScanType, setSelectedScanType] = useState<string>('all');
  const [currentPage, setCurrentPage] = useState<number>(1);
  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
@@ -763,6 +766,9 @@ export default function SecurityScans() {
  icon={<Shield className="h-4 w-4" />}
  >
  <div className="space-y-6">
+ {/* Tag Filter Bar */}
+ <TagFilterBar onFilterChange={handleTagFilterChange} />
+
  {/* Action Buttons */}
  <div className="flex items-center justify-end gap-2">
  <Button 

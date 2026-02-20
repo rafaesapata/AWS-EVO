@@ -61,6 +61,7 @@ import AuditLogPage from "./pages/AuditLogPage";
 import AINotificationsAdmin from "./pages/admin/AINotificationsAdmin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import ApiDocs from "./pages/ApiDocs";
+import TagManagement from "./pages/TagManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./i18n/config";
 import "./index.css";
@@ -457,6 +458,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <ApiDocs />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/tag-management" 
+                element={
+                  <ProtectedRoute>
+                    <TagManagement />
                   </ProtectedRoute>
                 } 
               />

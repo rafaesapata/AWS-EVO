@@ -25,6 +25,7 @@ import { compareDates, getDayOfMonth, calculatePercentageChange } from "@/lib/ut
 import { Layout } from "@/components/Layout";
 import { useCurrency } from "@/hooks/useCurrency";
 import { CurrencyIndicator } from "@/components/ui/currency-indicator";
+import { TagFilterBar } from "@/components/tags/TagFilterBar";
 
 // Define type for daily cost records
 interface DailyCostRecord {
@@ -64,6 +65,8 @@ export const MonthlyInvoicesPage = () => {
   const { selectedAccountId, selectedAccount, accounts: allAccounts, selectedProvider } = useCloudAccount();
   const { getAccountFilter } = useAccountFilter();
   const { sym, convert } = useCurrency();
+  const [tagFilterIds, setTagFilterIds] = useState<string[]>([]);
+  const handleTagFilterChange = useCallback((ids: string[]) => setTagFilterIds(ids), []);
   const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -560,6 +563,9 @@ export const MonthlyInvoicesPage = () => {
       icon={<FileText className="h-5 w-5" />}
     >
       <div className="space-y-6">
+      {/* Tag Filter Bar */}
+      <TagFilterBar onFilterChange={handleTagFilterChange} />
+
       {/* Main Content Card */}
       <Card>
         <CardHeader>

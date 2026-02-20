@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -48,6 +48,7 @@ import {
   FileCheck
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Cell, Pie, LineChart, Line, AreaChart, Area } from "recharts";
+import { TagFilterBar } from "@/components/tags/TagFilterBar";
 
 interface SecurityFinding {
   id: string;
@@ -87,6 +88,8 @@ export default function SecurityPosture() {
   const { user } = useAuthSafe();
   const queryClient = useQueryClient();
   const { shouldEnableAccountQuery } = useDemoAwareQuery();
+  const [tagFilterIds, setTagFilterIds] = useState<string[]>([]);
+  const handleTagFilterChange = useCallback((ids: string[]) => setTagFilterIds(ids), []);
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedStandard, setSelectedStandard] = useState<string>('all');
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
@@ -757,6 +760,9 @@ export default function SecurityPosture() {
       icon={<Shield className="h-4 w-4" />}
     >
       <div className="space-y-6">
+      {/* Tag Filter Bar */}
+      <TagFilterBar onFilterChange={handleTagFilterChange} />
+
       {/* Action Buttons */}
       <div className="flex items-center justify-end gap-2">
         <Button 

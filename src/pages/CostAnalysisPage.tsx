@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -25,6 +25,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { ChartViewSwitcher } from "@/components/ui/chart-view-switcher";
 import { MultiViewChart } from "@/components/ui/multi-view-chart";
 import { useChartView } from "@/hooks/useChartView";
+import { TagFilterBar } from "@/components/tags/TagFilterBar";
 
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -44,6 +45,8 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
  const [expandedOther, setExpandedOther] = useState<Set<string>>(new Set());
  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'custom'>('30d');
+ const [tagFilterIds, setTagFilterIds] = useState<string[]>([]);
+ const handleTagFilterChange = useCallback((ids: string[]) => setTagFilterIds(ids), []);
  
  // Custom date range
  const [customStartDate, setCustomStartDate] = useState<string>(() => {
@@ -823,6 +826,9 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
 
  const content = (
  <div className="space-y-4">
+ {/* Tag Filter Bar */}
+ <TagFilterBar onFilterChange={handleTagFilterChange} />
+
  {/* Azure first-load banner */}
  {isAzureFirstLoad && (
  <Card className="glass border-blue-300 bg-blue-50/50 dark:bg-blue-950/20">

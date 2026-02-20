@@ -5354,6 +5354,338 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+  # ==================== TAG SYSTEM (Smart Resource Tagging) ====================
+
+  TagCrudFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-crud'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-crud.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        TagList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags
+            Method: GET
+        TagCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags
+            Method: POST
+        TagGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/{tagId}
+            Method: GET
+        TagUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/{tagId}
+            Method: PATCH
+        TagDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/{tagId}
+            Method: DELETE
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-crud.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagAssignFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-assign'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-assign.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Assign:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/{tagId}/assign
+            Method: POST
+        Unassign:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/{tagId}/unassign
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-assign.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagBulkAssignFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-bulk-assign'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-bulk-assign.handler
+      Timeout: 60
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/bulk-assign
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-bulk-assign.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagResourcesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-resources'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-resources.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        TagsForResource:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/resources/{resourceId}/tags
+            Method: GET
+        ResourcesByTag:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/{tagId}/resources
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-resources.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagSuggestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-suggestions'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-suggestions.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/suggestions
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-suggestions.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagTemplatesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-templates'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-templates.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        List:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/templates
+            Method: GET
+        Apply:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/templates/apply
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-templates.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagCostReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-cost-report'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-cost-report.handler
+      Timeout: 60
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/{tagId}/cost-report
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-cost-report.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagSecurityFindingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-security-findings'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-security-findings.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/security-findings
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-security-findings.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagInventoryReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-inventory-report'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-inventory-report.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/{tagId}/inventory
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-inventory-report.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagCoverageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-coverage'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-coverage.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/tags/coverage
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-coverage.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
+  TagUntaggedResourcesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-untagged-resources'
+      CodeUri: ../backend/src/handlers/admin/
+      Handler: tag-untagged-resources.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/v1/resources/untagged
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-untagged-resources.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
 Outputs:
   HttpApiUrl:
     Description: HTTP API URL
@@ -5365,4 +5697,4 @@ Outputs:
   
   LambdaCount:
     Description: Total Lambda functions deployed
-    Value: '194'
+    Value: '205'

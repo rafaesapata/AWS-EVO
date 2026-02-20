@@ -95,6 +95,8 @@ export function Layout({ children, title, description, icon }: LayoutProps) {
       setActiveTab('devtools');
     } else if (path === '/well-architected') {
       setActiveTab('well-architected');
+    } else if (path === '/tag-management') {
+      setActiveTab('tag-management');
     } else if (path === '/tv') {
       setActiveTab('tv-dashboards');
     } else {

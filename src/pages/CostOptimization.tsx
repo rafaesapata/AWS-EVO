@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Layout } from "@/components/Layout";
+import { TagFilterBar } from "@/components/tags/TagFilterBar";
 import { apiClient, getErrorMessage } from "@/integrations/aws/api-client";
 import { useCloudAccount, useAccountFilter } from "@/contexts/CloudAccountContext";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -545,6 +546,8 @@ export default function CostOptimization() {
   const { data: organizationId } = useOrganization();
   const { user } = useAuthSafe();
   const { shouldEnableAccountQuery, isInDemoMode } = useDemoAwareQuery();
+  const [tagFilterIds, setTagFilterIds] = useState<string[]>([]);
+  const handleTagFilterChange = useCallback((ids: string[]) => setTagFilterIds(ids), []);
   const [selectedRecommendation, setSelectedRecommendation] = useState<OptimizationRecommendation | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedConfidence, setSelectedConfidence] = useState<string>('all');
@@ -1222,6 +1225,9 @@ export default function CostOptimization() {
       icon={<Zap className="h-4 w-4" />}
     >
       <div className="space-y-6">
+      {/* Tag Filter Bar */}
+      <TagFilterBar onFilterChange={handleTagFilterChange} />
+
       {/* Action Buttons */}
       <div className="flex items-center justify-end gap-2">
         <Button 
