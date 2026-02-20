@@ -1,6 +1,6 @@
 /**
  * Tag Security Findings Handler — Smart Resource Tagging
- * GET /api/v1/tags/security-findings
+ * POST /api/functions/tag-security-findings
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -21,24 +21,23 @@ export async function handler(
   const method = event.requestContext?.http?.method || event.httpMethod || '';
 
   if (method === 'OPTIONS') return corsOptions(origin);
-  if (method !== 'GET') return error('Method not allowed', 405, undefined, origin);
 
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
-    const qs = event.queryStringParameters || {};
+    const body = JSON.parse(event.body || '{}');
 
-    const tagIds = qs.tag_ids ? qs.tag_ids.split(',') : [];
-    if (tagIds.length === 0) {
-      return error('tag_ids query parameter is required', 422, undefined, origin);
+    const tagIds = body.tagIds || [];
+    if (!Array.isArray(tagIds) || tagIds.length === 0) {
+      return error('tagIds array is required', 422, undefined, origin);
     }
 
     const result = await getSecurityFindings(organizationId, tagIds, {
-      limit: qs.limit ? parseInt(qs.limit) : undefined,
-      cursor: qs.cursor,
-      severity: qs.severity,
-      status: qs.status,
-      cloudProvider: qs.cloud_provider,
+      limit: body.limit,
+      cursor: body.cursor,
+      severity: body.severity,
+      status: body.status,
+      cloudProvider: body.cloudProvider,
     });
 
     return success(result, 200, origin);

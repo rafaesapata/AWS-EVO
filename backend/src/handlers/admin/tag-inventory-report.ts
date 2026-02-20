@@ -1,6 +1,6 @@
 /**
  * Tag Inventory Report Handler — Smart Resource Tagging
- * GET /api/v1/tags/:id/inventory
+ * POST /api/functions/tag-inventory-report
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -21,19 +21,17 @@ export async function handler(
   const method = event.requestContext?.http?.method || event.httpMethod || '';
 
   if (method === 'OPTIONS') return corsOptions(origin);
-  if (method !== 'GET') return error('Method not allowed', 405, undefined, origin);
 
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
-    const path = event.rawPath || event.path || '';
-    const parts = path.split('/').filter(Boolean);
-    const tagId = parts[3];
-    const qs = event.queryStringParameters || {};
+    const body = JSON.parse(event.body || '{}');
 
-    const result = await getInventoryReport(organizationId, tagId, {
-      resourceType: qs.resource_type,
-      cloudProvider: qs.cloud_provider,
+    if (!body.tagId) return error('tagId is required', 400, undefined, origin);
+
+    const result = await getInventoryReport(organizationId, body.tagId, {
+      resourceType: body.resourceType,
+      cloudProvider: body.cloudProvider,
     });
 
     return success(result.data, 200, origin);

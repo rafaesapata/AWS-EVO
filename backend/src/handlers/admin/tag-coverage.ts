@@ -1,6 +1,6 @@
 /**
  * Tag Coverage Handler — Smart Resource Tagging
- * GET /api/v1/tags/coverage
+ * POST /api/functions/tag-coverage
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -21,7 +21,6 @@ export async function handler(
   const method = event.requestContext?.http?.method || event.httpMethod || '';
 
   if (method === 'OPTIONS') return corsOptions(origin);
-  if (method !== 'GET') return error('Method not allowed', 405, undefined, origin);
 
   try {
     const user = getUserFromEvent(event);

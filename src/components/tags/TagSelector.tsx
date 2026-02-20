@@ -33,7 +33,7 @@ export function TagSelector({ assignedTags, onAssign, onUnassign, onCreateAndAss
   const [showCreate, setShowCreate] = useState(false);
   const debouncedSearch = useDebouncedValue(search, 150);
 
-  const { data: tagData } = useTagList({ search: debouncedSearch || undefined, limit: 50 });
+  const { data: tagData } = useTagList({ search: debouncedSearch || undefined, limit: 50, enabled: true });
   const createTag = useCreateTag();
 
   const [newKey, setNewKey] = useState('');

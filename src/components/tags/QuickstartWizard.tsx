@@ -13,7 +13,7 @@ interface QuickstartWizardProps {
 
 export function QuickstartWizard({ onComplete, onSkip }: QuickstartWizardProps) {
   const { t } = useTranslation();
-  const { data: templates, isLoading } = useTagTemplates();
+  const { data: templates, isLoading } = useTagTemplates({ enabled: true });
   const applyTemplates = useApplyTemplates();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [done, setDone] = useState(false);

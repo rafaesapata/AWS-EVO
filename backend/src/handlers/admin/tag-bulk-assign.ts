@@ -1,10 +1,10 @@
 /**
  * Tag Bulk Assign Handler — Smart Resource Tagging
- * POST /api/v1/tags/bulk-assign
+ * POST /api/functions/tag-bulk-assign
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
-import { success, error, corsOptions, forbidden, tooManyRequests } from '../../lib/response.js';
+import { success, error, corsOptions, forbidden } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, hasRole } from '../../lib/auth.js';
 import { logger } from '../../lib/logger.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
@@ -33,17 +33,15 @@ export async function handler(
     }
 
     const body = JSON.parse(event.body || '{}');
-    const tagIds = body.tag_ids || [];
-    const resourceIds = body.resource_ids || [];
+    const tagIds = body.tagIds || body.tag_ids || [];
+    const resourceIds = body.resourceIds || body.resource_ids || [];
 
     if (!Array.isArray(tagIds) || tagIds.length === 0) {
-      return error('tag_ids array is required', 422, undefined, origin);
+      return error('tagIds array is required', 422, undefined, origin);
     }
-
     if (!Array.isArray(resourceIds) || resourceIds.length === 0) {
-      return error('resource_ids array is required', 422, undefined, origin);
+      return error('resourceIds array is required', 422, undefined, origin);
     }
-
     if (resourceIds.length > MAX_BULK_RESOURCES) {
       return error(`Maximum ${MAX_BULK_RESOURCES} resources per bulk operation`, 422, undefined, origin);
     }
@@ -53,10 +51,7 @@ export async function handler(
     logAuditAsync({
       organizationId, userId: user.sub, action: 'TAG_BULK_ASSIGNED',
       resourceType: 'tag',
-      details: {
-        tagIds, totalProcessed: result.totalProcessed,
-        assignedCount: result.assignedCount, failedCount: result.failedCount,
-      },
+      details: { tagIds, totalProcessed: result.totalProcessed, assignedCount: result.assignedCount, failedCount: result.failedCount },
       ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
     });
 

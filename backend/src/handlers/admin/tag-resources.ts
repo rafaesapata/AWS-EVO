@@ -1,6 +1,7 @@
 /**
  * Tag Resources Handler — Smart Resource Tagging
- * GET /api/v1/resources/:id/tags, GET /api/v1/tags/:id/resources
+ * POST /api/functions/tag-resources
+ * Actions: tags-for-resource, resources-by-tag
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -21,36 +22,33 @@ export async function handler(
   const method = event.requestContext?.http?.method || event.httpMethod || '';
 
   if (method === 'OPTIONS') return corsOptions(origin);
-  if (method !== 'GET') return error('Method not allowed', 405, undefined, origin);
 
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
-    const path = event.rawPath || event.path || '';
-    const qs = event.queryStringParameters || {};
+    const body = JSON.parse(event.body || '{}');
+    const action = body.action;
 
-    // GET /api/v1/resources/:id/tags
-    if (path.includes('/resources/') && path.endsWith('/tags')) {
-      const parts = path.split('/').filter(Boolean);
-      const resourceId = decodeURIComponent(parts[3]);
-      const tags = await getTagsForResource(organizationId, resourceId);
+    if (!action) return error('action is required', 400, undefined, origin);
+
+    if (action === 'tags-for-resource') {
+      if (!body.resourceId) return error('resourceId is required', 400, undefined, origin);
+      const tags = await getTagsForResource(organizationId, body.resourceId);
       return success(tags, 200, origin);
     }
 
-    // GET /api/v1/tags/:id/resources
-    if (path.includes('/tags/') && path.endsWith('/resources')) {
-      const parts = path.split('/').filter(Boolean);
-      const tagId = parts[3];
-      const result = await getResourcesByTag(organizationId, tagId, {
-        limit: qs.limit ? parseInt(qs.limit) : undefined,
-        cursor: qs.cursor,
-        resourceType: qs.resource_type,
-        cloudProvider: qs.cloud_provider,
+    if (action === 'resources-by-tag') {
+      if (!body.tagId) return error('tagId is required', 400, undefined, origin);
+      const result = await getResourcesByTag(organizationId, body.tagId, {
+        limit: body.limit,
+        cursor: body.cursor,
+        resourceType: body.resourceType,
+        cloudProvider: body.cloudProvider,
       });
       return success(result, 200, origin);
     }
 
-    return error('Invalid path', 400, undefined, origin);
+    return error('Invalid action', 400, undefined, origin);
   } catch (err: any) {
     logger.error('tag-resources handler error', err);
     return error('Internal server error', 500, undefined, origin);

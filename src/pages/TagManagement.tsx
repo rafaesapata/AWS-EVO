@@ -36,7 +36,7 @@ export default function TagManagement() {
   const [selectedSecTags, setSelectedSecTags] = useState<string[]>([]);
   const { isInDemoMode } = useDemoAwareQuery();
 
-  // Real queries — disabled in demo mode
+  // Real queries — disabled in demo mode, explicitly enabled otherwise
   const { data: tagData, isLoading: _isLoadingQuery } = useTagList({
     search: search || undefined,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,

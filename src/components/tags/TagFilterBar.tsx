@@ -25,11 +25,11 @@ export function TagFilterBar({ onFilterChange, syncWithUrl = true, showCloudFilt
   const debouncedSearch = useDebouncedValue(search, 150);
 
   const [selectedTags, setSelectedTags] = useState<Tag[]>(() => {
-    // Will be populated from URL on mount if syncWithUrl
     return [];
   });
 
-  const { data: tagData } = useTagList({ search: debouncedSearch || undefined, limit: 30 });
+  // Only fetch tags when popover is open (lazy) to avoid 404s when Lambdas not deployed
+  const { data: tagData } = useTagList({ search: debouncedSearch || undefined, limit: 30, enabled: open });
   const tags = tagData?.tags || [];
 
   // Sync from URL on mount

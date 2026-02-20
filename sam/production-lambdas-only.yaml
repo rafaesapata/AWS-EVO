@@ -5364,36 +5364,12 @@ Resources:
       Handler: tag-crud.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
-        TagList:
+        Api:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/tags
-            Method: GET
-        TagCreate:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/tags
+            Path: /api/functions/tag-crud
             Method: POST
-        TagGet:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/tags/{tagId}
-            Method: GET
-        TagUpdate:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/tags/{tagId}
-            Method: PATCH
-        TagDelete:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/tags/{tagId}
-            Method: DELETE
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -5414,17 +5390,11 @@ Resources:
       Handler: tag-assign.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
-        Assign:
+        Api:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/tags/{tagId}/assign
-            Method: POST
-        Unassign:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/tags/{tagId}/unassign
+            Path: /api/functions/tag-assign
             Method: POST
     Metadata:
       BuildMethod: esbuild
@@ -5451,7 +5421,7 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/tags/bulk-assign
+            Path: /api/functions/tag-bulk-assign
             Method: POST
     Metadata:
       BuildMethod: esbuild
@@ -5473,18 +5443,12 @@ Resources:
       Handler: tag-resources.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
-        TagsForResource:
+        Api:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/resources/{resourceId}/tags
-            Method: GET
-        ResourcesByTag:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/tags/{tagId}/resources
-            Method: GET
+            Path: /api/functions/tag-resources
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -5509,8 +5473,8 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/tags/suggestions
-            Method: GET
+            Path: /api/functions/tag-suggestions
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -5531,17 +5495,11 @@ Resources:
       Handler: tag-templates.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
-        List:
+        Api:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/tags/templates
-            Method: GET
-        Apply:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/tags/templates/apply
+            Path: /api/functions/tag-templates
             Method: POST
     Metadata:
       BuildMethod: esbuild
@@ -5568,8 +5526,8 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/tags/{tagId}/cost-report
-            Method: GET
+            Path: /api/functions/tag-cost-report
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -5594,8 +5552,8 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/tags/security-findings
-            Method: GET
+            Path: /api/functions/tag-security-findings
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -5620,8 +5578,8 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/tags/{tagId}/inventory
-            Method: GET
+            Path: /api/functions/tag-inventory-report
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -5646,8 +5604,8 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/tags/coverage
-            Method: GET
+            Path: /api/functions/tag-coverage
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -5672,8 +5630,8 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /api/v1/resources/untagged
-            Method: GET
+            Path: /api/functions/tag-untagged-resources
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

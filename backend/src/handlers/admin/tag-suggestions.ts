@@ -1,6 +1,6 @@
 /**
  * Tag Suggestions Handler — Smart Resource Tagging
- * GET /api/v1/tags/suggestions
+ * POST /api/functions/tag-suggestions
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -21,23 +21,22 @@ export async function handler(
   const method = event.requestContext?.http?.method || event.httpMethod || '';
 
   if (method === 'OPTIONS') return corsOptions(origin);
-  if (method !== 'GET') return error('Method not allowed', 405, undefined, origin);
 
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
-    const qs = event.queryStringParameters || {};
+    const body = JSON.parse(event.body || '{}');
 
-    if (!qs.resource_type || !qs.resource_name) {
-      return error('resource_type and resource_name are required', 422, undefined, origin);
+    if (!body.resourceType || !body.resourceName) {
+      return error('resourceType and resourceName are required', 422, undefined, origin);
     }
 
     const result = await getSuggestions(
       organizationId,
-      qs.resource_type,
-      qs.resource_name,
-      qs.account_id || '',
-      qs.region || ''
+      body.resourceType,
+      body.resourceName,
+      body.accountId || '',
+      body.region || ''
     );
 
     return success(result.data, 200, origin);

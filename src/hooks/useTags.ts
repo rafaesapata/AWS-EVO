@@ -49,7 +49,7 @@ export function useTagList(params?: { category?: string; search?: string; sortBy
       return (res as any).data;
     },
     retry: false,
-    enabled: params?.enabled !== false,
+    enabled: params?.enabled ?? false,
   });
 }
 
@@ -149,7 +149,7 @@ export function useTagSuggestions(params: { resourceType?: string; resourceName?
   });
 }
 
-export function useTagTemplates() {
+export function useTagTemplates(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['tags', 'templates'],
     queryFn: async () => {
@@ -157,6 +157,8 @@ export function useTagTemplates() {
       if ('error' in res && res.error) throw new Error(res.error);
       return (res as any).data;
     },
+    enabled: options?.enabled ?? false,
+    retry: false,
   });
 }
 
@@ -184,7 +186,7 @@ export function useTagCoverage(options?: { enabled?: boolean }) {
       return (res as any).data as CoverageMetrics;
     },
     retry: false,
-    enabled: options?.enabled !== false,
+    enabled: options?.enabled ?? false,
   });
 }
 
@@ -212,7 +214,7 @@ export function useTagSecurityFindings(tagIds: string[], params?: { severity?: s
   });
 }
 
-export function useUntaggedResources(params?: { resourceType?: string; cloudProvider?: string }) {
+export function useUntaggedResources(params?: { resourceType?: string; cloudProvider?: string; enabled?: boolean }) {
   return useQuery({
     queryKey: ['tags', 'untagged', params],
     queryFn: async () => {
@@ -220,6 +222,8 @@ export function useUntaggedResources(params?: { resourceType?: string; cloudProv
       if ('error' in res && res.error) throw new Error(res.error);
       return (res as any).data;
     },
+    enabled: params?.enabled ?? false,
+    retry: false,
   });
 }
 

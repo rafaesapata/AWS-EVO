@@ -28,9 +28,9 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
   const [result, setResult] = useState<any>(null);
 
   const { data: untaggedData, isLoading: loadingResources } = useUntaggedResources(
-    preFilter?.tagStatus === 'untagged' ? {} : undefined
+    preFilter?.tagStatus === 'untagged' ? { enabled: true } : undefined
   );
-  const { data: tagData } = useTagList({ limit: 100 });
+  const { data: tagData } = useTagList({ limit: 100, enabled: true });
   const bulkAssign = useBulkAssign();
 
   const resources = untaggedData?.resources || [];

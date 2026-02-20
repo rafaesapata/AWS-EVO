@@ -1,6 +1,6 @@
 /**
  * Untagged Resources Handler — Smart Resource Tagging
- * GET /api/v1/resources/untagged
+ * POST /api/functions/tag-untagged-resources
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -19,22 +19,20 @@ export async function handler(
 ): Promise<APIGatewayProxyResultV2> {
   const origin = getOrigin(event);
   const method = event.requestContext?.http?.method || event.httpMethod || '';
-
   if (method === 'OPTIONS') return corsOptions(origin);
-  if (method !== 'GET') return error('Method not allowed', 405, undefined, origin);
 
   try {
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
-    const qs = event.queryStringParameters || {};
+    const body = JSON.parse(event.body || '{}');
 
     const result = await getUntaggedResources(organizationId, {
-      limit: qs.limit ? parseInt(qs.limit) : undefined,
-      cursor: qs.cursor,
-      resourceType: qs.resource_type,
-      cloudProvider: qs.cloud_provider,
-      region: qs.region,
-      accountId: qs.account_id,
+      limit: body.limit,
+      cursor: body.cursor,
+      resourceType: body.resourceType,
+      cloudProvider: body.cloudProvider,
+      region: body.region,
+      accountId: body.accountId,
     });
 
     return success(result, 200, origin);
