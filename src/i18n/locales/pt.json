@@ -1865,7 +1865,13 @@
     "testEmail": "Testar Email",
     "testSent": "Email de teste enviado! Verifique sua caixa de entrada.",
     "testError": "Erro ao enviar email de teste",
-    "sending": "Enviando..."
+    "sending": "Enviando...",
+    "additionalEmails": "Emails Adicionais",
+    "additionalEmailsDesc": "Adicione outros destinatários para receber os relatórios e alertas",
+    "emailPlaceholder": "nome@empresa.com",
+    "noAdditionalEmails": "Nenhum email adicional configurado",
+    "invalidEmail": "Email inválido",
+    "duplicateEmail": "Email já adicionado"
   },
   "compliance": {
     "title": "Frameworks de Conformidade",

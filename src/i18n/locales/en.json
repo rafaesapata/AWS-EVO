@@ -1596,7 +1596,13 @@
     "testEmail": "Test Email",
     "testSent": "Test email sent! Check your inbox.",
     "testError": "Error sending test email",
-    "sending": "Sending..."
+    "sending": "Sending...",
+    "additionalEmails": "Additional Emails",
+    "additionalEmailsDesc": "Add other recipients to receive reports and alerts",
+    "emailPlaceholder": "name@company.com",
+    "noAdditionalEmails": "No additional emails configured",
+    "invalidEmail": "Invalid email",
+    "duplicateEmail": "Email already added"
   },
   "compliance": {
     "title": "Compliance Frameworks",

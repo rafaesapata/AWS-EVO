@@ -290,7 +290,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
     const existingSettings = orgUserIds.length > 0
       ? await prisma.notificationSettings.findMany({
           where: { userId: { in: orgUserIds } },
-          select: { userId: true, email_enabled: true, security_alerts: true },
+          select: { userId: true, email_enabled: true, security_alerts: true, additional_emails: true },
         })
       : [];
 
@@ -304,12 +304,34 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       return settings.email_enabled && settings.security_alerts;
     });
 
+    // Collect additional_emails from all settings that have email+security enabled
+    const additionalEmails = new Set<string>();
+    for (const ns of existingSettings) {
+      if (ns.email_enabled && ns.security_alerts && ns.additional_emails?.length) {
+        for (const email of ns.additional_emails) {
+          // Avoid duplicates with org profile emails
+          if (!orgProfiles.some((p) => p.email === email)) {
+            additionalEmails.add(email);
+          }
+        }
+      }
+    }
+
+    // Add additional emails as extra recipients
+    const additionalProfiles: RecipientProfile[] = Array.from(additionalEmails).map((email) => ({
+      user_id: 'additional',
+      email,
+      full_name: null,
+    }));
+
+    const allRecipients = [...profiles, ...additionalProfiles];
+
     // 9. Send emails via CommunicationLog
-    if (profiles.length === 0) {
+    if (allRecipients.length === 0) {
       logger.warn('No recipients with email enabled for organization', { organizationId });
     } else {
-      await sendReportEmails(prisma, profiles, report, payload);
-      logger.info('Report emails processed', { scanId, recipientCount: profiles.length });
+      await sendReportEmails(prisma, allRecipients, report, payload);
+      logger.info('Report emails processed', { scanId, recipientCount: allRecipients.length, additionalCount: additionalProfiles.length });
     }
 
     // 10. Evaluate alarm conditions and create AiNotifications

@@ -12,7 +12,8 @@ import { apiClient } from "@/integrations/aws/api-client";
 import { emailClient } from "@/integrations/aws/email-client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { Bell, Webhook, MessageSquare, Mail, TestTube, Shield, DollarSign, FileCheck, Activity, CalendarDays } from "lucide-react";
+import { Bell, Webhook, MessageSquare, Mail, TestTube, Shield, DollarSign, FileCheck, Activity, CalendarDays, Plus, X, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface NotificationSettingsData {
   email_enabled: boolean;
@@ -26,6 +27,7 @@ interface NotificationSettingsData {
   drift_alerts: boolean;
   weekly_reports: boolean;
   monthly_reports: boolean;
+  additional_emails: string[];
 }
 
 const defaultSettings: NotificationSettingsData = {
@@ -40,6 +42,7 @@ const defaultSettings: NotificationSettingsData = {
   drift_alerts: true,
   weekly_reports: true,
   monthly_reports: true,
+  additional_emails: [],
 };
 
 export default function NotificationSettingsPage() {
@@ -47,6 +50,7 @@ export default function NotificationSettingsPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState("channels");
   const [settings, setSettings] = useState<NotificationSettingsData>(defaultSettings);
+  const [newEmail, setNewEmail] = useState("");
 
   const { isLoading } = useQuery({
     queryKey: ['notification-settings'],
@@ -99,6 +103,26 @@ export default function NotificationSettingsPage() {
 
   const update = (field: keyof NotificationSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [field]: value }));
+  };
+
+  const addEmail = () => {
+    const email = newEmail.trim().toLowerCase();
+    if (!email) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error(t('notificationSettings.invalidEmail', 'Email inválido'));
+      return;
+    }
+    if (settings.additional_emails.includes(email)) {
+      toast.error(t('notificationSettings.duplicateEmail', 'Email já adicionado'));
+      return;
+    }
+    update('additional_emails', [...settings.additional_emails, email]);
+    setNewEmail("");
+  };
+
+  const removeEmail = (email: string) => {
+    update('additional_emails', settings.additional_emails.filter(e => e !== email));
   };
 
   return (
@@ -180,6 +204,53 @@ export default function NotificationSettingsPage() {
                   />
                 </CardContent>
               )}
+            </Card>
+
+            {/* Additional Emails */}
+            <Card className="glass border-primary/20">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5 text-primary" />
+                  <div>
+                    <CardTitle className="text-base">{t('notificationSettings.additionalEmails', 'Emails Adicionais')}</CardTitle>
+                    <CardDescription>{t('notificationSettings.additionalEmailsDesc', 'Adicione outros destinatários para receber os relatórios e alertas')}</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder={t('notificationSettings.emailPlaceholder', 'nome@empresa.com')}
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addEmail())}
+                  />
+                  <Button type="button" variant="outline" size="icon" onClick={addEmail} className="glass shrink-0">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {settings.additional_emails.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {settings.additional_emails.map((email) => (
+                      <Badge key={email} variant="secondary" className="gap-1 pl-3 pr-1 py-1.5">
+                        {email}
+                        <button
+                          type="button"
+                          onClick={() => removeEmail(email)}
+                          className="ml-1 rounded-full p-0.5 hover:bg-destructive/20 transition-colors"
+                          aria-label={`${t('common.remove', 'Remover')} ${email}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                {settings.additional_emails.length === 0 && (
+                  <p className="text-sm text-muted-foreground">{t('notificationSettings.noAdditionalEmails', 'Nenhum email adicional configurado')}</p>
+                )}
+              </CardContent>
             </Card>
           </TabsContent>
 

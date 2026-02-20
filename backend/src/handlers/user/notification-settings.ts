@@ -28,6 +28,7 @@ const notificationSettingsSchema = z.object({
   drift_alerts: z.boolean().default(true),
   weekly_reports: z.boolean().default(true),
   monthly_reports: z.boolean().default(true),
+  additional_emails: z.array(z.string().email()).default([]),
 }).passthrough(); // Accept extra fields from frontend but only persist known ones
 
 // Fields that actually exist in the Prisma NotificationSettings model
@@ -36,6 +37,7 @@ const PRISMA_FIELDS = [
   'slack_enabled', 'slack_webhook_url',
   'security_alerts', 'cost_alerts', 'compliance_alerts',
   'drift_alerts', 'weekly_reports', 'monthly_reports',
+  'additional_emails',
 ] as const;
 
 /**
@@ -75,13 +77,13 @@ export async function getHandler(
         email_enabled: true,
         webhook_enabled: false,
         slack_enabled: false,
-        datadog_enabled: false,
-        graylog_enabled: false,
-        zabbix_enabled: false,
-        notify_on_critical: true,
-        notify_on_high: true,
-        notify_on_medium: false,
-        notify_on_scan_complete: true,
+        security_alerts: true,
+        cost_alerts: true,
+        compliance_alerts: true,
+        drift_alerts: true,
+        weekly_reports: true,
+        monthly_reports: true,
+        additional_emails: [],
       };
       return success(defaultSettings, 200, origin);
     }
