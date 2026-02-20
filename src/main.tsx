@@ -31,6 +31,7 @@ import WellArchitected from "./pages/WellArchitected";
 import LicenseManagement from "./pages/LicenseManagement";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import CommunicationCenter from "./pages/CommunicationCenter";
+import NotificationSettingsPage from "./pages/NotificationSettings";
 import BackgroundJobs from "./pages/BackgroundJobs";
 import PredictiveIncidents from "./pages/PredictiveIncidents";
 import BedrockTestPage from "./pages/BedrockTestPage";
@@ -224,6 +225,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <CommunicationCenter />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/notification-settings" 
+                element={
+                  <ProtectedRoute>
+                    <NotificationSettingsPage />
                   </ProtectedRoute>
                 } 
               />

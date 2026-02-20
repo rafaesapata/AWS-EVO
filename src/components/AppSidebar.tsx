@@ -115,6 +115,7 @@ const menuItems: MenuItem[] = [
       { titleKey: "sidebar.license", value: "license" },
       // { titleKey: "sidebar.awsSettings", value: "aws-settings" }, // Desativado - funcionalidade migrada para Credenciais Cloud
       { titleKey: "sidebar.cloudCredentials", value: "cloud-credentials" },
+      { titleKey: "sidebar.notificationSettings", value: "notification-settings" },
       { titleKey: "sidebar.manageUsers", value: "users" },
       { titleKey: "sidebar.organizations", value: "organizations", superAdminOnly: true },
       { titleKey: "sidebar.scheduledJobs", value: "scheduled-jobs", superAdminOnly: true },
@@ -170,6 +171,8 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/aws-settings');
     } else if (value === 'cloud-credentials') {
       navigate('/cloud-credentials');
+    } else if (value === 'notification-settings') {
+      navigate('/notification-settings');
     } else if (value === 'knowledge-base') {
       navigate('/knowledge-base');
     } else if (value === 'scheduled-jobs') {
