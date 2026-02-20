@@ -277,18 +277,6 @@ export async function handler(
             dataWithOrg.created_by = userId;
           }
           
-          // Log payload for scan_schedules debugging
-          if (body.table === 'scan_schedules') {
-            logger.info('scan_schedules insert payload', {
-              aws_account_id: dataWithOrg.aws_account_id,
-              azure_credential_id: dataWithOrg.azure_credential_id,
-              cloud_provider: dataWithOrg.cloud_provider,
-              scan_type: dataWithOrg.scan_type,
-              schedule_type: dataWithOrg.schedule_type,
-              organization_id: dataWithOrg.organization_id,
-            });
-          }
-          
           result = await model.create({
             data: dataWithOrg,
           });
