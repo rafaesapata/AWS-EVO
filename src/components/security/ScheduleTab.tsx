@@ -130,11 +130,13 @@ export function ScheduleTab({ organizationId, selectedAccountId }: ScheduleTabPr
     queryKey: ['scan-schedules', organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const response = await apiClient.lambda<{ data: ScanSchedule[] }>('query-table', {
+      const response = await apiClient.lambda<ScanSchedule[]>('query-table', {
         table: 'scan_schedules',
         order: { column: 'created_at', ascending: false }
       });
-      return response.data?.data || [];
+      // query-table returns array directly in response.data
+      const data = response.data;
+      return Array.isArray(data) ? data : [];
     }
   });
 
