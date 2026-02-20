@@ -321,7 +321,7 @@ export default function LicenseManagement() {
         description={t('licenseManagement.description', 'Visualize e gerencie sua licença da plataforma EVO')}
         icon={<CreditCard className="h-4 w-4" />}
       >
-        <div className="min-h-[80vh] bg-[#F1F3F7] -m-6 p-6">
+        <div className="bg-[#F1F3F7] dark:bg-transparent -m-3 p-3">
           <div className="space-y-6">
             <Skeleton className="h-12 w-96 rounded-xl" />
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -342,7 +342,7 @@ export default function LicenseManagement() {
       description={t('licenseManagement.description', 'Visualize e gerencie sua licença da plataforma EVO')}
       icon={<CreditCard className="h-4 w-4" />}
     >
-      <div className="min-h-[80vh] bg-[#F1F3F7] -m-6 p-6 space-y-6">
+      <div className="bg-[#F1F3F7] dark:bg-transparent -m-3 p-3 space-y-6">
         {/* Loading State */}
         {(licenseLoading || linkCustomerIdMutation.isPending) && (
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
