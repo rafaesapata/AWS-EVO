@@ -147,11 +147,16 @@ export async function handler(
     let calculation: string;
     if (suggestedAmount <= 0) {
       suggestedAmount = previousMonthSpend * FALLBACK_RATIO;
-      calculation = `Fallback: $${previousMonthSpend.toFixed(2)} × ${FALLBACK_RATIO} = $${suggestedAmount.toFixed(2)} (savings exceeded spend)`;
+      const fallbackStr = `Fallback: $${previousMonthSpend.toFixed(2)} × ${FALLBACK_RATIO} = $${suggestedAmount.toFixed(2)} (savings exceeded spend)`;
+      calculation = fallbackStr;
     } else {
-      calculation = `$${previousMonthSpend.toFixed(2)} - ($${totalSavings.toFixed(2)} × ${REALIZATION_FACTOR}) = $${suggestedAmount.toFixed(2)}`;
+      const parts: string[] = [];
+      if (costOptSavings > 0) parts.push(`Cost Opt: $${costOptSavings.toFixed(2)}`);
+      if (wasteSavings > 0) parts.push(`Waste: $${wasteSavings.toFixed(2)}`);
+      if (riSpSavings > 0) parts.push(`RI/SP: $${riSpSavings.toFixed(2)}`);
+      const savingsDetail = parts.length > 0 ? ` [${parts.join(" + ")}]` : "";
+      calculation = `$${previousMonthSpend.toFixed(2)} - ($${totalSavings.toFixed(2)}${savingsDetail} × ${REALIZATION_FACTOR}) = $${suggestedAmount.toFixed(2)}`;
     }
-
     // Arredondar para 2 casas decimais, garantir mínimo de $0.01
     suggestedAmount = Math.max(0.01, Math.round(suggestedAmount * 100) / 100);
 
