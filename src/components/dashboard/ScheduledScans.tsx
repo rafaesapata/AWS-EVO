@@ -76,12 +76,13 @@ export const ScheduledScans = () => {
     enabled: isSuperAdmin && !!organizationId,
     queryFn: async () => {
       // Use query-table Lambda to fetch from scan_schedules table
-      const response = await apiClient.lambda<{ data: ScanSchedule[] }>('query-table', {
+      const response = await apiClient.lambda<ScanSchedule[]>('query-table', {
         table: 'scan_schedules',
-        filters: { organization_id: organizationId },
-        orderBy: { column: 'created_at', direction: 'desc' }
+        order: { column: 'created_at', ascending: false }
       });
-      return response.data?.data || [];
+      // query-table returns array directly in response.data
+      const data = response.data;
+      return Array.isArray(data) ? data : [];
     },
   });
 
