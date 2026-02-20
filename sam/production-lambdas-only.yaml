@@ -2828,6 +2828,26 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+  ScanReportGeneratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-scan-report-generator'
+      CodeUri: ../backend/src/handlers/jobs/
+      Handler: scan-report-generator.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 120
+      MemorySize: 512
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - scan-report-generator.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
   ScheduledScanExecutorFunction:
     Type: AWS::Serverless::Function
     Properties:

@@ -15,6 +15,7 @@ import { logger } from '../../lib/logger.js';
 import { complianceScanSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { isOrganizationInDemoMode, generateDemoComplianceData } from '../../lib/demo-data-service.js';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 
 // AWS SDK imports
 import { IAMClient, GetAccountSummaryCommand, GetAccountPasswordPolicyCommand, ListUsersCommand, ListMFADevicesCommand, ListAttachedUserPoliciesCommand, GenerateCredentialReportCommand, GetCredentialReportCommand, ListAccessKeysCommand } from '@aws-sdk/client-iam';
@@ -1697,6 +1698,27 @@ export async function handler(
       regionsScanned: regionsToScan.length,
       duration: `${duration}ms`
     });
+    
+    // Invoke scan-report-generator asynchronously (fire-and-forget)
+    try {
+      const reportLambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
+      const prefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'production'}`;
+      await reportLambdaClient.send(new InvokeCommand({
+        FunctionName: `${prefix}-scan-report-generator`,
+        InvocationType: 'Event',
+        Payload: Buffer.from(JSON.stringify({
+          scanId: scanRecord.id,
+          organizationId,
+          accountId: credential.id,
+          cloudProvider: 'AWS',
+          scanType: `compliance-${frameworkId}`,
+          scheduledExecution: false,
+        })),
+      }));
+      logger.info('Scan report generator invoked', { scanId: scanRecord.id });
+    } catch (reportErr) {
+      logger.error('Failed to invoke scan-report-generator', reportErr as Error, { scanId: scanRecord.id });
+    }
     
     return success({
       scan_id: scanRecord.id,

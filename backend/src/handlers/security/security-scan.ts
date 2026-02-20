@@ -20,6 +20,7 @@ import { businessMetrics } from '../../lib/metrics.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { runSecurityScan, type ScanContext, type ScanLevel, resetGlobalCache } from '../../lib/security-engine/index.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
 import { computeFingerprint, computeFallbackFingerprint } from '../../lib/security-engine/fingerprint.js';
 import { classifyFindings, computeLifecycleTransition, type NewScanFinding } from '../../lib/security-engine/delta-sync.js';
@@ -532,6 +533,29 @@ async function securityScanHandler(
       ipAddress: getIpFromEvent(event),
       userAgent: getUserAgentFromEvent(event),
     });
+    
+    // Invoke scan-report-generator asynchronously (fire-and-forget)
+    // Generates comparison report, sends email, logs to communication_logs
+    try {
+      const reportLambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
+      const prefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'production'}`;
+      await reportLambdaClient.send(new InvokeCommand({
+        FunctionName: `${prefix}-scan-report-generator`,
+        InvocationType: 'Event', // Async - fire and forget
+        Payload: Buffer.from(JSON.stringify({
+          scanId: scan.id,
+          organizationId,
+          accountId: awsAccountId,
+          cloudProvider: 'AWS',
+          scanType: scan.scan_type || scanLevel,
+          scheduledExecution: false,
+        })),
+      }));
+      logger.info('Scan report generator invoked', { scanId: scan.id });
+    } catch (reportErr) {
+      // Don't fail the scan if report generation fails
+      logger.error('Failed to invoke scan-report-generator', reportErr as Error, { scanId: scan.id });
+    }
     
     return success({
       scan_id: scan.id,
