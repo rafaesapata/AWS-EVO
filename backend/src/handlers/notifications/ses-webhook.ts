@@ -265,6 +265,35 @@ export async function handler(event: any): Promise<APIGatewayProxyResultV2> {
       }
     }
 
+    // Update communication_logs status based on delivery events
+    try {
+      if (['Delivery', 'Bounce', 'Complaint', 'Reject'].includes(sesEvent.eventType)) {
+        const newStatus = sesEvent.eventType === 'Delivery' ? 'delivered' : 'failed';
+        // Find communication_logs entries by messageId in metadata
+        const logsToUpdate = await prisma.$queryRawUnsafe(
+          `SELECT id FROM communication_logs WHERE metadata->>'messageId' = $1 LIMIT 10`,
+          sesEvent.mail.messageId
+        ) as Array<{ id: string }>;
+        
+        for (const log of logsToUpdate) {
+          await prisma.communicationLog.update({
+            where: { id: log.id },
+            data: { status: newStatus },
+          });
+        }
+        
+        if (logsToUpdate.length > 0) {
+          logger.info('Updated communication_logs status', {
+            messageId: sesEvent.mail.messageId,
+            newStatus,
+            count: logsToUpdate.length,
+          });
+        }
+      }
+    } catch (syncErr) {
+      logger.warn('Failed to sync communication_logs status (non-blocking)', { error: (syncErr as Error).message });
+    }
+
     return { statusCode: 200, body: JSON.stringify({ status: 'processed', eventType: sesEvent.eventType }) };
 
   } catch (err) {

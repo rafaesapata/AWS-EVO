@@ -10,6 +10,7 @@ import { logger } from '../../lib/logger.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, checkUserRateLimit, RateLimitError } from '../../lib/auth.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { sanitizeStringAdvanced, parseAndValidateBody } from '../../lib/validation.js';
+import { getPrismaClient } from '../../lib/database.js';
 import { sendEmailSchema } from '../../lib/schemas.js';
 import { z } from 'zod';
 import { getAllowedResetDomains } from '../../lib/app-domain.js';
@@ -228,6 +229,32 @@ export async function handler(
       recipients: Array.isArray(request.to) ? request.to.length : 1,
       messageId: 'messageId' in result ? result.messageId : (result as any).messageIds?.[0],
     });
+
+    // Log to communication_logs for Communication Center visibility
+    try {
+      const prisma = getPrismaClient();
+      const recipients = Array.isArray(request.to) ? request.to : [request.to];
+      const messageId = 'messageId' in result ? result.messageId : (result as any).messageIds?.[0];
+      for (const recipient of recipients) {
+        await prisma.communicationLog.create({
+          data: {
+            organization_id: organizationId,
+            channel: 'email',
+            recipient: typeof recipient === 'string' ? recipient : recipient,
+            subject: request.subject || `[${request.type}] Email`,
+            message: request.textBody || request.htmlBody || request.type,
+            status: 'sent',
+            metadata: {
+              type: request.type,
+              messageId,
+              source: 'send-email',
+            },
+          },
+        });
+      }
+    } catch (logErr) {
+      logger.warn('Failed to log communication (non-blocking)', { error: (logErr as Error).message });
+    }
 
     return success({
       message: 'Email sent successfully',
