@@ -123,7 +123,7 @@ export const ScheduledScans = () => {
         schedule_config: { hour: 2 },
         is_active: true
       });
-      setSelectedAccountId('');
+      setDialogSelectedAccountId('');
     },
     onError: (error) => {
       toast.error(t('scheduledScans.createError', 'Erro ao criar agendamento'), {
@@ -137,7 +137,7 @@ export const ScheduledScans = () => {
       const response = await apiClient.lambda('mutate-table', {
         table: 'scan_schedules',
         operation: 'update',
-        id,
+        where: { id },
         data: { is_active }
       });
       if (response.error) throw new Error(response.error.message || 'Unknown error');
@@ -159,7 +159,7 @@ export const ScheduledScans = () => {
       const response = await apiClient.lambda('mutate-table', {
         table: 'scan_schedules',
         operation: 'delete',
-        id
+        where: { id }
       });
       if (response.error) throw new Error(response.error.message || 'Unknown error');
     },
@@ -197,7 +197,7 @@ export const ScheduledScans = () => {
       await apiClient.lambda('mutate-table', {
         table: 'scan_schedules',
         operation: 'update',
-        id: schedule.id,
+        where: { id: schedule.id },
         data: { 
           last_run_at: new Date().toISOString(),
           next_run_at: calculateNextRun(schedule.schedule_type, schedule.schedule_config)
@@ -223,11 +223,16 @@ export const ScheduledScans = () => {
       const user = await cognitoAuth.getCurrentUser();
       if (!user) return;
 
-      const response = await apiClient.lambda<{ data: any[] }>('query-table', {
+      const response = await apiClient.lambda<any[]>('query-table', {
         table: 'profiles',
-        filters: { user_id: user.userId, role: 'super_admin' }
+        eq: { user_id: user.userId }
       });
-      setIsSuperAdmin(!!(response.data?.data && response.data.data.length > 0));
+      // query-table returns array directly in response.data
+      const profiles = Array.isArray(response.data) ? response.data : [];
+      const hasAdmin = profiles.some((p: any) => 
+        p.role === 'super_admin' || p.role === 'admin' || p.role === 'org_admin'
+      );
+      setIsSuperAdmin(hasAdmin);
     };
     checkSuperAdmin();
   }, []);
