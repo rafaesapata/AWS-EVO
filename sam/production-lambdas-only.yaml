@@ -43,6 +43,8 @@ Globals:
         AWS_SES_FROM_EMAIL: evo@nuevacore.com
         AWS_SES_FROM_NAME: EVO Platform
         AWS_SES_DOMAIN: nuevacore.com
+        AWS_SES_ACCESS_KEY_ID: !Ref SesAccessKeyId
+        AWS_SES_SECRET_ACCESS_KEY: !Ref SesSecretAccessKey
     Layers:
       - !Ref DependenciesLayer
 Parameters:
@@ -110,6 +112,16 @@ Parameters:
     Type: String
     Description: WebAuthn Relying Party display name
     Default: 'EVO Platform'
+  SesAccessKeyId:
+    Type: String
+    Description: AWS SES dedicated access key ID
+    Default: ''
+    NoEcho: true
+  SesSecretAccessKey:
+    Type: String
+    Description: AWS SES dedicated secret access key
+    Default: ''
+    NoEcho: true
 Resources:
   # ==========================================================================
   # LAMBDA LAYER - Prisma + zod (AWS SDK bundled by esbuild)
@@ -4043,6 +4055,57 @@ Resources:
         Sourcemap: false
         EntryPoints:
           - send-email.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+  SesWebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ses-webhook'
+      CodeUri: ../backend/src/handlers/notifications/
+      Handler: ses-webhook.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/webhooks/ses
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - ses-webhook.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+  EmailDeliveryStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-email-delivery-status'
+      CodeUri: ../backend/src/handlers/notifications/
+      Handler: email-delivery-status.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/email-delivery-status
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - email-delivery-status.ts
         External:
           - '@prisma/client'
           - '.prisma/client'

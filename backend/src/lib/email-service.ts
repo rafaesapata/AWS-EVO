@@ -135,8 +135,11 @@ export class EmailService {
         return await this.sendRawEmail(options);
       }
 
+      const sesConfigSet = process.env.SES_CONFIGURATION_SET || 'evo-email-tracking';
+
       const command = new SendEmailCommand({
         Source: this.formatEmailAddress(this.fromAddress),
+        ConfigurationSetName: sesConfigSet,
         Destination: {
           ToAddresses: toAddresses.map(addr => this.formatEmailAddress(addr)),
           CcAddresses: ccAddresses.map(addr => this.formatEmailAddress(addr)),

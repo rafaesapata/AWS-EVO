@@ -2580,3 +2580,30 @@ model CloudBudget {
   @@index([account_id])
   @@map("cloud_budgets")
 }
+
+// ==================== EMAIL DELIVERY TRACKING ====================
+// Rastreamento de entrega de emails via SES Event Publishing
+
+model EmailEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String?  @db.Uuid
+  message_id      String   // SES MessageId
+  event_type      String   // Send, Delivery, Bounce, Complaint, Reject, Open, Click
+  recipient       String   // Email do destinatário
+  sender          String?  // Email do remetente
+  subject         String?
+  bounce_type     String?  // Permanent, Transient
+  bounce_sub_type String?  // General, NoEmail, Suppressed, etc.
+  complaint_type  String?  // abuse, auth-failure, fraud, etc.
+  diagnostic      String?  // Mensagem de diagnóstico do servidor
+  timestamp       DateTime @db.Timestamptz(6)
+  raw_event       Json?    // Evento completo do SES para debug
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([message_id])
+  @@index([organization_id])
+  @@index([recipient])
+  @@index([event_type])
+  @@index([timestamp])
+  @@map("email_events")
+}
