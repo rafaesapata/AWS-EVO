@@ -278,6 +278,8 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
     };
 
     // 8. Fetch recipients with email notifications enabled
+    // If no notification_settings exist, default behavior is to send to all org profiles
+    // (model defaults are email_enabled=true, security_alerts=true)
     const orgProfiles = await prisma.profile.findMany({
       where: { organization_id: organizationId },
       select: { user_id: true, email: true, full_name: true },
@@ -285,19 +287,22 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
 
     const orgUserIds = orgProfiles.map((p) => p.user_id);
 
-    const enabledSettings = orgUserIds.length > 0
+    const existingSettings = orgUserIds.length > 0
       ? await prisma.notificationSettings.findMany({
-          where: {
-            userId: { in: orgUserIds },
-            email_enabled: true,
-            security_alerts: true,
-          },
-          select: { userId: true },
+          where: { userId: { in: orgUserIds } },
+          select: { userId: true, email_enabled: true, security_alerts: true },
         })
       : [];
 
-    const enabledUserIds = new Set(enabledSettings.map((ns) => ns.userId));
-    const profiles = orgProfiles.filter((p) => enabledUserIds.has(p.user_id));
+    // Users with explicit settings: respect their preferences
+    const settingsMap = new Map(existingSettings.map((ns) => [ns.userId, ns]));
+    
+    // Include user if: no settings exist (use defaults) OR settings have both flags enabled
+    const profiles = orgProfiles.filter((p) => {
+      const settings = settingsMap.get(p.user_id);
+      if (!settings) return true; // No settings = use defaults (both true)
+      return settings.email_enabled && settings.security_alerts;
+    });
 
     // 9. Send emails via CommunicationLog
     if (profiles.length === 0) {

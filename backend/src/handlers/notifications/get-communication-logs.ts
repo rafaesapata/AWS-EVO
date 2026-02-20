@@ -16,8 +16,10 @@ import { z } from 'zod';
 const getCommunicationLogsSchema = z.object({
   channel: z.enum(['email', 'sms', 'webhook', 'slack', 'sns']).optional(),
   status: z.enum(['sent', 'failed', 'pending', 'delivered']).optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  search: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(500).default(25),
+  accountId: z.string().optional(),
 });
 
 export async function handler(
@@ -42,39 +44,63 @@ export async function handler(
       return validation.error;
     }
     
-    const { channel, status, limit, offset } = validation.data;
+    const { channel, status, search, page = 1, pageSize = 25 } = validation.data;
+    const offset = ((page ?? 1) - 1) * (pageSize ?? 25);
     
     const prisma = getPrismaClient();
     
-    const logs = await prisma.communicationLog.findMany({
-      where: {
-        organization_id: organizationId,
-        ...(channel && { channel }),
-        ...(status && { status }),
-      },
-      orderBy: { sent_at: 'desc' },
-      take: limit,
-      skip: offset,
-    });
+    const whereClause: any = {
+      organization_id: organizationId,
+      ...(channel && { channel }),
+      ...(status && { status }),
+      ...(search && {
+        OR: [
+          { recipient: { contains: search, mode: 'insensitive' } },
+          { subject: { contains: search, mode: 'insensitive' } },
+          { message: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+    };
     
-    const total = await prisma.communicationLog.count({
-      where: {
-        organization_id: organizationId,
-        ...(channel && { channel }),
-        ...(status && { status }),
-      },
-    });
+    const [logs, total, byChannelRaw, byStatusRaw] = await Promise.all([
+      prisma.communicationLog.findMany({
+        where: whereClause,
+        orderBy: { sent_at: 'desc' },
+        take: pageSize,
+        skip: offset,
+      }),
+      prisma.communicationLog.count({ where: whereClause }),
+      prisma.communicationLog.groupBy({
+        by: ['channel'],
+        where: { organization_id: organizationId },
+        _count: true,
+      }),
+      prisma.communicationLog.groupBy({
+        by: ['status'],
+        where: { organization_id: organizationId },
+        _count: true,
+      }),
+    ]);
+    
+    const byChannel: Record<string, number> = {};
+    for (const row of byChannelRaw) byChannel[row.channel] = row._count;
+    const byStatus: Record<string, number> = {};
+    for (const row of byStatusRaw) byStatus[row.status] = row._count;
     
     logger.info(`✅ Retrieved ${logs.length} communication logs`);
     
     return success({
-      success: true,
-      logs,
+      data: logs,
       pagination: {
+        page,
+        pageSize,
         total,
-        limit,
-        offset,
-        hasMore: (offset ?? 0) + logs.length < total,
+        totalPages: Math.ceil(total / (pageSize ?? 25)),
+      },
+      stats: {
+        total,
+        byChannel,
+        byStatus,
       },
     });
     

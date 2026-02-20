@@ -12,30 +12,31 @@ import { getOrigin } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
 
-// Zod schema for notification settings
+// Zod schema for notification settings - only fields that exist in Prisma schema
 const notificationSettingsSchema = z.object({
-  email_enabled: z.boolean(),
+  email_enabled: z.boolean().default(true),
   webhook_enabled: z.boolean().default(false),
-  webhook_url: z.string().url().optional(),
+  webhook_url: z.string().url().optional().nullable(),
   slack_enabled: z.boolean().default(false),
   slack_webhook_url: z.string().url().refine(
     (url) => !url || url.startsWith('https://hooks.slack.com/'),
     { message: 'Invalid Slack webhook URL format' }
-  ).optional(),
-  datadog_enabled: z.boolean().default(false),
-  datadog_api_key: z.string().max(100).optional(),
-  datadog_site: z.string().max(50).optional(),
-  graylog_enabled: z.boolean().default(false),
-  graylog_url: z.string().url().optional(),
-  graylog_port: z.number().int().min(1).max(65535).optional(),
-  zabbix_enabled: z.boolean().default(false),
-  zabbix_url: z.string().url().optional(),
-  zabbix_auth_token: z.string().max(200).optional(),
-  notify_on_critical: z.boolean().default(true),
-  notify_on_high: z.boolean().default(true),
-  notify_on_medium: z.boolean().default(false),
-  notify_on_scan_complete: z.boolean().default(true),
-});
+  ).optional().nullable(),
+  security_alerts: z.boolean().default(true),
+  cost_alerts: z.boolean().default(true),
+  compliance_alerts: z.boolean().default(true),
+  drift_alerts: z.boolean().default(true),
+  weekly_reports: z.boolean().default(true),
+  monthly_reports: z.boolean().default(true),
+}).passthrough(); // Accept extra fields from frontend but only persist known ones
+
+// Fields that actually exist in the Prisma NotificationSettings model
+const PRISMA_FIELDS = [
+  'email_enabled', 'webhook_enabled', 'webhook_url',
+  'slack_enabled', 'slack_webhook_url',
+  'security_alerts', 'cost_alerts', 'compliance_alerts',
+  'drift_alerts', 'weekly_reports', 'monthly_reports',
+] as const;
 
 /**
  * Get user notification settings
@@ -131,11 +132,19 @@ export async function postHandler(
     
     const settings = validation.data;
 
+    // Only persist fields that exist in the Prisma schema
+    const prismaData: Record<string, any> = {};
+    for (const field of PRISMA_FIELDS) {
+      if (settings[field] !== undefined) {
+        prismaData[field] = settings[field];
+      }
+    }
+
     const prisma = getPrismaClient();
     const updatedSettings = await prisma.notificationSettings.upsert({
       where: { userId },
-      update: { ...settings, updated_at: new Date() },
-      create: { userId, ...settings, created_at: new Date(), updated_at: new Date() },
+      update: { ...prismaData, updated_at: new Date() },
+      create: { userId, ...prismaData, created_at: new Date(), updated_at: new Date() },
     });
 
     logger.info('Notification settings updated', { userId, settingsId: updatedSettings.id });

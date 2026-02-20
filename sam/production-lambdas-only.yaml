@@ -5213,6 +5213,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /api/functions/notification-settings
             Method: POST
+        ApiGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /user/notification-settings
+            Method: GET
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
