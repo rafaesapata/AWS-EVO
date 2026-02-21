@@ -199,6 +199,16 @@ export async function handler(
     const allCosts: any[] = [];
     let totalNewRecords = 0;
     let totalSkippedDays = 0;
+
+    // SWR Cache - skip expensive Cost Explorer API calls if data is fresh
+    const requestedStart = requestedStartDate || getDateDaysAgo(365);
+    const filterHash = createHash('md5').update(JSON.stringify({ accountId, startDate: requestedStart, endDate, granularity })).digest('hex').slice(0, 12);
+    const cacheKey = `daily:${organizationId}:${filterHash}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
+    if (cached && !cached.stale) {
+      logger.info('Daily costs cache hit (fresh)', { organizationId });
+      return success({ ...cached.data, _fromCache: true });
+    }
     
     // Processar cada conta AWS
     for (const account of awsAccounts) {
@@ -399,21 +409,6 @@ export async function handler(
     
     // IMPORTANT: Always return existing data from database, not just newly fetched data
     // This ensures the frontend always has data to display
-    const requestedStart = requestedStartDate || getDateDaysAgo(365);
-
-    // SWR Cache for the final response (DB read portion)
-    // The Cost Explorer fetch + DB write above still runs, but subsequent reads within freshFor are instant
-    const filterHash = createHash('md5').update(JSON.stringify({ accountId, startDate: requestedStart, endDate, granularity })).digest('hex').slice(0, 12);
-    const cacheKey = `daily:${organizationId}:${filterHash}`;
-    
-    // Only use cache if no new records were fetched (incremental had nothing new)
-    if (totalNewRecords === 0) {
-      const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
-      if (cached && !cached.stale) {
-        logger.info('Daily costs cache hit (fresh, no new data)', { organizationId });
-        return success({ ...cached.data, _fromCache: true });
-      }
-    }
 
     // Fetch all existing costs from database for the requested period
     const existingCosts = await prisma.dailyCost.findMany({
