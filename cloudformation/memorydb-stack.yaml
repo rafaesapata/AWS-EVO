@@ -150,7 +150,7 @@ Resources:
     Properties:
       Name: !Sub '/evo-uds/${Environment}/memorydb/port'
       Type: String
-      Value: !GetAtt MemoryDBCluster.ClusterEndpoint.Port
+      Value: !Sub '${MemoryDBCluster.ClusterEndpoint.Port}'
       Description: MemoryDB cluster port
       Tags:
         Environment: !Ref Environment
@@ -165,7 +165,7 @@ Outputs:
 
   MemoryDBClusterPort:
     Description: MemoryDB Cluster Port
-    Value: !GetAtt MemoryDBCluster.ClusterEndpoint.Port
+    Value: !Sub '${MemoryDBCluster.ClusterEndpoint.Port}'
     Export:
       Name: !Sub '${AWS::StackName}-MemoryDBPort'
 
