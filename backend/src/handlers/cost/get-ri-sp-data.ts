@@ -10,6 +10,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoRISPAnalysis } from '../../lib/demo-data-service.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 const HOURS_PER_MONTH = 730;
 
@@ -121,7 +122,8 @@ export async function handler(
     const totalRISavings = activeRIs.reduce((sum, ri) => sum + (ri.net_savings || 0), 0);
     const totalSPSavings = activeSPs.reduce((sum, sp) => sum + (sp.net_savings || 0), 0);
     
-    const totalPotentialSavings = recommendations.reduce((sum, rec) => sum + (rec.estimated_annual_savings || 0), 0);
+    // BUG FIX: Sum monthly savings from recommendations, not annual
+    const totalMonthlySavings = recommendations.reduce((sum, rec) => sum + (rec.estimated_monthly_savings || 0), 0);
     
     // Calculate coverage (simplified - based on active commitments)
     const overallCoverage = activeRIs.length > 0 && activeSPs.length > 0
@@ -162,7 +164,7 @@ export async function handler(
       status: activeRIs.length > 0 || activeSPs.length > 0 ? 'optimized' : 'needs_attention',
       totalCommitments: activeRIs.length + activeSPs.length,
       coverageScore: overallCoverage,
-      potentialAnnualSavings: totalPotentialSavings,
+      potentialAnnualSavings: totalMonthlySavings * 12,
       recommendationsSummary: {
         total: recommendations.length,
         critical: recommendations.filter(r => r.priority === 1).length,
@@ -174,7 +176,7 @@ export async function handler(
         `${activeSPs.length} Savings Plans ativos (utilização: ${avgSPUtilization.toFixed(1)}%)`,
         `Score de cobertura: ${overallCoverage.toFixed(1)}%`,
         `${recommendations.length} oportunidades de otimização identificadas`,
-        `Economia potencial anual: $${totalPotentialSavings.toFixed(2)}`,
+        `Economia potencial anual: ${(totalMonthlySavings * 12).toFixed(2)}`,
       ],
     };
     
@@ -243,8 +245,8 @@ export async function handler(
       },
       recommendations: transformedRecommendations,
       potentialSavings: {
-        monthly: totalPotentialSavings / 12,
-        annual: totalPotentialSavings,
+        monthly: totalMonthlySavings,
+        annual: totalMonthlySavings * 12,
         maxPercentage: transformedRecommendations.length > 0
           ? Math.max(...transformedRecommendations.map(r => r.potentialSavings.percentage || 0))
           : 0,
