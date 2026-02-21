@@ -20,6 +20,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { logger } from '../../lib/logger.js';
 import { fetchLambdaMetricsBatch, fetchApiGatewayMetrics } from '../../lib/cloudwatch-batch.js';
 import { metricsCache } from '../../lib/metrics-cache.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 
 const cloudwatchLogs = new CloudWatchLogsClient({ region: 'us-east-1' });
@@ -116,6 +117,14 @@ export async function handler(
       cacheStats: metricsCache.getStats(),
     });
 
+    // SWR Cache - return cached data instantly if fresh (300s = 5min)
+    const metricsCacheKey = `platform-metrics:${organizationId}`;
+    const metricsCached = await cacheManager.getSWR<any>(metricsCacheKey, { prefix: 'metrics' });
+    if (metricsCached && !metricsCached.stale) {
+      logger.info('Platform metrics cache hit (fresh)', { organizationId, cacheAge: metricsCached.age });
+      return success({ ...metricsCached.data, _fromCache: true });
+    }
+
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -176,7 +185,7 @@ export async function handler(
       performanceCount: performanceMetrics.length,
     });
 
-    return success({
+    const responseData = {
       coverage,
       metrics,
       lambdaErrors,
@@ -192,7 +201,12 @@ export async function handler(
         fetchDuration: duration,
         cacheStats: metricsCache.getStats(),
       },
-    });
+    };
+
+    // Save to SWR cache (freshFor: 300s = 5min, maxTTL: 24h)
+    await cacheManager.setSWR(metricsCacheKey, responseData, { prefix: 'metrics', freshFor: 300, maxTTL: 86400 });
+
+    return success(responseData);
 
   } catch (err) {
     logger.error('Error fetching platform metrics', err as Error);

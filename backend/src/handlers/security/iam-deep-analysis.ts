@@ -11,6 +11,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logger.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 import { z } from 'zod';
 import { IAMClient, ListUsersCommand, ListUserPoliciesCommand, ListAttachedUserPoliciesCommand } from '@aws-sdk/client-iam';
 
@@ -45,6 +46,14 @@ export const handler = safeHandler(async (
     const { accountId } = validation.data;
     
     const prisma = getPrismaClient();
+
+    // SWR Cache - return cached data instantly if fresh
+    const cacheKey = `iam-analysis:${organizationId}:${accountId}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'sec' });
+    if (cached && !cached.stale) {
+      logger.info('IAM Deep Analysis cache hit (fresh)', { organizationId, cacheAge: cached.age });
+      return success({ ...cached.data, _fromCache: true });
+    }
     
     const account = await prisma.awsCredential.findFirst({
       where: { id: accountId, organization_id: organizationId, is_active: true },
@@ -159,11 +168,12 @@ export const handler = safeHandler(async (
       highRisk: summary.high 
     });
     
-    return success({
-      success: true,
-      analysis,
-      summary,
-    });
+    const responseData = { success: true, analysis, summary };
+
+    // Save to SWR cache (freshFor: 1800s = 30min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, responseData, { prefix: 'sec', freshFor: 1800, maxTTL: 86400 });
+    
+    return success(responseData);
     
   } catch (err) {
     logger.error('IAM Deep Analysis error', err as Error, { 

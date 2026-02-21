@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 // Validation schema
 const deleteAzureCredentialsSchema = z.object({
@@ -73,6 +74,9 @@ export async function handler(
         where: { id: credentialId },
       });
 
+      // Invalidate Azure credentials cache
+      await cacheManager.deletePattern(`creds:azure:${organizationId}*`, { prefix: 'cloud' });
+
       logger.info('Azure credentials hard deleted', {
         organizationId,
         credentialId,
@@ -107,6 +111,9 @@ export async function handler(
           updated_at: new Date(),
         },
       });
+
+      // Invalidate Azure credentials cache
+      await cacheManager.deletePattern(`creds:azure:${organizationId}*`, { prefix: 'cloud' });
 
       logger.info('Azure credentials deactivated', {
         organizationId,

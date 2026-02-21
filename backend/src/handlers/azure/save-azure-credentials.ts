@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { encryptToken, serializeEncryptedToken } from '../../lib/token-encryption.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 // Validation schema for Service Principal credentials
 const servicePrincipalSchema = z.object({
@@ -403,6 +404,9 @@ export async function handler(
       ipAddress: getIpFromEvent(event),
       userAgent: getUserAgentFromEvent(event),
     });
+
+    // Invalidate credentials cache
+    await cacheManager.deletePattern(`creds:azure:${organizationId}*`, { prefix: 'cloud' });
 
     // Return credential without exposing secrets
     return success({

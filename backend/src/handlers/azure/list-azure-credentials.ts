@@ -17,6 +17,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 /**
  * Get origin from event for CORS headers
@@ -68,6 +69,14 @@ export async function handler(
       if (queryParams.activeOnly === 'false') {
         activeOnly = false;
       }
+    }
+
+    // SWR Cache - return cached data instantly if fresh
+    const cacheKey = `creds:azure:${organizationId}:${activeOnly}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cloud' });
+    if (cached && !cached.stale) {
+      logger.info('Azure credentials cache hit (fresh)', { organizationId, cacheAge: cached.age });
+      return success(cached.data, 200, origin);
     }
 
     // Build where clause
@@ -140,6 +149,9 @@ export async function handler(
       updatedAt: cred.updated_at,
       provider: 'AZURE',
     }));
+
+    // Save to SWR cache (freshFor: 60s, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, transformedCredentials, { prefix: 'cloud', freshFor: 60, maxTTL: 86400 });
 
     return success(transformedCredentials, 200, origin);
   } catch (err: any) {

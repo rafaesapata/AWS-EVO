@@ -4,6 +4,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { success, error, badRequest, corsOptions } from '../../lib/response.js';
 import { getOrigin } from '../../lib/middleware.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { CloudTrailClient, LookupEventsCommand, LookupAttribute } from '@aws-sdk/client-cloudtrail';
 
@@ -62,6 +63,14 @@ export async function handler(
 
     if (!awsAccountId) {
       return badRequest('awsAccountId is required', undefined, origin);
+    }
+
+    // SWR Cache - return cached data instantly if fresh
+    const ctCacheKey = `cloudtrail:${organizationId}:${awsAccountId}:${eventName || 'all'}:${startTime || ''}:${endTime || ''}`;
+    const ctCached = await cacheManager.getSWR<any>(ctCacheKey, { prefix: 'sec' });
+    if (ctCached && !ctCached.stale) {
+      logger.info('CloudTrail cache hit (fresh)', { organizationId, cacheAge: ctCached.age });
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...ctCached.data, _fromCache: true }) };
     }
 
     const prisma = getPrismaClient();
@@ -175,21 +184,26 @@ export async function handler(
       }
     });
 
+    const ctResponseData = {
+      success: true,
+      summary: {
+        totalEvents: events.length,
+        timeRange: { start: start.toISOString(), end: end.toISOString() },
+        byEventType: eventsByType,
+        byUser: eventsByUser,
+        suspiciousEvents: suspiciousEvents.length
+      },
+      events,
+      suspiciousActivity: suspiciousEvents
+    };
+
+    // Save to SWR cache (freshFor: 1800s = 30min, maxTTL: 24h)
+    await cacheManager.setSWR(ctCacheKey, ctResponseData, { prefix: 'sec', freshFor: 1800, maxTTL: 86400 });
+
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        success: true,
-        summary: {
-          totalEvents: events.length,
-          timeRange: { start: start.toISOString(), end: end.toISOString() },
-          byEventType: eventsByType,
-          byUser: eventsByUser,
-          suspiciousEvents: suspiciousEvents.length
-        },
-        events,
-        suspiciousActivity: suspiciousEvents
-      })
+      body: JSON.stringify(ctResponseData)
     };
   } catch (error) {
     logger.error('Fetch CloudTrail error:', error);

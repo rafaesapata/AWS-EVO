@@ -596,12 +596,12 @@ export class EdgeCacheManager {
   private cache: RedisCacheManager;
   private prefix = 'edge';
   private readonly PERIOD_TTL: Record<string, number> = {
-    '1h': 300, '24h': 900, '7d': 3600, 'default': 300,
+    '1h': 600, '24h': 1800, '7d': 3600, 'default': 900,
   };
 
   constructor(cache: RedisCacheManager) { this.cache = cache; }
 
-  async cacheEdgeServices(accountId: string, services: any[], ttl = 300): Promise<boolean> {
+  async cacheEdgeServices(accountId: string, services: any[], ttl = 900): Promise<boolean> {
     return this.cache.set(`services:${accountId}`, { services, cachedAt: Date.now(), count: services.length }, { prefix: this.prefix, ttl });
   }
 
@@ -622,7 +622,7 @@ export class EdgeCacheManager {
     return { metrics: cached.metrics, cachedAt: cached.cachedAt, fromCache: true };
   }
 
-  async cacheDiscoveryResult(accountId: string, result: { services: any[]; metrics: any[]; regionsScanned: string[]; permissionErrors?: any[]; breakdown?: any }, ttl = 300): Promise<boolean> {
+  async cacheDiscoveryResult(accountId: string, result: { services: any[]; metrics: any[]; regionsScanned: string[]; permissionErrors?: any[]; breakdown?: any }, ttl = 900): Promise<boolean> {
     return this.cache.set(`discovery:${accountId}`, { ...result, cachedAt: Date.now(), serviceCount: result.services.length, metricCount: result.metrics.length }, { prefix: this.prefix, ttl });
   }
 
@@ -646,7 +646,7 @@ export class EdgeCacheManager {
     return this.cache.deletePattern('*', { prefix: this.prefix });
   }
 
-  async isCacheValid(accountId: string, maxAgeSeconds = 300): Promise<boolean> {
+  async isCacheValid(accountId: string, maxAgeSeconds = 900): Promise<boolean> {
     const cached = await this.cache.get<{ cachedAt: number }>(`discovery:${accountId}`, { prefix: this.prefix });
     if (!cached) return false;
     return (Date.now() - cached.cachedAt) / 1000 < maxAgeSeconds;

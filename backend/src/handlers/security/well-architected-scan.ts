@@ -7,6 +7,7 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logger.js';
 import { isOrganizationInDemoMode, generateDemoWellArchitectedData } from '../../lib/demo-data-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 import { z } from 'zod';
 import { EC2Client, DescribeInstancesCommand, DescribeSecurityGroupsCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
@@ -61,6 +62,14 @@ export const handler = safeHandler(async (event: AuthorizedEvent, context: Lambd
     }
     
     const { accountId, region: requestedRegion } = validation.data;
+
+    // SWR Cache - return cached data instantly if fresh
+    const waCacheKey = `wa-scan:${organizationId}:${accountId}`;
+    const waCached = await cacheManager.getSWR<any>(waCacheKey, { prefix: 'sec' });
+    if (waCached && !waCached.stale) {
+      logger.info('Well-Architected scan cache hit (fresh)', { organizationId, cacheAge: waCached.age });
+      return success({ ...waCached.data, _fromCache: true });
+    }
     
     const account = await prisma.awsCredential.findFirst({
       where: { id: accountId, organization_id: organizationId, is_active: true },
@@ -156,7 +165,13 @@ export const handler = safeHandler(async (event: AuthorizedEvent, context: Lambd
     });
     
     logger.info('Well-Architected scan completed', { organizationId, accountId, overallScore });
-    return success({ success: true, scan_id: scan.id, overall_score: overallScore, pillars: pillarScores });
+
+    const responseData = { success: true, scan_id: scan.id, overall_score: overallScore, pillars: pillarScores };
+
+    // Save to SWR cache (freshFor: 3600s = 1h, maxTTL: 24h)
+    await cacheManager.setSWR(`wa-scan:${organizationId}:${accountId}`, responseData, { prefix: 'sec', freshFor: 3600, maxTTL: 86400 });
+
+    return success(responseData);
   } catch (err) {
     logger.error('Well-Architected Scan error', err as Error, { organizationId });
     return error('An unexpected error occurred. Please try again.', 500);

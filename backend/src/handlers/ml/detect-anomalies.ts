@@ -10,6 +10,7 @@ import { detectAnomaliesSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { resolveAwsCredentials } from '../../lib/aws-helpers.js';
 import { isOrganizationInDemoMode, generateDemoAnomalyDetection } from '../../lib/demo-data-service.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 interface Anomaly {
   id: string;
@@ -78,6 +79,14 @@ export async function handler(
     }
     
     const { awsAccountId, analysisType = 'all', sensitivity = 'medium', lookbackDays = 30 } = validation.data;
+
+    // SWR Cache - return cached data instantly if fresh
+    const cacheKey = `anomaly:${organizationId}:${awsAccountId}:${analysisType}:${sensitivity}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
+    if (cached && !cached.stale) {
+      logger.info('Anomaly detection cache hit (fresh)', { organizationId, cacheAge: cached.age });
+      return success({ ...cached.data, _fromCache: true }, 200, origin);
+    }
 
     const startTime = Date.now();
 
@@ -196,7 +205,7 @@ export async function handler(
       }
     });
 
-    return success({
+    const responseData = {
       scanId: scan.id,
       summary: {
         totalAnomalies: anomalies.length,
@@ -211,7 +220,12 @@ export async function handler(
         const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
         return severityOrder[a.severity] - severityOrder[b.severity];
       })
-    }, 200, origin);
+    };
+
+    // Save to SWR cache (freshFor: 600s = 10min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, responseData, { prefix: 'cost', freshFor: 600, maxTTL: 86400 });
+
+    return success(responseData, 200, origin);
   } catch (err: any) {
     logger.error('Detect anomalies error:', err);
     

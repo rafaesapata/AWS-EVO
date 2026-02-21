@@ -24,6 +24,7 @@ import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
 import { computeFingerprint, computeFallbackFingerprint } from '../../lib/security-engine/fingerprint.js';
 import { classifyFindings, computeLifecycleTransition, type NewScanFinding } from '../../lib/security-engine/delta-sync.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 async function securityScanHandler(
   event: AuthorizedEvent,
@@ -556,6 +557,10 @@ async function securityScanHandler(
       // Don't fail the scan if report generation fails
       logger.error('Failed to invoke scan-report-generator', reportErr as Error, { scanId: scan.id });
     }
+    
+    // Invalidate security posture and findings caches after scan
+    await cacheManager.deletePattern(`posture:${organizationId}:*`, { prefix: 'sec' });
+    await cacheManager.deletePattern(`findings:${organizationId}`, { prefix: 'security' });
     
     return success({
       scan_id: scan.id,

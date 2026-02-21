@@ -16,6 +16,7 @@ import { complianceScanSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { isOrganizationInDemoMode, generateDemoComplianceData } from '../../lib/demo-data-service.js';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 // AWS SDK imports
 import { IAMClient, GetAccountSummaryCommand, GetAccountPasswordPolicyCommand, ListUsersCommand, ListMFADevicesCommand, ListAttachedUserPoliciesCommand, GenerateCredentialReportCommand, GetCredentialReportCommand, ListAccessKeysCommand } from '@aws-sdk/client-iam';
@@ -1719,6 +1720,10 @@ export async function handler(
     } catch (reportErr) {
       logger.error('Failed to invoke scan-report-generator', reportErr as Error, { scanId: scanRecord.id });
     }
+
+    // Invalidate security posture and findings caches after compliance scan
+    await cacheManager.deletePattern(`posture:${organizationId}:*`, { prefix: 'sec' });
+    await cacheManager.deletePattern(`findings:${organizationId}`, { prefix: 'security' });
     
     return success({
       scan_id: scanRecord.id,

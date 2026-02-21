@@ -12,6 +12,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation, isAdmin, isSuperA
 import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { getLicenseSummary, hasValidLicense, assignSeat, syncOrganizationLicenses } from '../../lib/license-service.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 interface ValidateLicenseBody {
   customer_id?: string;
@@ -74,6 +75,16 @@ export async function handler(
     }
     
     logger.info(`Request body: ${JSON.stringify(body)}, has customer_id: ${!!body.customer_id}`);
+
+    // SWR Cache - only for read-only validation (no customer_id configuration)
+    if (!body.customer_id) {
+      const licenseCacheKey = `license:${organizationId}:${userId}`;
+      const licenseCached = await cacheManager.getSWR<any>(licenseCacheKey, { prefix: 'license' });
+      if (licenseCached && !licenseCached.stale) {
+        logger.info('License validation cache hit (fresh)', { organizationId, cacheAge: licenseCached.age });
+        return success({ ...licenseCached.data, _fromCache: true }, 200, origin);
+      }
+    }
     
     if (body.customer_id) {
       // Only admins can configure license
@@ -340,7 +351,7 @@ export async function handler(
     // Super admins bypass ALL license restrictions
     const isValidForUser = isSuperAdminUser ? true : (hasValid && userHasSeat);
 
-    return success({
+    const licenseResponseData = {
       valid: isValidForUser,
       configured: true,
       customer_id: summary.customerId,
@@ -414,7 +425,13 @@ export async function handler(
               primaryLicense?.isExpired ? 'expired' :
               (primaryLicense?.daysRemaining || 0) <= 7 ? 'expiring_soon' :
               !userHasSeat ? 'no_seat' : 'active',
-    }, 200, origin);
+    };
+
+    // Save to SWR cache (freshFor: 300s = 5min, maxTTL: 1h)
+    const licenseCacheKey = `license:${organizationId}:${userId}`;
+    await cacheManager.setSWR(licenseCacheKey, licenseResponseData, { prefix: 'license', freshFor: 300, maxTTL: 3600 });
+
+    return success(licenseResponseData, 200, origin);
 
   } catch (err) {
     logger.error('Validate license error:', err);

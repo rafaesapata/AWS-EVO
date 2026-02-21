@@ -11,6 +11,7 @@ import { logger } from '../../lib/logger.js';
 import { parseEventBody } from '../../lib/request-parser.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 interface SaveCredentialsRequest {
   account_name: string;
@@ -169,6 +170,9 @@ export async function handler(
         userAgent: getUserAgentFromEvent(event),
       });
 
+      // Invalidate credentials cache
+      await cacheManager.deletePattern(`creds:aws:${organizationId}*`, { prefix: 'cloud' });
+
       return success({
         id: updatedCred.id,
         account_id: updatedCred.account_id,
@@ -212,6 +216,9 @@ export async function handler(
       ipAddress: getIpFromEvent(event),
       userAgent: getUserAgentFromEvent(event),
     });
+    
+    // Invalidate credentials cache
+    await cacheManager.deletePattern(`creds:aws:${organizationId}*`, { prefix: 'cloud' });
     
     return success({
       id: credential.id,

@@ -7,6 +7,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 /**
  * Get origin from event for CORS headers
@@ -46,6 +47,14 @@ export async function handler(
   });
   
   try {
+    // SWR Cache - return cached data instantly if fresh
+    const cacheKey = `creds:aws:${organizationId}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cloud' });
+    if (cached && !cached.stale) {
+      logger.info('AWS credentials cache hit (fresh)', { organizationId, cacheAge: cached.age });
+      return success(cached.data, 200, origin);
+    }
+
     const prisma = getPrismaClient();
     
     // Get all active credentials for the organization
@@ -82,6 +91,9 @@ export async function handler(
       organizationId,
       count: credentials.length,
     });
+    
+    // Save to SWR cache (freshFor: 60s, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, mappedCredentials, { prefix: 'cloud', freshFor: 60, maxTTL: 86400 });
     
     return success(mappedCredentials, 200, origin);
     

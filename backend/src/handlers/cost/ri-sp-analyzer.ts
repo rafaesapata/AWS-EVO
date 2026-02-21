@@ -203,6 +203,14 @@ export async function handler(
       return validation.error;
     }
     const { accountId, region, regions, analysisDepth = 'comprehensive' } = validation.data;
+
+    // SWR Cache - return cached data instantly if fresh
+    const riCacheKey = `risp:${organizationId}:${accountId}:${(regions || [region]).join(',')}:${analysisDepth}`;
+    const riCached = await cacheManager.getSWR<any>(riCacheKey, { prefix: 'cost' });
+    if (riCached && !riCached.stale) {
+      logger.info('RI/SP Analyzer cache hit (fresh)', { organizationId, cacheAge: riCached.age });
+      return success({ ...riCached.data, _fromCache: true });
+    }
     
     let regionsToAnalyze: string[] = [];
     
@@ -435,7 +443,7 @@ export async function handler(
     await cacheManager.deletePattern(`risp-analysis:${organizationId}:${accountId}:*`, { prefix: 'cost' });
     await cacheManager.deletePattern(`risp-history:${organizationId}:${accountId}:*`, { prefix: 'cost' });
     
-    return success({
+    const responseData = {
       success: true,
       executiveSummary,
       reservedInstances: {
@@ -493,7 +501,12 @@ export async function handler(
         accountId,
         dataSource: 'real' // Indicate this is real data, not mocked
       }
-    });
+    };
+
+    // Save to SWR cache (freshFor: 1800s = 30min, maxTTL: 24h)
+    await cacheManager.setSWR(riCacheKey, responseData, { prefix: 'cost', freshFor: 1800, maxTTL: 86400 });
+
+    return success(responseData);
     
   } catch (err) {
     logger.error('❌ Advanced RI/SP Analyzer error:', err);
