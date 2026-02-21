@@ -285,53 +285,64 @@ export async function getSuggestions(
     include: { _count: { select: { assignments: true } } },
   });
 
-  // Score each tag
-  const scored = await Promise.all(
-    tags.map(async (tag: any) => {
-      let score = 0;
+  if (tags.length === 0) {
+    await setCachedSuggestions(organizationId, resourceType, accountId, []);
+    return { data: [] };
+  }
 
-      // Score 3: same resource_type
-      const typeCount = await prisma.resourceTagAssignment.count({
-        where: { tag_id: tag.id, organization_id: organizationId, resource_type: resourceType },
-      });
-      if (typeCount > 0) score = 3;
+  const tagIds = tags.map((t: any) => t.id);
 
-      // Score 2: same account + region
-      if (score < 2) {
-        const accountFilter: any[] = [];
-        if (accountId) {
-          accountFilter.push({ aws_account_id: accountId });
-          // Only filter azure_credential_id if accountId looks like a UUID
-          if (accountId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-            accountFilter.push({ azure_credential_id: accountId });
-          }
-        }
-        if (accountFilter.length > 0 && region) {
-          const regionCount = await prisma.resourceTagAssignment.count({
-            where: {
-              tag_id: tag.id,
-              organization_id: organizationId,
-              OR: accountFilter,
-              resource_region: region,
-            },
-          });
-          if (regionCount > 0) score = Math.max(score, 2);
-        }
+  // Batch query: get all tag_ids that have assignments for this resource_type
+  const typeMatches = await prisma.resourceTagAssignment.groupBy({
+    by: ['tag_id'],
+    where: {
+      tag_id: { in: tagIds },
+      organization_id: organizationId,
+      resource_type: resourceType,
+    },
+    _count: { _all: true },
+  });
+  const typeMatchSet = new Set(typeMatches.map((m: any) => m.tag_id));
+
+  // Batch query: get all tag_ids that match account + region
+  let regionMatchSet = new Set<string>();
+  if (accountId && region) {
+    const accountFilter: any[] = [{ aws_account_id: accountId }];
+    if (accountId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      accountFilter.push({ azure_credential_id: accountId });
+    }
+    const regionMatches = await prisma.resourceTagAssignment.groupBy({
+      by: ['tag_id'],
+      where: {
+        tag_id: { in: tagIds },
+        organization_id: organizationId,
+        OR: accountFilter,
+        resource_region: region,
+      },
+      _count: { _all: true },
+    });
+    regionMatchSet = new Set(regionMatches.map((m: any) => m.tag_id));
+  }
+
+  // Score each tag (no more N+1 queries)
+  const scored = tags.map((tag: any) => {
+    let score = 0;
+
+    if (typeMatchSet.has(tag.id)) {
+      score = 3;
+    } else if (regionMatchSet.has(tag.id)) {
+      score = 2;
+    } else if (resourceName) {
+      const nameLower = resourceName.toLowerCase();
+      if ((tag.key && nameLower.includes(tag.key.toLowerCase())) || (tag.value && nameLower.includes(tag.value.toLowerCase()))) {
+        score = 1;
       }
+    }
 
-      // Score 1: name substring match
-      if (score < 1 && resourceName) {
-        const nameLower = resourceName.toLowerCase();
-        if ((tag.key && nameLower.includes(tag.key.toLowerCase())) || (tag.value && nameLower.includes(tag.value.toLowerCase()))) {
-          score = Math.max(score, 1);
-        }
-      }
+    return { ...tag, score, usage_count: tag._count.assignments };
+  });
 
-      return { ...tag, score, usage_count: tag._count.assignments };
-    })
-  );
-
-  // Filter, deduplicate, sort, limit
+  // Filter, sort, limit
   const suggestions = scored
     .filter((s: any) => s.score > 0)
     .sort((a: any, b: any) => b.score - a.score || b.usage_count - a.usage_count)

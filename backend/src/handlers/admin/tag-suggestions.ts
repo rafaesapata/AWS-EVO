@@ -41,7 +41,7 @@ export async function handler(
 
     return success(result.data, 200, origin);
   } catch (err: any) {
-    logger.error('tag-suggestions handler error', err);
-    return error('Internal server error', 500, undefined, origin);
+    logger.error('tag-suggestions handler error', { message: err?.message, stack: err?.stack });
+    return error(err?.message || 'Internal server error', 500, undefined, origin);
   }
 }

@@ -245,31 +245,7 @@ export function CostForecast({ accountId }: Props) {
     return predictions;
   }, [historicalCosts]);
 
-  if (effectiveAccountId === 'all') {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Previsão de Custos</CardTitle>
-          <CardDescription>Selecione uma conta específica para ver previsões</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  if (loadingHistory) {
-    return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-8 w-64" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-64 w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Combinar dados históricos e previsões
+  // Combinar dados históricos e previsões (must be before any early returns - React hooks rules)
   const { chartData, avgDailyCost, predictedMonthlyCost, growthRate } = useMemo(() => {
     const data = [
       ...(historicalCosts?.slice(-30).map(c => ({
@@ -298,6 +274,30 @@ export function CostForecast({ accountId }: Props) {
 
     return { chartData: data, avgDailyCost: avg, predictedMonthlyCost: predicted, growthRate: growth };
   }, [historicalCosts, forecasts]);
+
+  if (effectiveAccountId === 'all') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Previsão de Custos</CardTitle>
+          <CardDescription>Selecione uma conta específica para ver previsões</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (loadingHistory) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-8 w-64" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
