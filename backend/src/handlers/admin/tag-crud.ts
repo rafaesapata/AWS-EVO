@@ -10,6 +10,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation, hasRole } from '.
 import { logger } from '../../lib/logger.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { createTag, listTags, getTagDetails, updateTag, deleteTag } from '../../lib/tags/tag-service.js';
+import { getTagPolicies, saveTagPolicies } from '../../lib/tags/tag-policy-service.js';
 
 function getOrigin(event: AuthorizedEvent): string {
   return event.headers?.['origin'] || event.headers?.['Origin'] || '*';
@@ -109,6 +110,27 @@ export async function handler(
         ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
       });
       return success(result.data, 200, origin);
+    }
+
+    // ---- get-policies ----
+    if (action === 'get-policies') {
+      const policies = await getTagPolicies(organizationId);
+      return success(policies, 200, origin);
+    }
+
+    // ---- save-policies ----
+    if (action === 'save-policies') {
+      if (!hasRole(user, 'admin') && !hasRole(user, 'org_admin') && !hasRole(user, 'super_admin')) {
+        return forbidden('Required permission: tags:manage_policies', origin);
+      }
+      const policies = await saveTagPolicies(organizationId, userId, body);
+      logAuditAsync({
+        organizationId, userId, action: 'TAG_POLICIES_UPDATED',
+        resourceType: 'tag_policy', resourceId: organizationId,
+        details: { policies },
+        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
+      });
+      return success(policies, 200, origin);
     }
 
     return error('Invalid action', 400, undefined, origin);

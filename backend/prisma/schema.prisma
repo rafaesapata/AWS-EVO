@@ -2645,6 +2645,24 @@ model Tag {
   @@map("tags")
 }
 
+model TagPolicy {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String   @unique @db.Uuid
+  enforce_naming      Boolean  @default(true)
+  prevent_duplicates  Boolean  @default(true)
+  require_category    Boolean  @default(false)
+  alert_low_coverage  Boolean  @default(true)
+  coverage_threshold  Int      @default(80)
+  alert_untagged_new  Boolean  @default(false)
+  required_keys       String[] @default(["environment", "cost-center", "team"])
+  updated_by          String?  @db.Uuid
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([organization_id])
+  @@map("tag_policies")
+}
+
 model ResourceTagAssignment {
   id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organization_id     String   @db.Uuid

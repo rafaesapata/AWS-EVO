@@ -8,7 +8,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { logger } from '../../lib/logger.js';
-import { getTagsForResource, getResourcesByTag } from '../../lib/tags/tag-assignment-service.js';
+import { getTagsForResource, getResourcesByTag, getRecentActivity, getAllResources, enrichLegacyAssignments } from '../../lib/tags/tag-assignment-service.js';
 
 function getOrigin(event: AuthorizedEvent): string {
   return event.headers?.['origin'] || event.headers?.['Origin'] || '*';
@@ -45,6 +45,29 @@ export async function handler(
         resourceType: body.resourceType,
         cloudProvider: body.cloudProvider,
       });
+      return success(result, 200, origin);
+    }
+
+    // Melhoria 5: Recent assignment activity
+    if (action === 'recent-activity') {
+      const result = await getRecentActivity(organizationId, body.limit || 10);
+      return success(result, 200, origin);
+    }
+
+    // Melhoria 3: All resources (tagged + untagged) for bulk tagging
+    if (action === 'all-resources') {
+      const result = await getAllResources(organizationId, {
+        limit: body.limit,
+        cursor: body.cursor,
+        resourceType: body.resourceType,
+        cloudProvider: body.cloudProvider,
+      });
+      return success(result, 200, origin);
+    }
+
+    // Melhoria 6: Enrich legacy assignments with resource metadata
+    if (action === 'enrich-legacy') {
+      const result = await enrichLegacyAssignments(organizationId);
       return success(result, 200, origin);
     }
 

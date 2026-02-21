@@ -433,3 +433,147 @@ export async function getUntaggedResources(
     return { data: [], nextCursor: null };
   }
 }
+
+// ============================================================================
+// RECENT ACTIVITY (Melhoria 5)
+// ============================================================================
+
+export async function getRecentActivity(organizationId: string, limit: number = 10) {
+  const prisma = getPrismaClient();
+  const safeLimit = Math.min(Math.max(limit, 1), 50);
+
+  const assignments = await prisma.resourceTagAssignment.findMany({
+    where: { organization_id: organizationId },
+    include: { tag: true },
+    orderBy: { assigned_at: 'desc' },
+    take: safeLimit,
+  });
+
+  return assignments.map((a: any) => ({
+    id: a.id,
+    tag_key: a.tag?.key,
+    tag_value: a.tag?.value,
+    tag_color: a.tag?.color,
+    tag_id: a.tag_id,
+    resource_id: a.resource_id,
+    resource_name: a.resource_name,
+    resource_type: a.resource_type,
+    cloud_provider: a.cloud_provider,
+    assigned_by: a.assigned_by,
+    assigned_at: a.assigned_at,
+  }));
+}
+
+// ============================================================================
+// GET ALL RESOURCES — tagged + untagged (Melhoria 3)
+// ============================================================================
+
+export async function getAllResources(
+  organizationId: string,
+  params: { limit?: number; cursor?: string; resourceType?: string; cloudProvider?: string }
+) {
+  const prisma = getPrismaClient();
+  const limit = Math.min(Math.max(params.limit || 100, 1), 200);
+  const offset = params.cursor ? parseInt(params.cursor, 10) || 0 : 0;
+
+  try {
+    const resources: any[] = await prisma.$queryRaw`
+      SELECT 
+        service || '::' || COALESCE(aws_account_id::text, COALESCE(azure_credential_id::text, 'unknown')) as id,
+        service as resource_name,
+        service as resource_type,
+        COALESCE(cloud_provider, 'AWS') as cloud_provider,
+        COALESCE(aws_account_id::text, azure_credential_id::text) as account_id,
+        SUM(cost) as total_cost,
+        MAX(date) as last_seen
+      FROM daily_costs
+      WHERE organization_id = ${organizationId}::uuid
+      GROUP BY service, cloud_provider, aws_account_id, azure_credential_id
+      ORDER BY SUM(cost) DESC
+      LIMIT ${limit + 1}
+      OFFSET ${offset}
+    `;
+
+    // Get tagged resource IDs to mark which are tagged
+    const taggedResourceIds = new Set(
+      (await prisma.resourceTagAssignment.findMany({
+        where: { organization_id: organizationId },
+        select: { resource_id: true },
+        distinct: ['resource_id'],
+      })).map((a: any) => a.resource_id)
+    );
+
+    const hasMore = resources.length > limit;
+    const data = hasMore ? resources.slice(0, limit) : resources;
+
+    return {
+      data: data.map((r: any) => ({
+        id: r.id,
+        resource_id: r.id,
+        resource_name: r.resource_name,
+        resource_type: r.resource_type,
+        cloud_provider: r.cloud_provider,
+        aws_account_id: r.account_id,
+        total_cost: Number(r.total_cost || 0),
+        last_seen: r.last_seen,
+        is_tagged: taggedResourceIds.has(r.id),
+        source: 'daily_costs',
+      })),
+      nextCursor: hasMore ? String(offset + limit) : null,
+    };
+  } catch (err: any) {
+    logger.warn('getAllResources error', { error: err.message });
+    return { data: [], nextCursor: null };
+  }
+}
+
+// ============================================================================
+// ENRICH LEGACY ASSIGNMENTS (Melhoria 6)
+// ============================================================================
+
+export async function enrichLegacyAssignments(organizationId: string) {
+  const prisma = getPrismaClient();
+
+  // Find assignments with resource_type='unknown' or empty resource_name
+  const legacyAssignments = await prisma.resourceTagAssignment.findMany({
+    where: {
+      organization_id: organizationId,
+      OR: [
+        { resource_type: 'unknown' },
+        { resource_name: null },
+        { resource_name: '' },
+      ],
+    },
+  });
+
+  if (legacyAssignments.length === 0) return { enriched: 0, total: 0 };
+
+  let enriched = 0;
+  for (const assignment of legacyAssignments) {
+    // Try to match resource_id against daily_costs
+    const resourceId = assignment.resource_id;
+    // resource_id format: "service::accountId"
+    const parts = resourceId.split('::');
+    if (parts.length >= 2) {
+      const serviceName = parts[0];
+      const accountId = parts[1];
+
+      try {
+        await prisma.resourceTagAssignment.update({
+          where: { id: assignment.id },
+          data: {
+            resource_type: serviceName,
+            resource_name: serviceName,
+            cloud_provider: assignment.cloud_provider || 'AWS',
+            aws_account_id: accountId !== 'unknown' ? accountId : null,
+          },
+        });
+        enriched++;
+      } catch (err: any) {
+        logger.warn('enrichLegacyAssignments update error', { id: assignment.id, error: err.message });
+      }
+    }
+  }
+
+  return { enriched, total: legacyAssignments.length };
+}

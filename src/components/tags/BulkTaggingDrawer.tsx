@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { TagBadge } from './TagBadge';
-import { useTagList, useBulkAssign, useUntaggedResources, type Tag, type BulkResource } from '@/hooks/useTags';
+import { useTagList, useBulkAssign, useUntaggedResources, useAllResources, useTagSuggestions, type Tag, type BulkResource } from '@/hooks/useTags';
 
 interface BulkTaggingDrawerProps {
   trigger?: React.ReactNode;
@@ -33,12 +33,15 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
   const [providerFilter, setProviderFilter] = useState<string>('all');
   const [tagSearch, setTagSearch] = useState('');
   const [result, setResult] = useState<any>(null);
+  const [showAllResources, setShowAllResources] = useState(false);
 
-  const { data: untaggedData, isLoading: loadingResources } = useUntaggedResources({ enabled: open });
+  const { data: untaggedData, isLoading: loadingUntagged } = useUntaggedResources({ enabled: open && !showAllResources });
+  const { data: allData, isLoading: loadingAll } = useAllResources({ enabled: open && showAllResources });
   const { data: tagData } = useTagList({ limit: 100, enabled: open });
   const bulkAssign = useBulkAssign();
 
-  const resources: any[] = untaggedData?.data || [];
+  const loadingResources = showAllResources ? loadingAll : loadingUntagged;
+  const resources: any[] = showAllResources ? (allData?.data || []) : (untaggedData?.data || []);
   const tags = tagData?.tags || [];
 
   // Extract unique service types with counts for smart filtering
@@ -78,6 +81,21 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
     const q = tagSearch.toLowerCase();
     return tags.filter((t) => t.key.toLowerCase().includes(q) || t.value.toLowerCase().includes(q));
   }, [tags, tagSearch]);
+
+  // Melhoria 7: Dominant resource type from selected resources for suggestions
+  const dominantResourceType = useMemo(() => {
+    if (selectedResourceIds.size === 0) return undefined;
+    const typeMap = new Map<string, number>();
+    resources.filter((r: any) => selectedResourceIds.has(r.resource_id)).forEach((r: any) => {
+      const t = r.resource_type || r.resource_name || 'unknown';
+      typeMap.set(t, (typeMap.get(t) || 0) + 1);
+    });
+    let max = 0; let dominant = '';
+    typeMap.forEach((count, type) => { if (count > max) { max = count; dominant = type; } });
+    return dominant || undefined;
+  }, [resources, selectedResourceIds]);
+
+  const { data: suggestionsData } = useTagSuggestions({ resourceType: step === 'tags' ? dominantResourceType : undefined });
 
   // Selected resources with full data (for review and sending to backend)
   const selectedResourcesData = useMemo(() => {
@@ -152,6 +170,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
     setServiceFilter('all');
     setProviderFilter('all');
     setTagSearch('');
+    setShowAllResources(false);
   }, []);
 
   const allFilteredSelected = filteredResources.length > 0 &&
@@ -250,6 +269,21 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                 {/* Selection summary bar */}
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
+                    {/* Melhoria 3: Toggle all/untagged */}
+                    <div className="flex items-center gap-1 bg-muted/50 rounded-md p-0.5">
+                      <button
+                        className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${!showAllResources ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        onClick={() => setShowAllResources(false)}
+                      >
+                        Sem tag
+                      </button>
+                      <button
+                        className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${showAllResources ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        onClick={() => setShowAllResources(true)}
+                      >
+                        Todos
+                      </button>
+                    </div>
                     <span className="text-muted-foreground">
                       {filteredResources.length} recursos
                       {serviceFilter !== 'all' && (
@@ -296,6 +330,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                           <TableHead>Serviço</TableHead>
                           <TableHead>Provider</TableHead>
                           <TableHead>Conta</TableHead>
+                          {showAllResources && <TableHead>Status</TableHead>}
                           <TableHead className="text-right pr-6">Custo (período)</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -325,6 +360,14 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                               <TableCell className="text-xs text-muted-foreground font-mono">
                                 {r.aws_account_id ? `...${String(r.aws_account_id).slice(-8)}` : '-'}
                               </TableCell>
+                              {showAllResources && (
+                                <TableCell>
+                                  {r.tag_count > 0
+                                    ? <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-600">{r.tag_count} tag{r.tag_count > 1 ? 's' : ''}</Badge>
+                                    : <Badge variant="outline" className="text-[10px] text-muted-foreground">sem tag</Badge>
+                                  }
+                                </TableCell>
+                              )}
                               <TableCell className="text-right pr-6 text-sm tabular-nums">
                                 {formatCost(r.total_cost)}
                               </TableCell>
@@ -333,9 +376,9 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                         })}
                         {filteredResources.length === 0 && !loadingResources && (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center text-muted-foreground py-16">
+                            <TableCell colSpan={showAllResources ? 7 : 6} className="text-center text-muted-foreground py-16">
                               {resources.length === 0
-                                ? 'Nenhum recurso sem tag encontrado'
+                                ? (showAllResources ? 'Nenhum recurso encontrado' : 'Nenhum recurso sem tag encontrado')
                                 : 'Nenhum recurso corresponde aos filtros aplicados'}
                             </TableCell>
                           </TableRow>
@@ -379,6 +422,23 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                 )}
               </div>
               <ScrollArea className="flex-1 px-6 py-3">
+                {/* Melhoria 7: Suggested tags based on selected resource types */}
+                {suggestionsData && Array.isArray(suggestionsData) && suggestionsData.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                      <Info className="h-3.5 w-3.5" />
+                      Sugestões para {dominantResourceType}
+                    </p>
+                    <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                      {suggestionsData.filter((s: Tag) => !selectedTags.find(t => t.id === s.id)).map((tag: Tag) => (
+                        <button key={tag.id} onClick={() => toggleTag(tag)}
+                          className="transition-all rounded-md hover:scale-105">
+                          <TagBadge tag={tag} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {filteredTags.map((tag) => {
                     const isSelected = !!selectedTags.find((t) => t.id === tag.id);

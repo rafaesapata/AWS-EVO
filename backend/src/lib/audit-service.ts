@@ -73,7 +73,8 @@ export type AuditAction =
   | 'TAG_DELETED'
   | 'TAG_ASSIGNED'
   | 'TAG_REMOVED'
-  | 'TAG_BULK_ASSIGNED';
+  | 'TAG_BULK_ASSIGNED'
+  | 'TAG_POLICIES_UPDATED';
 
 export type AuditResourceType =
   | 'user'
@@ -102,7 +103,8 @@ export type AuditResourceType =
   | 'webauthn_credential'
   | 'cloud_budget'
   | 'scan_schedule'
-  | 'tag';
+  | 'tag'
+  | 'tag_policy';
 
 export interface AuditLogParams {
   organizationId: string;

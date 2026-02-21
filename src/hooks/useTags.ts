@@ -326,3 +326,120 @@ export function useTagsForResource(resourceId: string | null) {
     enabled: !!resourceId,
   });
 }
+
+// ============================================================================
+// Tag Policies (Melhoria 9)
+// ============================================================================
+
+export interface TagPolicies {
+  enforce_naming: boolean;
+  prevent_duplicates: boolean;
+  require_category: boolean;
+  alert_low_coverage: boolean;
+  coverage_threshold: number;
+  alert_untagged_new: boolean;
+  required_keys: string[];
+}
+
+export function useTagPolicies(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['tags', 'policies'],
+    queryFn: async () => {
+      const res = await apiClient.lambda<TagPolicies>('tag-crud', { action: 'get-policies' });
+      throwIfError(res);
+      return (res as any).data as TagPolicies;
+    },
+    retry: false,
+    enabled: options?.enabled ?? false,
+  });
+}
+
+export function useSaveTagPolicies() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Partial<TagPolicies>) => {
+      const res = await apiClient.lambda<TagPolicies>('tag-crud', { action: 'save-policies', ...input });
+      throwIfError(res);
+      return (res as any).data as TagPolicies;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tags', 'policies'] });
+      toast.success('Políticas de tags salvas');
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro ao salvar políticas'); },
+  });
+}
+
+// ============================================================================
+// Recent Activity (Melhoria 5)
+// ============================================================================
+
+export interface RecentActivityItem {
+  id: string;
+  tag_key: string;
+  tag_value: string;
+  tag_color: string;
+  tag_id: string;
+  resource_id: string;
+  resource_name: string | null;
+  resource_type: string;
+  cloud_provider: string;
+  assigned_by: string;
+  assigned_at: string;
+}
+
+export function useRecentActivity(options?: { limit?: number; enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['tags', 'recent-activity', options?.limit],
+    queryFn: async () => {
+      const res = await apiClient.lambda<RecentActivityItem[]>('tag-resources', {
+        action: 'recent-activity',
+        limit: options?.limit || 10,
+      });
+      throwIfError(res);
+      return (res as any).data as RecentActivityItem[];
+    },
+    retry: false,
+    enabled: options?.enabled ?? false,
+  });
+}
+
+// ============================================================================
+// All Resources - tagged + untagged (Melhoria 3)
+// ============================================================================
+
+export function useAllResources(params?: { resourceType?: string; cloudProvider?: string; enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['tags', 'all-resources', params],
+    queryFn: async () => {
+      const res = await apiClient.lambda<any>('tag-resources', {
+        action: 'all-resources',
+        ...params,
+      });
+      throwIfError(res);
+      return (res as any).data;
+    },
+    enabled: params?.enabled ?? false,
+    retry: false,
+  });
+}
+
+// ============================================================================
+// Enrich Legacy Assignments (Melhoria 6)
+// ============================================================================
+
+export function useEnrichLegacy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.lambda<any>('tag-resources', { action: 'enrich-legacy' });
+      throwIfError(res);
+      return (res as any).data;
+    },
+    onSuccess: (data) => {
+      qc.refetchQueries({ queryKey: ['tags'] });
+      toast.success(`${data.enriched} de ${data.total} atribuições enriquecidas`);
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro ao enriquecer atribuições'); },
+  });
+}
