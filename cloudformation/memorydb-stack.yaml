@@ -100,22 +100,8 @@ Resources:
           Value: !Ref Environment
 
   # ============================================================================
-  # ACL - Open access (auth via VPC/SG, no password needed inside VPC)
-  # ============================================================================
-  MemoryDBACL:
-    Type: AWS::MemoryDB::ACL
-    Properties:
-      ACLName: !Sub '${ProjectName}-${Environment}-memorydb-acl'
-      UserNames:
-        - default
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-${Environment}-memorydb-acl'
-        - Key: Environment
-          Value: !Ref Environment
-
-  # ============================================================================
   # MEMORYDB CLUSTER - Single shard, single node (most economical)
+  # Uses built-in 'open-access' ACL (auth via VPC/SG, no password needed)
   # ============================================================================
   MemoryDBCluster:
     Type: AWS::MemoryDB::Cluster
@@ -123,7 +109,7 @@ Resources:
       ClusterName: !Sub '${ProjectName}-${Environment}-cache'
       Description: !Sub 'MemoryDB cache for ${ProjectName} platform'
       NodeType: !Ref NodeType
-      ACLName: !Ref MemoryDBACL
+      ACLName: open-access
       SubnetGroupName: !Ref MemoryDBSubnetGroup
       SecurityGroupIds:
         - !GetAtt MemoryDBSecurityGroup.GroupId
