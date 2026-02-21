@@ -3,8 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Mail, MessageSquare, Bell, Send, Webhook, Filter, Search, RefreshCw, Eye } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+function safeFormatDate(value: unknown, fmt: string): string {
+  if (!value) return '-';
+  const d = new Date(value as string);
+  return isValid(d) ? format(d, fmt, { locale: ptBR }) : '-';
+}
 
 import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
 import { apiClient } from '@/integrations/aws/api-client';
@@ -262,7 +268,7 @@ export default function CommunicationCenter() {
                       <div className="text-sm text-muted-foreground flex items-center gap-2">
                         <span>{log.recipient}</span>
                         <span>•</span>
-                        <span>{format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                        <span>{safeFormatDate(log.created_at, "dd/MM/yyyy HH:mm")}</span>
                       </div>
                     </div>
                   </div>
@@ -374,18 +380,18 @@ export default function CommunicationCenter() {
                     <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                       <div>
                         <label className="text-sm font-medium text-muted-foreground">{t('common.createdAt')}</label>
-                        <p className="text-sm">{format(new Date(selectedLog.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</p>
+                        <p className="text-sm">{safeFormatDate(selectedLog.created_at, "dd/MM/yyyy HH:mm:ss")}</p>
                       </div>
                       {selectedLog.sent_at && (
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">{t('common.sentAt')}</label>
-                          <p className="text-sm">{format(new Date(selectedLog.sent_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</p>
+                          <p className="text-sm">{safeFormatDate(selectedLog.sent_at, "dd/MM/yyyy HH:mm:ss")}</p>
                         </div>
                       )}
                       {selectedLog.delivered_at && (
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">{t('common.deliveredAt')}</label>
-                          <p className="text-sm">{format(new Date(selectedLog.delivered_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</p>
+                          <p className="text-sm">{safeFormatDate(selectedLog.delivered_at, "dd/MM/yyyy HH:mm:ss")}</p>
                         </div>
                       )}
                     </div>
