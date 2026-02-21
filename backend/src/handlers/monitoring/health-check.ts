@@ -9,6 +9,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { logger } from '../../lib/logger.js';
 import { success, error, corsOptions } from '../../lib/response.js';
 import { getPrismaClient } from '../../lib/database.js';
+import { checkRedisHealth } from '../../lib/redis-cache.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -38,6 +39,17 @@ export async function handler(
       checks.database = { 
         status: 'unhealthy', 
         error: dbError instanceof Error ? dbError.message : 'Unknown error' 
+      };
+    }
+
+    // Check Redis/MemoryDB
+    try {
+      const redisHealth = await checkRedisHealth();
+      checks.cache = redisHealth;
+    } catch (cacheError) {
+      checks.cache = {
+        status: 'unhealthy',
+        error: cacheError instanceof Error ? cacheError.message : 'Unknown error',
       };
     }
     

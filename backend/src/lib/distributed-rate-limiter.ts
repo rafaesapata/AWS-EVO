@@ -9,7 +9,8 @@
  * - Configurable limits by operation type
  */
 
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+import { getRedisClient, isRedisConnected } from './redis-client.js';
 import { logger } from './logger.js';
 
 // ============================================================================
@@ -53,81 +54,8 @@ const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
 };
 
 // ============================================================================
-// REDIS CLIENT (Singleton with lazy initialization)
+// REDIS CLIENT — uses centralized redis-client.ts singleton
 // ============================================================================
-
-let redisClient: Redis | null = null;
-let redisAvailable = false;
-let lastRedisCheck = 0;
-const REDIS_CHECK_INTERVAL = 30000; // 30 seconds
-
-function getRedisClient(): Redis | null {
-  const redisUrl = process.env.REDIS_URL || process.env.ELASTICACHE_ENDPOINT;
-  
-  if (!redisUrl) {
-    return null;
-  }
-
-  if (!redisClient) {
-    try {
-      redisClient = new Redis(redisUrl, {
-        maxRetriesPerRequest: 1,
-        connectTimeout: 2000,
-        commandTimeout: 1000,
-        retryStrategy: (times) => {
-          if (times > 2) return null; // Stop retrying
-          return Math.min(times * 100, 500);
-        },
-        lazyConnect: true,
-      });
-
-      redisClient.on('error', (err) => {
-        logger.warn('Redis connection error', { error: err.message });
-        redisAvailable = false;
-      });
-
-      redisClient.on('connect', () => {
-        logger.info('Redis connected');
-        redisAvailable = true;
-      });
-
-      redisClient.on('close', () => {
-        redisAvailable = false;
-      });
-    } catch (err) {
-      logger.warn('Failed to create Redis client', { error: (err as Error).message });
-      return null;
-    }
-  }
-
-  return redisClient;
-}
-
-async function isRedisAvailable(): Promise<boolean> {
-  const now = Date.now();
-  
-  // Use cached result if recent
-  if (now - lastRedisCheck < REDIS_CHECK_INTERVAL) {
-    return redisAvailable;
-  }
-
-  const client = getRedisClient();
-  if (!client) {
-    redisAvailable = false;
-    lastRedisCheck = now;
-    return false;
-  }
-
-  try {
-    await client.ping();
-    redisAvailable = true;
-  } catch {
-    redisAvailable = false;
-  }
-
-  lastRedisCheck = now;
-  return redisAvailable;
-}
 
 // ============================================================================
 // REDIS RATE LIMITING (Sliding Window)
@@ -138,7 +66,7 @@ async function redisRateLimit(
   config: RateLimitConfig
 ): Promise<RateLimitResult | null> {
   const client = getRedisClient();
-  if (!client || !await isRedisAvailable()) {
+  if (!client || !await isRedisConnected()) {
     return null; // Fallback to in-memory
   }
 

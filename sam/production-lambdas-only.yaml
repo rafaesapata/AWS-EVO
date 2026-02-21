@@ -45,6 +45,7 @@ Globals:
         AWS_SES_DOMAIN: nuevacore.com
         AWS_SES_ACCESS_KEY_ID: !Ref SesAccessKeyId
         AWS_SES_SECRET_ACCESS_KEY: !Ref SesSecretAccessKey
+        REDIS_URL: !Ref RedisUrl
     Layers:
       - !Ref DependenciesLayer
 Parameters:
@@ -122,6 +123,11 @@ Parameters:
     Description: AWS SES dedicated secret access key
     Default: ''
     NoEcho: true
+  RedisUrl:
+    Type: String
+    Description: MemoryDB/Redis connection string (rediss://host:port)
+    Default: ''
+    NoEcho: false
 Resources:
   # ==========================================================================
   # LAMBDA LAYER - Prisma + zod (AWS SDK bundled by esbuild)
