@@ -104,7 +104,7 @@ export async function assignTag(
           cloud_provider: resource.cloudProvider,
           resource_name: resource.resourceName || null,
           resource_region: resource.resourceRegion || null,
-          aws_account_id: resource.awsAccountId || null,
+          aws_account_id: resource.awsAccountId && resource.awsAccountId.length <= 12 ? resource.awsAccountId : null,
           azure_credential_id: resource.azureCredentialId || null,
           assigned_by: userId,
         },
@@ -244,10 +244,10 @@ export async function bulkAssign(
         organization_id: organizationId,
         tag_id: tagId,
         resource_id: resource.resourceId,
-        resource_type: resource.resourceType || 'unknown',
-        resource_name: resource.resourceName || null,
-        cloud_provider: resource.cloudProvider || 'aws',
-        aws_account_id: resource.awsAccountId || null,
+        resource_type: (resource.resourceType || 'unknown').slice(0, 128),
+        resource_name: resource.resourceName ? resource.resourceName.slice(0, 256) : null,
+        cloud_provider: (resource.cloudProvider || 'aws').slice(0, 10),
+        aws_account_id: resource.awsAccountId && resource.awsAccountId.length <= 12 ? resource.awsAccountId : null,
         azure_credential_id: resource.azureCredentialId || null,
         assigned_by: userId,
       });
@@ -398,18 +398,19 @@ export async function getUntaggedResources(
 
     const resources: any[] = await prisma.$queryRaw`
       SELECT 
-        service || '::' || COALESCE(aws_account_id::text, COALESCE(azure_credential_id::text, 'unknown')) as id,
-        service as resource_name,
-        service as resource_type,
-        COALESCE(cloud_provider, 'AWS') as cloud_provider,
-        COALESCE(aws_account_id::text, azure_credential_id::text) as account_id,
+        dc.service || '::' || COALESCE(ac.account_id, dc.azure_credential_id::text, 'unknown') as id,
+        dc.service as resource_name,
+        dc.service as resource_type,
+        COALESCE(dc.cloud_provider, 'AWS') as cloud_provider,
+        COALESCE(ac.account_id, dc.azure_credential_id::text) as account_id,
         '' as region,
-        SUM(cost) as total_cost,
-        MAX(date) as last_seen
-      FROM daily_costs
-      WHERE organization_id = ${organizationId}::uuid
-      GROUP BY service, cloud_provider, aws_account_id, azure_credential_id
-      ORDER BY SUM(cost) DESC
+        SUM(dc.cost) as total_cost,
+        MAX(dc.date) as last_seen
+      FROM daily_costs dc
+      LEFT JOIN aws_credentials ac ON ac.id = dc.aws_account_id
+      WHERE dc.organization_id = ${organizationId}::uuid
+      GROUP BY dc.service, dc.cloud_provider, ac.account_id, dc.azure_credential_id
+      ORDER BY SUM(dc.cost) DESC
       LIMIT ${limit + 1}
       OFFSET ${offset}
     `;
@@ -486,17 +487,18 @@ export async function getAllResources(
   try {
     const resources: any[] = await prisma.$queryRaw`
       SELECT 
-        service || '::' || COALESCE(aws_account_id::text, COALESCE(azure_credential_id::text, 'unknown')) as id,
-        service as resource_name,
-        service as resource_type,
-        COALESCE(cloud_provider, 'AWS') as cloud_provider,
-        COALESCE(aws_account_id::text, azure_credential_id::text) as account_id,
-        SUM(cost) as total_cost,
-        MAX(date) as last_seen
-      FROM daily_costs
-      WHERE organization_id = ${organizationId}::uuid
-      GROUP BY service, cloud_provider, aws_account_id, azure_credential_id
-      ORDER BY SUM(cost) DESC
+        dc.service || '::' || COALESCE(ac.account_id, dc.azure_credential_id::text, 'unknown') as id,
+        dc.service as resource_name,
+        dc.service as resource_type,
+        COALESCE(dc.cloud_provider, 'AWS') as cloud_provider,
+        COALESCE(ac.account_id, dc.azure_credential_id::text) as account_id,
+        SUM(dc.cost) as total_cost,
+        MAX(dc.date) as last_seen
+      FROM daily_costs dc
+      LEFT JOIN aws_credentials ac ON ac.id = dc.aws_account_id
+      WHERE dc.organization_id = ${organizationId}::uuid
+      GROUP BY dc.service, dc.cloud_provider, ac.account_id, dc.azure_credential_id
+      ORDER BY SUM(dc.cost) DESC
       LIMIT ${limit + 1}
       OFFSET ${offset}
     `;

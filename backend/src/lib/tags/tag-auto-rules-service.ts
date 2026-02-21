@@ -150,18 +150,19 @@ export async function executeAutoRules(organizationId: string, userId: string) {
 
   if (rules.length === 0) return { rulesProcessed: 0, totalMatched: 0, totalApplied: 0, results: [] };
 
-  // Get all resources from daily_costs
+  // Get all resources from daily_costs (JOIN aws_credentials to get real account_id)
   const resources: any[] = await prisma.$queryRaw`
     SELECT 
-      service || '::' || COALESCE(aws_account_id::text, COALESCE(azure_credential_id::text, 'unknown')) as resource_id,
-      service as resource_type,
-      service as resource_name,
-      COALESCE(cloud_provider, 'AWS') as cloud_provider,
-      COALESCE(aws_account_id::text, azure_credential_id::text) as account_id,
-      SUM(cost) as total_cost
-    FROM daily_costs
-    WHERE organization_id = ${organizationId}::uuid
-    GROUP BY service, cloud_provider, aws_account_id, azure_credential_id
+      dc.service || '::' || COALESCE(ac.account_id, dc.azure_credential_id::text, 'unknown') as resource_id,
+      dc.service as resource_type,
+      dc.service as resource_name,
+      COALESCE(dc.cloud_provider, 'AWS') as cloud_provider,
+      COALESCE(ac.account_id, dc.azure_credential_id::text) as account_id,
+      SUM(dc.cost) as total_cost
+    FROM daily_costs dc
+    LEFT JOIN aws_credentials ac ON ac.id = dc.aws_account_id
+    WHERE dc.organization_id = ${organizationId}::uuid
+    GROUP BY dc.service, dc.cloud_provider, ac.account_id, dc.azure_credential_id
   `;
 
   // Get all existing assignments to avoid duplicates
@@ -195,7 +196,7 @@ export async function executeAutoRules(organizationId: string, userId: string) {
               resource_type: resource.resource_type || 'unknown',
               resource_name: resource.resource_name || null,
               cloud_provider: resource.cloud_provider || 'AWS',
-              aws_account_id: resource.account_id || null,
+              aws_account_id: resource.account_id && resource.account_id.length <= 12 ? resource.account_id : null,
               assigned_by: userId,
             });
             existingSet.add(key); // prevent duplicates within same run
