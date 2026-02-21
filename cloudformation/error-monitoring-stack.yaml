@@ -12,7 +12,7 @@ Parameters:
   
   AlertEmail:
     Type: String
-    Default: alerts@udstec.io
+    Default: alerts@nuevacore.com
     Description: Email address for error alerts
   
   SlackWebhookUrl:

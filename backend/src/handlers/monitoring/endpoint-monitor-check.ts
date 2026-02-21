@@ -259,7 +259,7 @@ async function checkEndpoint(
       method: 'GET',
       signal: controller.signal,
       headers: {
-        'User-Agent': 'EVO-UDS-Monitor/1.0',
+        'User-Agent': 'EVO-Monitor/1.0',
       },
     });
     

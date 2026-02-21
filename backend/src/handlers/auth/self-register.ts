@@ -357,7 +357,7 @@ async function sendWelcomeEmailToUser(
   companyName: string
 ): Promise<void> {
   const emailService = new EmailService();
-  const subject = `Bem-vindo ao EVO-UDS, ${fullName}!`;
+  const subject = `Bem-vindo ao EVO, ${fullName}!`;
   
   try {
     const emailResult = await emailService.sendWelcomeEmail(

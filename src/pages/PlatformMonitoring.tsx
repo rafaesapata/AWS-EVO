@@ -1097,7 +1097,7 @@ ${error.statusCode && error.statusCode >= 500 ? '🔴 HIGH - 5xx error affecting
  <div className="space-y-3 text-sm">
  <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
  <CheckCircle className="h-4 w-4 text-green-500" />
- <span>{t('platformMonitoring.emailNotifications', 'Email notifications')}: alerts@udstec.io</span>
+ <span>{t('platformMonitoring.emailNotifications', 'Email notifications')}: alerts@nuevacore.com</span>
  </div>
  <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
  <CheckCircle className="h-4 w-4 text-green-500" />

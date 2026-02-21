@@ -101,7 +101,7 @@ export const handler = safeHandler(async (
             },
             Message: {
               Subject: {
-                Data: subject || 'EVO Platform Notification',
+                Data: subject || 'EVO - Notificação',
               },
               Body: {
                 Text: {
@@ -110,10 +110,21 @@ export const handler = safeHandler(async (
                 Html: {
                   Data: `
                     <html>
-                      <body>
-                        <h2>${subject || 'EVO Platform Notification'}</h2>
-                        <p>${message}</p>
-                        ${metadata ? `<pre>${JSON.stringify(metadata, null, 2)}</pre>` : ''}
+                      <body style="font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5;">
+                        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+                          <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 32px 24px; text-align: center;">
+                            <span style="font-size: 36px; font-weight: 700; color: #ffffff; letter-spacing: -1px;">EVO</span>
+                            <span style="font-size: 12px; color: rgba(255,255,255,0.6); display: block; letter-spacing: 3px; text-transform: uppercase; margin-top: 4px;">Cloud Platform</span>
+                          </div>
+                          <div style="padding: 32px 28px;">
+                            <h2 style="color: #1a1a2e; margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">${subject || 'Notificação'}</h2>
+                            <p style="font-size: 15px; line-height: 1.6; color: #4a5568; margin: 0 0 20px 0;">${message}</p>
+                            ${metadata ? `<div style="background-color: #f8f9fb; border-radius: 8px; padding: 16px; margin-top: 16px;"><pre style="margin: 0; font-size: 13px; color: #64748b; white-space: pre-wrap; word-break: break-word;">${JSON.stringify(metadata, null, 2)}</pre></div>` : ''}
+                          </div>
+                          <div style="background-color: #f8f9fb; padding: 16px 28px; text-align: center; border-top: 1px solid #e8ecf1;">
+                            <p style="margin: 0; font-size: 11px; color: #94a3b8;">© ${new Date().getFullYear()} EVO Platform · Powered by NuevaCore</p>
+                          </div>
+                        </div>
                       </body>
                     </html>
                   `,

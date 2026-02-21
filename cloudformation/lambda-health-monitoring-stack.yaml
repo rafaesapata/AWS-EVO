@@ -13,7 +13,7 @@ Parameters:
   AlertEmail:
     Type: String
     Description: Email para receber alertas de saúde das Lambdas
-    Default: devops@udstec.io
+    Default: devops@nuevacore.com
 
 Resources:
   # SNS Topic para alertas

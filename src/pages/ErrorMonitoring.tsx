@@ -1291,7 +1291,7 @@ export default function ErrorMonitoring() {
  <div className="space-y-3 text-sm">
  <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
  <CheckCircle className="h-4 w-4 text-green-500" />
- <span>Email notifications: alerts@udstec.io</span>
+ <span>Email notifications: alerts@nuevacore.com</span>
  </div>
  <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
  <CheckCircle className="h-4 w-4 text-green-500" />
