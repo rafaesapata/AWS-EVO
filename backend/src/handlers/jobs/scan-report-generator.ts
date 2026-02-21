@@ -231,7 +231,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       return { statusCode: 404, body: JSON.stringify({ error: 'Scan not found or not completed' }) };
     }
 
-    // 2. Fetch organization name
+    // 2. Fetch organization
     const organization = await prisma.organization.findUnique({ where: { id: organizationId } });
     const organizationName = organization?.name || 'Organização';
 
@@ -239,7 +239,6 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
     let accountName = 'Conta Cloud';
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (cloudProvider === 'AWS' && accountId) {
-      // accountId may be credential UUID or 12-digit AWS account number (legacy)
       const awsCred = isUuid.test(accountId)
         ? await prisma.awsCredential.findUnique({ where: { id: accountId } })
         : await prisma.awsCredential.findFirst({ where: { account_id: accountId, organization_id: organizationId } });
@@ -260,7 +259,6 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       if (isUuid.test(accountId)) {
         credentialUuid = accountId;
       } else {
-        // Legacy: accountId is 12-digit AWS account number, resolve to credential UUID
         const cred = await prisma.awsCredential.findFirst({
           where: { account_id: accountId, organization_id: organizationId },
           select: { id: true },
@@ -322,8 +320,6 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
     };
 
     // 9. Fetch recipients with email notifications enabled
-    // If no notification_settings exist, default behavior is to send to all org profiles
-    // (model defaults are email_enabled=true, security_alerts=true)
     const orgProfiles = await prisma.profile.findMany({
       where: { organization_id: organizationId },
       select: { user_id: true, email: true, full_name: true },
@@ -333,12 +329,32 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
 
     const orgUserIds = orgProfiles.map((p) => p.user_id);
 
-    const existingSettings = orgUserIds.length > 0
+    // Fetch notification settings for org users (if profiles exist)
+    let existingSettings = orgUserIds.length > 0
       ? await prisma.notificationSettings.findMany({
           where: { userId: { in: orgUserIds } },
           select: { userId: true, email_enabled: true, security_alerts: true, additional_emails: true },
         })
       : [];
+
+    // FALLBACK: If no profiles found for org, search ALL notification_settings with additional_emails
+    // This handles the case where profiles table is empty but users configured additional_emails
+    if (orgProfiles.length === 0) {
+      logger.warn('No profiles found for organization, searching all notification_settings with additional_emails', { organizationId });
+      const allSettingsWithAdditional = await prisma.notificationSettings.findMany({
+        where: {
+          email_enabled: true,
+          security_alerts: true,
+          additional_emails: { isEmpty: false },
+        },
+        select: { userId: true, email_enabled: true, security_alerts: true, additional_emails: true },
+      });
+      logger.info('Fallback: found notification_settings with additional_emails', {
+        count: allSettingsWithAdditional.length,
+        additionalEmails: allSettingsWithAdditional.flatMap(s => s.additional_emails),
+      });
+      existingSettings = allSettingsWithAdditional;
+    }
 
     logger.info('Fetched notification settings', { 
       settingsCount: existingSettings.length, 
@@ -351,7 +367,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
     // Include user if: no settings exist (use defaults) OR settings have both flags enabled
     const profiles = orgProfiles.filter((p) => {
       const settings = settingsMap.get(p.user_id);
-      if (!settings) return true; // No settings = use defaults (both true)
+      if (!settings) return true;
       return settings.email_enabled && settings.security_alerts;
     });
 
@@ -360,7 +376,6 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
     for (const ns of existingSettings) {
       if (ns.email_enabled && ns.security_alerts && ns.additional_emails?.length) {
         for (const email of ns.additional_emails) {
-          // Avoid duplicates with org profile emails
           if (!orgProfiles.some((p) => p.email === email)) {
             additionalEmails.add(email);
           }
@@ -375,11 +390,24 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       full_name: null,
     }));
 
-    const allRecipients = [...profiles, ...additionalProfiles];
+    let allRecipients = [...profiles, ...additionalProfiles];
+
+    // FINAL FALLBACK: If still no recipients, use organization's contact_email
+    if (allRecipients.length === 0 && organization?.contact_email) {
+      logger.warn('No recipients found via profiles or notification_settings, using org contact_email as fallback', {
+        organizationId,
+        contactEmail: organization.contact_email,
+      });
+      allRecipients = [{
+        user_id: 'org_contact',
+        email: organization.contact_email,
+        full_name: organizationName,
+      }];
+    }
 
     // 10. Send emails via CommunicationLog
     if (allRecipients.length === 0) {
-      logger.warn('No recipients with email enabled for organization', { organizationId });
+      logger.warn('No recipients with email enabled for organization (all fallbacks exhausted)', { organizationId });
     } else {
       await sendReportEmails(prisma, allRecipients, report, payload);
       logger.info('Report emails processed', { scanId, recipientCount: allRecipients.length, additionalCount: additionalProfiles.length });
