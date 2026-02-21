@@ -1,10 +1,14 @@
 /**
  * Tag Hierarchy Service — Parent-child relationships + merge/rename
+ * Melhoria 6: mergeTags uses batch operations instead of N+1 loop
+ * Melhoria 7: getAncestors has maxDepth safety net
  */
 
 import { getPrismaClient } from '../database.js';
 import { logger } from '../logger.js';
 import { invalidateTagList, invalidateOnAssignmentChange } from './tag-cache.js';
+
+const MAX_HIERARCHY_DEPTH = 20;
 
 // ============================================================================
 // HIERARCHY
@@ -19,7 +23,6 @@ export async function setTagParent(organizationId: string, tagId: string, parent
     const parent = await prisma.tag.findFirst({ where: { id: parentId, organization_id: organizationId } });
     if (!parent) throw new Error('Parent tag not found');
     if (parentId === tagId) throw new Error('Tag cannot be its own parent');
-    // Prevent circular: check if tagId is ancestor of parentId
     const ancestors = await getAncestors(organizationId, parentId);
     if (ancestors.some((a: any) => a.id === tagId)) throw new Error('Circular hierarchy detected');
   }
@@ -40,7 +43,6 @@ export async function getTagTree(organizationId: string) {
     orderBy: { key: 'asc' },
   });
 
-  // Build tree
   const tagMap = new Map<string, any>();
   const roots: any[] = [];
 
@@ -64,8 +66,9 @@ export async function getDescendants(organizationId: string, tagId: string): Pro
   const prisma = getPrismaClient();
   const ids: string[] = [tagId];
   const queue = [tagId];
+  let depth = 0;
 
-  while (queue.length > 0) {
+  while (queue.length > 0 && depth < MAX_HIERARCHY_DEPTH) {
     const current = queue.shift()!;
     const children = await prisma.tag.findMany({
       where: { organization_id: organizationId, parent_id: current },
@@ -75,18 +78,21 @@ export async function getDescendants(organizationId: string, tagId: string): Pro
       ids.push(child.id);
       queue.push(child.id);
     }
+    depth++;
   }
 
   return ids;
 }
 
+// Melhoria 7: maxDepth safety net to prevent infinite loops on corrupted data
 async function getAncestors(organizationId: string, tagId: string): Promise<any[]> {
   const prisma = getPrismaClient();
   const ancestors: any[] = [];
   let currentId: string | null = tagId;
   const visited = new Set<string>();
+  let depth = 0;
 
-  while (currentId) {
+  while (currentId && depth < MAX_HIERARCHY_DEPTH) {
     if (visited.has(currentId)) break;
     visited.add(currentId);
     const tag: any = await prisma.tag.findFirst({
@@ -95,13 +101,14 @@ async function getAncestors(organizationId: string, tagId: string): Promise<any[
     if (!tag || !tag.parent_id) break;
     ancestors.push(tag);
     currentId = tag.parent_id;
+    depth++;
   }
 
   return ancestors;
 }
 
 // ============================================================================
-// MERGE TAGS (Melhoria 9)
+// MERGE TAGS (Melhoria 6: batch operations instead of N+1 loop)
 // ============================================================================
 
 export async function mergeTags(
@@ -112,13 +119,11 @@ export async function mergeTags(
 ) {
   const prisma = getPrismaClient();
 
-  // Validate target
   const target = await prisma.tag.findFirst({
     where: { id: targetTagId, organization_id: organizationId },
   });
   if (!target) throw new Error('Target tag not found');
 
-  // Validate sources
   const sources = await prisma.tag.findMany({
     where: { id: { in: sourceTagIds }, organization_id: organizationId },
   });
@@ -130,52 +135,61 @@ export async function mergeTags(
   let migratedCount = 0;
   let skippedCount = 0;
 
-  for (const sourceId of validSourceIds) {
-    // Get all assignments from source
-    const sourceAssignments = await prisma.resourceTagAssignment.findMany({
-      where: { organization_id: organizationId, tag_id: sourceId },
-    });
+  // Batch: get ALL source assignments in 1 query
+  const sourceAssignments = await prisma.resourceTagAssignment.findMany({
+    where: { organization_id: organizationId, tag_id: { in: validSourceIds } },
+  });
 
-    for (const assignment of sourceAssignments) {
-      // Check if target already has this resource
-      const existing = await prisma.resourceTagAssignment.findUnique({
-        where: {
-          uq_assignment_org_tag_resource: {
-            organization_id: organizationId,
-            tag_id: targetTagId,
-            resource_id: assignment.resource_id,
-          },
-        },
-      });
+  // Batch: get ALL existing target assignments in 1 query
+  const targetAssignments = await prisma.resourceTagAssignment.findMany({
+    where: { organization_id: organizationId, tag_id: targetTagId },
+    select: { resource_id: true },
+  });
+  const targetResourceSet = new Set(targetAssignments.map((a: any) => a.resource_id));
 
-      if (existing) {
-        skippedCount++;
-      } else {
-        // Migrate assignment to target tag
-        await prisma.resourceTagAssignment.update({
-          where: { id: assignment.id },
-          data: { tag_id: targetTagId },
-        });
-        migratedCount++;
-      }
+  // Separate: migratable vs duplicates
+  const toMigrateIds: string[] = [];
+  const toDeleteIds: string[] = [];
+
+  for (const assignment of sourceAssignments) {
+    if (targetResourceSet.has(assignment.resource_id)) {
+      // Duplicate — will be deleted
+      toDeleteIds.push(assignment.id);
+      skippedCount++;
+    } else {
+      // Can migrate to target
+      toMigrateIds.push(assignment.id);
+      targetResourceSet.add(assignment.resource_id); // prevent duplicates within batch
+      migratedCount++;
     }
-
-    // Re-parent children of source to target
-    await prisma.tag.updateMany({
-      where: { parent_id: sourceId, organization_id: organizationId },
-      data: { parent_id: targetTagId },
-    });
-
-    // Delete remaining assignments (duplicates that were skipped)
-    await prisma.resourceTagAssignment.deleteMany({
-      where: { organization_id: organizationId, tag_id: sourceId },
-    });
-
-    // Delete source tag
-    await prisma.tag.delete({ where: { id: sourceId } });
   }
 
-  // Invalidate caches
+  // Batch: migrate assignments to target tag (1 query)
+  if (toMigrateIds.length > 0) {
+    await prisma.resourceTagAssignment.updateMany({
+      where: { id: { in: toMigrateIds } },
+      data: { tag_id: targetTagId },
+    });
+  }
+
+  // Batch: delete duplicate assignments (1 query)
+  if (toDeleteIds.length > 0) {
+    await prisma.resourceTagAssignment.deleteMany({
+      where: { id: { in: toDeleteIds } },
+    });
+  }
+
+  // Re-parent children of sources to target (1 query)
+  await prisma.tag.updateMany({
+    where: { parent_id: { in: validSourceIds }, organization_id: organizationId },
+    data: { parent_id: targetTagId },
+  });
+
+  // Delete source tags (1 query)
+  await prisma.tag.deleteMany({
+    where: { id: { in: validSourceIds }, organization_id: organizationId },
+  });
+
   await invalidateTagList(organizationId);
   await invalidateOnAssignmentChange(organizationId, targetTagId);
 
@@ -189,7 +203,7 @@ export async function mergeTags(
 }
 
 // ============================================================================
-// RENAME TAG (Melhoria 9)
+// RENAME TAG
 // ============================================================================
 
 export async function renameTag(
@@ -205,7 +219,6 @@ export async function renameTag(
   });
   if (!tag) throw new Error('Tag not found');
 
-  // Check for duplicate with new key:value
   const duplicate = await prisma.tag.findUnique({
     where: {
       uq_tag_org_key_value: {

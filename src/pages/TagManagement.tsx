@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, Fragment } from 'react';
+import { useState, useCallback, useMemo, useEffect, Fragment } from 'react';
 import { Layout } from '@/components/Layout';
 import { Tags, Trash2, Pencil, Loader2, Shield, AlertTriangle, Download, ChevronDown, ChevronRight, ExternalLink, X, Clock, Wrench, FileText, Zap, GitMerge, Play, Plus, Power, PowerOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,7 @@ import { TagBadge } from '@/components/tags/TagBadge';
 import { TagSelector } from '@/components/tags/TagSelector';
 import { BulkTaggingDrawer } from '@/components/tags/BulkTaggingDrawer';
 import { QuickstartWizard } from '@/components/tags/QuickstartWizard';
+import { OverviewTab } from '@/components/tags/tabs/OverviewTab';
 import {
   useTagList, useTagCoverage, useDeleteTag, useUpdateTag, useTagCostReport,
   useTagSecurityFindings, useResourcesByTag, useUnassignTag,
@@ -84,7 +85,6 @@ export default function TagManagement() {
   const { data: drilldownData } = useTagCostDrilldown(!isInDemoMode ? drilldownTagId : null);
   const [mergeSourceIds, setMergeSourceIds] = useState<string[]>([]);
   const [mergeTargetId, setMergeTargetId] = useState<string>('');
-  const [showMergeDialog, setShowMergeDialog] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Tag | null>(null);
   const [renameKey, setRenameKey] = useState('');
   const [renameValue, setRenameValue] = useState('');
@@ -93,18 +93,18 @@ export default function TagManagement() {
   const [newRuleConditionValue, setNewRuleConditionValue] = useState('');
   const [newRuleTagIds, setNewRuleTagIds] = useState<string[]>([]);
 
-  // Local policies state — initialized from backend
+  // Melhoria 12: useEffect instead of setTimeout anti-pattern
   const [localPolicies, setLocalPolicies] = useState<TagPolicies | null>(null);
   const policies = localPolicies || policiesData || {
     enforce_naming: true, prevent_duplicates: true, require_category: false,
     alert_low_coverage: true, coverage_threshold: 80, alert_untagged_new: false,
     required_keys: ['environment', 'cost-center', 'team'],
   };
-  // Sync from backend when loaded
-  if (policiesData && !localPolicies) {
-    // Will trigger on next render
-    setTimeout(() => setLocalPolicies(policiesData), 0);
-  }
+  useEffect(() => {
+    if (policiesData && !localPolicies) {
+      setLocalPolicies(policiesData);
+    }
+  }, [policiesData, localPolicies]);
 
   // Demo data
   const demoTagData = useMemo(() => isInDemoMode ? filterDemoTags({
@@ -131,7 +131,6 @@ export default function TagManagement() {
     setDeleteTarget(null);
   }, [deleteTarget, deleteTag, isInDemoMode]);
 
-  // Melhoria 1: Edit tag handler
   const handleEdit = useCallback((tag: Tag) => {
     setEditTarget(tag);
     setEditColor(tag.color);
@@ -150,13 +149,11 @@ export default function TagManagement() {
     setEditTarget(null);
   }, [editTarget, editColor, editCategory, editDescription, updateTag]);
 
-  // Melhoria 2: Unassign single resource
   const handleUnassignResource = useCallback(async (tagId: string, resourceId: string) => {
     await unassignTag.mutateAsync({ tagId, resourceIds: [resourceId] });
     toast.success('Atribuição removida');
   }, [unassignTag]);
 
-  // Melhoria 9: Save policies to backend
   const handleSavePolicies = useCallback(async () => {
     if (!localPolicies) return;
     await savePolicies.mutateAsync(localPolicies);
@@ -165,9 +162,6 @@ export default function TagManagement() {
   const updatePolicy = useCallback((key: keyof TagPolicies, value: any) => {
     setLocalPolicies(prev => prev ? { ...prev, [key]: value } : { ...policies, [key]: value });
   }, [policies]);
-
-  const coverageColor = (coverage?.coveragePercentage ?? 0) >= 80 ? 'text-green-500' :
-    (coverage?.coveragePercentage ?? 0) >= 50 ? 'text-yellow-500' : 'text-red-500';
 
   const COLORS = ['#EF4444', '#F97316', '#F59E0B', '#22C55E', '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#64748B'];
 
@@ -193,135 +187,12 @@ export default function TagManagement() {
             <TabsTrigger value="settings">{t('tags.settings', 'Settings')}</TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
+          {/* Melhoria 11: Overview extracted to component */}
           <TabsContent value="overview" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-              <Card className="glass border-primary/20">
-                <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.totalTags', 'Total Tags')}</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{total}</p></CardContent>
-              </Card>
-              <Card className="glass border-primary/20">
-                <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.totalAssignments', 'Total Assignments')}</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{coverage?.taggedResources || 0}</p></CardContent>
-              </Card>
-              <Card className="glass border-primary/20">
-                <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.untaggedResources', 'Untagged Resources')}</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{coverage?.untaggedResources || 0}</p></CardContent>
-              </Card>
-              <Card className="glass border-primary/20">
-                <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.coverage', 'Coverage')}</CardTitle></CardHeader>
-                <CardContent>
-                  <p className={`text-2xl font-bold ${coverageColor}`}>{coverage?.coveragePercentage?.toFixed(1) || 0}%</p>
-                  <Progress value={coverage?.coveragePercentage || 0} className="h-2 mt-2" />
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Top Tags by Usage */}
-              <Card className="glass border-primary/20">
-                <CardHeader><CardTitle className="text-sm">{t('tags.topTagsByUsage', 'Top Tags by Usage')}</CardTitle></CardHeader>
-                <CardContent>
-                  {tags.length > 0 ? (
-                    <div className="space-y-3">
-                      {[...tags].sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0)).slice(0, 5).map((tag) => (
-                        <div key={tag.id} className="flex items-center justify-between">
-                          <TagBadge tag={tag} />
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">{tag.usage_count || 0} {t('tags.resources', 'resources')}</span>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setExpandedTagId(tag.id); setTab('library'); }}>
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      {tags.every(t => !t.usage_count) && (
-                        <p className="text-sm text-muted-foreground text-center py-4">{t('tags.noAssignmentsYet', 'No assignments yet. Use Bulk Tagging to assign tags to resources.')}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">{t('tags.noTagsCreated', 'No tags created yet')}</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Melhoria 5: Recent Activity */}
-              <Card className="glass border-primary/20">
-                <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4" />{t('tags.recentActivity', 'Recent Activity')}</CardTitle></CardHeader>
-                <CardContent>
-                  {recentActivity && recentActivity.length > 0 ? (
-                    <div className="space-y-2">
-                      {recentActivity.slice(0, 6).map((item) => (
-                        <div key={item.id} className="flex items-center justify-between text-xs p-2 rounded bg-muted/30">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.tag_color }} />
-                            <span className="font-medium truncate">{item.tag_key}:{item.tag_value}</span>
-                            <span className="text-muted-foreground">→</span>
-                            <span className="truncate text-muted-foreground">{item.resource_name || item.resource_type}</span>
-                          </div>
-                          <span className="text-muted-foreground shrink-0 ml-2">{new Date(item.assigned_at).toLocaleDateString()}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">{t('tags.noRecentActivity', 'No recent activity')}</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Coverage by Provider + Tags by Category */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card className="glass border-primary/20">
-                <CardHeader><CardTitle className="text-sm">{t('tags.coverageByProvider', 'Resources by Provider')}</CardTitle></CardHeader>
-                <CardContent>
-                  {coverage?.breakdownByProvider && Object.keys(coverage.breakdownByProvider).length > 0 ? (
-                    <div className="space-y-3">
-                      {Object.entries(coverage.breakdownByProvider).map(([provider, count]) => (
-                        <div key={provider} className="flex items-center justify-between">
-                          <Badge variant="outline" className="text-xs">{provider}</Badge>
-                          <span className="text-sm font-medium">{count} {t('tags.resources', 'resources')}</span>
-                        </div>
-                      ))}
-                      {coverage.resourceSource && (
-                        <p className="text-xs text-muted-foreground mt-2">{t('tags.dataSource', 'Source')}: {coverage.resourceSource === 'daily_costs' ? t('tags.costData', 'Cost data') : t('tags.inventory', 'Resource inventory')}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">{t('tags.noProviderData', 'No provider data available')}</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {tags.length > 0 && (
-                <Card className="glass border-primary/20">
-                  <CardHeader><CardTitle className="text-sm">{t('tags.tagsByCategory', 'Tags by Category')}</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-3">
-                      {Object.entries(tags.reduce((acc, tag) => { const cat = tag.category || 'CUSTOM'; acc[cat] = (acc[cat] || 0) + 1; return acc; }, {} as Record<string, number>)).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
-                        <div key={cat} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50">
-                          <span className="text-xs font-medium">{cat.replace('_', ' ')}</span>
-                          <Badge variant="secondary" className="text-xs h-5">{count}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            <Card className="glass border-primary/20">
-              <CardHeader><CardTitle className="text-sm">{t('tags.quickActions', 'Quick Actions')}</CardTitle></CardHeader>
-              <CardContent className="flex gap-3">
-                <BulkTaggingDrawer preFilter={{ tagStatus: 'untagged' }} />
-                <Button variant="outline" size="sm" className="glass hover-glow" onClick={() => setTab('library')}>
-                  <Tags className="h-3.5 w-3.5 mr-1" />{t('tags.manageTags', 'Manage Tags')}
-                </Button>
-              </CardContent>
-            </Card>
+            <OverviewTab tags={tags} total={total} coverage={coverage} recentActivity={recentActivity} isInDemoMode={isInDemoMode} onExpandTag={setExpandedTagId} onSwitchTab={setTab} />
           </TabsContent>
 
-          {/* Tags Library Tab — Melhoria 1 (edit) + Melhoria 2 (unassign) */}
+          {/* Tags Library Tab */}
           <TabsContent value="library" className="space-y-6">
             <div className="flex items-center gap-3">
               <Input placeholder={t('tags.searchTags', 'Search tags...')} value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs h-8 text-sm" />
@@ -400,7 +271,6 @@ export default function TagManagement() {
                                           <div className="flex items-center gap-3">
                                             <Badge variant="secondary" className="text-[10px] h-5">{res.resource_type || 'unknown'}</Badge>
                                             <span className="text-muted-foreground">{new Date(res.assigned_at).toLocaleDateString()}</span>
-                                            {/* Melhoria 2: Unassign button */}
                                             {!isInDemoMode && (
                                               <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-destructive/60 hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleUnassignResource(tag.id, res.resource_id); }}>
                                                 <X className="h-3 w-3" />
@@ -432,7 +302,7 @@ export default function TagManagement() {
             </Card>
           </TabsContent>
 
-          {/* Automation Tab — Auto-Tagging Rules */}
+          {/* Automation Tab — Melhoria 13: error state */}
           <TabsContent value="automation" className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
@@ -444,7 +314,6 @@ export default function TagManagement() {
               </Button>
             </div>
 
-            {/* Create new rule */}
             <Card className="glass border-primary/20">
               <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Plus className="h-4 w-4" />Nova Regra</CardTitle></CardHeader>
               <CardContent className="space-y-4">
@@ -498,7 +367,6 @@ export default function TagManagement() {
               </CardContent>
             </Card>
 
-            {/* Existing rules */}
             <Card className="glass border-primary/20">
               <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Zap className="h-4 w-4" />Regras Ativas</CardTitle></CardHeader>
               <CardContent>
@@ -555,10 +423,9 @@ export default function TagManagement() {
             </Card>
           </TabsContent>
 
-          {/* Hierarchy Tab — Tag Tree + Merge/Rename */}
+          {/* Hierarchy Tab */}
           <TabsContent value="hierarchy" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
-              {/* Tag Tree */}
               <Card className="glass border-primary/20">
                 <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Tags className="h-4 w-4" />Árvore de Tags</CardTitle></CardHeader>
                 <CardContent>
@@ -588,7 +455,6 @@ export default function TagManagement() {
                 </CardContent>
               </Card>
 
-              {/* Merge & Rename */}
               <div className="space-y-6">
                 <Card className="glass border-primary/20">
                   <CardHeader><CardTitle className="text-sm flex items-center gap-2"><GitMerge className="h-4 w-4" />Mesclar Tags</CardTitle></CardHeader>
@@ -702,20 +568,19 @@ export default function TagManagement() {
                 </CardContent>
               </Card>
             )}
-            {/* Advanced Cost Drill-Down */}
             {drilldownData && (
               <div className="grid gap-6 md:grid-cols-2">
                 <Card className="glass border-primary/20">
                   <CardHeader><CardTitle className="text-sm">Custo por Serviço (Drill-Down)</CardTitle></CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {(drilldownData.byService || []).slice(0, 10).map((item) => (
+                      {(drilldownData.byService || drilldownData.items || []).slice(0, 10).map((item: any) => (
                         <div key={item.service} className="flex items-center justify-between text-sm">
                           <span className="truncate">{item.service}</span>
                           <span className="font-medium tabular-nums">${Number(item.cost).toFixed(2)}</span>
                         </div>
                       ))}
-                      {(!drilldownData.byService || drilldownData.byService.length === 0) && (
+                      {(!drilldownData.byService && !drilldownData.items) && (
                         <p className="text-sm text-muted-foreground text-center py-4">Sem dados de custo por serviço</p>
                       )}
                     </div>
@@ -725,7 +590,7 @@ export default function TagManagement() {
                   <CardHeader><CardTitle className="text-sm">Top Recursos por Custo</CardTitle></CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {(drilldownData.byResource || []).slice(0, 10).map((item) => (
+                      {(drilldownData.byResource || []).slice(0, 10).map((item: any) => (
                         <div key={item.resourceId} className="flex items-center justify-between text-sm">
                           <span className="truncate max-w-[200px]">{item.resourceName || item.resourceId}</span>
                           <span className="font-medium tabular-nums">${Number(item.cost).toFixed(2)}</span>
@@ -741,7 +606,7 @@ export default function TagManagement() {
             )}
           </TabsContent>
 
-          {/* Security Tab — Melhoria 4: Tag multi-select */}
+          {/* Security Tab */}
           <TabsContent value="security" className="space-y-6">
             <Card className="glass border-primary/20">
               <CardHeader><CardTitle className="text-sm">{t('tags.securityByTags', 'Security Findings by Tags')}</CardTitle></CardHeader>
@@ -779,7 +644,7 @@ export default function TagManagement() {
             </Card>
           </TabsContent>
 
-          {/* Settings Tab — Melhoria 9: Backend-persisted policies + Melhoria 6 & 10 */}
+          {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
             <Card className="glass border-primary/20">
               <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Shield className="h-4 w-4" />{t('tags.namingPolicies', 'Naming Policies')}</CardTitle></CardHeader>
@@ -875,11 +740,9 @@ export default function TagManagement() {
               </CardContent>
             </Card>
 
-            {/* Melhoria 6 & 10: Data Management */}
             <Card className="glass border-primary/20">
               <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Wrench className="h-4 w-4" />{t('tags.dataManagement', 'Data Management')}</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                {/* Melhoria 6: Enrich legacy */}
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="text-sm">{t('tags.enrichLegacy', 'Enrich legacy assignments')}</Label>
@@ -891,7 +754,6 @@ export default function TagManagement() {
                   </Button>
                 </div>
                 <Separator />
-                {/* Melhoria 10: Export with assignments */}
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="text-sm">{t('tags.exportData', 'Export Tags & Assignments')}</Label>
@@ -925,7 +787,6 @@ export default function TagManagement() {
               </CardContent>
             </Card>
 
-            {/* Save Policies Button */}
             <div className="flex justify-end">
               <Button className="glass hover-glow" disabled={isInDemoMode || savePolicies.isPending} onClick={handleSavePolicies}>
                 {savePolicies.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
@@ -955,7 +816,7 @@ export default function TagManagement() {
           </DialogContent>
         </Dialog>
 
-        {/* Melhoria 1: Edit Tag Dialog */}
+        {/* Edit Tag Dialog */}
         <Dialog open={!!editTarget} onOpenChange={(v) => !v && setEditTarget(null)}>
           <DialogContent>
             <DialogHeader>

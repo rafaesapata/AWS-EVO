@@ -1,5 +1,6 @@
 /**
  * Tag Auto-Rules Engine — Automatic tagging based on resource conditions
+ * Melhoria 8: Batch processing with cursor for large orgs
  */
 
 import { getPrismaClient } from '../database.js';
@@ -39,7 +40,6 @@ export async function createAutoRule(organizationId: string, userId: string, inp
   if (!input.conditions || input.conditions.length === 0) throw new Error('At least one condition is required');
   if (!input.tagIds || input.tagIds.length === 0) throw new Error('At least one tag is required');
 
-  // Verify tags exist
   const tags = await prisma.tag.findMany({
     where: { id: { in: input.tagIds }, organization_id: organizationId },
   });
@@ -84,7 +84,6 @@ export async function deleteAutoRule(organizationId: string, ruleId: string) {
   await (prisma as any).tagAutoRule.delete({ where: { id: ruleId } });
   return { deleted: true };
 }
-
 
 // ============================================================================
 // RULE EXECUTION ENGINE
@@ -140,32 +139,19 @@ function resourceMatchesAllConditions(resource: any, conditions: RuleCondition[]
   return conditions.every(c => matchesCondition(resource, c));
 }
 
+// Melhoria 8: Process resources in batches of 500 to avoid memory issues
+const RESOURCE_BATCH_SIZE = 500;
+
 export async function executeAutoRules(organizationId: string, userId: string) {
   const prisma = getPrismaClient();
 
-  // Get active rules
   const rules = await (prisma as any).tagAutoRule.findMany({
     where: { organization_id: organizationId, is_active: true },
   });
 
   if (rules.length === 0) return { rulesProcessed: 0, totalMatched: 0, totalApplied: 0, results: [] };
 
-  // Get all resources from daily_costs (JOIN aws_credentials to get real account_id)
-  const resources: any[] = await prisma.$queryRaw`
-    SELECT 
-      dc.service || '::' || COALESCE(ac.account_id, dc.azure_credential_id::text, 'unknown') as resource_id,
-      dc.service as resource_type,
-      dc.service as resource_name,
-      COALESCE(dc.cloud_provider, 'AWS') as cloud_provider,
-      COALESCE(ac.account_id, dc.azure_credential_id::text) as account_id,
-      SUM(dc.cost) as total_cost
-    FROM daily_costs dc
-    LEFT JOIN aws_credentials ac ON ac.id = dc.aws_account_id
-    WHERE dc.organization_id = ${organizationId}::uuid
-    GROUP BY dc.service, dc.cloud_provider, ac.account_id, dc.azure_credential_id
-  `;
-
-  // Get all existing assignments to avoid duplicates
+  // Get all existing assignments to avoid duplicates (indexed query, only IDs)
   const existingAssignments = await prisma.resourceTagAssignment.findMany({
     where: { organization_id: organizationId },
     select: { tag_id: true, resource_id: true },
@@ -176,64 +162,107 @@ export async function executeAutoRules(organizationId: string, userId: string) {
   let totalMatched = 0;
   let totalApplied = 0;
 
-  for (const rule of rules) {
-    const conditions = rule.conditions as RuleCondition[];
-    const tagIds = rule.tag_ids as string[];
-    let matched = 0;
-    let applied = 0;
-    const createData: any[] = [];
+  // Process resources in batches using OFFSET/LIMIT
+  let offset = 0;
+  let hasMore = true;
 
-    for (const resource of resources) {
-      if (resourceMatchesAllConditions(resource, conditions)) {
-        matched++;
-        for (const tagId of tagIds) {
-          const key = `${tagId}::${resource.resource_id}`;
-          if (!existingSet.has(key)) {
-            createData.push({
-              organization_id: organizationId,
-              tag_id: tagId,
-              resource_id: resource.resource_id,
-              resource_type: resource.resource_type || 'unknown',
-              resource_name: resource.resource_name || null,
-              cloud_provider: resource.cloud_provider || 'AWS',
-              aws_account_id: resource.account_id && resource.account_id.length <= 12 ? resource.account_id : null,
-              assigned_by: userId,
-            });
-            existingSet.add(key); // prevent duplicates within same run
+  // Per-rule accumulators
+  const ruleStats = new Map<string, { matched: number; applied: number; createData: any[] }>();
+  for (const rule of rules) {
+    ruleStats.set(rule.id, { matched: 0, applied: 0, createData: [] });
+  }
+
+  while (hasMore) {
+    const resources: any[] = await prisma.$queryRaw`
+      SELECT 
+        dc.service || '::' || COALESCE(ac.account_id, dc.azure_credential_id::text, 'unknown') as resource_id,
+        dc.service as resource_type,
+        dc.service as resource_name,
+        COALESCE(dc.cloud_provider, 'AWS') as cloud_provider,
+        COALESCE(ac.account_id, dc.azure_credential_id::text) as account_id,
+        SUM(dc.cost) as total_cost
+      FROM daily_costs dc
+      LEFT JOIN aws_credentials ac ON ac.id = dc.aws_account_id
+      WHERE dc.organization_id = ${organizationId}::uuid
+      GROUP BY dc.service, dc.cloud_provider, ac.account_id, dc.azure_credential_id
+      ORDER BY dc.service
+      LIMIT ${RESOURCE_BATCH_SIZE}
+      OFFSET ${offset}
+    `;
+
+    if (resources.length < RESOURCE_BATCH_SIZE) hasMore = false;
+    offset += RESOURCE_BATCH_SIZE;
+
+    // Evaluate each rule against this batch
+    for (const rule of rules) {
+      const conditions = rule.conditions as RuleCondition[];
+      const tagIds = rule.tag_ids as string[];
+      const stats = ruleStats.get(rule.id)!;
+
+      for (const resource of resources) {
+        if (resourceMatchesAllConditions(resource, conditions)) {
+          stats.matched++;
+          for (const tagId of tagIds) {
+            const key = `${tagId}::${resource.resource_id}`;
+            if (!existingSet.has(key)) {
+              stats.createData.push({
+                organization_id: organizationId,
+                tag_id: tagId,
+                resource_id: resource.resource_id,
+                resource_type: resource.resource_type || 'unknown',
+                resource_name: resource.resource_name || null,
+                cloud_provider: resource.cloud_provider || 'AWS',
+                aws_account_id: resource.account_id && resource.account_id.length <= 12 ? resource.account_id : null,
+                assigned_by: userId,
+              });
+              existingSet.add(key);
+            }
           }
         }
       }
     }
+  }
 
-    // Batch insert
-    if (createData.length > 0) {
-      try {
-        const created = await prisma.resourceTagAssignment.createMany({
-          data: createData,
-          skipDuplicates: true,
-        });
-        applied = created.count;
-      } catch (err: any) {
-        logger.error('Auto-rule batch insert error', { ruleId: rule.id, error: err.message });
+  // Batch insert per rule
+  for (const rule of rules) {
+    const stats = ruleStats.get(rule.id)!;
+    let applied = 0;
+
+    if (stats.createData.length > 0) {
+      // Insert in sub-batches of 500
+      for (let i = 0; i < stats.createData.length; i += 500) {
+        const batch = stats.createData.slice(i, i + 500);
+        try {
+          const created = await prisma.resourceTagAssignment.createMany({
+            data: batch,
+            skipDuplicates: true,
+          });
+          applied += created.count;
+        } catch (err: any) {
+          logger.error('Auto-rule batch insert error', { ruleId: rule.id, error: err.message });
+        }
       }
     }
+
+    stats.applied = applied;
 
     // Update rule stats
     await (prisma as any).tagAutoRule.update({
       where: { id: rule.id },
       data: {
         last_run_at: new Date(),
-        last_run_matched: matched,
+        last_run_matched: stats.matched,
         last_run_applied: applied,
         total_applied: { increment: applied },
       },
     });
 
-    totalMatched += matched;
+    totalMatched += stats.matched;
     totalApplied += applied;
-    results.push({ ruleId: rule.id, ruleName: rule.name, matched, applied });
+    results.push({ ruleId: rule.id, ruleName: rule.name, matched: stats.matched, applied });
 
     // Invalidate cache for affected tags
+    const tagIds = rule.tag_ids as string[];
     for (const tagId of tagIds) {
       if (applied > 0) await invalidateOnAssignmentChange(organizationId, tagId);
     }

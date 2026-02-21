@@ -1,14 +1,14 @@
 /**
  * Tag CRUD Handler — Smart Resource Tagging
  * POST /api/functions/tag-crud
- * Actions: list, get, create, update, delete
+ * Melhoria 9: Dispatch map pattern instead of 20+ if/else
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions, forbidden, notFound } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation, hasRole } from '../../lib/auth.js';
 import { logger } from '../../lib/logger.js';
-import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent, type AuditAction, type AuditResourceType } from '../../lib/audit-service.js';
 import { createTag, listTags, getTagDetails, updateTag, deleteTag } from '../../lib/tags/tag-service.js';
 import { getTagPolicies, saveTagPolicies } from '../../lib/tags/tag-policy-service.js';
 import { setTagParent, getTagTree, getDescendants, mergeTags, renameTag } from '../../lib/tags/tag-hierarchy-service.js';
@@ -18,6 +18,189 @@ import { getTagCostDrilldown, getTagCostSparkline } from '../../lib/tags/tag-cos
 function getOrigin(event: AuthorizedEvent): string {
   return event.headers?.['origin'] || event.headers?.['Origin'] || '*';
 }
+
+type ActionContext = {
+  organizationId: string;
+  userId: string;
+  user: any;
+  body: any;
+  event: AuthorizedEvent;
+  origin: string;
+};
+
+function requireAdmin(ctx: ActionContext, origin: string, permission: string): APIGatewayProxyResultV2 | null {
+  if (!hasRole(ctx.user, 'admin') && !hasRole(ctx.user, 'org_admin') && !hasRole(ctx.user, 'super_admin')) {
+    return forbidden(`Required permission: ${permission}`, origin);
+  }
+  return null;
+}
+
+function requireUserOrAdmin(ctx: ActionContext, origin: string, permission: string): APIGatewayProxyResultV2 | null {
+  if (!hasRole(ctx.user, 'admin') && !hasRole(ctx.user, 'org_admin') && !hasRole(ctx.user, 'super_admin') && !hasRole(ctx.user, 'user')) {
+    return forbidden(`Required permission: ${permission}`, origin);
+  }
+  return null;
+}
+
+function audit(ctx: ActionContext, action: AuditAction, resourceType: AuditResourceType, resourceId: string, details: any) {
+  logAuditAsync({
+    organizationId: ctx.organizationId, userId: ctx.userId, action,
+    resourceType, resourceId, details,
+    ipAddress: getIpFromEvent(ctx.event), userAgent: getUserAgentFromEvent(ctx.event),
+  });
+}
+
+// ============================================================================
+// ACTION HANDLERS
+// ============================================================================
+
+const actions: Record<string, (ctx: ActionContext) => Promise<APIGatewayProxyResultV2>> = {
+  async list(ctx) {
+    const result = await listTags({
+      organizationId: ctx.organizationId,
+      category: ctx.body.category, key: ctx.body.key, search: ctx.body.search,
+      sortBy: ctx.body.sortBy, limit: ctx.body.limit, cursor: ctx.body.cursor,
+    });
+    return success(result, 200, ctx.origin);
+  },
+
+  async get(ctx) {
+    if (!ctx.body.tagId) return error('tagId is required', 400, undefined, ctx.origin);
+    const result = await getTagDetails(ctx.organizationId, ctx.body.tagId);
+    if ('error' in result) return notFound(result.message, ctx.origin);
+    return success(result.data, 200, ctx.origin);
+  },
+
+  async create(ctx) {
+    const denied = requireUserOrAdmin(ctx, ctx.origin, 'tags:create');
+    if (denied) return denied;
+    const result = await createTag(ctx.organizationId, ctx.userId, ctx.body);
+    if ('error' in result) return error(String(result.message || result.error), result.statusCode || 400, result.errors, ctx.origin);
+    audit(ctx, 'TAG_CREATED', 'tag', result.data.id, { key: result.data.key, value: result.data.value });
+    return success(result.data, 201, ctx.origin);
+  },
+
+  async update(ctx) {
+    if (!ctx.body.tagId) return error('tagId is required', 400, undefined, ctx.origin);
+    const denied = requireUserOrAdmin(ctx, ctx.origin, 'tags:update');
+    if (denied) return denied;
+    const { tagId, action: _a, ...updateData } = ctx.body;
+    const result = await updateTag(ctx.organizationId, tagId, ctx.userId, updateData);
+    if ('error' in result) {
+      if (result.statusCode === 404) return notFound(String(result.message || 'Not found'), ctx.origin);
+      return error(String(result.message || result.error), result.statusCode || 400, result.errors, ctx.origin);
+    }
+    audit(ctx, 'TAG_UPDATED', 'tag', tagId, { changedFields: updateData, oldValues: result.oldValues });
+    return success(result.data, 200, ctx.origin);
+  },
+
+  async delete(ctx) {
+    if (!ctx.body.tagId) return error('tagId is required', 400, undefined, ctx.origin);
+    const denied = requireAdmin(ctx, ctx.origin, 'tags:delete');
+    if (denied) return denied;
+    const result = await deleteTag(ctx.organizationId, ctx.body.tagId);
+    if ('error' in result) return notFound(result.message, ctx.origin);
+    audit(ctx, 'TAG_DELETED', 'tag', ctx.body.tagId, { key: result.data.key, value: result.data.value, assignmentsRemoved: result.data.assignmentsRemoved });
+    return success(result.data, 200, ctx.origin);
+  },
+
+  async 'get-policies'(ctx) {
+    const policies = await getTagPolicies(ctx.organizationId);
+    return success(policies, 200, ctx.origin);
+  },
+
+  async 'save-policies'(ctx) {
+    const denied = requireAdmin(ctx, ctx.origin, 'tags:manage_policies');
+    if (denied) return denied;
+    const policies = await saveTagPolicies(ctx.organizationId, ctx.userId, ctx.body);
+    audit(ctx, 'TAG_POLICIES_UPDATED', 'tag_policy', ctx.organizationId, { policies });
+    return success(policies, 200, ctx.origin);
+  },
+
+  async 'set-parent'(ctx) {
+    const result = await setTagParent(ctx.organizationId, ctx.body.tagId, ctx.body.parentId || null);
+    return success(result, 200, ctx.origin);
+  },
+
+  async 'get-tree'(ctx) {
+    const tree = await getTagTree(ctx.organizationId);
+    return success(tree, 200, ctx.origin);
+  },
+
+  async 'get-descendants'(ctx) {
+    if (!ctx.body.tagId) return error('tagId is required', 400, undefined, ctx.origin);
+    const ids = await getDescendants(ctx.organizationId, ctx.body.tagId);
+    return success({ tagIds: ids }, 200, ctx.origin);
+  },
+
+  async merge(ctx) {
+    const denied = requireAdmin(ctx, ctx.origin, 'tags:merge');
+    if (denied) return denied;
+    if (!ctx.body.sourceTagIds || !ctx.body.targetTagId) return error('sourceTagIds and targetTagId are required', 400, undefined, ctx.origin);
+    const result = await mergeTags(ctx.organizationId, ctx.userId, ctx.body.sourceTagIds, ctx.body.targetTagId);
+    audit(ctx, 'TAG_MERGED', 'tag', ctx.body.targetTagId, { sourceTagIds: ctx.body.sourceTagIds, ...result });
+    return success(result, 200, ctx.origin);
+  },
+
+  async rename(ctx) {
+    if (!ctx.body.tagId || !ctx.body.newKey || !ctx.body.newValue) return error('tagId, newKey, newValue are required', 400, undefined, ctx.origin);
+    const result = await renameTag(ctx.organizationId, ctx.body.tagId, ctx.body.newKey, ctx.body.newValue);
+    audit(ctx, 'TAG_RENAMED', 'tag', ctx.body.tagId, result);
+    return success(result, 200, ctx.origin);
+  },
+
+  async 'list-auto-rules'(ctx) {
+    const rules = await listAutoRules(ctx.organizationId);
+    return success(rules, 200, ctx.origin);
+  },
+
+  async 'create-auto-rule'(ctx) {
+    const denied = requireAdmin(ctx, ctx.origin, 'tags:manage_rules');
+    if (denied) return denied;
+    const rule = await createAutoRule(ctx.organizationId, ctx.userId, ctx.body);
+    audit(ctx, 'TAG_AUTO_RULE_CREATED', 'tag_auto_rule', rule.id, { name: rule.name });
+    return success(rule, 201, ctx.origin);
+  },
+
+  async 'update-auto-rule'(ctx) {
+    if (!ctx.body.ruleId) return error('ruleId is required', 400, undefined, ctx.origin);
+    const rule = await updateAutoRule(ctx.organizationId, ctx.body.ruleId, ctx.body);
+    return success(rule, 200, ctx.origin);
+  },
+
+  async 'delete-auto-rule'(ctx) {
+    if (!ctx.body.ruleId) return error('ruleId is required', 400, undefined, ctx.origin);
+    await deleteAutoRule(ctx.organizationId, ctx.body.ruleId);
+    return success({ deleted: true }, 200, ctx.origin);
+  },
+
+  async 'execute-auto-rules'(ctx) {
+    const denied = requireAdmin(ctx, ctx.origin, 'tags:execute_rules');
+    if (denied) return denied;
+    const result = await executeAutoRules(ctx.organizationId, ctx.userId);
+    audit(ctx, 'TAG_AUTO_RULES_EXECUTED', 'tag_auto_rule', ctx.organizationId, result);
+    return success(result, 200, ctx.origin);
+  },
+
+  async 'cost-drilldown'(ctx) {
+    if (!ctx.body.tagId) return error('tagId is required', 400, undefined, ctx.origin);
+    const result = await getTagCostDrilldown(ctx.organizationId, {
+      tagId: ctx.body.tagId, startDate: ctx.body.startDate,
+      endDate: ctx.body.endDate, groupBy: ctx.body.groupBy,
+    });
+    return success(result, 200, ctx.origin);
+  },
+
+  async 'cost-sparkline'(ctx) {
+    if (!ctx.body.tagId) return error('tagId is required', 400, undefined, ctx.origin);
+    const result = await getTagCostSparkline(ctx.organizationId, ctx.body.tagId);
+    return success(result, 200, ctx.origin);
+  },
+};
+
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
 
 export async function handler(
   event: AuthorizedEvent,
@@ -37,220 +220,12 @@ export async function handler(
 
     if (!action) return error('action is required', 400, undefined, origin);
 
-    // ---- list ----
-    if (action === 'list') {
-      const result = await listTags({
-        organizationId,
-        category: body.category,
-        key: body.key,
-        search: body.search,
-        sortBy: body.sortBy,
-        limit: body.limit,
-        cursor: body.cursor,
-      });
-      return success(result, 200, origin);
-    }
+    const actionHandler = actions[action];
+    if (!actionHandler) return error('Invalid action', 400, undefined, origin);
 
-    // ---- get ----
-    if (action === 'get') {
-      if (!body.tagId) return error('tagId is required', 400, undefined, origin);
-      const result = await getTagDetails(organizationId, body.tagId);
-      if ('error' in result) return notFound(result.message, origin);
-      return success(result.data, 200, origin);
-    }
-
-    // ---- create ----
-    if (action === 'create') {
-      if (!hasRole(user, 'admin') && !hasRole(user, 'org_admin') && !hasRole(user, 'super_admin') && !hasRole(user, 'user')) {
-        return forbidden('Required permission: tags:create', origin);
-      }
-      const result = await createTag(organizationId, userId, body);
-      if ('error' in result) {
-        return error(String(result.message || result.error), result.statusCode || 400, result.errors, origin);
-      }
-      logAuditAsync({
-        organizationId, userId, action: 'TAG_CREATED',
-        resourceType: 'tag', resourceId: result.data.id,
-        details: { key: result.data.key, value: result.data.value },
-        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
-      });
-      return success(result.data, 201, origin);
-    }
-
-    // ---- update ----
-    if (action === 'update') {
-      if (!body.tagId) return error('tagId is required', 400, undefined, origin);
-      if (!hasRole(user, 'admin') && !hasRole(user, 'org_admin') && !hasRole(user, 'super_admin') && !hasRole(user, 'user')) {
-        return forbidden('Required permission: tags:update', origin);
-      }
-      const { tagId, action: _a, ...updateData } = body;
-      const result = await updateTag(organizationId, tagId, userId, updateData);
-      if ('error' in result) {
-        if (result.statusCode === 404) return notFound(String(result.message || 'Not found'), origin);
-        return error(String(result.message || result.error), result.statusCode || 400, result.errors, origin);
-      }
-      logAuditAsync({
-        organizationId, userId, action: 'TAG_UPDATED',
-        resourceType: 'tag', resourceId: tagId,
-        details: { changedFields: updateData, oldValues: result.oldValues },
-        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
-      });
-      return success(result.data, 200, origin);
-    }
-
-    // ---- delete ----
-    if (action === 'delete') {
-      if (!body.tagId) return error('tagId is required', 400, undefined, origin);
-      if (!hasRole(user, 'admin') && !hasRole(user, 'org_admin') && !hasRole(user, 'super_admin')) {
-        return forbidden('Required permission: tags:delete', origin);
-      }
-      const result = await deleteTag(organizationId, body.tagId);
-      if ('error' in result) return notFound(result.message, origin);
-      logAuditAsync({
-        organizationId, userId, action: 'TAG_DELETED',
-        resourceType: 'tag', resourceId: body.tagId,
-        details: { key: result.data.key, value: result.data.value, assignmentsRemoved: result.data.assignmentsRemoved },
-        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
-      });
-      return success(result.data, 200, origin);
-    }
-
-    // ---- get-policies ----
-    if (action === 'get-policies') {
-      const policies = await getTagPolicies(organizationId);
-      return success(policies, 200, origin);
-    }
-
-    // ---- save-policies ----
-    if (action === 'save-policies') {
-      if (!hasRole(user, 'admin') && !hasRole(user, 'org_admin') && !hasRole(user, 'super_admin')) {
-        return forbidden('Required permission: tags:manage_policies', origin);
-      }
-      const policies = await saveTagPolicies(organizationId, userId, body);
-      logAuditAsync({
-        organizationId, userId, action: 'TAG_POLICIES_UPDATED',
-        resourceType: 'tag_policy', resourceId: organizationId,
-        details: { policies },
-        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
-      });
-      return success(policies, 200, origin);
-    }
-
-    // ---- set-parent (hierarchy) ----
-    if (action === 'set-parent') {
-      const result = await setTagParent(organizationId, body.tagId, body.parentId || null);
-      return success(result, 200, origin);
-    }
-
-    // ---- get-tree (hierarchy) ----
-    if (action === 'get-tree') {
-      const tree = await getTagTree(organizationId);
-      return success(tree, 200, origin);
-    }
-
-    // ---- get-descendants (hierarchy) ----
-    if (action === 'get-descendants') {
-      if (!body.tagId) return error('tagId is required', 400, undefined, origin);
-      const ids = await getDescendants(organizationId, body.tagId);
-      return success({ tagIds: ids }, 200, origin);
-    }
-
-    // ---- merge ----
-    if (action === 'merge') {
-      if (!hasRole(user, 'admin') && !hasRole(user, 'org_admin') && !hasRole(user, 'super_admin')) {
-        return forbidden('Required permission: tags:merge', origin);
-      }
-      if (!body.sourceTagIds || !body.targetTagId) return error('sourceTagIds and targetTagId are required', 400, undefined, origin);
-      const result = await mergeTags(organizationId, userId, body.sourceTagIds, body.targetTagId);
-      logAuditAsync({
-        organizationId, userId, action: 'TAG_MERGED',
-        resourceType: 'tag', resourceId: body.targetTagId,
-        details: { sourceTagIds: body.sourceTagIds, ...result },
-        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
-      });
-      return success(result, 200, origin);
-    }
-
-    // ---- rename ----
-    if (action === 'rename') {
-      if (!body.tagId || !body.newKey || !body.newValue) return error('tagId, newKey, newValue are required', 400, undefined, origin);
-      const result = await renameTag(organizationId, body.tagId, body.newKey, body.newValue);
-      logAuditAsync({
-        organizationId, userId, action: 'TAG_RENAMED',
-        resourceType: 'tag', resourceId: body.tagId,
-        details: result,
-        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
-      });
-      return success(result, 200, origin);
-    }
-
-    // ---- auto-rules CRUD ----
-    if (action === 'list-auto-rules') {
-      const rules = await listAutoRules(organizationId);
-      return success(rules, 200, origin);
-    }
-
-    if (action === 'create-auto-rule') {
-      if (!hasRole(user, 'admin') && !hasRole(user, 'org_admin') && !hasRole(user, 'super_admin')) {
-        return forbidden('Required permission: tags:manage_rules', origin);
-      }
-      const rule = await createAutoRule(organizationId, userId, body);
-      logAuditAsync({
-        organizationId, userId, action: 'TAG_AUTO_RULE_CREATED',
-        resourceType: 'tag_auto_rule', resourceId: rule.id,
-        details: { name: rule.name },
-        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
-      });
-      return success(rule, 201, origin);
-    }
-
-    if (action === 'update-auto-rule') {
-      if (!body.ruleId) return error('ruleId is required', 400, undefined, origin);
-      const rule = await updateAutoRule(organizationId, body.ruleId, body);
-      return success(rule, 200, origin);
-    }
-
-    if (action === 'delete-auto-rule') {
-      if (!body.ruleId) return error('ruleId is required', 400, undefined, origin);
-      await deleteAutoRule(organizationId, body.ruleId);
-      return success({ deleted: true }, 200, origin);
-    }
-
-    if (action === 'execute-auto-rules') {
-      if (!hasRole(user, 'admin') && !hasRole(user, 'org_admin') && !hasRole(user, 'super_admin')) {
-        return forbidden('Required permission: tags:execute_rules', origin);
-      }
-      const result = await executeAutoRules(organizationId, userId);
-      logAuditAsync({
-        organizationId, userId, action: 'TAG_AUTO_RULES_EXECUTED',
-        resourceType: 'tag_auto_rule', resourceId: organizationId,
-        details: result,
-        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
-      });
-      return success(result, 200, origin);
-    }
-
-    // ---- cost drill-down ----
-    if (action === 'cost-drilldown') {
-      if (!body.tagId) return error('tagId is required', 400, undefined, origin);
-      const result = await getTagCostDrilldown(organizationId, {
-        tagId: body.tagId,
-        startDate: body.startDate,
-        endDate: body.endDate,
-        groupBy: body.groupBy,
-      });
-      return success(result, 200, origin);
-    }
-
-    if (action === 'cost-sparkline') {
-      if (!body.tagId) return error('tagId is required', 400, undefined, origin);
-      const result = await getTagCostSparkline(organizationId, body.tagId);
-      return success(result, 200, origin);
-    }
-
-    return error('Invalid action', 400, undefined, origin);
+    return await actionHandler({ organizationId, userId, user, body, event, origin });
   } catch (err: any) {
     logger.error('tag-crud handler error', err);
-    return error('Internal server error', 500, undefined, origin);
+    return error(String(err.message || 'Internal server error'), 500, undefined, origin);
   }
 }

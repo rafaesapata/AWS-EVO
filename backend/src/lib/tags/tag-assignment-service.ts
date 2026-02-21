@@ -5,7 +5,7 @@
 
 import { getPrismaClient } from '../database.js';
 import { logger } from '../logger.js';
-import { MAX_TAGS_PER_RESOURCE, MAX_BULK_RESOURCES, BULK_BATCH_SIZE } from './tag-validation.js';
+import { MAX_TAGS_PER_RESOURCE, MAX_BULK_RESOURCES } from './tag-validation.js';
 import { invalidateOnAssignmentChange } from './tag-cache.js';
 
 // ============================================================================
@@ -36,7 +36,7 @@ interface UnassignResponse {
 }
 
 // ============================================================================
-// ASSIGN TAG
+// ASSIGN TAG (Melhoria 1: batch queries instead of N+1 loop)
 // ============================================================================
 
 export async function assignTag(
@@ -62,62 +62,68 @@ export async function assignTag(
     return { ...result, failedCount: resources.length, failures: resources.map(r => ({ resourceId: r.resourceId, error: 'Tag not found', code: 'TAG_NOT_FOUND' })) };
   }
 
+  const resourceIds = resources.map(r => r.resourceId);
+
+  // Batch: get all existing assignments in 1 query
+  const existingAssignments = await prisma.resourceTagAssignment.findMany({
+    where: { organization_id: organizationId, tag_id: tagId, resource_id: { in: resourceIds } },
+    select: { resource_id: true },
+  });
+  const existingSet = new Set(existingAssignments.map((a: any) => a.resource_id));
+
+  // Batch: get per-resource tag counts in 1 query
+  const resourceCounts = await prisma.resourceTagAssignment.groupBy({
+    by: ['resource_id'],
+    where: { organization_id: organizationId, resource_id: { in: resourceIds } },
+    _count: true,
+  });
+  const countMap = new Map(resourceCounts.map((r: any) => [r.resource_id, r._count]));
+
+  // Build createMany data
+  const createData: any[] = [];
   for (const resource of resources) {
-    try {
-      // Check if already assigned
-      const existing = await prisma.resourceTagAssignment.findUnique({
-        where: {
-          uq_assignment_org_tag_resource: {
-            organization_id: organizationId,
-            tag_id: tagId,
-            resource_id: resource.resourceId,
-          },
-        },
-      });
-
-      if (existing) {
-        result.skippedCount++;
-        continue;
-      }
-
-      // Check per-resource tag limit
-      const resourceTagCount = await prisma.resourceTagAssignment.count({
-        where: { organization_id: organizationId, resource_id: resource.resourceId },
-      });
-
-      if (resourceTagCount >= MAX_TAGS_PER_RESOURCE) {
-        result.failedCount++;
-        result.failures.push({
-          resourceId: resource.resourceId,
-          error: `Resource already has ${MAX_TAGS_PER_RESOURCE} tags`,
-          code: 'RESOURCE_TAG_LIMIT_EXCEEDED',
-        });
-        continue;
-      }
-
-      await prisma.resourceTagAssignment.create({
-        data: {
-          organization_id: organizationId,
-          tag_id: tagId,
-          resource_id: resource.resourceId,
-          resource_type: resource.resourceType,
-          cloud_provider: resource.cloudProvider,
-          resource_name: resource.resourceName || null,
-          resource_region: resource.resourceRegion || null,
-          aws_account_id: resource.awsAccountId && resource.awsAccountId.length <= 12 ? resource.awsAccountId : null,
-          azure_credential_id: resource.azureCredentialId || null,
-          assigned_by: userId,
-        },
-      });
-
-      result.assignedCount++;
-    } catch (err: any) {
+    if (existingSet.has(resource.resourceId)) {
+      result.skippedCount++;
+      continue;
+    }
+    const currentCount = countMap.get(resource.resourceId) || 0;
+    if (currentCount >= MAX_TAGS_PER_RESOURCE) {
       result.failedCount++;
       result.failures.push({
         resourceId: resource.resourceId,
-        error: err.message || 'Unknown error',
-        code: 'DB_ERROR',
+        error: `Resource already has ${MAX_TAGS_PER_RESOURCE} tags`,
+        code: 'RESOURCE_TAG_LIMIT_EXCEEDED',
       });
+      continue;
+    }
+    createData.push({
+      organization_id: organizationId,
+      tag_id: tagId,
+      resource_id: resource.resourceId,
+      resource_type: resource.resourceType,
+      cloud_provider: resource.cloudProvider,
+      resource_name: resource.resourceName || null,
+      resource_region: resource.resourceRegion || null,
+      aws_account_id: resource.awsAccountId && resource.awsAccountId.length <= 12 ? resource.awsAccountId : null,
+      azure_credential_id: resource.azureCredentialId || null,
+      assigned_by: userId,
+    });
+    countMap.set(resource.resourceId, currentCount + 1);
+  }
+
+  // Batch insert
+  if (createData.length > 0) {
+    try {
+      const created = await prisma.resourceTagAssignment.createMany({
+        data: createData,
+        skipDuplicates: true,
+      });
+      result.assignedCount = created.count;
+      const dbSkipped = createData.length - created.count;
+      if (dbSkipped > 0) result.skippedCount += dbSkipped;
+    } catch (err: any) {
+      result.failedCount += createData.length;
+      result.failures.push({ resourceId: '', error: err.message || 'Unknown error', code: 'BATCH_INSERT_ERROR' });
     }
   }
 
@@ -126,7 +132,7 @@ export async function assignTag(
 }
 
 // ============================================================================
-// UNASSIGN TAG
+// UNASSIGN TAG (Melhoria 2: single query instead of loop)
 // ============================================================================
 
 export async function unassignTag(
@@ -135,24 +141,29 @@ export async function unassignTag(
   resourceIds: string[]
 ): Promise<UnassignResponse> {
   const prisma = getPrismaClient();
-  let removedCount = 0;
-  let notFoundCount = 0;
 
-  for (const resourceId of resourceIds) {
-    const deleted = await prisma.resourceTagAssignment.deleteMany({
-      where: {
-        organization_id: organizationId,
-        tag_id: tagId,
-        resource_id: resourceId,
-      },
-    });
+  // Count existing before delete to know notFoundCount
+  const existingCount = await prisma.resourceTagAssignment.count({
+    where: {
+      organization_id: organizationId,
+      tag_id: tagId,
+      resource_id: { in: resourceIds },
+    },
+  });
 
-    if (deleted.count > 0) removedCount++;
-    else notFoundCount++;
-  }
+  const deleted = await prisma.resourceTagAssignment.deleteMany({
+    where: {
+      organization_id: organizationId,
+      tag_id: tagId,
+      resource_id: { in: resourceIds },
+    },
+  });
 
   await invalidateOnAssignmentChange(organizationId, tagId);
-  return { removedCount, notFoundCount };
+  return {
+    removedCount: deleted.count,
+    notFoundCount: resourceIds.length - existingCount,
+  };
 }
 
 // ============================================================================
@@ -220,7 +231,6 @@ export async function bulkAssign(
   const countMap = new Map(resourceCounts.map((r: any) => [r.resource_id, r._count]));
 
   // Build createMany data, skipping existing and over-limit
-  const resourceMap = new Map(normalizedResources.map(r => [r.resourceId, r]));
   const createData: any[] = [];
 
   for (const tagId of validTagIds) {
@@ -251,7 +261,6 @@ export async function bulkAssign(
         azure_credential_id: resource.azureCredentialId || null,
         assigned_by: userId,
       });
-      // Track count increase for subsequent iterations
       countMap.set(resource.resourceId, currentCount + 1);
     }
   }
@@ -272,7 +281,6 @@ export async function bulkAssign(
         result.failures.push({ resourceId: '', error: err.message, code: 'BATCH_INSERT_ERROR' });
       }
     }
-    // Adjust: some may have been skipped by skipDuplicates
     const expectedAssigned = createData.length;
     const actualSkippedByDb = expectedAssigned - result.assignedCount - result.failures.filter(f => f.code === 'BATCH_INSERT_ERROR').length;
     if (actualSkippedByDb > 0) result.skippedCount += actualSkippedByDb;
@@ -336,7 +344,7 @@ export async function getResourcesByTag(
 }
 
 // ============================================================================
-// GET UNTAGGED RESOURCES
+// GET UNTAGGED RESOURCES (Melhoria 3: NOT EXISTS subquery instead of loading all IDs)
 // ============================================================================
 
 export async function getUntaggedResources(
@@ -353,13 +361,6 @@ export async function getUntaggedResources(
   const prisma = getPrismaClient();
   const limit = Math.min(Math.max(params.limit || 50, 1), 100);
 
-  // Get already-tagged resource IDs
-  const taggedResourceIds = (await prisma.resourceTagAssignment.findMany({
-    where: { organization_id: organizationId },
-    select: { resource_id: true },
-    distinct: ['resource_id'],
-  })).map((a: any) => a.resource_id);
-
   // Try ResourceInventory first
   try {
     const riCount = await prisma.resourceInventory.count({
@@ -367,32 +368,31 @@ export async function getUntaggedResources(
     });
 
     if (riCount > 0) {
-      const where: any = {
-        organization_id: organizationId,
-        ...(taggedResourceIds.length > 0 ? { NOT: { resource_id: { in: taggedResourceIds } } } : {}),
-      };
-      if (params.resourceType) where.resource_type = params.resourceType;
-      if (params.cloudProvider) where.cloud_provider = params.cloudProvider;
-      if (params.region) where.region = params.region;
-
-      const cursorObj = params.cursor ? { id: params.cursor } : undefined;
-
-      const resources = await prisma.resourceInventory.findMany({
-        where,
-        take: limit + 1,
-        orderBy: { updated_at: 'desc' },
-        ...(cursorObj ? { cursor: cursorObj, skip: 1 } : {}),
-      });
+      // Use raw SQL with NOT EXISTS for efficiency
+      const offset = params.cursor ? parseInt(params.cursor, 10) || 0 : 0;
+      const resources: any[] = await prisma.$queryRaw`
+        SELECT ri.*
+        FROM resource_inventory ri
+        WHERE ri.organization_id = ${organizationId}::uuid
+          AND NOT EXISTS (
+            SELECT 1 FROM resource_tag_assignments rta
+            WHERE rta.organization_id = ri.organization_id
+              AND rta.resource_id = ri.resource_id
+          )
+        ORDER BY ri.updated_at DESC
+        LIMIT ${limit + 1}
+        OFFSET ${offset}
+      `;
 
       const hasMore = resources.length > limit;
       const data = hasMore ? resources.slice(0, limit) : resources;
-      return { data, nextCursor: hasMore ? data[data.length - 1].id : null };
+      return { data, nextCursor: hasMore ? String(offset + limit) : null };
     }
   } catch {
     // ResourceInventory may not exist
   }
 
-  // Fallback: derive "resources" from daily_costs distinct services
+  // Fallback: derive "resources" from daily_costs with NOT EXISTS
   try {
     const offset = params.cursor ? parseInt(params.cursor, 10) || 0 : 0;
 
@@ -410,16 +410,18 @@ export async function getUntaggedResources(
       LEFT JOIN aws_credentials ac ON ac.id = dc.aws_account_id
       WHERE dc.organization_id = ${organizationId}::uuid
       GROUP BY dc.service, dc.cloud_provider, ac.account_id, dc.azure_credential_id
+      HAVING NOT EXISTS (
+        SELECT 1 FROM resource_tag_assignments rta
+        WHERE rta.organization_id = ${organizationId}::uuid
+          AND rta.resource_id = dc.service || '::' || COALESCE(ac.account_id, dc.azure_credential_id::text, 'unknown')
+      )
       ORDER BY SUM(dc.cost) DESC
       LIMIT ${limit + 1}
       OFFSET ${offset}
     `;
 
-    // Filter out already-tagged
-    const filtered = resources.filter((r: any) => !taggedResourceIds.includes(r.id));
-    const hasMore = filtered.length > limit;
-    const data = hasMore ? filtered.slice(0, limit) : filtered;
-    const nextOffset = offset + limit;
+    const hasMore = resources.length > limit;
+    const data = hasMore ? resources.slice(0, limit) : resources;
 
     return {
       data: data.map((r: any) => ({
@@ -434,7 +436,7 @@ export async function getUntaggedResources(
         last_seen: r.last_seen,
         source: 'daily_costs',
       })),
-      nextCursor: hasMore ? String(nextOffset) : null,
+      nextCursor: hasMore ? String(offset + limit) : null,
     };
   } catch (err: any) {
     logger.warn('getUntaggedResources daily_costs fallback error', { error: err.message });
@@ -443,7 +445,7 @@ export async function getUntaggedResources(
 }
 
 // ============================================================================
-// RECENT ACTIVITY (Melhoria 5)
+// RECENT ACTIVITY
 // ============================================================================
 
 export async function getRecentActivity(organizationId: string, limit: number = 10) {
@@ -473,7 +475,7 @@ export async function getRecentActivity(organizationId: string, limit: number = 
 }
 
 // ============================================================================
-// GET ALL RESOURCES — tagged + untagged (Melhoria 3)
+// GET ALL RESOURCES (Melhoria 4: single query with LEFT JOIN)
 // ============================================================================
 
 export async function getAllResources(
@@ -493,24 +495,19 @@ export async function getAllResources(
         COALESCE(dc.cloud_provider, 'AWS') as cloud_provider,
         COALESCE(ac.account_id, dc.azure_credential_id::text) as account_id,
         SUM(dc.cost) as total_cost,
-        MAX(dc.date) as last_seen
+        MAX(dc.date) as last_seen,
+        CASE WHEN COUNT(rta.id) > 0 THEN true ELSE false END as is_tagged
       FROM daily_costs dc
       LEFT JOIN aws_credentials ac ON ac.id = dc.aws_account_id
+      LEFT JOIN resource_tag_assignments rta 
+        ON rta.organization_id = dc.organization_id
+        AND rta.resource_id = dc.service || '::' || COALESCE(ac.account_id, dc.azure_credential_id::text, 'unknown')
       WHERE dc.organization_id = ${organizationId}::uuid
       GROUP BY dc.service, dc.cloud_provider, ac.account_id, dc.azure_credential_id
       ORDER BY SUM(dc.cost) DESC
       LIMIT ${limit + 1}
       OFFSET ${offset}
     `;
-
-    // Get tagged resource IDs to mark which are tagged
-    const taggedResourceIds = new Set(
-      (await prisma.resourceTagAssignment.findMany({
-        where: { organization_id: organizationId },
-        select: { resource_id: true },
-        distinct: ['resource_id'],
-      })).map((a: any) => a.resource_id)
-    );
 
     const hasMore = resources.length > limit;
     const data = hasMore ? resources.slice(0, limit) : resources;
@@ -525,7 +522,7 @@ export async function getAllResources(
         aws_account_id: r.account_id,
         total_cost: Number(r.total_cost || 0),
         last_seen: r.last_seen,
-        is_tagged: taggedResourceIds.has(r.id),
+        is_tagged: r.is_tagged,
         source: 'daily_costs',
       })),
       nextCursor: hasMore ? String(offset + limit) : null,
@@ -537,13 +534,12 @@ export async function getAllResources(
 }
 
 // ============================================================================
-// ENRICH LEGACY ASSIGNMENTS (Melhoria 6)
+// ENRICH LEGACY ASSIGNMENTS
 // ============================================================================
 
 export async function enrichLegacyAssignments(organizationId: string) {
   const prisma = getPrismaClient();
 
-  // Find assignments with resource_type='unknown' or empty resource_name
   const legacyAssignments = await prisma.resourceTagAssignment.findMany({
     where: {
       organization_id: organizationId,
@@ -559,9 +555,7 @@ export async function enrichLegacyAssignments(organizationId: string) {
 
   let enriched = 0;
   for (const assignment of legacyAssignments) {
-    // Try to match resource_id against daily_costs
     const resourceId = assignment.resource_id;
-    // resource_id format: "service::accountId"
     const parts = resourceId.split('::');
     if (parts.length >= 2) {
       const serviceName = parts[0];
@@ -574,7 +568,7 @@ export async function enrichLegacyAssignments(organizationId: string) {
             resource_type: serviceName,
             resource_name: serviceName,
             cloud_provider: assignment.cloud_provider || 'AWS',
-            aws_account_id: accountId !== 'unknown' ? accountId : null,
+            aws_account_id: accountId !== 'unknown' && accountId.length <= 12 ? accountId : null,
           },
         });
         enriched++;
