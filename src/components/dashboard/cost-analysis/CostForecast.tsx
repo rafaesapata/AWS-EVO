@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/integrations/aws/api-client";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -201,13 +202,11 @@ export function CostForecast({ accountId }: Props) {
   });
 
   // Gerar previsão local baseada em dados históricos
-  const forecasts = historicalCosts && historicalCosts.length >= 7 ? (() => {
-    console.log('CostForecast: Generating forecasts with', historicalCosts.length, 'days of data');
+  const forecasts = useMemo(() => {
+    if (!historicalCosts || historicalCosts.length < 7) return null;
     const costs = historicalCosts.map(c => c.total_cost);
     const n = costs.length;
     const avgCost = costs.reduce((a, b) => a + b, 0) / n;
-    
-    console.log('CostForecast: avgCost =', avgCost.toFixed(2));
     
     // Calcular tendência
     let sumXY = 0, sumX = 0, sumX2 = 0;
@@ -218,8 +217,6 @@ export function CostForecast({ accountId }: Props) {
     }
     const slope = (n * sumXY - sumX * costs.reduce((a, b) => a + b, 0)) / (n * sumX2 - sumX * sumX);
     
-    console.log('CostForecast: slope =', slope.toFixed(4));
-    
     // Calcular desvio padrão
     const variance = costs.reduce((sum, cost) => {
       const diff = cost - avgCost;
@@ -227,8 +224,6 @@ export function CostForecast({ accountId }: Props) {
     }, 0) / n;
     const stdDev = Math.sqrt(variance);
     const confidence = 1.96 * stdDev;
-    
-    console.log('CostForecast: stdDev =', stdDev.toFixed(2), 'confidence =', confidence.toFixed(2));
     
     // Gerar previsões
     const predictions = [];
@@ -247,12 +242,8 @@ export function CostForecast({ accountId }: Props) {
       });
     }
     
-    console.log('CostForecast: Generated', predictions.length, 'predictions');
-    console.log('CostForecast: First prediction:', predictions[0].predicted_cost.toFixed(2));
-    console.log('CostForecast: Last prediction:', predictions[29].predicted_cost.toFixed(2));
-    
     return predictions;
-  })() : null;
+  }, [historicalCosts]);
 
   if (effectiveAccountId === 'all') {
     return (
@@ -279,44 +270,34 @@ export function CostForecast({ accountId }: Props) {
   }
 
   // Combinar dados históricos e previsões
-  const chartData = [
-    // Mostrar apenas últimos 30 dias de histórico para não poluir o gráfico
-    ...(historicalCosts?.slice(-30).map(c => ({
-      date: formatDateBR(c.cost_date, { day: '2-digit', month: '2-digit' }),
-      actual: c.total_cost,
-      predicted: null,
-      low: null,
-      high: null
-    })) || []),
-    ...(forecasts?.map(f => ({
-      date: new Date(f.forecast_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      actual: null, // Sem dados reais no futuro
-      predicted: f.predicted_cost,
-      low: f.confidence_interval_low,
-      high: f.confidence_interval_high
-    })) || [])
-  ];
+  const { chartData, avgDailyCost, predictedMonthlyCost, growthRate } = useMemo(() => {
+    const data = [
+      ...(historicalCosts?.slice(-30).map(c => ({
+        date: formatDateBR(c.cost_date, { day: '2-digit', month: '2-digit' }),
+        actual: c.total_cost,
+        predicted: null,
+        low: null,
+        high: null
+      })) || []),
+      ...(forecasts?.map(f => ({
+        date: new Date(f.forecast_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        actual: null,
+        predicted: f.predicted_cost,
+        low: f.confidence_interval_low,
+        high: f.confidence_interval_high
+      })) || [])
+    ];
 
-  console.log('CostForecast: chartData length =', chartData.length);
-  console.log('CostForecast: Historical points =', historicalCosts?.slice(-30).length || 0);
-  console.log('CostForecast: Forecast points =', forecasts?.length || 0);
-  if (chartData.length > 0) {
-    console.log('CostForecast: First chart point:', chartData[0]);
-    console.log('CostForecast: Last chart point:', chartData[chartData.length - 1]);
-  }
+    const avg = historicalCosts && historicalCosts.length > 0 
+      ? historicalCosts.reduce((sum, c) => sum + (c.total_cost || 0), 0) / historicalCosts.length
+      : 0;
+    const predicted = forecasts?.reduce((sum, f) => sum + (f.predicted_cost || 0), 0) || 0;
+    const growth = avg > 0 
+      ? ((predicted - (avg * 30)) / (avg * 30)) * 100 
+      : 0;
 
-  const avgDailyCost = historicalCosts && historicalCosts.length > 0 
-    ? historicalCosts.reduce((sum, c) => sum + (c.total_cost || 0), 0) / historicalCosts.length
-    : 0;
-  const predictedMonthlyCost = forecasts?.reduce((sum, f) => sum + (f.predicted_cost || 0), 0) || 0;
-  const growthRate = avgDailyCost > 0 
-    ? ((predictedMonthlyCost - (avgDailyCost * 30)) / (avgDailyCost * 30)) * 100 
-    : 0;
-
-  console.log('CostForecast: avgDailyCost =', avgDailyCost.toFixed(2));
-  console.log('CostForecast: predictedMonthlyCost =', predictedMonthlyCost.toFixed(2));
-  console.log('CostForecast: growthRate =', growthRate.toFixed(1), '%');
-  console.log('CostForecast: forecasts =', forecasts ? forecasts.length : 'null');
+    return { chartData: data, avgDailyCost: avg, predictedMonthlyCost: predicted, growthRate: growth };
+  }, [historicalCosts, forecasts]);
 
   return (
     <Card>

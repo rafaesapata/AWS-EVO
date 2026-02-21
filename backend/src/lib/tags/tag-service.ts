@@ -298,24 +298,31 @@ export async function getSuggestions(
 
       // Score 2: same account + region
       if (score < 2) {
-        const regionCount = await prisma.resourceTagAssignment.count({
-          where: {
-            tag_id: tag.id,
-            organization_id: organizationId,
-            OR: [
-              { aws_account_id: accountId },
-              { azure_credential_id: accountId },
-            ],
-            resource_region: region,
-          },
-        });
-        if (regionCount > 0) score = Math.max(score, 2);
+        const accountFilter: any[] = [];
+        if (accountId) {
+          accountFilter.push({ aws_account_id: accountId });
+          // Only filter azure_credential_id if accountId looks like a UUID
+          if (accountId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            accountFilter.push({ azure_credential_id: accountId });
+          }
+        }
+        if (accountFilter.length > 0 && region) {
+          const regionCount = await prisma.resourceTagAssignment.count({
+            where: {
+              tag_id: tag.id,
+              organization_id: organizationId,
+              OR: accountFilter,
+              resource_region: region,
+            },
+          });
+          if (regionCount > 0) score = Math.max(score, 2);
+        }
       }
 
       // Score 1: name substring match
-      if (score < 1) {
+      if (score < 1 && resourceName) {
         const nameLower = resourceName.toLowerCase();
-        if (nameLower.includes(tag.key) || nameLower.includes(tag.value)) {
+        if ((tag.key && nameLower.includes(tag.key.toLowerCase())) || (tag.value && nameLower.includes(tag.value.toLowerCase()))) {
           score = Math.max(score, 1);
         }
       }
