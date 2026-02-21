@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { TagBadge } from '@/components/tags/TagBadge';
 import { BulkTaggingDrawer } from '@/components/tags/BulkTaggingDrawer';
 import type { Tag, CoverageMetrics, RecentActivityItem } from '@/hooks/useTags';
@@ -16,9 +17,12 @@ interface OverviewTabProps {
   isInDemoMode: boolean;
   onExpandTag: (tagId: string) => void;
   onSwitchTab: (tab: string) => void;
+  isLoading?: boolean;
+  isLoadingCoverage?: boolean;
+  isLoadingActivity?: boolean;
 }
 
-export function OverviewTab({ tags, total, coverage, recentActivity, isInDemoMode, onExpandTag, onSwitchTab }: OverviewTabProps) {
+export function OverviewTab({ tags, total, coverage, recentActivity, isInDemoMode, onExpandTag, onSwitchTab, isLoading, isLoadingCoverage, isLoadingActivity }: OverviewTabProps) {
   const { t } = useTranslation();
 
   const coverageColor = (coverage?.coveragePercentage ?? 0) >= 80 ? 'text-green-500' :
@@ -29,21 +33,30 @@ export function OverviewTab({ tags, total, coverage, recentActivity, isInDemoMod
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.totalTags', 'Total Tags')}</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">{total}</p></CardContent>
+          <CardContent>{isLoading ? <Skeleton className="h-8 w-16" /> : <p className="text-2xl font-bold">{total}</p>}</CardContent>
         </Card>
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.totalAssignments', 'Total Assignments')}</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">{coverage?.taggedResources || 0}</p></CardContent>
+          <CardContent>{isLoadingCoverage ? <Skeleton className="h-8 w-16" /> : <p className="text-2xl font-bold">{coverage?.taggedResources || 0}</p>}</CardContent>
         </Card>
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.untaggedResources', 'Untagged Resources')}</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">{coverage?.untaggedResources || 0}</p></CardContent>
+          <CardContent>{isLoadingCoverage ? <Skeleton className="h-8 w-16" /> : <p className="text-2xl font-bold">{coverage?.untaggedResources || 0}</p>}</CardContent>
         </Card>
         <Card className="glass border-primary/20">
           <CardHeader className="pb-2"><CardTitle className="text-sm">{t('tags.coverage', 'Coverage')}</CardTitle></CardHeader>
           <CardContent>
-            <p className={`text-2xl font-bold ${coverageColor}`}>{coverage?.coveragePercentage?.toFixed(1) || 0}%</p>
-            <Progress value={coverage?.coveragePercentage || 0} className="h-2 mt-2" />
+            {isLoadingCoverage ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-2 w-full rounded-full" />
+              </div>
+            ) : (
+              <>
+                <p className={`text-2xl font-bold ${coverageColor}`}>{coverage?.coveragePercentage?.toFixed(1) || 0}%</p>
+                <Progress value={coverage?.coveragePercentage || 0} className="h-2 mt-2" />
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -52,7 +65,19 @@ export function OverviewTab({ tags, total, coverage, recentActivity, isInDemoMod
         <Card className="glass border-primary/20">
           <CardHeader><CardTitle className="text-sm">{t('tags.topTagsByUsage', 'Top Tags by Usage')}</CardTitle></CardHeader>
           <CardContent>
-            {tags.length > 0 ? (
+            {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <Skeleton className="h-6 w-24 rounded-full" />
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-6 w-6 rounded" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : tags.length > 0 ? (
               <div className="space-y-3">
                 {[...tags].sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0)).slice(0, 5).map((tag) => (
                   <div key={tag.id} className="flex items-center justify-between">
@@ -78,7 +103,21 @@ export function OverviewTab({ tags, total, coverage, recentActivity, isInDemoMod
         <Card className="glass border-primary/20">
           <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4" />{t('tags.recentActivity', 'Recent Activity')}</CardTitle></CardHeader>
           <CardContent>
-            {recentActivity && recentActivity.length > 0 ? (
+            {isLoadingActivity ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-2 rounded bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-3" />
+                      <Skeleton className="h-4 w-28" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                ))}
+              </div>
+            ) : recentActivity && recentActivity.length > 0 ? (
               <div className="space-y-2">
                 {recentActivity.slice(0, 6).map((item) => (
                   <div key={item.id} className="flex items-center justify-between text-xs p-2 rounded bg-muted/30">
@@ -103,7 +142,16 @@ export function OverviewTab({ tags, total, coverage, recentActivity, isInDemoMod
         <Card className="glass border-primary/20">
           <CardHeader><CardTitle className="text-sm">{t('tags.coverageByProvider', 'Resources by Provider')}</CardTitle></CardHeader>
           <CardContent>
-            {coverage?.breakdownByProvider && Object.keys(coverage.breakdownByProvider).length > 0 ? (
+            {isLoadingCoverage ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                ))}
+              </div>
+            ) : coverage?.breakdownByProvider && Object.keys(coverage.breakdownByProvider).length > 0 ? (
               <div className="space-y-3">
                 {Object.entries(coverage.breakdownByProvider).map(([provider, count]) => (
                   <div key={provider} className="flex items-center justify-between">

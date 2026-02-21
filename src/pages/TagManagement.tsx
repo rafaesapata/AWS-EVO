@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, Fragment } from 'react';
 import { Layout } from '@/components/Layout';
 import { Tags, Trash2, Pencil, Loader2, Shield, AlertTriangle, Download, ChevronDown, ChevronRight, ExternalLink, X, Clock, Wrench, FileText, Zap, GitMerge, Play, Plus, Power, PowerOff } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,19 +59,19 @@ export default function TagManagement() {
     limit: 100,
     enabled: !isInDemoMode,
   });
-  const { data: coverageReal } = useTagCoverage({ enabled: !isInDemoMode });
+  const { data: coverageReal, isLoading: isLoadingCoverage } = useTagCoverage({ enabled: !isInDemoMode });
   const deleteTag = useDeleteTag();
   const updateTag = useUpdateTag();
   const unassignTag = useUnassignTag();
   const enrichLegacy = useEnrichLegacy();
-  const { data: costReportReal } = useTagCostReport(isInDemoMode ? null : selectedCostTag);
-  const { data: secFindingsReal } = useTagSecurityFindings(isInDemoMode ? [] : selectedSecTags);
+  const { data: costReportReal, isLoading: isLoadingCost } = useTagCostReport(isInDemoMode ? null : selectedCostTag);
+  const { data: secFindingsReal, isLoading: isLoadingSec } = useTagSecurityFindings(isInDemoMode ? [] : selectedSecTags);
   const { data: expandedTagResources, isLoading: isLoadingResources } = useResourcesByTag(
     isInDemoMode ? null : expandedTagId
   );
-  const { data: policiesData } = useTagPolicies({ enabled: !isInDemoMode });
+  const { data: policiesData, isLoading: isLoadingPolicies } = useTagPolicies({ enabled: !isInDemoMode });
   const savePolicies = useSaveTagPolicies();
-  const { data: recentActivity } = useRecentActivity({ limit: 8, enabled: !isInDemoMode });
+  const { data: recentActivity, isLoading: isLoadingActivity } = useRecentActivity({ limit: 8, enabled: !isInDemoMode });
 
   // Advanced features hooks
   const { data: autoRules, isLoading: loadingRules } = useAutoRules({ enabled: !isInDemoMode && tab === 'automation' });
@@ -78,7 +79,7 @@ export default function TagManagement() {
   const deleteAutoRule = useDeleteAutoRule();
   const updateAutoRuleMut = useUpdateAutoRule();
   const executeAutoRules = useExecuteAutoRules();
-  const { data: tagTree } = useTagTree({ enabled: !isInDemoMode && tab === 'hierarchy' });
+  const { data: tagTree, isLoading: isLoadingTree } = useTagTree({ enabled: !isInDemoMode && tab === 'hierarchy' });
   const mergeTags = useMergeTags();
   const renameTagMut = useRenameTag();
   const [drilldownTagId, setDrilldownTagId] = useState<string | null>(null);
@@ -167,14 +168,14 @@ export default function TagManagement() {
 
   if (shouldShowQuickstart) {
     return (
-      <Layout title={t('tags.management', 'Tag Management')} description={t('tags.managementDesc', 'Organize and classify your cloud resources with tags')} icon={<Tags className="h-4 w-4 text-white" />}>
+      <Layout title={t('tags.management', 'Tag Management')} description={t('tags.managementDesc', 'Organize and classify your cloud resources with tags')} icon={<Tags className="h-4 w-4" />}>
         <QuickstartWizard onComplete={() => setQuickstartDismissed(true)} onSkip={() => setQuickstartDismissed(true)} />
       </Layout>
     );
   }
 
   return (
-    <Layout title={t('tags.management', 'Tag Management')} description={t('tags.managementDesc', 'Organize and classify your cloud resources with tags')} icon={<Tags className="h-4 w-4 text-white" />}>
+    <Layout title={t('tags.management', 'Tag Management')} description={t('tags.managementDesc', 'Organize and classify your cloud resources with tags')} icon={<Tags className="h-4 w-4" />}>
       <div className="space-y-6">
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="glass">
@@ -189,7 +190,7 @@ export default function TagManagement() {
 
           {/* Melhoria 11: Overview extracted to component */}
           <TabsContent value="overview" className="space-y-6">
-            <OverviewTab tags={tags} total={total} coverage={coverage} recentActivity={recentActivity} isInDemoMode={isInDemoMode} onExpandTag={setExpandedTagId} onSwitchTab={setTab} />
+            <OverviewTab tags={tags} total={total} coverage={coverage} recentActivity={recentActivity} isInDemoMode={isInDemoMode} onExpandTag={setExpandedTagId} onSwitchTab={setTab} isLoading={isLoading} isLoadingCoverage={isLoadingCoverage} isLoadingActivity={isLoadingActivity} />
           </TabsContent>
 
           {/* Tags Library Tab */}
@@ -211,7 +212,20 @@ export default function TagManagement() {
             <Card className="glass border-primary/20">
               <CardContent className="p-0">
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" /></div>
+                  <div className="p-4 space-y-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 px-2">
+                        <Skeleton className="h-4 w-4 rounded" />
+                        <Skeleton className="h-6 w-24 rounded-full" />
+                        <Skeleton className="h-5 w-20 rounded-full" />
+                        <div className="ml-auto flex items-center gap-3">
+                          <Skeleton className="h-4 w-8" />
+                          <Skeleton className="h-7 w-7 rounded" />
+                          <Skeleton className="h-7 w-7 rounded" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -371,7 +385,20 @@ export default function TagManagement() {
               <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Zap className="h-4 w-4" />Regras Ativas</CardTitle></CardHeader>
               <CardContent>
                 {loadingRules ? (
-                  <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+                  <div className="space-y-3 p-2">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-5 w-40 rounded-full" />
+                        <Skeleton className="h-4 w-10" />
+                        <Skeleton className="h-5 w-14 rounded-full" />
+                        <div className="ml-auto flex gap-1">
+                          <Skeleton className="h-7 w-7 rounded" />
+                          <Skeleton className="h-7 w-7 rounded" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : autoRules && autoRules.length > 0 ? (
                   <Table>
                     <TableHeader>
@@ -429,7 +456,25 @@ export default function TagManagement() {
               <Card className="glass border-primary/20">
                 <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Tags className="h-4 w-4" />Árvore de Tags</CardTitle></CardHeader>
                 <CardContent>
-                  {tagTree && tagTree.length > 0 ? (
+                  {isLoadingTree ? (
+                    <div className="space-y-2">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i}>
+                          <div className="flex items-center gap-2 p-2">
+                            <Skeleton className="h-3 w-3 rounded-full" />
+                            <Skeleton className="h-4 w-28" />
+                            <Skeleton className="h-5 w-16 rounded-full" />
+                          </div>
+                          {i % 2 === 0 && (
+                            <div className="flex items-center gap-2 p-2 pl-8">
+                              <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                              <Skeleton className="h-4 w-24" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : tagTree && tagTree.length > 0 ? (
                     <div className="space-y-1">
                       {tagTree.map((node) => (
                         <Fragment key={node.id}>
@@ -552,7 +597,23 @@ export default function TagManagement() {
                 </Select>
               </CardContent>
             </Card>
-            {costReport && (
+            {selectedCostTag && isLoadingCost ? (
+              <Card className="glass border-primary/20">
+                <CardHeader><CardTitle className="text-sm">{t('tags.costBreakdown', 'Cost Breakdown')}</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <Skeleton className="h-8 w-28" />
+                  <Skeleton className="h-3 w-48" />
+                  <div className="space-y-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex items-center justify-between">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : costReport && (
               <Card className="glass border-primary/20">
                 <CardHeader><CardTitle className="text-sm">{t('tags.costBreakdown', 'Cost Breakdown')}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
@@ -626,7 +687,16 @@ export default function TagManagement() {
                 {selectedSecTags.length > 0 && (
                   <Button variant="ghost" size="sm" className="text-xs" onClick={() => setSelectedSecTags([])}>Limpar seleção</Button>
                 )}
-                {secFindings?.findings?.length > 0 ? (
+                {isLoadingSec && selectedSecTags.length > 0 ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded bg-muted/50">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </div>
+                    ))}
+                  </div>
+                ) : secFindings?.findings?.length > 0 ? (
                   <div className="space-y-2">
                     {secFindings.findings.slice(0, 20).map((f: any, i: number) => (
                       <div key={i} className="flex items-center justify-between text-sm p-2 rounded bg-muted/50">
@@ -646,6 +716,32 @@ export default function TagManagement() {
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
+            {isLoadingPolicies ? (
+              <div className="space-y-6">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i} className="glass border-primary/20">
+                    <CardHeader>
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-4 rounded" />
+                        <Skeleton className="h-4 w-32" />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {Array.from({ length: 3 }).map((_, j) => (
+                        <div key={j} className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <Skeleton className="h-4 w-40" />
+                            <Skeleton className="h-3 w-56" />
+                          </div>
+                          <Skeleton className="h-5 w-9 rounded-full" />
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+            <>
             <Card className="glass border-primary/20">
               <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Shield className="h-4 w-4" />{t('tags.namingPolicies', 'Naming Policies')}</CardTitle></CardHeader>
               <CardContent className="space-y-4">
@@ -793,6 +889,8 @@ export default function TagManagement() {
                 {t('common.save', 'Save Settings')}
               </Button>
             </div>
+            </>
+            )}
           </TabsContent>
         </Tabs>
 
