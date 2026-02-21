@@ -655,6 +655,24 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                   </div>
                 )}
               </div>
+              {result.failedCount > 0 && result.failures && result.failures.length > 0 && (
+                <div className="w-full max-w-md text-left">
+                  <p className="text-xs font-medium text-destructive mb-2">Detalhes das falhas:</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {result.failures.slice(0, 5).map((f: any, i: number) => (
+                      <div key={i} className="text-xs p-2 rounded bg-destructive/5 border border-destructive/10">
+                        {f.error === `Resource tag limit exceeded (50)` || f.code === 'RESOURCE_TAG_LIMIT_EXCEEDED'
+                          ? 'Recurso já atingiu o limite de 50 tags'
+                          : f.error || 'Erro desconhecido'}
+                        {f.resourceId && <span className="text-muted-foreground ml-1">({f.resourceId.slice(0, 30)}...)</span>}
+                      </div>
+                    ))}
+                    {result.failures.length > 5 && (
+                      <p className="text-xs text-muted-foreground">...e mais {result.failures.length - 5} falhas</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

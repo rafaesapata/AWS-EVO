@@ -27,14 +27,14 @@ export async function handler(
     const organizationId = getOrganizationIdWithImpersonation(event, user);
     const body = JSON.parse(event.body || '{}');
 
-    if (!body.resourceType || !body.resourceName) {
-      return error('resourceType and resourceName are required', 422, undefined, origin);
+    if (!body.resourceType) {
+      return error('resourceType is required', 422, undefined, origin);
     }
 
     const result = await getSuggestions(
       organizationId,
       body.resourceType,
-      body.resourceName,
+      body.resourceName || '',
       body.accountId || '',
       body.region || ''
     );
