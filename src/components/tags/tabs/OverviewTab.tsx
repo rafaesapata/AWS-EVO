@@ -86,7 +86,7 @@ export function OverviewTab({ tags, total, coverage, recentActivity, isInDemoMod
                       <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.tag_color }} />
                       <span className="font-medium truncate">{item.tag_key}:{item.tag_value}</span>
                       <span className="text-muted-foreground">→</span>
-                      <span className="truncate text-muted-foreground">{item.resource_name || item.resource_type}</span>
+                      <span className="truncate text-muted-foreground">{item.resource_name || (item.resource_type && item.resource_type !== 'unknown' ? item.resource_type : item.resource_id?.split('::')[0] || 'unknown')}</span>
                     </div>
                     <span className="text-muted-foreground shrink-0 ml-2">{new Date(item.assigned_at).toLocaleDateString()}</span>
                   </div>
