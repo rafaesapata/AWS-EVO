@@ -362,7 +362,7 @@ export async function handler(
                 try {
                   await prisma.$executeRaw`
                     INSERT INTO daily_costs (id, organization_id, aws_account_id, date, service, cost, currency, created_at)
-                    VALUES (gen_random_uuid(), ${organizationId}, ${account.id}, ${new Date(date)}, ${service}, ${cost}::decimal, 'USD', NOW())
+                    VALUES (gen_random_uuid(), ${organizationId}::uuid, ${account.id}::uuid, ${new Date(date)}, ${service}, ${cost}::decimal, 'USD', NOW())
                     ON CONFLICT (organization_id, aws_account_id, date, service)
                     DO UPDATE SET cost = ${cost}::decimal, created_at = NOW()
                   `;
