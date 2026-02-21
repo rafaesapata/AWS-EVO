@@ -1,21 +1,64 @@
 /**
  * Redis Cache Implementation
- * High-performance distributed caching system
+ * High-performance distributed caching backed by Amazon MemoryDB.
+ * Falls back to in-memory Map when Redis is unavailable.
  * 
- * NOTA: Usa cache em memória (não depende de ioredis)
- * Para usar Redis real, adicionar ioredis ao Lambda layer
+ * Architecture:
+ *   MemoryDB (primary) → in-memory Map (fallback)
+ *   All operations are fire-and-forget safe — errors never propagate to callers.
  */
 
+import { getRedisClient, isRedisConnected } from './redis-client.js';
 import { logger } from './logger.js';
 
-// In-memory cache fallback
-const memoryCache = new Map<string, { value: any; expiry: number }>();
+// ============================================================================
+// IN-MEMORY FALLBACK
+// ============================================================================
+
+const memoryCache = new Map<string, { value: string; expiry: number }>();
+const MAX_MEMORY_ENTRIES = 5000;
+
+function memoryGet(key: string): string | null {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (entry.expiry < Date.now()) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function memorySet(key: string, value: string, ttlSeconds: number): void {
+  // Evict oldest if full
+  if (memoryCache.size >= MAX_MEMORY_ENTRIES) {
+    const firstKey = memoryCache.keys().next().value;
+    if (firstKey) memoryCache.delete(firstKey);
+  }
+  memoryCache.set(key, { value, expiry: Date.now() + ttlSeconds * 1000 });
+}
+
+function memoryDel(key: string): boolean {
+  return memoryCache.delete(key);
+}
+
+function memoryKeys(pattern: string): string[] {
+  const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+  const now = Date.now();
+  const result: string[] = [];
+  for (const [k, v] of memoryCache.entries()) {
+    if (v.expiry < now) { memoryCache.delete(k); continue; }
+    if (regex.test(k)) result.push(k);
+  }
+  return result;
+}
+
+// ============================================================================
+// INTERFACES
+// ============================================================================
 
 export interface CacheOptions {
-  ttl?: number; // Time to live in seconds
+  ttl?: number;    // seconds
   prefix?: string;
-  serialize?: boolean;
-  compress?: boolean;
 }
 
 export interface CacheStats {
@@ -25,442 +68,351 @@ export interface CacheStats {
   deletes: number;
   errors: number;
   hitRate: number;
+  backend: 'redis' | 'memory';
 }
 
-/**
- * Redis Cache Manager
- * Usa cache em memória por padrão (funciona em Lambda sem dependências extras)
- */
-export class RedisCacheManager {
-  private redis: any = null;
-  private stats: CacheStats = {
-    hits: 0,
-    misses: 0,
-    sets: 0,
-    deletes: 0,
-    errors: 0,
-    hitRate: 0
-  };
-  private defaultTTL = 3600; // 1 hour
-  private keyPrefix = 'evo-uds:';
-  private useMemoryFallback = true; // Sempre usar memória por padrão
+// ============================================================================
+// REDIS CACHE MANAGER
+// ============================================================================
 
-  constructor(options?: any) {
-    // Sempre usar cache em memória (mais simples e funciona em Lambda)
-    logger.info('Using in-memory cache');
+export class RedisCacheManager {
+  private stats = { hits: 0, misses: 0, sets: 0, deletes: 0, errors: 0 };
+  private defaultTTL = 3600; // 1 hour
+  private keyPrefix = 'evo:';
+
+  private buildKey(key: string, prefix?: string): string {
+    return prefix ? `${this.keyPrefix}${prefix}:${key}` : `${this.keyPrefix}${key}`;
   }
 
-  /**
-   * Get value from cache
-   */
+  private serialize(value: any): string {
+    return JSON.stringify(value);
+  }
+
+  private deserialize<T>(raw: string): T {
+    return JSON.parse(raw) as T;
+  }
+
+  // --------------------------------------------------------------------------
+  // CORE OPERATIONS
+  // --------------------------------------------------------------------------
+
   async get<T = any>(key: string, options: CacheOptions = {}): Promise<T | null> {
+    const fullKey = this.buildKey(key, options.prefix);
     try {
-      const fullKey = this.buildKey(key, options.prefix);
-      
-      const cached = memoryCache.get(fullKey);
-      if (!cached || cached.expiry < Date.now()) {
-        if (cached) memoryCache.delete(fullKey);
-        this.stats.misses++;
-        return null;
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        const raw = await redis.get(fullKey);
+        if (raw === null) { this.stats.misses++; return null; }
+        this.stats.hits++;
+        return this.deserialize<T>(raw);
       }
+      // Fallback
+      const raw = memoryGet(fullKey);
+      if (raw === null) { this.stats.misses++; return null; }
       this.stats.hits++;
-      return cached.value as T;
-    } catch (error) {
-      logger.error('Cache get error', error as Error, { key });
+      return this.deserialize<T>(raw);
+    } catch (err) {
       this.stats.errors++;
+      logger.warn('[Cache] get error', { key: fullKey, error: (err as Error).message });
+      // Try memory fallback on Redis error
+      const raw = memoryGet(fullKey);
+      if (raw) return this.deserialize<T>(raw);
       return null;
     }
   }
 
-  /**
-   * Set value in cache
-   */
-  async set(
-    key: string, 
-    value: any, 
-    options: CacheOptions = {}
-  ): Promise<boolean> {
+  async set(key: string, value: any, options: CacheOptions = {}): Promise<boolean> {
+    const fullKey = this.buildKey(key, options.prefix);
+    const ttl = options.ttl || this.defaultTTL;
+    const serialized = this.serialize(value);
     try {
-      const fullKey = this.buildKey(key, options.prefix);
-      const ttl = options.ttl || this.defaultTTL;
-
-      memoryCache.set(fullKey, {
-        value: value,
-        expiry: Date.now() + (ttl * 1000)
-      });
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        await redis.setex(fullKey, ttl, serialized);
+        this.stats.sets++;
+        return true;
+      }
+      // Fallback
+      memorySet(fullKey, serialized, ttl);
       this.stats.sets++;
       return true;
-    } catch (error) {
-      logger.error('Cache set error', error as Error, { key });
+    } catch (err) {
       this.stats.errors++;
-      return false;
+      logger.warn('[Cache] set error', { key: fullKey, error: (err as Error).message });
+      // Always write to memory as backup
+      memorySet(fullKey, serialized, ttl);
+      return true;
     }
   }
 
-  /**
-   * Delete key from cache
-   */
   async delete(key: string, options: CacheOptions = {}): Promise<boolean> {
+    const fullKey = this.buildKey(key, options.prefix);
     try {
-      const fullKey = this.buildKey(key, options.prefix);
-      
-      const existed = memoryCache.has(fullKey);
-      memoryCache.delete(fullKey);
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        const count = await redis.del(fullKey);
+        if (count > 0) this.stats.deletes++;
+        memoryDel(fullKey); // also clean memory
+        return count > 0;
+      }
+      const existed = memoryDel(fullKey);
       if (existed) this.stats.deletes++;
       return existed;
-    } catch (error) {
-      logger.error('Cache delete error', error as Error, { key });
+    } catch (err) {
       this.stats.errors++;
-      return false;
+      logger.warn('[Cache] delete error', { key: fullKey, error: (err as Error).message });
+      return memoryDel(fullKey);
     }
   }
 
-  /**
-   * Check if key exists
-   */
   async exists(key: string, options: CacheOptions = {}): Promise<boolean> {
+    const fullKey = this.buildKey(key, options.prefix);
     try {
-      const fullKey = this.buildKey(key, options.prefix);
-      
-      const cached = memoryCache.get(fullKey);
-      if (!cached || cached.expiry < Date.now()) {
-        if (cached) memoryCache.delete(fullKey);
-        return false;
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        return (await redis.exists(fullKey)) === 1;
       }
-      return true;
-    } catch (error) {
-      logger.error('Cache exists error', error as Error, { key });
-      return false;
+      return memoryGet(fullKey) !== null;
+    } catch {
+      return memoryGet(fullKey) !== null;
     }
   }
 
-  /**
-   * Get multiple keys
-   */
   async mget<T = any>(keys: string[], options: CacheOptions = {}): Promise<(T | null)[]> {
+    const fullKeys = keys.map(k => this.buildKey(k, options.prefix));
     try {
-      const fullKeys = keys.map(key => this.buildKey(key, options.prefix));
-      
-      return fullKeys.map(fullKey => {
-        const cached = memoryCache.get(fullKey);
-        if (!cached || cached.expiry < Date.now()) {
-          if (cached) memoryCache.delete(fullKey);
-          this.stats.misses++;
-          return null;
-        }
-        this.stats.hits++;
-        return cached.value as T;
-      });
-    } catch (error) {
-      logger.error('Cache mget error', error as Error, { keys });
-      this.stats.errors++;
-      return keys.map(() => null);
-    }
-  }
-
-  /**
-   * Set multiple keys
-   */
-  async mset(
-    keyValuePairs: Array<[string, any]>, 
-    options: CacheOptions = {}
-  ): Promise<boolean> {
-    try {
-      const ttl = options.ttl || this.defaultTTL;
-      
-      const expiry = Date.now() + (ttl * 1000);
-      for (const [key, value] of keyValuePairs) {
-        const fullKey = this.buildKey(key, options.prefix);
-        memoryCache.set(fullKey, { value, expiry });
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        const results = await redis.mget(...fullKeys);
+        return results.map(raw => {
+          if (raw === null) { this.stats.misses++; return null; }
+          this.stats.hits++;
+          return this.deserialize<T>(raw);
+        });
       }
-      this.stats.sets += keyValuePairs.length;
-      return true;
-    } catch (error) {
-      logger.error('Cache mset error', error as Error);
+    } catch (err) {
       this.stats.errors++;
-      return false;
+      logger.warn('[Cache] mget error', { error: (err as Error).message });
     }
+    // Fallback
+    return fullKeys.map(fk => {
+      const raw = memoryGet(fk);
+      if (raw === null) { this.stats.misses++; return null; }
+      this.stats.hits++;
+      return this.deserialize<T>(raw);
+    });
   }
 
-  /**
-   * Increment counter
-   */
+  async mset(pairs: Array<[string, any]>, options: CacheOptions = {}): Promise<boolean> {
+    const ttl = options.ttl || this.defaultTTL;
+    try {
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        const pipeline = redis.pipeline();
+        for (const [key, value] of pairs) {
+          const fullKey = this.buildKey(key, options.prefix);
+          pipeline.setex(fullKey, ttl, this.serialize(value));
+        }
+        await pipeline.exec();
+        this.stats.sets += pairs.length;
+        return true;
+      }
+    } catch (err) {
+      this.stats.errors++;
+      logger.warn('[Cache] mset error', { error: (err as Error).message });
+    }
+    // Fallback
+    for (const [key, value] of pairs) {
+      const fullKey = this.buildKey(key, options.prefix);
+      memorySet(fullKey, this.serialize(value), ttl);
+    }
+    this.stats.sets += pairs.length;
+    return true;
+  }
+
   async increment(key: string, by: number = 1, options: CacheOptions = {}): Promise<number> {
+    const fullKey = this.buildKey(key, options.prefix);
     try {
-      const fullKey = this.buildKey(key, options.prefix);
-      
-      const cached = memoryCache.get(fullKey);
-      const currentValue = cached && cached.expiry > Date.now() ? (cached.value as number) : 0;
-      const newValue = currentValue + by;
-      const ttl = options.ttl || this.defaultTTL;
-      memoryCache.set(fullKey, { value: newValue, expiry: Date.now() + (ttl * 1000) });
-      return newValue;
-    } catch (error) {
-      logger.error('Cache increment error', error as Error, { key });
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        const val = await redis.incrby(fullKey, by);
+        if (options.ttl) await redis.expire(fullKey, options.ttl);
+        return val;
+      }
+    } catch (err) {
       this.stats.errors++;
-      return 0;
+      logger.warn('[Cache] increment error', { key: fullKey, error: (err as Error).message });
     }
+    // Fallback
+    const raw = memoryGet(fullKey);
+    const current = raw ? parseInt(raw, 10) : 0;
+    const newVal = current + by;
+    memorySet(fullKey, String(newVal), options.ttl || this.defaultTTL);
+    return newVal;
   }
 
-  /**
-   * Add to set
-   */
   async sadd(key: string, members: string[], options: CacheOptions = {}): Promise<number> {
+    const fullKey = this.buildKey(key, options.prefix);
     try {
-      const fullKey = this.buildKey(key, options.prefix);
-      
-      const cached = memoryCache.get(fullKey);
-      const currentSet = cached && cached.expiry > Date.now() ? new Set(cached.value as string[]) : new Set<string>();
-      let added = 0;
-      for (const member of members) {
-        if (!currentSet.has(member)) {
-          currentSet.add(member);
-          added++;
-        }
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        const added = await redis.sadd(fullKey, ...members);
+        if (options.ttl) await redis.expire(fullKey, options.ttl);
+        return added;
       }
-      const ttl = options.ttl || this.defaultTTL;
-      memoryCache.set(fullKey, { value: Array.from(currentSet), expiry: Date.now() + (ttl * 1000) });
-      return added;
-    } catch (error) {
-      logger.error('Cache sadd error', error as Error, { key });
+    } catch (err) {
       this.stats.errors++;
-      return 0;
+      logger.warn('[Cache] sadd error', { key: fullKey, error: (err as Error).message });
     }
+    // Fallback
+    const raw = memoryGet(fullKey);
+    const set = new Set<string>(raw ? JSON.parse(raw) : []);
+    let added = 0;
+    for (const m of members) { if (!set.has(m)) { set.add(m); added++; } }
+    memorySet(fullKey, JSON.stringify([...set]), options.ttl || this.defaultTTL);
+    return added;
   }
 
-  /**
-   * Get set members
-   */
   async smembers(key: string, options: CacheOptions = {}): Promise<string[]> {
+    const fullKey = this.buildKey(key, options.prefix);
     try {
-      const fullKey = this.buildKey(key, options.prefix);
-      
-      const cached = memoryCache.get(fullKey);
-      if (!cached || cached.expiry < Date.now()) {
-        if (cached) memoryCache.delete(fullKey);
-        return [];
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        return await redis.smembers(fullKey);
       }
-      return cached.value as string[];
-    } catch (error) {
-      logger.error('Cache smembers error', error as Error, { key });
+    } catch (err) {
       this.stats.errors++;
-      return [];
     }
+    const raw = memoryGet(fullKey);
+    return raw ? JSON.parse(raw) : [];
   }
 
-  /**
-   * Remove from set
-   */
   async srem(key: string, members: string[], options: CacheOptions = {}): Promise<number> {
+    const fullKey = this.buildKey(key, options.prefix);
     try {
-      const fullKey = this.buildKey(key, options.prefix);
-      
-      const cached = memoryCache.get(fullKey);
-      if (!cached || cached.expiry < Date.now()) {
-        if (cached) memoryCache.delete(fullKey);
-        return 0;
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        return await redis.srem(fullKey, ...members);
       }
-      const currentSet = new Set(cached.value as string[]);
-      let removed = 0;
-      for (const member of members) {
-        if (currentSet.delete(member)) removed++;
-      }
-      memoryCache.set(fullKey, { value: Array.from(currentSet), expiry: cached.expiry });
-      return removed;
-    } catch (error) {
-      logger.error('Cache srem error', error as Error, { key });
+    } catch (err) {
       this.stats.errors++;
-      return 0;
     }
+    const raw = memoryGet(fullKey);
+    if (!raw) return 0;
+    const set = new Set<string>(JSON.parse(raw));
+    let removed = 0;
+    for (const m of members) { if (set.delete(m)) removed++; }
+    memorySet(fullKey, JSON.stringify([...set]), this.defaultTTL);
+    return removed;
   }
 
-  /**
-   * Get keys by pattern
-   */
   async keys(pattern: string, options: CacheOptions = {}): Promise<string[]> {
+    const fullPattern = this.buildKey(pattern, options.prefix);
     try {
-      const fullPattern = this.buildKey(pattern, options.prefix);
-      
-      const now = Date.now();
-      const matchingKeys: string[] = [];
-      const regexPattern = fullPattern.replace(/\*/g, '.*');
-      const regex = new RegExp(`^${regexPattern}$`);
-      
-      for (const [key, cached] of memoryCache.entries()) {
-        if (cached.expiry < now) {
-          memoryCache.delete(key);
-          continue;
-        }
-        if (regex.test(key)) {
-          matchingKeys.push(key);
-        }
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        // Use SCAN instead of KEYS for production safety
+        const result: string[] = [];
+        let cursor = '0';
+        do {
+          const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', fullPattern, 'COUNT', 100);
+          cursor = nextCursor;
+          result.push(...keys);
+        } while (cursor !== '0');
+        return result;
       }
-      return matchingKeys;
-    } catch (error) {
-      logger.error('Cache keys error', error as Error, { pattern });
+    } catch (err) {
       this.stats.errors++;
-      return [];
+      logger.warn('[Cache] keys error', { pattern: fullPattern, error: (err as Error).message });
     }
+    return memoryKeys(fullPattern);
   }
 
-  /**
-   * Delete keys by pattern
-   */
   async deletePattern(pattern: string, options: CacheOptions = {}): Promise<number> {
+    const matchingKeys = await this.keys(pattern, options);
+    if (matchingKeys.length === 0) return 0;
     try {
-      const keys = await this.keys(pattern, options);
-      if (keys.length === 0) return 0;
-
-      for (const key of keys) {
-        memoryCache.delete(key);
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        const count = await redis.del(...matchingKeys);
+        this.stats.deletes += count;
+        // Also clean memory
+        for (const k of matchingKeys) memoryDel(k);
+        return count;
       }
-      this.stats.deletes += keys.length;
-      return keys.length;
-    } catch (error) {
-      logger.error('Cache delete pattern error', error as Error, { pattern });
+    } catch (err) {
       this.stats.errors++;
-      return 0;
     }
+    let count = 0;
+    for (const k of matchingKeys) { if (memoryDel(k)) count++; }
+    this.stats.deletes += count;
+    return count;
   }
 
-  /**
-   * Get cache statistics
-   */
+  // --------------------------------------------------------------------------
+  // STATS & ADMIN
+  // --------------------------------------------------------------------------
+
   getStats(): CacheStats {
     const total = this.stats.hits + this.stats.misses;
+    const redis = getRedisClient();
     return {
       ...this.stats,
-      hitRate: total > 0 ? (this.stats.hits / total) * 100 : 0
+      hitRate: total > 0 ? (this.stats.hits / total) * 100 : 0,
+      backend: redis ? 'redis' : 'memory',
     };
   }
 
-  /**
-   * Clear all cache statistics
-   */
   clearStats(): void {
-    this.stats = {
-      hits: 0,
-      misses: 0,
-      sets: 0,
-      deletes: 0,
-      errors: 0,
-      hitRate: 0
-    };
+    this.stats = { hits: 0, misses: 0, sets: 0, deletes: 0, errors: 0 };
   }
 
-  /**
-   * Flush all cache
-   */
   async flush(): Promise<boolean> {
     try {
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        // Only flush keys with our prefix using SCAN + DEL
+        const allKeys = await this.keys('*');
+        if (allKeys.length > 0) await redis.del(...allKeys);
+      }
       memoryCache.clear();
-      logger.info('Memory cache flushed');
+      logger.info('[Cache] Flushed all cache');
       return true;
-    } catch (error) {
-      logger.error('Cache flush error', error as Error);
-      return false;
+    } catch (err) {
+      logger.warn('[Cache] flush error', { error: (err as Error).message });
+      memoryCache.clear();
+      return true;
     }
   }
 
-  /**
-   * Close connection
-   */
   async close(): Promise<void> {
-    // No-op for memory cache
-  }
-
-  /**
-   * Build full cache key
-   */
-  private buildKey(key: string, prefix?: string): string {
-    const fullPrefix = prefix ? `${this.keyPrefix}${prefix}:` : this.keyPrefix;
-    return `${fullPrefix}${key}`;
+    // Handled by redis-client.ts closeRedisClient()
   }
 }
 
-// Cache decorators for easy usage
-export function cached(
-  keyGenerator: (...args: any[]) => string,
-  options: CacheOptions = {}
-) {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
-    const method = descriptor.value;
 
-    descriptor.value = async function (...args: any[]) {
-      const cacheKey = keyGenerator(...args);
-      
-      // Try to get from cache first
-      const cached = await cacheManager.get(cacheKey, options);
-      if (cached !== null) {
-        return cached;
-      }
+// ============================================================================
+// SPECIALIZED CACHE MANAGERS
+// ============================================================================
 
-      // Execute original method
-      const result = await method.apply(this, args);
-      
-      // Cache the result
-      await cacheManager.set(cacheKey, result, options);
-      
-      return result;
-    };
-  };
-}
-
-// Cache invalidation decorator
-export function invalidateCache(
-  keyPatterns: string[] | ((...args: any[]) => string[])
-) {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
-    const method = descriptor.value;
-
-    descriptor.value = async function (...args: any[]) {
-      const result = await method.apply(this, args);
-      
-      // Invalidate cache keys
-      const patterns = typeof keyPatterns === 'function' 
-        ? keyPatterns(...args) 
-        : keyPatterns;
-
-      for (const pattern of patterns) {
-        await cacheManager.deletePattern(pattern);
-      }
-      
-      return result;
-    };
-  };
-}
-
-// Specialized cache managers for different data types
 export class SecurityCacheManager {
   private cache: RedisCacheManager;
   private prefix = 'security';
 
-  constructor(cache: RedisCacheManager) {
-    this.cache = cache;
-  }
+  constructor(cache: RedisCacheManager) { this.cache = cache; }
 
-  async cacheFindings(orgId: string, findings: any[], ttl: number = 300): Promise<void> {
-    await this.cache.set(`findings:${orgId}`, findings, { 
-      prefix: this.prefix, 
-      ttl 
-    });
+  async cacheFindings(orgId: string, findings: any[], ttl = 300): Promise<void> {
+    await this.cache.set(`findings:${orgId}`, findings, { prefix: this.prefix, ttl });
   }
-
   async getFindings(orgId: string): Promise<any[] | null> {
     return this.cache.get(`findings:${orgId}`, { prefix: this.prefix });
   }
-
-  async cacheScanResult(scanId: string, result: any, ttl: number = 3600): Promise<void> {
-    await this.cache.set(`scan:${scanId}`, result, { 
-      prefix: this.prefix, 
-      ttl 
-    });
+  async cacheScanResult(scanId: string, result: any, ttl = 3600): Promise<void> {
+    await this.cache.set(`scan:${scanId}`, result, { prefix: this.prefix, ttl });
   }
-
   async getScanResult(scanId: string): Promise<any | null> {
     return this.cache.get(`scan:${scanId}`, { prefix: this.prefix });
   }
-
   async invalidateOrgCache(orgId: string): Promise<void> {
     await this.cache.deletePattern(`*:${orgId}`, { prefix: this.prefix });
   }
@@ -470,56 +422,31 @@ export class CostCacheManager {
   private cache: RedisCacheManager;
   private prefix = 'cost';
 
-  constructor(cache: RedisCacheManager) {
-    this.cache = cache;
-  }
+  constructor(cache: RedisCacheManager) { this.cache = cache; }
 
-  async cacheCostData(accountId: string, period: string, data: any, ttl: number = 1800): Promise<void> {
-    await this.cache.set(`data:${accountId}:${period}`, data, { 
-      prefix: this.prefix, 
-      ttl 
-    });
+  async cacheCostData(accountId: string, period: string, data: any, ttl = 1800): Promise<void> {
+    await this.cache.set(`data:${accountId}:${period}`, data, { prefix: this.prefix, ttl });
   }
-
   async getCostData(accountId: string, period: string): Promise<any | null> {
     return this.cache.get(`data:${accountId}:${period}`, { prefix: this.prefix });
   }
-
-  async cacheOptimizationRecommendations(accountId: string, recommendations: any[], ttl: number = 3600): Promise<void> {
-    await this.cache.set(`optimization:${accountId}`, recommendations, { 
-      prefix: this.prefix, 
-      ttl 
-    });
+  async cacheOptimizationRecommendations(accountId: string, recs: any[], ttl = 3600): Promise<void> {
+    await this.cache.set(`optimization:${accountId}`, recs, { prefix: this.prefix, ttl });
   }
-
   async getOptimizationRecommendations(accountId: string): Promise<any[] | null> {
     return this.cache.get(`optimization:${accountId}`, { prefix: this.prefix });
   }
 }
 
-/**
- * Metrics Cache Manager
- * Specialized cache for CloudWatch metrics with intelligent TTL and period-based caching
- */
 export class MetricsCacheManager {
   private cache: RedisCacheManager;
   private prefix = 'metrics';
-
-  // TTL por período de métricas (em segundos)
   private readonly PERIOD_TTL: Record<string, number> = {
-    '3h': 5 * 60,      // 5 minutos para dados de 3 horas
-    '24h': 15 * 60,    // 15 minutos para dados de 24 horas
-    '7d': 60 * 60,     // 1 hora para dados de 7 dias
-    'default': 5 * 60, // 5 minutos padrão
+    '3h': 300, '24h': 900, '7d': 3600, 'default': 300,
   };
 
-  constructor(cache: RedisCacheManager) {
-    this.cache = cache;
-  }
+  constructor(cache: RedisCacheManager) { this.cache = cache; }
 
-  /**
-   * Gera chave de cache para métricas
-   */
   private buildMetricsKey(accountId: string, resourceType?: string, period?: string): string {
     const parts = ['account', accountId];
     if (resourceType) parts.push('type', resourceType);
@@ -527,476 +454,178 @@ export class MetricsCacheManager {
     return parts.join(':');
   }
 
-  /**
-   * Cache de métricas por conta e período
-   */
-  async cacheMetrics(
-    accountId: string,
-    metrics: any[],
-    period: string = 'default'
-  ): Promise<boolean> {
+  async cacheMetrics(accountId: string, metrics: any[], period = 'default'): Promise<boolean> {
     const key = this.buildMetricsKey(accountId, undefined, period);
     const ttl = this.PERIOD_TTL[period] || this.PERIOD_TTL['default'];
-    
-    logger.info(`[MetricsCache] Caching ${metrics.length} metrics for account ${accountId}, period ${period}, TTL ${ttl}s`);
-    
-    return this.cache.set(key, {
-      metrics,
-      cachedAt: Date.now(),
-      period,
-      count: metrics.length,
-    }, { 
-      prefix: this.prefix, 
-      ttl 
-    });
+    return this.cache.set(key, { metrics, cachedAt: Date.now(), period, count: metrics.length }, { prefix: this.prefix, ttl });
   }
 
-  /**
-   * Buscar métricas do cache
-   */
-  async getMetrics(
-    accountId: string,
-    period: string = 'default'
-  ): Promise<{ metrics: any[]; cachedAt: number; fromCache: boolean } | null> {
+  async getMetrics(accountId: string, period = 'default'): Promise<{ metrics: any[]; cachedAt: number; fromCache: boolean } | null> {
     const key = this.buildMetricsKey(accountId, undefined, period);
-    const cached = await this.cache.get<{ metrics: any[]; cachedAt: number; period: string; count: number }>(key, { prefix: this.prefix });
-    
-    if (cached) {
-      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
-      logger.info(`[MetricsCache] Cache HIT for account ${accountId}, period ${period}, age ${cacheAge}s, ${cached.count} metrics`);
-      return {
-        metrics: cached.metrics,
-        cachedAt: cached.cachedAt,
-        fromCache: true,
-      };
-    }
-    
-    logger.info(`[MetricsCache] Cache MISS for account ${accountId}, period ${period}`);
-    return null;
+    const cached = await this.cache.get<{ metrics: any[]; cachedAt: number }>(key, { prefix: this.prefix });
+    if (!cached) return null;
+    return { metrics: cached.metrics, cachedAt: cached.cachedAt, fromCache: true };
   }
 
-  /**
-   * Cache de recursos descobertos
-   */
-  async cacheResources(
-    accountId: string,
-    resources: any[],
-    ttl: number = 300 // 5 minutos
-  ): Promise<boolean> {
-    const key = `resources:${accountId}`;
-    
-    logger.info(`[MetricsCache] Caching ${resources.length} resources for account ${accountId}`);
-    
-    return this.cache.set(key, {
-      resources,
-      cachedAt: Date.now(),
-      count: resources.length,
-    }, { 
-      prefix: this.prefix, 
-      ttl 
-    });
+  async cacheResources(accountId: string, resources: any[], ttl = 300): Promise<boolean> {
+    return this.cache.set(`resources:${accountId}`, { resources, cachedAt: Date.now(), count: resources.length }, { prefix: this.prefix, ttl });
   }
 
-  /**
-   * Buscar recursos do cache
-   */
   async getResources(accountId: string): Promise<{ resources: any[]; cachedAt: number; fromCache: boolean } | null> {
-    const key = `resources:${accountId}`;
-    const cached = await this.cache.get<{ resources: any[]; cachedAt: number; count: number }>(key, { prefix: this.prefix });
-    
-    if (cached) {
-      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
-      logger.info(`[MetricsCache] Resources cache HIT for account ${accountId}, age ${cacheAge}s, ${cached.count} resources`);
-      return {
-        resources: cached.resources,
-        cachedAt: cached.cachedAt,
-        fromCache: true,
-      };
-    }
-    
-    logger.info(`[MetricsCache] Resources cache MISS for account ${accountId}`);
-    return null;
+    const cached = await this.cache.get<{ resources: any[]; cachedAt: number }>(`resources:${accountId}`, { prefix: this.prefix });
+    if (!cached) return null;
+    return { resources: cached.resources, cachedAt: cached.cachedAt, fromCache: true };
   }
 
-  /**
-   * Cache de resultado completo de coleta (recursos + métricas)
-   */
-  async cacheCollectionResult(
-    accountId: string,
-    result: {
-      resources: any[];
-      metrics: any[];
-      regionsScanned: string[];
-      permissionErrors?: any[];
-    },
-    ttl: number = 300
-  ): Promise<boolean> {
-    const key = `collection:${accountId}`;
-    
-    return this.cache.set(key, {
-      ...result,
-      cachedAt: Date.now(),
-      resourceCount: result.resources.length,
-      metricCount: result.metrics.length,
-    }, { 
-      prefix: this.prefix, 
-      ttl 
-    });
+  async cacheCollectionResult(accountId: string, result: { resources: any[]; metrics: any[]; regionsScanned: string[]; permissionErrors?: any[] }, ttl = 300): Promise<boolean> {
+    return this.cache.set(`collection:${accountId}`, { ...result, cachedAt: Date.now(), resourceCount: result.resources.length, metricCount: result.metrics.length }, { prefix: this.prefix, ttl });
   }
 
-  /**
-   * Buscar resultado de coleta do cache
-   */
-  async getCollectionResult(accountId: string): Promise<{
-    resources: any[];
-    metrics: any[];
-    regionsScanned: string[];
-    permissionErrors?: any[];
-    cachedAt: number;
-    fromCache: boolean;
-  } | null> {
-    const key = `collection:${accountId}`;
-    const cached = await this.cache.get<any>(key, { prefix: this.prefix });
-    
-    if (cached) {
-      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
-      logger.info(`[MetricsCache] Collection cache HIT for account ${accountId}, age ${cacheAge}s`);
-      return {
-        ...cached,
-        fromCache: true,
-      };
-    }
-    
-    return null;
+  async getCollectionResult(accountId: string): Promise<{ resources: any[]; metrics: any[]; regionsScanned: string[]; permissionErrors?: any[]; cachedAt: number; fromCache: boolean } | null> {
+    const cached = await this.cache.get<any>(`collection:${accountId}`, { prefix: this.prefix });
+    if (!cached) return null;
+    return { ...cached, fromCache: true };
   }
 
-  /**
-   * Invalidar cache de uma conta
-   */
   async invalidateAccount(accountId: string): Promise<number> {
-    logger.info(`[MetricsCache] Invalidating all cache for account ${accountId}`);
     return this.cache.deletePattern(`*${accountId}*`, { prefix: this.prefix });
   }
 
-  /**
-   * Invalidar todo o cache de métricas
-   */
   async invalidateAll(): Promise<number> {
-    logger.info(`[MetricsCache] Invalidating all metrics cache`);
     return this.cache.deletePattern('*', { prefix: this.prefix });
   }
 
-  /**
-   * Verificar se cache existe e é válido
-   */
-  async isCacheValid(accountId: string, maxAgeSeconds: number = 300): Promise<boolean> {
-    const key = `collection:${accountId}`;
-    const cached = await this.cache.get<{ cachedAt: number }>(key, { prefix: this.prefix });
-    
+  async isCacheValid(accountId: string, maxAgeSeconds = 300): Promise<boolean> {
+    const cached = await this.cache.get<{ cachedAt: number }>(`collection:${accountId}`, { prefix: this.prefix });
     if (!cached) return false;
-    
-    const cacheAge = (Date.now() - cached.cachedAt) / 1000;
-    return cacheAge < maxAgeSeconds;
+    return (Date.now() - cached.cachedAt) / 1000 < maxAgeSeconds;
   }
 
-  /**
-   * Obter estatísticas do cache de métricas
-   */
-  async getCacheInfo(accountId: string): Promise<{
-    hasCache: boolean;
-    cacheAge?: number;
-    resourceCount?: number;
-    metricCount?: number;
-  }> {
-    const key = `collection:${accountId}`;
-    const cached = await this.cache.get<any>(key, { prefix: this.prefix });
-    
-    if (!cached) {
-      return { hasCache: false };
-    }
-    
-    return {
-      hasCache: true,
-      cacheAge: Math.round((Date.now() - cached.cachedAt) / 1000),
-      resourceCount: cached.resourceCount,
-      metricCount: cached.metricCount,
-    };
+  async getCacheInfo(accountId: string): Promise<{ hasCache: boolean; cacheAge?: number; resourceCount?: number; metricCount?: number }> {
+    const cached = await this.cache.get<any>(`collection:${accountId}`, { prefix: this.prefix });
+    if (!cached) return { hasCache: false };
+    return { hasCache: true, cacheAge: Math.round((Date.now() - cached.cachedAt) / 1000), resourceCount: cached.resourceCount, metricCount: cached.metricCount };
   }
 }
 
-/**
- * Edge Services Cache Manager
- * Specialized cache for CloudFront, WAF, and Load Balancer edge services
- */
 export class EdgeCacheManager {
   private cache: RedisCacheManager;
   private prefix = 'edge';
-
-  // TTL por período (em segundos)
   private readonly PERIOD_TTL: Record<string, number> = {
-    '1h': 5 * 60,      // 5 minutos para dados de 1 hora
-    '24h': 15 * 60,    // 15 minutos para dados de 24 horas
-    '7d': 60 * 60,     // 1 hora para dados de 7 dias
-    'default': 5 * 60, // 5 minutos padrão
+    '1h': 300, '24h': 900, '7d': 3600, 'default': 300,
   };
 
-  constructor(cache: RedisCacheManager) {
-    this.cache = cache;
+  constructor(cache: RedisCacheManager) { this.cache = cache; }
+
+  async cacheEdgeServices(accountId: string, services: any[], ttl = 300): Promise<boolean> {
+    return this.cache.set(`services:${accountId}`, { services, cachedAt: Date.now(), count: services.length }, { prefix: this.prefix, ttl });
   }
 
-  /**
-   * Cache de serviços de borda descobertos
-   */
-  async cacheEdgeServices(
-    accountId: string,
-    services: any[],
-    ttl: number = 300
-  ): Promise<boolean> {
-    const key = `services:${accountId}`;
-    
-    logger.info(`[EdgeCache] Caching ${services.length} edge services for account ${accountId}`);
-    
-    return this.cache.set(key, {
-      services,
-      cachedAt: Date.now(),
-      count: services.length,
-    }, { 
-      prefix: this.prefix, 
-      ttl 
-    });
-  }
-
-  /**
-   * Buscar serviços de borda do cache
-   */
   async getEdgeServices(accountId: string): Promise<{ services: any[]; cachedAt: number; fromCache: boolean } | null> {
-    const key = `services:${accountId}`;
-    const cached = await this.cache.get<{ services: any[]; cachedAt: number; count: number }>(key, { prefix: this.prefix });
-    
-    if (cached) {
-      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
-      logger.info(`[EdgeCache] Services cache HIT for account ${accountId}, age ${cacheAge}s, ${cached.count} services`);
-      return {
-        services: cached.services,
-        cachedAt: cached.cachedAt,
-        fromCache: true,
-      };
-    }
-    
-    logger.info(`[EdgeCache] Services cache MISS for account ${accountId}`);
-    return null;
+    const cached = await this.cache.get<{ services: any[]; cachedAt: number }>(`services:${accountId}`, { prefix: this.prefix });
+    if (!cached) return null;
+    return { services: cached.services, cachedAt: cached.cachedAt, fromCache: true };
   }
 
-  /**
-   * Cache de métricas de borda
-   */
-  async cacheEdgeMetrics(
-    accountId: string,
-    metrics: any[],
-    period: string = 'default'
-  ): Promise<boolean> {
-    const key = `metrics:${accountId}:${period}`;
+  async cacheEdgeMetrics(accountId: string, metrics: any[], period = 'default'): Promise<boolean> {
     const ttl = this.PERIOD_TTL[period] || this.PERIOD_TTL['default'];
-    
-    logger.info(`[EdgeCache] Caching ${metrics.length} edge metrics for account ${accountId}, period ${period}, TTL ${ttl}s`);
-    
-    return this.cache.set(key, {
-      metrics,
-      cachedAt: Date.now(),
-      period,
-      count: metrics.length,
-    }, { 
-      prefix: this.prefix, 
-      ttl 
-    });
+    return this.cache.set(`metrics:${accountId}:${period}`, { metrics, cachedAt: Date.now(), period, count: metrics.length }, { prefix: this.prefix, ttl });
   }
 
-  /**
-   * Buscar métricas de borda do cache
-   */
-  async getEdgeMetrics(
-    accountId: string,
-    period: string = 'default'
-  ): Promise<{ metrics: any[]; cachedAt: number; fromCache: boolean } | null> {
-    const key = `metrics:${accountId}:${period}`;
-    const cached = await this.cache.get<{ metrics: any[]; cachedAt: number; period: string; count: number }>(key, { prefix: this.prefix });
-    
-    if (cached) {
-      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
-      logger.info(`[EdgeCache] Metrics cache HIT for account ${accountId}, period ${period}, age ${cacheAge}s, ${cached.count} metrics`);
-      return {
-        metrics: cached.metrics,
-        cachedAt: cached.cachedAt,
-        fromCache: true,
-      };
-    }
-    
-    logger.info(`[EdgeCache] Metrics cache MISS for account ${accountId}, period ${period}`);
-    return null;
+  async getEdgeMetrics(accountId: string, period = 'default'): Promise<{ metrics: any[]; cachedAt: number; fromCache: boolean } | null> {
+    const cached = await this.cache.get<{ metrics: any[]; cachedAt: number }>(`metrics:${accountId}:${period}`, { prefix: this.prefix });
+    if (!cached) return null;
+    return { metrics: cached.metrics, cachedAt: cached.cachedAt, fromCache: true };
   }
 
-  /**
-   * Cache de resultado completo de descoberta (serviços + métricas)
-   */
-  async cacheDiscoveryResult(
-    accountId: string,
-    result: {
-      services: any[];
-      metrics: any[];
-      regionsScanned: string[];
-      permissionErrors?: any[];
-      breakdown?: {
-        // AWS services
-        cloudfront?: number;
-        waf?: number;
-        loadBalancer?: number;
-        // Azure services
-        frontDoor?: number;
-        applicationGateway?: number;
-        natGateway?: number;
-        apiManagement?: number;
-        azureWaf?: number;
-      };
-    },
-    ttl: number = 300
-  ): Promise<boolean> {
-    const key = `discovery:${accountId}`;
-    
-    logger.info(`[EdgeCache] Caching discovery result for account ${accountId}, ${result.services.length} services, ${result.metrics.length} metrics`);
-    
-    return this.cache.set(key, {
-      ...result,
-      cachedAt: Date.now(),
-      serviceCount: result.services.length,
-      metricCount: result.metrics.length,
-    }, { 
-      prefix: this.prefix, 
-      ttl 
-    });
+  async cacheDiscoveryResult(accountId: string, result: { services: any[]; metrics: any[]; regionsScanned: string[]; permissionErrors?: any[]; breakdown?: any }, ttl = 300): Promise<boolean> {
+    return this.cache.set(`discovery:${accountId}`, { ...result, cachedAt: Date.now(), serviceCount: result.services.length, metricCount: result.metrics.length }, { prefix: this.prefix, ttl });
   }
 
-  /**
-   * Buscar resultado de descoberta do cache
-   */
-  async getDiscoveryResult(accountId: string): Promise<{
-    services: any[];
-    metrics: any[];
-    regionsScanned: string[];
-    permissionErrors?: any[];
-    breakdown?: {
-      // AWS services
-      cloudfront?: number;
-      waf?: number;
-      loadBalancer?: number;
-      // Azure services
-      frontDoor?: number;
-      applicationGateway?: number;
-      natGateway?: number;
-      apiManagement?: number;
-      azureWaf?: number;
-    };
-    cachedAt: number;
-    fromCache: boolean;
-  } | null> {
-    const key = `discovery:${accountId}`;
-    const cached = await this.cache.get<any>(key, { prefix: this.prefix });
-    
-    if (cached) {
-      const cacheAge = Math.round((Date.now() - cached.cachedAt) / 1000);
-      logger.info(`[EdgeCache] Discovery cache HIT for account ${accountId}, age ${cacheAge}s`);
-      return {
-        ...cached,
-        fromCache: true,
-      };
-    }
-    
-    logger.info(`[EdgeCache] Discovery cache MISS for account ${accountId}`);
-    return null;
+  async getDiscoveryResult(accountId: string): Promise<any | null> {
+    const cached = await this.cache.get<any>(`discovery:${accountId}`, { prefix: this.prefix });
+    if (!cached) return null;
+    return { ...cached, fromCache: true };
   }
 
-  /**
-   * Obter informações do cache
-   */
-  async getCacheInfo(accountId: string): Promise<{
-    hasCache: boolean;
-    cacheAge?: number;
-    serviceCount?: number;
-    metricCount?: number;
-  }> {
-    const key = `discovery:${accountId}`;
-    const cached = await this.cache.get<any>(key, { prefix: this.prefix });
-    
-    if (!cached) {
-      return { hasCache: false };
-    }
-    
-    return {
-      hasCache: true,
-      cacheAge: Math.round((Date.now() - cached.cachedAt) / 1000),
-      serviceCount: cached.serviceCount,
-      metricCount: cached.metricCount,
-    };
+  async getCacheInfo(accountId: string): Promise<{ hasCache: boolean; cacheAge?: number; serviceCount?: number; metricCount?: number }> {
+    const cached = await this.cache.get<any>(`discovery:${accountId}`, { prefix: this.prefix });
+    if (!cached) return { hasCache: false };
+    return { hasCache: true, cacheAge: Math.round((Date.now() - cached.cachedAt) / 1000), serviceCount: cached.serviceCount, metricCount: cached.metricCount };
   }
 
-  /**
-   * Invalidar cache de uma conta
-   */
   async invalidateAccount(accountId: string): Promise<number> {
-    logger.info(`[EdgeCache] Invalidating all cache for account ${accountId}`);
     return this.cache.deletePattern(`*${accountId}*`, { prefix: this.prefix });
   }
 
-  /**
-   * Invalidar todo o cache de edge
-   */
   async invalidateAll(): Promise<number> {
-    logger.info(`[EdgeCache] Invalidating all edge cache`);
     return this.cache.deletePattern('*', { prefix: this.prefix });
   }
 
-  /**
-   * Verificar se cache existe e é válido
-   */
-  async isCacheValid(accountId: string, maxAgeSeconds: number = 300): Promise<boolean> {
-    const key = `discovery:${accountId}`;
-    const cached = await this.cache.get<{ cachedAt: number }>(key, { prefix: this.prefix });
-    
+  async isCacheValid(accountId: string, maxAgeSeconds = 300): Promise<boolean> {
+    const cached = await this.cache.get<{ cachedAt: number }>(`discovery:${accountId}`, { prefix: this.prefix });
     if (!cached) return false;
-    
-    const cacheAge = (Date.now() - cached.cachedAt) / 1000;
-    return cacheAge < maxAgeSeconds;
+    return (Date.now() - cached.cachedAt) / 1000 < maxAgeSeconds;
   }
 }
 
-// Global cache manager instance
+// ============================================================================
+// DECORATORS
+// ============================================================================
+
+export function cached(keyGenerator: (...args: any[]) => string, options: CacheOptions = {}) {
+  return function (_target: any, _propertyName: string, descriptor: PropertyDescriptor) {
+    const method = descriptor.value;
+    descriptor.value = async function (...args: any[]) {
+      const cacheKey = keyGenerator(...args);
+      const hit = await cacheManager.get(cacheKey, options);
+      if (hit !== null) return hit;
+      const result = await method.apply(this, args);
+      await cacheManager.set(cacheKey, result, options);
+      return result;
+    };
+  };
+}
+
+export function invalidateCache(keyPatterns: string[] | ((...args: any[]) => string[])) {
+  return function (_target: any, _propertyName: string, descriptor: PropertyDescriptor) {
+    const method = descriptor.value;
+    descriptor.value = async function (...args: any[]) {
+      const result = await method.apply(this, args);
+      const patterns = typeof keyPatterns === 'function' ? keyPatterns(...args) : keyPatterns;
+      for (const pattern of patterns) await cacheManager.deletePattern(pattern);
+      return result;
+    };
+  };
+}
+
+// ============================================================================
+// GLOBAL INSTANCES
+// ============================================================================
+
 export const cacheManager = new RedisCacheManager();
 export const securityCache = new SecurityCacheManager(cacheManager);
 export const costCache = new CostCacheManager(cacheManager);
 export const metricsCache = new MetricsCacheManager(cacheManager);
 export const edgeCache = new EdgeCacheManager(cacheManager);
 
-// Health check for Redis
-export async function checkRedisHealth(): Promise<{
-  status: 'healthy' | 'unhealthy';
-  latency?: number;
-  error?: string;
-}> {
+// ============================================================================
+// HEALTH CHECK
+// ============================================================================
+
+export async function checkRedisHealth(): Promise<{ status: 'healthy' | 'unhealthy'; latency?: number; error?: string; backend: string }> {
   try {
     const start = Date.now();
     await cacheManager.set('health-check', 'ok', { ttl: 10 });
     const result = await cacheManager.get('health-check');
     const latency = Date.now() - start;
-    
+    await cacheManager.delete('health-check');
+    const stats = cacheManager.getStats();
     if (result === 'ok') {
-      await cacheManager.delete('health-check');
-      return { status: 'healthy', latency };
-    } else {
-      return { status: 'unhealthy', error: 'Health check value mismatch' };
+      return { status: 'healthy', latency, backend: stats.backend };
     }
-  } catch (error) {
-    return { 
-      status: 'unhealthy', 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    };
+    return { status: 'unhealthy', error: 'Health check value mismatch', backend: stats.backend };
+  } catch (err) {
+    return { status: 'unhealthy', error: (err as Error).message, backend: 'unknown' };
   }
 }

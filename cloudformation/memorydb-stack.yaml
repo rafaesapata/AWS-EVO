@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  EVO Platform - Amazon MemoryDB for Redis
+  Single-node, minimal cost configuration for production cache + rate limiting
+  Deployed in existing VPC private subnets
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [sandbox, production]
+
+  ProjectName:
+    Type: String
+    Default: evo-uds-v3
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID where MemoryDB will be deployed
+
+  PrivateSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private Subnet 1 ID
+
+  PrivateSubnet2Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private Subnet 2 ID
+
+  LambdaSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Lambda Security Group ID (source for ingress)
+
+  NodeType:
+    Type: String
+    Default: db.t4g.small
+    AllowedValues:
+      - db.t4g.small
+      - db.t4g.medium
+      - db.r7g.large
+    Description: MemoryDB node type (t4g.small is the smallest available)
+
+Resources:
+  # ============================================================================
+  # SECURITY GROUP - Allow Redis port from Lambda SG only
+  # ============================================================================
+  MemoryDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub 'Security group for ${ProjectName} MemoryDB'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref LambdaSecurityGroupId
+          Description: Allow Redis from Lambda functions
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-memorydb-sg'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # SUBNET GROUP - Private subnets only
+  # ============================================================================
+  MemoryDBSubnetGroup:
+    Type: AWS::MemoryDB::SubnetGroup
+    Properties:
+      SubnetGroupName: !Sub '${ProjectName}-${Environment}-memorydb-subnets'
+      Description: !Sub 'Subnet group for ${ProjectName} MemoryDB'
+      SubnetIds:
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-memorydb-subnets'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # PARAMETER GROUP - Optimized for Lambda cache workload
+  # ============================================================================
+  MemoryDBParameterGroup:
+    Type: AWS::MemoryDB::ParameterGroup
+    Properties:
+      ParameterGroupName: !Sub '${ProjectName}-${Environment}-memorydb-params'
+      Family: memorydb_redis7
+      Description: !Sub 'Parameters for ${ProjectName} MemoryDB - optimized for cache'
+      Parameters:
+        maxmemory-policy: allkeys-lru
+        timeout: '300'
+        tcp-keepalive: '60'
+        activedefrag: 'yes'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-memorydb-params'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # ACL - Open access (auth via VPC/SG, no password needed inside VPC)
+  # ============================================================================
+  MemoryDBACL:
+    Type: AWS::MemoryDB::ACL
+    Properties:
+      ACLName: !Sub '${ProjectName}-${Environment}-memorydb-acl'
+      UserNames:
+        - default
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-memorydb-acl'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================================
+  # MEMORYDB CLUSTER - Single shard, single node (most economical)
+  # ============================================================================
+  MemoryDBCluster:
+    Type: AWS::MemoryDB::Cluster
+    Properties:
+      ClusterName: !Sub '${ProjectName}-${Environment}-cache'
+      Description: !Sub 'MemoryDB cache for ${ProjectName} platform'
+      NodeType: !Ref NodeType
+      ACLName: !Ref MemoryDBACL
+      SubnetGroupName: !Ref MemoryDBSubnetGroup
+      SecurityGroupIds:
+        - !GetAtt MemoryDBSecurityGroup.GroupId
+      ParameterGroupName: !Ref MemoryDBParameterGroup
+      EngineVersion: '7.1'
+      Port: 6379
+      NumShards: 1
+      NumReplicasPerShard: 0
+      TLSEnabled: true
+      AutoMinorVersionUpgrade: true
+      MaintenanceWindow: sun:05:00-sun:06:00
+      SnapshotRetentionLimit: 1
+      SnapshotWindow: 03:00-04:00
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-memorydb'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # SSM PARAMETERS - Store endpoint for Lambda consumption
+  # ============================================================================
+  MemoryDBEndpointParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/evo-uds/${Environment}/memorydb/endpoint'
+      Type: String
+      Value: !GetAtt MemoryDBCluster.ClusterEndpoint.Address
+      Description: MemoryDB cluster endpoint
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+
+  MemoryDBPortParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/evo-uds/${Environment}/memorydb/port'
+      Type: String
+      Value: !GetAtt MemoryDBCluster.ClusterEndpoint.Port
+      Description: MemoryDB cluster port
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+
+Outputs:
+  MemoryDBClusterEndpoint:
+    Description: MemoryDB Cluster Endpoint
+    Value: !GetAtt MemoryDBCluster.ClusterEndpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-MemoryDBEndpoint'
+
+  MemoryDBClusterPort:
+    Description: MemoryDB Cluster Port
+    Value: !GetAtt MemoryDBCluster.ClusterEndpoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-MemoryDBPort'
+
+  MemoryDBConnectionString:
+    Description: MemoryDB connection string (TLS enabled)
+    Value: !Sub 'rediss://${MemoryDBCluster.ClusterEndpoint.Address}:${MemoryDBCluster.ClusterEndpoint.Port}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ConnectionString'
+
+  MemoryDBSecurityGroupId:
+    Description: MemoryDB Security Group ID
+    Value: !GetAtt MemoryDBSecurityGroup.GroupId
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityGroupId'
