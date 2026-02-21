@@ -41,7 +41,6 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  const { t } = useTranslation();
  const queryClient = useQueryClient();
  const [selectedRegion, setSelectedRegion] = useState<string>('all');
- const [selectedTag, setSelectedTag] = useState<string>('all');
  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
  const [expandedOther, setExpandedOther] = useState<Set<string>>(new Set());
  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'custom'>('30d');
@@ -79,30 +78,21 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
    storageKey: 'cost-analysis-distribution',
  });
 
- // Get available tags from organization - filtered by selected account
- const { data: availableTags } = useQuery({
- queryKey: ['cost-allocation-tags', organizationId, selectedAccountId],
- enabled: shouldEnableAccountQuery(),
- staleTime: Infinity,
- gcTime: 60 * 60 * 1000,
- queryFn: async () => {
- // Query tags filtered by selected account
- const response = await apiClient.select('cost_allocation_tags', { 
- eq: { organization_id: organizationId, ...getAccountFilter() } 
- });
- const data = response.data;
- const error = response.error;
- // Group by tag_key and collect unique values
- const tagMap = (data || []).reduce((acc, tag) => {
- const key = `${tag.tag_key}:${tag.tag_value}`;
- if (!acc.some(t => t.key === key)) {
- acc.push({ key, label: `${tag.tag_key}: ${tag.tag_value}` });
- }
- return acc;
- }, [] as { key: string; label: string }[]);
- 
- return tagMap;
- },
+ // Get services associated with selected tags (for filtering costs)
+ const { data: tagServices } = useQuery({
+   queryKey: ['tag-cost-services', tagFilterIds, selectedAccountId],
+   enabled: tagFilterIds.length > 0,
+   staleTime: 5 * 60 * 1000,
+   queryFn: async () => {
+     const response = await apiClient.invoke<{ services: string[]; resourceCount: number }>('tag-cost-services', {
+       body: { tagIds: tagFilterIds, accountId: selectedAccountId }
+     });
+     if (response.error) {
+       console.error('tag-cost-services error:', response.error);
+       return { services: [], resourceCount: 0 };
+     }
+     return response.data || { services: [], resourceCount: 0 };
+   },
  });
 
  // Get daily costs - FILTERED BY SELECTED ACCOUNT - enabled in demo mode
@@ -352,10 +342,30 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }).filter(cost => cost !== null);
  }
 
- // Filter by tag if selected (synchronously for now, tags should be pre-loaded)
- if (selectedTag !== 'all') {
- // This is a client-side filter, ideally tags should be pre-loaded
- // For now, we'll keep all costs if tag is selected
+ // Filter by tags: match services associated with selected tags
+ if (tagFilterIds.length > 0 && tagServices?.services && tagServices.services.length > 0) {
+   const tagServiceNames = tagServices.services.map((s: string) => s.toLowerCase());
+   filteredCosts = filteredCosts.map(cost => {
+     if (!cost.service_breakdown) return null;
+     // Filter service_breakdown to only include matching services
+     const matchedBreakdown: Record<string, number> = {};
+     let matchedTotal = 0;
+     for (const [service, value] of Object.entries(cost.service_breakdown)) {
+       const serviceLower = service.toLowerCase()
+         .replace('amazon ', '').replace('aws ', '');
+       if (tagServiceNames.some((ts: string) => serviceLower.includes(ts) || ts.includes(serviceLower))) {
+         matchedBreakdown[service] = value as number;
+         matchedTotal += value as number;
+       }
+     }
+     if (matchedTotal === 0) return null;
+     return {
+       ...cost,
+       total_cost: matchedTotal,
+       net_cost: matchedTotal,
+       service_breakdown: matchedBreakdown,
+     };
+   }).filter(cost => cost !== null);
  }
 
  return filteredCosts;
@@ -766,7 +776,7 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  // Reset page when filters change
  useEffect(() => {
  setCurrentPage(1);
- }, [selectedRegion, selectedTag, selectedAccountId]);
+ }, [selectedRegion, tagFilterIds, selectedAccountId]);
 
  // Skeleton that mirrors the real page structure for perceived performance
  const mainContentSkeleton = (
@@ -912,22 +922,6 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  {allRegions.map((region) => (
  <SelectItem key={region} value={region}>
  {region}
- </SelectItem>
- ))}
- </SelectContent>
- </Select>
- </div>
- <div className="flex-1 min-w-[200px]">
- <label className="text-sm font-medium mb-2 block">{t('costAnalysis.tag')}</label>
- <Select value={selectedTag} onValueChange={setSelectedTag}>
- <SelectTrigger>
- <SelectValue placeholder={t('costAnalysis.selectTag')} />
- </SelectTrigger>
- <SelectContent>
- <SelectItem value="all">{t('costAnalysis.allTags')}</SelectItem>
- {availableTags?.map((tag) => (
- <SelectItem key={tag.key} value={tag.key}>
- {tag.label}
  </SelectItem>
  ))}
  </SelectContent>

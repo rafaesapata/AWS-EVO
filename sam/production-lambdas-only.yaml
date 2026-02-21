@@ -5519,6 +5519,33 @@ Resources:
           - '@prisma/client'
           - '.prisma/client'
 
+  TagCostServicesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-tag-cost-services'
+      CodeUri: ../backend/src/handlers/cost/
+      Handler: tag-cost-services.handler
+      Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/tag-cost-services
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - tag-cost-services.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
   TagCostReportFunction:
     Type: AWS::Serverless::Function
     Properties:
