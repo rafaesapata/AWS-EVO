@@ -531,6 +531,7 @@ async function generateRecommendations(
 function calculateRIUtilization(ri: any, utilizationData: any): any {
   // Parse REAL utilization data from Cost Explorer response
   const totalHours = (ri.Duration || 0) / 3600;
+  const HOURS_PER_MONTH = 730;
   
   // Try to get real utilization from Cost Explorer data
   let utilizationPercent = 0;
@@ -553,12 +554,15 @@ function calculateRIUtilization(ri: any, utilizationData: any): any {
   const hoursUsed = (totalHours * utilizationPercent) / 100;
   const hoursUnused = totalHours - hoursUsed;
   
+  // Calculate MONTHLY savings (normalize to 730 hours/month, not total RI duration)
+  const monthlyHoursUsed = (HOURS_PER_MONTH * utilizationPercent) / 100;
+  
   return {
     percentage: parseFloat(utilizationPercent.toFixed(2)),
     hoursUsed: parseFloat(hoursUsed.toFixed(2)),
     hoursUnused: parseFloat(hoursUnused.toFixed(2)),
-    netSavings: parseFloat((hoursUsed * (ri.UsagePrice || 0) * 0.31).toFixed(2)), // 31% is typical 1-year RI savings
-    onDemandCost: parseFloat((totalHours * (ri.UsagePrice || 0) * 1.45).toFixed(2)), // On-demand is ~45% more
+    netSavings: parseFloat((monthlyHoursUsed * (ri.UsagePrice || 0) * 0.31).toFixed(2)), // Monthly savings (31% typical 1-year RI savings)
+    onDemandCost: parseFloat((HOURS_PER_MONTH * (ri.UsagePrice || 0) * 1.45).toFixed(2)), // Monthly on-demand equivalent
   };
 }
 
