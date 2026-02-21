@@ -162,11 +162,22 @@ export function useUnassignTag() {
   });
 }
 
+export interface BulkResource {
+  resourceId: string;
+  resourceType?: string;
+  resourceName?: string;
+  cloudProvider?: string;
+  awsAccountId?: string;
+}
+
 export function useBulkAssign() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { tagIds: string[]; resourceIds: string[] }) => {
-      const res = await apiClient.lambda<any>('tag-bulk-assign', input);
+    mutationFn: async (input: { tagIds: string[]; resources: BulkResource[] }) => {
+      const res = await apiClient.lambda<any>('tag-bulk-assign', {
+        tagIds: input.tagIds,
+        resources: input.resources,
+      });
       throwIfError(res);
       return (res as any).data;
     },
@@ -273,6 +284,34 @@ export function useUntaggedResources(params?: { resourceType?: string; cloudProv
     },
     enabled: params?.enabled ?? false,
     retry: false,
+  });
+}
+
+export interface ResourceAssignment {
+  id: string;
+  resource_id: string;
+  resource_type: string;
+  resource_name: string | null;
+  cloud_provider: string;
+  aws_account_id: string | null;
+  azure_credential_id: string | null;
+  assigned_at: string;
+  assigned_by: string;
+}
+
+export function useResourcesByTag(tagId: string | null, params?: { limit?: number; resourceType?: string; cloudProvider?: string }) {
+  return useQuery({
+    queryKey: ['tags', 'resources-by-tag', tagId, params],
+    queryFn: async () => {
+      const res = await apiClient.lambda<{ data: ResourceAssignment[]; nextCursor: string | null }>('tag-resources', {
+        action: 'resources-by-tag',
+        tagId,
+        ...params,
+      });
+      throwIfError(res);
+      return (res as any).data;
+    },
+    enabled: !!tagId,
   });
 }
 

@@ -159,13 +159,27 @@ export async function unassignTag(
 // BULK ASSIGN
 // ============================================================================
 
+export interface BulkResourceInput {
+  resourceId: string;
+  resourceType?: string;
+  resourceName?: string;
+  cloudProvider?: string;
+  awsAccountId?: string;
+  azureCredentialId?: string;
+}
+
 export async function bulkAssign(
   organizationId: string,
   userId: string,
   tagIds: string[],
-  resourceIds: string[]
+  resources: (string | BulkResourceInput)[]
 ): Promise<PartialSuccessResponse> {
-  if (resourceIds.length > MAX_BULK_RESOURCES) {
+  // Normalize: accept both string[] (legacy) and BulkResourceInput[]
+  const normalizedResources: BulkResourceInput[] = resources.map((r) =>
+    typeof r === 'string' ? { resourceId: r } : r
+  );
+
+  if (normalizedResources.length > MAX_BULK_RESOURCES) {
     return {
       totalProcessed: 0,
       assignedCount: 0,
@@ -191,11 +205,11 @@ export async function bulkAssign(
   const validTagIds = tags.map((t: any) => t.id);
 
   // Process in batches
-  for (let i = 0; i < resourceIds.length; i += BULK_BATCH_SIZE) {
-    const batch = resourceIds.slice(i, i + BULK_BATCH_SIZE);
+  for (let i = 0; i < normalizedResources.length; i += BULK_BATCH_SIZE) {
+    const batch = normalizedResources.slice(i, i + BULK_BATCH_SIZE);
 
     try {
-      for (const resourceId of batch) {
+      for (const resource of batch) {
         for (const tagId of validTagIds) {
           result.totalProcessed++;
 
@@ -206,7 +220,7 @@ export async function bulkAssign(
                 uq_assignment_org_tag_resource: {
                   organization_id: organizationId,
                   tag_id: tagId,
-                  resource_id: resourceId,
+                  resource_id: resource.resourceId,
                 },
               },
             });
@@ -218,13 +232,13 @@ export async function bulkAssign(
 
             // Check per-resource limit
             const count = await prisma.resourceTagAssignment.count({
-              where: { organization_id: organizationId, resource_id: resourceId },
+              where: { organization_id: organizationId, resource_id: resource.resourceId },
             });
 
             if (count >= MAX_TAGS_PER_RESOURCE) {
               result.failedCount++;
               result.failures.push({
-                resourceId,
+                resourceId: resource.resourceId,
                 error: `Resource tag limit exceeded (${MAX_TAGS_PER_RESOURCE})`,
                 code: 'RESOURCE_TAG_LIMIT_EXCEEDED',
               });
@@ -235,9 +249,12 @@ export async function bulkAssign(
               data: {
                 organization_id: organizationId,
                 tag_id: tagId,
-                resource_id: resourceId,
-                resource_type: 'unknown', // Will be enriched by caller
-                cloud_provider: 'aws',
+                resource_id: resource.resourceId,
+                resource_type: resource.resourceType || 'unknown',
+                resource_name: resource.resourceName || null,
+                cloud_provider: resource.cloudProvider || 'aws',
+                aws_account_id: resource.awsAccountId || null,
+                azure_credential_id: resource.azureCredentialId || null,
                 assigned_by: userId,
               },
             });
@@ -245,7 +262,7 @@ export async function bulkAssign(
             result.assignedCount++;
           } catch (err: any) {
             result.failedCount++;
-            result.failures.push({ resourceId, error: err.message, code: 'DB_ERROR' });
+            result.failures.push({ resourceId: resource.resourceId, error: err.message, code: 'DB_ERROR' });
           }
         }
       }

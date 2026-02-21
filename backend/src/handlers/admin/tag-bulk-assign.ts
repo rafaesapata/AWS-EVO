@@ -35,18 +35,23 @@ export async function handler(
     const body = JSON.parse(event.body || '{}');
     const tagIds = body.tagIds || body.tag_ids || [];
     const resourceIds = body.resourceIds || body.resource_ids || [];
+    const resources = body.resources || []; // New format: array of { resourceId, resourceType, ... }
 
     if (!Array.isArray(tagIds) || tagIds.length === 0) {
       return error('tagIds array is required', 422, undefined, origin);
     }
-    if (!Array.isArray(resourceIds) || resourceIds.length === 0) {
-      return error('resourceIds array is required', 422, undefined, origin);
+
+    // Accept both formats: resources[] (with metadata) or resourceIds[] (legacy)
+    const resolvedResources = resources.length > 0 ? resources : resourceIds;
+    if (!Array.isArray(resolvedResources) || resolvedResources.length === 0) {
+      return error('resources or resourceIds array is required', 422, undefined, origin);
     }
-    if (resourceIds.length > MAX_BULK_RESOURCES) {
+    const totalCount = resolvedResources.length;
+    if (totalCount > MAX_BULK_RESOURCES) {
       return error(`Maximum ${MAX_BULK_RESOURCES} resources per bulk operation`, 422, undefined, origin);
     }
 
-    const result = await bulkAssign(organizationId, user.sub, tagIds, resourceIds);
+    const result = await bulkAssign(organizationId, user.sub, tagIds, resolvedResources);
 
     logAuditAsync({
       organizationId, userId: user.sub, action: 'TAG_BULK_ASSIGNED',

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
-import { Tags, Trash2, Pencil, Loader2, Shield, AlertTriangle, Bell, Download } from 'lucide-react';
+import { Tags, Trash2, Pencil, Loader2, Shield, AlertTriangle, Bell, Download, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +21,7 @@ import { BulkTaggingDrawer } from '@/components/tags/BulkTaggingDrawer';
 import { QuickstartWizard } from '@/components/tags/QuickstartWizard';
 import {
   useTagList, useTagCoverage, useDeleteTag, useTagCostReport,
-  useTagSecurityFindings, type Tag,
+  useTagSecurityFindings, useResourcesByTag, type Tag, type ResourceAssignment,
 } from '@/hooks/useTags';
 import { useDemoAwareQuery } from '@/hooks/useDemoAwareQuery';
 import {
@@ -39,6 +39,7 @@ export default function TagManagement() {
   const [selectedCostTag, setSelectedCostTag] = useState<string | null>(null);
   const [selectedSecTags, setSelectedSecTags] = useState<string[]>([]);
   const [newRequiredKey, setNewRequiredKey] = useState('');
+  const [expandedTagId, setExpandedTagId] = useState<string | null>(null);
   const [tagSettings, setTagSettings] = useState(() => {
     try {
       const saved = localStorage.getItem('tag-settings-org');
@@ -67,6 +68,9 @@ export default function TagManagement() {
   const deleteTag = useDeleteTag();
   const { data: costReportReal } = useTagCostReport(isInDemoMode ? null : selectedCostTag);
   const { data: secFindingsReal } = useTagSecurityFindings(isInDemoMode ? [] : selectedSecTags);
+  const { data: expandedTagResources, isLoading: isLoadingResources } = useResourcesByTag(
+    isInDemoMode ? null : expandedTagId
+  );
 
   // Demo data — memoized, only generated when isInDemoMode is true
   const demoTagData = useMemo(() => isInDemoMode ? filterDemoTags({
@@ -149,11 +153,93 @@ export default function TagManagement() {
               </Card>
             </div>
 
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Top Tags by Usage */}
+              <Card className="glass border-primary/20">
+                <CardHeader>
+                  <CardTitle className="text-sm">{t('tags.topTagsByUsage', 'Top Tags by Usage')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tags.length > 0 ? (
+                    <div className="space-y-3">
+                      {[...tags].sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0)).slice(0, 5).map((tag) => (
+                        <div key={tag.id} className="flex items-center justify-between">
+                          <TagBadge tag={tag} />
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">{tag.usage_count || 0} {t('tags.resources', 'resources')}</span>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setExpandedTagId(tag.id); setTab('library'); }}>
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {tags.every(t => !t.usage_count) && (
+                        <p className="text-sm text-muted-foreground text-center py-4">{t('tags.noAssignmentsYet', 'No assignments yet. Use Bulk Tagging to assign tags to resources.')}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('tags.noTagsCreated', 'No tags created yet')}</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Coverage by Provider */}
+              <Card className="glass border-primary/20">
+                <CardHeader>
+                  <CardTitle className="text-sm">{t('tags.coverageByProvider', 'Resources by Provider')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {coverage?.breakdownByProvider && Object.keys(coverage.breakdownByProvider).length > 0 ? (
+                    <div className="space-y-3">
+                      {Object.entries(coverage.breakdownByProvider).map(([provider, count]) => (
+                        <div key={provider} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">{provider}</Badge>
+                          </div>
+                          <span className="text-sm font-medium">{count} {t('tags.resources', 'resources')}</span>
+                        </div>
+                      ))}
+                      {coverage.resourceSource && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {t('tags.dataSource', 'Source')}: {coverage.resourceSource === 'daily_costs' ? t('tags.costData', 'Cost data') : t('tags.inventory', 'Resource inventory')}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('tags.noProviderData', 'No provider data available')}</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tags by Category */}
+            {tags.length > 0 && (
+              <Card className="glass border-primary/20">
+                <CardHeader>
+                  <CardTitle className="text-sm">{t('tags.tagsByCategory', 'Tags by Category')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-3">
+                    {Object.entries(
+                      tags.reduce((acc, tag) => {
+                        const cat = tag.category || 'CUSTOM';
+                        acc[cat] = (acc[cat] || 0) + 1;
+                        return acc;
+                      }, {} as Record<string, number>)
+                    ).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
+                      <div key={cat} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50">
+                        <span className="text-xs font-medium">{cat.replace('_', ' ')}</span>
+                        <Badge variant="secondary" className="text-xs h-5">{count}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="glass border-primary/20">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">{t('tags.quickActions', 'Quick Actions')}</CardTitle>
-                </div>
+                <CardTitle className="text-sm">{t('tags.quickActions', 'Quick Actions')}</CardTitle>
               </CardHeader>
               <CardContent className="flex gap-3">
                 <BulkTaggingDrawer preFilter={{ tagStatus: 'untagged' }} />
@@ -198,6 +284,7 @@ export default function TagManagement() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-8"></TableHead>
                         <TableHead>{t('tags.tag', 'Tag')}</TableHead>
                         <TableHead>{t('tags.category', 'Category')}</TableHead>
                         <TableHead className="text-right">{t('tags.usageCount', 'Usage')}</TableHead>
@@ -206,27 +293,91 @@ export default function TagManagement() {
                     </TableHeader>
                     <TableBody>
                       {tags.map((tag) => (
-                        <TableRow key={tag.id}>
-                          <TableCell><TagBadge tag={tag} /></TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">{tag.category?.replace('_', ' ') || 'CUSTOM'}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right text-sm">{tag.usage_count || 0}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => !isInDemoMode && setDeleteTarget(tag)} disabled={isInDemoMode}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                        <>
+                          <TableRow key={tag.id} className={expandedTagId === tag.id ? 'border-b-0' : ''}>
+                            <TableCell className="w-8 pr-0">
+                              {(tag.usage_count || 0) > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => setExpandedTagId(expandedTagId === tag.id ? null : tag.id)}
+                                >
+                                  {expandedTagId === tag.id ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                </Button>
+                              )}
+                            </TableCell>
+                            <TableCell><TagBadge tag={tag} /></TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{tag.category?.replace('_', ' ') || 'CUSTOM'}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className={`text-sm ${(tag.usage_count || 0) > 0 ? 'font-medium' : 'text-muted-foreground'}`}>
+                                {tag.usage_count || 0}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => !isInDemoMode && setDeleteTarget(tag)} disabled={isInDemoMode}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {expandedTagId === tag.id && (
+                            <TableRow key={`${tag.id}-resources`}>
+                              <TableCell colSpan={5} className="bg-muted/30 p-0">
+                                <div className="px-6 py-3">
+                                  <p className="text-xs font-medium text-muted-foreground mb-2">
+                                    {t('tags.assignedResources', 'Assigned Resources')}
+                                  </p>
+                                  {isLoadingResources ? (
+                                    <div className="flex items-center gap-2 py-2">
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      <span className="text-xs text-muted-foreground">{t('common.loading', 'Loading...')}</span>
+                                    </div>
+                                  ) : expandedTagResources?.data && expandedTagResources.data.length > 0 ? (
+                                    <div className="space-y-1.5">
+                                      {expandedTagResources.data.map((res: ResourceAssignment) => (
+                                        <div key={res.id} className="flex items-center justify-between text-xs p-2 rounded bg-background/50">
+                                          <div className="flex items-center gap-3">
+                                            <Badge variant="outline" className="text-[10px] h-5">{res.cloud_provider || 'AWS'}</Badge>
+                                            <span className="font-medium">{res.resource_name || res.resource_id}</span>
+                                            {res.resource_name && res.resource_name !== res.resource_id && (
+                                              <span className="text-muted-foreground truncate max-w-[200px]">{res.resource_id}</span>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                            <Badge variant="secondary" className="text-[10px] h-5">{res.resource_type || 'unknown'}</Badge>
+                                            <span className="text-muted-foreground">
+                                              {new Date(res.assigned_at).toLocaleDateString()}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                      {expandedTagResources.nextCursor && (
+                                        <p className="text-xs text-muted-foreground text-center pt-1">
+                                          {t('tags.moreResources', 'More resources available...')}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground py-2">
+                                      {t('tags.noResourcesAssigned', 'No resources assigned to this tag')}
+                                    </p>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
                       ))}
                       {tags.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-8">
+                          <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
                             {t('tags.noTagsFound', 'No tags found')}
                           </TableCell>
                         </TableRow>
