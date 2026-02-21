@@ -16,6 +16,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
 import { calculatePostureScore, type FindingForScoring } from '../../lib/security-engine/posture-scoring.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 export const handler = safeHandler(async (
   event: AuthorizedEvent,
@@ -98,6 +99,14 @@ export const handler = safeHandler(async (
     const baseFilter: any = { 
       organization_id: organizationId,
     };
+
+    // SWR Cache - return cached data instantly if fresh
+    const cacheKey = `posture:${organizationId}:${accountId || 'all'}:${provider || 'all'}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'sec' });
+    if (cached && !cached.stale) {
+      logger.info('Security posture cache hit (fresh)', { organizationId, cacheAge: cached.age });
+      return success({ ...cached.data, _fromCache: true });
+    }
     
     // Filter by specific account if provided - multi-cloud compatible
     if (accountId) {
@@ -187,7 +196,7 @@ export const handler = safeHandler(async (
       totalFindings: posture.counts.total,
     });
     
-    return success({
+    const responseData = {
       success: true,
       posture: {
         overallScore: posture.overallScore,
@@ -206,7 +215,12 @@ export const handler = safeHandler(async (
         calculatedAt: new Date().toISOString(),
         accountId: accountId || 'all',
       },
-    });
+    };
+
+    // Save to SWR cache (freshFor: 300s = 5min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, responseData, { prefix: 'sec', freshFor: 300, maxTTL: 86400 });
+
+    return success(responseData);
     
   } catch (err) {
     logger.error('Get Security Posture error', err as Error, { 

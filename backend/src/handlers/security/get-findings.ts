@@ -13,6 +13,8 @@ import { getPrismaClient, withTenantIsolation } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { isOrganizationInDemoMode, generateDemoSecurityFindings } from '../../lib/demo-data-service.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { cacheManager } from '../../lib/redis-cache.js';
+import { createHash } from 'crypto';
 
 interface GetFindingsRequest {
   severity?: string;
@@ -227,6 +229,15 @@ export const handler = safeHandler(async (
     if (suppressed !== undefined) {
       where.suppressed = suppressed;
     }
+
+    // SWR Cache for read-only listing (skip cache for actions)
+    const filterHash = createHash('md5').update(JSON.stringify({ severity, status, service, category, scan_type, suppressed, limit, offset, sort_by, sort_order })).digest('hex').slice(0, 12);
+    const cacheKey = `findings:${organizationId}:${filterHash}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'sec' });
+    if (cached && !cached.stale) {
+      logger.info('Findings cache hit (fresh)', { organizationId });
+      return success({ ...cached.data, _fromCache: true });
+    }
     
     // Get findings with pagination
     const [findings, total] = await Promise.all([
@@ -270,7 +281,7 @@ export const handler = safeHandler(async (
       filters: { severity, status, service, category, scan_type }
     });
     
-    return success({
+    const responseData = {
       findings,
       pagination: {
         total,
@@ -279,7 +290,12 @@ export const handler = safeHandler(async (
         has_more: offset + findings.length < total,
       },
       summary,
-    });
+    };
+
+    // Save to SWR cache (freshFor: 300s = 5min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, responseData, { prefix: 'sec', freshFor: 300, maxTTL: 86400 });
+
+    return success(responseData);
     
   } catch (err) {
     logger.error('Get findings error', err as Error, { 

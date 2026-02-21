@@ -10,6 +10,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { z } from 'zod';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 // Validation schema - organizationId is required for public endpoint
 const requestSchema = z.object({
@@ -45,6 +46,14 @@ export async function handler(
     });
 
     const prisma = getPrismaClient();
+
+    // SWR Cache - return cached data instantly if fresh
+    const cacheKey = `pub:${organizationId}:${params.trendPeriod}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'dash' });
+    if (cached && !cached.stale) {
+      return success({ ...cached.data, _fromCache: true }, 200, origin);
+    }
+
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
@@ -79,6 +88,9 @@ export async function handler(
         trendPeriod: params.trendPeriod
       }
     };
+
+    // Save to SWR cache (freshFor: 120s, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, response, { prefix: 'dash', freshFor: 120, maxTTL: 86400 });
 
     const executionTime = Date.now() - startTime;
     logger.info('Executive Dashboard Public generated', {

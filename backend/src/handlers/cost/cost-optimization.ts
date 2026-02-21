@@ -32,6 +32,7 @@ import { ElasticLoadBalancingV2Client, DescribeLoadBalancersCommand, DescribeTar
 import { ECSClient, ListClustersCommand, DescribeClustersCommand, ListServicesCommand } from '@aws-sdk/client-ecs';
 import { ElastiCacheClient, DescribeCacheClustersCommand } from '@aws-sdk/client-elasticache';
 import { DynamoDBClient, ListTablesCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 // Zod schema for cost optimization request
 const costOptimizationSchema = z.object({
@@ -103,6 +104,14 @@ export const handler = safeHandler(async (
     
     const { accountId } = validation.data;
     
+    // SWR Cache - return cached data instantly if fresh (cost optimization is very heavy)
+    const cacheKey = `opt:${organizationId}:${accountId || 'all'}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
+    if (cached && !cached.stale) {
+      logger.info('Cost optimization cache hit (fresh)', { organizationId });
+      return success({ ...cached.data, _fromCache: true });
+    }
+
     const credential = await prisma.awsCredential.findFirst({
       where: {
         organization_id: organizationId,
@@ -201,7 +210,7 @@ export const handler = safeHandler(async (
       return acc;
     }, {} as Record<string, number>);
     
-    return success({
+    const responseData = {
       optimizations,
       summary: {
         total_opportunities: optimizations.length,
@@ -215,7 +224,12 @@ export const handler = safeHandler(async (
         by_category: byCategory,
         analysis_duration_ms: duration,
       },
-    });
+    };
+
+    // Save to SWR cache (freshFor: 600s = 10min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, responseData, { prefix: 'cost', freshFor: 600, maxTTL: 86400 });
+
+    return success(responseData);
     
   } catch (err) {
     logger.error('Cost optimization error', err as Error, { organizationId });

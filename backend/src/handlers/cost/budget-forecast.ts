@@ -16,6 +16,7 @@ import { isOrganizationInDemoMode, generateDemoBudgetForecast } from '../../lib/
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { budgetForecastSchema } from '../../lib/schemas.js';
 import { CostExplorerClient, GetCostForecastCommand, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -65,7 +66,15 @@ export async function handler(
       },
       orderBy: { created_at: 'desc' },
     });
-    
+
+    // SWR Cache - return cached data instantly if fresh
+    const cacheKey = `forecast:${organizationId}:${accountId || 'all'}:${months}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
+    if (cached && !cached.stale) {
+      logger.info('Budget forecast cache hit (fresh)', { organizationId });
+      return success({ ...cached.data, _fromCache: true });
+    }
+
     if (!credential) {
       return badRequest('AWS credentials not found');
     }
@@ -142,7 +151,7 @@ export async function handler(
     
     logger.info(`✅ Forecast completed: $${forecastMonthly.toFixed(2)}/month`);
     
-    return success({
+    const responseData = {
       historical: {
         months: historicalCosts,
         average: parseFloat(avgHistorical.toFixed(2)),
@@ -156,7 +165,12 @@ export async function handler(
       },
       alerts,
       recommendations: generateRecommendations(trend, forecastMonthly, avgHistorical),
-    });
+    };
+
+    // Save to SWR cache (freshFor: 600s = 10min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, responseData, { prefix: 'cost', freshFor: 600, maxTTL: 86400 });
+
+    return success(responseData);
     
   } catch (err) {
     logger.error('❌ Budget forecast error:', err);

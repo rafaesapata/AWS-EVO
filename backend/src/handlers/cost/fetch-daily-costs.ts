@@ -19,6 +19,8 @@ import { fetchDailyCostsSchema, type FetchDailyCostsInput } from '../../lib/sche
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { isOrganizationInDemoMode, generateDemoCostData } from '../../lib/demo-data-service.js';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
+import { cacheManager } from '../../lib/redis-cache.js';
+import { createHash } from 'crypto';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -398,7 +400,21 @@ export async function handler(
     // IMPORTANT: Always return existing data from database, not just newly fetched data
     // This ensures the frontend always has data to display
     const requestedStart = requestedStartDate || getDateDaysAgo(365);
+
+    // SWR Cache for the final response (DB read portion)
+    // The Cost Explorer fetch + DB write above still runs, but subsequent reads within freshFor are instant
+    const filterHash = createHash('md5').update(JSON.stringify({ accountId, startDate: requestedStart, endDate, granularity })).digest('hex').slice(0, 12);
+    const cacheKey = `daily:${organizationId}:${filterHash}`;
     
+    // Only use cache if no new records were fetched (incremental had nothing new)
+    if (totalNewRecords === 0) {
+      const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
+      if (cached && !cached.stale) {
+        logger.info('Daily costs cache hit (fresh, no new data)', { organizationId });
+        return success({ ...cached.data, _fromCache: true });
+      }
+    }
+
     // Fetch all existing costs from database for the requested period
     const existingCosts = await prisma.dailyCost.findMany({
       where: {
@@ -434,7 +450,7 @@ export async function handler(
       totalCost: parseFloat(totalCost.toFixed(2)) 
     });
     
-    return success({
+    const responseData = {
       success: true,
       data: {
         dailyCosts: dbCosts,
@@ -452,7 +468,12 @@ export async function handler(
         accountsProcessed: awsAccounts.map(a => ({ id: a.id, name: a.account_name })),
         incremental,
       },
-    });
+    };
+
+    // Save to SWR cache (freshFor: 300s = 5min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, responseData, { prefix: 'cost', freshFor: 300, maxTTL: 86400 });
+
+    return success(responseData);
     
   } catch (err) {
     logger.error('Fetch Daily Costs error', err as Error, { requestId: context.awsRequestId });

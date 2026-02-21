@@ -14,7 +14,9 @@ import { logger } from '../../lib/logger.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoExecutiveDashboard } from '../../lib/demo-data-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 import { z } from 'zod';
+import { createHash } from 'crypto';
 
 // ============================================================================
 // TYPES
@@ -239,7 +241,15 @@ export async function handler(
       }, 200, origin);
     }
 
-    // 4. Real data flow - Execute queries in parallel for performance
+    // 4. SWR Cache - return cached data instantly if fresh
+    const cacheKey = `exec:${organizationId}:${params.accountId || 'all'}:${params.provider || 'all'}:${params.trendPeriod || '30d'}`;
+    const cached = await cacheManager.getSWR<ExecutiveDashboardResponse>(cacheKey, { prefix: 'dash' });
+    if (cached && !cached.stale) {
+      logger.info('Executive Dashboard cache hit (fresh)', { organizationId, cacheAge: cached.age });
+      return success({ ...cached.data, _fromCache: true, _cacheAge: cached.age }, 200, origin);
+    }
+
+    // 5. Real data flow - Execute queries in parallel for performance
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
@@ -269,10 +279,10 @@ export async function handler(
       params.includeTrends ? getTrendsData(prisma, organizationId, params.trendPeriod ?? '30d', params.accountId ?? undefined, provider || undefined) : Promise.resolve(null)
     ]);
 
-    // 5. Calculate aggregated scores
+    // 6. Calculate aggregated scores
     const summary = calculateExecutiveSummary(financialData, securityData, operationsData);
 
-    // 6. Build response
+    // 7. Build response
     const response: ExecutiveDashboardResponse = {
       summary,
       financial: financialData,
@@ -293,6 +303,9 @@ export async function handler(
       }
     };
 
+    // 8. Save to SWR cache (freshFor: 120s = 2min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, response, { prefix: 'dash', freshFor: 120, maxTTL: 86400 });
+
     const executionTime = Date.now() - startTime;
     logger.info('Executive Dashboard generated', {
       organizationId,
@@ -300,6 +313,11 @@ export async function handler(
       executionTime,
       requestId: context.awsRequestId
     });
+
+    // If we had stale cache, we already computed fresh — return fresh
+    if (cached?.stale) {
+      return success({ ...response, _cacheRefreshed: true }, 200, origin);
+    }
 
     return success(response, 200, origin);
 

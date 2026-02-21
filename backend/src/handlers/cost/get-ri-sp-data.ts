@@ -58,7 +58,15 @@ export async function handler(
     if (!accountId) {
       return error('Missing required parameter: accountId', 400);
     }
-    
+
+    // SWR Cache - return cached data instantly if fresh
+    const cacheKey = `risp:${organizationId}:${accountId}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
+    if (cached && !cached.stale) {
+      logger.info('RI/SP data cache hit (fresh)', { organizationId });
+      return success({ ...cached.data, _fromCache: true });
+    }
+
     // Verify account belongs to organization
     const account = await prisma.awsCredential.findFirst({
       where: { id: accountId, organization_id: organizationId, is_active: true },
@@ -119,7 +127,21 @@ export async function handler(
       ? activeSPs.reduce((sum, sp) => sum + (sp.utilization_percentage || 0), 0) / activeSPs.length
       : 0;
     
-    const totalRISavings = activeRIs.reduce((sum, ri) => sum + (ri.net_savings || 0), 0);
+    const totalRISavings = activeRIs.reduce((sum, ri) => {
+      let savings = ri.net_savings || 0;
+      // Normalize legacy data: if net_savings was calculated over the full RI duration
+      // instead of monthly, divide by the number of months in the RI term
+      const durationMonths = ri.duration_seconds ? ri.duration_seconds / (30.44 * 24 * 3600) : 0;
+      if (durationMonths > 1.5 && savings > 0) {
+        // Savings was likely calculated for the full term, normalize to monthly
+        const monthlyHours = 730;
+        const totalHours = ri.duration_seconds / 3600;
+        if (totalHours > monthlyHours * 1.5) {
+          savings = savings * (monthlyHours / totalHours);
+        }
+      }
+      return sum + savings;
+    }, 0);
     const totalSPSavings = activeSPs.reduce((sum, sp) => sum + (sp.net_savings || 0), 0);
     
     // BUG FIX: Sum monthly savings from recommendations, not annual
@@ -182,7 +204,7 @@ export async function handler(
     
     logger.info(`✅ Retrieved RI/SP data: ${reservedInstances.length} RIs, ${savingsPlans.length} SPs, ${recommendations.length} recommendations`);
     
-    return success({
+    const responseData = {
       success: true,
       hasData: true,
       executiveSummary,
@@ -263,7 +285,12 @@ export async function handler(
         })(),
         dataSource: 'database',
       },
-    });
+    };
+
+    // Save to SWR cache (freshFor: 600s = 10min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, responseData, { prefix: 'cost', freshFor: 600, maxTTL: 86400 });
+
+    return success(responseData);
     
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);

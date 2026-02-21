@@ -12,6 +12,7 @@ import { logger } from '../../lib/logger.js';
 import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 const getHistorySchema = z.object({
   days: z.number().min(1).max(365).optional().default(30),
@@ -89,7 +90,14 @@ export async function handler(
     
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - effectiveDays);
-    
+
+    // SWR Cache - return cached data instantly if fresh
+    const cacheKey = `compliance:${organizationId}:${effectiveDays}:${framework || 'all'}:${accountId || 'all'}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'sec' });
+    if (cached && !cached.stale) {
+      return success({ ...cached.data, _fromCache: true }, 200, origin);
+    }
+
     // Get security posture history (compliance scores over time)
     const postureHistory = await prisma.securityPosture.findMany({
       where: {
@@ -246,7 +254,7 @@ export async function handler(
       }
     }
     
-    return success({
+    const responseData = {
       period_days: days,
       overall_trend: overallTrend,
       posture_history: postureHistory.map(p => ({
@@ -274,7 +282,12 @@ export async function handler(
             (postureHistory[postureHistory.length - 2].compliance_score || 0)
           : 0,
       },
-    }, 200, origin);
+    };
+
+    // Save to SWR cache (freshFor: 300s = 5min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, responseData, { prefix: 'sec', freshFor: 300, maxTTL: 86400 });
+
+    return success(responseData, 200, origin);
     
   } catch (err) {
     logger.error('Get compliance history error', err as Error);
