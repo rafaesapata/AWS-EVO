@@ -86,12 +86,27 @@ async function sendReportEmails(
   report: ScanReport,
   payload: ReportGeneratorPayload
 ): Promise<void> {
+  logger.info('sendReportEmails called', { 
+    recipientCount: profiles.length, 
+    recipients: profiles.map(p => ({ email: p.email, name: p.full_name })),
+    scanId: payload.scanId 
+  });
+  
   const emailService = createEmailService();
   const emailSubject = generateReportSubject(report);
-  const emailHtml = generateSecurityReportHtml({
-    report,
-    platformUrl: `${PLATFORM_BASE_URL}/security-scans`,
-  });
+  logger.info('Generated email subject', { subject: emailSubject });
+  
+  let emailHtml: string;
+  try {
+    emailHtml = generateSecurityReportHtml({
+      report,
+      platformUrl: `${PLATFORM_BASE_URL}/security-scans`,
+    });
+    logger.info('Generated email HTML', { htmlLength: emailHtml.length });
+  } catch (templateErr) {
+    logger.error('Failed to generate email HTML template', templateErr as Error, { scanId: payload.scanId });
+    throw templateErr;
+  }
 
   for (const profile of profiles) {
     let messageId: string | undefined;
@@ -99,6 +114,7 @@ async function sendReportEmails(
     let errorMsg: string | undefined;
 
     try {
+      logger.info('Sending report email', { to: profile.email, scanId: payload.scanId });
       const result = await emailService.sendEmail({
         to: { email: profile.email, name: profile.full_name || undefined },
         subject: emailSubject,
@@ -106,6 +122,7 @@ async function sendReportEmails(
         tags: { type: 'scan_report', scan_id: payload.scanId },
       });
       messageId = result.messageId;
+      logger.info('Report email sent successfully', { to: profile.email, messageId, scanId: payload.scanId });
     } catch (err) {
       emailStatus = 'failed';
       errorMsg = err instanceof Error ? err.message : String(err);
@@ -184,23 +201,31 @@ async function createAlarmNotifications(
 }
 
 export async function handler(event: any, _context: LambdaContext): Promise<{ statusCode: number; body: string }> {
+  logger.info('scan-report-generator invoked', { eventType: typeof event, hasBody: !!event?.body, keys: Object.keys(event || {}) });
+  
   const prisma = getPrismaClient();
 
   let payload: ReportGeneratorPayload;
   try {
     payload = typeof event.body === 'string' ? JSON.parse(event.body) : event;
   } catch (err) {
-    logger.error('Failed to parse event payload', err as Error);
+    logger.error('Failed to parse event payload', err as Error, { rawEvent: JSON.stringify(event).substring(0, 500) });
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid payload' }) };
   }
 
   const { scanId, organizationId, accountId, azureCredentialId, cloudProvider, scanType } = payload;
+
+  if (!scanId || !organizationId) {
+    logger.error('Missing required fields in payload', undefined, { scanId, organizationId, cloudProvider, scanType });
+    return { statusCode: 400, body: JSON.stringify({ error: 'Missing scanId or organizationId' }) };
+  }
 
   logger.info('Starting report generation', { scanId, organizationId, cloudProvider, scanType });
 
   try {
     // 1. Fetch current scan
     const currentScan = await prisma.securityScan.findUnique({ where: { id: scanId } });
+    logger.info('Fetched scan', { scanId, found: !!currentScan, status: currentScan?.status });
     if (!currentScan || currentScan.status !== 'completed') {
       logger.error('Scan not found or not completed', undefined, { scanId, status: currentScan?.status });
       return { statusCode: 404, body: JSON.stringify({ error: 'Scan not found or not completed' }) };
@@ -304,6 +329,8 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
       select: { user_id: true, email: true, full_name: true },
     });
 
+    logger.info('Fetched org profiles', { organizationId, profileCount: orgProfiles.length, emails: orgProfiles.map(p => p.email) });
+
     const orgUserIds = orgProfiles.map((p) => p.user_id);
 
     const existingSettings = orgUserIds.length > 0
@@ -312,6 +339,11 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
           select: { userId: true, email_enabled: true, security_alerts: true, additional_emails: true },
         })
       : [];
+
+    logger.info('Fetched notification settings', { 
+      settingsCount: existingSettings.length, 
+      settings: existingSettings.map(s => ({ userId: s.userId, email: s.email_enabled, security: s.security_alerts }))
+    });
 
     // Users with explicit settings: respect their preferences
     const settingsMap = new Map(existingSettings.map((ns) => [ns.userId, ns]));
