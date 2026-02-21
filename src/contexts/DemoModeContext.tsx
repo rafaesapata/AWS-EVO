@@ -153,6 +153,16 @@ export const DEMO_PAGE_DESCRIPTIONS: Record<string, { title: string; description
       'Projeção de economia'
     ]
   },
+  '/resource-monitoring': {
+    title: 'Monitoramento de Recursos',
+    description: 'Monitoramento em tempo real de recursos cloud com métricas detalhadas.',
+    features: [
+      'Descoberta automática de EC2, RDS, Lambda, ECS',
+      'Métricas de CPU, memória, rede e disco',
+      'Gráficos de performance por recurso',
+      'Suporte multi-cloud AWS e Azure'
+    ]
+  },
   '/attack-detection': {
     title: 'Attack Detection',
     description: 'Detecção de ataques em tempo real com análise de ameaças WAF.',

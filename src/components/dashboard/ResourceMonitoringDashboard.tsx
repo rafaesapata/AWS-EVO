@@ -896,7 +896,7 @@ export const ResourceMonitoringDashboard = () => {
     hasTriggeredAutoFetch.current = false;
   }, [selectedAccountId]);
 
-  if (!accounts || accounts.length === 0) {
+  if (!isInDemoMode && (!accounts || accounts.length === 0)) {
     return (
       <Card>
         <CardHeader>
@@ -1003,7 +1003,7 @@ export const ResourceMonitoringDashboard = () => {
             </Select>
             <Button 
               onClick={() => handleRefresh(true)} 
-              disabled={isRefreshing || !selectedAccountId}
+              disabled={isRefreshing || (!selectedAccountId && !isInDemoMode)}
               className="gap-2"
               size="sm"
             >
@@ -1056,7 +1056,7 @@ export const ResourceMonitoringDashboard = () => {
           </Select>
           <Button 
             onClick={() => handleRefresh(true)} 
-            disabled={isRefreshing || !selectedAccountId}
+            disabled={isRefreshing || (!selectedAccountId && !isInDemoMode)}
             className="gap-2"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -1065,7 +1065,7 @@ export const ResourceMonitoringDashboard = () => {
         </div>
       </div>
 
-      {selectedAccountId && (
+      {(selectedAccountId || isInDemoMode) && (
         <>
           {/* Alerta de Permissões Faltantes */}
           <AWSPermissionError errors={permissionErrors} cloudProvider={selectedProvider} />
@@ -1300,7 +1300,7 @@ export const ResourceMonitoringDashboard = () => {
                   </p>
                   <Button 
                     onClick={() => handleRefresh(true)} 
-                    disabled={isRefreshing || !selectedAccountId}
+                    disabled={isRefreshing || (!selectedAccountId && !isInDemoMode)}
                     className="gap-2"
                   >
                     <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
