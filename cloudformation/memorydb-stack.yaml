@@ -150,8 +150,8 @@ Resources:
     Properties:
       Name: !Sub '/evo-uds/${Environment}/memorydb/port'
       Type: String
-      Value: !Sub '${MemoryDBCluster.ClusterEndpoint.Port}'
-      Description: MemoryDB cluster port
+      Value: '6379'
+      Description: MemoryDB cluster port (always 6379)
       Tags:
         Environment: !Ref Environment
         Project: !Ref ProjectName
@@ -165,13 +165,13 @@ Outputs:
 
   MemoryDBClusterPort:
     Description: MemoryDB Cluster Port
-    Value: !Sub '${MemoryDBCluster.ClusterEndpoint.Port}'
+    Value: '6379'
     Export:
       Name: !Sub '${AWS::StackName}-MemoryDBPort'
 
   MemoryDBConnectionString:
     Description: MemoryDB connection string (TLS enabled)
-    Value: !Sub 'rediss://${MemoryDBCluster.ClusterEndpoint.Address}:${MemoryDBCluster.ClusterEndpoint.Port}'
+    Value: !Sub 'rediss://${MemoryDBCluster.ClusterEndpoint.Address}:6379'
     Export:
       Name: !Sub '${AWS::StackName}-ConnectionString'
 
