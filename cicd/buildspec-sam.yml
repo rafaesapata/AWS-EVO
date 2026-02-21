@@ -157,6 +157,18 @@ phases:
           echo "SES_SECRET_ACCESS_KEY loaded from SSM"
         fi
 
+      - |
+        # MemoryDB Redis URL from SSM (stored by memorydb-stack CloudFormation)
+        REDIS_ENDPOINT_PARAM="/evo-uds/${ENV}/memorydb/endpoint"
+        REDIS_ENDPOINT=$(aws ssm get-parameter --name "$REDIS_ENDPOINT_PARAM" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+        if [ -n "$REDIS_ENDPOINT" ]; then
+          export REDIS_URL="rediss://${REDIS_ENDPOINT}:6379"
+          echo "REDIS_URL loaded from SSM: rediss://${REDIS_ENDPOINT}:6379"
+        else
+          export REDIS_URL=""
+          echo "WARNING: MemoryDB endpoint not found in SSM ($REDIS_ENDPOINT_PARAM). Redis cache will use in-memory fallback."
+        fi
+
       - echo "=== Analyzing deploy strategy (ALWAYS FULL_SAM for backend) ==="
       - |
         CHANGED_FILES=$(cat /tmp/changed_files.txt)
@@ -302,6 +314,9 @@ phases:
           fi
           if [ -n "$SES_SECRET_ACCESS_KEY" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES SesSecretAccessKey=$SES_SECRET_ACCESS_KEY"
+          fi
+          if [ -n "$REDIS_URL" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES RedisUrl=$REDIS_URL"
           fi
 
           sam deploy \
