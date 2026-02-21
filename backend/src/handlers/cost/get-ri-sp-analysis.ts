@@ -10,6 +10,7 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 
 interface GetRiSpAnalysisInput {
   accountId: string;
@@ -41,6 +42,14 @@ export async function handler(
       accountId,
       includeHistory,
     });
+
+    // SWR Cache - return cached data instantly if fresh (avoids 4 Prisma queries)
+    const cacheKey = `risp-analysis:${organizationId}:${accountId}:${includeHistory}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
+    if (cached && !cached.stale) {
+      logger.info('RI/SP analysis cache hit (fresh)', { organizationId, accountId });
+      return success({ ...cached.data, _fromCache: true, _cacheAge: cached.age });
+    }
 
     // Fetch Reserved Instances
     const reservedInstances = await prisma.reservedInstance.findMany({
@@ -291,6 +300,9 @@ export async function handler(
       spCount,
       recommendationsCount: recommendations.length,
     });
+
+    // Save to SWR cache (freshFor: 600s = 10min, maxTTL: 24h)
+    await cacheManager.setSWR(cacheKey, response, { prefix: 'cost', freshFor: 600, maxTTL: 86400 });
 
     return success(response);
 

@@ -20,7 +20,6 @@ import { parseAndValidateBody } from '../../lib/validation.js';
 import { isOrganizationInDemoMode, generateDemoCostData } from '../../lib/demo-data-service.js';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 import { cacheManager } from '../../lib/redis-cache.js';
-import { createHash } from 'crypto';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -201,9 +200,12 @@ export async function handler(
     let totalSkippedDays = 0;
 
     // SWR Cache - skip expensive Cost Explorer API calls if data is fresh
+    // Normalize dates to day boundaries to maximize cache hits across multiple frontend calls
     const requestedStart = requestedStartDate || getDateDaysAgo(365);
-    const filterHash = createHash('md5').update(JSON.stringify({ accountId, startDate: requestedStart, endDate, granularity })).digest('hex').slice(0, 12);
-    const cacheKey = `daily:${organizationId}:${filterHash}`;
+    const normalizedStart = requestedStart.split('T')[0]; // strip time component
+    const normalizedEnd = endDate.split('T')[0];
+    const normalizedAccountId = accountId || 'all';
+    const cacheKey = `daily:${organizationId}:${normalizedAccountId}:${normalizedStart}:${normalizedEnd}:${granularity}`;
     const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
     if (cached && !cached.stale) {
       logger.info('Daily costs cache hit (fresh)', { organizationId });

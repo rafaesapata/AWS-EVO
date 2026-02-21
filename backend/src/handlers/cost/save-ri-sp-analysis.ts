@@ -12,6 +12,7 @@ import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 import { z } from 'zod';
 
 // Zod schema for save RI/SP analysis
@@ -279,6 +280,10 @@ export async function handler(
       ipAddress: getIpFromEvent(event),
       userAgent: getUserAgentFromEvent(event),
     });
+
+    // Invalidate RI/SP analysis and history caches after saving new data
+    await cacheManager.deletePattern(`risp-analysis:${organizationId}:${accountId}:*`, { prefix: 'cost' });
+    await cacheManager.deletePattern(`risp-history:${organizationId}:${accountId}:*`, { prefix: 'cost' });
 
     return success({
       message: 'RI/SP analysis saved successfully',

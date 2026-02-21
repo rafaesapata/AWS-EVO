@@ -21,6 +21,7 @@ import { getEC2Price, getRDSPrice } from '../../lib/pricing/dynamic-pricing-serv
 import { isOrganizationInDemoMode, generateDemoRISPAnalysis } from '../../lib/demo-data-service.js';
 import { riSpAnalyzerSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { cacheManager } from '../../lib/redis-cache.js';
 import { 
   EC2Client, 
   DescribeReservedInstancesCommand, 
@@ -429,6 +430,10 @@ export async function handler(
       logger.error('❌ Error saving to database (non-fatal):', dbError);
       // Continue execution - database save is not critical
     }
+
+    // Invalidate RI/SP analysis and history caches after new analysis
+    await cacheManager.deletePattern(`risp-analysis:${organizationId}:${accountId}:*`, { prefix: 'cost' });
+    await cacheManager.deletePattern(`risp-history:${organizationId}:${accountId}:*`, { prefix: 'cost' });
     
     return success({
       success: true,
