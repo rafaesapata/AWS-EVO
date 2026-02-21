@@ -144,7 +144,7 @@ export function useAssignTag() {
       throwIfError(res);
       return (res as any).data;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tags'] }); },
+    onSuccess: () => { qc.refetchQueries({ queryKey: ['tags'] }); },
     onError: (err: Error) => { toast.error(err.message || 'Erro ao atribuir tag'); },
   });
 }
@@ -157,7 +157,7 @@ export function useUnassignTag() {
       throwIfError(res);
       return (res as any).data;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tags'] }); },
+    onSuccess: () => { qc.refetchQueries({ queryKey: ['tags'] }); },
     onError: (err: Error) => { toast.error(err.message || 'Erro ao remover atribuição'); },
   });
 }
@@ -170,8 +170,18 @@ export function useBulkAssign() {
       throwIfError(res);
       return (res as any).data;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tags'] }); },
-    onError: (err: Error) => { toast.error(err.message || 'Erro na atribuição em massa'); },
+    onSuccess: (data) => {
+      // Force immediate refetch of all tag-related queries so indicators update
+      qc.refetchQueries({ queryKey: ['tags'] });
+      const assigned = data?.assignedCount || 0;
+      const skipped = data?.skippedCount || 0;
+      if (assigned > 0) {
+        toast.success(`${assigned} atribuições criadas${skipped > 0 ? `, ${skipped} já existiam` : ''}`, { duration: 5000 });
+      } else if (skipped > 0) {
+        toast.info(`Todas as ${skipped} atribuições já existiam`, { duration: 5000 });
+      }
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro na atribuição em massa', { duration: 5000 }); },
   });
 }
 
