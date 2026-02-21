@@ -127,21 +127,7 @@ export async function handler(
       ? activeSPs.reduce((sum, sp) => sum + (sp.utilization_percentage || 0), 0) / activeSPs.length
       : 0;
     
-    const totalRISavings = activeRIs.reduce((sum, ri) => {
-      let savings = ri.net_savings || 0;
-      // Normalize legacy data: if net_savings was calculated over the full RI duration
-      // instead of monthly, divide by the number of months in the RI term
-      const durationMonths = ri.duration_seconds ? ri.duration_seconds / (30.44 * 24 * 3600) : 0;
-      if (durationMonths > 1.5 && savings > 0) {
-        // Savings was likely calculated for the full term, normalize to monthly
-        const monthlyHours = 730;
-        const totalHours = ri.duration_seconds / 3600;
-        if (totalHours > monthlyHours * 1.5) {
-          savings = savings * (monthlyHours / totalHours);
-        }
-      }
-      return sum + savings;
-    }, 0);
+    const totalRISavings = activeRIs.reduce((sum, ri) => sum + (ri.net_savings || 0), 0);
     const totalSPSavings = activeSPs.reduce((sum, sp) => sum + (sp.net_savings || 0), 0);
     
     // BUG FIX: Sum monthly savings from recommendations, not annual

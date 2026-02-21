@@ -55,7 +55,7 @@ export default function AICommandCenter({ insights, onRefresh, isLoading }: Prop
 
   // Get appropriate icon and color for AI summary items based on content
   const getSummaryItemStyle = (insight: AIInsight) => {
-    const title = insight.title.toLowerCase();
+    const title = (insight.title || '').toLowerCase();
     const isNegative = title.includes('fora do ar') || 
                        title.includes('down') || 
                        title.includes('erro') || 

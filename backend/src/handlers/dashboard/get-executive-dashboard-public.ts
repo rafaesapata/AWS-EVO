@@ -173,13 +173,11 @@ async function getFinancialData(prisma: any, organizationId: string, startOfMont
   const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   let budgetAmount = mtdTotal > 0 ? mtdTotal * 1.2 : 10000;
   try {
-    const budget = await prisma.cloudBudget.findUnique({
+    const budget = await prisma.cloudBudget.findFirst({
       where: {
-        organization_id_cloud_provider_year_month: {
-          organization_id: organizationId,
-          cloud_provider: 'AWS',
-          year_month: currentYearMonth,
-        },
+        organization_id: organizationId,
+        cloud_provider: 'AWS',
+        year_month: currentYearMonth,
       },
     });
     if (budget) budgetAmount = budget.amount;

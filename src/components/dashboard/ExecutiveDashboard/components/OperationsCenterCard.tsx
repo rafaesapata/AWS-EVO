@@ -207,13 +207,13 @@ export default function OperationsCenterCard({ data }: Props) {
                     onClick={() => navigate('/intelligent-alerts')}
                     className={cn(
                       "flex items-center gap-2 p-2.5 cursor-pointer transition-all duration-200 hover:bg-[#00B2FF]/5 group",
-                      alert.severity.toLowerCase() === 'critical' ? 'bg-red-50' : 'bg-white',
+                      (alert.severity || '').toLowerCase() === 'critical' ? 'bg-red-50' : 'bg-white',
                       index > 0 && 'border-t border-gray-100'
                     )}
                   >
                     <AlertTriangle className={cn(
                       'h-3.5 w-3.5 flex-shrink-0',
-                      alert.severity.toLowerCase() === 'critical' ? 'text-red-500' : 'text-amber-500'
+                      (alert.severity || '').toLowerCase() === 'critical' ? 'text-red-500' : 'text-amber-500'
                     )} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-light text-[#393939] truncate">{alert.title}</div>
@@ -221,7 +221,7 @@ export default function OperationsCenterCard({ data }: Props) {
                     <Badge 
                       className={cn(
                         "text-xs px-1.5 py-0 rounded-full font-light",
-                        alert.severity.toLowerCase() === 'critical' 
+                        (alert.severity || '').toLowerCase() === 'critical' 
                           ? 'bg-red-100 text-red-500 border-red-200' 
                           : 'bg-amber-100 text-amber-500 border-amber-200'
                       )}

@@ -350,6 +350,90 @@ export class RedisCacheManager {
   }
 
   // --------------------------------------------------------------------------
+  // STALE-WHILE-REVALIDATE
+  // --------------------------------------------------------------------------
+
+  /**
+   * Get cached data with stale-while-revalidate semantics.
+   * - Always returns cached data if available (even if stale)
+   * - Returns `{ data, stale }` where stale=true means data should be refreshed
+   * - TTL is long (24h default) so data survives; freshFor controls staleness
+   * 
+   * Usage:
+   *   const cached = await cacheManager.getSWR<MyType>('key', { prefix: 'dash' });
+   *   if (cached && !cached.stale) return cached.data; // fresh hit
+   *   const fresh = await fetchFromDB();
+   *   await cacheManager.setSWR('key', fresh, { prefix: 'dash', freshFor: 300 });
+   *   if (cached) return cached.data; // had stale data, return it (fresh saved for next)
+   *   return fresh; // no cache at all, return fresh
+   */
+  async getSWR<T = any>(key: string, options: CacheOptions = {}): Promise<{ data: T; stale: boolean; age: number } | null> {
+    const fullKey = this.buildKey(key, options.prefix);
+    const metaKey = `${fullKey}:_swr`;
+    try {
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        const [raw, meta] = await redis.mget(fullKey, metaKey);
+        if (raw === null) { this.stats.misses++; return null; }
+        this.stats.hits++;
+        const refreshAfter = meta ? parseInt(meta, 10) : 0;
+        const age = refreshAfter > 0 ? Math.max(0, Math.floor((Date.now() - refreshAfter) / 1000)) : 0;
+        const stale = refreshAfter > 0 && Date.now() > refreshAfter;
+        return { data: this.deserialize<T>(raw), stale, age: stale ? age : 0 };
+      }
+      // Fallback
+      const raw = memoryGet(fullKey);
+      if (raw === null) { this.stats.misses++; return null; }
+      this.stats.hits++;
+      const metaRaw = memoryGet(metaKey);
+      const refreshAfter = metaRaw ? parseInt(metaRaw, 10) : 0;
+      const stale = refreshAfter > 0 && Date.now() > refreshAfter;
+      return { data: this.deserialize<T>(raw), stale, age: 0 };
+    } catch (err) {
+      this.stats.errors++;
+      logger.warn('[Cache] getSWR error', { key: fullKey, error: (err as Error).message });
+      const raw = memoryGet(fullKey);
+      if (raw) return { data: this.deserialize<T>(raw), stale: true, age: 0 };
+      return null;
+    }
+  }
+
+  /**
+   * Set data with stale-while-revalidate semantics.
+   * @param freshFor - seconds until data is considered stale (default 300 = 5min)
+   * @param maxTTL - max seconds to keep data in cache (default 86400 = 24h)
+   */
+  async setSWR(key: string, value: any, options: CacheOptions & { freshFor?: number; maxTTL?: number } = {}): Promise<boolean> {
+    const fullKey = this.buildKey(key, options.prefix);
+    const metaKey = `${fullKey}:_swr`;
+    const maxTTL = options.maxTTL || 86400; // 24h
+    const freshFor = options.freshFor || 300; // 5min
+    const serialized = this.serialize(value);
+    const refreshAfter = String(Date.now() + freshFor * 1000);
+    try {
+      const redis = getRedisClient();
+      if (redis && await isRedisConnected()) {
+        const pipeline = redis.pipeline();
+        pipeline.setex(fullKey, maxTTL, serialized);
+        pipeline.setex(metaKey, maxTTL, refreshAfter);
+        await pipeline.exec();
+        this.stats.sets++;
+        return true;
+      }
+      memorySet(fullKey, serialized, maxTTL);
+      memorySet(metaKey, refreshAfter, maxTTL);
+      this.stats.sets++;
+      return true;
+    } catch (err) {
+      this.stats.errors++;
+      logger.warn('[Cache] setSWR error', { key: fullKey, error: (err as Error).message });
+      memorySet(fullKey, serialized, maxTTL);
+      memorySet(metaKey, refreshAfter, maxTTL);
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // STATS & ADMIN
   // --------------------------------------------------------------------------
 

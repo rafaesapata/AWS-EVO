@@ -16,7 +16,6 @@ import { isOrganizationInDemoMode, generateDemoExecutiveDashboard } from '../../
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { cacheManager } from '../../lib/redis-cache.js';
 import { z } from 'zod';
-import { createHash } from 'crypto';
 
 // ============================================================================
 // TYPES
@@ -314,11 +313,6 @@ export async function handler(
       requestId: context.awsRequestId
     });
 
-    // If we had stale cache, we already computed fresh — return fresh
-    if (cached?.stale) {
-      return success({ ...response, _cacheRefreshed: true }, 200, origin);
-    }
-
     return success(response, 200, origin);
 
   } catch (err) {
@@ -476,13 +470,11 @@ async function getFinancialData(
   let budgetAmount = 0;
   let budgetSource: string = 'fallback';
   try {
-    const budget = await prisma.cloudBudget.findUnique({
+    const budget = await prisma.cloudBudget.findFirst({
       where: {
-        organization_id_cloud_provider_year_month: {
-          organization_id: organizationId,
-          cloud_provider: provider || 'AWS',
-          year_month: currentYearMonth,
-        },
+        organization_id: organizationId,
+        cloud_provider: provider || 'AWS',
+        year_month: currentYearMonth,
       },
     });
     if (budget) {

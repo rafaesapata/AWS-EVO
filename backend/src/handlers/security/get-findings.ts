@@ -178,6 +178,8 @@ export const handler = safeHandler(async (
       });
       
       logger.info('Finding suppressed', { findingId, userId: user.sub, reason });
+      // Invalidate findings cache for this org after mutation
+      await cacheManager.deletePattern(`findings:${organizationId}:*`, { prefix: 'sec' });
       return success({ success: true, action: 'suppress', findingId });
     }
     
@@ -212,6 +214,8 @@ export const handler = safeHandler(async (
       });
       
       logger.info('Finding unsuppressed', { findingId, userId: user.sub });
+      // Invalidate findings cache for this org after mutation
+      await cacheManager.deletePattern(`findings:${organizationId}:*`, { prefix: 'sec' });
       return success({ success: true, action: 'unsuppress', findingId });
     }
     

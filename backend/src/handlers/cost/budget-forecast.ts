@@ -58,6 +58,14 @@ export async function handler(
     }
     // =========================================================================
     
+    // SWR Cache - return cached data instantly if fresh (before credential lookup)
+    const cacheKey = `forecast:${organizationId}:${accountId || 'all'}:${months}`;
+    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
+    if (cached && !cached.stale) {
+      logger.info('Budget forecast cache hit (fresh)', { organizationId });
+      return success({ ...cached.data, _fromCache: true });
+    }
+
     const credential = await prisma.awsCredential.findFirst({
       where: {
         organization_id: organizationId,
@@ -66,14 +74,6 @@ export async function handler(
       },
       orderBy: { created_at: 'desc' },
     });
-
-    // SWR Cache - return cached data instantly if fresh
-    const cacheKey = `forecast:${organizationId}:${accountId || 'all'}:${months}`;
-    const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
-    if (cached && !cached.stale) {
-      logger.info('Budget forecast cache hit (fresh)', { organizationId });
-      return success({ ...cached.data, _fromCache: true });
-    }
 
     if (!credential) {
       return badRequest('AWS credentials not found');
