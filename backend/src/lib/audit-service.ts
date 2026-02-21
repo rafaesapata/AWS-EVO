@@ -74,7 +74,11 @@ export type AuditAction =
   | 'TAG_ASSIGNED'
   | 'TAG_REMOVED'
   | 'TAG_BULK_ASSIGNED'
-  | 'TAG_POLICIES_UPDATED';
+  | 'TAG_POLICIES_UPDATED'
+  | 'TAG_MERGED'
+  | 'TAG_RENAMED'
+  | 'TAG_AUTO_RULE_CREATED'
+  | 'TAG_AUTO_RULES_EXECUTED';
 
 export type AuditResourceType =
   | 'user'
@@ -104,7 +108,8 @@ export type AuditResourceType =
   | 'cloud_budget'
   | 'scan_schedule'
   | 'tag'
-  | 'tag_policy';
+  | 'tag_policy'
+  | 'tag_auto_rule';
 
 export interface AuditLogParams {
   organizationId: string;

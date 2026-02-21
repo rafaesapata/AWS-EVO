@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, Fragment } from 'react';
 import { Layout } from '@/components/Layout';
-import { Tags, Trash2, Pencil, Loader2, Shield, AlertTriangle, Download, ChevronDown, ChevronRight, ExternalLink, X, Clock, Wrench, FileText } from 'lucide-react';
+import { Tags, Trash2, Pencil, Loader2, Shield, AlertTriangle, Download, ChevronDown, ChevronRight, ExternalLink, X, Clock, Wrench, FileText, Zap, GitMerge, Play, Plus, Power, PowerOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +23,10 @@ import {
   useTagList, useTagCoverage, useDeleteTag, useUpdateTag, useTagCostReport,
   useTagSecurityFindings, useResourcesByTag, useUnassignTag,
   useTagPolicies, useSaveTagPolicies, useRecentActivity, useEnrichLegacy,
-  type Tag, type ResourceAssignment, type TagPolicies,
+  useAutoRules, useCreateAutoRule, useDeleteAutoRule, useUpdateAutoRule, useExecuteAutoRules,
+  useTagTree, useMergeTags, useRenameTag,
+  useTagCostDrilldown,
+  type Tag, type ResourceAssignment, type TagPolicies, type TagAutoRule, type TagTreeNode,
 } from '@/hooks/useTags';
 import { useDemoAwareQuery } from '@/hooks/useDemoAwareQuery';
 import {
@@ -67,6 +70,28 @@ export default function TagManagement() {
   const { data: policiesData } = useTagPolicies({ enabled: !isInDemoMode });
   const savePolicies = useSaveTagPolicies();
   const { data: recentActivity } = useRecentActivity({ limit: 8, enabled: !isInDemoMode });
+
+  // Advanced features hooks
+  const { data: autoRules, isLoading: loadingRules } = useAutoRules({ enabled: !isInDemoMode && tab === 'automation' });
+  const createAutoRule = useCreateAutoRule();
+  const deleteAutoRule = useDeleteAutoRule();
+  const updateAutoRuleMut = useUpdateAutoRule();
+  const executeAutoRules = useExecuteAutoRules();
+  const { data: tagTree } = useTagTree({ enabled: !isInDemoMode && tab === 'hierarchy' });
+  const mergeTags = useMergeTags();
+  const renameTagMut = useRenameTag();
+  const [drilldownTagId, setDrilldownTagId] = useState<string | null>(null);
+  const { data: drilldownData } = useTagCostDrilldown(!isInDemoMode ? drilldownTagId : null);
+  const [mergeSourceIds, setMergeSourceIds] = useState<string[]>([]);
+  const [mergeTargetId, setMergeTargetId] = useState<string>('');
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Tag | null>(null);
+  const [renameKey, setRenameKey] = useState('');
+  const [renameValue, setRenameValue] = useState('');
+  const [newRuleName, setNewRuleName] = useState('');
+  const [newRuleConditionType, setNewRuleConditionType] = useState('resource_type');
+  const [newRuleConditionValue, setNewRuleConditionValue] = useState('');
+  const [newRuleTagIds, setNewRuleTagIds] = useState<string[]>([]);
 
   // Local policies state — initialized from backend
   const [localPolicies, setLocalPolicies] = useState<TagPolicies | null>(null);
@@ -161,6 +186,8 @@ export default function TagManagement() {
           <TabsList className="glass">
             <TabsTrigger value="overview">{t('tags.overview', 'Overview')}</TabsTrigger>
             <TabsTrigger value="library">{t('tags.library', 'Tags Library')}</TabsTrigger>
+            <TabsTrigger value="automation">{t('tags.automation', 'Auto-Rules')}</TabsTrigger>
+            <TabsTrigger value="hierarchy">{t('tags.hierarchy', 'Hierarchy')}</TabsTrigger>
             <TabsTrigger value="costs">{t('tags.costReports', 'Cost Reports')}</TabsTrigger>
             <TabsTrigger value="security">{t('tags.security', 'Security')}</TabsTrigger>
             <TabsTrigger value="settings">{t('tags.settings', 'Settings')}</TabsTrigger>
@@ -405,12 +432,253 @@ export default function TagManagement() {
             </Card>
           </TabsContent>
 
+          {/* Automation Tab — Auto-Tagging Rules */}
+          <TabsContent value="automation" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Regras automáticas aplicam tags a recursos com base em condições. Quando executadas, cada regra verifica os recursos e atribui as tags configuradas.</p>
+              </div>
+              <Button className="glass hover-glow" disabled={isInDemoMode || executeAutoRules.isPending} onClick={() => executeAutoRules.mutate()}>
+                {executeAutoRules.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}
+                Executar Regras
+              </Button>
+            </div>
+
+            {/* Create new rule */}
+            <Card className="glass border-primary/20">
+              <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Plus className="h-4 w-4" />Nova Regra</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Nome da regra</Label>
+                    <Input value={newRuleName} onChange={(e) => setNewRuleName(e.target.value)} placeholder="Ex: Tag EC2 de produção" className="h-8 text-sm" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Condição</Label>
+                    <div className="flex gap-2">
+                      <Select value={newRuleConditionType} onValueChange={setNewRuleConditionType}>
+                        <SelectTrigger className="w-[160px] h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="resource_type">Tipo de recurso</SelectItem>
+                          <SelectItem value="cloud_provider">Cloud provider</SelectItem>
+                          <SelectItem value="resource_name_contains">Nome contém</SelectItem>
+                          <SelectItem value="account_id">Account ID</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input value={newRuleConditionValue} onChange={(e) => setNewRuleConditionValue(e.target.value)} placeholder="Valor..." className="h-8 text-sm flex-1" />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Tags a aplicar</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map((tag) => {
+                      const isSelected = newRuleTagIds.includes(tag.id);
+                      return (
+                        <button key={tag.id} onClick={() => setNewRuleTagIds(prev => isSelected ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                          className={`transition-all rounded-md ${isSelected ? 'ring-2 ring-primary ring-offset-1' : 'opacity-50 hover:opacity-100'}`}>
+                          <TagBadge tag={tag} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <Button className="glass hover-glow" disabled={!newRuleName || !newRuleConditionValue || newRuleTagIds.length === 0 || createAutoRule.isPending}
+                  onClick={async () => {
+                    await createAutoRule.mutateAsync({
+                      name: newRuleName,
+                      conditions: [{ field: newRuleConditionType, operator: 'contains', value: newRuleConditionValue }] as any,
+                      tagIds: newRuleTagIds,
+                    });
+                    setNewRuleName(''); setNewRuleConditionValue(''); setNewRuleTagIds([]);
+                  }}>
+                  {createAutoRule.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                  Criar Regra
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Existing rules */}
+            <Card className="glass border-primary/20">
+              <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Zap className="h-4 w-4" />Regras Ativas</CardTitle></CardHeader>
+              <CardContent>
+                {loadingRules ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+                ) : autoRules && autoRules.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Condições</TableHead>
+                        <TableHead>Execuções</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {autoRules.map((rule) => (
+                        <TableRow key={rule.id}>
+                          <TableCell className="font-medium">{rule.name}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {(Array.isArray(rule.conditions) ? rule.conditions : []).map((c: any, i: number) => (
+                                <Badge key={i} variant="outline" className="text-xs">{c.field} {c.operator} {c.value}</Badge>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">{rule.total_applied || 0}</TableCell>
+                          <TableCell>
+                            <Badge variant={rule.is_active ? 'default' : 'secondary'} className="text-xs">
+                              {rule.is_active ? 'Ativa' : 'Inativa'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+                                onClick={() => updateAutoRuleMut.mutate({ ruleId: rule.id, isActive: !rule.is_active })}>
+                                {rule.is_active ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive"
+                                onClick={() => deleteAutoRule.mutate(rule.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">Nenhuma regra de auto-tagging criada ainda.</p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Hierarchy Tab — Tag Tree + Merge/Rename */}
+          <TabsContent value="hierarchy" className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Tag Tree */}
+              <Card className="glass border-primary/20">
+                <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Tags className="h-4 w-4" />Árvore de Tags</CardTitle></CardHeader>
+                <CardContent>
+                  {tagTree && tagTree.length > 0 ? (
+                    <div className="space-y-1">
+                      {tagTree.map((node) => (
+                        <Fragment key={node.id}>
+                          <div className="flex items-center gap-2 p-2 rounded hover:bg-muted/50">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: node.color }} />
+                            <span className="text-sm font-medium">{node.key}:{node.value}</span>
+                            {node.children && node.children.length > 0 && (
+                              <Badge variant="secondary" className="text-xs">{node.children.length} filhos</Badge>
+                            )}
+                          </div>
+                          {node.children && node.children.map((child) => (
+                            <div key={child.id} className="flex items-center gap-2 p-2 pl-8 rounded hover:bg-muted/50">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: child.color }} />
+                              <span className="text-sm">{child.key}:{child.value}</span>
+                            </div>
+                          ))}
+                        </Fragment>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">Nenhuma hierarquia definida. Use a aba Tags Library para organizar tags em grupos pai/filho.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Merge & Rename */}
+              <div className="space-y-6">
+                <Card className="glass border-primary/20">
+                  <CardHeader><CardTitle className="text-sm flex items-center gap-2"><GitMerge className="h-4 w-4" />Mesclar Tags</CardTitle></CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-xs text-muted-foreground">Selecione tags de origem para mesclar em uma tag de destino. As atribuições serão movidas e as tags de origem removidas.</p>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Tags de origem (serão removidas)</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {tags.map((tag) => {
+                          const isSelected = mergeSourceIds.includes(tag.id);
+                          return (
+                            <button key={tag.id} onClick={() => setMergeSourceIds(prev => isSelected ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                              className={`transition-all rounded-md ${isSelected ? 'ring-2 ring-destructive ring-offset-1' : 'opacity-50 hover:opacity-100'}`}
+                              disabled={tag.id === mergeTargetId}>
+                              <TagBadge tag={tag} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Tag de destino (receberá atribuições)</Label>
+                      <Select value={mergeTargetId} onValueChange={setMergeTargetId}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecionar tag destino..." /></SelectTrigger>
+                        <SelectContent>
+                          {tags.filter(t => !mergeSourceIds.includes(t.id)).map((tag) => (
+                            <SelectItem key={tag.id} value={tag.id}>{tag.key}: {tag.value}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button variant="destructive" size="sm" disabled={mergeSourceIds.length === 0 || !mergeTargetId || mergeTags.isPending}
+                      onClick={async () => {
+                        await mergeTags.mutateAsync({ sourceTagIds: mergeSourceIds, targetTagId: mergeTargetId });
+                        setMergeSourceIds([]); setMergeTargetId('');
+                      }}>
+                      {mergeTags.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                      Mesclar {mergeSourceIds.length} tag{mergeSourceIds.length !== 1 ? 's' : ''}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass border-primary/20">
+                  <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Pencil className="h-4 w-4" />Renomear Tag</CardTitle></CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Tag a renomear</Label>
+                      <Select value={renameTarget?.id || ''} onValueChange={(v) => {
+                        const tag = tags.find(t => t.id === v);
+                        if (tag) { setRenameTarget(tag); setRenameKey(tag.key); setRenameValue(tag.value); }
+                      }}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecionar tag..." /></SelectTrigger>
+                        <SelectContent>
+                          {tags.map((tag) => (<SelectItem key={tag.id} value={tag.id}>{tag.key}: {tag.value}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {renameTarget && (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Nova chave</Label>
+                          <Input value={renameKey} onChange={(e) => setRenameKey(e.target.value)} className="h-8 text-sm" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Novo valor</Label>
+                          <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="h-8 text-sm" />
+                        </div>
+                      </div>
+                    )}
+                    <Button className="glass hover-glow" size="sm" disabled={!renameTarget || !renameKey || !renameValue || renameTagMut.isPending}
+                      onClick={async () => {
+                        if (!renameTarget) return;
+                        await renameTagMut.mutateAsync({ tagId: renameTarget.id, newKey: renameKey, newValue: renameValue });
+                        setRenameTarget(null); setRenameKey(''); setRenameValue('');
+                      }}>
+                      {renameTagMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                      Renomear
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
           {/* Cost Reports Tab */}
           <TabsContent value="costs" className="space-y-6">
             <Card className="glass border-primary/20">
               <CardHeader><CardTitle className="text-sm">{t('tags.selectTagForCost', 'Select a tag to view cost breakdown')}</CardTitle></CardHeader>
               <CardContent>
-                <Select value={selectedCostTag || ''} onValueChange={setSelectedCostTag}>
+                <Select value={selectedCostTag || ''} onValueChange={(v) => { setSelectedCostTag(v); setDrilldownTagId(v); }}>
                   <SelectTrigger className="w-[300px] h-8 text-sm"><SelectValue placeholder={t('tags.selectTag', 'Select tag...')} /></SelectTrigger>
                   <SelectContent>
                     {tags.map((tag) => (<SelectItem key={tag.id} value={tag.id}>{tag.key}: {tag.value}</SelectItem>))}
@@ -433,6 +701,43 @@ export default function TagManagement() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+            {/* Advanced Cost Drill-Down */}
+            {drilldownData && (
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card className="glass border-primary/20">
+                  <CardHeader><CardTitle className="text-sm">Custo por Serviço (Drill-Down)</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {(drilldownData.byService || []).slice(0, 10).map((item) => (
+                        <div key={item.service} className="flex items-center justify-between text-sm">
+                          <span className="truncate">{item.service}</span>
+                          <span className="font-medium tabular-nums">${Number(item.cost).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      {(!drilldownData.byService || drilldownData.byService.length === 0) && (
+                        <p className="text-sm text-muted-foreground text-center py-4">Sem dados de custo por serviço</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="glass border-primary/20">
+                  <CardHeader><CardTitle className="text-sm">Top Recursos por Custo</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {(drilldownData.byResource || []).slice(0, 10).map((item) => (
+                        <div key={item.resourceId} className="flex items-center justify-between text-sm">
+                          <span className="truncate max-w-[200px]">{item.resourceName || item.resourceId}</span>
+                          <span className="font-medium tabular-nums">${Number(item.cost).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      {(!drilldownData.byResource || drilldownData.byResource.length === 0) && (
+                        <p className="text-sm text-muted-foreground text-center py-4">Sem dados de custo por recurso</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
           </TabsContent>
 

@@ -443,3 +443,214 @@ export function useEnrichLegacy() {
     onError: (err: Error) => { toast.error(err.message || 'Erro ao enriquecer atribuições'); },
   });
 }
+
+// ============================================================================
+// Auto-Tagging Rules (Melhoria 1 - Advanced)
+// ============================================================================
+
+export interface TagAutoRule {
+  id: string;
+  name: string;
+  description: string | null;
+  conditions: Record<string, any>;
+  tag_ids: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  last_run_at: string | null;
+  last_run_matched: number | null;
+  last_run_applied: number | null;
+  total_applied: number;
+  created_by: string | null;
+}
+
+export function useAutoRules(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['tags', 'auto-rules'],
+    queryFn: async () => {
+      const res = await apiClient.lambda<TagAutoRule[]>('tag-crud', { action: 'list-auto-rules' });
+      throwIfError(res);
+      return (res as any).data as TagAutoRule[];
+    },
+    retry: false,
+    enabled: options?.enabled ?? false,
+  });
+}
+
+export function useCreateAutoRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { name: string; description?: string; conditions: Record<string, any>; tagIds: string[]; priority?: number }) => {
+      const res = await apiClient.lambda<TagAutoRule>('tag-crud', { action: 'create-auto-rule', ...input });
+      throwIfError(res);
+      return (res as any).data as TagAutoRule;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tags', 'auto-rules'] });
+      toast.success('Regra de auto-tagging criada');
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro ao criar regra'); },
+  });
+}
+
+export function useUpdateAutoRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ruleId, ...input }: { ruleId: string; name?: string; description?: string; conditions?: Record<string, any>; tagIds?: string[]; isActive?: boolean }) => {
+      const res = await apiClient.lambda<TagAutoRule>('tag-crud', { action: 'update-auto-rule', ruleId, ...input });
+      throwIfError(res);
+      return (res as any).data as TagAutoRule;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tags', 'auto-rules'] });
+      toast.success('Regra atualizada');
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro ao atualizar regra'); },
+  });
+}
+
+export function useDeleteAutoRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ruleId: string) => {
+      const res = await apiClient.lambda<any>('tag-crud', { action: 'delete-auto-rule', ruleId });
+      throwIfError(res);
+      return (res as any).data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tags', 'auto-rules'] });
+      toast.success('Regra removida');
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro ao remover regra'); },
+  });
+}
+
+export function useExecuteAutoRules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.lambda<{ rulesExecuted: number; totalAssigned: number }>('tag-crud', { action: 'execute-auto-rules' });
+      throwIfError(res);
+      return (res as any).data;
+    },
+    onSuccess: (data) => {
+      qc.refetchQueries({ queryKey: ['tags'] });
+      toast.success(`${data.rulesExecuted} regras executadas, ${data.totalAssigned} atribuições criadas`);
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro ao executar regras'); },
+  });
+}
+
+// ============================================================================
+// Tag Hierarchy (Melhoria 2 - Advanced)
+// ============================================================================
+
+export interface TagTreeNode {
+  id: string;
+  key: string;
+  value: string;
+  color: string;
+  parent_id: string | null;
+  children: TagTreeNode[];
+}
+
+export function useTagTree(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['tags', 'tree'],
+    queryFn: async () => {
+      const res = await apiClient.lambda<TagTreeNode[]>('tag-crud', { action: 'get-tree' });
+      throwIfError(res);
+      return (res as any).data as TagTreeNode[];
+    },
+    retry: false,
+    enabled: options?.enabled ?? false,
+  });
+}
+
+export function useSetTagParent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tagId, parentId }: { tagId: string; parentId: string | null }) => {
+      const res = await apiClient.lambda<any>('tag-crud', { action: 'set-parent', tagId, parentId });
+      throwIfError(res);
+      return (res as any).data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tags'] });
+      toast.success('Hierarquia atualizada');
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro ao definir hierarquia'); },
+  });
+}
+
+// ============================================================================
+// Merge & Rename (Melhoria 9 - Advanced)
+// ============================================================================
+
+export function useMergeTags() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sourceTagIds, targetTagId }: { sourceTagIds: string[]; targetTagId: string }) => {
+      const res = await apiClient.lambda<{ movedAssignments: number; deletedTags: number }>('tag-crud', { action: 'merge', sourceTagIds, targetTagId });
+      throwIfError(res);
+      return (res as any).data;
+    },
+    onSuccess: (data) => {
+      qc.refetchQueries({ queryKey: ['tags'] });
+      toast.success(`Tags mescladas: ${data.movedAssignments} atribuições movidas, ${data.deletedTags} tags removidas`);
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro ao mesclar tags'); },
+  });
+}
+
+export function useRenameTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tagId, newKey, newValue }: { tagId: string; newKey: string; newValue: string }) => {
+      const res = await apiClient.lambda<any>('tag-crud', { action: 'rename', tagId, newKey, newValue });
+      throwIfError(res);
+      return (res as any).data;
+    },
+    onSuccess: () => {
+      qc.refetchQueries({ queryKey: ['tags'] });
+      toast.success('Tag renomeada');
+    },
+    onError: (err: Error) => { toast.error(err.message || 'Erro ao renomear tag'); },
+  });
+}
+
+// ============================================================================
+// Cost Drill-Down (Melhoria 3 - Advanced)
+// ============================================================================
+
+export interface CostDrilldownResult {
+  tagId: string;
+  totalCost: number;
+  byService: Array<{ service: string; cost: number }>;
+  byResource: Array<{ resourceId: string; resourceName: string | null; cost: number }>;
+  byDay: Array<{ date: string; cost: number }>;
+}
+
+export function useTagCostDrilldown(tagId: string | null, params?: { startDate?: string; endDate?: string; groupBy?: string }) {
+  return useQuery({
+    queryKey: ['tags', 'cost-drilldown', tagId, params],
+    queryFn: async () => {
+      const res = await apiClient.lambda<CostDrilldownResult>('tag-crud', { action: 'cost-drilldown', tagId, ...params });
+      throwIfError(res);
+      return (res as any).data as CostDrilldownResult;
+    },
+    enabled: !!tagId,
+  });
+}
+
+export function useTagCostSparkline(tagId: string | null) {
+  return useQuery({
+    queryKey: ['tags', 'cost-sparkline', tagId],
+    queryFn: async () => {
+      const res = await apiClient.lambda<Array<{ date: string; cost: number }>>('tag-crud', { action: 'cost-sparkline', tagId });
+      throwIfError(res);
+      return (res as any).data as Array<{ date: string; cost: number }>;
+    },
+    enabled: !!tagId,
+  });
+}

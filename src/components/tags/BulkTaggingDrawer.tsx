@@ -1,6 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Package, Tags, CheckCircle2, Loader2, Filter, X, Search, ArrowRight, Info } from 'lucide-react';
+import { Package, Tags, CheckCircle2, Loader2, Filter, X, Search, ArrowRight, Info, ChevronDown, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
   const [tagSearch, setTagSearch] = useState('');
   const [result, setResult] = useState<any>(null);
   const [showAllResources, setShowAllResources] = useState(false);
+  const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
 
   const { data: untaggedData, isLoading: loadingUntagged } = useUntaggedResources({ enabled: open && !showAllResources });
   const { data: allData, isLoading: loadingAll } = useAllResources({ enabled: open && showAllResources });
@@ -75,6 +76,28 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
     });
   }, [resources, resourceSearch, serviceFilter, providerFilter]);
 
+  // Group filtered resources by service type for expandable view
+  const groupedResources = useMemo(() => {
+    const groups = new Map<string, { resources: any[]; totalCost: number; providers: Set<string> }>();
+    filteredResources.forEach((r: any) => {
+      const svc = r.resource_type || r.resource_name || 'Unknown';
+      if (!groups.has(svc)) groups.set(svc, { resources: [], totalCost: 0, providers: new Set() });
+      const g = groups.get(svc)!;
+      g.resources.push(r);
+      g.totalCost += Number(r.total_cost || 0);
+      g.providers.add(r.cloud_provider || 'AWS');
+    });
+    return Array.from(groups.entries())
+      .sort((a, b) => b[1].totalCost - a[1].totalCost)
+      .map(([service, data]) => ({
+        service,
+        resources: data.resources,
+        totalCost: data.totalCost,
+        providers: Array.from(data.providers),
+        count: data.resources.length,
+      }));
+  }, [filteredResources]);
+
   // Filtered tags for step 2
   const filteredTags = useMemo(() => {
     if (!tagSearch) return tags;
@@ -82,13 +105,13 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
     return tags.filter((t) => t.key.toLowerCase().includes(q) || t.value.toLowerCase().includes(q));
   }, [tags, tagSearch]);
 
-  // Melhoria 7: Dominant resource type from selected resources for suggestions
+  // Dominant resource type from selected resources for suggestions
   const dominantResourceType = useMemo(() => {
     if (selectedResourceIds.size === 0) return undefined;
     const typeMap = new Map<string, number>();
     resources.filter((r: any) => selectedResourceIds.has(r.resource_id)).forEach((r: any) => {
-      const t = r.resource_type || r.resource_name || 'unknown';
-      typeMap.set(t, (typeMap.get(t) || 0) + 1);
+      const tp = r.resource_type || r.resource_name || 'unknown';
+      typeMap.set(tp, (typeMap.get(tp) || 0) + 1);
     });
     let max = 0; let dominant = '';
     typeMap.forEach((count, type) => { if (count > max) { max = count; dominant = type; } });
@@ -97,7 +120,6 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
 
   const { data: suggestionsData } = useTagSuggestions({ resourceType: step === 'tags' ? dominantResourceType : undefined });
 
-  // Selected resources with full data (for review and sending to backend)
   const selectedResourcesData = useMemo(() => {
     return resources.filter((r: any) => selectedResourceIds.has(r.resource_id));
   }, [resources, selectedResourceIds]);
@@ -109,6 +131,28 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
       return next;
     });
   }, []);
+
+  const toggleServiceExpand = useCallback((service: string) => {
+    setExpandedServices(prev => {
+      const next = new Set(prev);
+      if (next.has(service)) next.delete(service); else next.add(service);
+      return next;
+    });
+  }, []);
+
+  const toggleServiceSelection = useCallback((service: string, serviceResources: any[]) => {
+    const ids = serviceResources.map((r: any) => r.resource_id);
+    const allSelected = ids.every((id: string) => selectedResourceIds.has(id));
+    setSelectedResourceIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        ids.forEach((id: string) => next.delete(id));
+      } else {
+        ids.forEach((id: string) => next.add(id));
+      }
+      return next;
+    });
+  }, [selectedResourceIds]);
 
   const toggleAll = useCallback(() => {
     const allFilteredIds = filteredResources.map((r: any) => r.resource_id);
@@ -171,12 +215,12 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
     setProviderFilter('all');
     setTagSearch('');
     setShowAllResources(false);
+    setExpandedServices(new Set());
   }, []);
 
   const allFilteredSelected = filteredResources.length > 0 &&
     filteredResources.every((r: any) => selectedResourceIds.has(r.resource_id));
 
-  // Summary of selected resources by service type
   const selectedByService = useMemo(() => {
     const map = new Map<string, number>();
     selectedResourcesData.forEach((r: any) => {
@@ -189,7 +233,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
   const formatCost = (cost: any) => {
     const n = Number(cost);
     if (!n || isNaN(n)) return '-';
-    return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   return (
@@ -226,16 +270,15 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col">
-          {/* STEP 1: Select Resources */}
+          {/* STEP 1: Select Resources — Expandable Service Groups */}
           {step === 'resources' && (
             <div className="flex flex-col h-full">
-              {/* Filters */}
               <div className="px-6 py-3 border-b space-y-3 shrink-0">
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Buscar por nome do recurso..."
+                      placeholder="Buscar por nome, ARN ou ID do recurso..."
                       value={resourceSearch}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setResourceSearch(e.target.value)}
                       className="pl-9 h-9"
@@ -266,10 +309,8 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                     </Select>
                   )}
                 </div>
-                {/* Selection summary bar */}
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
-                    {/* Melhoria 3: Toggle all/untagged */}
                     <div className="flex items-center gap-1 bg-muted/50 rounded-md p-0.5">
                       <button
                         className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${!showAllResources ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
@@ -285,7 +326,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                       </button>
                     </div>
                     <span className="text-muted-foreground">
-                      {filteredResources.length} recursos
+                      {filteredResources.length} recursos em {groupedResources.length} serviços
                       {serviceFilter !== 'all' && (
                         <Badge variant="secondary" className="ml-2 text-xs gap-1">
                           {serviceFilter}
@@ -293,11 +334,6 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                         </Badge>
                       )}
                     </span>
-                    {serviceFilter !== 'all' && (
-                      <Button variant="ghost" size="sm" className="h-6 text-xs text-primary" onClick={() => selectAllOfService(serviceFilter)}>
-                        Selecionar todos deste serviço
-                      </Button>
-                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     {selectedResourceIds.size > 0 && (
@@ -312,7 +348,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                 </div>
               </div>
 
-              {/* Resource table */}
+              {/* Expandable service groups table */}
               <div className="flex-1 overflow-hidden">
                 <ScrollArea className="h-full">
                   {loadingResources ? (
@@ -324,57 +360,113 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                       <TableHeader>
                         <TableRow className="bg-muted/30 sticky top-0">
                           <TableHead className="w-[40px] pl-6">
-                            <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAll} />
+                            <Checkbox checked={allFilteredSelected} onCheckedChange={() => toggleAll()} />
                           </TableHead>
-                          <TableHead>Recurso</TableHead>
-                          <TableHead>Serviço</TableHead>
+                          <TableHead className="w-[32px]"></TableHead>
+                          <TableHead>Serviço / Recurso</TableHead>
                           <TableHead>Provider</TableHead>
                           <TableHead>Conta</TableHead>
                           {showAllResources && <TableHead>Status</TableHead>}
-                          <TableHead className="text-right pr-6">Custo (período)</TableHead>
+                          <TableHead className="text-right pr-6">Custo</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredResources.map((r: any) => {
-                          const isSelected = selectedResourceIds.has(r.resource_id);
+                        {groupedResources.map((group) => {
+                          const isExpanded = expandedServices.has(group.service);
+                          const groupIds = group.resources.map((r: any) => r.resource_id);
+                          const allGroupSelected = groupIds.every((id: string) => selectedResourceIds.has(id));
+                          const someGroupSelected = !allGroupSelected && groupIds.some((id: string) => selectedResourceIds.has(id));
+                          const selectedInGroup = groupIds.filter((id: string) => selectedResourceIds.has(id)).length;
+
                           return (
-                            <TableRow
-                              key={r.resource_id}
-                              className={`cursor-pointer transition-colors ${isSelected ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-accent/50'}`}
-                              onClick={() => toggleResource(r.resource_id)}
-                            >
-                              <TableCell className="pl-6">
-                                <Checkbox checked={isSelected} onCheckedChange={() => toggleResource(r.resource_id)} />
-                              </TableCell>
-                              <TableCell className="font-medium max-w-[300px] truncate">
-                                {r.resource_name || r.resource_id?.split('::')[0] || r.resource_id}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-xs font-normal">
-                                  {r.resource_type || r.resource_name}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="secondary" className="text-xs">{r.cloud_provider || 'AWS'}</Badge>
-                              </TableCell>
-                              <TableCell className="text-xs text-muted-foreground font-mono">
-                                {r.aws_account_id ? `...${String(r.aws_account_id).slice(-8)}` : '-'}
-                              </TableCell>
-                              {showAllResources && (
-                                <TableCell>
-                                  {r.tag_count > 0
-                                    ? <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-600">{r.tag_count} tag{r.tag_count > 1 ? 's' : ''}</Badge>
-                                    : <Badge variant="outline" className="text-[10px] text-muted-foreground">sem tag</Badge>
-                                  }
+                            <Fragment key={group.service}>
+                              {/* Service group header row */}
+                              <TableRow
+                                className={`cursor-pointer transition-colors hover:bg-accent/50 ${allGroupSelected ? 'bg-primary/5' : ''}`}
+                              >
+                                <TableCell className="pl-6" onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={allGroupSelected}
+                                    ref={(el) => { if (el) { (el as any).indeterminate = someGroupSelected; } }}
+                                    onCheckedChange={() => toggleServiceSelection(group.service, group.resources)}
+                                  />
                                 </TableCell>
-                              )}
-                              <TableCell className="text-right pr-6 text-sm tabular-nums">
-                                {formatCost(r.total_cost)}
-                              </TableCell>
-                            </TableRow>
+                                <TableCell className="px-0" onClick={() => toggleServiceExpand(group.service)}>
+                                  {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                                </TableCell>
+                                <TableCell onClick={() => toggleServiceExpand(group.service)}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{group.service}</span>
+                                    <Badge variant="secondary" className="text-xs h-5">
+                                      {selectedInGroup > 0 ? `${selectedInGroup}/` : ''}{group.count}
+                                    </Badge>
+                                  </div>
+                                </TableCell>
+                                <TableCell onClick={() => toggleServiceExpand(group.service)}>
+                                  <div className="flex gap-1">
+                                    {group.providers.map((p) => (
+                                      <Badge key={p} variant="secondary" className="text-xs">{p}</Badge>
+                                    ))}
+                                  </div>
+                                </TableCell>
+                                <TableCell onClick={() => toggleServiceExpand(group.service)} className="text-xs text-muted-foreground">
+                                  {group.count} recurso{group.count > 1 ? 's' : ''}
+                                </TableCell>
+                                {showAllResources && <TableCell onClick={() => toggleServiceExpand(group.service)}></TableCell>}
+                                <TableCell onClick={() => toggleServiceExpand(group.service)} className="text-right pr-6 font-medium tabular-nums">
+                                  {formatCost(group.totalCost)}
+                                </TableCell>
+                              </TableRow>
+
+                              {/* Expanded individual resources */}
+                              {isExpanded && group.resources.map((r: any) => {
+                                const isSelected = selectedResourceIds.has(r.resource_id);
+                                return (
+                                  <TableRow
+                                    key={r.resource_id}
+                                    className={`cursor-pointer transition-colors ${isSelected ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-accent/30'}`}
+                                    onClick={() => toggleResource(r.resource_id)}
+                                  >
+                                    <TableCell className="pl-6" onClick={(e) => e.stopPropagation()}>
+                                      <Checkbox checked={isSelected} onCheckedChange={() => toggleResource(r.resource_id)} />
+                                    </TableCell>
+                                    <TableCell></TableCell>
+                                    <TableCell>
+                                      <div className="pl-4 space-y-0.5">
+                                        <p className="text-sm font-medium truncate max-w-[400px]">
+                                          {r.resource_name || r.resource_id?.split('::')[0] || r.resource_id}
+                                        </p>
+                                        {r.resource_id && r.resource_name !== r.resource_id && (
+                                          <p className="text-xs text-muted-foreground font-mono truncate max-w-[400px]">
+                                            {r.resource_id}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant="secondary" className="text-xs">{r.cloud_provider || 'AWS'}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground font-mono">
+                                      {r.aws_account_id ? `...${String(r.aws_account_id).slice(-8)}` : '-'}
+                                    </TableCell>
+                                    {showAllResources && (
+                                      <TableCell>
+                                        {r.tag_count > 0
+                                          ? <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-600">{r.tag_count} tag{r.tag_count > 1 ? 's' : ''}</Badge>
+                                          : <Badge variant="outline" className="text-[10px] text-muted-foreground">sem tag</Badge>
+                                        }
+                                      </TableCell>
+                                    )}
+                                    <TableCell className="text-right pr-6 text-sm tabular-nums">
+                                      {formatCost(r.total_cost)}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </Fragment>
                           );
                         })}
-                        {filteredResources.length === 0 && !loadingResources && (
+                        {groupedResources.length === 0 && !loadingResources && (
                           <TableRow>
                             <TableCell colSpan={showAllResources ? 7 : 6} className="text-center text-muted-foreground py-16">
                               {resources.length === 0
@@ -410,7 +502,6 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                     className="pl-9 h-9"
                   />
                 </div>
-                {/* Selected tags preview */}
                 {selectedTags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {selectedTags.map((tag) => (
@@ -422,7 +513,6 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                 )}
               </div>
               <ScrollArea className="flex-1 px-6 py-3">
-                {/* Melhoria 7: Suggested tags based on selected resource types */}
                 {suggestionsData && Array.isArray(suggestionsData) && suggestionsData.length > 0 && (
                   <div className="mb-4">
                     <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -494,7 +584,6 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-hidden">
-                {/* Resources by service */}
                 <Card className="glass border-primary/20 flex flex-col overflow-hidden">
                   <CardContent className="p-4 flex flex-col h-full">
                     <p className="text-sm font-medium mb-3">Recursos por serviço</p>
@@ -511,7 +600,6 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
                   </CardContent>
                 </Card>
 
-                {/* Tags to apply */}
                 <Card className="glass border-primary/20 flex flex-col overflow-hidden">
                   <CardContent className="p-4 flex flex-col h-full">
                     <p className="text-sm font-medium mb-3">Tags a aplicar</p>

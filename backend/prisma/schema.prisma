@@ -51,6 +51,7 @@ model Organization {
   demo_mode_audits  DemoModeAudit[]
   tags              Tag[]
   resource_tag_assignments ResourceTagAssignment[]
+  tag_auto_rules    TagAutoRule[]
   
   @@index([demo_mode])
   @@index([status])
@@ -2632,16 +2633,20 @@ model Tag {
   color           String      @db.VarChar(7)
   category        TagCategory @default(CUSTOM)
   description     String?     @db.VarChar(256)
+  parent_id       String?     @db.Uuid
   created_by      String      @db.Uuid
   created_at      DateTime    @default(now()) @db.Timestamptz(6)
   updated_at      DateTime    @updatedAt @db.Timestamptz(6)
 
   organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  parent          Tag?         @relation("TagHierarchy", fields: [parent_id], references: [id], onDelete: SetNull)
+  children        Tag[]        @relation("TagHierarchy")
   assignments     ResourceTagAssignment[]
 
   @@unique([organization_id, key, value], name: "uq_tag_org_key_value")
   @@index([organization_id, category])
   @@index([organization_id, key])
+  @@index([parent_id])
   @@map("tags")
 }
 
@@ -2661,6 +2666,29 @@ model TagPolicy {
 
   @@index([organization_id])
   @@map("tag_policies")
+}
+
+model TagAutoRule {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String   @db.Uuid
+  name              String   @db.VarChar(128)
+  description       String?
+  is_active         Boolean  @default(true)
+  conditions        Json     @default("[]")
+  tag_ids           String[] @db.Uuid
+  last_run_at       DateTime? @db.Timestamptz(6)
+  last_run_matched  Int?     @default(0)
+  last_run_applied  Int?     @default(0)
+  total_applied     Int      @default(0)
+  created_by        String?  @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@index([organization_id])
+  @@index([organization_id, is_active])
+  @@map("tag_auto_rules")
 }
 
 model ResourceTagAssignment {

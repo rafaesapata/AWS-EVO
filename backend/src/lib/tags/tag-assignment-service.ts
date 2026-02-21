@@ -174,101 +174,108 @@ export async function bulkAssign(
   tagIds: string[],
   resources: (string | BulkResourceInput)[]
 ): Promise<PartialSuccessResponse> {
-  // Normalize: accept both string[] (legacy) and BulkResourceInput[]
   const normalizedResources: BulkResourceInput[] = resources.map((r) =>
     typeof r === 'string' ? { resourceId: r } : r
   );
 
   if (normalizedResources.length > MAX_BULK_RESOURCES) {
     return {
-      totalProcessed: 0,
-      assignedCount: 0,
-      skippedCount: 0,
-      failedCount: 0,
+      totalProcessed: 0, assignedCount: 0, skippedCount: 0, failedCount: 0,
       failures: [{ resourceId: '', error: `Maximum ${MAX_BULK_RESOURCES} resources per bulk operation`, code: 'BULK_LIMIT_EXCEEDED' }],
     };
   }
 
   const prisma = getPrismaClient();
   const result: PartialSuccessResponse = {
-    totalProcessed: 0,
-    assignedCount: 0,
-    skippedCount: 0,
-    failedCount: 0,
-    failures: [],
+    totalProcessed: 0, assignedCount: 0, skippedCount: 0, failedCount: 0, failures: [],
   };
 
-  // Verify all tags exist
+  // Verify all tags exist (1 query)
   const tags = await prisma.tag.findMany({
     where: { id: { in: tagIds }, organization_id: organizationId },
   });
   const validTagIds = tags.map((t: any) => t.id);
+  if (validTagIds.length === 0) return result;
 
-  // Process in batches
-  for (let i = 0; i < normalizedResources.length; i += BULK_BATCH_SIZE) {
-    const batch = normalizedResources.slice(i, i + BULK_BATCH_SIZE);
+  const resourceIds = normalizedResources.map(r => r.resourceId);
+  result.totalProcessed = normalizedResources.length * validTagIds.length;
 
-    try {
-      for (const resource of batch) {
-        for (const tagId of validTagIds) {
-          result.totalProcessed++;
+  // Batch query: get ALL existing assignments in one query
+  const existingAssignments = await prisma.resourceTagAssignment.findMany({
+    where: {
+      organization_id: organizationId,
+      tag_id: { in: validTagIds },
+      resource_id: { in: resourceIds },
+    },
+    select: { tag_id: true, resource_id: true },
+  });
+  const existingSet = new Set(existingAssignments.map((a: any) => `${a.tag_id}::${a.resource_id}`));
 
-          try {
-            // Check existing
-            const existing = await prisma.resourceTagAssignment.findUnique({
-              where: {
-                uq_assignment_org_tag_resource: {
-                  organization_id: organizationId,
-                  tag_id: tagId,
-                  resource_id: resource.resourceId,
-                },
-              },
-            });
+  // Batch query: get per-resource tag counts in one query
+  const resourceCounts = await prisma.resourceTagAssignment.groupBy({
+    by: ['resource_id'],
+    where: { organization_id: organizationId, resource_id: { in: resourceIds } },
+    _count: true,
+  });
+  const countMap = new Map(resourceCounts.map((r: any) => [r.resource_id, r._count]));
 
-            if (existing) {
-              result.skippedCount++;
-              continue;
-            }
+  // Build createMany data, skipping existing and over-limit
+  const resourceMap = new Map(normalizedResources.map(r => [r.resourceId, r]));
+  const createData: any[] = [];
 
-            // Check per-resource limit
-            const count = await prisma.resourceTagAssignment.count({
-              where: { organization_id: organizationId, resource_id: resource.resourceId },
-            });
-
-            if (count >= MAX_TAGS_PER_RESOURCE) {
-              result.failedCount++;
-              result.failures.push({
-                resourceId: resource.resourceId,
-                error: `Resource tag limit exceeded (${MAX_TAGS_PER_RESOURCE})`,
-                code: 'RESOURCE_TAG_LIMIT_EXCEEDED',
-              });
-              continue;
-            }
-
-            await prisma.resourceTagAssignment.create({
-              data: {
-                organization_id: organizationId,
-                tag_id: tagId,
-                resource_id: resource.resourceId,
-                resource_type: resource.resourceType || 'unknown',
-                resource_name: resource.resourceName || null,
-                cloud_provider: resource.cloudProvider || 'aws',
-                aws_account_id: resource.awsAccountId || null,
-                azure_credential_id: resource.azureCredentialId || null,
-                assigned_by: userId,
-              },
-            });
-
-            result.assignedCount++;
-          } catch (err: any) {
-            result.failedCount++;
-            result.failures.push({ resourceId: resource.resourceId, error: err.message, code: 'DB_ERROR' });
-          }
-        }
+  for (const tagId of validTagIds) {
+    for (const resource of normalizedResources) {
+      const key = `${tagId}::${resource.resourceId}`;
+      if (existingSet.has(key)) {
+        result.skippedCount++;
+        continue;
       }
-    } catch (err: any) {
-      logger.error('Bulk assign batch error', err);
+      const currentCount = countMap.get(resource.resourceId) || 0;
+      if (currentCount >= MAX_TAGS_PER_RESOURCE) {
+        result.failedCount++;
+        result.failures.push({
+          resourceId: resource.resourceId,
+          error: `Resource tag limit exceeded (${MAX_TAGS_PER_RESOURCE})`,
+          code: 'RESOURCE_TAG_LIMIT_EXCEEDED',
+        });
+        continue;
+      }
+      createData.push({
+        organization_id: organizationId,
+        tag_id: tagId,
+        resource_id: resource.resourceId,
+        resource_type: resource.resourceType || 'unknown',
+        resource_name: resource.resourceName || null,
+        cloud_provider: resource.cloudProvider || 'aws',
+        aws_account_id: resource.awsAccountId || null,
+        azure_credential_id: resource.azureCredentialId || null,
+        assigned_by: userId,
+      });
+      // Track count increase for subsequent iterations
+      countMap.set(resource.resourceId, currentCount + 1);
     }
+  }
+
+  // Batch insert with skipDuplicates (1 query per batch of 500)
+  if (createData.length > 0) {
+    for (let i = 0; i < createData.length; i += 500) {
+      const batch = createData.slice(i, i + 500);
+      try {
+        const created = await prisma.resourceTagAssignment.createMany({
+          data: batch,
+          skipDuplicates: true,
+        });
+        result.assignedCount += created.count;
+      } catch (err: any) {
+        logger.error('Bulk assign batch insert error', { error: err.message, batchSize: batch.length });
+        result.failedCount += batch.length;
+        result.failures.push({ resourceId: '', error: err.message, code: 'BATCH_INSERT_ERROR' });
+      }
+    }
+    // Adjust: some may have been skipped by skipDuplicates
+    const expectedAssigned = createData.length;
+    const actualSkippedByDb = expectedAssigned - result.assignedCount - result.failures.filter(f => f.code === 'BATCH_INSERT_ERROR').length;
+    if (actualSkippedByDb > 0) result.skippedCount += actualSkippedByDb;
   }
 
   // Invalidate cache for all affected tags
