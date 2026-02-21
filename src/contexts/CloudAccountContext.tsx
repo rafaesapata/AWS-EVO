@@ -135,7 +135,7 @@ export function CloudAccountProvider({ children }: { children: React.ReactNode }
   }, [organizationId, prevOrgId, queryClient]);
 
   // Fetch all cloud accounts (AWS + Azure) using unified endpoint
-  const { data: accounts = [], isLoading: accountsLoading, error, refetch } = useQuery({
+  const { data: accounts = [], isLoading: accountsLoading, isFetching: accountsFetching, error, refetch } = useQuery({
     queryKey: ['cloud-accounts', organizationId],
     queryFn: async () => {
       if (!organizationId) return [];
@@ -366,7 +366,7 @@ export function CloudAccountProvider({ children }: { children: React.ReactNode }
     providerFilter,
     setProviderFilter,
     filteredAccounts,
-    isLoading: orgLoading || accountsLoading,
+    isLoading: orgLoading || accountsLoading || (accountsFetching && accounts.length === 0),
     orgLoading,
     error: error as Error | null,
     hasMultipleAccounts,

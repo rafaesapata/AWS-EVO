@@ -32,6 +32,14 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
   const { data: licenseStatus, isLoading: licenseLoading } = useLicenseValidation();
   const { isDemoMode, isLoading: demoLoading, isVerified: demoVerified } = useDemoMode();
   
+  // Track if accounts have ever been successfully loaded to prevent premature redirect
+  const [accountsEverLoaded, setAccountsEverLoaded] = useState(false);
+  useEffect(() => {
+    if (!accountsLoading && !orgLoading && Array.isArray(accounts)) {
+      setAccountsEverLoaded(true);
+    }
+  }, [accountsLoading, orgLoading, accounts]);
+  
   // Safety timeout: if demo verification takes too long (10s), 
   // force demoVerified to true to unblock the UI (non-demo path)
   const [demoTimeout, setDemoTimeout] = useState(false);
@@ -76,6 +84,9 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     // Wait for all async checks to complete
     if (orgLoading || licenseLoading || accountsLoading || demoLoading || error) return;
 
+    // Wait until accounts have been loaded at least once to prevent premature redirect
+    if (!accountsEverLoaded) return;
+
     // Se não tem licença válida, o ProtectedRoute já cuida disso
     if (!licenseStatus?.isValid) return;
 
@@ -106,7 +117,8 @@ export function AwsAccountGuard({ children }: AwsAccountGuardProps) {
     isExemptPath, 
     orgLoading,
     licenseLoading, 
-    accountsLoading, 
+    accountsLoading,
+    accountsEverLoaded,
     demoLoading,
     error, 
     licenseStatus?.isValid, 
