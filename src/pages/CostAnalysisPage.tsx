@@ -836,9 +836,6 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
 
  const content = (
  <div className="space-y-4">
- {/* Tag Filter Bar */}
- <TagFilterBar onFilterChange={handleTagFilterChange} />
-
  {/* Azure first-load banner */}
  {isAzureFirstLoad && (
  <Card className="glass border-blue-300 bg-blue-50/50 dark:bg-blue-950/20">
@@ -907,6 +904,9 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  </div>
  </CardHeader>
  <CardContent className="space-y-4">
+ {/* Tag Filter - applied instantly to items below */}
+ <TagFilterBar onFilterChange={handleTagFilterChange} />
+ 
  {/* Show skeleton for main content area while loading */}
  {isLoading ? mainContentSkeleton : (
  <>

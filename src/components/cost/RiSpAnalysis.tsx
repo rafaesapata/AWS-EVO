@@ -32,9 +32,11 @@ import {
   Server,
   Database,
   Info,
+  HelpCircle,
   LucideIcon
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Constants for recommendation types
 const RECOMMENDATION_TYPES = {
@@ -611,67 +613,109 @@ export const RiSpAnalysis = () => {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Reserved Instances
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{riCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {ri?.active || riCount} ativas
-            </p>
-          </CardContent>
-        </Card>
+      <TooltipProvider>
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+                Reserved Instances
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="p-0.5 cursor-pointer focus:outline-none">
+                      <HelpCircle className="h-4 w-4 text-muted-foreground/50 hover:text-muted-foreground transition-colors" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-sm">Compromissos de capacidade reservada com desconto de até 72% em relação ao preço sob demanda, com prazo de 1 ou 3 anos.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-semibold">{riCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {ri?.active || riCount} ativas
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Savings Plans
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{spCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {sp?.active || spCount} ativos
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+                Savings Plans
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="p-0.5 cursor-pointer focus:outline-none">
+                      <HelpCircle className="h-4 w-4 text-muted-foreground/50 hover:text-muted-foreground transition-colors" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-sm">Planos de economia flexíveis que oferecem descontos de até 66% em troca de um compromisso de uso por hora, aplicável a múltiplos serviços.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-semibold">{spCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {sp?.active || spCount} ativos
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Economia Mensal
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold text-green-600">
-              <CurrencyIndicator className="mr-1" />{sym}{convert((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Economia atual
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+                Economia Mensal
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="p-0.5 cursor-pointer focus:outline-none">
+                      <HelpCircle className="h-4 w-4 text-muted-foreground/50 hover:text-muted-foreground transition-colors" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-sm">Valor total economizado mensalmente com suas Reserved Instances e Savings Plans ativas em comparação ao preço sob demanda.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-semibold text-green-600">
+                <CurrencyIndicator className="mr-1" />{sym}{convert((ri?.totalMonthlySavings || 0) + (sp?.totalMonthlySavings || 0)).toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Economia atual
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Potencial Adicional
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold text-blue-600">
-              {sym}{convert(totalPotentialAnnualSavings / 12).toFixed(2)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {recommendationsCount} recomendações
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+                Potencial Adicional
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="p-0.5 cursor-pointer focus:outline-none">
+                      <HelpCircle className="h-4 w-4 text-muted-foreground/50 hover:text-muted-foreground transition-colors" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-sm">Economia adicional estimada que pode ser obtida seguindo as recomendações de compra de novas RIs ou Savings Plans.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-semibold text-blue-600">
+                {sym}{convert(totalPotentialAnnualSavings / 12).toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {recommendationsCount} recomendações
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </TooltipProvider>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
