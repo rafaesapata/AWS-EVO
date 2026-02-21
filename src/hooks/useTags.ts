@@ -197,6 +197,7 @@ export function useBulkAssign() {
 }
 
 export function useTagSuggestions(params: { resourceType?: string; resourceName?: string; accountId?: string; region?: string }) {
+  const hasResourceType = !!params.resourceType && params.resourceType.length > 0;
   return useQuery({
     queryKey: ['tags', 'suggestions', params],
     queryFn: async () => {
@@ -204,7 +205,8 @@ export function useTagSuggestions(params: { resourceType?: string; resourceName?
       throwIfError(res);
       return (res as any).data;
     },
-    enabled: !!params.resourceType,
+    enabled: hasResourceType,
+    retry: false,
   });
 }
 

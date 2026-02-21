@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Package, Tags, CheckCircle2, Loader2, Filter, X, Search, ArrowRight, Info, ChevronDown, ChevronRight } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -252,6 +252,7 @@ export function BulkTaggingDrawer({ trigger, preFilter }: BulkTaggingDrawerProps
             <Tags className="h-5 w-5" />
             {t('tags.bulkTagging', 'Atribuição de Tags em Massa')}
           </DialogTitle>
+          <DialogDescription className="sr-only">Selecione recursos e tags para atribuição em massa</DialogDescription>
           <div className="flex items-center gap-4 mt-2">
             {(['resources', 'tags', 'review'] as const).map((s, i) => (
               <div key={s} className="flex items-center gap-2">
