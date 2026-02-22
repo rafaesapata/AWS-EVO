@@ -66,10 +66,21 @@ const WAF_LOGS_SCOPED_PERMISSIONS = [
   'logs:PutRetentionPolicy',
 ] as const;
 
+// IAM permissions scoped to EVO-CloudWatch-Logs-Role in the CloudFormation template.
+// enableWafMonitoring → getOrCreateCloudWatchLogsRole needs CreateRole + PutRolePolicy.
+// ensureRegionalTrustPolicy needs UpdateAssumeRolePolicy.
+// Must be simulated with the specific role ARN, not Resource: *.
+const WAF_CW_ROLE_SCOPED_PERMISSIONS = [
+  'iam:CreateRole',
+  'iam:PutRolePolicy',
+  'iam:UpdateAssumeRolePolicy',
+] as const;
+
 const REQUIRED_PERMISSIONS: string[] = [
   ...CORE_PERMISSIONS,
   ...WAF_GLOBAL_PERMISSIONS,
   ...WAF_LOGS_SCOPED_PERMISSIONS,
+  ...WAF_CW_ROLE_SCOPED_PERMISSIONS,
 ];
 
 /** Convert STS assumed-role session ARN to IAM role ARN for SimulatePrincipalPolicy */
@@ -136,9 +147,15 @@ export const handler = safeHandler(async (
     // Separate WAF scoped permissions from global ones for accurate simulation.
     // CloudFormation template scopes logs:* actions to aws-waf-logs-* log groups,
     // so SimulatePrincipalPolicy with Resource: * returns implicitDeny for those.
-    const scopedPermSet = new Set<string>(WAF_LOGS_SCOPED_PERMISSIONS as unknown as string[]);
-    const globalActions = actions.filter(a => !scopedPermSet.has(a));
-    const scopedActions = actions.filter(a => scopedPermSet.has(a));
+    // Similarly, iam:CreateRole/PutRolePolicy/UpdateAssumeRolePolicy are scoped to
+    // the EVO-CloudWatch-Logs-Role ARN in the CF template.
+    const logsPermSet = new Set<string>(WAF_LOGS_SCOPED_PERMISSIONS as unknown as string[]);
+    const cwRolePermSet = new Set<string>(WAF_CW_ROLE_SCOPED_PERMISSIONS as unknown as string[]);
+    const globalActions = actions.filter(a => !logsPermSet.has(a) && !cwRolePermSet.has(a));
+    const logsScopedActions = actions.filter(a => logsPermSet.has(a));
+    const cwRoleScopedActions = actions.filter(a => cwRolePermSet.has(a));
+    
+    const awsAccountId = identityResponse.Account!;
     
     const simulationPromises: Promise<SimulatePolicyResponse>[] = [
       iamClient.send(new SimulatePrincipalPolicyCommand({
@@ -148,14 +165,24 @@ export const handler = safeHandler(async (
       })),
     ];
     
-    if (scopedActions.length > 0) {
-      const awsAccountId = identityResponse.Account!;
+    if (logsScopedActions.length > 0) {
       const logGroupArn = `arn:aws:logs:${AWS_REGION}:${awsAccountId}:log-group:aws-waf-logs-*`;
       simulationPromises.push(
         iamClient.send(new SimulatePrincipalPolicyCommand({
           PolicySourceArn: principalArn,
-          ActionNames: scopedActions,
+          ActionNames: logsScopedActions,
           ResourceArns: [logGroupArn],
+        }))
+      );
+    }
+    
+    if (cwRoleScopedActions.length > 0) {
+      const cwRoleArn = `arn:aws:iam::${awsAccountId}:role/EVO-CloudWatch-Logs-Role`;
+      simulationPromises.push(
+        iamClient.send(new SimulatePrincipalPolicyCommand({
+          PolicySourceArn: principalArn,
+          ActionNames: cwRoleScopedActions,
+          ResourceArns: [cwRoleArn],
         }))
       );
     }

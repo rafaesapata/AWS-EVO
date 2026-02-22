@@ -586,6 +586,7 @@ Resources:
               - 'iam:GetRole'
               - 'iam:CreateRole'
               - 'iam:PutRolePolicy'
+              - 'iam:UpdateAssumeRolePolicy'
             Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/EVO-CloudWatch-Logs-Role'
 
           # WAF Monitoring: Create Service-Linked Role for WAF logging
