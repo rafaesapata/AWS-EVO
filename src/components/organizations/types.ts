@@ -18,6 +18,7 @@ export interface Organization {
   demo_mode?: boolean;
   demo_activated_at?: string | null;
   demo_expires_at?: string | null;
+  cost_overhead_percentage?: number;
 }
 
 export interface OrganizationUser {

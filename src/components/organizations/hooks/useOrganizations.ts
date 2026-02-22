@@ -434,3 +434,55 @@ export function useReleaseSeat(organizationId: string | undefined, onSuccess: ()
     }
   });
 }
+
+// Get cost overhead for an organization
+export function useCostOverhead(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ['cost-overhead', organizationId],
+    queryFn: async () => {
+      const response = await apiClient.invoke<{ cost_overhead_percentage: number }>('manage-cost-overhead', {
+        body: { action: 'get', organizationId }
+      });
+      if ('error' in response && response.error) {
+        throw new Error(getErrorMessage(response.error));
+      }
+      return response.data as { cost_overhead_percentage: number };
+    },
+    enabled: !!organizationId,
+  });
+}
+
+// Update cost overhead mutation
+export function useUpdateCostOverhead(onSuccess?: () => void) {
+  const { toast } = useToast();
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ organizationId, overhead_percentage }: { organizationId: string; overhead_percentage: number }) => {
+      const response = await apiClient.invoke('manage-cost-overhead', {
+        body: { action: 'update', organizationId, overhead_percentage }
+      });
+      if ('error' in response && response.error) {
+        throw new Error(getErrorMessage(response.error));
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: t('organizations.overheadUpdated', 'Overhead atualizado'),
+        description: t('organizations.overheadUpdatedDesc', 'O percentual de overhead foi atualizado com sucesso.'),
+      });
+      queryClient.invalidateQueries({ queryKey: ['cost-overhead'] });
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast({
+        title: t('organizations.overheadError', 'Erro ao atualizar overhead'),
+        description: error instanceof Error ? error.message : t('common.unknownError', 'Erro desconhecido'),
+        variant: "destructive"
+      });
+    }
+  });
+}

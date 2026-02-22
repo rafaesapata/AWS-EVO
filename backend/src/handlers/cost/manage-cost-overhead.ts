@@ -1,15 +1,15 @@
 /**
  * Manage Cost Overhead Handler
  * 
- * GET: Returns the current overhead percentage for an organization
- * PUT: Updates the overhead percentage (super_admin only)
+ * action: 'get' - Returns the current overhead percentage for an organization
+ * action: 'update' - Updates the overhead percentage (super_admin only)
  * 
  * Overhead is applied transparently to all cost responses.
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
 import { success, error, corsOptions } from '../../lib/response.js';
-import { getUserFromEvent, getOrganizationIdWithImpersonation, isSuperAdmin } from '../../lib/auth.js';
+import { getUserFromEvent, isSuperAdmin } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
@@ -40,11 +40,13 @@ export async function handler(
     }
 
     const prisma = getPrismaClient();
-    const method = getHttpMethod(event);
+    const body = event.body ? JSON.parse(event.body) : {};
+    const action = body.action || 'get';
 
     // ========== GET ==========
-    if (method === 'GET') {
-      const organizationId = getOrganizationIdWithImpersonation(event, user);
+    if (action === 'get') {
+      const organizationId = body.organizationId;
+      if (!organizationId) return error('organizationId is required', 400);
 
       const org = await prisma.organization.findUnique({
         where: { id: organizationId },
@@ -58,8 +60,11 @@ export async function handler(
       });
     }
 
-    // ========== PUT ==========
-    const body = event.body ? JSON.parse(event.body) : {};
+    // ========== UPDATE ==========
+    if (action !== 'update') {
+      return error('Invalid action. Use "get" or "update"', 400);
+    }
+
     const parseResult = updateOverheadSchema.safeParse(body);
 
     if (!parseResult.success) {

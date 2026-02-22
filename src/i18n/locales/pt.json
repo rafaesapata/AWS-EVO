@@ -3918,7 +3918,14 @@
     "licenseConfigSaved": "Configuração salva com sucesso.",
     "licenseConfigError": "Erro ao atualizar configuração de licença",
     "noLicenseHint": "Configure o Customer ID acima e sincronize para vincular uma licença",
-    "licenseExpired": "Esta licença está expirada"
+    "licenseExpired": "Esta licença está expirada",
+    "costOverhead": "Overhead de Custos (%)",
+    "costOverheadHelp": "Percentual de acréscimo aplicado sobre todos os custos exibidos para esta organização (0 a 100). Transparente ao usuário final.",
+    "costOverheadPlaceholder": "Ex: 3.50",
+    "overheadUpdated": "Overhead atualizado",
+    "overheadUpdatedDesc": "O percentual de overhead foi atualizado com sucesso.",
+    "overheadError": "Erro ao atualizar overhead",
+    "overheadSaving": "Salvando overhead..."
   },
   "resourceMonitoring": {
     "title": "Monitoramento de Recursos",

@@ -15,9 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, Key, RefreshCw, Settings, CreditCard, Clock, AlertCircle } from "lucide-react";
+import { Building2, Key, RefreshCw, Settings, CreditCard, Clock, AlertCircle, Percent } from "lucide-react";
 import type { Organization } from "../types";
-import { useOrganizationDetails, useUpdateLicenseConfig, useSyncLicense } from "../hooks/useOrganizations";
+import { useOrganizationDetails, useUpdateLicenseConfig, useSyncLicense, useCostOverhead, useUpdateCostOverhead } from "../hooks/useOrganizations";
 
 interface EditOrganizationDialogProps {
   organization: Organization | null;
@@ -42,11 +42,19 @@ export function EditOrganizationDialog({
   const [autoSync, setAutoSync] = useState(true);
   const [licenseConfigDirty, setLicenseConfigDirty] = useState(false);
 
+  // Overhead state
+  const [overheadValue, setOverheadValue] = useState('');
+  const [overheadDirty, setOverheadDirty] = useState(false);
+
   const { data: orgDetails, isLoading: isLoadingDetails } = useOrganizationDetails(organization?.id);
+  const { data: overheadData } = useCostOverhead(organization?.id);
   const updateLicenseConfigMutation = useUpdateLicenseConfig(() => {
     setLicenseConfigDirty(false);
   });
   const syncLicenseMutation = useSyncLicense(organization?.id);
+  const updateOverheadMutation = useUpdateCostOverhead(() => {
+    setOverheadDirty(false);
+  });
 
   // Populate license config from org details
   useEffect(() => {
@@ -61,11 +69,20 @@ export function EditOrganizationDialog({
     }
   }, [orgDetails]);
 
+  // Populate overhead from API
+  useEffect(() => {
+    if (overheadData) {
+      setOverheadValue(String(overheadData.cost_overhead_percentage ?? 0));
+      setOverheadDirty(false);
+    }
+  }, [overheadData]);
+
   if (!organization) return null;
 
   const handleClose = () => {
     setActiveTab('general');
     setLicenseConfigDirty(false);
+    setOverheadDirty(false);
     onClose();
   };
 
@@ -87,6 +104,16 @@ export function EditOrganizationDialog({
   const handleAutoSyncChange = (value: boolean) => {
     setAutoSync(value);
     setLicenseConfigDirty(true);
+  };
+
+  const handleSaveOverhead = () => {
+    if (!organization) return;
+    const value = parseFloat(overheadValue);
+    if (isNaN(value) || value < 0 || value > 100) return;
+    updateOverheadMutation.mutate({
+      organizationId: organization.id,
+      overhead_percentage: Math.round(value * 100) / 100,
+    });
   };
 
   return (
@@ -119,6 +146,11 @@ export function EditOrganizationDialog({
               <GeneralTab
                 organization={organization}
                 onOrganizationChange={onOrganizationChange}
+                overheadValue={overheadValue}
+                onOverheadChange={(v) => { setOverheadValue(v); setOverheadDirty(true); }}
+                onSaveOverhead={handleSaveOverhead}
+                overheadDirty={overheadDirty}
+                overheadSaving={updateOverheadMutation.isPending}
               />
             </TabsContent>
 
@@ -189,13 +221,23 @@ export function EditOrganizationDialog({
 }
 
 
-// General Tab - basic org info editing
+// General Tab - basic org info editing + cost overhead
 function GeneralTab({
   organization,
   onOrganizationChange,
+  overheadValue,
+  onOverheadChange,
+  onSaveOverhead,
+  overheadDirty,
+  overheadSaving,
 }: {
   organization: Organization;
   onOrganizationChange: (org: Organization | null) => void;
+  overheadValue: string;
+  onOverheadChange: (value: string) => void;
+  onSaveOverhead: () => void;
+  overheadDirty: boolean;
+  overheadSaving: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -239,6 +281,46 @@ function GeneralTab({
           onChange={(e) => onOrganizationChange({ ...organization, billing_email: e.target.value })}
         />
       </div>
+
+      <Separator />
+
+      <Card className="glass border-primary/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Percent className="h-4 w-4" />
+            {t('organizations.costOverhead', 'Overhead de Custos (%)')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-end gap-3">
+            <div className="flex-1 space-y-2">
+              <Input
+                id="edit-overhead"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={overheadValue}
+                onChange={(e) => onOverheadChange(e.target.value)}
+                placeholder={t('organizations.costOverheadPlaceholder', 'Ex: 3.50')}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('organizations.costOverheadHelp', 'Percentual de acréscimo aplicado sobre todos os custos exibidos para esta organização (0 a 100). Transparente ao usuário final.')}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={onSaveOverhead}
+              disabled={!overheadDirty || overheadSaving}
+              className="glass hover-glow"
+            >
+              {overheadSaving
+                ? t('organizations.overheadSaving', 'Salvando overhead...')
+                : t('common.saveChanges', 'Salvar')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

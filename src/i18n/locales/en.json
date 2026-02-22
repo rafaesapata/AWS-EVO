@@ -3640,7 +3640,14 @@
     "licenseConfigSaved": "Configuration saved successfully.",
     "licenseConfigError": "Error updating license configuration",
     "noLicenseHint": "Set the Customer ID above and sync to link a license",
-    "licenseExpired": "This license has expired"
+    "licenseExpired": "This license has expired",
+    "costOverhead": "Cost Overhead (%)",
+    "costOverheadHelp": "Percentage markup applied to all costs displayed for this organization (0 to 100). Transparent to the end user.",
+    "costOverheadPlaceholder": "E.g.: 3.50",
+    "overheadUpdated": "Overhead updated",
+    "overheadUpdatedDesc": "The overhead percentage was updated successfully.",
+    "overheadError": "Error updating overhead",
+    "overheadSaving": "Saving overhead..."
   },
   "resourceMonitoring": {
     "title": "Resource Monitoring",
