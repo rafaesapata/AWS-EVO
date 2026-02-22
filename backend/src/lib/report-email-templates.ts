@@ -182,16 +182,20 @@ export function generateSecurityReportHtml(data: ReportEmailData): string {
 
   const comparisonSection = comparison
     ? `${renderComparisonDelta(comparison)}
-       ${renderFindingsSection('Novos Findings', '&#9888;&#65039;', comparison.newFindings, 'Nenhum novo finding identificado neste scan.')}
-       ${renderFindingsSection('Findings Resolvidos', '&#9989;', comparison.resolvedFindings, 'Nenhum finding foi resolvido desde o último scan.')}
        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
          <tr><td style="padding:12px 16px;background-color:${COLORS.bgLight};border-radius:8px;font-size:14px;color:${COLORS.textSecondary};">
            &#128203; <strong>${comparison.persistentCount}</strong> findings persistentes desde o scan anterior
          </td></tr>
+       </table>
+       <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:16px;">
+         <tr><td style="padding:12px 16px;background-color:#e8f4fd;border-radius:8px;border-left:4px solid ${COLORS.ctaButton};font-size:14px;color:${COLORS.textPrimary};">
+           &#128206; O detalhamento completo dos findings está no PDF anexo a este email.
+         </td></tr>
        </table>`
     : `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
          <tr><td style="padding:16px;background-color:#e8f4fd;border-radius:8px;border-left:4px solid ${COLORS.ctaButton};font-size:14px;color:${COLORS.textPrimary};">
-           &#8505;&#65039; Este é o primeiro scan desta conta. A comparação com scans anteriores estará disponível a partir do próximo relatório.
+           &#8505;&#65039; Este é o primeiro scan desta conta. A comparação com scans anteriores estará disponível a partir do próximo relatório.<br><br>
+           &#128206; O detalhamento completo dos findings está no PDF anexo a este email.
          </td></tr>
        </table>`;
 

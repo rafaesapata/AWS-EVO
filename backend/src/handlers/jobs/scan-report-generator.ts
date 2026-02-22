@@ -17,6 +17,8 @@ import { generateSecurityReportHtml, generateReportSubject } from '../../lib/rep
 import type { ScanReport } from '../../lib/report-email-templates.js';
 import { evaluateAlarmConditions } from '../../lib/alarm-evaluator.js';
 import { createEmailService } from '../../lib/email-service.js';
+import { generateReportPdf } from '../../lib/security-engine/report-pdf.js';
+import type { PdfReportInput, PdfFinding, PdfFindingSummary } from '../../lib/security-engine/report-pdf.js';
 
 interface ReportGeneratorPayload {
   scanId: string;
@@ -84,7 +86,8 @@ async function sendReportEmails(
   prisma: ReturnType<typeof getPrismaClient>,
   profiles: RecipientProfile[],
   report: ScanReport,
-  payload: ReportGeneratorPayload
+  payload: ReportGeneratorPayload,
+  currentFindings: DbFinding[]
 ): Promise<void> {
   logger.info('sendReportEmails called', { 
     recipientCount: profiles.length, 
@@ -96,6 +99,47 @@ async function sendReportEmails(
   const emailSubject = generateReportSubject(report);
   logger.info('Generated email subject', { subject: emailSubject });
   
+  // Gerar PDF com detalhamento completo dos findings
+  let pdfBuffer: Buffer | undefined;
+  try {
+    const pdfInput: PdfReportInput = {
+      scanId: payload.scanId,
+      scanType: payload.scanType,
+      organizationName: report.organizationName,
+      accountName: report.accountName,
+      cloudProvider: payload.cloudProvider,
+      executedAt: report.executedAt,
+      summary: report.summary,
+      findings: currentFindings.map((f): PdfFinding => ({
+        severity: f.severity,
+        title: f.title,
+        resourceId: f.resource_id || undefined,
+        category: f.category || undefined,
+      })),
+      comparison: report.comparison ? {
+        newFindings: report.comparison.newFindings.map((f): PdfFindingSummary => ({
+          title: f.title,
+          severity: f.severity,
+          resourceId: f.resourceId,
+          category: f.category,
+        })),
+        resolvedFindings: report.comparison.resolvedFindings.map((f): PdfFindingSummary => ({
+          title: f.title,
+          severity: f.severity,
+          resourceId: f.resourceId,
+          category: f.category,
+        })),
+        persistentCount: report.comparison.persistentCount,
+        changePercentage: report.comparison.changePercentage,
+      } : undefined,
+    };
+    pdfBuffer = await generateReportPdf(pdfInput);
+    logger.info('Generated PDF report', { scanId: payload.scanId, pdfSize: pdfBuffer.length });
+  } catch (pdfErr) {
+    logger.error('Failed to generate PDF report, sending email without attachment', pdfErr as Error, { scanId: payload.scanId });
+  }
+
+  // Gerar HTML (agora só com resumo, sem findings detalhados)
   let emailHtml: string;
   try {
     emailHtml = generateSecurityReportHtml({
@@ -108,6 +152,14 @@ async function sendReportEmails(
     throw templateErr;
   }
 
+  // Montar attachment do PDF
+  const dateStr = new Date().toISOString().split('T')[0];
+  const attachments = pdfBuffer ? [{
+    filename: `relatorio-seguranca-${dateStr}.pdf`,
+    content: pdfBuffer,
+    contentType: 'application/pdf',
+  }] : undefined;
+
   for (const profile of profiles) {
     let messageId: string | undefined;
     let emailStatus = 'sent';
@@ -119,6 +171,7 @@ async function sendReportEmails(
         to: { email: profile.email, name: profile.full_name || undefined },
         subject: emailSubject,
         htmlBody: emailHtml,
+        attachments,
         tags: { type: 'scan_report', scan_id: payload.scanId },
       });
       messageId = result.messageId;
@@ -409,7 +462,7 @@ export async function handler(event: any, _context: LambdaContext): Promise<{ st
     if (allRecipients.length === 0) {
       logger.warn('No recipients with email enabled for organization (all fallbacks exhausted)', { organizationId });
     } else {
-      await sendReportEmails(prisma, allRecipients, report, payload);
+      await sendReportEmails(prisma, allRecipients, report, payload, currentFindings);
       logger.info('Report emails processed', { scanId, recipientCount: allRecipients.length, additionalCount: additionalProfiles.length });
     }
 
