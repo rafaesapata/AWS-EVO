@@ -15,7 +15,7 @@ import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '..
 import { success, error, corsOptions, safeHandler } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
-import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.js';
+import { resolveAwsCredentials, toAwsCredentials, invalidateAssumeRoleCache } from '../../lib/aws-helpers.js';
 import { logger } from '../../lib/logger.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { 
@@ -1138,6 +1138,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   // PutLoggingConfiguration requires AWSServiceRoleForWAFV2Logging to exist.
   // Without it, WAF returns AccessDeniedException (misleading error).
   logger.info('WAF setup step 2.7: ensuring WAF SLR exists', { organizationId });
+  let slrMissing = false; // Track if SLR is confirmed missing and could not be created
   try {
     const iamClient = new IAMClient({ region: 'us-east-1', credentials });
     await iamClient.send(new GetRoleCommand({ RoleName: 'AWSServiceRoleForWAFV2Logging' }));
@@ -1158,11 +1159,13 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
         if (createErr.name === 'InvalidInputException' && createErr.message?.includes('already exists')) {
           logger.info('WAF SLR already exists (race condition)');
         } else if (isAccessDenied(createErr)) {
-          logger.warn('Cannot create WAF SLR (missing iam:CreateServiceLinkedRole permission), continuing anyway...', {
+          slrMissing = true;
+          logger.warn('Cannot create WAF SLR (missing iam:CreateServiceLinkedRole permission)', {
             error: createErr.message,
           });
         } else {
-          logger.warn('Failed to create WAF SLR (non-critical)', { error: createErr.message });
+          slrMissing = true;
+          logger.warn('Failed to create WAF SLR', { error: createErr.message });
         }
       }
     } else if (isAccessDenied(slrErr)) {
@@ -1170,6 +1173,17 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     } else {
       logger.warn('Failed to check WAF SLR (non-critical)', { error: slrErr.message });
     }
+  }
+
+  // If SLR is confirmed missing and could not be created, fail fast instead of
+  // wasting ~25s on 5 retries that will all fail with AccessDeniedException.
+  if (slrMissing) {
+    throw createPermissionError(
+      `The WAF Service-Linked Role (AWSServiceRoleForWAFV2Logging) does not exist in the customer account ` +
+      `and the IAM role is missing the iam:CreateServiceLinkedRole permission to create it. ` +
+      `Without this role, WAF logging cannot be enabled. ` +
+      `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`
+    );
   }
 
   // Wait for resource policy propagation before attempting PutLoggingConfiguration
@@ -1238,7 +1252,8 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
       
       if (isAccessDenied(putLoggingLastErr)) {
         throw createPermissionError(
-          `The IAM role is missing the wafv2:PutLoggingConfiguration permission required to enable WAF logging. ` +
+          `The IAM role is missing the wafv2:PutLoggingConfiguration permission required to enable WAF logging, ` +
+          `or the WAF Service-Linked Role (AWSServiceRoleForWAFV2Logging) does not exist. ` +
           `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`
         );
       }
@@ -1606,6 +1621,21 @@ async function handleTestSetup(
     steps.push({ step: 'put-resource-policy', status: 'fail', detail: `${err.name}: ${err.message}` });
   }
 
+  // Test WAF Service-Linked Role (SLR) — required for PutLoggingConfiguration
+  try {
+    const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+    await iamClient.send(new GetRoleCommand({ RoleName: 'AWSServiceRoleForWAFV2Logging' }));
+    steps.push({ step: 'waf-slr', status: 'ok', detail: 'AWSServiceRoleForWAFV2Logging exists' });
+  } catch (slrErr: any) {
+    if (slrErr.name === 'NoSuchEntityException') {
+      steps.push({ step: 'waf-slr', status: 'fail', detail: 'AWSServiceRoleForWAFV2Logging does not exist. The IAM role needs iam:CreateServiceLinkedRole permission to create it.' });
+    } else if (isAccessDenied(slrErr)) {
+      steps.push({ step: 'waf-slr', status: 'fail', detail: 'Cannot check SLR: missing iam:GetRole permission' });
+    } else {
+      steps.push({ step: 'waf-slr', status: 'fail', detail: `${slrErr.name}: ${slrErr.message}` });
+    }
+  }
+
   // Test WAF logging config — actually test PutLoggingConfiguration permission
   const logDestination = `arn:aws:logs:${wafRegion}:${customerAwsAccountId}:log-group:${logGroupName}`;
   try {
@@ -1773,8 +1803,28 @@ async function handleListWafs(
             AccountName: account.account_name,
           })));
         }
-      } catch (err) {
-        logger.warn('Failed to list CLOUDFRONT WAFs', { error: err, account: acctLabel });
+      } catch (err: any) {
+        // If token is invalid, invalidate cache and retry once
+        if (err.name === 'UnrecognizedClientException' || err.__type === 'UnrecognizedClientException') {
+          logger.warn('Invalid STS token for CLOUDFRONT WAFs, invalidating cache and retrying', { account: acctLabel });
+          invalidateAssumeRoleCache(account.role_arn || undefined);
+          try {
+            const retryCreds = await resolveAwsCredentials(account, 'us-east-1');
+            const retryCredentials = toAwsCredentials(retryCreds);
+            const retryWafClient = new WAFV2Client({ region: 'us-east-1', credentials: retryCredentials });
+            const cloudfrontWafs = await retryWafClient.send(new ListWebACLsCommand({ Scope: 'CLOUDFRONT' }));
+            if (cloudfrontWafs.WebACLs) {
+              allWebAcls.push(...cloudfrontWafs.WebACLs.map(waf => ({
+                ...waf, Scope: 'CLOUDFRONT', Region: 'global',
+                AccountId: account.account_id || account.id, AccountName: account.account_name,
+              })));
+            }
+          } catch (retryErr) {
+            logger.warn('Retry also failed for CLOUDFRONT WAFs', { error: retryErr, account: acctLabel });
+          }
+        } else {
+          logger.warn('Failed to list CLOUDFRONT WAFs', { error: err, account: acctLabel });
+        }
       }
     } catch (err) {
       logger.warn('Failed to get credentials for us-east-1 (CLOUDFRONT WAFs)', { error: err, account: acctLabel });
@@ -1807,7 +1857,14 @@ async function handleListWafs(
         if (result.status === 'fulfilled' && result.value.length > 0) {
           allWebAcls.push(...result.value);
         } else if (result.status === 'rejected') {
-          logger.warn('Failed to scan region for WAFs', { error: result.reason, account: acctLabel });
+          const err = result.reason;
+          // If token is invalid on first region batch, invalidate cache (will get fresh creds on next batch)
+          if (err?.name === 'UnrecognizedClientException' || err?.__type === 'UnrecognizedClientException') {
+            logger.warn('Invalid STS token scanning region, invalidating cache', { error: err?.message, account: acctLabel });
+            invalidateAssumeRoleCache(account.role_arn || undefined);
+          } else {
+            logger.warn('Failed to scan region for WAFs', { error: result.reason, account: acctLabel });
+          }
         }
       }
     }

@@ -49,6 +49,10 @@ const WAF_GLOBAL_PERMISSIONS = [
   'wafv2:ListWebACLs',
   'logs:PutResourcePolicy',
   'logs:DescribeResourcePolicies',
+  // IAM permissions needed for WAF Service-Linked Role (SLR) management.
+  // Without the SLR, PutLoggingConfiguration fails with a misleading AccessDeniedException.
+  'iam:GetRole',
+  'iam:CreateServiceLinkedRole',
 ] as const;
 
 // WAF log permissions scoped to aws-waf-logs-* log groups in the CloudFormation template.
