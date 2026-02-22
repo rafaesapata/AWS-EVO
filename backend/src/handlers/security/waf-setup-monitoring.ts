@@ -947,7 +947,10 @@ async function validateWafPermissions(
       iamClient.send(new SimulatePrincipalPolicyCommand({
         PolicySourceArn: roleArn,
         ActionNames: GLOBAL_PERMISSIONS,
-        ResourceArns: ['*'],
+        // Do NOT pass ResourceArns for global permissions — SimulatePrincipalPolicy
+        // interprets ResourceArns: ['*'] as a literal ARN match, not a wildcard.
+        // Omitting ResourceArns simulates without resource context, which correctly
+        // evaluates policies that use Resource: '*'.
       })),
       iamClient.send(new SimulatePrincipalPolicyCommand({
         PolicySourceArn: roleArn,
@@ -1715,7 +1718,7 @@ async function handleTestSetup(
       const logGroupArn = `arn:aws:logs:${wafRegion}:${customerAwsAccountId}:log-group:aws-waf-logs-*`;
       const [globalResult, scopedResult] = await Promise.all([
         iamClient.send(new SimulatePrincipalPolicyCommand({
-          PolicySourceArn: roleArn, ActionNames: GLOBAL_PERMISSIONS, ResourceArns: ['*'],
+          PolicySourceArn: roleArn, ActionNames: GLOBAL_PERMISSIONS,
         })),
         iamClient.send(new SimulatePrincipalPolicyCommand({
           PolicySourceArn: roleArn, ActionNames: LOGS_SCOPED_PERMISSIONS, ResourceArns: [logGroupArn],
