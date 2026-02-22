@@ -28,11 +28,15 @@ export function TagFilterBar({ onFilterChange, syncWithUrl = true, showCloudFilt
     return [];
   });
 
-  // Only fetch tags when popover is open (lazy) to avoid 404s when Lambdas not deployed
-  const { data: tagData } = useTagList({ search: debouncedSearch || undefined, limit: 30, enabled: open });
+  // Check if URL has tag filters that need initial sync
+  const urlTagIds = syncWithUrl ? searchParams.get('tags') : null;
+  const needsUrlSync = urlTagIds && selectedTags.length === 0;
+
+  // Fetch tags when popover is open OR when URL has tags that need syncing
+  const { data: tagData } = useTagList({ search: debouncedSearch || undefined, limit: 30, enabled: open || !!needsUrlSync });
   const tags = tagData?.tags || [];
 
-  // Sync from URL on mount
+  // Sync from URL on mount — also call onFilterChange so parent gets the IDs
   useEffect(() => {
     if (!syncWithUrl) return;
     const urlTags = searchParams.get('tags');
@@ -41,6 +45,7 @@ export function TagFilterBar({ onFilterChange, syncWithUrl = true, showCloudFilt
       const matched = tags.filter((t) => ids.includes(t.id));
       if (matched.length > 0 && matched.length !== selectedTags.length) {
         setSelectedTags(matched);
+        onFilterChange(matched.map((t) => t.id));
       }
     }
   }, [syncWithUrl, searchParams, tags]); // eslint-disable-line react-hooks/exhaustive-deps
