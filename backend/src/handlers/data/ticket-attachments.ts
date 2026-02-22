@@ -14,7 +14,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
-const S3_BUCKET = process.env.TICKET_ATTACHMENTS_BUCKET || 'evo-uds-v3-ticket-attachments';
+const S3_BUCKET = process.env.TICKET_ATTACHMENTS_BUCKET;
 const S3_REGION = process.env.AWS_REGION || 'us-east-1';
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const PRESIGNED_URL_EXPIRY = 3600; // 1 hour
@@ -115,6 +115,11 @@ export async function handler(
     const action = body.action;
 
     logger.info(`Ticket attachments action: ${action}`, { userId: user.sub, organizationId });
+
+    if (!S3_BUCKET) {
+      logger.error('TICKET_ATTACHMENTS_BUCKET environment variable is not configured');
+      return error('Storage not configured. Please contact support.', 500, undefined, origin);
+    }
 
     // ==================== REQUEST UPLOAD URL ====================
     

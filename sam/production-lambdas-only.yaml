@@ -46,6 +46,10 @@ Globals:
         AWS_SES_ACCESS_KEY_ID: !Ref SesAccessKeyId
         AWS_SES_SECRET_ACCESS_KEY: !Ref SesSecretAccessKey
         REDIS_URL: !Ref RedisUrl
+        TICKET_ATTACHMENTS_BUCKET: !If
+          - HasTicketAttachmentsBucket
+          - !Ref TicketAttachmentsBucket
+          - !Sub '${ProjectName}-${Environment}-attachments-${AWS::AccountId}'
     Layers:
       - !Ref DependenciesLayer
 Parameters:
@@ -128,6 +132,12 @@ Parameters:
     Description: MemoryDB/Redis connection string (rediss://host:port)
     Default: ''
     NoEcho: false
+  TicketAttachmentsBucket:
+    Type: String
+    Description: S3 bucket name for ticket attachments
+    Default: ''
+Conditions:
+  HasTicketAttachmentsBucket: !Not [!Equals [!Ref TicketAttachmentsBucket, '']]
 Resources:
   # ==========================================================================
   # LAMBDA LAYER - Prisma + zod (AWS SDK bundled by esbuild)
