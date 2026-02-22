@@ -13,7 +13,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "invoke": "tsx scripts/invoke-local.ts"
   },
   "dependencies": {
     "@aws-sdk/client-accessanalyzer": "^3.958.0",
