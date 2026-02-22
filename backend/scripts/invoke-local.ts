@@ -36,7 +36,14 @@ import { resolve, join } from 'path';
 import { config } from 'dotenv';
 import { randomUUID } from 'crypto';
 
-// Load backend/.env
+// Load env files
+// If --tunnel flag is present, load .env.tunnel first (overrides DATABASE_URL)
+const hasTunnel = process.argv.includes('--tunnel') || process.argv.includes('-t');
+if (hasTunnel) {
+  config({ path: resolve(__dirname, '../.env.tunnel'), override: true });
+}
+
+// Load backend/.env (won't override if already set by .env.tunnel)
 config({ path: resolve(__dirname, '../.env') });
 
 // Also load root .env for extra vars
@@ -87,6 +94,7 @@ Options:
   --user          JSON string com claims customizados
   --no-auth       Sem autenticação (handlers públicos)
   --header, -H    Header extra (ex: -H 'X-Custom: value')
+  --tunnel, -t    Usar .env.tunnel (DB via SSH tunnel, porta 5433)
   --verbose, -v   Output detalhado
   --help, -h      Mostra esta ajuda
 `);
@@ -135,6 +143,9 @@ Options:
       }
       case '--verbose': case '-v':
         result.verbose = true;
+        break;
+      case '--tunnel': case '-t':
+        // Already handled before arg parsing
         break;
     }
   }

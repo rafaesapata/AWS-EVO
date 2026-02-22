@@ -13,6 +13,7 @@ build/
 # Prisma
 prisma/migrations/
 .env
+.env.tunnel
 
 # Testing
 coverage/

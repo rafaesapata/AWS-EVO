@@ -71,36 +71,26 @@ Carrega automaticamente de `backend/.env` e `.env` (root). Pode sobrescrever:
 
 ## DB Tunnel (acesso ao RDS de produção)
 
-O RDS está em VPC privada. Para testar handlers com DB real, use o SSM tunnel via bastion:
-
-### Setup (uma vez)
-
-1. Instalar Session Manager plugin: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
-2. Deploy do bastion (se ainda não existe):
-```bash
-aws cloudformation deploy \
-  --template-file cloudformation/bastion-ssm-stack.yaml \
-  --stack-name evo-uds-v3-production-bastion \
-  --parameter-overrides \
-    Environment=production \
-    VpcId=<VPC_ID> \
-    PublicSubnetId=<PUBLIC_SUBNET_ID> \
-    DatabaseSecurityGroupId=<DB_SG_ID> \
-  --capabilities CAPABILITY_NAMED_IAM
-```
+O RDS está em VPC privada. Para testar handlers com DB real, use SSH tunnel via bastion existente:
 
 ### Uso diário
 
 ```bash
-# Terminal 1: abrir tunnel
-./backend/scripts/db-tunnel.sh production
+# Terminal 1: abrir tunnel (porta 5433 local → RDS produção)
+./backend/scripts/db-tunnel.sh
 
 # Terminal 2: invocar handler com DB real
-DATABASE_URL="postgresql://evoadmin:<password>@localhost:5432/evouds?schema=public" \
-npx tsx backend/scripts/invoke-local.ts security/waf-dashboard-api --body '{"action":"events"}'
+npx tsx backend/scripts/invoke-local.ts monitoring/health-check -m GET --tunnel
+
+# Ou qualquer handler
+npx tsx backend/scripts/invoke-local.ts security/waf-dashboard-api --body '{"action":"events"}' --tunnel
 ```
 
-O bastion é um `t4g.nano` ARM (~$3/mês), sem SSH, sem portas abertas — usa SSM Session Manager.
+A flag `--tunnel` carrega `backend/.env.tunnel` que aponta DATABASE_URL para `localhost:5433`.
+
+### Pré-requisitos
+- Key SSH em `~/.ssh/evo-production-bastion.pem` (ou definir `BASTION_KEY=/path/to/key.pem`)
+- Bastion: `i-00d8aa3ee551d4215` (t3.micro, IP `44.213.112.31`)
 
 ## Limitações
 

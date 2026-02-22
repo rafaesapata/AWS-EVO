@@ -1,17 +1,15 @@
 #!/bin/bash
 # =============================================================================
-# EVO DB Tunnel — SSM port forwarding para RDS via bastion
+# EVO DB Tunnel — SSH port forwarding para RDS via bastion existente
 #
 # Pré-requisitos:
-#   1. AWS CLI v2 instalado
-#   2. Session Manager plugin: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
-#   3. Credenciais AWS configuradas (~/.aws/credentials ou env vars)
-#   4. Bastion stack deployada (cloudformation/bastion-ssm-stack.yaml)
+#   1. Key pair ~/.ssh/evo-production-bastion.pem (ou path via $BASTION_KEY)
+#   2. AWS CLI v2 com profile EVO_PRODUCTION configurado
 #
 # Uso:
 #   ./backend/scripts/db-tunnel.sh              # production (default)
-#   ./backend/scripts/db-tunnel.sh sandbox      # sandbox
-#   ./backend/scripts/db-tunnel.sh production 5433  # porta local customizada
+#   ./backend/scripts/db-tunnel.sh 5433         # porta local customizada
+#   BASTION_KEY=~/keys/bastion.pem ./backend/scripts/db-tunnel.sh
 #
 # Depois de conectar, em outro terminal:
 #   DATABASE_URL="postgresql://evoadmin:<password>@localhost:5432/evouds?schema=public" \
@@ -20,56 +18,44 @@
 
 set -e
 
-ENV="${1:-production}"
-LOCAL_PORT="${2:-5432}"
-PROJECT="evo-uds-v3"
+LOCAL_PORT="${1:-5432}"
+BASTION_IP="44.213.112.31"
+BASTION_USER="ec2-user"
+BASTION_KEY="${BASTION_KEY:-$HOME/.ssh/evo-production-bastion.pem}"
+RDS_HOST="evo-uds-v3-production-postgres.cib8kysoo015.us-east-1.rds.amazonaws.com"
+RDS_PORT="5432"
 
-echo "🔍 Buscando bastion instance para ${PROJECT}-${ENV}..."
-
-INSTANCE_ID=$(aws ec2 describe-instances \
-  --filters "Name=tag:Name,Values=${PROJECT}-${ENV}-ssm-bastion" \
-            "Name=instance-state-name,Values=running" \
-  --query 'Reservations[0].Instances[0].InstanceId' \
-  --output text 2>/dev/null)
-
-if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
-  echo "❌ Bastion não encontrado. Deploy a stack primeiro:"
+# Verificar key
+if [ ! -f "$BASTION_KEY" ]; then
+  echo "❌ Key não encontrada: $BASTION_KEY"
   echo ""
-  echo "   aws cloudformation deploy \\"
-  echo "     --template-file cloudformation/bastion-ssm-stack.yaml \\"
-  echo "     --stack-name ${PROJECT}-${ENV}-bastion \\"
-  echo "     --parameter-overrides \\"
-  echo "       Environment=${ENV} \\"
-  echo "       VpcId=<VPC_ID> \\"
-  echo "       PublicSubnetId=<PUBLIC_SUBNET_ID> \\"
-  echo "       DatabaseSecurityGroupId=<DB_SG_ID> \\"
-  echo "     --capabilities CAPABILITY_NAMED_IAM"
+  echo "   Opções:"
+  echo "   1. Copie a key para ~/.ssh/evo-production-bastion.pem"
+  echo "   2. Ou defina: BASTION_KEY=/path/to/key.pem ./backend/scripts/db-tunnel.sh"
   echo ""
   exit 1
 fi
 
-echo "✅ Bastion: ${INSTANCE_ID}"
-
-# Detectar RDS endpoint
-if [ "$ENV" = "production" ]; then
-  RDS_HOST="evo-uds-v3-production-postgres.cib8kysoo015.us-east-1.rds.amazonaws.com"
-else
-  RDS_HOST="evo-uds-v3-sandbox-postgres.cib8kysoo015.us-east-1.rds.amazonaws.com"
+# Verificar permissões da key
+KEY_PERMS=$(stat -f "%Lp" "$BASTION_KEY" 2>/dev/null || stat -c "%a" "$BASTION_KEY" 2>/dev/null)
+if [ "$KEY_PERMS" != "400" ] && [ "$KEY_PERMS" != "600" ]; then
+  echo "⚠️  Corrigindo permissões da key..."
+  chmod 400 "$BASTION_KEY"
 fi
 
-echo "🔗 Tunnel: localhost:${LOCAL_PORT} → ${RDS_HOST}:5432"
+echo "🔗 Tunnel: localhost:${LOCAL_PORT} → ${RDS_HOST}:${RDS_PORT}"
+echo "   Via bastion: ${BASTION_USER}@${BASTION_IP}"
 echo ""
 echo "📋 Em outro terminal, use:"
-echo "   DATABASE_URL=\"postgresql://evoadmin:<password>@localhost:${LOCAL_PORT}/evouds?schema=public\""
-echo ""
-echo "   Ou para invoke-local:"
 echo "   DATABASE_URL=\"postgresql://evoadmin:<password>@localhost:${LOCAL_PORT}/evouds?schema=public\" \\"
 echo "   npx tsx backend/scripts/invoke-local.ts <handler> [options]"
 echo ""
 echo "🛑 Ctrl+C para encerrar o tunnel"
 echo ""
 
-aws ssm start-session \
-  --target "$INSTANCE_ID" \
-  --document-name AWS-StartPortForwardingSessionToRemoteHost \
-  --parameters "{\"host\":[\"${RDS_HOST}\"],\"portNumber\":[\"5432\"],\"localPortNumber\":[\"${LOCAL_PORT}\"]}"
+ssh -N -L "${LOCAL_PORT}:${RDS_HOST}:${RDS_PORT}" \
+  -i "$BASTION_KEY" \
+  -o StrictHostKeyChecking=no \
+  -o ServerAliveInterval=60 \
+  -o ServerAliveCountMax=3 \
+  "${BASTION_USER}@${BASTION_IP}"
